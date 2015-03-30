@@ -1,0 +1,12 @@
+max_level       10
+threshold       0.01
+optimize_grid   2       ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
+const_bathymetry        F
+Hmin    50              ! ignored if const_bathymetry is true
+eta     1e-3
+alpha   1e-1
+dt_write 30 ! days
+CP_EVERY 4  ! checkpointing/rebalancing interval
+time_end 2000 ! days     
+resume  -1
+BATHY_PER_DEG 30

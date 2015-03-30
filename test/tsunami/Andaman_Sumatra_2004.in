@@ -1,0 +1,17 @@
+max_level	12
+threshold	0.01
+optimize_grid	2	! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
+const_bathymetry	F	
+Hmin	50		! ignored if const_bathymetry is true
+eta	1e-3
+alpha	1e-3
+time_end	36	! hours
+resume  -1
+IC_file 'Andaman_Sumatra_2004_IC'
+LON_MIN  85.185
+LON_MAX 104.815
+LAT_MIN  -2
+LAT_MAX  15
+BATHY_PER_DEG 30
+OKADA_DIM(1) 1179
+OKADA_DIM(2) 1080

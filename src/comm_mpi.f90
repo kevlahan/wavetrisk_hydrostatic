@@ -1,0 +1,795 @@
+module comm_mpi_mod
+  use domain_mod
+  use comm_mod
+  implicit none
+  type(int_Array) recv_buf_i, send_buf_i
+  type(float_Array) recv_buf, send_buf
+  integer, allocatable :: send_lengths(:), send_offsets(:)
+  integer, allocatable :: recv_lengths(:), recv_offsets(:)
+  real(8) times(2)
+  integer nreq
+  integer, allocatable :: req(:)
+  integer, allocatable :: stat_ray(:,:)
+
+contains
+  subroutine init_comm_mpi()
+      allocate(send_lengths(n_process), send_offsets(n_process))
+      allocate(recv_lengths(n_process), recv_offsets(n_process))
+      allocate(req(2*n_process))
+      allocate(stat_ray(MPI_STATUS_SIZE,2*n_process))
+      call init_comm()
+      call comm_communication_mpi()
+  end subroutine
+
+  integer function write_active_per_level()
+  ! write out distribution of active nodes over levels
+      integer l, n_full, fillin, n_lev_cur
+      integer, dimension(2*(level_end-level_start+1)) :: n_active_all_loc, n_active_all_glo
+      integer, dimension(level_start:level_end) :: n_active_per_lev
+      integer recommanded_level_start
+      real(8) dt
+
+      dt = cpt_dt_mpi() ! to set n_active_*
+      n_lev_cur = level_end - level_start + 1
+      n_active_all_loc = (/n_active_height(level_start:level_end), n_active_velo(level_start:level_end)/)
+      call MPI_Allreduce(n_active_all_loc, n_active_all_glo, n_lev_cur*2, &
+                         MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+      n_active_height(level_start:level_end) = n_active_all_glo(1:n_lev_cur)
+      n_active_velo(level_start:level_end)  = n_active_all_glo(n_lev_cur+1:n_lev_cur*2)
+      n_active_per_lev = n_active_velo(level_start:level_end) + n_active_height(level_start:level_end)
+      if (rank .eq. 0) write(*,'(6X,A,A,3(1X,A))') '   N_p   ', '   N_u   ','of all active', 'of full level', 'fill-in'
+      recommanded_level_start = level_start
+      do l = level_start, level_end
+          n_full = max_nodes_per_level(l) + max_nodes_per_level(l,EDGE)
+          ! fill-in: additional nodes on level `l` if it'd become lowest level 
+          ! minus the nodes on lower levels which would be removed
+          fillin = n_full-n_active_per_lev(l)-sum(n_active_per_lev(level_start:l-1))
+          if (rank .eq. 0) write(*,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
+                  'lev', l, n_active_height(l), n_active_velo(l), &
+                  float(n_active_per_lev(l))/float(sum(n_active(S_HEIGHT:S_VELO)))*100.0, '%', &
+                  float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
+                  fillin, float(fillin)/float(sum(n_active(S_HEIGHT:S_VELO)))*100.0, '%'
+          if (fillin .le. 0) recommanded_level_start = l
+      end do
+      if (rank .eq. 0) write(*,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(S_HEIGHT:S_VELO), 100.0, '%', &
+                  float(sum(n_active(S_HEIGHT:S_VELO)))/float(n_full)*100.0, '%', &
+                  n_full/sum(n_active(S_HEIGHT:S_VELO))
+      write_active_per_level = recommanded_level_start
+  end function
+
+  subroutine write_load_conn(id)
+      ! write out load distribution and connectivity for load balancing
+      integer id
+      character(5+4) filename
+      integer r, fid
+      fid = 599
+      write(filename, '(A,I4.4)')  "conn.", id
+      do r = 1, n_process
+          if (r .ne. rank+1) then ! write only if our turn, otherwise only wait at Barrier
+              call MPI_Barrier(MPI_Comm_World, ierror)
+              cycle 
+          end if
+          if (r .eq. 1) then ! first process opens without append to delete old file if existing
+              open(unit=fid, file=filename, recl=333333)
+          else
+              open(unit=fid, file=filename, recl=333333, access='APPEND')
+          end if
+          call write_load_conn1(fid)
+          close(fid)
+          call MPI_Barrier(MPI_Comm_World, ierror)
+      end do
+  end subroutine
+
+  subroutine get_load_balance(mini,avg,maxi)
+      integer d, load, mini, load_sum, maxi
+      real(8) avg
+      load = 0
+      do d = 1, size(grid)
+          load = load + domain_load(grid(d))
+      end do
+      call MPI_Reduce(load, maxi, 1, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_WORLD, ierror)
+      call MPI_Reduce(load, mini, 1, MPI_INTEGER, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
+      call MPI_Reduce(load, load_sum, 1, MPI_INTEGER, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
+      avg = dble(load_sum)/dble(n_process)
+  end subroutine
+
+  subroutine print_load_balance()
+      integer load_min, load_max
+      real(8) rel_imbalance, load_avg
+      call get_load_balance(load_min, load_avg, load_max)
+      rel_imbalance = dble(load_max)/load_avg
+      if (rank .eq. 0) write(*,*) 'min load, average load, max load:', load_min, load_avg, load_max
+      if (rank .eq. 0) write(*,*) 'relative imbalance (1=perfect balance)', rel_imbalance
+  end subroutine
+
+  subroutine write_level_mpi(out_rout, fid, l, eval_pole)
+      external out_rout
+      integer fid, l
+      character(5+6) filename
+      integer r
+      logical eval_pole
+      write(filename,   '(A,I6)')  "fort.", fid
+      do r = 1, n_process
+          if (r .ne. rank+1) then ! write only if our turn, otherwise only wait at Barrier
+              call MPI_Barrier(MPI_Comm_World, ierror)
+              cycle 
+          end if
+          if (r .eq. 1) then ! first process opens without append to delete old file if existing
+              open(unit=fid, file=filename)
+          else
+              open(unit=fid, file=filename, access='APPEND')
+          end if
+          if (eval_pole) call apply_to_pole(out_rout, l, fid, .False.)
+          call apply_onescale__int(out_rout, l, 0, 0, fid)
+          close(fid)
+          call MPI_Barrier(MPI_Comm_World, ierror)
+      end do
+  end subroutine
+
+  subroutine init_comm_mpi_mod()
+      call init(send_buf_i, 0)
+      call init(recv_buf_i, 0) 
+      call init(send_buf, 0)
+      call init(recv_buf, 0) 
+  end subroutine init_comm_mpi_mod
+
+  subroutine comm_communication_mpi()
+    call alltoall_dom(unpack_comm_struct, 4)
+
+    call comm_communication()
+
+    call recreate_send_patch_lists()
+  end subroutine
+
+  subroutine recreate_send_patch_lists()
+      integer l, r, d, k, p, s, n, typ, d_neigh, i
+
+      do l = level_start, level_end
+        do d = 1, size(grid)
+          do r = 1, n_process
+              grid(d)%src_patch(r,l)%length = 0
+          end do
+          do k = 1, grid(d)%lev(l)%length
+              p = grid(d)%lev(l)%elts(k)
+              do s = 1, N_BDRY
+                  n = grid(d)%patch%elts(p+1)%neigh(s)
+                  if (n .ge. 0) cycle
+                  n = -n
+                  typ = grid(d)%bdry_patch%elts(n+1)%side
+                  if (typ .lt. 1) cycle
+                  d_neigh = grid(d)%neigh(typ)
+                  if (d_neigh .eq. POLE) then
+                      do i = 1, 2
+                          call handle_neigh(grid(d), grid(d)%neigh_over_pole(i))
+                      end do
+                  else if (d_neigh .eq. NONE) then
+                      cycle
+                  else
+                      call handle_neigh(grid(d), d_neigh)
+                  end if
+              end do
+          end do
+        end do
+      end do
+  contains
+      subroutine handle_neigh(dom, d0)
+          type(Domain) dom
+          integer d0, r0
+          r0 = owner(d0+1) + 1
+          if (r0 .eq. rank+1) return
+          if (dom%src_patch(r0,l)%length .gt. 0) then
+              ! skip if just added
+              if (dom%src_patch(r0,l)%elts(dom%src_patch(r0,l)%length) .eq. p) return
+          end if
+          call append(dom%src_patch(r0,l), p)
+      end subroutine
+  end subroutine
+
+  subroutine alltoall_dom(unpack_rout, N)
+      external unpack_rout
+      integer N, src, dest
+      integer r_src, r_dest, d_src, d_dest, i, k, length, st(N)
+      send_buf_i%length = 0 ! reset
+      do r_dest = 1, n_process ! destination for inter process communication
+          send_offsets(r_dest) = send_buf_i%length
+          do d_src = 1, n_domain(rank+1)
+              if (r_dest .eq. rank+1) cycle ! TODO communicate inside domain
+              do d_dest = 1, n_domain(r_dest)
+                  src = d_src
+                  dest = glo_id(r_dest,d_dest)+1
+                  call append(send_buf_i, grid(src)%send_conn(dest)%length)
+                  do i = 1, grid(src)%send_conn(dest)%length
+                      call append(send_buf_i, grid(src)%send_conn(dest)%elts(i))
+                  end do
+                  grid(src)%send_conn(dest)%length = 0
+              end do
+          end do
+          send_lengths(r_dest) = send_buf_i%length - send_offsets(r_dest)
+      end do
+
+      call alltoall()
+
+      i = 1
+      do r_src = 1, n_process
+          if (r_src .eq. rank+1) cycle ! inside domain
+          do d_src = 1, n_domain(r_src)
+              do d_dest = 1, n_domain(rank+1)
+                  length = recv_buf_i%elts(i); i = i + 1
+                  do k = 1, length, N
+                      st = recv_buf_i%elts(i+0:i+(N-1))
+                      call unpack_rout(grid(d_dest), glo_id(r_src,d_src), st(1), st(2), st(3), st(4))
+                      i = i + N
+                  end do
+              end do
+          end do
+      end do
+  end subroutine
+
+  subroutine check_alltoall_lengths()
+      integer test_recv_len(n_process)
+
+      call MPI_Alltoall(send_lengths, 1, MPI_INTEGER, &
+                        test_recv_len, 1, MPI_INTEGER, &
+                        MPI_COMM_WORLD, ierror)
+    write(3000+rank,*) &
+      test_recv_len-recv_lengths
+
+      close(3000+rank)
+              call MPI_Barrier(MPI_Comm_World, ierror)
+  end subroutine
+
+  subroutine alltoall()
+    integer i
+      call MPI_Alltoall(send_lengths, 1, MPI_INTEGER, &
+                        recv_lengths, 1, MPI_INTEGER, &
+                        MPI_COMM_WORLD, ierror)
+      recv_offsets(1) = 0
+      do i = 2, n_process
+          recv_offsets(i) = recv_offsets(i-1) + recv_lengths(i-1)
+      end do
+      recv_buf_i%length = sum(recv_lengths)
+      if (size(recv_buf_i%elts) .lt. recv_buf_i%length) then
+          deallocate(recv_buf_i%elts)
+          allocate(recv_buf_i%elts(recv_buf_i%length))
+      end if
+      call MPI_Alltoallv(send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
+                         recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, &
+                         MPI_COMM_WORLD, ierror)
+  end subroutine
+
+  subroutine comm_masks_mpi(l)
+      integer l
+      integer r_dest, r_src, d_src, d_dest, dest, id, i, kk
+      send_buf_i%length = 0 ! reset
+      do r_dest = 1, n_process ! destination for inter process communication
+          send_offsets(r_dest) = send_buf_i%length
+          do d_src = 1, n_domain(rank+1)
+              if (r_dest .eq. rank+1) cycle ! TODO communicate inside domain
+              do d_dest = 1, n_domain(r_dest)
+                  dest = glo_id(r_dest,d_dest)+1
+                  do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
+                      id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
+                      if (l .eq. NONE .or. l .eq. grid(d_src)%level%elts(id+1)) then
+                          call append(send_buf_i, grid(d_src)%mask_p%elts(abs(id)+1))
+                      end if
+                  end do
+                  do i = 1, grid(d_src)%pack(AT_EDGE,dest)%length
+                      id = grid(d_src)%pack(AT_EDGE,dest)%elts(i)
+                      if (l .eq. NONE .or. l .eq. grid(d_src)%level%elts(id/EDGE+1)) then
+                          call append(send_buf_i, grid(d_src)%mask_u%elts(abs(id)+1))
+                      end if
+                  end do
+              end do
+          end do
+          send_lengths(r_dest) = send_buf_i%length - send_offsets(r_dest)
+      end do
+      ! determine recv buff lengths
+      recv_buf_i%length = 0
+      do r_src = 1, n_process 
+          recv_offsets(r_src) = recv_buf_i%length
+          do d_src = 1, n_domain(r_src)
+              if (r_src .eq. rank+1) cycle 
+              do d_dest = 1, n_domain(rank+1)
+                  do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
+                      id = abs(grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i))
+                      if (l .eq. NONE .or. l .eq. grid(d_dest)%level%elts(id+1)) &
+                          recv_buf_i%length = recv_buf_i%length + 1
+                  end do
+                  do i = 1, grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%length
+                      id = abs(grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%elts(i))
+                      if (l .eq. NONE .or. l .eq. grid(d_dest)%level%elts(id/EDGE+1)) &
+                          recv_buf_i%length = recv_buf_i%length + 1
+                  end do
+              end do
+          end do
+          recv_lengths(r_src) = recv_buf_i%length - recv_offsets(r_src)
+      end do
+      if (size(recv_buf_i%elts) .lt. recv_buf_i%length) then
+          deallocate(recv_buf_i%elts)
+          allocate(recv_buf_i%elts(recv_buf_i%length))
+      end if
+
+!     call check_alltoall_lengths()
+      call MPI_Alltoallv(send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
+                         recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, &
+                         MPI_COMM_WORLD, ierror)
+      ! communicate inside domain
+      call comm_masks()
+      kk = 0
+      do r_src = 1, n_process 
+          if (r_src .eq. rank+1) cycle ! inside domain
+          do d_src = 1, n_domain(r_src)
+              do d_dest = 1, n_domain(rank+1)
+                  do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
+                      id = grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i)
+                      if (l .eq. NONE .or. l .eq. grid(d_dest)%level%elts(abs(id)+1)) then
+                          kk = kk + 1
+                          grid(d_dest)%mask_p%elts(abs(id)+1) = recv_buf_i%elts(kk)
+                      end if
+                  end do
+                  do i = 1, grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%length
+                      id = grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%elts(i)
+                      if (l .eq. NONE .or. l .eq. grid(d_dest)%level%elts(abs(id)/EDGE+1)) then
+                          kk = kk + 1
+                          grid(d_dest)%mask_u%elts(abs(id)+1) = recv_buf_i%elts(kk)
+                      end if
+                  end do
+              end do
+          end do
+      end do
+  end subroutine
+
+  subroutine update_bdry1(field, l_start, l_end)
+      type(Float_Field) :: field
+      integer l_start, l_end
+      call update_bdry__start1(field, l_start, l_end)
+      call update_bdry__finish1(field, l_start, l_end)
+  end subroutine
+  
+  subroutine update_bdry(field, l)
+      type(Float_Field) :: field
+      integer l
+      call update_bdry__start(field, l)
+      call update_bdry__finish(field, l)
+  end subroutine
+  
+  subroutine update_bdry__start(field, l)
+      type(Float_Field) :: field
+      integer l
+      if (l .eq. NONE) then 
+          call update_bdry__start1(field, level_start-1, level_end)
+      else
+          call update_bdry__start1(field, l, l)
+      endif
+  end subroutine
+
+  subroutine update_bdry__start1(field, l_start, l_end)
+      type(Float_Field) :: field
+      integer l_start, l_end
+      integer r_dest, r_src, d_src, d_dest, dest, id, i, k, r
+      integer multipl, lev
+      if (field%bdry_uptodate) return
+      if (field%pos .eq. AT_NODE) then
+          multipl = 1
+      else
+          multipl = EDGE
+      end if
+      send_buf%length = 0 ! reset
+      do r_dest = 1, n_process ! destination for inter process communication
+          send_offsets(r_dest) = send_buf%length
+          do d_src = 1, n_domain(rank+1)
+              if (r_dest .eq. rank+1) cycle ! TODO communicate inside domain
+              do d_dest = 1, n_domain(r_dest)
+                  dest = glo_id(r_dest,d_dest)+1
+                  do i = 1, grid(d_src)%pack(field%pos,dest)%length
+                      id = grid(d_src)%pack(field%pos,dest)%elts(i)
+                      lev = grid(d_src)%level%elts(id/multipl+1)
+                      if (l_start .le. lev .and. lev .le. l_end) then
+                          call append(send_buf, field%data(d_src)%elts(id+1))
+                      end if
+                  end do
+              end do
+          end do
+          send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+      end do
+      ! determine recv buff lengths
+      recv_buf%length = 0
+      do r_src = 1, n_process 
+          recv_offsets(r_src) = recv_buf%length
+          do d_src = 1, n_domain(r_src)
+              if (r_src .eq. rank+1) cycle 
+              do d_dest = 1, n_domain(rank+1)
+                  do i = 1, grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%length
+                      id = abs(grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%elts(i))
+                      lev = grid(d_dest)%level%elts(id/multipl+1)
+                      if (l_start .le. lev .and. lev .le. l_end) then
+                          recv_buf%length = recv_buf%length + 1
+                      end if
+                  end do
+              end do
+          end do
+          recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+      end do
+      if (size(recv_buf%elts) .lt. recv_buf%length) then
+          deallocate(recv_buf%elts)
+          allocate(recv_buf%elts(recv_buf%length))
+      end if
+
+      ! Post all receives first
+      nreq = 0
+      do r = 1, n_process
+          if (r .eq. rank+1 .or. recv_lengths(r) .eq. 0) cycle
+          nreq = nreq + 1
+          call MPI_irecv(recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
+                    r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+      end do
+      do r = 1, n_process
+          if (r .eq. rank+1 .or. send_lengths(r) .eq. 0) cycle
+          nreq = nreq + 1
+          call MPI_isend(send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
+                    r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+      end do
+
+      ! communicate inside domain
+      call cp_bdry_inside(field)
+  end subroutine
+
+  subroutine update_bdry__finish(field, l)
+      type(Float_Field) :: field
+      integer l
+      if (l .eq. NONE) then 
+          call update_bdry__finish1(field, level_start-1, level_end)
+      else
+          call update_bdry__finish1(field, l, l)
+      endif
+  end subroutine
+
+  subroutine update_bdry__finish1(field, l_start, l_end)
+      type(Float_Field) :: field
+      integer l_start, l_end
+      integer r_dest, r_src, d_src, d_dest, dest, id, i, k
+      integer multipl, lev
+      if (field%bdry_uptodate) return
+      if (field%pos .eq. AT_NODE) then
+          multipl = 1
+      else
+          multipl = EDGE
+      end if
+      k = 0
+      call MPI_Waitall(nreq, req, stat_ray, ierror)
+      do r_src = 1, n_process 
+          if (r_src .eq. rank+1) cycle ! inside domain
+          do d_src = 1, n_domain(r_src)
+              do d_dest = 1, n_domain(rank+1)
+                  do i = 1, grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%length
+                      id = grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%elts(i)
+                      lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
+                      if (l_start .le. lev .and. lev .le. l_end) then
+                          k = k + 1
+                          field%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
+                          if (id .lt. 0 .and. field%pos .eq. S_VELO) &
+                              field%data(d_dest)%elts(abs(id)+1) = &
+                                      -field%data(d_dest)%elts(abs(id)+1)
+                      end if
+                  end do
+              end do
+          end do
+      end do
+      ! assumes routine is either called for one level, or all levels ever to be updated
+      if (l_start .lt. l_end) field%bdry_uptodate = .True.
+  end subroutine
+
+  subroutine comm_nodes9_mpi(get, set, l)
+      external get, set
+      real(8), dimension(7) :: val
+      integer l
+      integer r_dest, r_src, d_src, d_dest, dest, id, i, k
+      send_buf%length = 0 ! reset
+      do r_dest = 1, n_process ! destination for inter process communication
+          send_offsets(r_dest) = send_buf%length
+          do d_src = 1, n_domain(rank+1)
+              if (r_dest .eq. rank+1) cycle 
+              do d_dest = 1, n_domain(r_dest)
+                  dest = glo_id(r_dest,d_dest)+1
+                  do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
+                      id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
+                      k = send_buf%length
+                      call extend(send_buf, 7, 0._8)
+                      call get(grid(d_src), id, val)
+                      send_buf%elts(k+1:k+7) = val
+                  end do
+              end do
+          end do
+          send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+      end do
+      ! determine recv buff lengths
+      recv_buf%length = 0
+      do r_src = 1, n_process 
+          recv_offsets(r_src) = recv_buf%length
+          do d_src = 1, n_domain(r_src)
+              if (r_src .eq. rank+1) cycle 
+              do d_dest = 1, n_domain(rank+1)
+                  do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
+                      recv_buf%length = recv_buf%length + 7
+                  end do
+              end do
+          end do
+          recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+      end do
+      if (size(recv_buf%elts) .lt. recv_buf%length) then
+          deallocate(recv_buf%elts)
+          allocate(recv_buf%elts(recv_buf%length))
+      end if
+
+      call MPI_Alltoallv(send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
+                         recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
+                         MPI_COMM_WORLD, ierror)
+      call comm_nodes9(get, set) ! communicate inside domain
+      k = 0
+      do r_src = 1, n_process 
+          if (r_src .eq. rank+1) cycle ! inside domain
+          do d_src = 1, n_domain(r_src)
+              do d_dest = 1, n_domain(rank+1)
+                  do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
+                      id = grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i)
+                      call set(grid(d_dest), id, recv_buf%elts(k+1:k+7))
+                      k = k + 7
+                  end do
+              end do
+          end do
+      end do
+  end subroutine
+
+  subroutine comm_nodes3_mpi(get, set, l)
+      external get, set
+      type(Coord) get
+      integer l
+      integer r_dest, r_src, d_src, d_dest, dest, id, i, k
+      type(Coord) c
+      send_buf%length = 0 ! reset
+      do r_dest = 1, n_process ! destination for inter process communication
+          send_offsets(r_dest) = send_buf%length
+          do d_src = 1, n_domain(rank+1)
+              if (r_dest .eq. rank+1) cycle ! TODO communicate inside domain
+              do d_dest = 1, n_domain(r_dest)
+                  dest = glo_id(r_dest,d_dest)+1
+                  do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
+                      id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
+                      c = get(grid(d_src), id)
+                      k = send_buf%length
+                      call extend(send_buf, 3, 0._8)
+                      send_buf%elts(k+1:k+3) = (/c%x, c%y, c%z/)
+                  end do
+              end do
+          end do
+          send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+      end do
+      ! determine recv buff lengths
+      recv_buf%length = 0
+      do r_src = 1, n_process 
+          recv_offsets(r_src) = recv_buf%length
+          do d_src = 1, n_domain(r_src)
+              if (r_src .eq. rank+1) cycle 
+              do d_dest = 1, n_domain(rank+1)
+                  do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
+                      recv_buf%length = recv_buf%length + 3
+                  end do
+              end do
+          end do
+          recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+      end do
+      if (size(recv_buf%elts) .lt. recv_buf%length) then
+          deallocate(recv_buf%elts)
+          allocate(recv_buf%elts(recv_buf%length))
+      end if
+
+      call MPI_Alltoallv(send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
+                         recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
+                         MPI_COMM_WORLD, ierror)
+      call comm_nodes3(get, set) ! communicate inside domain
+      k = 0
+      do r_src = 1, n_process 
+          if (r_src .eq. rank+1) cycle ! inside domain
+          do d_src = 1, n_domain(r_src)
+              do d_dest = 1, n_domain(rank+1)
+                  do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
+                      id = grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i)
+                      c%x = recv_buf%elts(k+1) 
+                      c%y = recv_buf%elts(k+2) 
+                      c%z = recv_buf%elts(k+3) 
+                      call set(grid(d_dest), id, c)
+                      k = k + 3
+                  end do
+              end do
+          end do
+      end do
+  end subroutine
+
+  subroutine comm_patch_conn_mpi()
+      integer r_src, r_dest, d_src, d_dest, i, b, c, p, s, d_glo, k, rot
+      integer d, st(4), ngh_pa, typ, l_par
+      integer rot_shift
+      logical is_pole
+      send_buf_i%length = 0 ! reset
+      do r_dest = 1, n_process ! destination for inter process communication
+          send_offsets(r_dest) = send_buf_i%length
+          do d_src = 1, n_domain(rank+1)
+              if (r_dest .eq. rank+1) exit ! inside domain
+              do d_dest = 1, n_domain(r_dest)
+                  do i = 1, grid(d_src)%send_pa_all%length, 4
+                      b = grid(d_src)%send_pa_all%elts(0+i)
+                      c = grid(d_src)%send_pa_all%elts(1+i)
+                      p = grid(d_src)%send_pa_all%elts(2+i)
+                      s = grid(d_src)%send_pa_all%elts(3+i)
+                      typ = grid(d_src)%bdry_patch%elts(b+1)%side
+                      d_glo = grid(d_src)%neigh(typ) ! 0 ...
+                      is_pole = d_glo .eq. POLE
+                      if (is_pole) then
+                          d_glo = grid(d_src)%neigh_over_pole(c+1)
+                          l_par = grid(d_src)%patch%elts(p+1)%level - 1
+                          if (grid(d_src)%neigh_pa_over_pole%length .lt. l_par*2 + c + 1) then
+                              ngh_pa = 0
+                          else
+                              ngh_pa = grid(d_src)%neigh_pa_over_pole%elts(l_par*2 + c + 1)
+                          end if
+                      else
+                          ngh_pa = grid(d_src)%bdry_patch%elts(b+1)%neigh
+                      end if
+                      ! also skips if dest .eq. 0
+                      if (ngh_pa .ne. 0 .and. d_glo .eq. glo_id(r_dest,d_dest)) then 
+                          rot = grid(d_src)%neigh_rot(typ)
+                          rot_shift = (rot_direction(grid(d_src), typ)*2 - 1)*rot
+                          call append(send_buf_i, d_dest)
+                          call append(send_buf_i, glo_id(rank+1,d_src))
+                          call append(send_buf_i, p)
+                          if (is_pole) then
+                              call append(send_buf_i, c)
+                          else
+                              call append(send_buf_i, modulo(c + rot_shift, 4))
+                          end if
+                          call append(send_buf_i, ngh_pa)
+                          if (is_pole) then
+                              call append(send_buf_i, s)
+                          else
+                              call append(send_buf_i, modulo(s + rot_shift + 2, 4) + 4*(s/4))
+                          end if
+                      end if
+                  end do
+              end do
+          end do
+          send_lengths(r_dest) = send_buf_i%length - send_offsets(r_dest)
+      end do
+
+      call alltoall()
+
+      call comm_patch_conn()
+
+      do r_src = 1, n_process
+          if (r_src .eq. rank+1) cycle ! inside domain
+          do k = recv_offsets(r_src) + 1, recv_offsets(r_src) + recv_lengths(r_src), 6
+                  d = recv_buf_i%elts(k)
+                  d_src = recv_buf_i%elts(k+1)+1
+                  st = recv_buf_i%elts(k+2:k+5)
+                  call append(grid(d)%recv_pa(d_src), st(1))
+                  call append(grid(d)%recv_pa(d_src), st(2))
+                  call append(grid(d)%recv_pa(d_src), st(3))
+                  call append(grid(d)%recv_pa(d_src), st(4))
+          end do
+      end do
+  end subroutine
+
+  real(8) function cpt_dt_mpi()
+    integer l, ierror
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    real(8) loc_min, glo_min
+    integer i, j
+    integer d, p, n_active_loc(2), n_active_glo(2), n_level_glo
+    dt = 1.0e16_8
+    fd = 1.0e16_8
+    n_active_height = 0
+    n_active_velo = 0
+    do l = level_start, level_end
+        call apply_onescale(min_dt, l, 0, 0)
+    end do
+
+    loc_min = dt
+    call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
+                       MPI_COMM_WORLD, ierror)
+    cpt_dt_mpi = glo_min
+    if (penalize) cpt_dt_mpi = min(cpt_dt_mpi, 2.0_8/ieta)
+
+    ! on error stop without a mess (everyone must call finalize)
+    if (glo_min .le. 0) then
+        if (rank .eq. 0) write(0,*)  "ERROR: Negative timestep"
+        call finalize(); stop
+    end if
+
+    loc_min = fd
+    call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
+                       MPI_COMM_WORLD, ierror)
+    fd = glo_min
+
+    if (fd .le. 0 .and. .not. advect_only) then
+        ! only rank(s) where error occurs print(s)
+        if (loc_min .le. 0) write(0,*)  "ERROR: Full depth is negative. Coord:", where_error
+        ! extra message so we know where we stoped if something really strange went wrong
+        ! and last message does not get printed
+        if (rank .eq. 0) write(0,*)  "ERROR ABORT" 
+        call finalize(); stop
+    end if
+
+    n_active_loc = (/sum(n_active_height(level_start:level_end)), sum(n_active_velo(level_start:level_end))/)
+    call MPI_Allreduce(n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, &
+                       MPI_COMM_WORLD, ierror)
+    n_active = n_active_glo
+
+    call MPI_Allreduce(level_end, n_level_glo, 1, MPI_INTEGER, MPI_MAX, &
+                       MPI_COMM_WORLD, ierror)
+    level_end = n_level_glo
+
+  end function
+
+  integer function sync_max(val)
+    integer val_glo
+    integer val
+    call MPI_Allreduce(val, val_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
+    sync_max = val_glo
+  end function
+
+  real(8) function sync_max_d(val)
+    real(8) val_glo
+    real(8) val
+    call MPI_Allreduce(val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+    sync_max_d = val_glo
+  end function
+
+  real(8) function sum_real(val)
+    real(8) val_glo
+    real(8) val
+    call MPI_Allreduce(val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierror)
+    sum_real = val_glo
+  end function
+
+  subroutine start_timing()
+    times(1) = MPI_Wtime()  
+  end subroutine
+
+  subroutine stop_timing()
+    times(2) = MPI_Wtime()  
+  end subroutine
+
+  real(8) function get_timing()
+    get_timing = times(2) - times(1)
+  end function
+
+  subroutine sync(in, inout, len, type)
+      real in(len), inout(len)
+      integer len, type
+      where (in .ne. sync_val) inout = in
+  end subroutine
+
+  subroutine sync_array(arr, N)
+    real arr(N)
+    integer N
+    integer myop
+    real garr(N)
+    call MPI_Op_create(sync, .True., myop, ierror)  
+    call MPI_Reduce(arr, garr, N, MPI_REAL, myop, 0, MPI_COMM_WORLD, ierror)
+    if (rank .eq. 0) arr(1:N) = garr(1:N)
+  end subroutine
+
+  subroutine stop_and_record_timings(id)
+  ! use like:
+  !call stop_and_record_timings(6500); call start_timing()
+  !call stop_and_record_timings(6501); call start_timing()
+    real(8) time_loc, time_max, time_min, time_sum
+    integer id
+    call stop_timing()
+    time_loc = get_timing()
+    call MPI_Reduce(time_loc, time_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Reduce(time_loc, time_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Reduce(time_loc, time_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
+    if (rank .eq. 0) write(id,*) time_max, time_min, time_sum
+  end subroutine
+end module

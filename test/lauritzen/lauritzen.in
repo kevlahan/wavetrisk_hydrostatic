@@ -1,0 +1,4 @@
+max_level	7
+threshold	0.004
+time_end	5 ! 12 days
+dt_write	0.5 ! 24 h

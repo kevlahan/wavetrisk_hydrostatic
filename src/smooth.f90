@@ -1,0 +1,184 @@
+module smooth_mod
+  use shared_mod
+  use geom_mod
+  use domain_mod
+  use init_mod
+  use comm_mpi_mod
+  implicit none
+  real(8) maxerror, l2error
+  type(Coord), allocatable :: sums(:,:)
+
+contains
+  subroutine init_smooth_mod()
+      logical :: initialized = .False.
+      if (initialized) return ! initialize only once
+      call init_shared_mod()
+      call init_sphere_mod()
+      call init_domain_mod()
+      initialized = .True.
+  end subroutine init_smooth_mod
+
+  subroutine Xu_smooth_cpt(dom, i, j, offs, dims)
+      type(Domain) dom
+      integer i
+      integer j
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,9) :: dims
+      type(Coord) s
+      type(Coord) p_i
+      integer n
+      type(Coord) p_j
+      type(Coord) p_ip
+      type(Coord) p_im
+      type(Coord) v1
+      type(Coord) v2
+      real(8) cosalpha
+      real(8) cosbeta
+      real(8) alpha
+      real(8) beta
+      type(Coord) v
+      real(8) t
+      call init_Coord(s, 0.0_8, 0.0_8, 0.0_8)
+      p_i = dom%node%elts(idx(i, j, offs, dims) + 1)
+      if (i .eq. 0 .and. j .eq. 0 .and. dom%penta(SOUTHWEST)) then ! penta 
+          sums(idx(i,j,offs,dims)+1,dom%id+1) = p_i !project_on_sphere(s)
+          return
+      end if
+      do n = 1, 6
+          p_j = dom%node%elts(idx2(i, j, nghb_pt(:,n), offs, dims) + 1)
+          p_ip = dom%node%elts(idx2(i, j, nghb_pt(:,modulo(n, 6) + 1), offs, &
+                  dims) + 1)
+          p_im = dom%node%elts(idx2(i, j, nghb_pt(:,modulo(n - 2, 6) + 1), &
+                  offs, dims) + 1)
+          v1 = vector(p_im, p_j)
+          v2 = vector(p_im, p_i)
+          cosalpha = inner(v1, v2)/(norm(v1)*norm(v2))
+          v1 = vector(p_ip, p_j)
+          v2 = vector(p_ip, p_i)
+          cosbeta = inner(v1, v2)/(norm(v1)*norm(v2))
+          alpha = acos(cosalpha)
+          beta = acos(cosbeta)
+          v = vector(p_j, p_i)
+          t = 1.0_8/tan(alpha) + (1.0_8/tan(beta))
+          s%x = s%x + v%x*t
+          s%y = s%y + v%y*t
+          s%z = s%z + v%z*t
+      end do
+      sums(idx(i,j,offs,dims)+1,dom%id+1) = project_on_sphere(s)
+  end subroutine
+
+  subroutine smooth_Xu(toll)
+      real(8) toll
+      integer k
+      call comm_nodes3_mpi(get_coord, set_coord, NONE)
+      call apply_onescale2(ccentre, level_end-1, -2, 1)
+      call apply_onescale2(midpt, level_end-1, -1, 1)
+      maxerror = 0.0_8
+      l2error = 0.0_8
+      call  apply_onescale(check_d, level_end-1, 0, 0)
+      l2error = sqrt(sum_real(l2error))
+      maxerror = sync_max_d(maxerror)
+      if (rank .eq. 0) write(*,*) 'grid quality before optimization:', maxerror, l2error
+
+      allocate(sums(maxval(grid(:)%node%length),size(grid)))
+      if (rank .eq. 0) write(*,*) 'Xu Grid optimization: toll=', toll
+      k = 0
+      maxerror = 2.0_8*toll
+      do while(maxerror .gt. toll)
+          maxerror = 0.0_8
+          call comm_nodes3_mpi(get_coord, set_coord, NONE)
+          call apply_onescale(Xu_smooth_cpt, level_end-1, 0, 0)
+          call apply_onescale(Xu_smooth_assign, level_end-1, 0, 0)
+          maxerror = sync_max_d(maxerror)
+          k = k + 1
+      end do
+      if (rank .eq. 0) write(*,*) 'convergence: ', k, maxerror
+      call comm_nodes3_mpi(get_coord, set_coord, NONE)
+      call apply_onescale2(ccentre, level_end-1, -2, 1)
+      call apply_onescale2(midpt, level_end-1, -1, 1)
+      call apply_onescale2(check_grid, level_end-1, 0, 0)
+      call comm_nodes3_mpi(get_coord, set_coord, NONE)
+      call apply_onescale2(ccentre, level_end-1, -2, 1)
+      call apply_onescale2(midpt, level_end-1, -1, 1)
+      maxerror = 0.0_8
+      l2error = 0.0_8
+      call  apply_onescale(check_d, level_end-1, 0, 0)
+      l2error = sqrt(sum_real(l2error))
+      maxerror = sync_max_d(maxerror)
+      if (rank .eq. 0) write(*,*) 'grid quality (max. diff. primal dual edge bisection [m]):', maxerror
+      deallocate(sums)
+  end subroutine
+
+  subroutine check_grid(dom, p, i, j, offs, dims)
+      type(Domain) dom
+      integer p
+      integer i
+      integer j
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,N_BDRY + 1) :: dims
+      integer id, idE, idN, idNE, idS, idW
+      id = idx(i, j, offs, dims)
+      idN = idx(i, j + 1, offs, dims)
+      idS = idx(i, j - 1, offs, dims)
+      idE = idx(i + 1, j, offs, dims)
+      idW = idx(i - 1, j, offs, dims)
+      idNE = idx(i + 1, j + 1, offs, dims)
+!     write(709, *) dom%id, p, i, j
+      call check_triag(dom, id*TRIAG+LORT, (/idE*TRIAG+UPLT, id*TRIAG+UPLT, idS*TRIAG+UPLT/), &
+                       (/id, idE, idNE/), (/idE*EDGE+UP, id*EDGE+DG, id*EDGE+RT/))
+      call check_triag(dom, id*TRIAG+UPLT, (/idN*TRIAG+LORT, idW*TRIAG+LORT, id*TRIAG+LORT/), &
+                       (/id, idNE, idN/), (/idN*EDGE+RT, id*EDGE+UP, id*EDGE+DG/))
+  end subroutine
+  subroutine check_triag(dom, id, id_neigh, id_cnr, id_side)
+      type(Domain) dom
+      integer :: id, id_neigh(3), id_cnr(3), id_side(3)
+      integer i
+      type(Coord) :: cc_fine, inters_pt(3)
+      logical does_inters(3), troubles(3)
+      cc_fine = circumcentre(dom%midpt%elts(id_side(1)+1), dom%midpt%elts(id_side(3)+1), &
+                             dom%midpt%elts(id_side(2)+1))
+      do i = 1, 3
+          call arc_inters(dom%ccentre%elts(id+1), dom%ccentre%elts(id_neigh(i)+1), &
+          cc_fine, circumcentre(dom%node%elts(id_cnr(i)+1), dom%midpt%elts(id_side(O2(1,i))+1), &
+                                dom%midpt%elts(id_side(O2(2,i))+1)), &
+                          inters_pt(i), does_inters(i), troubles(i))
+      end do
+      if (any(does_inters) .or. any(troubles)) then
+          dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + 1.0e7_8*eps()
+          dom%node%elts(id_cnr(1)+1) = project_on_sphere(dom%node%elts(id_cnr(1)+1))
+      end if
+  end subroutine
+
+  subroutine Xu_smooth_assign(dom, i, j, offs, dims)
+      type(Domain) dom
+      integer i
+      integer j
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,9) :: dims
+      integer id
+      id = idx(i, j, offs, dims)
+      maxerror = max(maxerror, dist(dom%node%elts(id+1), sums(id+1,dom%id+1)))
+      dom%node%elts(id+1) = sums(id+1,dom%id+1)
+  end subroutine
+
+  subroutine check_d(dom, i, j, offs, dims)
+      type(Domain) dom
+      integer i
+      integer j
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,9) :: dims
+      integer id, idS, idW
+      real(8) error(3)
+      id = idx(i, j, offs, dims)
+      idS = idx(i, j-1, offs, dims)
+      idW = idx(i-1, j, offs, dims)
+      error = (/dist(dom%midpt%elts(id*EDGE+RT+1), &
+                mid_pt(dom%ccentre%elts(id*TRIAG+LORT+1),dom%ccentre%elts(idS*TRIAG+UPLT+1))), &
+                dist(dom%midpt%elts(id*EDGE+DG+1), &
+                mid_pt(dom%ccentre%elts(id*TRIAG+LORT+1),dom%ccentre%elts(id*TRIAG+UPLT+1))), &
+                dist(dom%midpt%elts(id*EDGE+UP+1), &
+                mid_pt(dom%ccentre%elts(idW*TRIAG+LORT+1),dom%ccentre%elts(id*TRIAG+UPLT+1)))/)
+      maxerror = max(maxerror, maxval(error))
+      l2error = l2error + sum(error**2)
+  end subroutine
+end module smooth_mod

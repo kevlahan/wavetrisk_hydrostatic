@@ -1,0 +1,4 @@
+max_level	10
+threshold	0.01
+time_end	43200
+optimize_grid	2

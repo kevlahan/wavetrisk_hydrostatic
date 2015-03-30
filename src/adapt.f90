@@ -1,0 +1,253 @@
+module adapt_mod
+  use comm_mpi_mod
+  use refine_patch_mod
+  use multi_level_mod
+  implicit none
+  logical max_level_exceeded
+  ! fillup patch to remove lower level if at least FILLUP_THRESHOLD*100% of nodes are active
+  real(8), parameter :: FILLUP_THRESHOLD = 0.9 
+  integer, parameter :: DOF_PER_PATCH = PATCH_SIZE*PATCH_SIZE*(EDGE+1)
+  integer, parameter :: FILLED_AND_FROZEN = DOF_PER_PATCH + 1
+
+contains
+  subroutine init_adapt_mod()
+      logical :: initialized = .False.
+      if (initialized) return ! initialize only once
+      call init_comm_mod()
+      call init_refine_patch_mod()
+      max_level_exceeded = .False.
+      initialized = .True.
+  end subroutine init_adapt_mod
+
+  subroutine compress(dom, i, j, offs, dims)
+      type(Domain) dom
+      integer i
+      integer j
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,9) :: dims
+      integer id
+      integer e
+      id = idx(i, j, offs, dims)
+      if (dom%mask_p%elts(id+1) .lt. ADJZONE) &
+          wav_coeff(S_HEIGHT)%data(dom%id+1)%elts(id+1) = 0.0_8
+      do e = 1, EDGE
+          if (dom%mask_u%elts(EDGE*id+e) .lt. ADJZONE) &
+              wav_coeff(S_VELO)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
+      end do
+  end subroutine
+
+  subroutine adapt()
+      integer l
+      do l = level_start+1, level_end
+          call apply_onescale__int(set_masks, l, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
+      end do
+      call mask_active()
+      call comm_masks_mpi(NONE)
+      do l = level_start, level_end
+          call apply_onescale(mask_adj_space2, l, 0, 1)
+      end do
+      call comm_masks_mpi(NONE)
+
+      ! needed if bdry is only 2 layers for scenario:
+      ! height > toll @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
+      ! => patch needed (contains flux for corrective part of R_F)
+      do l = level_start, min(level_end, max_level-1)
+          call apply_onescale(mask_restrict_flux, l, 0, 0)
+      end do
+      call comm_masks_mpi(NONE)
+
+      if (refine()) call post_refine()
+      call complete_masks()
+      do l = level_start+1, level_end
+          call apply_onescale(compress, l, 0, 1)
+      end do
+      wav_coeff(:)%bdry_uptodate = .False.
+  end subroutine
+
+  logical function refine()
+      integer did_refine
+      logical required
+      integer d
+      integer p_par
+      integer c
+      integer p_chd
+      integer old_n_patch
+      !  using toll masks call refine patch where necessary
+      did_refine = FALSE
+      do d = 1, size(grid)
+          old_n_patch = grid(d)%patch%length
+          do p_par = 2, grid(d)%patch%length
+              do c = 1, N_CHDRN
+                  p_chd = grid(d)%patch%elts(p_par)%children(c)
+                  required = check_child_required(grid(d), p_par - 1, c - 1)
+                  if (p_chd .gt. 0) then
+                  else if (required) then ! new patch required
+                      if (grid(d)%patch%elts(p_par)%level .eq. max_level) then
+                          max_level_exceeded = .True.
+                      else
+                          call refine_patch1(grid(d), p_par - 1, c - 1)
+                          did_refine = TRUE
+                      end if
+                  end if
+              end do
+          end do
+          do p_par = 2, old_n_patch
+              do c = 1, N_CHDRN
+                  p_chd = grid(d)%patch%elts(p_par)%children(c)
+                  if (p_chd+1 .gt. old_n_patch) then
+                      call refine_patch2(grid(d), p_par - 1, c - 1)
+                  end if
+              end do
+          end do
+      end do
+      refine = sync_max(did_refine) .eq. TRUE
+      return
+  end function
+
+  subroutine patch_count_active(dom, p)
+      type(Domain) dom
+      integer p
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,N_BDRY + 1) :: dims
+      integer j, i, id, e
+
+      ! TODO set FILLED_AND_FROZEN in `remove_inside_patches` to save work here
+      if (dom%patch%elts(p+1)%active .eq. FILLED_AND_FROZEN) return
+
+      dom%patch%elts(p+1)%active = 0
+      call get_offs_Domain(dom, p, offs, dims)
+      do j = 1, PATCH_SIZE
+          do i = 1, PATCH_SIZE
+              id = idx(i-1, j-1, offs, dims)
+              if (dom%mask_p%elts(id+1) .ge. ADJZONE) dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
+              do e = 1, EDGE
+                  if (dom%mask_u%elts(EDGE*id+e) .ge. ADJZONE) &
+                      dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
+              end do
+          end do
+      end do
+  end subroutine
+
+  function get_child_and_neigh_patches(dom, p_par, c)
+      integer get_child_and_neigh_patches(4)
+      type(Domain) dom
+      integer p_par, c
+      integer n
+      get_child_and_neigh_patches = 0
+      get_child_and_neigh_patches(1) = dom%patch%elts(p_par+1)%children(c)
+      n = dom%patch%elts(p_par+1)%neigh(c) ! side
+      if (n .gt. 0) then
+          get_child_and_neigh_patches(2) = dom%patch%elts(n+1)%children(modulo((c+1)-1,4)+1) 
+          get_child_and_neigh_patches(3) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
+      endif
+      n = dom%patch%elts(p_par+1)%neigh(c+4) ! corner
+      if (n .gt. 0) then
+          get_child_and_neigh_patches(4) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
+      endif
+  end function
+
+  real(8) function check_children_fillup(dom, p_par)
+      type(Domain) dom
+      integer p_par, p_chd, c, i
+      integer cn(4)
+      integer active
+
+      ! do not fill up children + remove if any child or neighbour patch is missing
+      if (product(dom%patch%elts(p_par+1)%neigh)*product(dom%patch%elts(p_par+1)%children) .eq. 0) then
+          check_children_fillup = -1e8 ! for now make removing imposible for this case
+          return
+      end if
+
+      active = 0
+      do c = 1, N_CHDRN
+          cn = get_child_and_neigh_patches(dom, p_par, c)
+          do i = 2, 4
+              active = active + dom%patch%elts(cn(i)+1)%active
+          end do
+          ! count real child double since neighbours are counted double during accumulation
+          active = active + 2*dom%patch%elts(cn(1)+1)%active
+      end do
+      check_children_fillup = dble(active)/dble(N_CHDRN*5*DOF_PER_PATCH)
+  end function
+
+
+  ! remove patches that are not required because they are far enough away from the locally finest level
+  logical function remove_inside_patches()
+      integer d, k, p, l, c, c1
+      real(8) children_fullness
+      integer chdrn(4)
+      logical changes
+      changes = .false.
+      do d = 1, size(grid)
+          do p = 2, grid(d)%patch%length
+              call patch_count_active(grid(d), p-1)
+          end do
+      end do
+      l = level_start - 1
+      do d = 1, size(grid)
+          do k = 1, grid(d)%lev(l)%length
+              p = grid(d)%lev(l)%elts(k)
+              children_fullness = 0
+              ! the patch has 4 children including first neighbours 16
+              do c = 1, N_CHDRN
+                  ! allways do one child with 3 adjacent neighbours (2 on side 1 on corner)
+                  chdrn = get_child_and_neigh_patches(grid(d), p, c)
+                  do c1 = 1, N_CHDRN
+                      children_fullness = children_fullness + check_children_fillup(grid(d), chdrn(c1))
+                  end do
+              end do
+              children_fullness = children_fullness/16.0_8
+              if (children_fullness .gt. FILLUP_THRESHOLD) then
+                  do c = 1, N_CHDRN
+                      chdrn = get_child_and_neigh_patches(grid(d), p, c)
+                      do c1 = 1, N_CHDRN
+                          call apply_onescale_to_patch__int(set_masks, grid(d), chdrn(c1), 0, 0, FROZEN)
+                      end do
+                  end do
+                  grid(d)%patch%elts(p+1)%active = NONE
+                  changes = .true.
+              else
+                  grid(d)%patch%elts(p+1)%active = NONE
+              end if
+          end do
+      end do
+      remove_inside_patches = changes
+  end function
+
+  logical function check_child_required(dom, p, c)
+      type(Domain) dom
+      integer p
+      integer c
+      integer st
+      integer en
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,9) :: dims
+      integer j0
+      integer j
+      integer i0
+      integer i
+      integer id
+      logical required
+      integer e
+      st = -BDRY_THICKNESS
+      en = BDRY_THICKNESS
+      call get_offs_Domain(dom, p, offs, dims)
+      do j0 = st + 1, PATCH_SIZE/2 + en
+          j = j0 - 1 + chd_offs(2,c+1)
+          do i0 = st + 1, PATCH_SIZE/2 + en
+              i = i0 - 1 + chd_offs(1,c+1)
+              id = idx(i, j, offs, dims)
+              required = dom%mask_p%elts(id+1) .ge. ADJSPACE
+              do e = 1, EDGE
+                  required = required .or. dom%mask_u%elts(EDGE*id+e) .ge. &
+                          RESTRCT
+              end do
+              if (required) then
+                  check_child_required = .True.
+                  return
+              end if
+          end do
+      end do
+      check_child_required = .False.
+  end function
+end module adapt_mod

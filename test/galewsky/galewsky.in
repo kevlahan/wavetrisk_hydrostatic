@@ -1,0 +1,8 @@
+max_level       10
+viscosity	1e5
+threshold	0.05
+time_end	518400
+dt_write	43200
+resume	-1
+optimize_grid	2	(2 = Heikes & Randal grid)
+perturbed	T

@@ -1,0 +1,113 @@
+general:
+
+    If you want to call `make` with `PARAM` or `ARCH` command-line argument different to the previous call to `make`
+    you need to `make clean` first. Only change in `TEST_CASE` argument does not require `make clean`.
+
+
+compile and run tsunami test-case (on `if`):
+
+    mkdir build
+    make BUILD_DIR=build
+
+    mkdir -p jobs/tsunami
+    cp test/tsunami/tsunami.in jobs/tsunami/
+    cd jobs
+    ln -s /net/if/1/home/aechtnmj/shared extern
+    cd tsunami
+    ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry
+    ln -s ../extern/okada85/arcminutes.scaled okada85
+    mpirun -np 10 ../../bin/tsunami
+
+
+post-process tsunami test-case (using asymptote):
+
+    cp test/tsunami/*.asy post/*.asy jobs/tsunami/
+    cd jobs/tsunami/
+    asy tsunami.rotating_earth.asy
+    ffmpeg -r 6 -i frame_%03d.png -pix_fmt yuv420p -b 2000k tsunami.mp4
+    
+
+
+compile and run gyre test-case (on `if`):
+
+    mkdir build
+    make BUILD_DIR=build TEST_CASE=gyre
+
+    mkdir -p jobs/gyre
+    cp test/gyre/gyre.in jobs/gyre/
+    cd jobs
+    ln -s /net/if/1/home/aechtnmj/shared extern
+    cd gyre
+    ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry
+    ln -s ../extern/wind_stress
+    mpirun -np 10 ../../bin/gyre
+
+
+
+compile and run turbulence test-case (on `if`):
+
+    mkdir build
+    make BUILD_DIR=build TEST_CASE=turb
+
+    mkdir -p jobs/turb
+    cp test/turb/turb.in jobs/turb/
+    cd jobs
+    ln -s /net/if/1/home/aechtnmj/shared extern
+    cd turb
+    mpirun -np 10 ../../bin/turb
+
+compile Willimson test-case 1 and Lauritzen test-case:
+
+    make TEST_CASE=will1 PARAM=param_J5
+    make TEST_CASE=lauritzen PARAM=param_J5
+
+
+evaluate weak scaling for perfectly load-balanced test-case
+(might require `bash`):
+
+    mkdir build
+    mkdir -p weak_scaling/bin
+    for PATCH_LEVEL in 2 3 4 5
+    do
+     for DOMAIN_LEVEL in 0 1 2 3
+     do
+      sed -i "s/DOMAIN_LEVEL = ./DOMAIN_LEVEL = $DOMAIN_LEVEL/" src/param.f90
+      sed -i "s/PATCH_LEVEL = ./PATCH_LEVEL = $PATCH_LEVEL/" src/param.f90
+      make clean; make BUILD_DIR=build TEST_CASE=turb
+      mv bin/turb weak_scaling/bin/turb$DOMAIN_LEVEL$PATCH_LEVEL
+     done
+    done
+    cp test/turb/turb.in weak_scaling/
+    cd weak_scaling
+    sed -i "s/optimize_grid.*$/optimize_grid 0/" turb.in
+    sed -i "s/threshold.*$/threshold 0/" turb.in
+    for PATCH_LEVEL in 2 3 4 5
+    do
+     np=10
+     for DOMAIN_LEVEL in 0 1 2 3
+     do
+      mkdir $DOMAIN_LEVEL$PATCH_LEVEL
+      cp turb.in $DOMAIN_LEVEL$PATCH_LEVEL/
+      cd $DOMAIN_LEVEL$PATCH_LEVEL
+      max_level=`expr $DOMAIN_LEVEL + $PATCH_LEVEL + 3`
+      sed -i "s/max_level.*$/max_level	$max_level/" turb.in
+      sqsub -q mpi -n $np -r 10 -o log --mpp=2G ../bin/turb$DOMAIN_LEVEL$PATCH_LEVEL
+      cd ..
+      np=`expr $np \* 4`
+     done
+    done
+
+Wait for jobs to finish and then
+
+    for PATCH_LEVEL in 2 3 4 5
+    do
+     np=10
+     for DOMAIN_LEVEL in 0 1 2 3
+     do
+      head -n 20 $DOMAIN_LEVEL$PATCH_LEVEL/verlauf.out | tail -n 18 > verlauf.np${np}_$PATCH_LEVEL
+      rm -r $DOMAIN_LEVEL$PATCH_LEVEL
+      np=`expr $np \* 4`
+     done
+    done
+
+

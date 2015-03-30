@@ -1,0 +1,7 @@
+max_level       10
+viscosity	0
+threshold	0.05
+time_end	1296000
+dt_write	43200
+resume	-1
+optimize_grid	2	(2 = Heikes & Randal grid)

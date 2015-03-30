@@ -1,0 +1,30 @@
+compile:
+
+    mkdir build
+    make BUILD_DIR=build
+
+
+run on `if`:
+
+    mkdir -p jobs/tsunami
+    cp test/tsunami/tsunami.in jobs/tsunami/
+    cd jobs
+    ln -s /net/if/1/home/aechtnmj/shared extern
+    cd tsunami
+    ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry
+    ln -s ../extern/okada85/arcminutes.scaled okada85
+    mpirun -np 10 ../../bin/tsunami
+
+
+run on `gpc`:
+
+    mkdir -p $SCRATCH/extern/grid_HR/
+    cp ~/shared/grid_HR/J6 $SCRATCH/extern/grid_HR/
+    mkdir -p $SCRATCH/tsunami
+    cp bin/tsunami $SCRATCH/tsunami/
+    cp test/tsunami/tsunami.in $SCRATCH/tsunami/
+    cp test/tsunami/submit_gpc.sh $SCRATCH/tsunami/submit.sh
+    cd $SCRATCH/tsunami
+    cp ~/shared/bathymetry/2arcminutes bathymetry
+    cp ~/shared/okada85/arcminutes.scaled okada85
+    qsub ./submit.sh
