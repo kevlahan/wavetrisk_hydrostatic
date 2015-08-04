@@ -26,10 +26,12 @@ contains
       integer side
       integer n_chd
       integer p_chd
+      
       n_chd = find_neigh_patch_Domain(dom, p_par, c, s)
       if (n_chd .eq. 0) then
           n_chd = -add_bdry_patch_Domain(dom, side)
       end if
+
       p_chd = dom%patch%elts(p_par+1)%children(c+1)
       dom%patch%elts(p_chd+1)%neigh(s+1) = n_chd
   end subroutine
@@ -37,6 +39,7 @@ contains
   subroutine refine_patch(dom, p, c0)
       type(Domain) dom
       integer p, c0
+
       call refine_patch1(dom, p, c0)
       call refine_patch2(dom, p, c0)
   end subroutine
@@ -60,22 +63,26 @@ contains
       type(Coord), dimension(6) :: tmp
       !  Main difficulty: in order to precompute geometry, weights etc
       !         nodes outside the patch are needed that might not be part of the grid yet
-      !         Better compute them temporarly that adding additional patches
+      !         Better compute them temporarily that adding additional patches
       !         that are empty in terms of evaluating operators and slow down the inner loops
-      !         Stategy A: use temporaty bdry_patch
+      !         Stategy A: use temporary bdry_patch
 
       lev = dom%patch%elts(p+1)%level
       if (lev .eq. max_level) then
           return
-      end if
+       end if
+       
       if (level_end .eq. lev) then
           level_end = level_end + 1
-      end if
+       end if
+       
       num = dom%node%length 
       p_chd = add_patch_Domain(dom, lev + 1)
       c = c0 + 1
+
       dom%patch%elts(p+1)%children(c) = p_chd
       num = dom%node%length - num
+
       call extend(dom%level, num, dom%patch%elts(p_chd+1)%level)
   end subroutine
 
@@ -100,28 +107,29 @@ contains
       integer id_par
       integer num, d
       type(Coord), dimension(6) :: tmp
+
       call get_offs_Domain(dom, p, offs_par, dims_par)
+
       lev = dom%patch%elts(p+1)%level
       c = c0 + 1
       p_chd = dom%patch%elts(p+1)%children(c)
+
       do k = 1, 2
-          call attach_bdry(dom, p, c - 1, modulo(c + k - 2, N_CHDRN), &
-                  side(dom, p, modulo(c + k - 2, N_CHDRN)))
-          call attach_bdry(dom, p, c - 1, modulo(c + k, N_CHDRN), &
-                  -(modulo(c + k, N_CHDRN) + 1))
-          call connect_cousin(dom, p, p_chd, modulo(c + k - 2, N_CHDRN), &
-                  modulo(c + k - 2, N_CHDRN), modulo(c - 2*k + 2, N_CHDRN))
+          call attach_bdry(dom, p, c - 1, modulo(c + k - 2, N_CHDRN), side(dom, p, modulo(c + k - 2, N_CHDRN)))
+          call attach_bdry(dom, p, c - 1, modulo(c + k, N_CHDRN), -(modulo(c + k, N_CHDRN) + 1))
+          call connect_cousin(dom, p, p_chd, modulo(c + k - 2, N_CHDRN), modulo(c + k - 2, N_CHDRN), modulo(c - 2*k + 2, N_CHDRN))
       end do
+
       call attach_bdry(dom, p, c - 1, c + 3, side(dom, p, c + 3))
-      call connect_cousin(dom, p, p_chd, c + 3, c + 3, modulo(c + 1, &
-              N_CHDRN))
-      call attach_bdry(dom, p, c - 1, modulo(c + 1, N_CHDRN) + 4, &
-              -(modulo(c + 1, N_CHDRN) + 4 + 1))
-      call attach_bdry(dom, p, c - 1, modulo(c, N_CHDRN) + 4, side(dom, p, &
-              modulo(c, N_CHDRN)))
-      call attach_bdry(dom, p, c - 1, modulo(c + 2, N_CHDRN) + 4, side(dom, &
-              p, modulo(c - 1, N_CHDRN)))
+
+      call connect_cousin(dom, p, p_chd, c + 3, c + 3, modulo(c + 1, N_CHDRN))
+
+      call attach_bdry(dom, p, c - 1, modulo(c + 1, N_CHDRN) + 4, -(modulo(c + 1, N_CHDRN) + 4 + 1))
+      call attach_bdry(dom, p, c - 1, modulo(c,     N_CHDRN) + 4, side(dom, p, modulo(c, N_CHDRN)))
+      call attach_bdry(dom, p, c - 1, modulo(c + 2, N_CHDRN) + 4, side(dom, p, modulo(c - 1, N_CHDRN)))
+
       call get_offs_Domain(dom, p_chd, offs_chd, dims_chd)
+
       do j = 0, PATCH_SIZE/2 + 1
           j_chd = (j - 1)*2
           j_par = j - 1 + chd_offs(2,c)
@@ -129,28 +137,30 @@ contains
               i_chd = (i - 1)*2
               i_par = i - 1 + chd_offs(1,c)
               id_par = idx(i_par, j_par, offs_par, dims_par)
-              dom%node%elts(idx(i_chd, j_chd, offs_chd, dims_chd) + 1) = &
-                      dom%node%elts(id_par+1)
-              dom%node%elts(idx(i_chd + 1, j_chd, offs_chd, dims_chd) + 1) &
-                      = dom%midpt%elts(EDGE*id_par+RT+1)
-              dom%node%elts(idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd) + &
-                      1) = dom%midpt%elts(DG+EDGE*id_par+1)
-              dom%node%elts(idx(i_chd, j_chd + 1, offs_chd, dims_chd) + 1) &
-                      = dom%midpt%elts(EDGE*id_par+UP+1)
+              
+              dom%node%elts(idx(i_chd, j_chd, offs_chd, dims_chd) + 1) = dom%node%elts(id_par+1)
+              
+              dom%node%elts(idx(i_chd + 1, j_chd,     offs_chd, dims_chd) + 1) = dom%midpt%elts(EDGE*id_par+RT+1)
+              dom%node%elts(idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd) + 1) = dom%midpt%elts(EDGE*id_par+DG+1)
+              dom%node%elts(idx(i_chd,     j_chd + 1, offs_chd, dims_chd) + 1) = dom%midpt%elts(EDGE*id_par+UP+1)
           end do
       end do
+
       if (is_penta(dom, p_chd, IPLUSJMINUS-1)) then
-          dom%node%elts(idx(PATCH_SIZE, -1, offs_chd, dims_chd) + 1) = mid_pt( &
-                  dom%node%elts(idx(PATCH_SIZE+1, 0, offs_par, dims_par)+1), &
-                  dom%node%elts(idx(PATCH_SIZE, 0, offs_par, dims_par)+1))
-       end if
+         dom%node%elts(idx(PATCH_SIZE, -1, offs_chd, dims_chd) + 1) = mid_pt( &
+              dom%node%elts(idx(PATCH_SIZE+1, 0, offs_par, dims_par)+1), &
+              dom%node%elts(idx(PATCH_SIZE,   0, offs_par, dims_par)+1))
+      end if
+      
       if (is_penta(dom, p_chd, IMINUSJPLUS-1)) then
-          dom%node%elts(idx(-1, PATCH_SIZE, offs_chd, dims_chd) + 1) = mid_pt( &
-                  dom%node%elts(idx(0, PATCH_SIZE+1, offs_par, dims_par)+1), &
-                  dom%node%elts(idx(0, PATCH_SIZE, offs_par, dims_par)+1))
-       end if
+         dom%node%elts(idx(-1, PATCH_SIZE, offs_chd, dims_chd) + 1) = mid_pt( &
+              dom%node%elts(idx(0, PATCH_SIZE+1, offs_par, dims_par)+1), &
+              dom%node%elts(idx(0, PATCH_SIZE,   offs_par, dims_par)+1))
+      end if
+      
       num = dom%node%length - dom%areas%length
       d = dom%id + 1
+      
       call extend(dom%ccentre, TRIAG*num, ORIGIN)
       call apply_onescale_to_patch2(ccentre, dom, p_chd, -2, 1)
       call ccentre_penta(dom, p_chd)
@@ -159,24 +169,29 @@ contains
       call extend(dom%pedlen, EDGE*num, 0.0_8)
       call extend(dom%len, EDGE*num, 0.0_8)
       call apply_onescale_to_patch2(lengths, dom, p_chd, -1, 2)
+
       tmp = ORIGIN
       call extend(dom%areas, num, Areas(0.0_8, 0.0_8))
       call apply_onescale_to_patch2(cpt_areas, dom, p_chd, -1, 2)
       call extend(dom%triarea, EDGE*num, 1.0_8)
       call apply_onescale_to_patch(cpt_triarea, dom, p_chd, -1, 1)
-      call extend(dom%corolis, TRIAG*num, 0.0_8)
-      call apply_onescale_to_patch(corolis, dom, p_chd, -1, 1)
+      call extend(dom%coriolis, TRIAG*num, 0.0_8)
+      call apply_onescale_to_patch(coriolis, dom, p_chd, -1, 1)
       call extend(dom%windstress, EDGE*num, 0.0_8)
       call extend(dom%topo, num, 0.0_8)
       call extend(dom%bernoulli, num, 0.0_8)
       call extend(dom%kin_energy, num, 0.0_8)
-      call extend(trend(S_HEIGHT)%data(d), num, 0.0_8)
-      call extend(trend(S_VELO)%data(d), num*EDGE, 0.0_8)
-      call extend(thickflux%data(d), num*EDGE, 0.0_8)
+
+      do k = 1, zlevels
+         call extend(trend(S_MASS,k)%data(d), num, 0.0_8)
+         call extend(trend(S_VELO,k)%data(d), num*EDGE, 0.0_8)
+         call extend(horiz_massflux(k)%data(d), num*EDGE, 0.0_8)
+         call extend(wav_coeff(S_MASS,k)%data(d), num, 0.0_8)
+         call extend(wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
+      end do
+      
       if (penalize) call extend(penal%data(d), num, 1.0_8)
-      call extend(wav_coeff(S_HEIGHT)%data(d), num, 0.0_8)
-      call extend(wav_coeff(S_VELO)%data(d), num*EDGE, 0.0_8)
-      call extend(dom%qe, EDGE*num, 0.0_8)
+            call extend(dom%qe, EDGE*num, 0.0_8)
       call extend(dom%vort, TRIAG*num, 0.0_8)
       call extend(dom%divu, num, 0.0_8)
       call extend(dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))
@@ -197,6 +212,7 @@ contains
       integer p
       integer s
       integer n
+
       n = dom%patch%elts(p+1)%neigh(s+1)
       if (n .ge. 0) then
           side = -s - 1
@@ -217,6 +233,7 @@ contains
       integer n
       integer typ
       !  c: which child on neighbour
+
       n = dom%patch%elts(p_par+1)%neigh(s_par+1)
       if (n .lt. 0) then
           n = -n

@@ -15,16 +15,17 @@ contains
       integer idS
       integer idW
       integer idSW
-      id = idx(i, j, offs, dims)
-      idS = idx(i, j - 1, offs, dims)
-      idW = idx(i - 1, j, offs, dims)
+
+      id   = idx(i,     j,     offs, dims)
+      idS  = idx(i,     j - 1, offs, dims)
+      idW  = idx(i - 1, j,     offs, dims)
       idSW = idx(i - 1, j - 1, offs, dims)
-      dom%divu%elts(id+1) = (velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1) &
-                  - velo(DG+EDGE*id+1)*dom%pedlen%elts(DG+EDGE*id+1) &
-                  + velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1) &
-                  - velo(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1) &
-                  + velo(DG+EDGE*idSW+1)*dom%pedlen%elts(DG+EDGE*idSW+1) &
-                  - velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1))*dom%areas%elts(id+1)%hex_inv
+
+      dom%divu%elts(id+1) = (&
+           velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)     - velo(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1) &
+         + velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)     - velo(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1) &
+         + velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1) - velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1))*&
+         dom%areas%elts(id+1)%hex_inv
   end subroutine
 
   subroutine flux_gradP(dom, i, j, offs, dims)
@@ -40,15 +41,15 @@ contains
       idE = idx(i + 1, j, offs, dims)
       idN = idx(i, j + 1, offs, dims)
       idNE = idx(i + 1, j + 1, offs, dims)
-      tflux(EDGE*id+RT+1) = tflux(EDGE*id+RT+1) - &
+      h_mflux(EDGE*id+RT+1) = h_mflux(EDGE*id+RT+1) - &
               viscosity*dom%pedlen%elts(EDGE*id+RT+1)* &
-              (height(idE+1) - height(id+1))/dom%len%elts(EDGE*id+RT+1)
-      tflux(DG+EDGE*id+1) = tflux(DG+EDGE*id+1) - &
+              (mass(idE+1) - mass(id+1))/dom%len%elts(EDGE*id+RT+1)
+      h_mflux(EDGE*id+DG+1) = h_mflux(EDGE*id+DG+1) - &
               viscosity*dom%pedlen%elts(EDGE*id+DG+1)* &
-              (height(id+1) - height(idNE+1))/dom%len%elts(DG+EDGE*id+1)
-      tflux(EDGE*id+UP+1) = tflux(EDGE*id+UP+1) - &
+              (mass(id+1) - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+      h_mflux(EDGE*id+UP+1) = h_mflux(EDGE*id+UP+1) - &
               viscosity*dom%pedlen%elts(EDGE*id+UP+1)* &
-              (height(idN+1) - height(id+1))/dom%len%elts(EDGE*id+UP+1)
+              (mass(idN+1) - mass(id+1))/dom%len%elts(EDGE*id+UP+1)
   end subroutine
 
   subroutine diff_mom(dom, i, j, offs, dims)
