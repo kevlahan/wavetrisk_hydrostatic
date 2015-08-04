@@ -74,11 +74,14 @@ module gyre_mod
   real(8), dimension(2,180,90) :: windstress_data
 contains
   subroutine apply_initial_conditions()
-      integer d
+    integer d, k
+
+    do k = 1, zlevels
       do d = 1, size(grid)
-          sol(S_HEIGHT)%data(d)%elts = 0
-          sol(S_VELO)%data(d)%elts = 0
-      end do
+          sol(S_MASS,k)%data(d)%elts = 0
+          sol(S_VELO,k)%data(d)%elts = 0
+       end do
+    end do
   end subroutine
   
    subroutine cpt_windstress(dom, i, j, offs, dims)
@@ -327,8 +330,8 @@ contains
   end subroutine
 
   subroutine set_thresholds() ! quasi-geostrophic
-      toll_height = U_SV*Ro*f0*Lx/grav_accel * threshold**(3.0_8/2.0_8)
-      toll_velo   = U_SV*Ro       * threshold**(3.0_8/2.0_8)
+      tol_mass = U_SV*Ro*f0*Lx/grav_accel * threshold**(3.0_8/2.0_8)
+      tol_velo = U_SV*Ro       * threshold**(3.0_8/2.0_8)
   end subroutine
   
   subroutine read_test_case_parameters(filename)
@@ -471,7 +474,7 @@ program gyre
   end if
   call initialize(apply_initial_conditions, 1, set_thresholds, gyre_dump, gyre_load)
 
-  if (rank .eq. 0) write (*,*) 'thresholds p, u:',  toll_height, toll_velo
+  if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
   allocate(n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2; call finish_new_patches()
 

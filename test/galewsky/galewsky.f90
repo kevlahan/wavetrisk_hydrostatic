@@ -40,6 +40,7 @@ contains
       character(255) varname
       open(unit=fid, file=filename, action='READ')
       read(fid,*) varname, max_level
+      read(fid,*) varname, zlevels
       read(fid,*) varname, viscosity
       read(fid,*) varname, threshold
       read(fid,*) varname, time_end
