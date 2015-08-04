@@ -76,7 +76,7 @@ contains
     call add_second_level()
 
     call apply_onescale2(set_level, level_start, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale(mask_adj_scale, level_start-1, 0, 1) ! level 0 = TOLLRNZ => level 1 = ADJZONE
+    call apply_interscale(mask_adj_scale, level_start-1, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
     call record_init_state(ini_st)
     if (time_end .gt. 0.0_8) time_mult = huge(itime)/2/time_end
@@ -85,38 +85,50 @@ contains
     call init_RK_mem()
 
     if (resume .ge. 0) then
-        if (rank .eq. 0) write(*,*) 'Resuming from checkpoint', resume
+       if (rank .eq. 0) write(*,*) 'Resuming from checkpoint', resume
     else
-        call set_thresholds()
-        toll_height = toll_height/2.0_8
-        toll_velo  = toll_velo/2.0_8
-        call apply_init_cond()
-        call forward_wavelet_transform()
-        do while(level_end .lt. max_level)
-            if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
-            node_level_start = grid(:)%node%length+1
-            edge_level_start = grid(:)%midpt%length+1
-            call adapt() ! add level
-            if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
-            call apply_init_cond()
-            call forward_wavelet_transform()
-            n_active = (/&
-                    sum((/(count(abs(wav_coeff(S_HEIGHT)%data(k)%elts(node_level_start(k): &
-                    grid(k)%node%length)) .gt. toll_height), k = 1, n_domain(rank+1)) /)), &
-                    sum((/(count(abs(wav_coeff(S_VELO)%data(k)%elts(edge_level_start(k): &
-                    grid(k)%midpt%length)) .gt. toll_velo), k = 1, n_domain(rank+1)) /)) /)
-            n_active(S_HEIGHT) = sync_max(n_active(S_HEIGHT))
-            n_active(S_VELO)  = sync_max(n_active(S_VELO))
-            if (n_active(S_HEIGHT) .eq. 0 .and. n_active(S_VELO) .eq. 0) exit
-        end do
-        cp_idx = 0
+       call set_thresholds()
 
-        call set_thresholds()
-        call adapt() ! compress
+       tol_mass = tol_mass/2.0_8
+       tol_velo  = tol_velo/2.0_8
+
+       call apply_init_cond()
+       call forward_wavelet_transform()
+       
+       do while(level_end .lt. max_level)
+          if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
+          node_level_start = grid(:)%node%length+1
+          edge_level_start = grid(:)%midpt%length+1
+          call adapt() ! add level
+          if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
+          
+          call apply_init_cond()
+          call forward_wavelet_transform()
+          
+          n_active = (/&
+               
+               sum((/(count(abs(wav_coeff(S_MASS,1)%data(k)%elts(node_level_start(k) : &
+               grid(k)%node%length)) .gt. tol_mass), k = 1, n_domain(rank+1)) /)), &
+               
+               sum((/(count(abs(wav_coeff(S_VELO,1)%data(k)%elts(edge_level_start(k): &
+               grid(k)%midpt%length)) .gt. tol_velo), k = 1, n_domain(rank+1)) /)) &
+
+               /)
+          
+          n_active(S_MASS) = sync_max(n_active(S_MASS))
+          n_active(S_VELO) = sync_max(n_active(S_VELO))
+          if (n_active(S_MASS) .eq. 0 .and. n_active(S_VELO) .eq. 0) exit
+       end do
+
+       cp_idx = 0
+
+       call set_thresholds()
+       call adapt() ! compress
     
-        call write_load_conn(0)
-        ierr = dump_adapt_mpi(write_p_wc, write_u_wc, cp_idx, custom_dump)
+       call write_load_conn(0)
+       ierr = dump_adapt_mpi(write_p_wc, write_u_wc, cp_idx, custom_dump)
     end if
+
     call restart_full(set_thresholds, custom_load)
   end subroutine
 
@@ -143,6 +155,7 @@ contains
       real(8) align_time
       logical, intent(out) :: aligned
       integer(8)  idt, ialign
+      
       dt = cpt_dt_mpi()
       ! match certain times exactly
       idt = nint(dt*time_mult, 8)
@@ -169,49 +182,58 @@ contains
 
   subroutine reset(init_state)
       type(Initial_State), allocatable :: init_state(:)
-      integer l, d, v, i
+      integer k, l, d, v, i
       integer num(AT_NODE:AT_EDGE)
+      
       do d = 1, size(grid)
           grid(d)%lev(min_level+1:max_level)%length = 0
-      end do
+       end do
+       
       level_start = min_level
       level_end = level_start
+      
       do d = 1, size(grid)
           num = (/init_state(d)%n_node, init_state(d)%n_edge/)  
-          grid(d)%patch%length = init_state(d)%n_patch 
-          grid(d)%bdry_patch%length = init_state(d)%n_bdry_patch 
-          grid(d)%node%length = init_state(d)%n_node 
-          grid(d)%midpt%length = init_state(d)%n_edge
-          grid(d)%ccentre%length =  init_state(d)%n_tria
-          grid(d)%areas%length =  init_state(d)%n_node
-          grid(d)%triarea%length =  init_state(d)%n_tria
-          grid(d)%pedlen%length =  init_state(d)%n_edge
-          grid(d)%len%length =  init_state(d)%n_edge
-          grid(d)%corolis%length =  init_state(d)%n_tria
-          grid(d)%topo%length =  init_state(d)%n_node
-          grid(d)%windstress%length =  init_state(d)%n_edge
-          grid(d)%bernoulli%length =  init_state(d)%n_node
-          grid(d)%kin_energy%length =  init_state(d)%n_node
-          grid(d)%qe%length =  init_state(d)%n_edge
-          grid(d)%vort%length =  init_state(d)%n_tria
+          grid(d)%patch%length       = init_state(d)%n_patch 
+          grid(d)%bdry_patch%length  = init_state(d)%n_bdry_patch 
+          grid(d)%node%length        = init_state(d)%n_node 
+          grid(d)%midpt%length       = init_state(d)%n_edge
+          grid(d)%ccentre%length     = init_state(d)%n_tria
+          grid(d)%areas%length       = init_state(d)%n_node
+          grid(d)%triarea%length     = init_state(d)%n_tria
+          grid(d)%pedlen%length      = init_state(d)%n_edge
+          grid(d)%len%length         = init_state(d)%n_edge
+          grid(d)%coriolis%length    = init_state(d)%n_tria
+          grid(d)%topo%length        = init_state(d)%n_node
+          grid(d)%windstress%length  = init_state(d)%n_edge
           grid(d)%overl_areas%length = init_state(d)%n_node
-          grid(d)%I_u_wgt%length = init_state(d)%n_node
-          grid(d)%R_F_wgt%length = init_state(d)%n_node
-          grid(d)%mask_p%length = init_state(d)%n_node
-          grid(d)%mask_u%length = init_state(d)%n_edge
-          grid(d)%level%length = init_state(d)%n_node
-          thickflux%data(d)%length = num(S_VELO)
-          if (penalize) penal%data(d)%length = num(S_HEIGHT)
-          do v = S_HEIGHT, S_VELO
-              wav_coeff(v)%data(d)%length = num(v)
-              trend(v)%data(d)%length = num(v)
-              sol(v)%data(d)%length = num(v)
-              dq1(v)%data(d)%length = num(v)
-              q1(v)%data(d)%length = num(v)
-              q2(v)%data(d)%length = num(v)
-              q3(v)%data(d)%length = num(v)
-              q4(v)%data(d)%length = num(v)
+          grid(d)%I_u_wgt%length     = init_state(d)%n_node
+          grid(d)%R_F_wgt%length     = init_state(d)%n_node
+          grid(d)%mask_p%length      = init_state(d)%n_node
+          grid(d)%mask_u%length      = init_state(d)%n_edge
+          grid(d)%level%length       = init_state(d)%n_node
+
+          grid(d)%bernoulli%length   = init_state(d)%n_node
+          grid(d)%kin_energy%length  = init_state(d)%n_node
+          grid(d)%qe%length          = init_state(d)%n_edge
+          grid(d)%vort%length        = init_state(d)%n_tria
+          
+          if (penalize) penal%data(d)%length = num(S_MASS)
+
+          do k = 1, zlevels
+             horiz_massflux(k)%data(d)%length = num(S_VELO)
+             do v = S_MASS, S_VELO
+                wav_coeff(v,k)%data(d)%length = num(v)
+                trend(v,k)%data(d)%length = num(v)
+                sol(v,k)%data(d)%length = num(v)
+                dq1(v,k)%data(d)%length = num(v)
+                q1(v,k)%data(d)%length = num(v)
+                q2(v,k)%data(d)%length = num(v)
+                q3(v,k)%data(d)%length = num(v)
+                q4(v,k)%data(d)%length = num(v)
+             end do
           end do
+          
           do i = 1, N_GLO_DOMAIN
               grid(d)%send_conn(i)%length = 0
               grid(d)%recv_pa(i)%length = 0
@@ -220,6 +242,7 @@ contains
                   grid(d)%unpk(v,i)%length = init_state(d)%unpk_len(v,i)
               end do
           end do
+
           grid(d)%send_pa_all%length = 0
           grid(d)%neigh_pa_over_pole%length = level_end*2 + 2
 
@@ -231,163 +254,205 @@ contains
   end subroutine
 
   subroutine restart_full(set_thresholds, custom_load)
-      external set_thresholds, custom_load
-      integer i, d, k, r, l, v
-      integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
-      integer, parameter :: len_cmd_archive = 11 + 4 + 4
-      character(len_cmd_files) cmd_files
-      character(len_cmd_archive) cmd_archive
-      character(8+len_cmd_archive+15+len_cmd_files+34+len_cmd_archive+1+len_cmd_files+4) command
+    external set_thresholds, custom_load
+    integer i, d, k, r, l, v
+    integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
+    integer, parameter :: len_cmd_archive = 11 + 4 + 4
+    character(len_cmd_files) cmd_files
+    character(len_cmd_archive) cmd_archive
+    character(8+len_cmd_archive+15+len_cmd_files+34+len_cmd_archive+1+len_cmd_files+4) command
 
-      ! deallocate init_RK_mem allocations
-      do d = 1, n_domain(rank+1)
-          do v = S_HEIGHT, S_VELO
-              deallocate(q1(v)%data(d)%elts)
-              deallocate(q2(v)%data(d)%elts)
-              deallocate(q3(v)%data(d)%elts)
-              deallocate(q4(v)%data(d)%elts)
-              deallocate(dq1(v)%data(d)%elts)
+    ! deallocate init_RK_mem allocations
+    do k = 1, zlevels
+       do d = 1, n_domain(rank+1)
+          do v = S_MASS, S_VELO
+             deallocate(q1(v,k)%data(d)%elts)
+             deallocate(q2(v,k)%data(d)%elts)
+             deallocate(q3(v,k)%data(d)%elts)
+             deallocate(q4(v,k)%data(d)%elts)
+             deallocate(dq1(v,k)%data(d)%elts)
           end do
-      end do
-      do v = S_HEIGHT, S_VELO
-          deallocate(q1(v)%data)
-          deallocate(q2(v)%data)
-          deallocate(q3(v)%data)
-          deallocate(q4(v)%data)
-          deallocate(dq1(v)%data)
-      end do
+       end do
 
-      deallocate(ini_st)
+       do v = S_MASS, S_VELO
+          deallocate(q1(v,k)%data)
+          deallocate(q2(v,k)%data)
+          deallocate(q3(v,k)%data)
+          deallocate(q4(v,k)%data)
+          deallocate(dq1(v,k)%data)
+       end do
+    end do
 
-      ! deallocate init_masks allocations
-      do d = 1, size(grid)
-          deallocate(grid(d)%mask_p%elts)
-          deallocate(grid(d)%mask_u%elts)
-          deallocate(grid(d)%level%elts)
-      end do
+    deallocate(ini_st)
 
-      ! deallocate init_wavelets allocations
-      do d = 1, size(grid)
-          deallocate(wav_coeff(S_VELO)%data(d)%elts)
-          deallocate(wav_coeff(S_HEIGHT)%data(d)%elts)
-          deallocate(grid(d)%R_F_wgt%elts)
-          deallocate(grid(d)%I_u_wgt%elts)
-          deallocate(grid(d)%overl_areas%elts)
-      end do
-      deallocate(wav_coeff(AT_NODE)%data)
-      deallocate(wav_coeff(AT_EDGE)%data)
+    ! deallocate init_masks allocations
+    do d = 1, size(grid)
+       deallocate(grid(d)%mask_p%elts)
+       deallocate(grid(d)%mask_u%elts)
+       deallocate(grid(d)%level%elts)
+    end do
+    
+    ! deallocate init_wavelets allocations
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          deallocate(wav_coeff(S_VELO,k)%data(d)%elts)
+          deallocate(wav_coeff(S_MASS,k)%data(d)%elts)
+       end do
+       deallocate(wav_coeff(AT_NODE,k)%data)
+       deallocate(wav_coeff(AT_EDGE,k)%data)
+    end do
+ 
+    ! deallocate init_wavelets allocations
+    do d = 1, size(grid)
+       deallocate(grid(d)%R_F_wgt%elts)
+       deallocate(grid(d)%I_u_wgt%elts)
+       deallocate(grid(d)%overl_areas%elts)
+    end do
 
-      deallocate(node_level_start, edge_level_start)
+    deallocate(node_level_start, edge_level_start)
 
-      ! deallocate precompute_geometry allocations
-      do d = 1, size(grid)
-          deallocate(grid(d)%vort%elts)
-          deallocate(grid(d)%divu%elts)
-          deallocate(grid(d)%qe%elts)
-          deallocate(trend(S_VELO)%data(d)%elts)
-          deallocate(thickflux%data(d)%elts)
-          deallocate(trend(S_HEIGHT)%data(d)%elts)
-          deallocate(grid(d)%bernoulli%elts)
-          deallocate(grid(d)%kin_energy%elts)
-      end do
+    ! deallocate precompute_geometry allocations
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          deallocate(trend(S_VELO,k)%data(d)%elts)
+          deallocate(horiz_massflux(k)%data(d)%elts)
+          deallocate(trend(S_MASS,k)%data(d)%elts)
+       end do
+    end do
 
-      ! deallocate init_geomerty allocations
-      do d = 1, size(grid)
-          deallocate(grid(d)%topo%elts)
-          deallocate(grid(d)%windstress%elts)
-          deallocate(grid(d)%corolis%elts)
-          deallocate(grid(d)%triarea%elts)
-          deallocate(grid(d)%len%elts)
-          deallocate(grid(d)%pedlen%elts)
-          deallocate(grid(d)%areas%elts)
-          deallocate(grid(d)%midpt%elts)
-          deallocate(grid(d)%ccentre%elts)
-      end do
+    do d = 1, size(grid)
+       deallocate(grid(d)%bernoulli%elts)
+       deallocate(grid(d)%vort%elts)
+       deallocate(grid(d)%divu%elts)
+       deallocate(grid(d)%qe%elts)
+       deallocate(grid(d)%kin_energy%elts)
+    end do
 
-      ! deallocate init_grid allocations
-      do d = 1, n_domain(rank+1)
-          if (penalize) deallocate(penal%data(d)%elts)
-          deallocate(grid(d)%neigh_pa_over_pole%elts)
-          deallocate(sol(S_VELO)%data(d)%elts) 
-          deallocate(sol(S_HEIGHT)%data(d)%elts) 
-          do k = AT_NODE, AT_EDGE
-              do i = 1, N_GLO_DOMAIN
-                  deallocate(grid(d)%pack(k,i)%elts)
-                  deallocate(grid(d)%unpk(k,i)%elts)
-              end do
-          end do
+    ! deallocate init_geometry allocations
+    do d = 1, size(grid)
+       deallocate(grid(d)%topo%elts)
+       deallocate(grid(d)%windstress%elts)
+       deallocate(grid(d)%coriolis%elts)
+       deallocate(grid(d)%triarea%elts)
+       deallocate(grid(d)%len%elts)
+       deallocate(grid(d)%pedlen%elts)
+       deallocate(grid(d)%areas%elts)
+       deallocate(grid(d)%midpt%elts)
+       deallocate(grid(d)%ccentre%elts)
+    end do
+
+    do k = 1, zlevels
+       do d = 1, n_domain(rank+1)
+          deallocate(sol(S_VELO,k)%data(d)%elts) 
+          deallocate(sol(S_MASS,k)%data(d)%elts)
+       end do
+    end do
+    
+    ! deallocate init_grid allocations
+    do d = 1, n_domain(rank+1)
+       if (penalize) deallocate(penal%data(d)%elts)
+       deallocate(grid(d)%neigh_pa_over_pole%elts)
+
+       do k = AT_NODE, AT_EDGE
           do i = 1, N_GLO_DOMAIN
-              deallocate(grid(d)%recv_pa(i)%elts)
+             deallocate(grid(d)%pack(k,i)%elts)
+             deallocate(grid(d)%unpk(k,i)%elts)
           end do
-          deallocate(grid(d)%send_pa_all%elts)
-          do i = 1, N_GLO_DOMAIN
-              deallocate(grid(d)%send_conn(i)%elts)
+       end do
+
+       do i = 1, N_GLO_DOMAIN
+          deallocate(grid(d)%recv_pa(i)%elts)
+       end do
+
+       deallocate(grid(d)%send_pa_all%elts)
+
+       do i = 1, N_GLO_DOMAIN
+          deallocate(grid(d)%send_conn(i)%elts)
+       end do
+
+       do i = lbound(grid(d)%lev,1), ubound(grid(d)%lev,1)
+          deallocate(grid(d)%lev(i)%elts)
+       end do
+
+       deallocate(grid(d)%lev)
+
+       do l = min_level, max_level
+          do r = 1, n_process
+             deallocate(grid(d)%src_patch(r,l)%elts) 
           end do
-          do i = lbound(grid(d)%lev,1), ubound(grid(d)%lev,1)
-              deallocate(grid(d)%lev(i)%elts)
-          end do
-          deallocate(grid(d)%lev)
-          do l = min_level, max_level
-              do r = 1, n_process
-                  deallocate(grid(d)%src_patch(r,l)%elts) 
-              end do
-          end do
-          deallocate(grid(d)%src_patch)
-          deallocate(grid(d)%node%elts) 
-          deallocate(grid(d)%bdry_patch%elts) 
-          deallocate(grid(d)%patch%elts) 
-      end do
-      if (penalize) deallocate(penal%data)
-      deallocate(thickflux%data)
-      do v = S_HEIGHT, S_VELO
-          deallocate(sol(v)%data)
-          deallocate(trend(v)%data)
-      end do
-      deallocate(grid)
+       end do
 
-      ! init_shared_mod()
-      level_start = min_level
-      level_end = level_start
+       deallocate(grid(d)%src_patch)
+       deallocate(grid(d)%node%elts) 
+       deallocate(grid(d)%bdry_patch%elts) 
+       deallocate(grid(d)%patch%elts) 
+    end do
+    
+    if (penalize) deallocate(penal%data)
 
-      call distribute_grid(cp_idx)
-      deallocate(n_active_velo, n_active_height)
-      call init_grid()
-      call init_comm()
-      call comm_communication_mpi()
-      call init_geometry()
-      if (optimize_grid .eq. XU_GRID) call smooth_Xu(1.0e6_8*eps())
-      if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid()
-      call comm_nodes3_mpi(get_coord, set_coord, NONE)
-      call precompute_geometry()
-      allocate(node_level_start(size(grid)), edge_level_start(size(grid)))
-      if (rank .eq. 0) write(*,*) 'Make level J_min =', min_level, '...'
-      call init_wavelets()
-      call init_masks()
-      call add_second_level()
+    do k = 1, zlevels
+       deallocate(horiz_massflux(k)%data)
+       do v = S_MASS, S_VELO
+          deallocate(sol(v,k)%data)
+          deallocate(trend(v,k)%data)
+       end do
+    end do
+    
+    deallocate(grid)
 
-      call apply_onescale2(set_level, level_start, -BDRY_THICKNESS, +BDRY_THICKNESS)
-      call apply_interscale(mask_adj_scale, level_start-1, 0, 1) ! level 0 = TOLLRNZ => level 1 = ADJZONE
+    ! init_shared_mod()
+    level_start = min_level
+    level_end = level_start
 
-      call record_init_state(ini_st)
+    call distribute_grid(cp_idx)
+    deallocate(n_active_velo, n_active_mass)
 
-      call init_RK_mem()
-      if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
-      call load_adapt_mpi(read_p_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
-      itime = nint(time*time_mult, 8)
-      resume = cp_idx ! to disable alignment for next step
-      ! do not override existing checkpoint archive
-      write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
-      write(cmd_archive, '(A,I4.4,A)') "checkpoint_" , cp_idx, ".tgz"
-      write(command, '(A,A,A,A,A,A,A,A,A)') "if [ -e ", cmd_archive, " ]; then rm -f ", cmd_files, &
-              "; else tar c --remove-files -z -f ", cmd_archive, " ", cmd_files, "; fi"
-      call barrier() ! do not delete files before everyone has read them
-!     if (rank .eq. 0) write(*,*) command
-      if (rank .eq. 0) &
-            call system(command)
-      call set_thresholds()
-      call adapt()
-      call invers_wavelet_transform(sol, level_start-1)
-  end subroutine
+    call init_grid()
+    call init_comm()
+    call comm_communication_mpi()
+    call init_geometry()
+
+    if (optimize_grid .eq. XU_GRID) call smooth_Xu(1.0e6_8*eps())
+    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid()
+
+    call comm_nodes3_mpi(get_coord, set_coord, NONE)
+    call precompute_geometry()
+
+    allocate(node_level_start(size(grid)), edge_level_start(size(grid)))
+
+    if (rank .eq. 0) write(*,*) 'Make level J_min =', min_level, '...'
+    call init_wavelets()
+    call init_masks()
+    call add_second_level()
+
+    call apply_onescale2(set_level, level_start, -BDRY_THICKNESS, +BDRY_THICKNESS)
+    call apply_interscale(mask_adj_scale, level_start-1, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
+
+    call record_init_state(ini_st)
+
+    call init_RK_mem()
+
+    if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
+
+    call load_adapt_mpi(read_p_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
+
+    itime = nint(time*time_mult, 8)
+    resume = cp_idx ! to disable alignment for next step
+
+    ! do not overwrite existing checkpoint archive
+    write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
+    write(cmd_archive, '(A,I4.4,A)') "checkpoint_" , cp_idx, ".tgz"
+    write(command, '(A,A,A,A,A,A,A,A,A)') "if [ -e ", cmd_archive, " ]; then rm -f ", cmd_files, &
+         "; else tar c --remove-files -z -f ", cmd_archive, " ", cmd_files, "; fi"
+
+    call barrier() ! do not delete files before everyone has read them
+
+    if (rank .eq. 0) call system(command)
+    
+    call set_thresholds()
+    call adapt()
+    call invers_wavelet_transform(sol, level_start-1)
+  end subroutine restart_full
 
   integer function writ_checkpoint(custom_dump)
       external custom_dump, custom_load

@@ -12,13 +12,13 @@ contains
   integer function write_active_per_level()
   ! write out distribution of active nodes over levels
       integer l
-      integer recommanded_level_start
-      recommanded_level_start = level_start
+      integer recommended_level_start
+      recommended_level_start = level_start
       do l = level_start, level_end
-          if (rank .eq. 0) write(*,'(A,I2,I9)') 'lev', l, n_active_height(l), n_active_velo(l)
+          if (rank .eq. 0) write(*,'(A,I2,I9)') 'lev', l, n_active_mass(l), n_active_velo(l)
       end do
-      if (rank .eq. 0) write(*,'(A,I9)') 'total', sum(n_active(S_HEIGHT:S_VELO))
-      write_active_per_level = recommanded_level_start
+      if (rank .eq. 0) write(*,'(A,I9)') 'total', sum(n_active(S_MASS:S_VELO))
+      write_active_per_level = recommended_level_start
   end function
 
   subroutine print_load_balance()
@@ -106,17 +106,17 @@ contains
     integer i, j
     integer d, p
     dt = 1.0e16_8
-    n_active_height = 0
+    n_active_mass = 0
     n_active_velo = 0
     do l = level_start, level_end
         call apply_onescale(min_dt, l, 0, 0)
     end do
 !   TODO FIXME
-!   do while (n_active_height(level_end) .eq. 0 .and. &
+!   do while (n_active_mass(level_end) .eq. 0 .and. &
 !             n_active_velo(level_end) .eq. 0 )
 !       level_end = level_end - 1
 !   end do
-    n_active = (/sum(n_active_height), sum(n_active_velo)/)
+    n_active = (/sum(n_active_mass), sum(n_active_velo)/)
   end function
 
   integer function sync_max(val)
