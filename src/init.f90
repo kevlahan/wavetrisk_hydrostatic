@@ -23,11 +23,11 @@ contains
     integer p
     integer i_
     integer loz
-    
-    allocate(grid(n_domain(rank+1)))
-    allocate(sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels), wav_coeff(S_MASS:S_VELO, 1:zlevels))
-    allocate(horiz_massflux(1:zlevels))
-    
+
+    allocate (grid(n_domain(rank+1)))
+    allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels), wav_coeff(S_MASS:S_VELO, 1:zlevels))
+    allocate (horiz_massflux(1:zlevels))
+
     do k = 1, zlevels
        do v = S_MASS, S_VELO
           call init_Float_Field(sol(v,k), v)
@@ -38,24 +38,29 @@ contains
 
     if (penalize) call init_Float_Field(penal, S_MASS)
 
-    do k = 1, zlevels
-       do d = 1, n_domain(rank+1)
-          call init_Domain(grid(d))
+    do d = 1, n_domain(rank+1)
+       call init_Domain(grid(d))
+       do k = 1, zlevels
           call init(sol(S_MASS,k)%data(d), 1)
           call init(sol(S_VELO,k)%data(d), EDGE)
        end do
     end do
-
+    
     !  initializes grid for icosahedron
     do d = 1, n_domain(rank+1)
+
        grid(d)%id = d-1
+       
        do s = 1, N_BDRY
           b = add_bdry_patch_Domain(grid(d), s)
        end do
+       
        grid(d)%penta = .False.
+
        p = add_patch_Domain(grid(d), min_level-1)
+
        grid(d)%patch%elts(p+1)%children = 0
-       grid(d)%patch%elts(p+1)%neigh = (/ ( i_ , i_ = -1, -N_BDRY, -1 ) /)
+       grid(d)%patch%elts(p+1)%neigh    = (/ ( i_ , i_ = -1, -N_BDRY, -1 ) /)
     end do
 
     do loz = 1, N_ICOSAH_LOZANGE

@@ -118,10 +118,10 @@ contains
     end if
   end subroutine vort_extrema
 
-  subroutine write_step(fid, time)
+  subroutine write_step(fid, time, k)
       integer fid
       real(8) time
-      integer l
+      integer l, k
       real(8) tot_mass
       
       vmin =  1.0e-16
@@ -131,34 +131,30 @@ contains
          call apply_onescale(vort_extrema, l, 0, 0)
       end do
        
-      tot_mass = integrate_hex(mass_pert,level_start)
+      tot_mass = integrate_hex(mass_pert, level_start, k)
 
       if (rank .eq. 0) write(fid,'(E16.9, I3, 2(1X, I9), 7(1X, E16.8), 1X, F16.7)') time, &
               level_end, n_active, tot_mass, &
-!             integrate_tri(pot_enstr), integrate_hex(energy,level_start), &
-!             integrate_hex(pot_energy,level_start),
-              !integrate_tri(only_coriolis), integrate_tri(tri_only_area), &
-!             integrate_hex(only_area,level_start), &
               get_timing()
   end subroutine
 
-  real(8) function integrate_hex(fun, l)
+  real(8) function integrate_hex(fun, l, k)
       external fun
-      integer l
+      integer l, k
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
-      integer d, k, p, i, j, c, id
+      integer d, ll, p, i, j, c, id
       real(8) s, fun
 
       s = 0.0_8
       do d = 1, size(grid)
-          do k = 1, grid(d)%lev(l)%length
-              p = grid(d)%lev(l)%elts(k)
+          do ll = 1, grid(d)%lev(l)%length
+              p = grid(d)%lev(l)%elts(ll)
               call get_offs_Domain(grid(d), p, offs, dims)
               do j = 1, PATCH_SIZE
                   do i = 1, PATCH_SIZE
                       id = idx(i-1,j-1,offs,dims)
-                      s = s + fun(grid(d), i-1, j-1, offs, dims)/grid(d)%areas%elts(id+1)%hex_inv
+                      s = s + fun(grid(d), i-1, j-1, k, offs, dims)/grid(d)%areas%elts(id+1)%hex_inv
                   end do
               end do
           end do
@@ -169,16 +165,16 @@ contains
               do while (grid(d)%patch%elts(p+1)%level .lt. l)
                   p = grid(d)%patch%elts(p+1)%children(c-4)
                   if (p .eq. 0) then
-                      write(*,*) "ERROR(rank=", rank, "):integrate_hex: level incompete"
+                      write(*,*) "ERROR(rank=", rank, "):integrate_hex: level incomplete"
                       return
                   end if
               end do
               call get_offs_Domain(grid(d), p, offs, dims)
               if (c .eq. NORTHWEST) then
-                  s = s + fun(grid(d), 0, PATCH_SIZE, offs, dims)/ &
+                  s = s + fun(grid(d), 0, PATCH_SIZE, k, offs, dims)/ &
                           grid(d)%areas%elts(idx(0,PATCH_SIZE,offs,dims)+1)%hex_inv
               else
-                  s = s + fun(grid(d), PATCH_SIZE, 0, offs, dims)/ &
+                  s = s + fun(grid(d), PATCH_SIZE, 0, k, offs, dims)/ &
                           grid(d)%areas%elts(idx(PATCH_SIZE,0,offs,dims)+1)%hex_inv
               end if
           end do
@@ -187,23 +183,24 @@ contains
       integrate_hex =  sum_real(s)
   end function
 
-  real(8) function integrate_tri(fun)
-      external fun
+  real(8) function integrate_tri(fun, k)
+    external fun
+    integer k
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
-      integer d, k, p, i, j, t, id
+      integer d, ll, p, i, j, t, id
       real(8) s, fun
 
       s = 0.0_8
       do d = 1, size(grid)
-          do k = 1, grid(d)%lev(level_start)%length
-              p = grid(d)%lev(level_start)%elts(k)
+          do ll = 1, grid(d)%lev(level_start)%length
+              p = grid(d)%lev(level_start)%elts(ll)
               call get_offs_Domain(grid(d), p, offs, dims)
               do j = 1, PATCH_SIZE
                   do i = 1, PATCH_SIZE
                       id = idx(i-1, j-1, offs, dims)
                       do t = LORT, UPLT
-                          s = s + fun(grid(d), i-1, j-1, t, offs, dims) &
+                          s = s + fun(grid(d), i-1, j-1, k, t, offs, dims) &
                                  *grid(d)%triarea%elts(id*TRIAG+t+1)
                       end do
                   end do
@@ -668,93 +665,106 @@ contains
   end subroutine
 
   subroutine load_adapt_mpi(node_in_rout, edge_in_rout, id, custom_load)
-  ! one file per domain
-      external node_in_rout, edge_in_rout, custom_load
-      integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid!ASCII, fid_ed 
-      integer :: id, k, l
-      character(5+4+1+5) filename_no, filename_ed, fname_gr
-      integer d, j, v, i
-      logical child_required(N_CHDRN)
-!     integer n_patch_cur_lev, n_patch_next_lev
-      integer p_par, p_chd, c, old_n_patch
+    ! one file per domain
+    external node_in_rout, edge_in_rout, custom_load
+    integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid !ASCII, fid_ed 
+    integer :: id, k, l
+    character(5+4+1+5) filename_no, filename_ed, fname_gr
+    integer d, j, v, i
+    logical child_required(N_CHDRN)
+    integer p_par, p_chd, c, old_n_patch
 
+    do d = 1, size(grid)
+       fid_no(d)   = id*1000 + 1000000 + d
+       fid_grid(d) = id*1000 + 3000000 + d
+       
+       write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
+       write(fname_gr,    '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
+       
+       open(unit=fid_no(d),   file=filename_no, form="UNFORMATTED", action='READ')
+       open(unit=fid_grid(d), file=fname_gr,    form="UNFORMATTED", action='READ')
+       
+       read(fid_no(d)) istep
+       read(fid_no(d)) time
+       
+       call custom_load(fid_no(d))
+       call apply_to_pole_d(read_mass, grid(d), min_level-1, fid_no(d), .True.)
 
-      do k = 1, zlevels
-         do d = 1, size(grid)
-            fid_no(d) = id*1000 + 1000000 + d
-            fid_grid(d) = id*1000 + 3000000 + d
-            write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
-            write(fname_gr,  '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
-            open(unit=fid_no(d), file=filename_no, form="UNFORMATTED", action='READ')
-            open(unit=fid_grid(d), file=fname_gr, form="UNFORMATTED", action='READ')
-            
-            read(fid_no(d)) istep
-            read(fid_no(d)) time
+       do k = 1, zlevels
+          do v = S_MASS, S_VELO
+             read(fid_no(d)) ( sol(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
+                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
+          end do
+       end do
 
-            call custom_load(fid_no(d))
-            call apply_to_pole_d(read_mass, grid(d), min_level-1, fid_no(d), .True.)
-            
-            do v = S_MASS, S_VELO
-               read(fid_no(d)) (sol(v,k)%data(d)%elts(i),i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
-                    MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
-            end do
+       do k = 1, zlevels
+          do i = MULT(S_VELO) * grid(d)%patch%elts(1+1)%elts_start+1, &
+               MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
+             
+             if (sol(S_VELO,k)%data(d)%elts(i) .ne. sol(S_VELO,k)%data(d)%elts(i)) then
+                write(0,*) d, i, 'Attempt reading in NaN scal -> corrupted checkpoint', id
+                stop
+             end if
+          end do
+       end do
+    end do
 
-            do i = MULT(S_VELO)* grid(d)%patch%elts(1+1)%elts_start+1, &
-                 MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
-               if (sol(S_VELO,k)%data(d)%elts(i) .ne. sol(S_VELO,k)%data(d)%elts(i)) then
-                  write(0,*) d, i, 'Attempt reading in NaN scal -> corrupted checkpoint', id
-                  stop
-               end if
-            end do
-         end do
+    l = 1
+    do while(level_end .gt. l) ! new level was added -> proceed to it
+       l = level_end 
+       if (rank .eq. 0) write(*,*) 'loading level', l
+       do d = 1, size(grid)
+          old_n_patch = grid(d)%patch%length
+          do j = 1, grid(d)%lev(l)%length
+             p_par = grid(d)%lev(l)%elts(j)
 
-         l = 1
-         do while(level_end .gt. l) ! new level was added -> proceed to it
-            l = level_end 
-            if (rank .eq. 0) write(*,*) 'loading level', l
-            do d = 1, size(grid)
-               old_n_patch = grid(d)%patch%length
-               do j = 1, grid(d)%lev(l)%length
-                  p_par = grid(d)%lev(l)%elts(j)
-                  do v = S_MASS, S_VELO
-                     read(fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), &
-                          i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                          MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
-                  end do
-                  do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                       MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
-                     if (wav_coeff(S_VELO,k)%data(d)%elts(i) .ne. wav_coeff(S_VELO,k)%data(d)%elts(i)) then
-                        write(0,*) d, i, 'Attempt reading in NaN wav -> corrupted checkpoint', id
-                        stop
-                     end if
-                  end do
-                  read(fid_grid(d)) child_required
-                  do c = 1, N_CHDRN
-                     if (child_required(c)) then
-                        call refine_patch1(grid(d), p_par, c-1)
-                     end if
-                  end do
-               end do
-               do p_par = 2, old_n_patch
-                  do c = 1, N_CHDRN
-                     p_chd = grid(d)%patch%elts(p_par)%children(c)
-                     if (p_chd+1 .gt. old_n_patch) then
-                        call refine_patch2(grid(d), p_par - 1, c - 1)
-                     end if
-                  end do
-               end do
-            end do
-            call post_refine()
-         end do
-         
-         do d = 1, size(grid)
-            close(fid_no(d)); close(fid_grid(d))
-         end do
-         
-         wav_coeff(S_MASS,k)%bdry_uptodate = .False.
-         wav_coeff(S_VELO,k)%bdry_uptodate = .False.
-      end do
-    end subroutine load_adapt_mpi
+             do k = 1, zlevels
+                do v = S_MASS, S_VELO
+                   read(fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), &
+                        i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
+                end do
+             end do
+
+             do k = 1, zlevels
+                do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                     MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
+                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) .ne. wav_coeff(S_VELO,k)%data(d)%elts(i)) then
+                      write(0,*) d, i, 'Attempt reading in NaN wav -> corrupted checkpoint', id
+                      stop
+                   end if
+                end do
+             end do
+             
+             read(fid_grid(d)) child_required
+             do c = 1, N_CHDRN
+                if (child_required(c)) then
+                   call refine_patch1(grid(d), p_par, c-1)
+                end if
+             end do
+          end do
+          
+          do p_par = 2, old_n_patch
+             do c = 1, N_CHDRN
+                p_chd = grid(d)%patch%elts(p_par)%children(c)
+                if (p_chd+1 .gt. old_n_patch) then
+                   call refine_patch2(grid(d), p_par - 1, c - 1)
+                end if
+             end do
+          end do
+       end do
+       call post_refine()
+    end do
+
+    do d = 1, size(grid)
+       close(fid_no(d)); close(fid_grid(d))
+    end do
+
+    do k = 1, zlevels
+       wav_coeff(S_MASS,k)%bdry_uptodate = .False.
+       wav_coeff(S_VELO,k)%bdry_uptodate = .False.
+    end do
+  end subroutine load_adapt_mpi
 
   subroutine default_dump(fid)
       integer fid
@@ -765,91 +775,114 @@ contains
   end subroutine
 
   integer function dump_adapt_mpi(node_out_rout, edge_out_rout, id, custom_dump)
-  ! one file per domain
-      external node_out_rout, edge_out_rout, custom_dump
-      integer id, fid_no, l, fid_grid!, fid_ed
-      character(5+4+1+5) filename_no, filename_ed, fname_gr
-      integer d, j, k, v, i
-      logical child_required(N_CHDRN)
-      integer p_par, p_chd, c, p_lev
-      
-      dump_adapt_mpi = 0
-      fid_no = id+1000000
-      fid_grid = id+3000000
+    ! one file per domain
+    external node_out_rout, edge_out_rout, custom_dump
+    integer id, fid_no, l, fid_grid!, fid_ed
+    character(5+4+1+5) filename_no, filename_ed, fname_gr
+    integer d, j, k, v, i
+    logical child_required(N_CHDRN)
+    integer p_par, p_chd, c, p_lev
 
-      do k = 1, zlevels
-         call update_bdry(wav_coeff(S_MASS,k), NONE)
-         call apply_interscale(restrict_p, min_level-1, 0, 1) ! +1 to include poles
-         do d = 1, size(grid)
-            write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
-            write(fname_gr,  '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
-            open(unit=fid_no, file=filename_no, form="UNFORMATTED", action='WRITE')
-            open(unit=fid_grid, file=fname_gr, form="UNFORMATTED", action='WRITE')
-          
-            write(fid_no) istep
-            write(fid_no) time
-            call custom_dump(fid_no)
-            call apply_to_pole_d(write_mass, grid(d), min_level-1, fid_no, .True.)
-            
-            do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
-                 MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
-               if (sol(S_VELO,k)%data(d)%elts(i) .ne. sol(S_VELO,k)%data(d)%elts(i)) then
-                  write(*,*) d, i, 'writeout NaN scal'
-                  dump_adapt_mpi = 1
-                  close(fid_no); close(fid_grid);
-                  return
-               end if
-            end do
-            do v = S_MASS, S_VELO
-               write(fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
-                     MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
-            end do
-            do l = min_level, level_end
-               p_lev = 0
-               do j = 1, grid(d)%lev(l)%length
-                  p_par = grid(d)%lev(l)%elts(j)
-                  if (grid(d)%patch%elts(p_par+1)%deleted) then
-                     do c = 1, N_CHDRN
-                        p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-                        if (p_chd .gt. 0) grid(d)%patch%elts(p_chd+1)%deleted = .True.
-                     end do
-                     cycle
-                  end if
-                  do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                       MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
-                     if (wav_coeff(S_VELO,k)%data(d)%elts(i) .ne. wav_coeff(S_VELO,k)%data(d)%elts(i)) then
-                        write(0,*) grid(d)%patch%elts(p_par+1)%level, 'writeout NaN wav'
-                        dump_adapt_mpi = 1
-                        close(fid_no); close(fid_grid);
-                        return
-                     end if
-                  end do
-                  do v = S_MASS, S_VELO
-                     write(fid_no) (wav_coeff(v,k)%data(d)%elts(i),  &
-                          i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                          MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
-                  end do
-                  do c = 1, N_CHDRN
-                      p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-                      if (p_chd .gt. 0) then
-                          child_required(c) = check_child_required(grid(d), p_par, c-1)
-                          grid(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
-                          if (child_required(c)) then
-                              p_lev = p_lev + 1
-                              grid(d)%lev(l+1)%elts(p_lev) = p_chd
-                           end if
-                      else
-                         child_required(c) = .False.
-                      end if
-                   end do
-                   write(fid_grid) child_required
-                end do
-                if (l+1 .le. max_level) grid(d)%lev(l+1)%length = p_lev
-             end do
-             close(fid_no); close(fid_grid)
+    dump_adapt_mpi = 0
+    fid_no   = id+1000000
+    fid_grid = id+3000000
+
+    do k = 1, zlevels
+       call update_bdry(wav_coeff(S_MASS,k), NONE)
+    end do
+
+    call apply_interscale(restrict_p, min_level-1, 0, 1) ! +1 to include poles
+
+    do d = 1, size(grid)
+       write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
+       write(fname_gr,    '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
+       
+       open(unit=fid_no,   file=filename_no, form="UNFORMATTED", action='WRITE')
+       open(unit=fid_grid, file=fname_gr,    form="UNFORMATTED", action='WRITE')
+       
+       write(fid_no) istep
+       write(fid_no) time
+       
+       call custom_dump(fid_no)
+       call apply_to_pole_d(write_mass, grid(d), min_level-1, fid_no, .True.)
+       
+       do k = 1, zlevels
+          do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
+               MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
+             
+             if (sol(S_VELO,k)%data(d)%elts(i) .ne. sol(S_VELO,k)%data(d)%elts(i)) then
+                write(*,*) d, i, 'writeout NaN scal'
+                dump_adapt_mpi = 1
+                close(fid_no); close(fid_grid);
+                return
+             end if
           end do
        end do
-     end function dump_adapt_mpi
+
+       do k = 1, zlevels
+          do v = S_MASS, S_VELO
+             write(fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
+                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
+          end do
+       end do
+
+       do l = min_level, level_end
+          p_lev = 0
+          do j = 1, grid(d)%lev(l)%length
+             p_par = grid(d)%lev(l)%elts(j)
+             if (grid(d)%patch%elts(p_par+1)%deleted) then
+                do c = 1, N_CHDRN
+                   p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                   if (p_chd .gt. 0) grid(d)%patch%elts(p_chd+1)%deleted = .True.
+                end do
+                cycle
+             end if
+             
+             do k = 1, zlevels
+                do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                     MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
+                   
+                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) .ne. wav_coeff(S_VELO,k)%data(d)%elts(i)) then
+                      write(0,*) grid(d)%patch%elts(p_par+1)%level, 'writeout NaN wav'
+                      dump_adapt_mpi = 1
+                      close(fid_no); close(fid_grid);
+                      return
+                   end if
+                end do
+             end do
+
+             do k = 1, zlevels
+                do v = S_MASS, S_VELO
+                   write(fid_no) (wav_coeff(v,k)%data(d)%elts(i),  &
+                        i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
+                end do
+             end do
+             
+             do c = 1, N_CHDRN
+                p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                
+                if (p_chd .gt. 0) then
+                   
+                   child_required(c) = check_child_required(grid(d), p_par, c-1)
+                   grid(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
+                   
+                   if (child_required(c)) then
+                      p_lev = p_lev + 1
+                      grid(d)%lev(l+1)%elts(p_lev) = p_chd
+                   end if
+                else
+                   child_required(c) = .False.
+                end if
+                
+             end do
+             write(fid_grid) child_required
+          end do
+          if (l+1 .le. max_level) grid(d)%lev(l+1)%length = p_lev
+       end do
+       close(fid_no); close(fid_grid)
+    end do
+  end function dump_adapt_mpi
 
   subroutine read_setup(filename)
       character(*) filename

@@ -27,6 +27,7 @@ module main_mod
   real(8) time_mult
 
 contains
+  
   subroutine init_main_mod()
     call init_arch_mod()
     call init_domain_mod()
@@ -48,33 +49,37 @@ contains
     integer k, stage, ierr
 
     if (min_level .gt. max_level) then
-        if (rank .eq. 0) write(*,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
-                '<', min_level, '. Setting max_level to', min_level
-        max_level = min_level
+       if (rank .eq. 0) write(*,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
+            '<', min_level, '. Setting max_level to', min_level
+       max_level = min_level
     end if
+
     if (resume .ge. 0) then
-        cp_idx = resume
-        write(command, '(A,I4.4,A)')  "tar -xzf checkpoint_" , cp_idx , ".tgz"
-!       if (rank .eq. 0) write(*,*) command
-        if (rank .eq. 0) &
-            call system(command)
-        call barrier() ! make sure all files are extracted before everyone starts reading them
+       cp_idx = resume
+       write(command, '(A,I4.4,A)')  "tar -xzf checkpoint_" , cp_idx , ".tgz"
+       if (rank .eq. 0) call system(command)
+       call barrier() ! make sure all files are extracted before everyone starts reading them
     end if
+
     call distribute_grid(resume)
     call init_grid()
     call init_comm_mpi()
     call init_geometry()
+    
     if (optimize_grid .eq. XU_GRID) call smooth_Xu(1.0e6_8*eps())
     if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid()
+
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
     call precompute_geometry()
 
     allocate(node_level_start(size(grid)), edge_level_start(size(grid)))
+
     if (rank .eq. 0) write(*,*) 'Make level J_min =', min_level, '...'
+
     call init_wavelets()
     call init_masks()
     call add_second_level()
-
+    
     call apply_onescale2(set_level, level_start, -BDRY_THICKNESS, +BDRY_THICKNESS)
     call apply_interscale(mask_adj_scale, level_start-1, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
@@ -94,17 +99,19 @@ contains
 
        call apply_init_cond()
        call forward_wavelet_transform()
-       
+
        do while(level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
+
           call adapt() ! add level
+
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
-          
+
           call apply_init_cond()
           call forward_wavelet_transform()
-          
+
           n_active = (/&
                
                sum((/(count(abs(wav_coeff(S_MASS,1)%data(k)%elts(node_level_start(k) : &
@@ -112,9 +119,9 @@ contains
                
                sum((/(count(abs(wav_coeff(S_VELO,1)%data(k)%elts(edge_level_start(k): &
                grid(k)%midpt%length)) .gt. tol_velo), k = 1, n_domain(rank+1)) /)) &
-
+               
                /)
-          
+
           n_active(S_MASS) = sync_max(n_active(S_MASS))
           n_active(S_VELO) = sync_max(n_active(S_VELO))
           if (n_active(S_MASS) .eq. 0 .and. n_active(S_VELO) .eq. 0) exit
@@ -124,61 +131,72 @@ contains
 
        call set_thresholds()
        call adapt() ! compress
-    
+
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_p_wc, write_u_wc, cp_idx, custom_dump)
     end if
 
     call restart_full(set_thresholds, custom_load)
-  end subroutine
+  end subroutine initialize
 
   subroutine record_init_state(init_state)
-      type(Initial_State), allocatable :: init_state(:)
-      integer d, i, v
-      allocate(init_state(size(grid)))
-      do d = 1, size(grid)
-          init_state(d)%n_patch = grid(d)%patch%length
-          init_state(d)%n_bdry_patch = grid(d)%bdry_patch%length
-          init_state(d)%n_node = grid(d)%node%length
-          init_state(d)%n_edge = grid(d)%midpt%length
-          init_state(d)%n_tria = grid(d)%ccentre%length
-          do i = 1, N_GLO_DOMAIN
-              do v = AT_NODE, AT_EDGE
-                  init_state(d)%pack_len(v,i) = grid(d)%pack(v,i)%length 
-                  init_state(d)%unpk_len(v,i) = grid(d)%unpk(v,i)%length 
-              end do
+    type(Initial_State), allocatable :: init_state(:)
+    integer d, i, v
+
+    allocate (init_state(size(grid)))
+
+    do d = 1, size(grid)
+
+       init_state(d)%n_patch      = grid(d)%patch%length
+       init_state(d)%n_bdry_patch = grid(d)%bdry_patch%length
+       init_state(d)%n_node       = grid(d)%node%length
+       init_state(d)%n_edge       = grid(d)%midpt%length
+       init_state(d)%n_tria       = grid(d)%ccentre%length
+       
+       do i = 1, N_GLO_DOMAIN
+          do v = AT_NODE, AT_EDGE
+             init_state(d)%pack_len(v,i) = grid(d)%pack(v,i)%length 
+             init_state(d)%unpk_len(v,i) = grid(d)%unpk(v,i)%length 
           end do
-      end do
-  end subroutine
+       end do
+    end do
+  end subroutine record_init_state
 
   subroutine time_step(align_time, aligned)
-      real(8) align_time
-      logical, intent(out) :: aligned
-      integer(8)  idt, ialign
-      
-      dt = cpt_dt_mpi()
-      ! match certain times exactly
-      idt = nint(dt*time_mult, 8)
-      ialign = nint(align_time*time_mult, 8)
-      if (ialign .gt. 0 .and. cp_idx .ne. resume) then
-          aligned = (modulo(itime+idt,ialign) .lt. modulo(itime,ialign))
-      else
-          resume = NONE ! set unequal cp_idx => only first step after resume is protected from alignment
-          aligned = .False.
-      end if
-      if (aligned) idt = ialign - modulo(itime,ialign)
-      dt = idt/time_mult
-      call RK45_opt()
-      if (min_level .lt. max_level) then ! adaptive simulation
-          call adapt()
-          if (level_end .gt. level_start) then ! currently several levels exist
-              call invers_wavelet_transform(sol, level_start)
-          end if
-      end if
-      istep = istep + 1
-      itime = itime + idt
-      time = itime/time_mult
-  end subroutine
+    real(8) align_time
+    logical, intent(out) :: aligned
+    integer(8)  idt, ialign
+
+    dt = cpt_dt_mpi()
+
+    ! match certain times exactly
+    idt    = nint(dt*time_mult, 8)
+    ialign = nint(align_time*time_mult, 8)
+
+    if (ialign .gt. 0 .and. cp_idx .ne. resume) then
+       aligned = (modulo(itime+idt,ialign) .lt. modulo(itime,ialign))
+    else
+       resume = NONE ! set unequal cp_idx => only first step after resume is protected from alignment
+       aligned = .False.
+    end if
+
+    if (aligned) idt = ialign - modulo(itime,ialign)
+
+    dt = idt/time_mult
+
+    call RK45_opt()
+
+    if (min_level .lt. max_level) then ! adaptive simulation
+       call adapt()
+       if (level_end .gt. level_start) then ! currently several levels exist
+          call invers_wavelet_transform(sol, level_start)
+       end if
+    end if
+
+    istep = istep + 1
+    itime = itime + idt
+    time  = itime/time_mult
+  end subroutine time_step
 
   subroutine reset(init_state)
       type(Initial_State), allocatable :: init_state(:)
@@ -282,6 +300,7 @@ contains
           deallocate(dq1(v,k)%data)
        end do
     end do
+    deallocate(q1, q2, q3, q4, dq1)
 
     deallocate(ini_st)
 
@@ -301,6 +320,7 @@ contains
        deallocate(wav_coeff(AT_NODE,k)%data)
        deallocate(wav_coeff(AT_EDGE,k)%data)
     end do
+    deallocate(wav_coeff)
  
     ! deallocate init_wavelets allocations
     do d = 1, size(grid)
@@ -397,7 +417,8 @@ contains
           deallocate(trend(v,k)%data)
        end do
     end do
-    
+
+    deallocate(sol, trend, horiz_massflux)
     deallocate(grid)
 
     ! init_shared_mod()
@@ -448,7 +469,7 @@ contains
     call barrier() ! do not delete files before everyone has read them
 
     if (rank .eq. 0) call system(command)
-    
+
     call set_thresholds()
     call adapt()
     call invers_wavelet_transform(sol, level_start-1)

@@ -765,17 +765,24 @@ contains
     do k = 1, zlevels
        call init_Float_Field(wav_coeff(AT_NODE,k), AT_NODE)
        call init_Float_Field(wav_coeff(AT_EDGE,k), AT_EDGE)
-       do d = 1, size(grid)
-          num = grid(d)%node%length
-          call init(grid(d)%overl_areas, num)
-          call init(grid(d)%I_u_wgt, num)
-          do i = 1, num
-             call init_Iu_Wgt(grid(d)%I_u_wgt%elts(i), Iu_Base_Wgt)
-          end do
-          call init(grid(d)%R_F_wgt, num)
-          do i = 1, num
-             call init_RF_Wgt(grid(d)%R_F_wgt%elts(i), (/0.0_4, 0.0_4, 0.0_4/))
-          end do
+    end do
+    
+    do d = 1, size(grid)
+       num = grid(d)%node%length
+       call init(grid(d)%overl_areas, num)
+       call init(grid(d)%I_u_wgt, num)
+
+       do i = 1, num
+          call init_Iu_Wgt(grid(d)%I_u_wgt%elts(i), Iu_Base_Wgt)
+       end do
+
+       call init(grid(d)%R_F_wgt, num)
+
+       do i = 1, num
+          call init_RF_Wgt(grid(d)%R_F_wgt%elts(i), (/0.0_4, 0.0_4, 0.0_4/))
+       end do
+       
+       do k = 1, zlevels
           call init(wav_coeff(S_MASS,k)%data(d), num)
           call init(wav_coeff(S_VELO,k)%data(d), EDGE*num)
        end do

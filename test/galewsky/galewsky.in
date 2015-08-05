@@ -1,4 +1,5 @@
 max_level       10
+zlevels         1
 viscosity	1e5
 threshold	0.05
 time_end	518400

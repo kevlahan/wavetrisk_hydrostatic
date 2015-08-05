@@ -158,7 +158,7 @@ contains
          0.251891774247_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
          0.544974750212_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0846041633821_8,  &
          0.226007483194_8/), (/5, 5/))
-    
+
     call manage_RK_mem()
 
     call trend_ml(sol, trend)
@@ -196,7 +196,6 @@ contains
     !            to conserve mass
     !         B) interpolate values for next step
 
-
     do k = 1, zlevels
        if (present(l_start0)) then
           l_start = l_start0
@@ -204,38 +203,37 @@ contains
        else
           l_start = level_start
        end if
-       
+
        call update_bdry(q(S_MASS,k), NONE)
        call update_bdry(q(S_VELO,k), NONE)
 
        do l = l_start, level_end-1
           do d = 1, n_domain(rank+1)
-
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
 
              velo => q(S_VELO,k)%data(d)%elts
              mass => q(S_MASS,k)%data(d)%elts
-             
+
              call apply_interscale_d(cpt_velo_wc, grid(d), l, 0, 0)
              call apply_interscale_d(cpt_mass_wc, grid(d), l, 0, 0)
              call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l)
           end do
+          
           wav_coeff(:,k)%bdry_uptodate = .False.
        end do
 
-       do ll = 1, grid(d)%lev(l)%length
-          do l = level_start+1, level_end
-             do d = 1, n_domain(rank+1)
-                call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), 0, 1)
-             end do
+       do l = level_start+1, level_end
+          do d = 1, n_domain(rank+1)
+              do ll = 1, grid(d)%lev(l)%length
+                  call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), 0, 1)
+              end do
           end do
           wav_coeff(:,k)%bdry_uptodate = .False.
        end do
     end do
-
+    
     call invers_wavelet_transform(q)
-
   end subroutine WT_after_step
   
 end module time_integr_mod
