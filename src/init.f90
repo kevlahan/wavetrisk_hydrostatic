@@ -175,10 +175,10 @@ contains
        id_0m1 = idx( 0, -1, offs, dims)
        id_m10 = idx(-1,  0, offs, dims)
 
-       dom%ccentre%elts(LORT+TRIAG*id_mm+1) = &
+       dom%ccentre%elts(TRIAG*id_mm+LORT+1) = &
             circumcentre(dom%node%elts(idx(0,0,offs,dims)+1), dom%node%elts(id_0m1+1), dom%node%elts(id_m10+1))
        
-       dom%ccentre%elts(TRIAG*id_mm+UPLT+1) = dom%ccentre%elts(LORT+TRIAG*id_mm+1)
+       dom%ccentre%elts(TRIAG*id_mm+UPLT+1) = dom%ccentre%elts(TRIAG*id_mm+LORT+1)
        
        id_0m2 = idx( 0, -2, offs, dims)
        id_m20 = idx(-2,  0, offs, dims)
@@ -188,7 +188,7 @@ contains
        id_m12 = idx(-1, -2, offs, dims)
        id_m21 = idx(-2, -1, offs, dims)
        
-       dom%ccentre%elts(LORT+TRIAG*id_m12+1) = &
+       dom%ccentre%elts(TRIAG*id_m12+LORT+1) = &
             circumcentre(dom%node%elts(id_0m1+1), dom%node%elts(id_0m2+1), pt3)
 
        dom%ccentre%elts(TRIAG*id_m21+UPLT+1) = &
@@ -204,10 +204,10 @@ contains
        idNE = idx(i + 1, j + 1, offs, dims)
        idW  = idx(i - 1, j,     offs, dims)
 
-       dom%ccentre%elts(LORT+TRIAG*idW+1) = &
+       dom%ccentre%elts(TRIAG*idW+LORT+1) = &
             circumcentre(dom%node%elts(idW+1), dom%node%elts(idN+1), dom%node%elts(idNE+1))
        
-       dom%ccentre%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(LORT+TRIAG*idW+1)
+       dom%ccentre%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*idW+LORT+1)
     end if
     
     if (is_penta(dom, p, IMINUSJPLUS - 1)) then
@@ -222,7 +222,7 @@ contains
        dom%ccentre%elts(TRIAG*idS+UPLT+1) = &
             circumcentre(dom%node%elts(idS+1), dom%node%elts(idNE+1), dom%node%elts(idE+1))
        
-       dom%ccentre%elts(LORT+TRIAG*id+1) = dom%ccentre%elts(TRIAG*idS+UPLT+1)
+       dom%ccentre%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*idS+UPLT+1)
     end if
     
     if (is_penta(dom, p, IJPLUS - 1)) then
@@ -233,10 +233,10 @@ contains
        idN = idx(i,     j + 1, offs, dims)
        idE = idx(i + 1, j,     offs, dims)
 
-       dom%ccentre%elts(LORT+TRIAG*id+1) = &
+       dom%ccentre%elts(TRIAG*id+LORT+1) = &
             circumcentre(dom%node%elts(id+1), dom%node%elts(idN+1), dom%node%elts(idE+1))
        
-       dom%ccentre%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(LORT+TRIAG*id+1)
+       dom%ccentre%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)
     end if
   end subroutine ccentre_penta
 
@@ -265,19 +265,19 @@ contains
     end if
     
     dom%len%elts(EDGE*id+RT+1)    = dist(dom%node%elts(id+1), dom%node%elts(idE+1))
-    dom%len%elts(DG+EDGE*id+1)    = dist(dom%node%elts(idNE+1), dom%node%elts(id+1))
+    dom%len%elts(EDGE*id+DG+1)    = dist(dom%node%elts(idNE+1), dom%node%elts(id+1))
     dom%len%elts(EDGE*id+UP+1)    = dist(dom%node%elts(id+1), dom%node%elts(idN+1))
     dom%pedlen%elts(EDGE*id+RT+1) = dist(dom%ccentre%elts(TRIAG*idS+UPLT+1), dom%ccentre%elts(LORT+TRIAG*id+1))
-    dom%pedlen%elts(DG+EDGE*id+1) = dist(dom%ccentre%elts(TRIAG*id+UPLT+1), dom%ccentre%elts(LORT+TRIAG*id+1))
+    dom%pedlen%elts(EDGE*id+DG+1) = dist(dom%ccentre%elts(TRIAG*id+UPLT+1), dom%ccentre%elts(LORT+TRIAG*id+1))
     dom%pedlen%elts(EDGE*id+UP+1) = dist(dom%ccentre%elts(TRIAG*id+UPLT+1), dom%ccentre%elts(LORT+TRIAG*idW+1))
     
     if (i .eq. -1 .and. j .eq. -1 .and. is_penta(dom, p, IJMINUS - 1)) then
-       dom%pedlen%elts(DG+EDGE*id+1) = 0
+       dom%pedlen%elts(EDGE*id+DG+1) = 0
        dom%len%elts(EDGE*id+1) = dist(dom%node%elts(idE+1), dom%node%elts(idN+1))
     end if
     
     if (i .eq. PATCH_SIZE .and. j .eq. PATCH_SIZE .and. is_penta(dom, p, IJPLUS - 1)) then
-       dom%len%elts(DG+EDGE*id+1) = dist(dom%node%elts(idE+1), dom%node%elts(idN+1))
+       dom%len%elts(EDGE*id+DG+1) = dist(dom%node%elts(idE+1), dom%node%elts(idN+1))
     end if
   end subroutine lengths
 

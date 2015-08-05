@@ -496,9 +496,9 @@ contains
 
       if (dom%mask_p%elts(id+1) .gt. 0) then
           write (fid,'(18(E14.5E2, 1X), 4(E14.5E2, 1X), I3, 1X, I3)') &
-              dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
-              dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-              dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1), &
+              dom%ccentre%elts(TRIAG*id   +LORT+1), dom%ccentre%elts(TRIAG*id   +UPLT+1), &
+              dom%ccentre%elts(TRIAG*idW  +LORT+1), dom%ccentre%elts(TRIAG*idSW +UPLT+1), &
+              dom%ccentre%elts(TRIAG*idSW +LORT+1), dom%ccentre%elts(TRIAG*idS  +UPLT+1), &
               outv, dom%mask_p%elts(id+1), outl
           where (minv .gt. outv) minv = outv
           where (maxv .lt. outv) maxv = outv

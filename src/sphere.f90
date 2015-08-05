@@ -2,16 +2,20 @@ module geom_mod
   use param_mod
   use shared_mod
   implicit none
+  
   type Coord
      real(8) x
      real(8) y
      real(8) z
   end type Coord
+
   type Areas
      real(8), dimension(6) :: part
      real(8) :: hex_inv
   end type Areas
+
   type(Coord), parameter :: ORIGIN = Coord(0.0_8, 0.0_8, 0.0_8)
+
   integer, parameter :: N_GLO_DOMAIN = N_ICOSAH_LOZANGE*N_SUB_DOM
 
 contains

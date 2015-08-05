@@ -94,7 +94,7 @@ contains
       id = idx(i, j, offs, dims)
       if (dom%mask_p%elts(id+1) .gt. 0) then
           if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_p%elts(id+1) .eq. ADJZONE) &
-              max_height = max(max_height, abs(sol(S_HEIGHT)%data(dom%id+1)%elts(id+1)))
+              max_height = max(max_height, abs(sol(S_MASS)%data(dom%id+1)%elts(id+1)))
       end if
   end subroutine
 
@@ -106,7 +106,7 @@ contains
       integer id, d
       d = dom%id+1
       id = idx(i, j, offs, dims)
-      sol(S_HEIGHT)%data(d)%elts(id+1) = sol(S_HEIGHT)%data(d)%elts(id+1)* &
+      sol(S_MASS)%data(d)%elts(id+1) = sol(S_MASS)%data(d)%elts(id+1)* &
                   (1+alpha_m1*penal%data(d)%elts(id+1))
   end subroutine
 
@@ -130,9 +130,9 @@ contains
           t = ceiling(t)
           if (nint(s) .lt. lbound(okada_data,1) .or. nint(s) .gt. ubound(okada_data,1) .or. &
               nint(t) .lt. lbound(okada_data,2) .or. nint(t) .gt. ubound(okada_data,2)) stop "okada out of bound"
-          sol(S_HEIGHT)%data(d)%elts(id+1) = okada_data(nint(s),nint(t))
+          sol(S_MASS)%data(d)%elts(id+1) = okada_data(nint(s),nint(t))
       else
-          sol(S_HEIGHT)%data(d)%elts(id+1) = 0
+          sol(S_MASS)%data(d)%elts(id+1) = 0
       end if
       ! to be double save (u is initialized to zero by default):
       sol(S_VELO)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0
@@ -343,7 +343,7 @@ contains
       integer, dimension(2,N_BDRY + 1) :: dims
       integer id
       id = idx(i, j, offs, dims)
-      if (sol(S_HEIGHT)%data(dom%id+1)%elts(id+1)*Hdim .gt. 0.05 &
+      if (sol(S_MASS)%data(dom%id+1)%elts(id+1)*Hdim .gt. 0.05 &
               .and. dom%mask_p%elts(id+1) .ge. ADJZONE) &
           arrival%data(dom%id+1)%elts(id+1) = min(time*Tdim, arrival%data(dom%id+1)%elts(id+1))
   end subroutine
@@ -357,7 +357,7 @@ contains
       id = idx(i, j, offs, dims)
       if (dom%mask_p%elts(id+1) .gt. 0) then
           wave_h%data(dom%id+1)%elts(id+1) = &
-              max(sol(S_HEIGHT)%data(dom%id+1)%elts(id+1)*Hdim, wave_h%data(dom%id+1)%elts(id+1))
+              max(sol(S_MASS)%data(dom%id+1)%elts(id+1)*Hdim, wave_h%data(dom%id+1)%elts(id+1))
       end if
   end subroutine
 
@@ -374,7 +374,7 @@ contains
       if (dom%mask_p%elts(id+1) .gt. 0) then
          cur_gauge_dist = norm(vector(dom%node%elts(id+1), gauge_coord))
          if (cur_gauge_dist .lt. last_gauge_dist) then
-            cur_gauge = sol(S_HEIGHT)%data(dom%id+1)%elts(id+1)*Hdim
+            cur_gauge = sol(S_MASS)%data(dom%id+1)%elts(id+1)*Hdim
             last_gauge_dist = cur_gauge_dist
          end if
       end if
@@ -383,24 +383,28 @@ contains
   subroutine write_and_export(k)
       integer l, k
       integer u, i
+      
       call trend_ml(sol, trend)
       call pre_levelout()
+
       do l = level_start, level_end
           minv = 1.d63;
           maxv = -1.d63;
           u = 100000+100*k
+
           call write_level_mpi(write_primal, u+l, l, .True.)
+          
           do i = 1, N_VAR_OUT
               minv(i) = -sync_max_d(-minv(i))
-              maxv(i) = sync_max_d(maxv(i))
+              maxv(i) =  sync_max_d( maxv(i))
           end do
           if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
                   "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
           if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
                   "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
           u = 200000+100*k
-          ! call write_level_mpi(write_dual, u+l, l, .False.)
       end do
+
       call post_levelout()
       call barrier
       if (rank .eq. 0) call compress_files(k) 
@@ -547,8 +551,8 @@ program tsunami
   call initialize(apply_initial_conditions, 1, set_thresholds, tsunami_dump, tsunami_load)
   if (allocated(okada_data)) deallocate(okada_data)
 
-  call init_Float_Field(wave_h, S_HEIGHT)
-  call init_Float_Field(arrival, S_HEIGHT)
+  call init_Float_Field(wave_h, S_MASS)
+  call init_Float_Field(arrival, S_MASS)
   do d = 1, n_domain(rank+1)
       call init(wave_h%data(d), grid(d)%node%length)
       call init(arrival%data(d), grid(d)%node%length)
@@ -572,20 +576,27 @@ program tsunami
           open(unit=8450,file='tide_gauges',form='formatted',STATUS='old', POSITION='append')
       end if
   end if
+
   do while (time .lt. time_end)
       call start_timing()
-      call update_bdry(sol(S_HEIGHT), NONE)
+      call update_bdry(sol(S_MASS), NONE)
       max_height = 0
+
       do l = level_start, level_end
           call apply_onescale(cpt_max_dh, l, 0, 1)
       end do
+
       max_height = sync_max_d(max_height)
       VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel * max_height / c_p))
+
       call set_thresholds()
+
       n_patch_old = grid(:)%patch%length
       n_node_old = grid(:)%node%length
+
       call time_step(dt_write, aligned)
       call finish_new_patches()
+
       do d = 1, size(grid)
           num = grid(d)%node%length - n_node_old(d)
           if (num .gt. 0) then
@@ -593,6 +604,7 @@ program tsunami
               call extend(arrival%data(d), num, 1.0e8_8)
           end if
       end do
+
       call apply_onescale(wave_height, 9, 0, 0)
       call apply_onescale(first_arrival, 9, 0, 0)
 
@@ -611,14 +623,18 @@ program tsunami
      end if
 
       call stop_timing()
+
       call write_and_print_step()
+
       if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
               'time [h] =', time/3600.0_8*Tdim, &
               ', dt [s] =', dt*Tdim, &
               ', min. depth =', fd, &
               ', U =', VELO_SCALE, &
               ', d.o.f. =', sum(n_active)
+
       call print_load_balance()
+      
       if (aligned) then
           iwrite = iwrite + 1
           call write_and_export(iwrite)
@@ -646,8 +662,8 @@ program tsunami
           call restart_full(set_thresholds, tsunami_load)
           deallocate(n_patch_old); allocate(n_patch_old(size(grid)))
           deallocate(n_node_old);  allocate(n_node_old(size(grid)))
-          call init_Float_Field(wave_h, S_HEIGHT)
-          call init_Float_Field(arrival, S_HEIGHT)
+          call init_Float_Field(wave_h, S_MASS)
+          call init_Float_Field(arrival, S_MASS)
           do d = 1, n_domain(rank+1)
               call init(wave_h%data(d), grid(d)%node%length)
               call init(arrival%data(d), grid(d)%node%length)
