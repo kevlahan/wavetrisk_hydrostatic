@@ -29,60 +29,60 @@ contains
   end subroutine init_io_mod
 
   integer function get_fid()
-      get_fid  = next_fid
-      next_fid = next_fid + 1
-  end function
+    get_fid  = next_fid
+    next_fid = next_fid + 1
+  end function get_fid
 
   subroutine write_dual(dom, p, i, j, offs, dims, fid)
-      type(Domain) dom
-      integer p
-      integer i, j
-      integer, dimension(N_BDRY + 1) :: offs
-      integer, dimension(2,N_BDRY + 1) :: dims
-      integer fid
-      integer id, idE, idN, idNE
-      real(8) relvort(TRIAG), chidual(TRIAG)
-      integer leveldual(TRIAG)
-      
-      id   = idx(i,     j,     offs, dims)
-      idE  = idx(i + 1, j,     offs, dims)
-      idN  = idx(i,     j + 1, offs, dims)
-      idNE = idx(i + 1, j + 1, offs, dims)
-      
-      relvort = get_vort(dom, i, j, offs, dims) !! FIXME: NEED TO CALCULATE VORTICITY AT DESIRED VERTICAL LEVELS
-      
-      chidual = 0
-      
-      if (maxval(dom%mask_p%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
-          if (penalize) &
-              chidual(LORT+1) = (penal%data(dom%id+1)%elts(id  +1)*dom%areas%elts(id  +1)%part(1) &
-                               + penal%data(dom%id+1)%elts(idE +1)*dom%areas%elts(idE +1)%part(3) &
-                               + penal%data(dom%id+1)%elts(idNE+1)*dom%areas%elts(idNE+1)%part(5)) &
-                               /dom%triarea%elts(TRIAG*id+LORT+1)
-          
-          if (allocated(active_level%data)) & ! avoid segfault if pre_levelout not used
-               leveldual(LORT+1) = maxval(active_level%data(dom%id+1)%elts((/id, idE, idNE/)+1))
-          
-          write (fid,'(9(E14.5E2, 1X), 2(E14.5E2, 1X), I3)') dom%node%elts((/id, idE, idNE/)+1), &
-                relvort(LORT+1), chidual(LORT+1), leveldual(LORT+1)
-      end if
+    type(Domain) dom
+    integer p
+    integer i, j
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer fid
+    integer id, idE, idN, idNE
+    real(8) relvort(TRIAG), chidual(TRIAG)
+    integer leveldual(TRIAG)
 
-      if (maxval(dom%mask_p%elts((/id, idNE, idN/)+1)) .ge. ADJZONE) then
-         
-          if (penalize) &
-              chidual(UPLT+1) = (penal%data(dom%id+1)%elts(id  +1)*dom%areas%elts(id  +1)%part(2) &
-                               + penal%data(dom%id+1)%elts(idNE+1)*dom%areas%elts(idNE+1)%part(4) &
-                               + penal%data(dom%id+1)%elts(idN +1)*dom%areas%elts(idN +1)%part(6)) &
-                              /dom%triarea%elts(TRIAG*id+UPLT+1)
+    id   = idx(i,     j,     offs, dims)
+    idE  = idx(i + 1, j,     offs, dims)
+    idN  = idx(i,     j + 1, offs, dims)
+    idNE = idx(i + 1, j + 1, offs, dims)
 
-          if (allocated(active_level%data)) & ! avoid segfault if pre_levelout not used
-              leveldual(UPLT+1) = maxval(active_level%data(dom%id+1)%elts((/id, idNE, idN/)+1))
+    relvort = get_vort(dom, i, j, offs, dims) !! FIXME: NEED TO CALCULATE VORTICITY AT DESIRED VERTICAL LEVELS
 
-          write (fid,'(9(E14.5E2, 1X), 2(E14.5E2, 1X), I3)') dom%node%elts((/id, idNE, idN/)+1), &
-                relvort(UPLT+1), chidual(UPLT+1), leveldual(UPLT+1)
-       end if
-       
-  end subroutine
+    chidual = 0
+
+    if (maxval(dom%mask_p%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
+       if (penalize) &
+            chidual(LORT+1) = (penal%data(dom%id+1)%elts(id  +1)*dom%areas%elts(id  +1)%part(1) &
+            + penal%data(dom%id+1)%elts(idE +1)*dom%areas%elts(idE +1)%part(3) &
+            + penal%data(dom%id+1)%elts(idNE+1)*dom%areas%elts(idNE+1)%part(5)) &
+            /dom%triarea%elts(TRIAG*id+LORT+1)
+
+       if (allocated(active_level%data)) & ! avoid segfault if pre_levelout not used
+            leveldual(LORT+1) = maxval(active_level%data(dom%id+1)%elts((/id, idE, idNE/)+1))
+
+       write (fid,'(9(E14.5E2, 1X), 2(E14.5E2, 1X), I3)') dom%node%elts((/id, idE, idNE/)+1), &
+            relvort(LORT+1), chidual(LORT+1), leveldual(LORT+1)
+    end if
+
+    if (maxval(dom%mask_p%elts((/id, idNE, idN/)+1)) .ge. ADJZONE) then
+
+       if (penalize) &
+            chidual(UPLT+1) = (penal%data(dom%id+1)%elts(id  +1)*dom%areas%elts(id  +1)%part(2) &
+            + penal%data(dom%id+1)%elts(idNE+1)*dom%areas%elts(idNE+1)%part(4) &
+            + penal%data(dom%id+1)%elts(idN +1)*dom%areas%elts(idN +1)%part(6)) &
+            /dom%triarea%elts(TRIAG*id+UPLT+1)
+
+       if (allocated(active_level%data)) & ! avoid segfault if pre_levelout not used
+            leveldual(UPLT+1) = maxval(active_level%data(dom%id+1)%elts((/id, idNE, idN/)+1))
+
+       write (fid,'(9(E14.5E2, 1X), 2(E14.5E2, 1X), I3)') dom%node%elts((/id, idNE, idN/)+1), &
+            relvort(UPLT+1), chidual(UPLT+1), leveldual(UPLT+1)
+    end if
+
+  end subroutine write_dual
 
   !! FIXME: NEED TO CALCULATE VORTICITY AT DESIRED VERTICAL LEVELS
   subroutine vort_extrema(dom, i, j, offs, dims)

@@ -137,7 +137,7 @@ contains
     integer r
     logical eval_pole
     
-    write(filename,   '(A,I6)')  "fort.", fid
+    write(filename, '(A,I6)')  "fort.", fid
     do r = 1, n_process
        if (r .ne. rank+1) then ! write only if our turn, otherwise only wait at Barrier
           call MPI_Barrier(MPI_Comm_World, ierror)
