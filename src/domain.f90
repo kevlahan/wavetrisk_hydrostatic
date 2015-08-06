@@ -111,10 +111,11 @@ contains
     initialized = .True.
   end subroutine init_domain_mod
 
-  subroutine apply_onescale_to_patch__int(routine, dom, p, st, en, ival)
+  subroutine apply_onescale_to_patch__int(routine, dom, p, zlev, st, en, ival)
     external routine
     type(Domain) dom
     integer p
+    integer zlev
     integer st, en
     integer ival
     integer, dimension(N_BDRY + 1) :: offs
@@ -126,7 +127,7 @@ contains
 
     do j = st + 1, PATCH_SIZE + en
        do i = st + 1, PATCH_SIZE + en
-          call routine(dom, p, i - 1, j - 1, offs, dims, ival)
+          call routine(dom, p, i - 1, j - 1, zlev, offs, dims, ival)
        end do
     end do
   end subroutine apply_onescale_to_patch__int
@@ -319,10 +320,10 @@ contains
     end do
   end subroutine apply_interscale_d2
 
-  subroutine apply_to_pole_d(routine, dom, l, ival, to_all)
+  subroutine apply_to_pole_d(routine, dom, l, zlev, ival, to_all)
     external routine
     type(Domain) dom
-    integer l
+    integer l, zlev
     integer ival
     logical to_all
     integer c
@@ -353,20 +354,20 @@ contains
           end if
 
           call get_offs_Domain(dom, p_par, offs, dims)
-
+          
           if (c .eq. NORTHWEST) then
-             call routine(dom, p_par, 0, PATCH_SIZE, offs, dims, ival) ! NORTHPOLE
+             call routine(dom, p_par, 0, PATCH_SIZE, zlev, offs, dims, ival) ! NORTHPOLE
           else
-             call routine(dom, p_par, PATCH_SIZE, 0, offs, dims, ival) ! SOUTHPOLE
+             call routine(dom, p_par, PATCH_SIZE, 0, zlev, offs, dims, ival) ! SOUTHPOLE
           end if
 
        end do
     end do
   end subroutine apply_to_pole_d
 
-  subroutine apply_to_pole(routine, l, ival, to_all)
+  subroutine apply_to_pole(routine, l, zlev, ival, to_all)
     external routine
-    integer l
+    integer l, zlev
     integer ival
     logical to_all
     integer d
@@ -378,7 +379,7 @@ contains
     integer, dimension(2,9) :: dims
 
     do d = 1, size(grid)
-       call apply_to_pole_d(routine, grid(d), l, ival, to_all)
+       call apply_to_pole_d(routine, grid(d), l, zlev, ival, to_all)
     end do
   end subroutine apply_to_pole
 
@@ -717,9 +718,9 @@ contains
     end do
   end subroutine apply_onescale
 
-  subroutine apply_onescale__int(routine, l, st, en, ival)
+  subroutine apply_onescale__int(routine, l, zlev, st, en, ival)
     external routine
-    integer l
+    integer l, zlev
     integer st
     integer en
     integer d
@@ -729,7 +730,7 @@ contains
 
     do d = 1, size(grid)
        do k = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch__int(routine, grid(d), grid(d)%lev(l)%elts(k), st, en, ival)
+          call apply_onescale_to_patch__int(routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en, ival)
        end do
     end do
   end subroutine apply_onescale__int

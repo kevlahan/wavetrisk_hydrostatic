@@ -604,19 +604,17 @@ contains
     end do
   end subroutine read_u_wc_and_mask
 
-  subroutine read_mass(dom, p, i, j, offs, dims, fid)
+  subroutine read_mass(dom, p, i, j, zlev, offs, dims, fid)
       type(Domain) dom
       integer p, i
-      integer j, k
+      integer j, zlev, k
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
       integer fid
       integer id
       
       id = idx(i, j, offs, dims)
-      do k = 1, zlevels
-         read(fid) sol(S_MASS,k)%data(dom%id+1)%elts(id+1) ! for pole
-      end do
+      read(fid) sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) ! for pole
   end subroutine
 
   subroutine read_p_wc_and_mask(dom, p, i, j, offs, dims, fid)
@@ -649,9 +647,9 @@ contains
       end do
   end subroutine
 
-  subroutine write_mass(dom, p, i, j, offs, dims, fid)
+  subroutine write_mass(dom, p, i, j, zlev, offs, dims, fid)
       type(Domain) dom
-      integer p, i
+      integer p, i, zlev
       integer j, k
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
@@ -659,9 +657,7 @@ contains
       integer id
       
       id = idx(i, j, offs, dims)
-      do k = 1, zlevels
-         write(fid) sol(S_MASS,k)%data(dom%id+1)%elts(id+1) ! for pole
-      end do
+      write(fid) sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) ! for pole
   end subroutine
 
   subroutine load_adapt_mpi(node_in_rout, edge_in_rout, id, custom_load)
@@ -688,7 +684,10 @@ contains
        read(fid_no(d)) time
        
        call custom_load(fid_no(d))
-       call apply_to_pole_d(read_mass, grid(d), min_level-1, fid_no(d), .True.)
+
+       do k = 1, zlevels
+          call apply_to_pole_d(read_mass, grid(d), min_level-1, k, fid_no(d), .True.)
+       end do
 
        do k = 1, zlevels
           do v = S_MASS, S_VELO
@@ -804,7 +803,10 @@ contains
        write(fid_no) time
        
        call custom_dump(fid_no)
-       call apply_to_pole_d(write_mass, grid(d), min_level-1, fid_no, .True.)
+
+       do k = 1, zlevels
+          call apply_to_pole_d(write_mass, grid(d), min_level-1, k, fid_no, .True.)
+       end do
        
        do k = 1, zlevels
           do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &

@@ -278,11 +278,12 @@ contains
 
   end subroutine inj_p_adjzone
 
-  subroutine set_masks(dom, p, i, j, offs, dims, mask)
+  subroutine set_masks(dom, p, i, j, zlev, offs, dims, mask)
     type(Domain) dom
     integer p
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer mask

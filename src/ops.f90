@@ -33,161 +33,162 @@ contains
          idE  = idx( 1,  0, offs, dims)
 
          if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
-
-          full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + &
+         
+         full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + &
                              dom%topo%elts((/id,idN,idE,idS,idW/)+1) * phi(0:WEST)
 
-          dom%vort%elts(TRIAG*idSW+LORT+1) = &
-                      (velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1) &
-                      -velo(EDGE*idSW+1)*dom%len%elts(EDGE*idSW+1) &
-                      -velo(EDGE*idS+UP+1)*dom%len%elts(EDGE*idS+UP+1))
+         dom%vort%elts(TRIAG*idSW+LORT+1) = &
+              (velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1) &
+              -velo(EDGE*idSW+1)*dom%len%elts(EDGE*idSW+1) &
+              -velo(EDGE*idS+UP+1)*dom%len%elts(EDGE*idS+UP+1))
           
-          pv_SW = (dom%coriolis%elts(TRIAG*idSW+1) + dom%vort%elts(TRIAG*idSW+1))/ &
-                       (full_depth(WEST)*dom%areas%elts(idW+1)%part(6) &
-                      + full_depth(0)*sum(dom%areas%elts(id+1)%part(4:5)) &
-                      + full_depth(SOUTH)*dom%areas%elts(idS+1)%part(3))
+         pv_SW = (dom%coriolis%elts(TRIAG*idSW+1) + dom%vort%elts(TRIAG*idSW+1))/ &
+              (full_depth(WEST)*dom%areas%elts(idW+1)%part(6) &
+              + full_depth(0)*sum(dom%areas%elts(id+1)%part(4:5)) &
+              + full_depth(SOUTH)*dom%areas%elts(idS+1)%part(3))
+         
+         pv_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + dom%vort%elts(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1))/ &
+              (full_depth(WEST)*dom%areas%elts(idW+1)%part(1) &
+              + full_depth(0)*dom%areas%elts(id+1)%part(3) &
+              + full_depth(NORTH)*dom%areas%elts(idN+1)%part(5))
+         
+         pv_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + dom%vort%elts(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1))/ &
+              (full_depth(SOUTH)*dom%areas%elts(idS+1)%part(2) &
+              + full_depth(EAST)*dom%areas%elts(idE+1)%part(4) &
+              + full_depth(0)*dom%areas%elts(id+1)%part(6))
 
-          pv_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + dom%vort%elts(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1))/ &
-                       (full_depth(WEST)*dom%areas%elts(idW+1)%part(1) &
-                      + full_depth(0)*dom%areas%elts(id+1)%part(3) &
-                      + full_depth(NORTH)*dom%areas%elts(idN+1)%part(5))
+         dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
+         dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
 
-          pv_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + dom%vort%elts(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1))/ &
-                       (full_depth(SOUTH)*dom%areas%elts(idS+1)%part(2) &
-                      + full_depth(EAST)*dom%areas%elts(idE+1)%part(4) &
-                      + full_depth(0)*dom%areas%elts(id+1)%part(6))
-
-          dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
-          dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
-
-          dom%qe%elts(EDGE*idW+RT+1) = 0.5_8*(pv_W + pv_SW)
-          dom%qe%elts(EDGE*idS+UP+1) = 0.5_8*(pv_S + pv_SW)
+         dom%qe%elts(EDGE*idW+RT+1) = 0.5_8*(pv_W + pv_SW)
+         dom%qe%elts(EDGE*idS+UP+1) = 0.5_8*(pv_S + pv_SW)
       end if
 
       if (c .eq. IPLUSJMINUS) then
-          id   = idx(PATCH_SIZE,    0, offs, dims)
-          idSW = idx(PATCH_SIZE-1, -1, offs, dims)
-          idS  = idx(PATCH_SIZE,   -1, offs, dims)
-          idW  = idx(PATCH_SIZE-1,  0, offs, dims)
-          idE  = idx(PATCH_SIZE+1,  0, offs, dims)
-          idNE = idx(PATCH_SIZE+1,  1, offs, dims)
+         id   = idx(PATCH_SIZE,    0, offs, dims)
+         idSW = idx(PATCH_SIZE-1, -1, offs, dims)
+         idS  = idx(PATCH_SIZE,   -1, offs, dims)
+         idW  = idx(PATCH_SIZE-1,  0, offs, dims)
+         idE  = idx(PATCH_SIZE+1,  0, offs, dims)
+         idNE = idx(PATCH_SIZE+1,  1, offs, dims)
 
-          if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,id,idE,idS,idW,idNE/)+1)
-          
-          full_depth(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + &
-                             dom%topo%elts((/id,id,idE,idS,idW,idNE/)+1) * phi(0:NORTHEAST)
-          dom%vort%elts(LORT+TRIAG*idSW+1) = - &
-                  ((velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) + &
-                  velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)) - &
-                  velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1))
-          
-          pv_SW_LORT = (dom%coriolis%elts(LORT+TRIAG*idSW+1) + &
-                 dom%vort%elts(LORT+TRIAG*idSW+1))/( &
-                 full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
-                 full_depth(SOUTH)*dom%areas%elts(idS +1)%part(3) + &
-                 full_depth(0)*sum(dom%areas%elts(id+1)%part(5:6)))
+         if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,id,idE,idS,idW,idNE/)+1)
+                  
+         full_depth(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + &
+              dom%topo%elts((/id,id,idE,idS,idW,idNE/)+1) * phi(0:NORTHEAST)
 
-          pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + dom%vort%elts(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1))/ &
-                       (full_depth(0)*dom%areas%elts(id  +1)%part(1) &
-                      + full_depth(EAST)*dom%areas%elts(idE +1)%part(3) &
-                      + full_depth(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
-
-          pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + &
-                        dom%vort%elts(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1))/ &
-                       (full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) &
-                      + full_depth(0)*dom%areas%elts(id  +1)%part(4) &
-                      + full_depth(WEST)*dom%areas%elts(idW +1)%part(6))
-
-          dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
-          dom%vort%elts(TRIAG*idS +UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
-
-          pv_S = pv_SW_LORT
-
-          dom%qe%elts(EDGE*id  +RT+1) = 0.5_8*(pv_S + pv_LORT)
-          dom%qe%elts(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
+         dom%vort%elts(LORT+TRIAG*idSW+1) = - &
+              ((velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) + &
+              velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)) - &
+              velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1))
+         
+         pv_SW_LORT = (dom%coriolis%elts(LORT+TRIAG*idSW+1) + &
+              dom%vort%elts(LORT+TRIAG*idSW+1))/( &
+              full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
+              full_depth(SOUTH)*dom%areas%elts(idS +1)%part(3) + &
+              full_depth(0)*sum(dom%areas%elts(id+1)%part(5:6)))
+         
+         pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + dom%vort%elts(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1))/ &
+              (full_depth(0)*dom%areas%elts(id  +1)%part(1) &
+              + full_depth(EAST)*dom%areas%elts(idE +1)%part(3) &
+              + full_depth(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
+         
+         pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + &
+              dom%vort%elts(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1))/ &
+              (full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) &
+              + full_depth(0)*dom%areas%elts(id  +1)%part(4) &
+              + full_depth(WEST)*dom%areas%elts(idW +1)%part(6))
+         
+         dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
+         dom%vort%elts(TRIAG*idS +UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
+         
+         pv_S = pv_SW_LORT
+         
+         dom%qe%elts(EDGE*id  +RT+1) = 0.5_8*(pv_S + pv_LORT)
+         dom%qe%elts(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
       end if
 
       if (c .eq. IMINUSJPLUS) then
-          id   = idx(0,  PATCH_SIZE,   offs, dims)
-          idSW = idx(-1, PATCH_SIZE-1, offs, dims)
-          idW  = idx(-1, PATCH_SIZE,   offs, dims)
-          idS  = idx(0,  PATCH_SIZE-1, offs, dims)
-          idN  = idx(0,  PATCH_SIZE+1, offs, dims)
-          idNE = idx(1,  PATCH_SIZE+1, offs, dims)
+         id   = idx(0,  PATCH_SIZE,   offs, dims)
+         idSW = idx(-1, PATCH_SIZE-1, offs, dims)
+         idW  = idx(-1, PATCH_SIZE,   offs, dims)
+         idS  = idx(0,  PATCH_SIZE-1, offs, dims)
+         idN  = idx(0,  PATCH_SIZE+1, offs, dims)
+         idNE = idx(1,  PATCH_SIZE+1, offs, dims)
+         
+         if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,id,idS,idW,idNE/)+1)
 
-          if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,id,idS,idW,idNE/)+1)
-
-          full_depth(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + &
-                             dom%topo%elts((/id,idN,id,idS,idW,idNE/)+1) * phi(0:NORTHEAST)
-
-          dom%vort%elts(TRIAG*idSW+UPLT+1) = &
-                  - velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1) &
-                  + velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1) &
-                  + velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
-
-          pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) &
-                  + dom%vort%elts(TRIAG*idSW+UPLT+1)) &
-                  /(full_depth(SOUTHWEST)*dom%areas%elts(idSW  +1)%part(2) &
-                  + full_depth(0)*sum(dom%areas%elts(id  +1)%part(3:4)) &
-                  + full_depth(WEST)*dom%areas%elts(idW +1)%part(6))
-
-          pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + dom%vort%elts(TRIAG*id+UPLT+1)*dom%triarea%elts(TRIAG*id+UPLT+1))/ &
-                       (full_depth(0)*dom%areas%elts(id+1)%part(2) &
-                      + full_depth(NORTHEAST)*dom%areas%elts(idNE+1)%part(4) &
-                      + full_depth(NORTH)*dom%areas%elts(idN+1)%part(6))
-
-          pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + &
-                        dom%vort%elts(TRIAG*idSW+LORT+1)*dom%triarea%elts(TRIAG*idSW+LORT+1))/ &
-                       (full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) &
-                      + full_depth(SOUTH)*dom%areas%elts(idS+1)%part(3) &
-                      + full_depth(0)*dom%areas%elts(id+1)%part(5))
-
-          dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(TRIAG*idSW+UPLT+1)/dom%triarea%elts(TRIAG*idSW+UPLT+1)  
-          dom%vort%elts(TRIAG*idW +LORT+1) = dom%vort%elts(TRIAG*idSW+UPLT+1)
-
-          pv_W = pv_SW_UPLT
-
-          dom%qe%elts(EDGE*id  +UP+1) = 0.5_8*(pv_W + pv_UPLT)
-          dom%qe%elts(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
-       end if
+         full_depth(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + &
+              dom%topo%elts((/id,idN,id,idS,idW,idNE/)+1) * phi(0:NORTHEAST)
+         
+         dom%vort%elts(TRIAG*idSW+UPLT+1) = &
+              - velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1) &
+              + velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1) &
+              + velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
+         
+         pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) &
+              + dom%vort%elts(TRIAG*idSW+UPLT+1)) &
+              /(full_depth(SOUTHWEST)*dom%areas%elts(idSW  +1)%part(2) &
+              + full_depth(0)*sum(dom%areas%elts(id  +1)%part(3:4)) &
+              + full_depth(WEST)*dom%areas%elts(idW +1)%part(6))
+         
+         pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + dom%vort%elts(TRIAG*id+UPLT+1)*dom%triarea%elts(TRIAG*id+UPLT+1))/ &
+              (full_depth(0)*dom%areas%elts(id+1)%part(2) &
+              + full_depth(NORTHEAST)*dom%areas%elts(idNE+1)%part(4) &
+              + full_depth(NORTH)*dom%areas%elts(idN+1)%part(6))
+         
+         pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + &
+              dom%vort%elts(TRIAG*idSW+LORT+1)*dom%triarea%elts(TRIAG*idSW+LORT+1))/ &
+              (full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) &
+              + full_depth(SOUTH)*dom%areas%elts(idS+1)%part(3) &
+              + full_depth(0)*dom%areas%elts(id+1)%part(5))
+         
+         dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(TRIAG*idSW+UPLT+1)/dom%triarea%elts(TRIAG*idSW+UPLT+1)  
+         dom%vort%elts(TRIAG*idW +LORT+1) = dom%vort%elts(TRIAG*idSW+UPLT+1)
+         
+         pv_W = pv_SW_UPLT
+         
+         dom%qe%elts(EDGE*id  +UP+1) = 0.5_8*(pv_W + pv_UPLT)
+         dom%qe%elts(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
+      end if
        
       if (c .eq. IJPLUS) then
-          id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
-          idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
-          idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
-          idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
-          idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
+         id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
+         idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
+         idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
+         idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
+         idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
+         
+         if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
 
-          if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
-
-          full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + &
-                             dom%topo%elts((/id,idN,idE,idS,idW/)+1) * phi(0:WEST)
-
-          dom%vort%elts(LORT+TRIAG*id+1) = - &
-                  (velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1) - &
-                   velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1) - &
-                   velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id+UP+1))
-
-          pv = (dom%coriolis%elts(TRIAG*id+1) + dom%vort%elts(LORT+TRIAG*id+1))/ &          
-                       (full_depth(EAST)*dom%areas%elts(idE+1)%part(3) + &
-                        full_depth(0)*sum(dom%areas%elts(id+1)%part(1:2)) + &
-                        full_depth(NORTH)*dom%areas%elts(idN+1)%part(6))
-
-          pv_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + dom%vort%elts(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1))/ &
-                       (full_depth(WEST)*dom%areas%elts(idW+1)%part(1) &
-                      + full_depth(0)*dom%areas%elts(id+1)%part(3) &
-                      + full_depth(NORTH)*dom%areas%elts(idN+1)%part(5))
-
-          pv_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + dom%vort%elts(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1))/ &
-                       (full_depth(SOUTH)*dom%areas%elts(idS+1)%part(2) &
-                      + full_depth(EAST)*dom%areas%elts(idE+1)%part(4) &
-                      + full_depth(0)*dom%areas%elts(id+1)%part(6))
-
-          dom%vort%elts(LORT+TRIAG*id+1) = dom%vort%elts(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
-          dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(LORT+TRIAG*id+1)
-
-          dom%qe%elts(EDGE*id+RT+1) = 0.5_8*(pv + pv_S)
-          dom%qe%elts(EDGE*id+UP+1) = 0.5_8*(pv + pv_W)
+         full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + &
+              dom%topo%elts((/id,idN,idE,idS,idW/)+1) * phi(0:WEST)
+         
+         dom%vort%elts(LORT+TRIAG*id+1) = - &
+              (velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1) - &
+              velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1) - &
+              velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id+UP+1))
+         
+         pv = (dom%coriolis%elts(TRIAG*id+1) + dom%vort%elts(LORT+TRIAG*id+1))/ &          
+              (full_depth(EAST)*dom%areas%elts(idE+1)%part(3) + &
+              full_depth(0)*sum(dom%areas%elts(id+1)%part(1:2)) + &
+              full_depth(NORTH)*dom%areas%elts(idN+1)%part(6))
+         
+         pv_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + dom%vort%elts(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1))/ &
+              (full_depth(WEST)*dom%areas%elts(idW+1)%part(1) &
+              + full_depth(0)*dom%areas%elts(id+1)%part(3) &
+              + full_depth(NORTH)*dom%areas%elts(idN+1)%part(5))
+         
+         pv_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + dom%vort%elts(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1))/ &
+              (full_depth(SOUTH)*dom%areas%elts(idS+1)%part(2) &
+              + full_depth(EAST)*dom%areas%elts(idE+1)%part(4) &
+              + full_depth(0)*dom%areas%elts(id+1)%part(6))
+         
+         dom%vort%elts(LORT+TRIAG*id+1) = dom%vort%elts(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
+         dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(LORT+TRIAG*id+1)
+         
+         dom%qe%elts(EDGE*id+RT+1) = 0.5_8*(pv + pv_S)
+         dom%qe%elts(EDGE*id+UP+1) = 0.5_8*(pv + pv_W)
       end if
   end subroutine
 
@@ -539,7 +540,7 @@ contains
           chi1(RT:UP) = 0.5_8*(chi1(NODE)+chi1(RT:UP)) ! interpolate p->u
           
           dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = dvelo(EDGE*id+RT+1:EDGE*id+UP+1) &
-                  + velo(EDGE*id+RT+1:EDGE*id+UP+1)*dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)*chi1(RT:UP)
+               + velo(EDGE*id+RT+1:EDGE*id+UP+1)*dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)*chi1(RT:UP)
       else
           phi = 1.0_8
        end if

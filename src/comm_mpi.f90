@@ -130,9 +130,9 @@ contains
     if (rank .eq. 0) write(*,*) 'relative imbalance (1=perfect balance)', rel_imbalance
   end subroutine print_load_balance
 
-  subroutine write_level_mpi(out_rout, fid, l, eval_pole)
+  subroutine write_level_mpi(out_rout, fid, l, zlev, eval_pole)
     external out_rout
-    integer fid, l
+    integer fid, l, zlev
     character(5+6) filename
     integer r
     logical eval_pole
@@ -150,9 +150,9 @@ contains
           open(unit=fid, file=filename, access='APPEND')
        end if
        
-       if (eval_pole) call apply_to_pole(out_rout, l, fid, .False.)
+       if (eval_pole) call apply_to_pole(out_rout, l, zlev, fid, .False.)
 
-       call apply_onescale__int(out_rout, l, 0, 0, fid)
+       call apply_onescale__int(out_rout, l, zlev, 0, 0, fid)
 
        close(fid)
 

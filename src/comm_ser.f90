@@ -27,16 +27,16 @@ contains
   subroutine print_load_balance()
   end subroutine
   
-  subroutine write_level_mpi(out_rout, fid, l, eval_pole)
+  subroutine write_level_mpi(out_rout, fid, l, zlev, eval_pole)
     external out_rout
-    integer fid, l
+    integer fid, l, zlev
     character(5+6) filename
     logical eval_pole
 
     write(filename,   '(A,I6)')  "fort.", fid
     open(unit=fid, file=filename)
-    if (eval_pole) call apply_to_pole(out_rout, l, fid, .False.)
-    call apply_onescale__int(out_rout, l, 0, 0, fid)
+    if (eval_pole) call apply_to_pole(out_rout, l, zlev, fid, .False.)
+    call apply_onescale__int(out_rout, l, zlev, 0, 0, fid)
     close(fid)
   end subroutine write_level_mpi
 

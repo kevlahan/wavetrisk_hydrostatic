@@ -76,13 +76,13 @@
 !
 ! N = (0,1), S = (0,-1), W = (-1,0), E = (1,0), NE = (1,1), NW = (-1,1), SE=(1,-1), SW = (-1,-1)
 !
-! NW ------------ N ----------- NE
-!   \            / \           / \
-!    \          /   \         /   \
-!     \        /     \       /     \
-!      \      /       \     /       \  
-!       \    /         \   /         \
-!        \  /           \ /           \
+!  NW ----------- N ----------- NE
+!    \           / \           / \
+!     \         /   \         /   \
+!      \       /     \       /     \
+!       \     /       \     /       \  
+!        \   /         \   /         \
+!         \ /           \ /           \
 !          W ----------- H ----------- E
 !           \           / \          /  \
 !            \         /   \        /    \ 
@@ -90,7 +90,7 @@
 !              \     /       \    /        \
 !               \   /         \  /          \
 !                \ /           \/            \
-!                SW ---------- S ---------- SE
+!                SW ---------- S ----------- SE
 
 
 ! Neighbour directions on hexagon
@@ -112,6 +112,10 @@
 !             -------------
 !
 !                   S
+! DATA OUTPUT
+!
+! Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual. Full state of the simulation is saved in io.f90/dump_adapt_mpi and read in again
+! by io.f90/load_adapt_mpi.
 
 module shared_mod
   use param_mod

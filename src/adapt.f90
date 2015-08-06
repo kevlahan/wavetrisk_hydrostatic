@@ -43,8 +43,7 @@ contains
     integer l
 
     do l = level_start+1, level_end
-       call apply_onescale__int(set_masks, l, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
-
+       call apply_onescale__int(set_masks, l, 0, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
     call mask_active()
@@ -216,7 +215,7 @@ contains
              do c = 1, N_CHDRN
                 chdrn = get_child_and_neigh_patches(grid(d), p, c)
                 do c1 = 1, N_CHDRN
-                   call apply_onescale_to_patch__int(set_masks, grid(d), chdrn(c1), 0, 0, FROZEN)
+                   call apply_onescale_to_patch__int(set_masks, grid(d), chdrn(c1), 0, 0, 0, FROZEN)
                 end do
              end do
              grid(d)%patch%elts(p+1)%active = NONE
