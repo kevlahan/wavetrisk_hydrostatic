@@ -63,18 +63,23 @@ module tsunami_mod
 
 contains
   subroutine apply_initial_conditions()
-    integer l, d, p
+    integer l, d, p, k
+    
     do l = level_start, level_end
-       call apply_onescale(init_sol, l, 0, 1)
-    end do
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch(cpt_topo_penal, grid(d), p-1, -2, 3)
+       do k = 1, zlevels
+          call apply_onescale(init_sol, l, k, 0, 1)
        end do
     end do
+
+    do d = 1, size(grid)
+       do p = 3, grid(d)%patch%length
+          call apply_onescale_to_patch(cpt_topo_penal, grid(d), p-1, z_null, -2, 3)
+       end do
+    end do
+
     do l = level_start, level_end
        ! FIXME: works only for zero initial height perturbation at poles
-       if (penalize) call apply_onescale(penalize_ic, l, 0, 0) 
+       if (penalize) call apply_onescale(penalize_ic, l, z_null, 0, 0) 
     end do
   end subroutine apply_initial_conditions
 
@@ -85,9 +90,9 @@ contains
          time, dt, timing, level_end, n_active, max_height, VELO_SCALE
   end subroutine write_and_print_step
 
-  subroutine cpt_max_dh(dom, i, j, offs, dims)
+  subroutine cpt_max_dh(dom, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer i, j
+    integer i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, k
@@ -119,9 +124,9 @@ contains
     end do
   end subroutine penalize_ic
 
-  subroutine init_sol(dom, i, j, offs, dims)
+  subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer i, j, k
+    integer i, j, k, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, d
@@ -143,19 +148,13 @@ contains
        if (nint(s) .lt. lbound(okada_data,1) .or. nint(s) .gt. ubound(okada_data,1) .or. &
             nint(t) .lt. lbound(okada_data,2) .or. nint(t) .gt. ubound(okada_data,2)) stop "okada out of bound"
 
-       do k = 1, zlevels
-          sol(S_MASS,k)%data(d)%elts(id+1) = okada_data(nint(s),nint(t))
-       end do
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = okada_data(nint(s),nint(t))
     else
-       do k = 1, zlevels
-          sol(S_MASS,k)%data(d)%elts(id+1) = 0
-       end do
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = 0
     end if
 
     ! to be double save (u is initialized to zero by default):
-    do k = 1, zlevels
-       sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0
-    end do
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0
   end subroutine init_sol
 
   subroutine read_test_case_parameters(filename)
@@ -216,10 +215,11 @@ contains
     close(fid)
   end subroutine read_test_case_parameters
 
-  subroutine cpt_topo_penal(dom, i, j, offs, dims)
+  subroutine cpt_topo_penal(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer e, grid_level
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
@@ -356,30 +356,28 @@ contains
     integer d, p
     do d = 1, size(grid)
        do p = n_patch_old(d)+1, grid(d)%patch%length
-          call apply_onescale_to_patch(cpt_topo_penal, grid(d), p-1, -2, 3)
+          call apply_onescale_to_patch(cpt_topo_penal, grid(d), p-1, z_null, -2, 3)
        end do
     end do
   end subroutine finish_new_patches
 
-  subroutine first_arrival(dom, i, j, offs, dims)
+  subroutine first_arrival(dom, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer i, j, k 
+    integer i, j, k, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
 
     id = idx(i, j, offs, dims)
 
-    do k = 1, zlevels
-       if (sol(S_MASS,k)%data(dom%id+1)%elts(id+1)*Hdim .gt. 0.05 &
-            .and. dom%mask_p%elts(id+1) .ge. ADJZONE) &
-            arrival%data(dom%id+1)%elts(id+1) = min(time*Tdim, arrival%data(dom%id+1)%elts(id+1))
-    end do
+    if (sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim .gt. 0.05 &
+         .and. dom%mask_p%elts(id+1) .ge. ADJZONE) &
+         arrival%data(dom%id+1)%elts(id+1) = min(time*Tdim, arrival%data(dom%id+1)%elts(id+1))
   end subroutine first_arrival
 
-  subroutine wave_height(dom, i, j, offs, dims)
+  subroutine wave_height(dom, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer i, j, k
+    integer i, j, k, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
@@ -387,16 +385,14 @@ contains
     id = idx(i, j, offs, dims)
 
     if (dom%mask_p%elts(id+1) .gt. 0) then
-       do k = 1, zlevels
-          wave_h%data(dom%id+1)%elts(id+1) = &
-               max(sol(S_MASS,k)%data(dom%id+1)%elts(id+1)*Hdim, wave_h%data(dom%id+1)%elts(id+1))
-       end do
+       wave_h%data(dom%id+1)%elts(id+1) = &
+            max(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim, wave_h%data(dom%id+1)%elts(id+1))
     end if
   end subroutine wave_height
 
-  subroutine tide_gauge(dom, i, j, offs, dims)
+  subroutine tide_gauge(dom, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer i, j, k
+    integer i, j, k, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
@@ -407,10 +403,8 @@ contains
     if (dom%mask_p%elts(id+1) .gt. 0) then
        cur_gauge_dist = norm(vector(dom%node%elts(id+1), gauge_coord))
        if (cur_gauge_dist .lt. last_gauge_dist) then
-          do k = 1, zlevels
-             cur_gauge = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)*Hdim
-             last_gauge_dist = cur_gauge_dist
-          end do
+          cur_gauge = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim
+          last_gauge_dist = cur_gauge_dist
        end if
     end if
   end subroutine tide_gauge
@@ -624,7 +618,9 @@ program tsunami
      max_height = 0
 
      do l = level_start, level_end
-        call apply_onescale(cpt_max_dh, l, 0, 1)
+        do k = 1, zlevels
+           call apply_onescale(cpt_max_dh, l, k, 0, 1)
+        end do
      end do
 
      max_height = sync_max_d(max_height)
@@ -646,8 +642,10 @@ program tsunami
         end if
      end do
 
-     call apply_onescale(wave_height, 9, 0, 0)
-     call apply_onescale(first_arrival, 9, 0, 0)
+     do k = 1, zlevels
+        call apply_onescale(wave_height,   9, k, 0, 0)
+        call apply_onescale(first_arrival, 9, k, 0, 0)
+     end do
 
      if (calc_tide_gauges) then
         tide_record(1:n_gauge) = -1E16_8
@@ -655,7 +653,9 @@ program tsunami
            last_gauge_dist = 1E16_8
            cur_gauge = 1E3_8
            gauge_coord = project_on_sphere(sph2cart(station_coord(j_gauge,2), station_coord(j_gauge,1)))
-           call apply_onescale(tide_gauge, 9, 0, 0)
+           do k = 1, zlevels
+              call apply_onescale(tide_gauge, 9, k, 0, 0)
+           end do
            glo_gauge_dist = - sync_max_d( -last_gauge_dist ) 
            if (glo_gauge_dist .eq. last_gauge_dist) tide_record(j_gauge) = cur_gauge 
            tide_record(j_gauge) = sync_max_d(tide_record(j_gauge))

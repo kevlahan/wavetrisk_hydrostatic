@@ -41,7 +41,7 @@ contains
     
     call comm_communication_mpi()
     call comm_nodes9_mpi(get_areas, set_areas, NONE)
-    call apply_to_penta(area_post_comm, NONE)
+    call apply_to_penta(area_post_comm, NONE, z_null)
   end subroutine add_second_level
 
   subroutine fill_up_level()
@@ -82,16 +82,16 @@ contains
 
     call comm_communication_mpi()
     call comm_nodes9_mpi(get_areas, set_areas, NONE)
-    call apply_to_penta(area_post_comm, NONE)
+    call apply_to_penta(area_post_comm, NONE, z_null)
   end subroutine post_refine
 
-  subroutine flux_cpt_restr(dom, p_chd, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine flux_cpt_restr(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer p_chd
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
@@ -297,10 +297,11 @@ contains
     
   end subroutine flux_cpt_restr
 
-  subroutine cpt_or_restr_Qperp(dom, l)
+  subroutine cpt_or_restr_Qperp(dom, l, zlev)
     type(Domain) dom
     integer l
     integer j
+    integer zlev
     integer p_par
     integer c
     integer p_chd
@@ -310,10 +311,10 @@ contains
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
           if (p_chd .eq. 0) then
-             call apply_onescale_to_patch(du_source, dom, p_par, 0, 0)
+             call apply_onescale_to_patch(du_source, dom, p_par, zlev, 0, 0)
           end if
        end do
-       call apply_interscale_to_patch(Qperp_cpt_restr, dom, dom%lev(l)%elts(j), 0, 0)
+       call apply_interscale_to_patch(Qperp_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
     end do
     
   end subroutine cpt_or_restr_Qperp
@@ -337,7 +338,7 @@ contains
           do j = 1, grid(d)%lev(level_end)%length
              call step1(grid(d), grid(d)%lev(level_end)%elts(j))
           end do
-          call apply_to_penta_d(post_step1, grid(d), level_end)
+          call apply_to_penta_d(post_step1, grid(d), level_end, z_null)
 
           nullify(mass, velo, h_mflux)
        end do
@@ -354,7 +355,7 @@ contains
           h_mflux => horiz_massflux(k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(mass_trend, grid(d), grid(d)%lev(level_end)%elts(j), 0, 1)
+             call apply_onescale_to_patch(mass_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
 
           nullify(mass, velo, dmass, h_mflux)
@@ -377,7 +378,7 @@ contains
           h_mflux => horiz_massflux(k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(du_source, grid(d), grid(d)%lev(level_end)%elts(j), 0, 0)
+             call apply_onescale_to_patch(du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
           nullify(mass, velo, dvelo, h_mflux)
@@ -397,7 +398,7 @@ contains
                 call step1(grid(d), p)
              end do
 
-             call apply_to_penta_d(post_step1, grid(d), l)
+             call apply_to_penta_d(post_step1, grid(d), l, k)
              call cpt_or_restr_flux(grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
              nullify(mass, velo, dmass, h_mflux)
@@ -410,7 +411,7 @@ contains
              mass => q(S_MASS,k)%data(d)%elts
              
              do j = 1, grid(d)%lev(l)%length
-                if (viscosity .ne. 0) call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), 0, 1)
+                if (viscosity .ne. 0) call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify(velo, mass)
           end do
@@ -422,7 +423,7 @@ contains
              h_mflux => horiz_massflux(k)%data(d)%elts
              
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(mass_trend, grid(d), grid(d)%lev(l)%elts(j), 0, 1) !!!!! use flux (l) & cpt dmass (l)
+                call apply_onescale_to_patch(mass_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1) !!!!! use flux (l) & cpt dmass (l)
              end do
              nullify(dmass, h_mflux)
           end do
@@ -440,7 +441,7 @@ contains
              dvelo   => dq(S_VELO,k)%data(d)%elts
              h_mflux => horiz_massflux(k)%data(d)%elts
 
-             call cpt_or_restr_Qperp(grid(d), l)
+             call cpt_or_restr_Qperp(grid(d), l, k)
 
              nullify(mass, velo, dmass, dvelo, h_mflux)
           end do
@@ -454,7 +455,7 @@ contains
           dvelo => dq(S_VELO,k)%data(d)%elts
           
           do p = 2, grid(d)%patch%length
-             call apply_onescale_to_patch(du_gradB, grid(d), p - 1, 0, 0)
+             call apply_onescale_to_patch(du_gradB, grid(d), p - 1, z_null, 0, 0)
           end do
           nullify(dvelo)
        end do
@@ -462,13 +463,13 @@ contains
     
   end subroutine trend_ml
 
-  subroutine Qperp_cpt_restr(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine Qperp_cpt_restr(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -488,7 +489,7 @@ contains
     
     if (minval(dom%mask_u%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. &
          ADJZONE) then
-       call du_source(dom, i_par, j_par, offs_par, dims_par)
+       call du_source(dom, i_par, j_par, zlev, offs_par, dims_par)
     end if
     
     if (dom%mask_u%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
@@ -523,7 +524,7 @@ contains
        end do
        do c = 1, N_CHDRN
           if (restrict(c)) then
-             call apply_interscale_to_patch3(flux_cpt_restr, dom, p_par, c, 0, 1)
+             call apply_interscale_to_patch3(flux_cpt_restr, dom, p_par, c, z_null, 0, 1)
           end if
        end do
     end do

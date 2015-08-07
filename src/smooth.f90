@@ -18,10 +18,11 @@ contains
     initialized = .True.
   end subroutine init_smooth_mod
 
-  subroutine Xu_smooth_cpt(dom, i, j, offs, dims)
+  subroutine Xu_smooth_cpt(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     type(Coord) s
@@ -76,12 +77,14 @@ contains
     integer k
 
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call apply_onescale2(ccentre, level_end-1, -2, 1)
-    call apply_onescale2(midpt, level_end-1, -1, 1)
+    
+    call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
+    call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
 
     maxerror = 0.0_8
     l2error = 0.0_8
-    call  apply_onescale(check_d, level_end-1, 0, 0)
+    call  apply_onescale(check_d, level_end-1, z_null, 0, 0)
+    
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
     if (rank .eq. 0) write(*,*) 'grid quality before optimization:', maxerror, l2error
@@ -95,8 +98,9 @@ contains
     do while(maxerror .gt. tol)
        maxerror = 0.0_8
        call comm_nodes3_mpi(get_coord, set_coord, NONE)
-       call apply_onescale(Xu_smooth_cpt, level_end-1, 0, 0)
-       call apply_onescale(Xu_smooth_assign, level_end-1, 0, 0)
+       
+       call apply_onescale(Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
+       call apply_onescale(Xu_smooth_assign, level_end-1, z_null, 0, 0)
        maxerror = sync_max_d(maxerror)
        k = k + 1
     end do
@@ -104,16 +108,19 @@ contains
     if (rank .eq. 0) write(*,*) 'convergence: ', k, maxerror
 
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call apply_onescale2(ccentre, level_end-1, -2, 1)
-    call apply_onescale2(midpt, level_end-1, -1, 1)
-    call apply_onescale2(check_grid, level_end-1, 0, 0)
+    
+    call apply_onescale2(ccentre,    level_end-1, z_null, -2, 1)
+    call apply_onescale2(midpt,      level_end-1, z_null, -1, 1)
+    call apply_onescale2(check_grid, level_end-1, z_null,  0, 0)
+    
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call apply_onescale2(ccentre, level_end-1, -2, 1)
-    call apply_onescale2(midpt, level_end-1, -1, 1)
+    
+    call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
+    call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
 
     maxerror = 0.0_8
     l2error = 0.0_8
-    call  apply_onescale(check_d, level_end-1, 0, 0)
+    call  apply_onescale(check_d, level_end-1, z_null, 0, 0)
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
 
@@ -122,11 +129,12 @@ contains
     deallocate(sums)
   end subroutine smooth_Xu
 
-  subroutine check_grid(dom, p, i, j, offs, dims)
+  subroutine check_grid(dom, p, i, j, zlev, offs, dims)
     type(Domain) dom
     integer p
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, idE, idN, idNE, idS, idW
@@ -166,10 +174,11 @@ contains
     end if
   end subroutine check_triag
 
-  subroutine Xu_smooth_assign(dom, i, j, offs, dims)
+  subroutine Xu_smooth_assign(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id
@@ -181,10 +190,11 @@ contains
     dom%node%elts(id+1) = sums(id+1,dom%id+1)
   end subroutine Xu_smooth_assign
 
-  subroutine check_d(dom, i, j, offs, dims)
+  subroutine check_d(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id, idS, idW

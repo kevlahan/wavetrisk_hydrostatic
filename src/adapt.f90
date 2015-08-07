@@ -19,10 +19,11 @@ contains
       initialized = .True.
   end subroutine init_adapt_mod
 
-  subroutine compress(dom, i, j, offs, dims)
+  subroutine compress(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id
@@ -43,14 +44,14 @@ contains
     integer l
 
     do l = level_start+1, level_end
-       call apply_onescale__int(set_masks, l, 0, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
+       call apply_onescale__int(set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
     call mask_active()
     call comm_masks_mpi(NONE)
 
     do l = level_start, level_end
-       call apply_onescale(mask_adj_space2, l, 0, 1)
+       call apply_onescale(mask_adj_space2, l, z_null, 0, 1)
     end do
 
     call comm_masks_mpi(NONE)
@@ -59,7 +60,7 @@ contains
     ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
     ! => patch needed (contains flux for corrective part of R_F)
     do l = level_start, min(level_end, max_level-1)
-       call apply_onescale(mask_restrict_flux, l, 0, 0)
+       call apply_onescale(mask_restrict_flux, l, z_null, 0, 0)
     end do
 
     call comm_masks_mpi(NONE)
@@ -68,7 +69,7 @@ contains
     call complete_masks()
 
     do l = level_start+1, level_end
-       call apply_onescale(compress, l, 0, 1)
+       call apply_onescale(compress, l, z_null, 0, 1)
     end do
 
     wav_coeff(:,:)%bdry_uptodate = .False.
@@ -215,7 +216,7 @@ contains
              do c = 1, N_CHDRN
                 chdrn = get_child_and_neigh_patches(grid(d), p, c)
                 do c1 = 1, N_CHDRN
-                   call apply_onescale_to_patch__int(set_masks, grid(d), chdrn(c1), 0, 0, 0, FROZEN)
+                   call apply_onescale_to_patch__int(set_masks, grid(d), chdrn(c1), z_null, 0, 0, FROZEN)
                 end do
              end do
              grid(d)%patch%elts(p+1)%active = NONE

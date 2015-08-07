@@ -17,10 +17,11 @@ contains
     initialized = .True.
   end subroutine init_wavelet_mod
 
-  subroutine IWT_interp_vel_penta(dom, p, c, offs, dims)
+  subroutine IWT_interp_vel_penta(dom, p, c, offs, dims, z_null)
     type(Domain) dom
     integer p
     integer c
+    integer z_null
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer p_chd
@@ -77,13 +78,13 @@ contains
 
   end subroutine IWT_interp_vel_penta
 
-  subroutine IWT_interpolate_u_inner(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine IWT_interpolate_u_inner(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -228,14 +229,14 @@ contains
              mass => sol(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
 
-             call apply_interscale_d(cpt_mass_wc, grid(d), l, 0, 0)
+             call apply_interscale_d(cpt_mass_wc, grid(d), l, z_null, 0, 0)
 
              nullify(wc_m, mass)
           end do
 
           call update_bdry(wav_coeff(S_MASS,k), l+1)
-          call apply_interscale(restrict_p, l, 0, 1) ! +1 to include poles
-          call apply_interscale(restrict_u, l, 0, 0)
+          call apply_interscale(restrict_p, l, z_null, 0, 1) ! +1 to include poles
+          call apply_interscale(restrict_u, l, z_null, 0, 0)
        end do
        sol(:,k)%bdry_uptodate = .False.
        wav_coeff(S_MASS,k)%bdry_uptodate = .False.
@@ -246,8 +247,8 @@ contains
           do d = 1, n_domain(rank+1)
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              velo => sol(S_VELO,k)%data(d)%elts
-             call apply_interscale_d(cpt_velo_wc, grid(d), l, 0, 0)
-             call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l)
+             call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
              nullify(wc_u, velo)
           end do
        end do
@@ -267,23 +268,23 @@ contains
        else
           l_start = level_start
        end if
+       
        do v = S_MASS, S_VELO
           call update_bdry1(wav_coeff(v,k), level_start, level_end)
           call update_bdry1(sca_coeff(v,k), l_start, level_end)
        end do
 
-       !write(*,*) 'check-p'
-       !call apply_interscale(check_p, 1, 0, 0)
        sca_coeff(:,k)%bdry_uptodate = .False.
-       do l = l_start, level_end-1
 
+       do l = l_start, level_end-1
           do d = 1, n_domain(rank+1)
+
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              if (present(l_start0)) then
-                call apply_interscale_d2(IWT_inject_h_and_undo_update, grid(d), l, 0, 1) ! needs wc
+                call apply_interscale_d2(IWT_inject_h_and_undo_update, grid(d), l, z_null, 0, 1) ! needs wc
              else
-                call apply_interscale_d2(IWT_inject_h_and_undo_update__fast, grid(d), l, 0, 1) ! needs wc
+                call apply_interscale_d2(IWT_inject_h_and_undo_update__fast, grid(d), l, z_null, 0, 1) ! needs wc
              end if
           end do
 
@@ -296,11 +297,11 @@ contains
              velo => sca_coeff(S_VELO,k)%data(d)%elts
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              if (present(l_start0)) then
-                call apply_interscale_d2(IWT_interpolate_u_outer_add_wc, grid(d), l, 0, 1) ! needs val
+                call apply_interscale_d2(IWT_interpolate_u_outer_add_wc, grid(d), l, z_null, 0, 1) ! needs val
              else
-                call apply_interscale_d2(IWT_interpolate_u_outer, grid(d), l, 0, 1) ! needs val
+                call apply_interscale_d2(IWT_interpolate_u_outer, grid(d), l, z_null, 0, 1) ! needs val
              end if
-             call apply_to_penta_d(IWT_interp_vel_penta, grid(d), l)
+             call apply_to_penta_d(IWT_interp_vel_penta, grid(d), l, z_null)
           end do
 
           call update_bdry__finish(sca_coeff(S_MASS,k), l+1)
@@ -309,17 +310,18 @@ contains
           do d = 1, n_domain(rank+1)
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             call apply_interscale_d(IWT_interp_wc_m, grid(d), l, 0, 0)
+             call apply_interscale_d(IWT_interp_wc_m, grid(d), l, z_null, 0, 0)
           end do
-
+          
           call update_bdry__finish(sca_coeff(S_VELO,k), l+1)
 
           do d = 1, n_domain(rank+1)
              if (advect_only) cycle
              velo => sca_coeff(S_VELO,k)%data(d)%elts
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             call apply_interscale_d(IWT_interpolate_u_inner, grid(d), l, 0, 0)
+             call apply_interscale_d(IWT_interpolate_u_inner, grid(d), l, z_null, 0, 0)
           end do
+          
           if (l .lt. level_end-1) call update_bdry__start(sca_coeff(S_VELO,k), l+1) ! for next outer velocity
           sca_coeff(:,k)%bdry_uptodate = .False.
        end do
@@ -370,10 +372,11 @@ contains
          hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims) + 1)/))
   end function interp_outer_u
 
-  subroutine cpt_vel_wc_penta(dom, p, c, offs, dims)
+  subroutine cpt_vel_wc_penta(dom, p, c, offs, dims, zlev)
     type(Domain) dom
     integer p
     integer c
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer p_chd
@@ -699,13 +702,13 @@ contains
     end function coords_to_row
   end subroutine basic_F_restr_wgt
 
-  subroutine cpt_velo_wc(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
-       offs_chd, dims_chd)
+  subroutine cpt_velo_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -891,13 +894,13 @@ contains
     v = q(2)/nrm
   end subroutine normalize2
 
-  subroutine IWT_inject_h_and_undo_update__fast(dom, i_par, j_par, i_chd, j_chd, &
-       offs_par, dims_par, offs_chd, dims_chd)
+  subroutine IWT_inject_h_and_undo_update__fast(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -952,13 +955,13 @@ contains
          wc_m(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end subroutine IWT_inject_h_and_undo_update__fast
 
-  subroutine IWT_inject_h_and_undo_update(dom, i_par, j_par, i_chd, j_chd, &
-       offs_par, dims_par, offs_chd, dims_chd)
+  subroutine IWT_inject_h_and_undo_update(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -1011,13 +1014,13 @@ contains
          wc_m(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end subroutine IWT_inject_h_and_undo_update
 
-  subroutine cpt_mass_wc(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
-       offs_chd, dims_chd)
+  subroutine cpt_mass_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -1053,13 +1056,13 @@ contains
 
   end subroutine cpt_mass_wc
 
-  subroutine IWT_interp_wc_m(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine IWT_interp_wc_m(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,9) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -1270,13 +1273,13 @@ contains
     coord2local = (/inner(c, x), inner(c, y)/)
   end function coord2local
 
-  subroutine IWT_interpolate_u_outer_add_wc(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine IWT_interpolate_u_outer_add_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -1303,13 +1306,13 @@ contains
     end do
   end subroutine IWT_interpolate_u_outer_add_wc
 
-  subroutine IWT_interpolate_u_outer(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine IWT_interpolate_u_outer(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -1337,14 +1340,14 @@ contains
     end do
   end subroutine IWT_interpolate_u_outer
 
-  subroutine set_RF_wgts(dom, p_chd, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine set_RF_wgts(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer p_chd
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -1373,14 +1376,14 @@ contains
     call basic_F_restr_wgt(dom, i_par, j_par, UP, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
   end subroutine set_RF_wgts
 
-  subroutine set_WT_wgts(dom, p_chd, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine set_WT_wgts(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer p_chd
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -1398,11 +1401,11 @@ contains
     dom%I_u_wgt%elts(idN_chd+1) = outer_velo_weights(dom, p_chd, i_par, j_par, UP, offs_par, dims_par)
   end subroutine set_WT_wgts
 
-  subroutine restrict_u(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
-       offs_chd, dims_chd)
+  subroutine restrict_u(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par, j_par
     integer i_chd, j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -1494,12 +1497,13 @@ contains
          dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end subroutine check_p
 
-  subroutine restrict_p(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine restrict_p(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd

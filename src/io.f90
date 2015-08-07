@@ -84,10 +84,9 @@ contains
 
   end subroutine write_dual
 
-  !! FIXME: NEED TO CALCULATE VORTICITY AT DESIRED VERTICAL LEVELS
-  subroutine vort_extrema(dom, i, j, offs, dims)
+  subroutine vort_extrema(dom, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer i, j
+    integer i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, idN, idE
@@ -128,7 +127,7 @@ contains
       vmax = -1.0e-16
 
       do l = level_start, level_end
-         call apply_onescale(vort_extrema, l, 0, 0)
+         call apply_onescale(vort_extrema, l, z_null, 0, 0)
       end do
        
       tot_mass = integrate_hex(mass_pert, level_start, k)
@@ -712,6 +711,7 @@ contains
     do while(level_end .gt. l) ! new level was added -> proceed to it
        l = level_end 
        if (rank .eq. 0) write(*,*) 'loading level', l
+       
        do d = 1, size(grid)
           old_n_patch = grid(d)%patch%length
           do j = 1, grid(d)%lev(l)%length
@@ -790,7 +790,7 @@ contains
        call update_bdry(wav_coeff(S_MASS,k), NONE)
     end do
 
-    call apply_interscale(restrict_p, min_level-1, 0, 1) ! +1 to include poles
+    call apply_interscale(restrict_p, min_level-1, z_null, 0, 1) ! +1 to include poles
 
     do d = 1, size(grid)
        write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
@@ -979,9 +979,9 @@ contains
     l2error = 0.0_8
 
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call apply_onescale2(ccentre, level_end-1, -2, 1)
-    call apply_onescale2(midpt, level_end-1, -1, 1)
-    call apply_onescale(check_d, level_end-1, 0, 0)
+    call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
+    call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
+    call apply_onescale(check_d,  level_end-1, z_null,  0, 0)
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
@@ -1011,17 +1011,19 @@ contains
     close(fid)
 
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call apply_onescale2(ccentre, level_end-1, -2, 1)
-    call apply_onescale2(midpt, level_end-1, -1, 1)
-    call apply_onescale2(check_grid, level_end-1, 0, 0)
+    
+    call apply_onescale2(ccentre,    level_end-1, z_null, -2, 1)
+    call apply_onescale2(midpt,      level_end-1, z_null, -1, 1)
+    call apply_onescale2(check_grid, level_end-1, z_null,  0, 0)
 
     maxerror = 0.0_8
     l2error = 0.0_8
 
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call apply_onescale2(ccentre, level_end-1, -2, 1)
-    call apply_onescale2(midpt, level_end-1, -1, 1)
-    call  apply_onescale(check_d, level_end-1, 0, 0)
+    
+    call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
+    call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
+    call apply_onescale(check_d,  level_end-1, z_null,  0, 0)
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
@@ -1095,20 +1097,22 @@ contains
   end subroutine
 
   subroutine pre_levelout()
-      integer max_output_level
-      integer d, l, num
-
-      ! FIXME cleaner would be to use init_io routine
-      call init_Float_Field(active_level, AT_NODE)
-      do d = 1, size(grid)
-          num = grid(d)%node%length
-          call init(active_level%data(d), num)
-          active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
-      end do
-      do l = level_end-1, level_start, -1
-          call apply_interscale(restrict_level, l, 0, 1)
-      end do
-  end subroutine
+    integer max_output_level
+    integer d, l, num
+    
+    ! FIXME cleaner would be to use init_io routine
+    call init_Float_Field(active_level, AT_NODE)
+    
+    do d = 1, size(grid)
+       num = grid(d)%node%length
+       call init(active_level%data(d), num)
+       active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
+    end do
+    
+    do l = level_end-1, level_start, -1
+       call apply_interscale(restrict_level, l, z_null, 0, 1)
+    end do
+  end subroutine pre_levelout
 
       ! now active_level can be used
 
@@ -1120,11 +1124,11 @@ contains
       deallocate(active_level%data)
   end subroutine
 
-  subroutine restrict_level(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
-          offs_chd, dims_chd)
+  subroutine restrict_level(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
       type(Domain) dom
       integer i_par, j_par
       integer i_chd, j_chd
+      integer zlev
       integer, dimension(N_BDRY + 1) :: offs_par
       integer, dimension(2,N_BDRY + 1) :: dims_par
       integer, dimension(N_BDRY + 1) :: offs_chd

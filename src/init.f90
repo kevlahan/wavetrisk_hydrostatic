@@ -240,9 +240,9 @@ contains
     end if
   end subroutine ccentre_penta
 
-  subroutine lengths(dom, p, i, j, offs, dims)
+  subroutine lengths(dom, p, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer p, i, j
+    integer p, i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, idS, idW, idN, idE, idNE
@@ -311,18 +311,18 @@ contains
   subroutine precompute_geometry()
     integer d, k
     
-    call apply_onescale2(ccentre, min_level-1, -2, 1)
+    call apply_onescale2(ccentre, min_level-1, z_null, -2, 1)
 
     do d = 1, n_domain(rank+1)
        call ccentre_penta(grid(d), 1)
     end do
 
-    call apply_onescale2(midpt,      min_level-1, -1, 2)
-    call apply_onescale2(cpt_areas,  min_level-1, -1, 2)
-    call apply_onescale2(lengths,    min_level-1, -1, 2)
+    call apply_onescale2(midpt,      min_level-1, z_null, -1, 2)
+    call apply_onescale2(cpt_areas,  min_level-1, z_null, -1, 2)
+    call apply_onescale2(lengths,    min_level-1, z_null, -1, 2)
     
-    call apply_onescale(cpt_triarea, min_level-1, -1, 1)
-    call apply_onescale(coriolis,    min_level-1, -1, 1)
+    call apply_onescale(cpt_triarea, min_level-1, z_null, -1, 1)
+    call apply_onescale(coriolis,    min_level-1, z_null, -1, 1)
     
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -558,10 +558,10 @@ contains
     end do
   end subroutine assign_coord
 
-  subroutine cpt_areas(dom, p, i, j, offs, dims)
+  subroutine cpt_areas(dom, p, i, j, zlev, offs, dims)
     type(Domain) dom
     integer p
-    integer i, j
+    integer i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer idNW, idN, idNE, idW, id, idE, idSW, idS, idSE
@@ -621,10 +621,10 @@ contains
     sub_dom_id = ij(2)*N_SUB_DOM_PER_DIM + ij(1)
   end function sub_dom_id
 
-  subroutine ccentre(dom, p, i, j, offs, dims)
+  subroutine ccentre(dom, p, i, j, zlev, offs, dims)
     type(Domain) dom
     integer p
-    integer i, j
+    integer i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, idN, idE, idNE, idS, idW
@@ -640,10 +640,11 @@ contains
     dom%ccentre%elts(TRIAG*id+UPLT+1) = circumcentre(dom%node%elts(id+1), dom%node%elts(idN+1),  dom%node%elts(idNE+1))
   end subroutine ccentre
 
-  subroutine cpt_triarea(dom, i, j, offs, dims)
+  subroutine cpt_triarea(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, idN, idE, idNE
@@ -659,9 +660,9 @@ contains
          + dom%areas%elts(idN+1)%part(6)
   end subroutine cpt_triarea
 
-  subroutine coriolis(dom, i, j, offs, dims)
+  subroutine coriolis(dom, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer i, j
+    integer i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, idN, idE, idNE
@@ -692,22 +693,24 @@ contains
     call set_neigh_Domain(grid(d+1), s, ngb_loz + sub_dom_id(i, j, s1 - 1, rot), rot)
   end subroutine set_dom_neigh
 
-  subroutine set_level(dom, p, i, j, offs, dims)
+  subroutine set_level(dom, p, i, j, zlev, offs, dims)
     type(Domain) dom
     integer p
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     
     dom%level%elts(idx(i,j,offs,dims)+1) = dom%patch%elts(p+1)%level
   end subroutine set_level
 
-  subroutine midpt(dom, p, i, j, offs, dims)
+  subroutine midpt(dom, p, i, j, zlev, offs, dims)
     type(Domain) dom
     integer p
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id

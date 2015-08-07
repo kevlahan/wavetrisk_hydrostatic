@@ -80,8 +80,8 @@ contains
     call init_masks()
     call add_second_level()
     
-    call apply_onescale2(set_level, level_start, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale(mask_adj_scale, level_start-1, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
+    call apply_onescale2(set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
+    call apply_interscale(mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
     call record_init_state(ini_st)
     if (time_end .gt. 0.0_8) time_mult = huge(itime)/2/time_end
@@ -446,8 +446,8 @@ contains
     call init_masks()
     call add_second_level()
 
-    call apply_onescale2(set_level, level_start, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale(mask_adj_scale, level_start-1, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
+    call apply_onescale2(set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
+    call apply_interscale(mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
     call record_init_state(ini_st)
 
@@ -456,7 +456,7 @@ contains
     if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
 
     call load_adapt_mpi(read_p_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
-
+    
     itime = nint(time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
 

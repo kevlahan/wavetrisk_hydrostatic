@@ -850,10 +850,11 @@ contains
     end do
   end subroutine update_comm
 
-  subroutine area_post_comm(dom, p, c, offs, dims)
+  subroutine area_post_comm(dom, p, c, offs, dims, zlev)
     type(Domain) dom
     integer p
     integer c
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id
@@ -1041,10 +1042,11 @@ contains
     dom%areas%elts(abs(id) + 1)%hex_inv = val(7)
   end subroutine set_areas
 
-  subroutine min_dt(dom, i, j, offs, dims)
+  subroutine min_dt(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id

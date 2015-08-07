@@ -780,7 +780,7 @@ contains
     n_active_velo = 0
 
     do l = level_start, level_end
-       call apply_onescale(min_dt, l, 0, 0)
+       call apply_onescale(min_dt, l, z_null, 0, 0)
     end do
 
     loc_min = dt

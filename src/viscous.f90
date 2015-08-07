@@ -5,10 +5,11 @@ module viscous_mod
   implicit none
 
 contains
-  subroutine divu(dom, i, j, offs, dims)
+  subroutine divu(dom, i, j, zlev, offs, dims)
       type(Domain) dom
       integer i
       integer j
+      integer zlev
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
       integer id

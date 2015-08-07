@@ -12,10 +12,11 @@ contains
       initialized = .True.
   end subroutine init_ops_mod
 
-  subroutine post_step1(dom, p, c, offs, dims)
+  subroutine post_step1(dom, p, c, offs, dims, zlev)
       type(Domain) dom
       integer p
       integer c
+      integer zlev
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,9) :: dims
       integer id, idS, idW, idSW, idN, idE, idNE
@@ -457,67 +458,68 @@ contains
       wgt = 0.5_8 - wgt*dom%areas%elts(id+1)%hex_inv
       get_weights = (/wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5)/)
   end function
+  
+  subroutine du_Qperp_Enstrophy(dom, i, j, zlev, offs, dims)
+    type(Domain) dom
+    integer i
+    integer j
+    integer zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer idNW
+    integer idN
+    integer idNE
+    integer idW
+    integer id
+    integer idE
+    integer idSW
+    integer idS
+    integer idSE
+    real(8) wgt1(5), wgt2(5)
 
-  subroutine du_Qperp_Enstrophy(dom, i, j, k, offs, dims)
+    idNW = idx(i - 1, j + 1, offs, dims)
+    idN  = idx(i,     j + 1, offs, dims)
+    idNE = idx(i + 1, j + 1, offs, dims)
+    idW  = idx(i - 1, j,     offs, dims)
+    id   = idx(i,     j,     offs, dims)
+    idE  = idx(i + 1, j,     offs, dims)
+    idSW = idx(i - 1, j - 1, offs, dims)
+    idS  = idx(i,     j - 1, offs, dims)
+    idSE = idx(i + 1, j - 1, offs, dims)
+
+    wgt1 = get_weights(dom, id, 0)
+    wgt2 = get_weights(dom, idE, 3)
+
+    dvelo(EDGE*id+RT+1) = dom%qe%elts(EDGE*id+RT+1)*( &
+         sum(horiz_massflux(zlev)%data(dom%id+1)&
+         %elts((/ EDGE*id+DG, EDGE*id+UP, EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP /)+1) * wgt1) + &
+         sum(horiz_massflux(zlev)%data(dom%id+1)&
+         %elts((/ EDGE*idS+DG, EDGE*idSE+UP, EDGE*idE+RT, EDGE*idE+DG, EDGE*idE+UP /)+1) * wgt2))
+
+    wgt1 = get_weights(dom, id, 1)
+    wgt2 = get_weights(dom, idNE, 4)
+
+    dvelo(EDGE*id+DG+1) = dom%qe%elts(EDGE*id+DG+1)*( &
+         sum(horiz_massflux(zlev)%data(dom%id+1)%&
+         elts((/ EDGE*id+UP, EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP, EDGE*id+RT/)+1) * wgt1) + &
+         sum(horiz_massflux(zlev)%data(dom%id+1)%&
+         elts((/ EDGE*idE+UP, EDGE*idNE+RT, DG+EDGE*idNE, EDGE*idNE+UP, EDGE*idN+RT/)+1) * wgt2))
+
+    wgt1 = get_weights(dom, id, 2)
+    wgt2 = get_weights(dom, idN, 5)
+
+    dvelo(EDGE*id+UP+1) = dom%qe%elts(EDGE*id+UP+1)*( &
+         sum(horiz_massflux(zlev)%data(dom%id+1)%&
+         elts((/ EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP, EDGE*id+RT, EDGE*id+DG /)+1) * wgt1) + &
+         sum(horiz_massflux(zlev)%data(dom%id+1)%&
+         elts((/ EDGE*idN+RT, EDGE*idN+DG, EDGE*idN+UP, EDGE*idNW+RT, EDGE*idW+DG /)+1) * wgt2))
+  end subroutine du_Qperp_Enstrophy
+
+  subroutine du_source(dom, i, j, zlev, offs, dims)
       type(Domain) dom
       integer i
       integer j
-      integer k
-      integer, dimension(N_BDRY + 1) :: offs
-      integer, dimension(2,N_BDRY + 1) :: dims
-      integer idNW
-      integer idN
-      integer idNE
-      integer idW
-      integer id
-      integer idE
-      integer idSW
-      integer idS
-      integer idSE
-      real(8) wgt1(5), wgt2(5)
-
-      idNW = idx(i - 1, j + 1, offs, dims)
-      idN  = idx(i,     j + 1, offs, dims)
-      idNE = idx(i + 1, j + 1, offs, dims)
-      idW  = idx(i - 1, j,     offs, dims)
-      id   = idx(i,     j,     offs, dims)
-      idE  = idx(i + 1, j,     offs, dims)
-      idSW = idx(i - 1, j - 1, offs, dims)
-      idS  = idx(i,     j - 1, offs, dims)
-      idSE = idx(i + 1, j - 1, offs, dims)
-
-      wgt1 = get_weights(dom, id, 0)
-      wgt2 = get_weights(dom, idE, 3)
-
-      dvelo(EDGE*id+RT+1) = dom%qe%elts(EDGE*id+RT+1)*( &
-           sum(horiz_massflux(k)%data(dom%id+1)&
-           %elts((/ EDGE*id+DG, EDGE*id+UP, EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP /)+1) * wgt1) + &
-           sum(horiz_massflux(k)%data(dom%id+1)&
-           %elts((/ EDGE*idS+DG, EDGE*idSE+UP, EDGE*idE+RT, EDGE*idE+DG, EDGE*idE+UP /)+1) * wgt2))
-      
-      wgt1 = get_weights(dom, id, 1)
-      wgt2 = get_weights(dom, idNE, 4)
-      
-      dvelo(EDGE*id+DG+1) = dom%qe%elts(EDGE*id+DG+1)*( &
-           sum(horiz_massflux(k)%data(dom%id+1)%&
-           elts((/ EDGE*id+UP, EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP, EDGE*id+RT/)+1) * wgt1) + &
-           sum(horiz_massflux(k)%data(dom%id+1)%&
-           elts((/ EDGE*idE+UP, EDGE*idNE+RT, DG+EDGE*idNE, EDGE*idNE+UP, EDGE*idN+RT/)+1) * wgt2))
-      
-      wgt1 = get_weights(dom, id, 2)
-      wgt2 = get_weights(dom, idN, 5)
-
-      dvelo(EDGE*id+UP+1) = dom%qe%elts(EDGE*id+UP+1)*( &
-           sum(horiz_massflux(k)%data(dom%id+1)%&
-           elts((/ EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP, EDGE*id+RT, EDGE*id+DG /)+1) * wgt1) + &
-           sum(horiz_massflux(k)%data(dom%id+1)%&
-           elts((/ EDGE*idN+RT, EDGE*idN+DG, EDGE*idN+UP, EDGE*idNW+RT, EDGE*idW+DG /)+1) * wgt2))
-  end subroutine
-
-  subroutine du_source(dom, i, j, offs, dims)
-      type(Domain) dom
-      integer i
-      integer j
+      integer zlev
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
       integer id, idE, idN, idNE
@@ -525,7 +527,7 @@ contains
 
       id = idx(i, j, offs, dims)
 
-      call du_Qperp(dom, i, j, offs, dims)
+      call du_Qperp(dom, i, j, zlev, offs, dims)
 
       if (viscosity .ne. 0) call diff_mom(dom, i, j, offs, dims)
 
@@ -569,10 +571,11 @@ contains
       end if
   end subroutine
 
-  subroutine du_Qperp(dom, i, j, offs, dims)
+  subroutine du_Qperp(dom, i, j, zlev, offs, dims)
       type(Domain) dom
       integer i
       integer j
+      integer zlev
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
       integer idNW
@@ -672,10 +675,11 @@ contains
               dom%qe%elts(EDGE*id+UP+1))*wgt2(5)
   end subroutine
 
-  subroutine mass_trend(dom, i, j, offs, dims)
+  subroutine mass_trend(dom, i, j, zlev, offs, dims)
       type(Domain) dom
       integer i
       integer j
+      integer zlev
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
       integer id
@@ -693,10 +697,11 @@ contains
               *dom%areas%elts(id+1)%hex_inv
   end subroutine
 
-  subroutine du_gradB(dom, i, j, offs, dims)
+  subroutine du_gradB(dom, i, j, zlev, offs, dims)
       type(Domain) dom
       integer i
       integer j
+      integer zlev
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
       integer id

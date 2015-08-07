@@ -162,21 +162,21 @@ contains
       d = dom%id + 1
       
       call extend(dom%ccentre, TRIAG*num, ORIGIN)
-      call apply_onescale_to_patch2(ccentre, dom, p_chd, -2, 1)
+      call apply_onescale_to_patch2(ccentre, dom, p_chd, z_null, -2, 1)
       call ccentre_penta(dom, p_chd)
       call extend(dom%midpt, EDGE*num, ORIGIN)
-      call apply_onescale_to_patch2(midpt, dom, p_chd, -1, 2)
+      call apply_onescale_to_patch2(midpt, dom, p_chd, z_null, -1, 2)
       call extend(dom%pedlen, EDGE*num, 0.0_8)
       call extend(dom%len, EDGE*num, 0.0_8)
-      call apply_onescale_to_patch2(lengths, dom, p_chd, -1, 2)
+      call apply_onescale_to_patch2(lengths, dom, p_chd, z_null, -1, 2)
 
       tmp = ORIGIN
       call extend(dom%areas, num, Areas(0.0_8, 0.0_8))
-      call apply_onescale_to_patch2(cpt_areas, dom, p_chd, -1, 2)
+      call apply_onescale_to_patch2(cpt_areas, dom, p_chd, z_null, -1, 2)
       call extend(dom%triarea, EDGE*num, 1.0_8)
-      call apply_onescale_to_patch(cpt_triarea, dom, p_chd, -1, 1)
+      call apply_onescale_to_patch(cpt_triarea, dom, p_chd, z_null, -1, 1)
       call extend(dom%coriolis, TRIAG*num, 0.0_8)
-      call apply_onescale_to_patch(coriolis, dom, p_chd, -1, 1)
+      call apply_onescale_to_patch(coriolis, dom, p_chd, z_null, -1, 1)
       call extend(dom%windstress, EDGE*num, 0.0_8)
       call extend(dom%topo, num, 0.0_8)
       call extend(dom%bernoulli, num, 0.0_8)
@@ -200,8 +200,8 @@ contains
       call extend(dom%mask_p, num, 0)
       call extend(dom%mask_u, EDGE*num, 0)
 
-      call apply_interscale_to_patch3(set_WT_wgts, dom, p, c, 0, 0)
-      call apply_interscale_to_patch3(set_RF_wgts, dom, p, c, 0, 0)
+      call apply_interscale_to_patch3(set_WT_wgts, dom, p, c, z_null, 0, 0)
+      call apply_interscale_to_patch3(set_RF_wgts, dom, p, c, z_null, 0, 0)
 
       num = dom%node%length - dom%level%length
       call extend(dom%level, num, dom%patch%elts(p_chd+1)%level)

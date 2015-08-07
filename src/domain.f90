@@ -132,10 +132,11 @@ contains
     end do
   end subroutine apply_onescale_to_patch__int
 
-  subroutine apply_onescale_to_patch(routine, dom, p, st, en)
+  subroutine apply_onescale_to_patch(routine, dom, p, zlev, st, en)
     external routine
     type(Domain) dom
     integer p
+    integer zlev
     integer st
     integer en
     integer, dimension(N_BDRY + 1) :: offs
@@ -153,7 +154,7 @@ contains
 
     do j = bdry(JMINUS) + 1, PATCH_SIZE + bdry(JPLUS)
        do i = bdry(IMINUS) + 1, PATCH_SIZE + bdry(IPLUS)
-          call routine(dom, i - 1, j - 1, offs, dims)
+          call routine(dom, i - 1, j - 1, zlev, offs, dims)
        end do
     end do
   end subroutine apply_onescale_to_patch
@@ -223,10 +224,11 @@ contains
     end if
   end function idx
 
-  subroutine apply_interscale_to_patch2(routine, dom, p_par, st, en)
+  subroutine apply_interscale_to_patch2(routine, dom, p_par, zlev, st, en)
     external routine
     type(Domain) dom
     integer p_par
+    integer zlev
     integer st
     integer en
     integer, dimension(N_BDRY + 1) :: offs_par
@@ -264,8 +266,7 @@ contains
           do i = bdry(IMINUS) + 1, PATCH_SIZE/2 + bdry(IPLUS)
              i_chd = (i - 1)*2
              i_par = i - 1 + chd_offs(1,c)
-             call routine(dom, p_chd, i_par, j_par, i_chd, j_chd, &
-                  offs_par, dims_par, offs_chd, dims_chd)
+             call routine(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
           end do
        end do
     end do
@@ -281,42 +282,45 @@ contains
     ed_idx = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
   end function ed_idx
 
-  subroutine apply_onescale_d(routine, dom, l, st, en)
+  subroutine apply_onescale_d(routine, dom, l, zlev, st, en)
     external routine
     type(Domain) dom
     integer l
+    integer zlev
     integer st
     integer en
     integer k
 
     do k = 1, dom%lev(l)%length
-       call apply_onescale_to_patch(routine, dom, dom%lev(l)%elts(k), st, en)
+       call apply_onescale_to_patch(routine, dom, dom%lev(l)%elts(k), zlev, st, en)
     end do
   end subroutine apply_onescale_d
 
-  subroutine apply_interscale_d(routine, dom, l, st, en)
+  subroutine apply_interscale_d(routine, dom, l, zlev, st, en)
     external routine
     type(Domain) dom
     integer l
+    integer zlev
     integer st
     integer en
     integer k
 
     do k = 1, dom%lev(l)%length
-       call apply_interscale_to_patch(routine, dom, dom%lev(l)%elts(k), st, en)
+       call apply_interscale_to_patch(routine, dom, dom%lev(l)%elts(k), zlev, st, en)
     end do
   end subroutine apply_interscale_d
 
-  subroutine apply_interscale_d2(routine, dom, l, st, en)
+  subroutine apply_interscale_d2(routine, dom, l, zlev, st, en)
     external routine
     type(Domain) dom
     integer l
+    integer zlev
     integer st
     integer en
     integer k
 
     do k = 1, dom%lev(l)%length
-       call apply_interscale_to_patch22(routine, dom, dom%lev(l)%elts(k), st, en)
+       call apply_interscale_to_patch22(routine, dom, dom%lev(l)%elts(k), zlev, st, en)
     end do
   end subroutine apply_interscale_d2
 
@@ -383,10 +387,11 @@ contains
     end do
   end subroutine apply_to_pole
 
-  subroutine apply_to_penta_d(routine, dom, l)
+  subroutine apply_to_penta_d(routine, dom, l, zlev)
     external routine
     type(Domain) dom
     integer l
+    integer zlev
     integer d
     integer c
     integer p
@@ -412,14 +417,15 @@ contains
           end if
 
           call get_offs_Domain(dom, p_par, offs, dims)
-          call routine(dom, p_par, c, offs, dims)
+          call routine(dom, p_par, c, offs, dims, zlev)
        end do
     end do
   end subroutine apply_to_penta_d
 
-  subroutine apply_to_penta(routine, l)
+  subroutine apply_to_penta(routine, l, zlev)
     external routine
     integer l
+    integer zlev
     integer d
     integer c
     integer p
@@ -429,7 +435,7 @@ contains
     integer, dimension(2,9) :: dims
 
     do d = 1, size(grid)
-       call apply_to_penta_d(routine, grid(d), l)
+       call apply_to_penta_d(routine, grid(d), l, zlev)
     end do
   end subroutine apply_to_penta
 
@@ -453,10 +459,11 @@ contains
     nidx = offs(s+1) + j*dims(1,s+1) + i
   end function nidx
 
-  subroutine apply_interscale_to_patch3(routine, dom, p_par, c, st, en)
+  subroutine apply_interscale_to_patch3(routine, dom, p_par, c, zlev, st, en)
     external routine
     type(Domain) dom
     integer p_par
+    integer zlev
     integer st
     integer en
     integer, dimension(N_BDRY + 1) :: offs_par
@@ -489,16 +496,16 @@ contains
        do i = bdry(IMINUS) + 1, PATCH_SIZE/2 + bdry(IPLUS)
           i_chd = (i - 1)*2
           i_par = i - 1 + chd_offs(1,c)
-          call routine(dom, p_chd, i_par, j_par, i_chd, j_chd, offs_par, &
-               dims_par, offs_chd, dims_chd)
+          call routine(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
        end do
     end do
   end subroutine apply_interscale_to_patch3
 
-  subroutine apply_interscale_to_patch22(routine, dom, p_par, st, en)
+  subroutine apply_interscale_to_patch22(routine, dom, p_par, zlev, st, en)
     external routine
     type(Domain) dom
     integer p_par
+    integer zlev
     integer st
     integer en
     integer, dimension(N_BDRY + 1) :: offs_par
@@ -532,17 +539,17 @@ contains
           do i = bdry(IMINUS) + 1, PATCH_SIZE/2 + bdry(IPLUS)
              i_chd = (i - 1)*2
              i_par = i - 1 + chd_offs(1,c)
-             call routine(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-                  dims_par, offs_chd, dims_chd)
+             call routine(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
           end do
        end do
     end do
   end subroutine apply_interscale_to_patch22
 
-  subroutine apply_interscale_to_patch(routine, dom, p_par, st, en)
+  subroutine apply_interscale_to_patch(routine, dom, p_par, zlev, st, en)
     external routine
     type(Domain) dom
     integer p_par
+    integer zlev
     integer st
     integer en
     integer, dimension(N_BDRY + 1) :: offs_par
@@ -578,16 +585,16 @@ contains
           do i = bdry(IMINUS) + 1, PATCH_SIZE/2 + bdry(IPLUS)
              i_chd = (i - 1)*2
              i_par = i - 1 + chd_offs(1,c)
-             call routine(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-                  dims_par, offs_chd, dims_chd)
+             call routine(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
           end do
        end do
     end do
   end subroutine apply_interscale_to_patch
 
-  subroutine apply_onescale2(routine, l, st, en)
+  subroutine apply_onescale2(routine, l, zlev, st, en)
     external routine
     integer l
+    integer zlev
     integer st
     integer en
     integer d
@@ -595,15 +602,16 @@ contains
 
     do d = 1, size(grid)
        do k = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch2(routine, grid(d), grid(d)%lev(l)%elts(k), st, en)
+          call apply_onescale_to_patch2(routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en)
        end do
     end do
   end subroutine apply_onescale2
 
-  subroutine apply_onescale_to_patch5(routine, dom, p, st, en)
+  subroutine apply_onescale_to_patch5(routine, dom, p, zlev, st, en)
     external routine
     type(Domain) dom
     integer p
+    integer zlev
     integer st
     integer en
     integer, dimension(N_BDRY + 1) :: offs
@@ -621,15 +629,16 @@ contains
 
     do j = bdry(JMINUS) + 1, PATCH_SIZE + bdry(JPLUS)
        do i = bdry(IMINUS) + 1, PATCH_SIZE + bdry(IPLUS)
-          call routine(dom, p, i - 1, j - 1, offs, dims)
+          call routine(dom, p, i - 1, j - 1, zlev, offs, dims)
        end do
     end do
   end subroutine apply_onescale_to_patch5
 
-  subroutine apply_onescale_to_patch2(routine, dom, p, st, en)
+  subroutine apply_onescale_to_patch2(routine, dom, p, zlev, st, en)
     external routine
     type(Domain) dom
     integer p
+    integer zlev
     integer st
     integer en
     integer, dimension(N_BDRY + 1) :: offs
@@ -641,7 +650,7 @@ contains
 
     do j = st + 1, PATCH_SIZE + en
        do i = st + 1, PATCH_SIZE + en
-          call routine(dom, p, i - 1, j - 1, offs, dims)
+          call routine(dom, p, i - 1, j - 1, zlev, offs, dims)
        end do
     end do
   end subroutine apply_onescale_to_patch2
@@ -681,30 +690,30 @@ contains
     is_penta = penta
   end function is_penta
 
-  subroutine apply_interscale(routine, l, st, en)
+  subroutine apply_interscale(routine, l, zlev, st, en)
     external routine
-    integer l
+    integer l, zlev
     integer st
     integer en
     integer d
 
     do d = 1, size(grid)
-       call apply_interscale_d(routine, grid(d), l, st, en)
+       call apply_interscale_d(routine, grid(d), l, zlev, st, en)
     end do
   end subroutine apply_interscale
 
-  subroutine apply(routine)
+  subroutine apply(routine, zlev)
     external routine
-    integer l
+    integer l, zlev
 
     do l = level_start, level_end
-       call apply_onescale(routine, l, -BDRY_THICKNESS, BDRY_THICKNESS)
+       call apply_onescale(routine, l, zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine apply
 
-  subroutine apply_onescale(routine, l, st, en)
+  subroutine apply_onescale(routine, l, zlev, st, en)
     external routine
-    integer l
+    integer l, zlev
     integer st
     integer en
     integer d
@@ -712,8 +721,7 @@ contains
 
     do d = 1, size(grid)
        do k = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch(routine, grid(d), &
-               grid(d)%lev(l)%elts(k), st, en)
+          call apply_onescale_to_patch(routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en)
        end do
     end do
   end subroutine apply_onescale

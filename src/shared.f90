@@ -261,6 +261,7 @@ module shared_mod
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 
   ! basic grid parameters
+  integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
   integer min_level, max_level, zlevels
   integer level_start, level_end
   real(8) threshold

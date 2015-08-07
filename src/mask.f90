@@ -21,13 +21,13 @@ contains
     initialized = .True.
   end subroutine init_mask_mod
 
-  subroutine mask_u_consist(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine mask_u_consist(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,9) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -86,11 +86,12 @@ contains
 
   end subroutine mask_u_consist
 
-  subroutine mask_adj_space(dom, i, j, offs, dims)
+  subroutine mask_adj_space(dom, i, j, zlev, offs, dims)
     ! Label pressure (mass) nodes adjacent to active pressure nodes
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id
@@ -123,11 +124,12 @@ contains
     end if
   end subroutine mask_adj_space
 
-  subroutine mask_adj_space2(dom, i, j, offs, dims)
+  subroutine mask_adj_space2(dom, i, j, zlev, offs, dims)
     ! Label pressure (mass) and velocity nodes adjacent to active pressure and velocity nodes
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id
@@ -185,14 +187,14 @@ contains
 
   end subroutine mask_adj_space2
 
-  subroutine mask_active_velo(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine mask_active_velo(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Label active velocity nodes of active children
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -256,14 +258,14 @@ contains
     end do
   end subroutine init_masks
 
-  subroutine inj_p_adjzone(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
-       offs_chd, dims_chd)
+  subroutine inj_p_adjzone(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! add parent to adjacent zone if child is in adjacent zone
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,9) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -309,20 +311,21 @@ contains
        call update_bdry1(wav_coeff(S_VELO,k), level_start, level_end)
     end do
 
-    call apply_onescale(mask_tol, level_end, -1, 2)
+    call apply_onescale(mask_tol, level_end, z_null, -1, 2)
 
     do l = level_end-1, level_start, -1
-       call apply_onescale(mask_tol, l, -1, 2)
-       call apply_interscale(mask_active_mass, l, 0, 1)
-       call apply_interscale(mask_active_velo, l, -1, 1)
+       call apply_onescale(mask_tol, l, z_null, -1, 2)
+       call apply_interscale(mask_active_mass, l, z_null,  0, 1)
+       call apply_interscale(mask_active_velo, l, z_null, -1, 1)
        call comm_masks_mpi(l)
     end do
   end subroutine mask_active
 
-  subroutine mask_tol(dom, i, j, offs, dims)
+  subroutine mask_tol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer k
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
@@ -355,9 +358,9 @@ contains
 
   end subroutine set_active_mask
 
-  subroutine mask_restrict_flux(dom, i_par, j_par, offs_par, dims_par)
+  subroutine mask_restrict_flux(dom, i_par, j_par, zlev, offs_par, dims_par)
     type(Domain) dom
-    integer i_par, j_par
+    integer i_par, j_par, zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer id_par, idE_par, idN_par, idNE_par
@@ -379,13 +382,13 @@ contains
 
   end subroutine mask_restrict_flux
 
-  subroutine mask_adj_scale(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
-       offs_chd, dims_chd)
+  subroutine mask_adj_scale(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -527,13 +530,13 @@ contains
     if (mask .lt. typ) mask = typ
   end subroutine set_at_least
 
-  subroutine mask_u_consist2(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine mask_u_consist2(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,9) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -607,13 +610,13 @@ contains
 
   end subroutine mask_u_consist2
 
-  subroutine mask_active_mass(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd)
+  subroutine mask_active_mass(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
     integer i_chd
     integer j_chd
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
@@ -648,10 +651,11 @@ contains
     end if
   end subroutine mask_active_mass
 
-  subroutine mask_p_if_all_u(dom, i, j, offs, dims)
+  subroutine mask_p_if_all_u(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id
@@ -675,10 +679,11 @@ contains
     end if
   end subroutine mask_p_if_all_u
 
-  subroutine mask_u_if_both_p(dom, i, j, offs, dims)
+  subroutine mask_u_if_both_p(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
+    integer zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id
@@ -714,33 +719,33 @@ contains
   subroutine complete_masks()
     integer l
 
-    call apply_onescale(mask_adj_space, level_end, 0, 1)
+    call apply_onescale(mask_adj_space, level_end, z_null, 0, 1)
 
     do l = level_end-1, level_start, -1
-       call apply_interscale(mask_adj_scale, l, 0, 1)
-       call apply_onescale(mask_u_if_both_p, l+1, 0, 0)
+       call apply_interscale(mask_adj_scale, l, z_null, 0, 1)
+       call apply_onescale(mask_u_if_both_p, l+1, z_null, 0, 0)
     end do
 
     call comm_masks_mpi(NONE)
 
     do l = level_end-1, level_start+1, -1
-       call apply_interscale(mask_u_consist, l, 0, 1)
+       call apply_interscale(mask_u_consist, l, z_null, 0, 1)
        call comm_masks_mpi(l+1)
-       call apply_interscale(mask_u_consist2, l, 0, 0)
+       call apply_interscale(mask_u_consist2, l, z_null, 0, 0)
        call comm_masks_mpi(l)
     end do
 
     if (level_start .lt. level_end) then
-       call apply_interscale(mask_u_consist, level_start, 0, 1)
+       call apply_interscale(mask_u_consist, level_start, z_null, 0, 1)
        call comm_masks_mpi(level_start+1)
     end if
 
     do l = level_end-1, level_start+1, -1
-       call apply_onescale(mask_p_if_all_u, l+1, 0, 1)
-       call apply_interscale(inj_p_adjzone, l, 0, 1)
+       call apply_onescale(mask_p_if_all_u, l+1, z_null, 0, 1)
+       call apply_interscale(inj_p_adjzone, l,   z_null, 0, 1)
     end do
 
-    if (level_start+1 .le. level_end) call apply_onescale(mask_p_if_all_u, level_start+1, 0, 1)
+    if (level_start+1 .le. level_end) call apply_onescale(mask_p_if_all_u, level_start+1, z_null, 0, 1)
   end subroutine complete_masks
 
 end module mask_mod
