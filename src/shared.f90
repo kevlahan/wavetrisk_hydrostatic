@@ -28,25 +28,6 @@
 ! Various other dynamical data types and subroutines for allocating them are defined in dyn_array.f90.
 
 
-! INDEXING OF GRID ELEMENTS AND NEIGHBOURS
-!
-! Quantities (e.g. mass, velocities) are all stored in a single array, whose elements are organized in patches.
-! Each patch has regular array coordinates (i,j).
-!
-! Patch offset array offs(N_BDRY+1) contains the starting index for the current patch as offs(0) and the starting 
-! indices for neighbouring patches are given by offs(NORTH) etc.
-!
-! Patch dimension array dims(2, N_BDRY+1) gives the dimensions of the current patch as dims(2,0) and neighbouring patches as dims(2, NORTH) etc.
-!
-! Function id = idx(i,j,offs,dims) returns associated hexagon node values as %elts(id+1)for the regular grid indices (i,j) on the
-! patch selected by offs with dimensions dim. 
-!
-! Neighbouring elements are then found by shifting from hexagon node as
-!
-! %elts(EDGE*id+e+1)  - where e = 0,1,2 are three adjacent edges RT, DG, UP
-! %elts(TRIAG*id+t+1) - where t = 0,1   are two adjanent triangles LORT, UPLT
-
-
 ! GRID ELEMENTS
 !
 ! The triangular primal grid element (one hexagonal node H, three edges UP, DG, RT and two triangular nodes UPLT, LORT) is
@@ -80,52 +61,58 @@
 !           \               /
 !             -------------
 
-! Coordinate labels on regular (i,j) domain grids for neighbours to hexagonal point H
-!
-! N = (0,1), S = (0,-1), W = (-1,0), E = (1,0), NE = (1,1), NW = (-1,1), SE=(1,-1), SW = (-1,-1)
-!
-!  NW ----------- N ----------- NE
-!    \           / \           / \
-!     \         /   \         /   \
-!      \       /     \       /     \
-!       \     /       \     /       \  
-!        \   /         \   /         \
-!         \ /           \ /           \
-!          W ----------- H ----------- E
-!           \           / \          /  \
-!            \         /   \        /    \ 
-!             \       /     \      /      \
-!              \     /       \    /        \
-!               \   /         \  /          \
-!                \ /           \/            \
-!                SW ---------- S ----------- SE
 
+! Patch neighour directions
+!                   
+! ------------- ------------- ------------- 
+!\              \             \            \
+! \              \             \            \
+!  \              \             \            \
+!   \  NORTHWEST   \    NORTH    \ NORTHEAST  \  
+!    \              \             \            \
+!     \              \             \            \
+!       -------------  ------------- ------------- 
+!       \              \             \            \
+!        \              \             \            \
+!         \              \             \            \  
+!          \     WEST     \      0      \    EAST    \ 
+!           \              \             \            \
+!            \              \             \            \
+!              -------------  ------------- ------------- 
+!              \              \             \            \
+!               \              \             \            \ 
+!                \              \             \            \
+!                 \   SOUTHWEST  \  SOUTH      \  SOUTHEAST \
+!                  \              \             \            \
+!                   \              \             \            \
+!                     -------------   ------------ ------------ 
+!
 
-! Neighbour directions on hexagon
 !
-!                  N
 !
-!             -----UP---- UPLT 
-!           /               \ 
-!          /                 \ 
-!     W   /                  DG   NE
-!        /                     \   
-!       /                       \
-!                   H           LORT
-!       \                       /
-!        \                     /
-!    SW   \                   RT   E
-!          \                 / 
-!           \               /
-!             -------------
+! INDEXING OF GRID ELEMENTS AND NEIGHBOURS
 !
-!                   S
+! Quantities (e.g. mass, velocities) are all stored in a single array, whose elements are organized in patches.
+! Each patch has regular array coordinates (i,j).
 !
+! Patch offset array offs(N_BDRY+1) contains the starting index for the current patch as offs(0) and the starting 
+! indices for neighbouring patches are given by offs(NORTH) etc.
+!
+! Patch dimension array dims(2, N_BDRY+1) gives the dimensions of the current patch as dims(2,0) and neighbouring patches as dims(2, NORTH) etc.
+!
+! Function id = idx(i,j,offs,dims) returns the element index for the hexagon node with coordinates (i,j) on the patch selected by offs with dimensions dim. 
+!
+! The components of the grid elements are then found as:
+!
+! %elts(id+1)         - the one grid element hexagon node (e.g. masses)
+! %elts(EDGE*id+e+1)  - the three grid element edges RT, DG, UP, where e = 0,1,2 (e.g. velocities, fluxes)
+! %elts(TRIAG*id+t+1) - the two grid element triangles LORT, UPLT, where t = 0,1 (e.g. circulation)
+
 
 ! DATA OUTPUT
 !
-! Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual. Full state of the simulation is saved in io.f90/dump_adapt_mpi and read in again
-! by io.f90/load_adapt_mpi.
+! Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual. 
+! The full state of the simulation is saved in io.f90/dump_adapt_mpi and read in again by io.f90/load_adapt_mpi.
 
 module shared_mod
   use param_mod
@@ -154,7 +141,7 @@ module shared_mod
   integer, parameter :: IJMINUS = 7
   integer, parameter :: IMINUSJPLUS = 8
 
-  ! patch neighbour indices for use in patch index arrays offs and dims
+  ! neighbour indices for use in patch index arrays offs and dims 
   integer, parameter :: NORTH = 1
   integer, parameter :: EAST = 2
   integer, parameter :: SOUTH = 3
