@@ -30,10 +30,18 @@
 
 ! INDEXING OF GRID ELEMENTS AND NEIGHBOURS
 !
-! Given regular array coordinates (i,j), offset array offs(N_BDRY+1) and domain array dims(2, N_BDRY+1)
-! function id = idx(i,j,offs,dim) returns associated hexagon node values as %elts(id+1).
+! Quantities (e.g. mass, velocities) are all stored in a single array, whose elements are organized in patches.
+! Each patch has regular array coordinates (i,j).
 !
-! Neighbours are then found by shifting from hexagon node as
+! Patch offset array offs(N_BDRY+1) contains the starting index for the current patch as offs(0) and the starting 
+! indices for neighbouring patches are given by offs(NORTH) etc.
+!
+! Patch dimension array dims(2, N_BDRY+1) gives the dimensions of the current patch as dims(2,0) and neighbouring patches as dims(2, NORTH) etc.
+!
+! Function id = idx(i,j,offs,dims) returns associated hexagon node values as %elts(id+1)for the regular grid indices (i,j) on the
+! patch selected by offs with dimensions dim. 
+!
+! Neighbouring elements are then found by shifting from hexagon node as
 !
 ! %elts(EDGE*id+e+1)  - where e = 0,1,2 are three adjacent edges RT, DG, UP
 ! %elts(TRIAG*id+t+1) - where t = 0,1   are two adjanent triangles LORT, UPLT
@@ -112,6 +120,8 @@
 !             -------------
 !
 !                   S
+!
+
 ! DATA OUTPUT
 !
 ! Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual. Full state of the simulation is saved in io.f90/dump_adapt_mpi and read in again
@@ -144,6 +154,7 @@ module shared_mod
   integer, parameter :: IJMINUS = 7
   integer, parameter :: IMINUSJPLUS = 8
 
+  ! patch neighbour indices for use in patch index arrays offs and dims
   integer, parameter :: NORTH = 1
   integer, parameter :: EAST = 2
   integer, parameter :: SOUTH = 3
@@ -198,11 +209,14 @@ module shared_mod
   integer, parameter :: OUTER2 = 2
   integer, parameter :: COINSIDE = 3
 
-  ! nearest two neighbour flux/velocity points U, V, W (i.e. RT,UP,DG)
+  ! Nearest two neighbour flux/velocity interpolation points U, V, W (i.e. RT,UP,DG)
+  ! 
   ! Z = zero shift
   ! P = positive shift
   ! M = negative shift
 
+  ! note that there are 16 flux locations but only 14 distinct weights
+  !
   ! first neighbours Uij, Vij, Wij where i and j can be any of (M,Z,P)
   integer, parameter :: UZM = 0
   integer, parameter :: UPZ = 1
@@ -219,8 +233,9 @@ module shared_mod
   integer, parameter :: WMP = 10
   integer, parameter :: WPP = 11
 
-  integer, parameter :: CMM = 12
-  integer, parameter :: CPP = 13
+  ! indices used by two flux locations (C is centre: no shift in x direction)
+  integer, parameter :: CMM = 12 ! same as WMMM
+  integer, parameter :: CPP = 13 ! same as WPPP
 
   ! second neighbours Wijj, Vijj
   integer, parameter :: WMMM = 12
@@ -238,12 +253,12 @@ module shared_mod
   ! weights for various interpolation schemes
   integer, dimension(2,2,3) :: end_pt
   integer, dimension(2,2,3) :: opp_no
-  integer, dimension(3,10) :: no_adj_tri
-  integer, dimension(3,10) :: hex_sides
-  integer, dimension(3) :: hex_s_offs
+  integer, dimension(3,10)  :: no_adj_tri
+  integer, dimension(3,10)  :: hex_sides
+  integer, dimension(3)     :: hex_s_offs
   integer, dimension(3,4,3) :: bfly_tri
   integer, dimension(3,2,3) :: adj_tri
-  integer, dimension(2,10) :: nghb_pt
+  integer, dimension(2,10)  :: nghb_pt
   integer, dimension(2,4,3) :: bfly_no
   integer, dimension(2,4,3) :: bfly_no2
 
@@ -262,10 +277,14 @@ module shared_mod
 
   ! basic grid parameters
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
-  integer min_level, max_level, zlevels
-  integer level_start, level_end
-  real(8) threshold
+  integer min_level, max_level ! minimum and maximum grid refinement levels in pseudo-horizontal directions
+  integer zlevels ! number of levels in vertical direction
+  integer level_start, level_end 
+
+  real(8) threshold ! threshold level on wavelet coefficients for grid adaptation
+  
   integer n_active(S_MASS:S_VELO) ! number of active points in each variable
+  
   logical dynamic_adapt
   integer optimize_grid
 
