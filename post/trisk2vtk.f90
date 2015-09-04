@@ -3,7 +3,7 @@ program trisk2vtk
   !
   ! Usage: trisk2vtk filetype iwrite jmin jmax file_vtk
   !
-  ! filetype = "primal" (hexagons) or "dual" (triangles)
+  ! filetype = primal (hexagons) or dual (triangles)
   ! iwrite   = file to read
   ! jmin     = minimum scale to save
   ! jmax     = maximum scale to save
@@ -41,6 +41,16 @@ program trisk2vtk
      elseif (filetype .eq. "dual") then
         n_vertices = 3 ! Triangular cells (dual grid)
         u = 200000+100*iwrite
+     elseif (filetype .eq." ") then
+        write(*,*) " "
+        write(*,*) "Usage: trisk2vtk filetype iwrite jmin jmax file_vtk"
+        write(*,*) " "
+        write(*,*) "filetype = primal (hexagons) or dual (triangles)"
+        write(*,*) "iwrite   = file to read"
+        write(*,*) "jmin     = minimum scale to save"
+        write(*,*) "jmax     = maximum scale to save"
+        write(*,*) "file_vtk = file for vtk data"
+        stop
      end if
      fid = u+j
      write (filename_in, '(A,I6)')  "fort.", fid
@@ -204,7 +214,7 @@ program trisk2vtk
      end do
      write(iunit) lf
 
-     write(iunit) 'SCALARS chi float'//lf
+     write(iunit) 'SCALARS penal float'//lf
      write(iunit) 'LOOKUP_TABLE default'//lf
      do icell = 1, n_cells
         write (iunit) outv(icell,2)
