@@ -4,9 +4,11 @@
 
 ! GRID STRUCTURE 
 !
-! The icosahedron is divided into ten regular lozange grids (with the exception of the poles), each lozange is then divided
+! The icosahedron is divided into a network of ten regular lozange grids (with the exception of the poles), each lozange is then divided
 ! into N_SUB_DOM = 2**(2*DOMAIN_LEVEL) regular sub-domains with the number of sub-domains on each processor given by n_domain(rank+1)).
-
+!
+! There are two special nodes called POLEs. One connects the five lozange vertices at the top of the network and the other connects the 
+! five lozange grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and South poles.
 
 ! BASIC GRID DATA TYPES
 !
@@ -62,7 +64,8 @@
 !             -------------
 
 
-! Patch neighour directions
+! Patch neighour directions (based on regular coordinates i,j).
+! Note that within a patch similar notation is used for shifts in i and j (e.g. shift i-1, j+1 is denoted idNW).
 !                   
 ! ------------- ------------- ------------- 
 !\              \             \            \
@@ -95,7 +98,7 @@
 ! Quantities (e.g. mass, velocities) are all stored in a single array, whose elements are organized in patches.
 ! Each patch has regular array coordinates (i,j).
 !
-! Patch offset array offs(N_BDRY+1) contains the starting index for the current patch as offs(0) and the starting 
+! Patch offset array offs(N_BDRY+1) contains the starting index in the single array for the current patch as offs(0). The starting 
 ! indices for neighbouring patches are given by offs(NORTH) etc.
 !
 ! Patch dimension array dims(2, N_BDRY+1) gives the dimensions of the current patch as dims(2,0) and neighbouring patches as dims(2, NORTH) etc.
@@ -141,59 +144,62 @@ module shared_mod
   integer, parameter :: IJMINUS = 7
   integer, parameter :: IMINUSJPLUS = 8
 
-  ! neighbour indices for use in patch index arrays offs and dims 
-  integer, parameter :: NORTH = 1
-  integer, parameter :: EAST = 2
-  integer, parameter :: SOUTH = 3
-  integer, parameter :: WEST = 4
+  ! neighbouring patch indices for use in index arrays offs and dims 
+  integer, parameter :: NORTH     = 1
+  integer, parameter :: EAST      = 2
+  integer, parameter :: SOUTH     = 3
+  integer, parameter :: WEST      = 4
   integer, parameter :: NORTHEAST = 5
   integer, parameter :: SOUTHEAST = 6
   integer, parameter :: SOUTHWEST = 7
   integer, parameter :: NORTHWEST = 8
 
-  integer, parameter :: N_BDRY = 8
-
   ! number of children nodes associated to each parent node
   integer, parameter :: N_CHDRN = 4 
 
   ! domain parameters
-  integer, parameter :: N_ICOSAH_LOZANGE = 10 ! number of lozanges (coarse regular domains) in icosahedron
+  integer, parameter :: N_ICOSAH_LOZANGE = 10               ! number of lozanges (coarse regular domains) in icosahedron
   integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL ! number of subdomains per lozange in each direction
-  integer, parameter :: N_SUB_DOM = N_SUB_DOM_PER_DIM**2 ! total number of sub-domains per lozange
+  integer, parameter :: N_SUB_DOM = N_SUB_DOM_PER_DIM**2    ! total number of sub-domains per lozange
+  integer, parameter :: N_BDRY = 8                          ! number of boundary patches associated to each patch
+
   integer, allocatable :: n_domain(:) ! number of subdomains on each processor
+
 
   ! thickness of boundary overlaps between lozanges
   integer, parameter :: BDRY_THICKNESS = 3
 
   integer, parameter :: FROZEN = 32
 
-  ! label for active points
+  ! label for active nodes
   integer, parameter :: TOLRNZ = 16
 
-  ! label for points whose flux can be obtained by restriction from fine level
+  ! label for nodes whose flux can be obtained by restriction from fine level
   integer, parameter :: RESTRCT = 12
 
-  ! label for adjacent zone points in either position (space) or scale
+  ! label for adjacent zone nodes in either position (space) or scale
   integer, parameter :: ADJZONE = 8
 
-  ! label for adjacent points in position (space) only 
+  ! label for adjacent nodes  in position (space) only 
   integer, parameter :: ADJSPACE = 14
 
+  ! label for nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
   integer, parameter :: CONSIST = 4
 
   integer, parameter :: NODE = 3
 
-  integer, parameter :: ZERO = 0 
+  integer, parameter :: ZERO =  0 
   integer, parameter :: NONE = -1
-  integer, parameter :: POLE = -2
+  integer, parameter :: POLE = -2 ! label for two pole points 
 
+  ! logical integer parameters
   integer, parameter :: FALSE = 0
-  integer, parameter :: TRUE = 1
+  integer, parameter :: TRUE  = 1
 
-  integer, parameter :: ON_LINE = 2
-  integer, parameter :: INSIDE = 0
-  integer, parameter :: OUTER1 = 1
-  integer, parameter :: OUTER2 = 2
+  integer, parameter :: ON_LINE  = 2
+  integer, parameter :: INSIDE   = 0
+  integer, parameter :: OUTER1   = 1
+  integer, parameter :: OUTER2   = 2
   integer, parameter :: COINSIDE = 3
 
   ! Nearest two neighbour flux/velocity interpolation points U, V, W (i.e. RT,UP,DG)
