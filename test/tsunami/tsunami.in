@@ -10,7 +10,7 @@ dt_write 5              ! minutes
 CP_EVERY 6              
 time_end	24	! hours
 resume  -1
-IC_file 'Andaman_Sumatra_2004_IC'
+IC_file 'okada85'
 LON_MIN  85.185
 LON_MAX 104.815
 LAT_MIN  -2

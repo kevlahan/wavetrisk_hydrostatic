@@ -422,7 +422,7 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%send_conn(dest_glo+1)%length, 4
-             st = grid(src_loc)%send_conn(dest_glo+1)%elts(i:i + 4)
+             st = grid(src_loc)%send_conn(dest_glo+1)%elts(i:i + 3)
              call unpack_comm_struct(grid(dest_loc), src_glo, st(1), &
                   st(2), st(3), st(4))
           end do
