@@ -1,6 +1,12 @@
 module tsunami_mod
   use main_mod
 
+  !2 layers check fields exactly the same
+  !same for 3 layers
+  !implement independent layers (incompressible) but use DYNAMICO equations
+  !add in vertical integration
+  !add in potential temperature
+
   implicit none
 
   ! Dimensional physical parameters
@@ -67,27 +73,30 @@ contains
     
     do l = level_start, level_end
        do k = 1, zlevels
+          PRINT *, 'initial condition applied at zlev= ', k
           call apply_onescale(init_sol, l, k, 0, 1)
        end do
     end do
 
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch(cpt_topo_penal, grid(d), p-1, z_null, -2, 3)
-       end do
-    end do
+    !do d = 1, size(grid)
+    !   do p = 3, grid(d)%patch%length
+    !      call apply_onescale_to_patch(cpt_topo_penal, grid(d), p-1, z_null, -2, 3)
+    !   end do
+    !end do
 
-    do l = level_start, level_end
-       ! FIXME: works only for zero initial height perturbation at poles
-       if (penalize) call apply_onescale(penalize_ic, l, z_null, 0, 0) 
-    end do
+    !do l = level_start, level_end
+    !   ! FIXME: works only for zero initial height perturbation at poles
+    !   if (penalize) call apply_onescale(penalize_ic, l, z_null, 0, 0)
+    !end do
   end subroutine apply_initial_conditions
 
   subroutine write_and_print_step()
     real(4) timing
     timing = get_timing()
-    if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 2(1X,ES13.4))') &
-         time, dt, timing, level_end, n_active, max_height, VELO_SCALE
+    if (rank .eq. 0) write(1011,'(A, 3(ES13.4,1X), I3, 2(1X, I9), 2(1X,ES13.4))') &
+         'zlev=1 ', time, dt, timing, level_end, n_active, max_height, VELO_SCALE
+    if (rank .eq. 0) write(1011,'(A, 3(ES13.4,1X), I3, 2(1X, I9), 2(1X,ES13.4))') &
+         'zlev=2 ', time, dt, timing, level_end, n_active, max_height, VELO_SCALE
   end subroutine write_and_print_step
 
   subroutine cpt_max_dh(dom, i, j, zlev, offs, dims)
@@ -643,8 +652,8 @@ program tsunami
      end do
 
      do k = 1, zlevels
-        call apply_onescale(wave_height,   9, k, 0, 0)
-        call apply_onescale(first_arrival, 9, k, 0, 0)
+        call apply_onescale(wave_height,   7, k, 0, 0)
+        call apply_onescale(first_arrival, 7, k, 0, 0)
      end do
 
      if (calc_tide_gauges) then
@@ -654,7 +663,7 @@ program tsunami
            cur_gauge = 1E3_8
            gauge_coord = project_on_sphere(sph2cart(station_coord(j_gauge,2), station_coord(j_gauge,1)))
            do k = 1, zlevels
-              call apply_onescale(tide_gauge, 9, k, 0, 0)
+              call apply_onescale(tide_gauge, 7, k, 0, 0)
            end do
            glo_gauge_dist = - sync_max_d( -last_gauge_dist ) 
            if (glo_gauge_dist .eq. last_gauge_dist) tide_record(j_gauge) = cur_gauge 
@@ -667,7 +676,8 @@ program tsunami
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
+     if (rank .eq. 0) write(*,'(A,I9,A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
+          'zlevels =', zlevels , &
           'time [h] =', time/3600.0_8*Tdim, &
           ', dt [s] =', dt*Tdim, &
           ', min. depth =', fd, &
@@ -682,7 +692,7 @@ program tsunami
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
         call update_bdry(arrival, 9)
         call update_bdry(wave_h, 9)
-        call export_2d(cart2sph2, (/arrival, wave_h/), 2, 10000+10*iwrite/CP_EVERY, 9, & 
+        call export_2d(cart2sph2, (/arrival, wave_h/), 2, 10000+10*iwrite/CP_EVERY, 7, &
              (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), (/1.0e8_8, 0.0_8/))
         ierr = writ_checkpoint(tsunami_dump)
 
