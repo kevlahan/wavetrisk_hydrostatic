@@ -464,7 +464,7 @@ contains
     write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
     write(cmd_archive, '(A,I4.4,A)') "checkpoint_" , cp_idx, ".tgz"
     write(command, '(A,A,A,A,A,A,A,A,A)') "if [ -e ", cmd_archive, " ]; then rm -f ", cmd_files, &
-         "; else tar c --remove-files -z -f ", cmd_archive, " ", cmd_files, "; fi"
+         "; else tar c -z -f ", cmd_archive, " ", cmd_files, "; fi"
 
     call barrier() ! do not delete files before everyone has read them
 
@@ -494,14 +494,14 @@ contains
       command = '\rm tmp; ls -1 fort.1' // s_time // '* > tmp' 
       CALL system(command)
 
-      command = 'tar cjf fort.1' // s_time //'.tbz -T tmp --remove-files &'
-      CALL system(command)
+      !command = 'tar cjf fort.1' // s_time //'.tbz -T tmp --remove-files &'
+      !CALL system(command)
 
       command = '\rm tmp; ls -1 fort.2' // s_time // '* > tmp' 
       CALL system(command)
 
-      command = 'tar cjf fort.2' // s_time //'.tbz -T tmp --remove-files &'
-      CALL system(command)
+      !command = 'tar cjf fort.2' // s_time //'.tbz -T tmp --remove-files &'
+      !CALL system(command)
   end subroutine compress_files
 
 end module
