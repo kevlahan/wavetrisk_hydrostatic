@@ -676,9 +676,9 @@ program tsunami
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,I9,A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
+     if (rank .eq. 0) write(*,'(A,I3,A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
           'zlevels =', zlevels , &
-          'time [h] =', time/3600.0_8*Tdim, &
+          ', time [h] =', time/3600.0_8*Tdim, &
           ', dt [s] =', dt*Tdim, &
           ', min. depth =', fd, &
           ', U =', VELO_SCALE, &

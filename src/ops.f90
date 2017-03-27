@@ -4,6 +4,9 @@ module ops_mod
   use viscous_mod
   implicit none
 
+  real(8) :: totaldmass, totalabsdmass
+  integer :: tic
+
 contains
   subroutine init_ops_mod()
       logical :: initialized = .False.
@@ -752,5 +755,24 @@ contains
     offs(EAST)  = offs(EAST)  -            (PATCH_SIZE-1)
     offs(SOUTHEAST) = offs(SOUTHEAST) -(PATCH_SIZE-1)
     offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
+  end subroutine
+
+  subroutine sum_dmass(dom, i, j, zlev, offs, dims)
+      type(Domain) dom
+      integer i
+      integer j
+      integer zlev
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,N_BDRY + 1) :: dims
+      integer id
+      integer idS
+      integer idW
+      integer idSW
+
+      id   = idx(i,     j,     offs, dims)
+
+      totaldmass = totaldmass + dmass(id+1)/dom%areas%elts(id+1)%hex_inv
+      totalabsdmass = totalabsdmass + abs(dmass(id+1)/dom%areas%elts(id+1)%hex_inv)
+      tic=tic+1
   end subroutine
 end module ops_mod

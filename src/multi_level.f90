@@ -459,6 +459,21 @@ contains
           end do
           nullify(dvelo)
        end do
+
+       totaldmass=0.0_8
+       totalabsdmass=0.0_8
+       tic=0
+       do d = 1, size(grid)
+          dmass   => dq(S_MASS,k)%data(d)%elts
+
+          do p = 3, grid(d)%patch%length !in principle, p should start at the coarsest patch p=2
+             call apply_onescale_to_patch(sum_dmass, grid(d), p - 1, k, 0, 0)
+          end do
+
+          nullify(dmass)
+       end do
+
+       PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass/totalabsdmass, ' and number of nodes is', tic
     end do
     
   end subroutine trend_ml
