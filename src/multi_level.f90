@@ -378,7 +378,7 @@ contains
           h_mflux => horiz_massflux(k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
+             call apply_onescale_to_patch(du_Qperp, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
           nullify(mass, velo, dvelo, h_mflux)

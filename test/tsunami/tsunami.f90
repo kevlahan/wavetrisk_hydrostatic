@@ -526,7 +526,7 @@ program tsunami
   VELO_SCALE   = U
 
   wind_stress      = .False.
-  penalize         = .True.
+  penalize         = .False.
   bottom_friction  = .False.
   calc_tide_gauges = .False.
 
@@ -537,7 +537,7 @@ program tsunami
      write(*,'(A,L1)') "tide gauges     = ", calc_tide_gauges
   end if
 
-  viscosity = 1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
+  viscosity = 0 !1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
   friction_coeff = 3e-3_8 ! Bottom friction
   if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
 
@@ -606,16 +606,6 @@ program tsunami
 
   if (rank .eq. 0) write(*,*) 'Write initial values and grid'
   if (write_init) call write_and_export(iwrite)
-
-  if (istep .eq. 0) then
-     if (rank .eq. 0) open(unit=1011,file='verlauf.out',form='formatted',STATUS='replace')
-     if (rank .eq. 0) open(unit=8450,file='tide_gauges',form='formatted',STATUS='replace')
-  else
-     if (rank .eq. 0) then
-        open(unit=1011,file='verlauf.out',form='formatted',STATUS='old', POSITION='append')
-        open(unit=8450,file='tide_gauges',form='formatted',STATUS='old', POSITION='append')
-     end if
-  end if
 
   do while (time .lt. time_end)
      call start_timing()
