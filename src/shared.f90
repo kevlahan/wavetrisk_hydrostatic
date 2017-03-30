@@ -260,10 +260,13 @@ module shared_mod
   data O2 /2,3, 3,1, 1,2/ 
 
   ! indices of prognostic variables in sol, trend etc
-  integer, parameter :: S_MASS = 1, S_VELO = 2
+  integer, parameter :: S_MASS = 1, S_VELO = 2, S_TEMP = 3
 
   ! number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
-  integer, dimension(S_MASS:S_VELO) :: MULT 
+  integer, dimension(S_MASS:S_TEMP) :: MULT
+
+  ! location of each variable on the grid (at an edge or at a node)
+  integer, dimension(S_MASS:S_TEMP) :: POSIT
 
   ! grid optimization choices
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
@@ -276,8 +279,8 @@ module shared_mod
 
   real(8) threshold ! threshold level on wavelet coefficients for grid adaptation
   
-  integer n_active(S_MASS:S_VELO) ! number of active points in each variable
-  
+  integer n_active(AT_NODE:AT_EDGE) ! number of active points at grid locations (node and edge)
+
   logical dynamic_adapt
   integer optimize_grid
 
@@ -302,8 +305,15 @@ contains
 
     if (initialized) return ! initialize only once
 
+    !specify the multiplicity per grid element of each quantity
     MULT(S_MASS) = 1
     MULT(S_VELO) = EDGE
+    MULT(S_TEMP) = 1
+
+    !specify the position on the grid of each quantity
+    POSIT(S_MASS) = AT_NODE
+    POSIT(S_VELO) = AT_EDGE
+    POSIT(S_TEMP) = AT_NODE
 
     end_pt = reshape((/0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1/), (/2, 2, 3/))
 

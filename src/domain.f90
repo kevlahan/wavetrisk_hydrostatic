@@ -42,11 +42,11 @@ module domain_mod
      type(Float_Array) coriolis
      type(Float_Array) windstress
 
-     type(Float_Array) bernoulli
-     type(Float_Array) divu
-     type(Float_Array) kin_energy
-     type(Float_Array) qe
-     type(Float_Array) vort
+     type(Float_Array) bernoulli !Bernoulli function
+     type(Float_Array) divu !divergence of velocity field
+     type(Float_Array) kin_energy !kinetic energy
+     type(Float_Array) qe !potential vorticity
+     type(Float_Array) vort !vorticity
      
      type(Overl_Area_Array) overl_areas
      type(Iu_Wgt_Array) I_u_wgt
@@ -67,10 +67,14 @@ module domain_mod
 
   type(Domain), allocatable :: grid(:)
 
-  type(Float_Field), ALLOCATABLE, TARGET :: sol(:,:), trend(:,:), horiz_massflux(:), wav_coeff(:,:)
+  type(Float_Field), ALLOCATABLE, TARGET :: sol(:,:), trend(:,:), wav_coeff(:,:)
+  type(Float_Field), ALLOCATABLE, TARGET :: horiz_tempflux(:), horiz_massflux(:)
 
-  real(8), pointer :: mass(:), velo(:), dmass(:), dvelo(:), h_mflux(:)
-  real(8), pointer :: wc_u(:), wc_m(:)
+  real(8), pointer :: mass(:), dmass(:), h_mflux(:)
+  real(8), pointer :: velo(:), dvelo(:)
+  real(8), pointer :: temp(:), dtemp(:), h_tflux(:)
+  real(8), pointer :: wc_u(:), wc_m(:), wc_t(:)
+
 
   ! for penalization boundary condition
   type(Float_Field), target :: penal
@@ -273,6 +277,7 @@ contains
   end subroutine apply_interscale_to_patch2
 
   integer function ed_idx(i, j, ed, offs, dims)
+    !return edge index
     integer i
     integer j
     integer, dimension(3) :: ed

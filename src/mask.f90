@@ -87,7 +87,7 @@ contains
   end subroutine mask_e_consist
 
   subroutine mask_adj_space(dom, i, j, zlev, offs, dims)
-    ! Label pressure (mass) nodes adjacent to active pressure nodes
+    ! Label nodes adjacent to active nodes
     type(Domain) dom
     integer i
     integer j
@@ -125,7 +125,7 @@ contains
   end subroutine mask_adj_space
 
   subroutine mask_adj_space2(dom, i, j, zlev, offs, dims)
-    ! Label pressure (mass) and velocity nodes adjacent to active pressure and velocity nodes
+    ! Label nodes and edges adjacent to active nodes and edges
     type(Domain) dom
     integer i
     integer j

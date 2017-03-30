@@ -42,9 +42,9 @@ contains
     glo_id = 0
     p = 1
     do d = 1, n_domain(rank+1)
-       owner(d) = p - 1
-       loc_id(d) = d - 1
-       glo_id(p,d) = d - 1
+       owner(d) = p - 1 !serial execution so one owner only
+       loc_id(d) = d - 1 !the local id is counting up
+       glo_id(p,d) = d - 1 !single owner so global id simply counting up as well
     end do
 
   end subroutine distribute_grid

@@ -37,7 +37,7 @@ contains
     n_active_all_loc = (/n_active_nodes(level_start:level_end), n_active_edges(level_start:level_end)/)
 
     call MPI_Allreduce(n_active_all_loc, n_active_all_glo, n_lev_cur*2, &
-         MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+         MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror) !sum n_active_all_loc up across all processes and distribute result n_active_all_glo among all processes
 
     n_active_nodes(level_start:level_end) = n_active_all_glo(1:n_lev_cur)
     n_active_edges(level_start:level_end) = n_active_all_glo(n_lev_cur+1:n_lev_cur*2)
@@ -305,6 +305,7 @@ contains
   end subroutine alltoall
 
   subroutine comm_masks_mpi(l)
+      !communication of mask information in a subdomain between different processes
     integer l
     integer r_dest, r_src, d_src, d_dest, dest, id, i, kk
 
