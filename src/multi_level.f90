@@ -473,7 +473,11 @@ contains
           nullify(dmass)
        end do
 
-       PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass/totalabsdmass, ' and number of nodes is', tic
+       if (totalabsdmass.gt.0) then
+        PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass/totalabsdmass, ' and number of nodes is', tic
+       else
+        PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass, ' and number of nodes is', tic
+       end if
     end do
     
   end subroutine trend_ml
