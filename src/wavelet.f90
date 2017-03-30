@@ -402,7 +402,7 @@ contains
             velo(idx(0, PATCH_SIZE, offs, dims)*EDGE + UP + 1) &
             +velo(idx(-1, PATCH_SIZE, offs, dims)*EDGE + RT + 1))
 
-       if (dom%mask_u%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
+       if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
           wc_u(EDGE*id_chd+UP+1)  = wc_u(EDGE*id_chd +UP+1) - v
           wc_u(EDGE*idN_chd+UP+1) = wc_u(EDGE*idN_chd+UP+1) + v
        end if
@@ -415,7 +415,7 @@ contains
                velo(idx(PATCH_SIZE, 0, offs, dims)*EDGE + RT + 1) &
                +velo(idx(PATCH_SIZE,-1, offs, dims)*EDGE + UP + 1))
 
-          if (dom%mask_u%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
+          if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
              wc_u(EDGE*id_chd+RT+1)  = wc_u(EDGE*id_chd +RT+1) - v
              wc_u(EDGE*idE_chd+RT+1) = wc_u(EDGE*idE_chd+RT+1) + v
           end if
@@ -430,11 +430,11 @@ contains
 
     u = vel_interp_penta_corr(dom, offs, dims, offs_chd, dims_chd)
 
-    if (dom%mask_u%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
        wc_u(EDGE*id_chd+UP+1)  = wc_u(EDGE*id_chd +UP+1) + u(1)
        wc_u(EDGE*idN_chd+UP+1) = wc_u(EDGE*idN_chd+UP+1) - u(1)
     end if
-    if (dom%mask_u%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
        wc_u(EDGE*id_chd+RT+1)  = wc_u(EDGE*id_chd +RT+1) + u(2)
        wc_u(EDGE*idE_chd+RT+1) = wc_u(EDGE*idE_chd+RT+1) - u(2)
     end if
@@ -732,7 +732,7 @@ contains
        id1 = idx(i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
        id2 = idx(i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
 
-       if (dom%mask_u%elts(EDGE*id2+e) .lt. ADJZONE) cycle
+       if (dom%mask_e%elts(EDGE*id2+e) .lt. ADJZONE) cycle
 
        u = interp_outer_u(dom, i_par, j_par, e - 1, offs_par, dims_par, &
             i_chd, j_chd, offs_chd, dims_chd)
@@ -746,17 +746,17 @@ contains
          EDGE*idNE_chd + RT, EDGE*idN_chd + RT, DG + EDGE*idN_chd, &
          EDGE*idNE_chd + UP)
 
-    if (dom%mask_u%elts(EDGE*idE_chd+UP+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(EDGE*idE_chd+UP+1) .ge. ADJZONE) &
          wc_u(EDGE*idE_chd+UP+1) = velo(EDGE*idE_chd+UP+1) - u_inner(1)
-    if (dom%mask_u%elts(DG+EDGE*idE_chd+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(DG+EDGE*idE_chd+1) .ge. ADJZONE) &
          wc_u(DG+EDGE*idE_chd+1) = velo(DG+EDGE*idE_chd+1) - u_inner(2)
-    if (dom%mask_u%elts(EDGE*idNE_chd+RT+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(EDGE*idNE_chd+RT+1) .ge. ADJZONE) &
          wc_u(EDGE*idNE_chd+RT+1) = velo(EDGE*idNE_chd+RT+1) - u_inner(3)
-    if (dom%mask_u%elts(EDGE*idN_chd+RT+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(EDGE*idN_chd+RT+1) .ge. ADJZONE) &
          wc_u(EDGE*idN_chd+RT+1) = velo(EDGE*idN_chd+RT+1) - u_inner(4)
-    if (dom%mask_u%elts(DG+EDGE*idN_chd+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(DG+EDGE*idN_chd+1) .ge. ADJZONE) &
          wc_u(DG+EDGE*idN_chd+1) = velo(DG+EDGE*idN_chd+1) - u_inner(5)
-    if (dom%mask_u%elts(EDGE*idNE_chd+UP+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(EDGE*idNE_chd+UP+1) .ge. ADJZONE) &
          wc_u(EDGE*idNE_chd+UP+1) = velo(EDGE*idNE_chd+UP+1) - u_inner(6)
   end subroutine cpt_velo_wc
 
@@ -923,7 +923,7 @@ contains
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    if (dom%mask_p%elts(id_par+1) .ge. TOLRNZ) return
+    if (dom%mask_n%elts(id_par+1) .ge. TOLRNZ) return
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
@@ -984,7 +984,7 @@ contains
     id_par = idx(i_par, j_par, offs_par, dims_par)
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
-    if (dom%mask_p%elts(id_chd+1) .eq. FROZEN) return ! FROZEN mask -> do not overide with wrong value
+    if (dom%mask_n%elts(id_chd+1) .eq. FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
@@ -1045,13 +1045,13 @@ contains
     id2W_chd  = idx(i_chd - 2, j_chd,     offs_chd, dims_chd)
     id2NE_chd = idx(i_chd + 2, j_chd + 2, offs_chd, dims_chd)
 
-    if (dom%mask_p%elts(idNE_chd+1) .ge. ADJZONE) &
+    if (dom%mask_n%elts(idNE_chd+1) .ge. ADJZONE) &
          wc_m(idNE_chd+1) = mass(idNE_chd+1) - I_p(dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
 
-    if (dom%mask_p%elts(idN_chd+1) .ge. ADJZONE) &
+    if (dom%mask_n%elts(idN_chd+1) .ge. ADJZONE) &
          wc_m(idN_chd+1) = mass(idN_chd+1) - I_p(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
 
-    if (dom%mask_p%elts(idE_chd+1) .ge. ADJZONE) &
+    if (dom%mask_n%elts(idE_chd+1) .ge. ADJZONE) &
          wc_m(idE_chd+1) = mass(idE_chd+1) - I_p(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
 
   end subroutine cpt_mass_wc
@@ -1079,7 +1079,7 @@ contains
 
     !  inverse mass transform: interpolate and add wavelet coefficent
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    if (dom%mask_p%elts(id_chd+1) .eq. FROZEN) return ! FROZEN mask -> do not overide with wrong value
+    if (dom%mask_n%elts(id_chd+1) .eq. FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
     idN_chd   = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
     idE_chd   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
@@ -1327,7 +1327,7 @@ contains
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
     do e = 1, EDGE
-       !         if (dom%mask_u%elts(EDGE*id_chd+e) .ge. ADJZONE) cycle
+       !         if (dom%mask_e%elts(EDGE*id_chd+e) .ge. ADJZONE) cycle
        id1 = idx(i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
        id2 = idx(i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
 
@@ -1422,17 +1422,17 @@ contains
     idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
 
     do k = 1, zlevels
-       if (dom%mask_u%elts(EDGE*id_chd+RT+1) .gt. 0) &
+       if (dom%mask_e%elts(EDGE*id_chd+RT+1) .gt. 0) &
             sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_par+RT+1) = &
             0.5_8*(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_chd+RT+1) + &
             sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*idE_chd+RT+1))
 
-       if (dom%mask_u%elts(EDGE*id_chd+DG+1) .gt. 0) &
+       if (dom%mask_e%elts(EDGE*id_chd+DG+1) .gt. 0) &
             sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_par+DG+1) = &
             0.5_8*(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*idNE_chd+DG+1) + &
             sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_chd+DG+1))
 
-       if (dom%mask_u%elts(EDGE*id_chd+UP+1) .gt. 0) &
+       if (dom%mask_e%elts(EDGE*id_chd+UP+1) .gt. 0) &
             sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_par+UP+1) = &
             0.5_8*(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_chd+UP+1) + &
             sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*idN_chd+UP+1))
@@ -1525,7 +1525,7 @@ contains
     integer d, k
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    if (dom%mask_p%elts(id_chd+1) .eq. 0) return
+    if (dom%mask_n%elts(id_chd+1) .eq. 0) return
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 

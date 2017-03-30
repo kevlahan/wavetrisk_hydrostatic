@@ -108,8 +108,8 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_p%elts(id+1) .gt. 0) then
-       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_p%elts(id+1) .eq. ADJZONE) then
+    if (dom%mask_n%elts(id+1) .gt. 0) then
+       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) then
           do k = 1, zlevels
              max_height = max(max_height, abs(sol(S_MASS,k)%data(dom%id+1)%elts(id+1)))
           end do
@@ -380,7 +380,7 @@ contains
     id = idx(i, j, offs, dims)
 
     if (sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim .gt. 0.05 &
-         .and. dom%mask_p%elts(id+1) .ge. ADJZONE) &
+         .and. dom%mask_n%elts(id+1) .ge. ADJZONE) &
          arrival%data(dom%id+1)%elts(id+1) = min(time*Tdim, arrival%data(dom%id+1)%elts(id+1))
   end subroutine first_arrival
 
@@ -393,7 +393,7 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_p%elts(id+1) .gt. 0) then
+    if (dom%mask_n%elts(id+1) .gt. 0) then
        wave_h%data(dom%id+1)%elts(id+1) = &
             max(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim, wave_h%data(dom%id+1)%elts(id+1))
     end if
@@ -409,7 +409,7 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_p%elts(id+1) .gt. 0) then
+    if (dom%mask_n%elts(id+1) .gt. 0) then
        cur_gauge_dist = norm(vector(dom%node%elts(id+1), gauge_coord))
        if (cur_gauge_dist .lt. last_gauge_dist) then
           cur_gauge = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim

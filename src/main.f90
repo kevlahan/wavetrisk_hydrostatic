@@ -227,8 +227,8 @@ contains
           grid(d)%overl_areas%length = init_state(d)%n_node
           grid(d)%I_u_wgt%length     = init_state(d)%n_node
           grid(d)%R_F_wgt%length     = init_state(d)%n_node
-          grid(d)%mask_p%length      = init_state(d)%n_node
-          grid(d)%mask_u%length      = init_state(d)%n_edge
+          grid(d)%mask_n%length      = init_state(d)%n_node
+          grid(d)%mask_e%length      = init_state(d)%n_edge
           grid(d)%level%length       = init_state(d)%n_node
 
           grid(d)%bernoulli%length   = init_state(d)%n_node
@@ -306,8 +306,8 @@ contains
 
     ! deallocate init_masks allocations
     do d = 1, size(grid)
-       deallocate(grid(d)%mask_p%elts)
-       deallocate(grid(d)%mask_u%elts)
+       deallocate(grid(d)%mask_n%elts)
+       deallocate(grid(d)%mask_e%elts)
        deallocate(grid(d)%level%elts)
     end do
     

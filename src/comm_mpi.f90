@@ -325,14 +325,14 @@ contains
              do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
                 id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
                 if (l .eq. NONE .or. l .eq. grid(d_src)%level%elts(id+1)) then
-                   call append(send_buf_i, grid(d_src)%mask_p%elts(abs(id)+1))
+                   call append(send_buf_i, grid(d_src)%mask_n%elts(abs(id)+1))
                 end if
              end do
 
              do i = 1, grid(d_src)%pack(AT_EDGE,dest)%length
                 id = grid(d_src)%pack(AT_EDGE,dest)%elts(i)
                 if (l .eq. NONE .or. l .eq. grid(d_src)%level%elts(id/EDGE+1)) then
-                   call append(send_buf_i, grid(d_src)%mask_u%elts(abs(id)+1))
+                   call append(send_buf_i, grid(d_src)%mask_e%elts(abs(id)+1))
                 end if
              end do
 
@@ -384,14 +384,14 @@ contains
                 id = grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i)
                 if (l .eq. NONE .or. l .eq. grid(d_dest)%level%elts(abs(id)+1)) then
                    kk = kk + 1
-                   grid(d_dest)%mask_p%elts(abs(id)+1) = recv_buf_i%elts(kk)
+                   grid(d_dest)%mask_n%elts(abs(id)+1) = recv_buf_i%elts(kk)
                 end if
              end do
              do i = 1, grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%length
                 id = grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%elts(i)
                 if (l .eq. NONE .or. l .eq. grid(d_dest)%level%elts(abs(id)/EDGE+1)) then
                    kk = kk + 1
-                   grid(d_dest)%mask_u%elts(abs(id)+1) = recv_buf_i%elts(kk)
+                   grid(d_dest)%mask_e%elts(abs(id)+1) = recv_buf_i%elts(kk)
                 end if
              end do
           end do

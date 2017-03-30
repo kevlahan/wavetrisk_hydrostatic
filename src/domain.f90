@@ -52,8 +52,8 @@ module domain_mod
      type(Iu_Wgt_Array) I_u_wgt
      type(RF_Wgt_Array) R_F_wgt
 
-     type(Int_Array) mask_p
-     type(Int_Array) mask_u
+     type(Int_Array) mask_n
+     type(Int_Array) mask_e
      type(Int_Array) level
 
      logical pole_master(2)

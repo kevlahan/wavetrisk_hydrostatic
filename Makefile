@@ -6,7 +6,7 @@ GEOM = sphere
 ARRAYS = dyn_array
 
 BUILD_DIR = build
-OPTIM_FLAGS = -O3 
+OPTIM_FLAGS = -O3
 MPIF90 = mpif90
 PREFIX = .
 
@@ -71,10 +71,10 @@ LINKER = $(COMPILER)
 
 $(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
 	mkdir -p $(PREFIX)/bin
-	$(LINKER) $(FLAGS) -o $@ $^ $(LIBS)
+	$(LINKER) $(FLAGS) -fcheck=all -g -o $@ $^ $(LIBS)
 
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
-	$(COMPILER) -c $< -o $@ $(FLAGS)
+	$(COMPILER) -c $< -o $@ $(FLAGS) -fcheck=all -g
 
 clean:
 	rm -f $(BUILD_DIR)/*

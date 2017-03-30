@@ -21,7 +21,7 @@ contains
     initialized = .True.
   end subroutine init_mask_mod
 
-  subroutine mask_u_consist(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine mask_e_consist(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
@@ -48,43 +48,43 @@ contains
     idSE   = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
     id_par = idx(i_par,     j_par,     offs_par, dims_par)
 
-    if ( dom%mask_u%elts(EDGE*id+UP+1)   .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idN+UP+1)  .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idW+DG+1)  .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idN+DG+1)  .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idNW+RT+1) .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idN+RT+1)  .ge. CONSIST) then
+    if ( dom%mask_e%elts(EDGE*id+UP+1)   .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idN+UP+1)  .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idW+DG+1)  .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idN+DG+1)  .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idNW+RT+1) .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1)  .ge. CONSIST) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*idN+UP+1),    ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*id+UP+1),     ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+UP+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*idN+UP+1),    ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id+UP+1),     ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), ADJZONE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id+DG+1)   .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idNE+DG+1) .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idE+UP+1)  .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idNE+UP+1) .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idN+RT+1)  .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idNE+RT+1) .ge. CONSIST) then
+    if ( dom%mask_e%elts(EDGE*id+DG+1)   .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idNE+DG+1) .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1)  .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idNE+UP+1) .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1)  .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idNE+RT+1) .ge. CONSIST) then
 
-       call set_at_least(dom%mask_u%elts(DG+EDGE*idNE+1),   ADJZONE)
-       call set_at_least(dom%mask_u%elts(DG+EDGE*id+1),     ADJZONE)
-       call set_at_least(dom%mask_u%elts(DG+EDGE*id_par+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(DG+EDGE*idNE+1),   ADJZONE)
+       call set_at_least(dom%mask_e%elts(DG+EDGE*id+1),     ADJZONE)
+       call set_at_least(dom%mask_e%elts(DG+EDGE*id_par+1), ADJZONE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id+RT+1)   .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idE+RT+1)  .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idSE+UP+1) .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idE+UP+1)  .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idS+DG+1)  .ge. CONSIST .or. &
-         dom%mask_u%elts(EDGE*idE+DG+1)  .ge. CONSIST) then
+    if ( dom%mask_e%elts(EDGE*id+RT+1)   .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idE+RT+1)  .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idSE+UP+1) .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1)  .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idS+DG+1)  .ge. CONSIST .or. &
+         dom%mask_e%elts(EDGE*idE+DG+1)  .ge. CONSIST) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*idE+RT+1),    ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*id+RT+1),     ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+RT+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*idE+RT+1),    ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id+RT+1),     ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+RT+1), ADJZONE)
     end if
 
-  end subroutine mask_u_consist
+  end subroutine mask_e_consist
 
   subroutine mask_adj_space(dom, i, j, zlev, offs, dims)
     ! Label pressure (mass) nodes adjacent to active pressure nodes
@@ -113,14 +113,14 @@ contains
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
-    if ( dom%mask_p%elts(idN+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idNE+1) .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idE+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idS+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idSW+1) .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idW+1)  .eq. TOLRNZ) then
+    if ( dom%mask_n%elts(idN+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idNE+1) .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idE+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idS+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idSW+1) .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idW+1)  .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_p%elts(id+1), ADJZONE)
+       call set_at_least(dom%mask_n%elts(id+1), ADJZONE)
     end if
   end subroutine mask_adj_space
 
@@ -151,38 +151,38 @@ contains
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
-    if ( dom%mask_p%elts(idN+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idNE+1) .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idE+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idS+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idSW+1) .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idW+1)  .eq. TOLRNZ) then
+    if ( dom%mask_n%elts(idN+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idNE+1) .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idE+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idS+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idSW+1) .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idW+1)  .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_p%elts(id+1), ADJSPACE)
+       call set_at_least(dom%mask_n%elts(id+1), ADJSPACE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id+DG+1)  .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idW+RT+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idW+DG+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idN+RT+1) .eq. TOLRNZ) then
+    if ( dom%mask_e%elts(EDGE*id+DG+1)  .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idW+RT+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idW+DG+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1) .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id+UP+1), ADJSPACE)
+       call set_at_least(dom%mask_e%elts(EDGE*id+UP+1), ADJSPACE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id+UP+1)  .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*id+RT+1)  .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idE+UP+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idN+RT+1) .eq. TOLRNZ) then
+    if ( dom%mask_e%elts(EDGE*id+UP+1)  .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*id+RT+1)  .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1) .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id+DG+1), ADJSPACE)
+       call set_at_least(dom%mask_e%elts(EDGE*id+DG+1), ADJSPACE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id+DG+1)  .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idS+UP+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idS+DG+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idE+UP+1) .eq. TOLRNZ) then
+    if ( dom%mask_e%elts(EDGE*id+DG+1)  .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idS+UP+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idS+DG+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1) .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id+RT+1), ADJSPACE)
+       call set_at_least(dom%mask_e%elts(EDGE*id+RT+1), ADJSPACE)
     end if
 
   end subroutine mask_adj_space2
@@ -213,28 +213,28 @@ contains
     idNE = idx(i_chd + 1, j_chd+ 1,  offs_chd, dims_chd)
 
     ! check four child nodes of each type of parent velocity node to see of any are active
-    if ( dom%mask_u%elts(EDGE*id+RT+1)  .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idE+RT+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idE+DG+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idE+UP+1) .eq. TOLRNZ) then
+    if ( dom%mask_e%elts(EDGE*id+RT+1)  .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idE+RT+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idE+DG+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1) .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+RT+1), TOLRNZ)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+RT+1), TOLRNZ)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id+DG+1)   .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idNE+DG+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idNE+RT+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idNE+UP+1) .eq. TOLRNZ) then
+    if ( dom%mask_e%elts(EDGE*id+DG+1)   .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idNE+DG+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idNE+RT+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idNE+UP+1) .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+DG+1), TOLRNZ)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+DG+1), TOLRNZ)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id+UP+1)  .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idN+UP+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idN+RT+1) .eq. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idN+DG+1) .eq. TOLRNZ) then
+    if ( dom%mask_e%elts(EDGE*id+UP+1)  .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idN+UP+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1) .eq. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idN+DG+1) .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+UP+1), TOLRNZ)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), TOLRNZ)
     end if
 
   end subroutine mask_active_velo
@@ -245,15 +245,15 @@ contains
     integer i
 
     do d = 1, size(grid)
-       call init(grid(d)%mask_p, 1)
-       call init(grid(d)%mask_u, EDGE)
+       call init(grid(d)%mask_n, 1)
+       call init(grid(d)%mask_e, EDGE)
        call init(grid(d)%level, 1)
     end do
 
     do d = 1, size(grid)
        num = grid(d)%node%length-1
-       call extend(grid(d)%mask_p, num, TOLRNZ)
-       call extend(grid(d)%mask_u, EDGE*num, TOLRNZ)
+       call extend(grid(d)%mask_n, num, TOLRNZ)
+       call extend(grid(d)%mask_e, EDGE*num, TOLRNZ)
        call extend(grid(d)%level, num, min_level-1)
     end do
   end subroutine init_masks
@@ -276,7 +276,7 @@ contains
     id_par = idx(i_par, j_par, offs_par, dims_par) ! id of parent
     id     = idx(i_chd, j_chd, offs_chd, dims_chd) ! id of child
 
-    if (dom%mask_p%elts(id+1) .ge. ADJZONE) call set_at_least(dom%mask_p%elts(id_par+1), ADJZONE)
+    if (dom%mask_n%elts(id+1) .ge. ADJZONE) call set_at_least(dom%mask_n%elts(id_par+1), ADJZONE)
 
   end subroutine inj_p_adjzone
 
@@ -294,11 +294,11 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_p%elts(id+1) .eq. FROZEN) return
+    if (dom%mask_n%elts(id+1) .eq. FROZEN) return
 
-    dom%mask_p%elts(id+1) = mask
+    dom%mask_n%elts(id+1) = mask
     do e = 1, EDGE
-       dom%mask_u%elts(EDGE*id+e) = mask
+       dom%mask_e%elts(EDGE*id+e) = mask
     end do
 
   end subroutine set_masks
@@ -334,12 +334,12 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_p%elts(id+1) .eq. FROZEN) return
+    if (dom%mask_n%elts(id+1) .eq. FROZEN) return
 
     do k = 1, zlevels
-       call set_active_mask(dom%mask_p%elts(id+1), wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1), tol_mass)
+       call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1), tol_mass)
        do e = 1, EDGE
-          call set_active_mask(dom%mask_u%elts(EDGE*id+e), wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e), tol_velo)
+          call set_active_mask(dom%mask_e%elts(EDGE*id+e), wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e), tol_velo)
        end do
     end do
 
@@ -370,14 +370,14 @@ contains
     idN_par  = idx(i_par,     j_par + 1, offs_par, dims_par)
     idNE_par = idx(i_par + 1, j_par + 1, offs_par, dims_par)
 
-    if (dom%mask_p%elts(id_par+1) .ge. ADJSPACE) then
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+UP+1), RESTRCT)
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+DG+1), RESTRCT)
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+RT+1), RESTRCT)
+    if (dom%mask_n%elts(id_par+1) .ge. ADJSPACE) then
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), RESTRCT)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+DG+1), RESTRCT)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+RT+1), RESTRCT)
     else
-       if (dom%mask_p%elts(idN_par+1)  .ge. ADJSPACE) call set_at_least(dom%mask_u%elts(EDGE*id_par+UP+1), RESTRCT)
-       if (dom%mask_p%elts(idNE_par+1) .ge. ADJSPACE) call set_at_least(dom%mask_u%elts(EDGE*id_par+DG+1), RESTRCT)
-       if (dom%mask_p%elts(idE_par+1)  .ge. ADJSPACE) call set_at_least(dom%mask_u%elts(EDGE*id_par+RT+1), RESTRCT)
+       if (dom%mask_n%elts(idN_par+1)  .ge. ADJSPACE) call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), RESTRCT)
+       if (dom%mask_n%elts(idNE_par+1) .ge. ADJSPACE) call set_at_least(dom%mask_e%elts(EDGE*id_par+DG+1), RESTRCT)
+       if (dom%mask_n%elts(idE_par+1)  .ge. ADJSPACE) call set_at_least(dom%mask_e%elts(EDGE*id_par+RT+1), RESTRCT)
     end if
 
   end subroutine mask_restrict_flux
@@ -419,106 +419,106 @@ contains
     idN_par  = idx(i_par,     j_par + 1, offs_par, dims_par)
     idNE_par = idx(i_par + 1, j_par + 1, offs_par, dims_par)
 
-    if (dom%mask_p%elts(id_par+1) .ge. TOLRNZ) then
-       call set_at_least(dom%mask_p%elts(id_chd+1),   ADJZONE)
-       call set_at_least(dom%mask_p%elts(idN_chd+1),  ADJZONE)
-       call set_at_least(dom%mask_p%elts(idNE_chd+1), ADJZONE)
-       call set_at_least(dom%mask_p%elts(idE_chd+1),  ADJZONE)
+    if (dom%mask_n%elts(id_par+1) .ge. TOLRNZ) then
+       call set_at_least(dom%mask_n%elts(id_chd+1),   ADJZONE)
+       call set_at_least(dom%mask_n%elts(idN_chd+1),  ADJZONE)
+       call set_at_least(dom%mask_n%elts(idNE_chd+1), ADJZONE)
+       call set_at_least(dom%mask_n%elts(idE_chd+1),  ADJZONE)
 
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+UP+1), RESTRCT)
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+DG+1), RESTRCT)
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+RT+1), RESTRCT)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), RESTRCT)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+DG+1), RESTRCT)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+RT+1), RESTRCT)
     else
-       if (dom%mask_p%elts(idN_par+1) .ge. TOLRNZ) then
-          call set_at_least(dom%mask_p%elts(idN_chd+1),        ADJZONE)
-          call set_at_least(dom%mask_u%elts(EDGE*id_par+UP+1), RESTRCT)
+       if (dom%mask_n%elts(idN_par+1) .ge. TOLRNZ) then
+          call set_at_least(dom%mask_n%elts(idN_chd+1),        ADJZONE)
+          call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), RESTRCT)
        end if
-       if (dom%mask_p%elts(idNE_par+1) .ge. TOLRNZ) then
-          call set_at_least(dom%mask_p%elts(idNE_chd+1),       ADJZONE)
-          call set_at_least(dom%mask_u%elts(EDGE*id_par+DG+1), RESTRCT)
+       if (dom%mask_n%elts(idNE_par+1) .ge. TOLRNZ) then
+          call set_at_least(dom%mask_n%elts(idNE_chd+1),       ADJZONE)
+          call set_at_least(dom%mask_e%elts(EDGE*id_par+DG+1), RESTRCT)
        end if
-       if (dom%mask_p%elts(idE_par+1) .ge. TOLRNZ) then
-          call set_at_least(dom%mask_p%elts(idE_chd+1),        ADJZONE)
-          call set_at_least(dom%mask_u%elts(EDGE*id_par+RT+1), RESTRCT)
-       end if
-    end if
-
-    if (dom%mask_u%elts(EDGE*id_par+UP+1) .ge. TOLRNZ) then
-       call set_at_least(dom%mask_p%elts(idN_chd+1), ADJZONE)
-       if (dom%mask_u%elts(EDGE*idS_par+UP+1) .ge. TOLRNZ) then
-          call set_at_least(dom%mask_p%elts(id_chd+1), ADJZONE)
+       if (dom%mask_n%elts(idE_par+1) .ge. TOLRNZ) then
+          call set_at_least(dom%mask_n%elts(idE_chd+1),        ADJZONE)
+          call set_at_least(dom%mask_e%elts(EDGE*id_par+RT+1), RESTRCT)
        end if
     end if
 
-    if ( dom%mask_u%elts(EDGE*id_par+UP+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idW_par+RT+1) .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idW_par+DG+1) .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idN_par+RT+1) .ge. TOLRNZ) then
-       call set_at_least(dom%mask_u%elts(EDGE*id_chd+UP+1),  ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*idN_chd+UP+1), ADJZONE)
-    end if
-
-    if (dom%mask_u%elts(EDGE*id_par+DG+1) .ge. TOLRNZ) then
-       call set_at_least(dom%mask_p%elts(idNE_chd+1), ADJZONE)
-       if (dom%mask_u%elts(EDGE*idSW_par+DG+1) .ge. TOLRNZ) then
-          call set_at_least(dom%mask_p%elts(id_chd+1), ADJZONE)
+    if (dom%mask_e%elts(EDGE*id_par+UP+1) .ge. TOLRNZ) then
+       call set_at_least(dom%mask_n%elts(idN_chd+1), ADJZONE)
+       if (dom%mask_e%elts(EDGE*idS_par+UP+1) .ge. TOLRNZ) then
+          call set_at_least(dom%mask_n%elts(id_chd+1), ADJZONE)
        end if
     end if
 
-    if ( dom%mask_u%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*id_par+UP+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*id_par+RT+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idE_par+UP+1) .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idN_par+RT+1) .ge. TOLRNZ) then
-
-       call set_at_least(dom%mask_u%elts(DG+EDGE*id_chd+1),   ADJZONE)
-       call set_at_least(dom%mask_u%elts(DG+EDGE*idNE_chd+1), ADJZONE)
+    if ( dom%mask_e%elts(EDGE*id_par+UP+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idW_par+RT+1) .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idW_par+DG+1) .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idN_par+RT+1) .ge. TOLRNZ) then
+       call set_at_least(dom%mask_e%elts(EDGE*id_chd+UP+1),  ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*idN_chd+UP+1), ADJZONE)
     end if
 
-    if (dom%mask_u%elts(EDGE*id_par+RT+1) .ge. TOLRNZ) then
-       call set_at_least(dom%mask_p%elts(idE_chd+1), ADJZONE)
-       if (dom%mask_u%elts(EDGE*idW_par+RT+1) .ge. TOLRNZ) then
-          call set_at_least(dom%mask_p%elts(id_chd+1), ADJZONE)
+    if (dom%mask_e%elts(EDGE*id_par+DG+1) .ge. TOLRNZ) then
+       call set_at_least(dom%mask_n%elts(idNE_chd+1), ADJZONE)
+       if (dom%mask_e%elts(EDGE*idSW_par+DG+1) .ge. TOLRNZ) then
+          call set_at_least(dom%mask_n%elts(id_chd+1), ADJZONE)
        end if
     end if
 
-    if ( dom%mask_u%elts(EDGE*id_par+RT+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idS_par+UP+1) .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idS_par+DG+1) .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idE_par+UP+1) .ge. TOLRNZ) then
+    if ( dom%mask_e%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*id_par+UP+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*id_par+RT+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idE_par+UP+1) .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idN_par+RT+1) .ge. TOLRNZ) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id_chd+RT+1),  ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*idE_chd+RT+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(DG+EDGE*id_chd+1),   ADJZONE)
+       call set_at_least(dom%mask_e%elts(DG+EDGE*idNE_chd+1), ADJZONE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id_par+UP+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idN_par+RT+1) .ge. TOLRNZ) then
-
-       call set_at_least(dom%mask_u%elts(EDGE*idN_chd+RT+1),  ADJZONE)
-       call set_at_least(dom%mask_u%elts(DG+EDGE*idN_chd+1),  ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*idNE_chd+UP+1), ADJZONE)
+    if (dom%mask_e%elts(EDGE*id_par+RT+1) .ge. TOLRNZ) then
+       call set_at_least(dom%mask_n%elts(idE_chd+1), ADJZONE)
+       if (dom%mask_e%elts(EDGE*idW_par+RT+1) .ge. TOLRNZ) then
+          call set_at_least(dom%mask_n%elts(id_chd+1), ADJZONE)
+       end if
     end if
 
-    if ( dom%mask_u%elts(EDGE*id_par+RT+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
-         dom%mask_u%elts(EDGE*idE_par+UP+1) .ge. TOLRNZ) then
+    if ( dom%mask_e%elts(EDGE*id_par+RT+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idS_par+UP+1) .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idS_par+DG+1) .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idE_par+UP+1) .ge. TOLRNZ) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*idE_chd+UP+1), ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*idE_chd+DG+1), ADJZONE)
-       call set_at_least(dom%mask_u%elts(EDGE*idNE_chd+RT+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id_chd+RT+1),  ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*idE_chd+RT+1), ADJZONE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*id_par+RT+1)   .ge. ADJSPACE .or. &
-         dom%mask_u%elts(EDGE*id_par+DG+1)   .ge. ADJSPACE .or. &
-         dom%mask_u%elts(EDGE*id_par+UP+1)   .ge. ADJSPACE .or. &
-         dom%mask_u%elts(EDGE*idW_par+RT+1)  .ge. ADJSPACE .or. &
-         dom%mask_u%elts(EDGE*idSW_par+DG+1) .ge. ADJSPACE .or. &
-         dom%mask_u%elts(EDGE*idS_par+UP+1)  .ge. ADJSPACE) then
+    if ( dom%mask_e%elts(EDGE*id_par+UP+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idN_par+RT+1) .ge. TOLRNZ) then
 
-       call set_at_least(dom%mask_p%elts(id_par+1), RESTRCT)
+       call set_at_least(dom%mask_e%elts(EDGE*idN_chd+RT+1),  ADJZONE)
+       call set_at_least(dom%mask_e%elts(DG+EDGE*idN_chd+1),  ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*idNE_chd+UP+1), ADJZONE)
+    end if
+
+    if ( dom%mask_e%elts(EDGE*id_par+RT+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*id_par+DG+1)  .ge. TOLRNZ .or. &
+         dom%mask_e%elts(EDGE*idE_par+UP+1) .ge. TOLRNZ) then
+
+       call set_at_least(dom%mask_e%elts(EDGE*idE_chd+UP+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*idE_chd+DG+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*idNE_chd+RT+1), ADJZONE)
+    end if
+
+    if ( dom%mask_e%elts(EDGE*id_par+RT+1)   .ge. ADJSPACE .or. &
+         dom%mask_e%elts(EDGE*id_par+DG+1)   .ge. ADJSPACE .or. &
+         dom%mask_e%elts(EDGE*id_par+UP+1)   .ge. ADJSPACE .or. &
+         dom%mask_e%elts(EDGE*idW_par+RT+1)  .ge. ADJSPACE .or. &
+         dom%mask_e%elts(EDGE*idSW_par+DG+1) .ge. ADJSPACE .or. &
+         dom%mask_e%elts(EDGE*idS_par+UP+1)  .ge. ADJSPACE) then
+
+       call set_at_least(dom%mask_n%elts(id_par+1), RESTRCT)
     end if
 
   end subroutine mask_adj_scale
@@ -530,7 +530,7 @@ contains
     if (mask .lt. typ) mask = typ
   end subroutine set_at_least
 
-  subroutine mask_u_consist2(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine mask_e_consist2(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
@@ -560,55 +560,55 @@ contains
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    if ( dom%mask_u%elts(EDGE*id+RT+1)   .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*id+DG+1)   .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idN+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idE+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idNE+UP+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idW+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idNW+RT+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idSW+DG+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idW+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idSW+UP+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idW+UP+1)  .ge. ADJZONE) then
+    if ( dom%mask_e%elts(EDGE*id+RT+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id+DG+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNE+UP+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idW+RT+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNW+RT+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idSW+DG+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idW+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idSW+UP+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idW+UP+1)  .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+UP+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), ADJZONE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*idW+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*id+RT+1)   .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idNE+RT+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idS+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idW+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idE+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idN+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idS+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*id+UP+1)   .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idE+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idNE+UP+1) .ge. ADJZONE) then
+    if ( dom%mask_e%elts(EDGE*idW+RT+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id+RT+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNE+RT+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idW+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+UP+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id+UP+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNE+UP+1) .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+DG+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+DG+1), ADJZONE)
     end if
 
-    if ( dom%mask_u%elts(EDGE*idSW+RT+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idS+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idNE+RT+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idSW+DG+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idS+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*id+DG+1)   .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idE+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idS+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idSE+UP+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*id+UP+1)   .ge. ADJZONE .or. &
-         dom%mask_u%elts(EDGE*idE+UP+1)  .ge. ADJZONE) then
+    if ( dom%mask_e%elts(EDGE*idSW+RT+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+RT+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNE+RT+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idSW+DG+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id+DG+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+UP+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idSE+UP+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id+UP+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1)  .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id_par+RT+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id_par+RT+1), ADJZONE)
     end if
 
-  end subroutine mask_u_consist2
+  end subroutine mask_e_consist2
 
   subroutine mask_active_mass(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
@@ -639,19 +639,19 @@ contains
     idS    = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
     idW    = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
 
-    if ( dom%mask_p%elts(idE+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idNE+1) .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idN+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idW+1)  .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idSW+1) .eq. TOLRNZ .or. &
-         dom%mask_p%elts(idS+1)  .eq. TOLRNZ) then
+    if ( dom%mask_n%elts(idE+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idNE+1) .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idN+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idW+1)  .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idSW+1) .eq. TOLRNZ .or. &
+         dom%mask_n%elts(idS+1)  .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_p%elts(id_par+1), TOLRNZ)
-       call set_at_least(dom%mask_p%elts(id_chd+1), TOLRNZ)
+       call set_at_least(dom%mask_n%elts(id_par+1), TOLRNZ)
+       call set_at_least(dom%mask_n%elts(id_chd+1), TOLRNZ)
     end if
   end subroutine mask_active_mass
 
-  subroutine mask_p_if_all_u(dom, i, j, zlev, offs, dims)
+  subroutine mask_n_if_all_u(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
@@ -668,18 +668,18 @@ contains
     idS  = idx(i,     j - 1, offs, dims)
     idSW = idx(i - 1, j - 1, offs, dims)
 
-    if ( dom%mask_u%elts(EDGE*id+UP+1)   .ge. ADJZONE .and. &
-         dom%mask_u%elts(EDGE*id+DG+1)   .ge. ADJZONE .and. &
-         dom%mask_u%elts(EDGE*id+RT+1)   .ge. ADJZONE .and. &
-         dom%mask_u%elts(EDGE*idS+UP+1)  .ge. ADJZONE .and. &
-         dom%mask_u%elts(EDGE*idSW+DG+1) .ge. ADJZONE .and. &
-         dom%mask_u%elts(EDGE*idW+RT+1)  .ge. ADJZONE) then
+    if ( dom%mask_e%elts(EDGE*id+UP+1)   .ge. ADJZONE .and. &
+         dom%mask_e%elts(EDGE*id+DG+1)   .ge. ADJZONE .and. &
+         dom%mask_e%elts(EDGE*id+RT+1)   .ge. ADJZONE .and. &
+         dom%mask_e%elts(EDGE*idS+UP+1)  .ge. ADJZONE .and. &
+         dom%mask_e%elts(EDGE*idSW+DG+1) .ge. ADJZONE .and. &
+         dom%mask_e%elts(EDGE*idW+RT+1)  .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_p%elts(id+1), ADJZONE)
+       call set_at_least(dom%mask_n%elts(id+1), ADJZONE)
     end if
-  end subroutine mask_p_if_all_u
+  end subroutine mask_n_if_all_u
 
-  subroutine mask_u_if_both_p(dom, i, j, zlev, offs, dims)
+  subroutine mask_e_if_both_p(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
@@ -696,25 +696,25 @@ contains
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
-    if ( dom%mask_p%elts(id+1)  .ge. ADJZONE .and. &
-         dom%mask_p%elts(idE+1) .ge. ADJZONE) then
+    if ( dom%mask_n%elts(id+1)  .ge. ADJZONE .and. &
+         dom%mask_n%elts(idE+1) .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id+RT+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id+RT+1), ADJZONE)
     end if
 
-    if ( dom%mask_p%elts(idNE+1) .ge. ADJZONE .and. &
-         dom%mask_p%elts(id+1)   .ge. ADJZONE) then
+    if ( dom%mask_n%elts(idNE+1) .ge. ADJZONE .and. &
+         dom%mask_n%elts(id+1)   .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id+DG+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id+DG+1), ADJZONE)
     end if
 
-    if ( dom%mask_p%elts(id+1)  .ge. ADJZONE .and. &
-         dom%mask_p%elts(idN+1) .ge. ADJZONE) then
+    if ( dom%mask_n%elts(id+1)  .ge. ADJZONE .and. &
+         dom%mask_n%elts(idN+1) .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_u%elts(EDGE*id+UP+1), ADJZONE)
+       call set_at_least(dom%mask_e%elts(EDGE*id+UP+1), ADJZONE)
     end if
 
-  end subroutine mask_u_if_both_p
+  end subroutine mask_e_if_both_p
 
   subroutine complete_masks()
     integer l
@@ -723,29 +723,29 @@ contains
 
     do l = level_end-1, level_start, -1
        call apply_interscale(mask_adj_scale, l, z_null, 0, 1)
-       call apply_onescale(mask_u_if_both_p, l+1, z_null, 0, 0)
+       call apply_onescale(mask_e_if_both_p, l+1, z_null, 0, 0)
     end do
 
     call comm_masks_mpi(NONE)
 
     do l = level_end-1, level_start+1, -1
-       call apply_interscale(mask_u_consist, l, z_null, 0, 1)
+       call apply_interscale(mask_e_consist, l, z_null, 0, 1)
        call comm_masks_mpi(l+1)
-       call apply_interscale(mask_u_consist2, l, z_null, 0, 0)
+       call apply_interscale(mask_e_consist2, l, z_null, 0, 0)
        call comm_masks_mpi(l)
     end do
 
     if (level_start .lt. level_end) then
-       call apply_interscale(mask_u_consist, level_start, z_null, 0, 1)
+       call apply_interscale(mask_e_consist, level_start, z_null, 0, 1)
        call comm_masks_mpi(level_start+1)
     end if
 
     do l = level_end-1, level_start+1, -1
-       call apply_onescale(mask_p_if_all_u, l+1, z_null, 0, 1)
+       call apply_onescale(mask_n_if_all_u, l+1, z_null, 0, 1)
        call apply_interscale(inj_p_adjzone, l,   z_null, 0, 1)
     end do
 
-    if (level_start+1 .le. level_end) call apply_onescale(mask_p_if_all_u, level_start+1, z_null, 0, 1)
+    if (level_start+1 .le. level_end) call apply_onescale(mask_n_if_all_u, level_start+1, z_null, 0, 1)
   end subroutine complete_masks
 
 end module mask_mod

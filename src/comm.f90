@@ -677,12 +677,12 @@ contains
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
              src_id = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
-             grid(dest_loc)%mask_p%elts(abs(dest_id)+1) = grid(src_loc)%mask_p%elts(abs(src_id)+1) 
+             grid(dest_loc)%mask_n%elts(abs(dest_id)+1) = grid(src_loc)%mask_n%elts(abs(src_id)+1) 
           end do
           do i = 1, grid(src_loc)%pack(AT_EDGE,dest_glo+1)%length
              src_id = grid(src_loc)%pack(AT_EDGE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_EDGE,src_glo+1)%elts(i)
-             grid(dest_loc)%mask_u%elts(abs(dest_id)+1) = grid(src_loc)%mask_u%elts(abs(src_id)+1) 
+             grid(dest_loc)%mask_e%elts(abs(dest_id)+1) = grid(src_loc)%mask_e%elts(abs(src_id)+1) 
           end do
        end do
     end do
@@ -1055,7 +1055,7 @@ contains
     id = idx(i, j, offs, dims)
     l = dom%level%elts(id+1)
 
-    if (dom%mask_p%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        n_active_mass(l) = n_active_mass(l) + 1
        do e = 1, EDGE
           call cpt_dt()
@@ -1063,7 +1063,7 @@ contains
     end if
 
     do e = 1, EDGE
-       if (dom%mask_u%elts(EDGE*id+e) .ge. ADJZONE) then
+       if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
           call cpt_dt()
           n_active_velo(l) = n_active_velo(l) + 1
        end if
@@ -1109,8 +1109,8 @@ contains
     type(Domain) dom
 
     domain_load = &
-         count(abs(dom%mask_p%elts(1+1:dom%node%length)) .gt. ADJZONE) + &
-         count(abs(dom%mask_u%elts(EDGE+1:dom%midpt%length)) .gt. ADJZONE)
+         count(abs(dom%mask_n%elts(1+1:dom%node%length)) .gt. ADJZONE) + &
+         count(abs(dom%mask_e%elts(EDGE+1:dom%midpt%length)) .gt. ADJZONE)
   end function domain_load
 
   subroutine write_load_conn1(fid)

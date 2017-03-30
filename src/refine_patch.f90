@@ -197,8 +197,8 @@ contains
       call extend(dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))
       call extend(dom%I_u_wgt, EDGE*num, Iu_Wgt(0.0_8))
       call extend(dom%R_F_wgt, num, RF_Wgt(0.0_8))
-      call extend(dom%mask_p, num, 0)
-      call extend(dom%mask_u, EDGE*num, 0)
+      call extend(dom%mask_n, num, 0)
+      call extend(dom%mask_e, EDGE*num, 0)
 
       call apply_interscale_to_patch3(set_WT_wgts, dom, p, c, z_null, 0, 0)
       call apply_interscale_to_patch3(set_RF_wgts, dom, p, c, z_null, 0, 0)

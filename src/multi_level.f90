@@ -111,27 +111,27 @@ contains
     idE_par  = idx(i_par + 1, j_par,     offs_par, dims_par)
     idNE_par = idx(i_par + 1, j_par + 1, offs_par, dims_par)
 
-    if (dom%mask_p%elts(id_par+1) .ge. RESTRCT) dom%bernoulli%elts(id_par+1) = dom%bernoulli%elts(id_chd+1)
+    if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) dom%bernoulli%elts(id_par+1) = dom%bernoulli%elts(id_chd+1)
 
     if (i_chd .ge. PATCH_SIZE .or. j_chd .ge. PATCH_SIZE) return
 
-    if (maxval(dom%mask_u%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) .ge. RESTRCT) then
+    if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) .ge. RESTRCT) then
        call interp_small_fluxes(dom, i_chd, j_chd, offs_chd, dims_chd, sm_flux)
     end if
 
-    if (dom%mask_u%elts(EDGE*id_par+RT+1) .ge. RESTRCT) then
+    if (dom%mask_e%elts(EDGE*id_par+RT+1) .ge. RESTRCT) then
        h_mflux(EDGE*id_par+RT+1) = part_coarse_fluxes(dom, i_chd+1, j_chd, RT, offs_chd, dims_chd) + &
             corr_coarse_fluxes(dom, i_par, j_par, i_chd+1, j_chd, RT) + &
             sm_flux(1) + sm_flux(2)
     end if
 
-    if (dom%mask_u%elts(EDGE*id_par+DG+1) .ge. RESTRCT) then
+    if (dom%mask_e%elts(EDGE*id_par+DG+1) .ge. RESTRCT) then
        h_mflux(DG+EDGE*id_par+1) = part_coarse_fluxes(dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd) + &
             corr_coarse_fluxes(dom, i_par, j_par, i_chd + 1, j_chd + 1, DG) + &
             sm_flux(2) + sm_flux(3)
     end if
 
-    if (dom%mask_u%elts(EDGE*id_par+UP+1) .ge. RESTRCT) then
+    if (dom%mask_e%elts(EDGE*id_par+UP+1) .ge. RESTRCT) then
        h_mflux(EDGE*id_par+UP+1) = part_coarse_fluxes(dom, i_chd, j_chd + 1, UP, offs_chd, dims_chd) + &
             corr_coarse_fluxes(dom, i_par, j_par, i_chd, j_chd + 1, UP) + &
             sm_flux(3) + sm_flux(4)
@@ -502,20 +502,20 @@ contains
     idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
     idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
     
-    if (minval(dom%mask_u%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. &
+    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. &
          ADJZONE) then
        call du_source(dom, i_par, j_par, zlev, offs_par, dims_par)
     end if
     
-    if (dom%mask_u%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
        dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
     end if
     
-    if (dom%mask_u%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) then
+    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) then
        dvelo(DG+EDGE*id_par+1) = dvelo(DG+EDGE*idNE_chd+1) + dvelo(DG+EDGE*id_chd+1)
     end if
     
-    if (dom%mask_u%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
        dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
     end if
     

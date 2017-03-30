@@ -53,7 +53,7 @@ contains
 
     chidual = 0
 
-    if (maxval(dom%mask_p%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
+    if (maxval(dom%mask_n%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
        if (penalize) &
             chidual(LORT+1) = (penal%data(dom%id+1)%elts(id  +1)*dom%areas%elts(id  +1)%part(1) &
             + penal%data(dom%id+1)%elts(idE +1)*dom%areas%elts(idE +1)%part(3) &
@@ -67,7 +67,7 @@ contains
             relvort(LORT+1), chidual(LORT+1), leveldual(LORT+1)
     end if
 
-    if (maxval(dom%mask_p%elts((/id, idNE, idN/)+1)) .ge. ADJZONE) then
+    if (maxval(dom%mask_n%elts((/id, idNE, idN/)+1)) .ge. ADJZONE) then
 
        if (penalize) &
             chidual(UPLT+1) = (penal%data(dom%id+1)%elts(id  +1)*dom%areas%elts(id  +1)%part(2) &
@@ -96,9 +96,9 @@ contains
     idN = idx(i,   j+1, offs, dims)
     idE = idx(i+1, j,   offs, dims)
 
-    if ( dom%mask_u%elts(id*EDGE+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(id*EDGE+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(idN*EDGE+RT+1) .ge. ADJZONE) then
+    if ( dom%mask_e%elts(id*EDGE+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(id*EDGE+UP+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(idN*EDGE+RT+1) .ge. ADJZONE) then
 
        vort = dom%vort%elts(id*TRIAG+UPLT+1)
        vmin = min(vmin, vort)
@@ -106,9 +106,9 @@ contains
 
     end if
 
-    if ( dom%mask_u%elts(id*EDGE+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_u%elts(idE*EDGE+UP+1) .ge. ADJZONE .or. &
-         dom%mask_u%elts(id*EDGE+RT+1)  .ge. ADJZONE) then
+    if ( dom%mask_e%elts(id*EDGE+DG+1)  .ge. ADJZONE .or. &
+         dom%mask_e%elts(idE*EDGE+UP+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(id*EDGE+RT+1)  .ge. ADJZONE) then
 
        vort = dom%vort%elts(id*TRIAG+LORT+1)
        vmin = min(vmin, vort)
@@ -493,12 +493,12 @@ contains
           outl = 0
       end if
 
-      if (dom%mask_p%elts(id+1) .gt. 0) then
+      if (dom%mask_n%elts(id+1) .gt. 0) then
           write (fid,'(18(E14.5E2, 1X), 4(E14.5E2, 1X), I3, 1X, I3)') &
               dom%ccentre%elts(TRIAG*id   +LORT+1), dom%ccentre%elts(TRIAG*id   +UPLT+1), &
               dom%ccentre%elts(TRIAG*idW  +LORT+1), dom%ccentre%elts(TRIAG*idSW +UPLT+1), &
               dom%ccentre%elts(TRIAG*idSW +LORT+1), dom%ccentre%elts(TRIAG*idS  +UPLT+1), &
-              outv, dom%mask_p%elts(id+1), outl
+              outv, dom%mask_n%elts(id+1), outl
           where (minv .gt. outv) minv = outv
           where (maxv .lt. outv) maxv = outv
       end if
@@ -1139,7 +1139,7 @@ contains
       id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
       id_par = idx(i_par, j_par, offs_par, dims_par)
 
-      if (dom%mask_p%elts(id_chd+1) .ge. ADJZONE) &
+      if (dom%mask_n%elts(id_chd+1) .ge. ADJZONE) &
           active_level%data(dom%id+1)%elts(id_par+1) = active_level%data(dom%id+1)%elts(id_chd+1)
   end subroutine
 end module io_mod

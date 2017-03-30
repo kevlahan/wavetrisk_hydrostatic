@@ -31,10 +31,10 @@ contains
     
     id = idx(i, j, offs, dims)
     do k = 1, zlevels
-       if (dom%mask_p%elts(id+1) .lt. ADJZONE) &
+       if (dom%mask_n%elts(id+1) .lt. ADJZONE) &
             wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1) = 0.0_8
        do e = 1, EDGE
-          if (dom%mask_u%elts(EDGE*id+e) .lt. ADJZONE) &
+          if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) &
                wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
        end do
     end do
@@ -131,9 +131,9 @@ contains
       do j = 1, PATCH_SIZE
           do i = 1, PATCH_SIZE
               id = idx(i-1, j-1, offs, dims)
-              if (dom%mask_p%elts(id+1) .ge. ADJZONE) dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
+              if (dom%mask_n%elts(id+1) .ge. ADJZONE) dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
               do e = 1, EDGE
-                  if (dom%mask_u%elts(EDGE*id+e) .ge. ADJZONE) &
+                  if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) &
                       dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
               end do
           end do
@@ -255,9 +255,9 @@ contains
        do i0 = st + 1, PATCH_SIZE/2 + en
           i = i0 - 1 + chd_offs(1,c+1)
           id = idx(i, j, offs, dims)
-          required = dom%mask_p%elts(id+1) .ge. ADJSPACE
+          required = dom%mask_n%elts(id+1) .ge. ADJSPACE
           do e = 1, EDGE
-             required = required .or. dom%mask_u%elts(EDGE*id+e) .ge. &
+             required = required .or. dom%mask_e%elts(EDGE*id+e) .ge. &
                   RESTRCT
           end do
           if (required) then
