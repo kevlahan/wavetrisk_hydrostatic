@@ -426,7 +426,7 @@ contains
     level_end = level_start
 
     call distribute_grid(cp_idx)
-    deallocate(n_active_velo, n_active_mass)
+    deallocate(n_active_edges, n_active_nodes)
 
     call init_grid()
     call init_comm()

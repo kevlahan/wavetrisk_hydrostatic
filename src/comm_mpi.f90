@@ -34,14 +34,14 @@ contains
 
     n_lev_cur = level_end - level_start + 1
 
-    n_active_all_loc = (/n_active_mass(level_start:level_end), n_active_velo(level_start:level_end)/)
+    n_active_all_loc = (/n_active_nodes(level_start:level_end), n_active_edges(level_start:level_end)/)
 
     call MPI_Allreduce(n_active_all_loc, n_active_all_glo, n_lev_cur*2, &
          MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
 
-    n_active_mass(level_start:level_end) = n_active_all_glo(1:n_lev_cur)
-    n_active_velo(level_start:level_end) = n_active_all_glo(n_lev_cur+1:n_lev_cur*2)
-    n_active_per_lev = n_active_velo(level_start:level_end) + n_active_mass(level_start:level_end)
+    n_active_nodes(level_start:level_end) = n_active_all_glo(1:n_lev_cur)
+    n_active_edges(level_start:level_end) = n_active_all_glo(n_lev_cur+1:n_lev_cur*2)
+    n_active_per_lev = n_active_edges(level_start:level_end) + n_active_nodes(level_start:level_end)
 
     if (rank .eq. 0) write(*,'(6X,A,A,3(1X,A))') '   N_p   ', '   N_u   ','of all active', 'of full level', 'fill-in'
     
@@ -56,7 +56,7 @@ contains
        
        if (rank .eq. 0) then
           write(*,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
-            'lev', l, n_active_mass(l), n_active_velo(l), &
+            'lev', l, n_active_nodes(l), n_active_edges(l), &
             float(n_active_per_lev(l))/float(sum(n_active(S_MASS:S_VELO)))*100.0, '%', &
             float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
             fillin, float(fillin)/float(sum(n_active(S_MASS:S_VELO)))*100.0, '%'
@@ -776,8 +776,8 @@ contains
 
     dt = 1.0e16_8
     fd = 1.0e16_8
-    n_active_mass = 0
-    n_active_velo = 0
+    n_active_nodes = 0
+    n_active_edges = 0
 
     do l = level_start, level_end
        call apply_onescale(min_dt, l, z_null, 0, 0)
@@ -810,7 +810,7 @@ contains
        call finalize(); stop
     end if
 
-    n_active_loc = (/sum(n_active_mass(level_start:level_end)), sum(n_active_velo(level_start:level_end))/)
+    n_active_loc = (/sum(n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end))/)
 
     call MPI_Allreduce(n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, &
          MPI_COMM_WORLD, ierror)

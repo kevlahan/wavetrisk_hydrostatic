@@ -3,7 +3,7 @@ module comm_mod
   use domain_mod
   implicit none
   integer, dimension(4,4) :: shift_arr
-  integer, allocatable ::  n_active_velo(:), n_active_mass(:)
+  integer, allocatable ::  n_active_edges(:), n_active_nodes(:)
   real(8) dt, fd
   type(Coord) where_error
   real sync_val
@@ -24,10 +24,10 @@ contains
   subroutine init_comm()
     integer k, s, d
     
-    allocate(n_active_velo(min_level-1:max_level), n_active_mass(min_level-1:max_level))
+    allocate(n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
 
-    n_active_velo = 0
-    n_active_mass = 0
+    n_active_edges = 0
+    n_active_nodes = 0
     do d = 1, size(grid)
        do s = 1, N_BDRY
           if (.not. is_penta(grid(d), 1, s - 1)) then
@@ -1056,7 +1056,7 @@ contains
     l = dom%level%elts(id+1)
 
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
-       n_active_mass(l) = n_active_mass(l) + 1
+       n_active_nodes(l) = n_active_nodes(l) + 1
        do e = 1, EDGE
           call cpt_dt()
        end do
@@ -1065,7 +1065,7 @@ contains
     do e = 1, EDGE
        if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
           call cpt_dt()
-          n_active_velo(l) = n_active_velo(l) + 1
+          n_active_edges(l) = n_active_edges(l) + 1
        end if
     end do
     

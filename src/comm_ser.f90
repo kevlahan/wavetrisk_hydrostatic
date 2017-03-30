@@ -16,7 +16,7 @@ contains
       
       recommended_level_start = level_start
       do l = level_start, level_end
-          if (rank .eq. 0) write(*,'(A,I2,I9)') 'lev', l, n_active_mass(l), n_active_velo(l)
+          if (rank .eq. 0) write(*,'(A,I2,I9)') 'lev', l, n_active_nodes(l), n_active_edges(l)
       end do
 
       if (rank .eq. 0) write(*,'(A,I9)') 'total', sum(n_active(S_MASS:S_VELO))
@@ -112,17 +112,17 @@ contains
     integer d, p
 
     dt = 1.0e16_8
-    n_active_mass = 0
-    n_active_velo = 0
+    n_active_nodes = 0
+    n_active_edges = 0
     do l = level_start, level_end
         call apply_onescale(min_dt, l, z_null, 0, 0)
     end do
 !   TODO FIXME
-!   do while (n_active_mass(level_end) .eq. 0 .and. &
-!             n_active_velo(level_end) .eq. 0 )
+!   do while (n_active_nodes(level_end) .eq. 0 .and. &
+!             n_active_edges(level_end) .eq. 0 )
 !       level_end = level_end - 1
 !   end do
-    n_active = (/sum(n_active_mass), sum(n_active_velo)/)
+    n_active = (/sum(n_active_nodes), sum(n_active_edges)/)
   end function
 
   integer function sync_max(val)
