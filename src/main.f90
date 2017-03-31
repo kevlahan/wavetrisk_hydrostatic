@@ -189,7 +189,7 @@ contains
     if (min_level .lt. max_level) then ! adaptive simulation
        call adapt()
        if (level_end .gt. level_start) then ! currently several levels exist
-          call invers_wavelet_transform(sol, level_start)
+          call inverse_wavelet_transform(sol, level_start)
        end if
     end if
 
@@ -472,7 +472,7 @@ contains
 
     call set_thresholds()
     call adapt()
-    call invers_wavelet_transform(sol, level_start-1)
+    call inverse_wavelet_transform(sol, level_start-1)
   end subroutine restart_full
 
   integer function writ_checkpoint(custom_dump)

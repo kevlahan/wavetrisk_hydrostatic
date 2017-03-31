@@ -257,7 +257,7 @@ contains
     end do
   end subroutine forward_wavelet_transform
 
-  subroutine invers_wavelet_transform(sca_coeff, l_start0)
+  subroutine inverse_wavelet_transform(sca_coeff, l_start0)
     type(Float_Field), target :: sca_coeff(S_MASS:S_VELO, 1:zlevels)
     integer, optional :: l_start0
     integer l, d, k, v, l_start
@@ -326,7 +326,7 @@ contains
           sca_coeff(:,k)%bdry_uptodate = .False.
        end do
     end do
-  end subroutine invers_wavelet_transform
+  end subroutine inverse_wavelet_transform
 
   real(8) function interp_outer_u(dom, i, j, e, offs, dims, i_chd, j_chd, &
        offs_chd, dims_chd)

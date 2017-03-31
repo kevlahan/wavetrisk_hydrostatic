@@ -234,7 +234,7 @@ contains
        end do
     end do
     
-    call invers_wavelet_transform(q)
+    call inverse_wavelet_transform(q)
   end subroutine WT_after_step
   
 end module time_integr_mod

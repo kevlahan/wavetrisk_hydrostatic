@@ -8,6 +8,7 @@ module mask_mod
   implicit none
   real(8) tol_velo
   real(8) tol_mass
+  real(8) tol_temp
 
 contains
   subroutine init_mask_mod()
@@ -18,6 +19,7 @@ contains
     call init_comm_mod()
     tol_velo = 0.0_8
     tol_mass = 0.0_8
+    tol_temp = 0.0_8
     initialized = .True.
   end subroutine init_mask_mod
 
@@ -187,8 +189,8 @@ contains
 
   end subroutine mask_adj_space2
 
-  subroutine mask_active_velo(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Label active velocity nodes of active children
+  subroutine mask_active_edges(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !label active edge data (e.g. velocity) of active children
     type(Domain) dom
     integer i_par
     integer j_par
@@ -237,7 +239,7 @@ contains
        call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), TOLRNZ)
     end if
 
-  end subroutine mask_active_velo
+  end subroutine mask_active_edges
 
   subroutine init_masks()
     integer d
@@ -315,8 +317,8 @@ contains
 
     do l = level_end-1, level_start, -1
        call apply_onescale(mask_tol, l, z_null, -1, 2)
-       call apply_interscale(mask_active_mass, l, z_null,  0, 1)
-       call apply_interscale(mask_active_velo, l, z_null, -1, 1)
+       call apply_interscale(mask_active_nodes, l, z_null,  0, 1)
+       call apply_interscale(mask_active_edges, l, z_null, -1, 1)
        call comm_masks_mpi(l)
     end do
   end subroutine mask_active
@@ -610,7 +612,8 @@ contains
 
   end subroutine mask_e_consist2
 
-  subroutine mask_active_mass(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine mask_active_nodes(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !mask active nodal data (e.g. mass and potential temperature)
     type(Domain) dom
     integer i_par
     integer j_par
@@ -649,7 +652,7 @@ contains
        call set_at_least(dom%mask_n%elts(id_par+1), TOLRNZ)
        call set_at_least(dom%mask_n%elts(id_chd+1), TOLRNZ)
     end if
-  end subroutine mask_active_mass
+  end subroutine mask_active_nodes
 
   subroutine mask_n_if_all_u(dom, i, j, zlev, offs, dims)
     type(Domain) dom
