@@ -311,6 +311,7 @@ contains
     do k = 1, zlevels
        call update_bdry1(wav_coeff(S_MASS,k), level_start, level_end)
        call update_bdry1(wav_coeff(S_VELO,k), level_start, level_end)
+       call update_bdry1(wav_coeff(S_TEMP,k), level_start, level_end)
     end do
 
     call apply_onescale(mask_tol, level_end, z_null, -1, 2)
@@ -340,6 +341,7 @@ contains
 
     do k = 1, zlevels
        call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1), tol_mass)
+       call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1), tol_temp)
        do e = 1, EDGE
           call set_active_mask(dom%mask_e%elts(EDGE*id+e), wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e), tol_velo)
        end do

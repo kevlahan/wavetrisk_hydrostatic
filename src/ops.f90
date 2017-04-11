@@ -449,6 +449,7 @@ contains
   end subroutine
 
   function get_weights(dom, id, offs)
+      !find weights for Qperp computation [Aechtner thesis page 44]
       type(Domain) dom
       real(8) get_weights(5)
       real(8) wgt(5)
@@ -463,6 +464,7 @@ contains
   end function
   
   subroutine du_Qperp_Enstrophy(dom, i, j, zlev, offs, dims)
+    !compute enstrophy-conserving Qperp and store it in dvelo [Aechtner thesis page 44]
     type(Domain) dom
     integer i
     integer j
@@ -519,6 +521,8 @@ contains
   end subroutine du_Qperp_Enstrophy
 
   subroutine du_source(dom, i, j, zlev, offs, dims)
+      !add additional effects (viscosity, bottom friction, wind stress, coastal boundaries) to dvelo
+      ![Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
       type(Domain) dom
       integer i
       integer j
@@ -575,6 +579,7 @@ contains
   end subroutine
 
   subroutine du_Qperp(dom, i, j, zlev, offs, dims)
+      !compute energy-conserving Qperp and add it to dvelo [Aechtner thesis page 44]
       type(Domain) dom
       integer i
       integer j
@@ -678,7 +683,7 @@ contains
               dom%qe%elts(EDGE*id+UP+1))*wgt2(5)
   end subroutine
 
-  subroutine mass_trend(dom, i, j, zlev, offs, dims)
+  subroutine masstemp_trend(dom, i, j, zlev, offs, dims)
       type(Domain) dom
       integer i
       integer j
@@ -695,12 +700,19 @@ contains
       idW  = idx(i - 1, j,     offs, dims)
       idSW = idx(i - 1, j - 1, offs, dims)
 
+      !mass
       dmass(id+1) = -(h_mflux(EDGE*id+UP+1)  - h_mflux(EDGE*id+DG+1)   + h_mflux(EDGE*id+RT+1) - &
                        h_mflux(EDGE*idS+UP+1) + h_mflux(EDGE*idSW+DG+1) - h_mflux(EDGE*idW+RT+1)) &
+              *dom%areas%elts(id+1)%hex_inv
+
+      !potential temperature
+      dtemp(id+1) = -(h_tflux(EDGE*id+UP+1)  - h_tflux(EDGE*id+DG+1)   + h_tflux(EDGE*id+RT+1) - &
+                       h_tflux(EDGE*idS+UP+1) + h_tflux(EDGE*idSW+DG+1) - h_tflux(EDGE*idW+RT+1)) &
               *dom%areas%elts(id+1)%hex_inv
   end subroutine
 
   subroutine du_gradB(dom, i, j, zlev, offs, dims)
+      !add gradient of the Bernoulli function to dvelo [Aechtner thesis page 58]
       type(Domain) dom
       integer i
       integer j

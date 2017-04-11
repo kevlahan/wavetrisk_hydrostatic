@@ -366,7 +366,7 @@ contains
     wind_stress = .False.
     bottom_friction = .False.
     advect_only = .False.
-    dynamic_adapt = .True.
+    dynamic_adapt = .False. !this logical is not used
     optimize_grid = NO_OPTIM
 
     ! for penalization boundary condition

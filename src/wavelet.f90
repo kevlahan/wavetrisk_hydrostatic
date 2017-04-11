@@ -225,23 +225,29 @@ contains
     do k = 1, zlevels
        do l = level_end - 1, level_start - 1, -1
           call update_bdry(sol(S_MASS,k), l+1)
+          call update_bdry(sol(S_TEMP,k), l+1)
           do d = 1, n_domain(rank+1)
              mass => sol(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
 
-             call apply_interscale_d(cpt_mass_wc, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d(cpt_masstemp_wc, grid(d), l, z_null, 0, 0)
 
-             nullify(wc_m, mass)
+             nullify(wc_m, wc_t, mass, temp)
           end do
 
           call update_bdry(wav_coeff(S_MASS,k), l+1)
-          call apply_interscale(restrict_p, l, z_null, 0, 1) ! +1 to include poles
+          call update_bdry(wav_coeff(S_TEMP,k), l+1)
+          call apply_interscale(restrict_mt, l, z_null, 0, 1) ! +1 to include poles
           call apply_interscale(restrict_u, l, z_null, 0, 0)
        end do
        sol(:,k)%bdry_uptodate = .False.
        wav_coeff(S_MASS,k)%bdry_uptodate = .False.
+       wav_coeff(S_TEMP,k)%bdry_uptodate = .False.
 
-       call update_bdry(sol(AT_EDGE,k), NONE)
+       call update_bdry(sol(S_MASS,k), NONE) !JEMF
+       call update_bdry(sol(S_TEMP,k), NONE) !JEMF
 
        do l = level_end - 1, level_start - 1, -1
           do d = 1, n_domain(rank+1)
@@ -258,7 +264,7 @@ contains
   end subroutine forward_wavelet_transform
 
   subroutine inverse_wavelet_transform(sca_coeff, l_start0)
-    type(Float_Field), target :: sca_coeff(S_MASS:S_VELO, 1:zlevels)
+    type(Float_Field), target :: sca_coeff(S_MASS:S_TEMP, 1:zlevels)
     integer, optional :: l_start0
     integer l, d, k, v, l_start
 
@@ -269,7 +275,7 @@ contains
           l_start = level_start
        end if
        
-       do v = S_MASS, S_VELO
+       do v = S_MASS, S_TEMP
           call update_bdry1(wav_coeff(v,k), level_start, level_end)
           call update_bdry1(sca_coeff(v,k), l_start, level_end)
        end do
@@ -278,9 +284,10 @@ contains
 
        do l = l_start, level_end-1
           do d = 1, n_domain(rank+1)
-
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             temp => sca_coeff(S_TEMP,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
              if (present(l_start0)) then
                 call apply_interscale_d2(IWT_inject_h_and_undo_update, grid(d), l, z_null, 0, 1) ! needs wc
              else
@@ -291,6 +298,7 @@ contains
           if (l .gt. l_start) call update_bdry__finish(sca_coeff(S_VELO,k), l) ! for next outer velocity
 
           call update_bdry__start(sca_coeff(S_MASS,k), l+1)
+          call update_bdry__start(sca_coeff(S_TEMP,k), l+1)
 
           do d = 1, n_domain(rank+1)
              if (advect_only) cycle
@@ -305,12 +313,15 @@ contains
           end do
 
           call update_bdry__finish(sca_coeff(S_MASS,k), l+1)
+          call update_bdry__finish(sca_coeff(S_TEMP,k), l+1)
           call update_bdry__start(sca_coeff(S_VELO,k), l+1)
 
           do d = 1, n_domain(rank+1)
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             call apply_interscale_d(IWT_interp_wc_m, grid(d), l, z_null, 0, 0)
+             temp => sca_coeff(S_TEMP,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d(IWT_interp_wc_mt, grid(d), l, z_null, 0, 0)
           end do
           
           call update_bdry__finish(sca_coeff(S_VELO,k), l+1)
@@ -703,6 +714,7 @@ contains
   end subroutine basic_F_restr_wgt
 
   subroutine cpt_velo_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !compute wavelet coefficients of velocity
     type(Domain) dom
     integer i_par
     integer j_par
@@ -766,8 +778,9 @@ contains
     integer i, k
 
     do k = 1, zlevels
-       call init_Float_Field(wav_coeff(AT_NODE,k), AT_NODE)
-       call init_Float_Field(wav_coeff(AT_EDGE,k), AT_EDGE)
+       call init_Float_Field(wav_coeff(S_MASS,k), POSIT(S_MASS))
+       call init_Float_Field(wav_coeff(S_VELO,k), POSIT(S_VELO))
+       call init_Float_Field(wav_coeff(S_TEMP,k), POSIT(S_TEMP))
     end do
     
     do d = 1, size(grid)
@@ -788,6 +801,7 @@ contains
        do k = 1, zlevels
           call init(wav_coeff(S_MASS,k)%data(d), num)
           call init(wav_coeff(S_VELO,k)%data(d), EDGE*num)
+          call init(wav_coeff(S_TEMP,k)%data(d), num)
        end do
     end do
   end subroutine init_wavelets
@@ -940,6 +954,7 @@ contains
     id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
     idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
 
+    !mass
     mass(id_chd+1) = mass(id_par+1) - &
          (wc_m(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
          wc_m(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
@@ -953,9 +968,25 @@ contains
          wc_m(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
          wc_m(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
          wc_m(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
+
+    !potential temperature
+    temp(id_chd+1) = temp(id_par+1) - &
+         (wc_t(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+         wc_t(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+         wc_t(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wc_t(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+         wc_t(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+         wc_t(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+         wc_t(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+         wc_t(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wc_t(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+         wc_t(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+         wc_t(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wc_t(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end subroutine IWT_inject_h_and_undo_update__fast
 
   subroutine IWT_inject_h_and_undo_update(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !apparently an older version of IWT_inject_h_and_undo_update__fast, but almost identical except for if statement
     type(Domain) dom
     integer i_par
     integer j_par
@@ -999,6 +1030,7 @@ contains
     id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
     idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
 
+    !mass
     mass(id_chd+1) = mass(id_par+1) - &
          (wc_m(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
          wc_m(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
@@ -1012,9 +1044,25 @@ contains
          wc_m(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
          wc_m(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
          wc_m(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
+
+    !potential temperature
+    temp(id_chd+1) = temp(id_par+1) - &
+         (wc_t(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+         wc_t(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+         wc_t(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wc_t(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+         wc_t(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+         wc_t(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+         wc_t(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+         wc_t(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wc_t(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+         wc_t(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+         wc_t(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wc_t(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end subroutine IWT_inject_h_and_undo_update
 
-  subroutine cpt_mass_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine cpt_masstemp_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !compute wavelet coefficients for mass and potential temperature
     type(Domain) dom
     integer i_par
     integer j_par
@@ -1047,16 +1095,20 @@ contains
 
     if (dom%mask_n%elts(idNE_chd+1) .ge. ADJZONE) &
          wc_m(idNE_chd+1) = mass(idNE_chd+1) - I_p(dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
+         wc_t(idNE_chd+1) = temp(idNE_chd+1) - I_p(dom, temp, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
 
     if (dom%mask_n%elts(idN_chd+1) .ge. ADJZONE) &
          wc_m(idN_chd+1) = mass(idN_chd+1) - I_p(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
+         wc_t(idN_chd+1) = temp(idN_chd+1) - I_p(dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
 
     if (dom%mask_n%elts(idE_chd+1) .ge. ADJZONE) &
          wc_m(idE_chd+1) = mass(idE_chd+1) - I_p(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+         wc_t(idE_chd+1) = temp(idE_chd+1) - I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
 
-  end subroutine cpt_mass_wc
+  end subroutine cpt_masstemp_wc
 
-  subroutine IWT_interp_wc_m(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine IWT_interp_wc_mt(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !inverse transform for mass and potential temperature: interpolate and add wavelet coefficent
     type(Domain) dom
     integer i_par
     integer j_par
@@ -1077,7 +1129,6 @@ contains
     integer id2W_chd
     integer id2NE_chd
 
-    !  inverse mass transform: interpolate and add wavelet coefficent
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     if (dom%mask_n%elts(id_chd+1) .eq. FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
@@ -1090,12 +1141,20 @@ contains
     id2W_chd  = idx(i_chd - 2, j_chd,     offs_chd, dims_chd)
     id2NE_chd = idx(i_chd + 2, j_chd + 2, offs_chd, dims_chd)
 
+    !mass
     mass(idNE_chd+1) = I_p(dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) + wc_m(idNE_chd+1)
 
     mass(idN_chd+1) = I_p(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd) + wc_m(idN_chd+1)
 
     mass(idE_chd+1) = I_p(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd) + wc_m(idE_chd+1)
-  end subroutine IWT_interp_wc_m
+
+    !potential temperature
+    temp(idNE_chd+1) = I_p(dom, temp, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) + wc_t(idNE_chd+1)
+
+    temp(idN_chd+1) = I_p(dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd) + wc_t(idN_chd+1)
+
+    temp(idE_chd+1) = I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd) + wc_t(idE_chd+1)
+  end subroutine IWT_interp_wc_mt
 
   subroutine local_coord(midpt, endpt1, endpt2, x, y)
     type(Coord) midpt
@@ -1402,6 +1461,7 @@ contains
   end subroutine set_WT_wgts
 
   subroutine restrict_u(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !restrict velocity
     type(Domain) dom
     integer i_par, j_par
     integer i_chd, j_chd
@@ -1439,8 +1499,9 @@ contains
     end do
   end subroutine restrict_u
 
-  subroutine check_p(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
+  subroutine check_m(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
        offs_chd, dims_chd)
+    !check_m is an unused subroutine
     type(Domain) dom
     integer i_par
     integer j_par
@@ -1495,9 +1556,10 @@ contains
          dom%overl_areas%elts(idS+1)%a(2) + &
          dom%overl_areas%elts(id2SW+1)%a(3) + &
          dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
-  end subroutine check_p
+  end subroutine check_m
 
-  subroutine restrict_p(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine restrict_mt(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !restrict both mass and potential temperature
     type(Domain) dom
     integer i_par
     integer j_par
@@ -1544,6 +1606,7 @@ contains
 
     d = dom%id+1
 
+    !mass
     do k = 1, zlevels
        sol(S_MASS,k)%data(d)%elts(id_par+1) = sol(S_MASS,k)%data(d)%elts(id_chd+1) + &
             (wav_coeff(S_MASS,k)%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
@@ -1559,6 +1622,23 @@ contains
             wav_coeff(S_MASS,k)%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
             wav_coeff(S_MASS,k)%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
             dom%areas%elts(id_par+1)%hex_inv
+
+       !potential temperature
+       sol(S_TEMP,k)%data(d)%elts(id_par+1) = sol(S_TEMP,k)%data(d)%elts(id_chd+1) + &
+            (wav_coeff(S_TEMP,k)%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+            wav_coeff(S_TEMP,k)%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+            dom%areas%elts(id_par+1)%hex_inv
+
     end do
-  end subroutine restrict_p
+  end subroutine restrict_mt
 end module wavelet_mod

@@ -345,7 +345,7 @@ contains
               close(fid+v)
               write(fidv, '(i5)') fid+v
               command = 'bzip2 fort.' // fidv // ' &'
-              call system(command)
+              !call system(command) !JEMF
           end do
       end if
 
@@ -549,6 +549,7 @@ contains
   end function
 
   subroutine write_u_wc(dom, p, i, j, offs, dims, fid)
+    !write wavelet coefficients of velocity
     type(Domain) dom
     integer p
     integer i, j, k
@@ -586,6 +587,7 @@ contains
   end subroutine write_velo
 
   subroutine read_u_wc_and_mask(dom, p, i, j, offs, dims, fid)
+    !read in wavelet coefficients of velocity (JEMF: not mask though??)
     type(Domain) dom
     integer p
     integer i, j, k
@@ -616,7 +618,8 @@ contains
       read(fid) sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) ! for pole
   end subroutine
 
-  subroutine read_p_wc_and_mask(dom, p, i, j, offs, dims, fid)
+  subroutine read_mt_wc_and_mask(dom, p, i, j, offs, dims, fid)
+      !read in wavelet coefficients of mass and potential temperature (not mask though??)
       type(Domain) dom
       integer p, i
       integer j, k
@@ -628,10 +631,12 @@ contains
       id = idx(i, j, offs, dims)
       do k = 1, zlevels
          read(fid,*) wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1)
+         read(fid,*) wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1)
       end do
   end subroutine
 
-  subroutine write_p_wc(dom, p, i, j, offs, dims, fid)
+  subroutine write_mt_wc(dom, p, i, j, offs, dims, fid)
+      !write wavelet coefficients of mass and potential temperature
       type(Domain) dom
       integer p, i
       integer j, k
@@ -643,6 +648,7 @@ contains
       id = idx(i, j, offs, dims)
       do k = 1, zlevels
          write(fid,*) wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1)
+         write(fid,*) wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1)
       end do
   end subroutine
 
@@ -790,7 +796,7 @@ contains
        call update_bdry(wav_coeff(S_MASS,k), NONE)
     end do
 
-    call apply_interscale(restrict_p, min_level-1, z_null, 0, 1) ! +1 to include poles
+    call apply_interscale(restrict_mt, min_level-1, z_null, 0, 1) ! +1 to include poles
 
     do d = 1, size(grid)
        write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)

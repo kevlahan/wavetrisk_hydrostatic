@@ -447,7 +447,7 @@ contains
 
     call post_levelout()
     call barrier
-    if (rank .eq. 0) call compress_files(k) 
+    !if (rank .eq. 0) call compress_files(k) !JEMF
   end subroutine write_and_export
 
   subroutine cart2sph2(cin, cout)

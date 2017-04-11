@@ -185,9 +185,12 @@ contains
       do k = 1, zlevels
          call extend(trend(S_MASS,k)%data(d), num, 0.0_8)
          call extend(trend(S_VELO,k)%data(d), num*EDGE, 0.0_8)
+         call extend(trend(S_TEMP,k)%data(d), num, 0.0_8)
          call extend(horiz_massflux(k)%data(d), num*EDGE, 0.0_8)
+         call extend(horiz_tempflux(k)%data(d), num*EDGE, 0.0_8)
          call extend(wav_coeff(S_MASS,k)%data(d), num, 0.0_8)
          call extend(wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
+         call extend(wav_coeff(S_TEMP,k)%data(d), num, 0.0_8)
       end do
       
       if (penalize) call extend(penal%data(d), num, 1.0_8)

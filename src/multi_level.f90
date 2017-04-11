@@ -86,6 +86,7 @@ contains
   end subroutine post_refine
 
   subroutine flux_cpt_restr(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    !compute flux restriction of mass and potential temperature by summing coarse, corrective and small fluxes
     type(Domain) dom
     integer i_par
     integer j_par
@@ -102,7 +103,7 @@ contains
     integer idN_par
     integer idE_par
     integer idNE_par
-    real(8) sm_flux(4)
+    real(8) sm_flux_m(4), sm_flux_t(4), c_c_flux_m, c_c_flux_t, p_c_flux_m, p_c_flux_t
 
     id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
     id_par   = idx(i_par,     j_par,     offs_par, dims_par)
@@ -111,35 +112,42 @@ contains
     idE_par  = idx(i_par + 1, j_par,     offs_par, dims_par)
     idNE_par = idx(i_par + 1, j_par + 1, offs_par, dims_par)
 
-    if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) dom%bernoulli%elts(id_par+1) = dom%bernoulli%elts(id_chd+1)
+    if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) dom%bernoulli%elts(id_par+1) = dom%bernoulli%elts(id_chd+1) !JEMF
 
     if (i_chd .ge. PATCH_SIZE .or. j_chd .ge. PATCH_SIZE) return
 
     if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) .ge. RESTRCT) then
-       call interp_small_fluxes(dom, i_chd, j_chd, offs_chd, dims_chd, sm_flux)
+       call interp_small_fluxes(dom, i_chd, j_chd, offs_chd, dims_chd, sm_flux_m, sm_flux_t)
     end if
 
     if (dom%mask_e%elts(EDGE*id_par+RT+1) .ge. RESTRCT) then
-       h_mflux(EDGE*id_par+RT+1) = part_coarse_fluxes(dom, i_chd+1, j_chd, RT, offs_chd, dims_chd) + &
-            corr_coarse_fluxes(dom, i_par, j_par, i_chd+1, j_chd, RT) + &
-            sm_flux(1) + sm_flux(2)
+       call part_coarse_fluxes(dom, i_chd+1, j_chd, RT, offs_chd, dims_chd, p_c_flux_m, p_c_flux_t)
+       call corr_coarse_fluxes(dom, i_par, j_par, i_chd+1, j_chd, RT, c_c_flux_m, c_c_flux_t)
+
+       h_mflux(EDGE*id_par+RT+1) = p_c_flux_m + c_c_flux_m + sm_flux_m(1) + sm_flux_m(2)
+       h_tflux(EDGE*id_par+RT+1) = p_c_flux_t + c_c_flux_t + sm_flux_t(1) + sm_flux_t(2)
     end if
 
     if (dom%mask_e%elts(EDGE*id_par+DG+1) .ge. RESTRCT) then
-       h_mflux(DG+EDGE*id_par+1) = part_coarse_fluxes(dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd) + &
-            corr_coarse_fluxes(dom, i_par, j_par, i_chd + 1, j_chd + 1, DG) + &
-            sm_flux(2) + sm_flux(3)
+       call part_coarse_fluxes(dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd, p_c_flux_m, p_c_flux_t)
+       call corr_coarse_fluxes(dom, i_par, j_par, i_chd + 1, j_chd + 1, DG, c_c_flux_m, c_c_flux_t)
+
+       h_mflux(DG+EDGE*id_par+1) = p_c_flux_m + c_c_flux_m + sm_flux_m(2) + sm_flux_m(3)
+       h_tflux(DG+EDGE*id_par+1) = p_c_flux_t + c_c_flux_t + sm_flux_t(2) + sm_flux_t(3)
     end if
 
     if (dom%mask_e%elts(EDGE*id_par+UP+1) .ge. RESTRCT) then
-       h_mflux(EDGE*id_par+UP+1) = part_coarse_fluxes(dom, i_chd, j_chd + 1, UP, offs_chd, dims_chd) + &
-            corr_coarse_fluxes(dom, i_par, j_par, i_chd, j_chd + 1, UP) + &
-            sm_flux(3) + sm_flux(4)
+       call part_coarse_fluxes(dom, i_chd, j_chd + 1, UP, offs_chd, dims_chd, p_c_flux_m, p_c_flux_t)
+       call corr_coarse_fluxes(dom, i_par, j_par, i_chd, j_chd + 1, UP, c_c_flux_m, c_c_flux_t)
+
+       h_mflux(EDGE*id_par+UP+1) = p_c_flux_m + c_c_flux_m + sm_flux_m(3) + sm_flux_m(4)
+       h_tflux(EDGE*id_par+UP+1) = p_c_flux_t + c_c_flux_t + sm_flux_t(3) + sm_flux_t(4)
     end if
 
   contains
     
-    real(8) function corr_coarse_fluxes(dom, i_par, j_par, i_chd, j_chd, e)
+    subroutine corr_coarse_fluxes(dom, i_par, j_par, i_chd, j_chd, e, flux_m, flux_t)
+      !compute correction of coarse fluxes for mass and potential temperature
       type(Domain) dom
       integer i_par
       integer j_par
@@ -157,7 +165,8 @@ contains
       integer id_pp2
       integer id_mp2
       integer id
-      
+      real(8) flux_m, flux_t
+
       id_mz = idx2(i_chd, j_chd, nghb_pt(:,hex_s_offs(e+1) + 1 + 1), &
            offs_chd, dims_chd)
       id_pz = idx2(i_chd, j_chd, nghb_pt(:,hex_s_offs(e+1) + 4 + 1), &
@@ -178,7 +187,8 @@ contains
       
       id = idx(i_chd, j_chd, offs_chd, dims_chd)
       
-      corr_coarse_fluxes = ( &
+      !mass
+      flux_m = ( &
            dom%overl_areas%elts(id+1)%a(1)*dom%overl_areas%elts(id+1)%a(2)*dom%areas%elts(id+1)%hex_inv &
            + dom%overl_areas%elts(id_mp+1)%a(2)*dom%overl_areas%elts(id_mp+1)%a(3)*dom%areas%elts(id_mp+1)%hex_inv &
            + dom%overl_areas%elts(id_pp+1)%a(1)*dom%overl_areas%elts(id_pp+1)%a(3)*dom%areas%elts(id_pp+1)%hex_inv &
@@ -193,8 +203,26 @@ contains
            *0.5_8*(dmass(id_pz+1) - dmass(id_mp2+1)) + &
            dom%overl_areas%elts(id_mm+1)%a(3)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv &
            *0.5_8*(dmass(id_pz+1) - dmass(id_mm2+1))
+
+
+      !potential temperature
+      flux_t = ( &
+           dom%overl_areas%elts(id+1)%a(1)*dom%overl_areas%elts(id+1)%a(2)*dom%areas%elts(id+1)%hex_inv &
+           + dom%overl_areas%elts(id_mp+1)%a(2)*dom%overl_areas%elts(id_mp+1)%a(3)*dom%areas%elts(id_mp+1)%hex_inv &
+           + dom%overl_areas%elts(id_pp+1)%a(1)*dom%overl_areas%elts(id_pp+1)%a(3)*dom%areas%elts(id_pp+1)%hex_inv &
+           + dom%overl_areas%elts(id_pm+1)%a(1)*dom%overl_areas%elts(id_pm+1)%a(4)*dom%areas%elts(id_pm+1)%hex_inv &
+           + dom%overl_areas%elts(id_mm+1)%a(2)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv) &
+           *(dtemp(id_pz+1) - dtemp(id_mz+1)) + &
+           dom%overl_areas%elts(id_pp+1)%a(3)*dom%overl_areas%elts(id_pp+1)%a(4)*dom%areas%elts(id_pp+1)%hex_inv &
+           *0.5_8*(dtemp(id_pp2+1) - dtemp(id_mz+1)) + &
+           dom%overl_areas%elts(id_pm+1)%a(3)*dom%overl_areas%elts(id_pm+1)%a(4)*dom%areas%elts(id_pm+1)%hex_inv &
+           *0.5_8*(dtemp(id_pm2+1) - dtemp(id_mz+1)) + &
+           dom%overl_areas%elts(id_mp+1)%a(3)*dom%overl_areas%elts(id_mp+1)%a(4)*dom%areas%elts(id_mp+1)%hex_inv &
+           *0.5_8*(dtemp(id_pz+1) - dtemp(id_mp2+1)) + &
+           dom%overl_areas%elts(id_mm+1)%a(3)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv &
+           *0.5_8*(dtemp(id_pz+1) - dtemp(id_mm2+1))
       
-    end function corr_coarse_fluxes
+    end subroutine corr_coarse_fluxes
     
     subroutine get_indices(dom, i, j, e, offs, dims, id)
       type(Domain) dom
@@ -234,45 +262,61 @@ contains
       
     end subroutine get_indices
 
-    subroutine interp_small_fluxes(dom, i, j, offs, dims, flux)
+    subroutine interp_small_fluxes(dom, i, j, offs, dims, flux_m, flux_t)
       type(Domain) dom
       integer i, j
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
-      real(8) flux(4)
+      real(8) flux_m(4), flux_t(4)
       real(4) wgt
       integer id(20)
 
       call get_indices(dom, i+1, j, RT, offs, dims, id)
 
-      flux(1) = - sum(h_mflux(id((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j-2, offs, dims)+1)%enc) &
+      flux_m(1) = - sum(h_mflux(id((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j-2, offs, dims)+1)%enc) &
            - sum((h_mflux(id((/VPM,WMMM,UMZ/)+1)+1) -h_mflux(id((/UPZ,VPMM,WMM/)+1)+1)) * &
            dom%R_F_wgt%elts(idx(i+1,j-1, offs, dims)+1)%enc) ! UPLT S
 
-      flux(2) = sum(h_mflux(id((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(idx(i  ,j, offs, dims)+1)%enc) &
+      flux_t(1) = - sum(h_tflux(id((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j-2, offs, dims)+1)%enc) &
+           - sum((h_tflux(id((/VPM,WMMM,UMZ/)+1)+1) -h_tflux(id((/UPZ,VPMM,WMM/)+1)+1)) * &
+           dom%R_F_wgt%elts(idx(i+1,j-1, offs, dims)+1)%enc) ! UPLT S
+
+      flux_m(2) = sum(h_mflux(id((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(idx(i  ,j, offs, dims)+1)%enc) &
            + sum((h_mflux(id((/VMP,WPPP,UPZ/)+1)+1) - h_mflux(id((/UMZ,VMPP,WPP/)+1)+1))* &
+           dom%R_F_wgt%elts(idx(i  ,j+1, offs, dims)+1)%enc) ! LORT
+
+      flux_t(2) = sum(h_tflux(id((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(idx(i  ,j, offs, dims)+1)%enc) &
+           + sum((h_tflux(id((/VMP,WPPP,UPZ/)+1)+1) - h_tflux(id((/UMZ,VMPP,WPP/)+1)+1))* &
            dom%R_F_wgt%elts(idx(i  ,j+1, offs, dims)+1)%enc) ! LORT
 
       call get_indices(dom, i, j+1, UP, offs, dims, id)
       
-      flux(3) = - sum(h_mflux(id((/UZM,VMM,WPM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j, offs, dims)+1)%enc) &
+      flux_m(3) = - sum(h_mflux(id((/UZM,VMM,WPM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j, offs, dims)+1)%enc) &
            - sum((h_mflux(id((/WMMM,UMZ,VPM/)+1)+1) - h_mflux(id((/VPMM,WMM,UPZ/)+1)+1))* &
            dom%R_F_wgt%elts(idx(i+1,j+1, offs, dims)+1)%enc) ! UPLT
 
-      flux(4) = sum(h_mflux(id((/UZP,VPP,WMP/)+1)+1) * dom%R_F_wgt%elts(idx(i-2,j, offs, dims)+1)%enc) &
+      flux_t(3) = - sum(h_tflux(id((/UZM,VMM,WPM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j, offs, dims)+1)%enc) &
+           - sum((h_tflux(id((/WMMM,UMZ,VPM/)+1)+1) - h_tflux(id((/VPMM,WMM,UPZ/)+1)+1))* &
+           dom%R_F_wgt%elts(idx(i+1,j+1, offs, dims)+1)%enc) ! UPLT
+
+      flux_m(4) = sum(h_mflux(id((/UZP,VPP,WMP/)+1)+1) * dom%R_F_wgt%elts(idx(i-2,j, offs, dims)+1)%enc) &
            + sum((h_mflux(id((/WPPP,UPZ,VMP/)+1)+1) - h_mflux(id((/VMPP,WPP,UMZ/)+1)+1))* &
            dom%R_F_wgt%elts(idx(i-2,j+1, offs, dims)+1)%enc) ! LORT W
-      
+
+      flux_t(4) = sum(h_tflux(id((/UZP,VPP,WMP/)+1)+1) * dom%R_F_wgt%elts(idx(i-2,j, offs, dims)+1)%enc) &
+           + sum((h_tflux(id((/WPPP,UPZ,VMP/)+1)+1) - h_tflux(id((/VMPP,WPP,UMZ/)+1)+1))* &
+           dom%R_F_wgt%elts(idx(i-2,j+1, offs, dims)+1)%enc) ! LORT W
     end subroutine interp_small_fluxes
 
-    real(8) function part_coarse_fluxes(dom, i, j, e, offs, dims)
+    subroutine part_coarse_fluxes(dom, i, j, e, offs, dims, flux_m, flux_t)
       type(Domain) dom
       integer i, j, e
       integer, dimension(N_BDRY + 1) :: offs
       integer, dimension(2,N_BDRY + 1) :: dims
       real(8) area(2), ol_area(4)
       integer id(20)
-      
+      real(8) flux_m, flux_t
+
       call get_indices(dom, i, j, e, offs, dims, id)
       
       area = dom%overl_areas%elts(idx(i, j, offs, dims) + 1)%a(1:2)
@@ -287,13 +331,22 @@ contains
       ol_area(3) = dom%overl_areas%elts(id(MP+1)+1)%a(3) - dom%overl_areas%elts(id(MP+1)+1)%split(1)
       ol_area(4) = dom%overl_areas%elts(id(PM+1)+1)%a(4) - dom%overl_areas%elts(id(PM+1)+1)%split(2)
 
-      part_coarse_fluxes = &
+      !mass
+      flux_m = &
              sum(h_mflux(id((/UPZ,UMZ/)+1)+1)*area) &
            - sum(h_mflux(id((/VMM,WMP/)+1)+1))*area(2) &
            - sum(h_mflux(id((/WPM,VPP/)+1)+1))*area(1) &
            + ol_area(3)*dmass(id(MP+1)+1) - ol_area(4)*dmass(id(PM+1)+1) - &
            ol_area(1)*dmass(id(PP+1)+1) + ol_area(2)*dmass(id(MM+1)+1)
-    end function part_coarse_fluxes
+
+      !potential temperature
+      flux_t = &
+             sum(h_tflux(id((/UPZ,UMZ/)+1)+1)*area) &
+           - sum(h_tflux(id((/VMM,WMP/)+1)+1))*area(2) &
+           - sum(h_tflux(id((/WPM,VPP/)+1)+1))*area(1) &
+           + ol_area(3)*dtemp(id(MP+1)+1) - ol_area(4)*dtemp(id(PM+1)+1) - &
+           ol_area(1)*dtemp(id(PP+1)+1) + ol_area(2)*dtemp(id(MM+1)+1)
+    end subroutine part_coarse_fluxes
     
   end subroutine flux_cpt_restr
 
@@ -320,53 +373,64 @@ contains
   end subroutine cpt_or_restr_Qperp
 
   subroutine trend_ml(q, dq)
+    !compute mass, velocity and potential temperature trend
     integer d
     integer j
     integer k, l
     integer p
-    type(Float_Field), target :: q(S_MASS:S_VELO,1:zlevels), dq(S_MASS:S_VELO,1:zlevels)
+    type(Float_Field), target :: q(S_MASS:S_TEMP,1:zlevels), dq(S_MASS:S_TEMP,1:zlevels)
 
     do k = 1, zlevels
        call update_bdry(q(S_MASS,k), NONE)
        call update_bdry(q(S_VELO,k), NONE)
+       call update_bdry(q(S_TEMP,k), NONE)
 
        do d = 1, size(grid)
           mass    => q(S_MASS,k)%data(d)%elts
           velo    => q(S_VELO,k)%data(d)%elts
+          temp    => q(S_TEMP,k)%data(d)%elts
           h_mflux => horiz_massflux(k)%data(d)%elts
-          
+          h_tflux => horiz_tempflux(k)%data(d)%elts
+
           do j = 1, grid(d)%lev(level_end)%length
              call step1(grid(d), grid(d)%lev(level_end)%elts(j))
           end do
           call apply_to_penta_d(post_step1, grid(d), level_end, z_null)
 
-          nullify(mass, velo, h_mflux)
+          nullify(mass, velo, temp, h_mflux, h_tflux)
        end do
 
        if (level_start .lt. level_end) then
           call update_bdry__start(horiz_massflux(k), level_end) ! <= comm flux (Jmax)
+          call update_bdry__start(horiz_tempflux(k), level_end) ! <= comm flux (Jmax)
        end if
 
-       ! compute mass trend
+       ! compute mass and potential temperature trend
        do d = 1, size(grid)
           mass    =>  q(S_MASS,k)%data(d)%elts
           velo    =>  q(S_VELO,k)%data(d)%elts
+          temp    =>  q(S_TEMP,k)%data(d)%elts
           dmass   => dq(S_MASS,k)%data(d)%elts
+          dtemp   => dq(S_TEMP,k)%data(d)%elts
           h_mflux => horiz_massflux(k)%data(d)%elts
+          h_tflux => horiz_tempflux(k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(mass_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch(masstemp_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
 
-          nullify(mass, velo, dmass, h_mflux)
+          nullify(mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
        end do
 
        dq(:,k)%bdry_uptodate           = .False.
        horiz_massflux(k)%bdry_uptodate = .False.
+       horiz_tempflux(k)%bdry_uptodate = .False.
 
        if (level_start .lt. level_end) then
           call update_bdry__finish(horiz_massflux(k), level_end) ! <= communicate flux (Jmax)
+          call update_bdry__finish(horiz_tempflux(k), level_end) ! <= communicate flux (Jmax)
           call update_bdry__start(dq(S_MASS,k),       level_end) ! <= communicate dmass (l+1)
+          call update_bdry__start(dq(S_TEMP,k),       level_end) ! <= communicate dmass (l+1)
        end if
 
        ! compute velocity trend
@@ -374,80 +438,19 @@ contains
           if (advect_only) cycle
           mass    =>  q(S_MASS,k)%data(d)%elts
           velo    =>  q(S_VELO,k)%data(d)%elts
+          temp    =>  q(S_TEMP,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
           h_mflux => horiz_massflux(k)%data(d)%elts
+          h_tflux => horiz_tempflux(k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch(du_Qperp, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
-          nullify(mass, velo, dvelo, h_mflux)
+          nullify(mass, velo, temp, dvelo, h_mflux, h_tflux)
        end do
 
-       do l = level_end-1, level_start, -1
-          call update_bdry__finish(dq(S_MASS,k), l+1)  ! <= comm dmass (l+1)
-
-          do d = 1, size(grid)
-             mass    =>  q(S_MASS,k)%data(d)%elts
-             velo    =>  q(S_VELO,k)%data(d)%elts
-             dmass   => dq(S_MASS,k)%data(d)%elts
-             h_mflux => horiz_massflux(k)%data(d)%elts
-
-             do j = 1, grid(d)%lev(l)%length
-                p = grid(d)%lev(l)%elts(j)
-                call step1(grid(d), p)
-             end do
-
-             call apply_to_penta_d(post_step1, grid(d), l, k)
-             call cpt_or_restr_flux(grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
-
-             nullify(mass, velo, dmass, h_mflux)
-          end do
-
-          call update_bdry__start(horiz_massflux(k), l)  ! <= communicate flux (l)
-
-          do d = 1, size(grid)
-             velo => q(S_VELO,k)%data(d)%elts
-             mass => q(S_MASS,k)%data(d)%elts
-             
-             do j = 1, grid(d)%lev(l)%length
-                if (viscosity .ne. 0) call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-             end do
-             nullify(velo, mass)
-          end do
-          
-          call update_bdry__finish(horiz_massflux(k), l)  ! <= comm flux (l)
-          
-          do d = 1, size(grid)
-             dmass   => dq(S_MASS,k)%data(d)%elts
-             h_mflux => horiz_massflux(k)%data(d)%elts
-             
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(mass_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1) !!!!! use flux (l) & cpt dmass (l)
-             end do
-             nullify(dmass, h_mflux)
-          end do
-
-          dq(S_MASS,k)%bdry_uptodate = .False.
-
-          if (l .gt. level_start) call update_bdry__start(dq(S_MASS,k), l)  ! <= comm dp (l+1)
-
-          if (advect_only) cycle
-          
-          do d = 1, size(grid)
-             mass    => q(S_MASS,k)%data(d)%elts
-             velo    => q(S_VELO,k)%data(d)%elts
-             dmass   => dq(S_MASS,k)%data(d)%elts
-             dvelo   => dq(S_VELO,k)%data(d)%elts
-             h_mflux => horiz_massflux(k)%data(d)%elts
-
-             call cpt_or_restr_Qperp(grid(d), l, k)
-
-             nullify(mass, velo, dmass, dvelo, h_mflux)
-          end do
-          
-          dq(S_VELO,k)%bdry_uptodate = .False.
-       end do
+       !JEMF: items got taken out
        
        if (advect_only) return
        

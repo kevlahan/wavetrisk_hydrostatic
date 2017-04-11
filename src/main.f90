@@ -96,6 +96,7 @@ contains
 
        tol_mass = tol_mass/2.0_8
        tol_velo  = tol_velo/2.0_8
+       tol_temp  = tol_temp/2.0_8
 
        call apply_init_cond()
        call forward_wavelet_transform()
@@ -114,17 +115,26 @@ contains
 
           n_active = (/&
                
-               sum((/(count(abs(wav_coeff(S_MASS,1)%data(k)%elts(node_level_start(k) : &
-               grid(k)%node%length)) .gt. tol_mass), k = 1, n_domain(rank+1)) /)), &
+               sum((/(count((abs(wav_coeff(S_MASS,1)%data(k)%elts(node_level_start(k) : &
+               grid(k)%node%length)) .gt. tol_mass) &
+               .or. (abs(wav_coeff(S_TEMP,1)%data(k)%elts(node_level_start(k) : &
+               grid(k)%node%length)) .gt. tol_temp)), k = 1, n_domain(rank+1)) /)), &
+
                
                sum((/(count(abs(wav_coeff(S_VELO,1)%data(k)%elts(edge_level_start(k): &
                grid(k)%midpt%length)) .gt. tol_velo), k = 1, n_domain(rank+1)) /)) &
                
                /)
 
-          n_active(S_MASS) = sync_max(n_active(S_MASS))
-          n_active(S_VELO) = sync_max(n_active(S_VELO))
-          if (n_active(S_MASS) .eq. 0 .and. n_active(S_VELO) .eq. 0) exit
+          n_active(AT_NODE) = sync_max(n_active(AT_NODE))
+          n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
+
+          if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) then
+            PRINT *, 'exiting because there are no active nodes'
+            exit
+          else
+            PRINT *, 'n_active(AT_NODE) is ', n_active(AT_NODE), ',   n_active(AT_EDGE) is ', n_active(AT_EDGE)
+          endif
        end do
 
        cp_idx = 0
@@ -133,7 +143,7 @@ contains
        call adapt() ! compress
 
        call write_load_conn(0)
-       ierr = dump_adapt_mpi(write_p_wc, write_u_wc, cp_idx, custom_dump)
+       ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
 
     call restart_full(set_thresholds, custom_load)
@@ -167,6 +177,7 @@ contains
     logical, intent(out) :: aligned
     integer(8)  idt, ialign
 
+    write (*,*) 'time_step is being determined in main.f90'
     dt = cpt_dt_mpi()
 
     ! match certain times exactly
@@ -236,26 +247,27 @@ contains
           grid(d)%qe%length          = init_state(d)%n_edge
           grid(d)%vort%length        = init_state(d)%n_tria
           
-          if (penalize) penal%data(d)%length = num(S_MASS)
+          if (penalize) penal%data(d)%length = num(AT_NODE)
 
           do k = 1, zlevels
-             horiz_massflux(k)%data(d)%length = num(S_VELO)
-             do v = S_MASS, S_VELO
-                wav_coeff(v,k)%data(d)%length = num(v)
-                trend(v,k)%data(d)%length = num(v)
-                sol(v,k)%data(d)%length = num(v)
-                dq1(v,k)%data(d)%length = num(v)
-                q1(v,k)%data(d)%length = num(v)
-                q2(v,k)%data(d)%length = num(v)
-                q3(v,k)%data(d)%length = num(v)
-                q4(v,k)%data(d)%length = num(v)
+             horiz_massflux(k)%data(d)%length = num(AT_EDGE)
+             horiz_tempflux(k)%data(d)%length = num(AT_EDGE)
+             do v = S_MASS, S_TEMP
+                wav_coeff(v,k)%data(d)%length = num(POSIT(v))
+                trend(v,k)%data(d)%length = num(POSIT(v))
+                sol(v,k)%data(d)%length = num(POSIT(v))
+                dq1(v,k)%data(d)%length = num(POSIT(v))
+                q1(v,k)%data(d)%length = num(POSIT(v))
+                q2(v,k)%data(d)%length = num(POSIT(v))
+                q3(v,k)%data(d)%length = num(POSIT(v))
+                q4(v,k)%data(d)%length = num(POSIT(v))
              end do
           end do
           
           do i = 1, N_GLO_DOMAIN
               grid(d)%send_conn(i)%length = 0
               grid(d)%recv_pa(i)%length = 0
-              do v = AT_NODE, AT_EDGE
+              do v = AT_NODE, AT_EDGE !JEMF
                   grid(d)%pack(v,i)%length = init_state(d)%pack_len(v,i)
                   grid(d)%unpk(v,i)%length = init_state(d)%unpk_len(v,i)
               end do
@@ -283,7 +295,7 @@ contains
     ! deallocate init_RK_mem allocations
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = S_MASS, S_VELO
+          do v = S_MASS, S_TEMP
              deallocate(q1(v,k)%data(d)%elts)
              deallocate(q2(v,k)%data(d)%elts)
              deallocate(q3(v,k)%data(d)%elts)
@@ -292,7 +304,7 @@ contains
           end do
        end do
 
-       do v = S_MASS, S_VELO
+       do v = S_MASS, S_TEMP
           deallocate(q1(v,k)%data)
           deallocate(q2(v,k)%data)
           deallocate(q3(v,k)%data)
@@ -316,9 +328,11 @@ contains
        do d = 1, size(grid)
           deallocate(wav_coeff(S_VELO,k)%data(d)%elts)
           deallocate(wav_coeff(S_MASS,k)%data(d)%elts)
+          deallocate(wav_coeff(S_TEMP,k)%data(d)%elts)
        end do
-       deallocate(wav_coeff(AT_NODE,k)%data)
-       deallocate(wav_coeff(AT_EDGE,k)%data)
+       deallocate(wav_coeff(S_VELO,k)%data)
+       deallocate(wav_coeff(S_MASS,k)%data)
+       deallocate(wav_coeff(S_TEMP,k)%data)
     end do
     deallocate(wav_coeff)
  
@@ -335,8 +349,10 @@ contains
     do k = 1, zlevels
        do d = 1, size(grid)
           deallocate(trend(S_VELO,k)%data(d)%elts)
-          deallocate(horiz_massflux(k)%data(d)%elts)
           deallocate(trend(S_MASS,k)%data(d)%elts)
+          deallocate(trend(S_TEMP,k)%data(d)%elts)
+          deallocate(horiz_massflux(k)%data(d)%elts)
+          deallocate(horiz_tempflux(k)%data(d)%elts)
        end do
     end do
 
@@ -365,6 +381,7 @@ contains
        do d = 1, n_domain(rank+1)
           deallocate(sol(S_VELO,k)%data(d)%elts) 
           deallocate(sol(S_MASS,k)%data(d)%elts)
+          deallocate(sol(S_TEMP,k)%data(d)%elts)
        end do
     end do
     
@@ -373,7 +390,7 @@ contains
        if (penalize) deallocate(penal%data(d)%elts)
        deallocate(grid(d)%neigh_pa_over_pole%elts)
 
-       do k = AT_NODE, AT_EDGE
+       do k = AT_NODE, AT_EDGE !JEMF
           do i = 1, N_GLO_DOMAIN
              deallocate(grid(d)%pack(k,i)%elts)
              deallocate(grid(d)%unpk(k,i)%elts)
@@ -412,13 +429,14 @@ contains
 
     do k = 1, zlevels
        deallocate(horiz_massflux(k)%data)
-       do v = S_MASS, S_VELO
+       deallocate(horiz_tempflux(k)%data)
+       do v = S_MASS, S_TEMP
           deallocate(sol(v,k)%data)
           deallocate(trend(v,k)%data)
        end do
     end do
 
-    deallocate(sol, trend, horiz_massflux)
+    deallocate(sol, trend, horiz_massflux, horiz_tempflux)
     deallocate(grid)
 
     ! init_shared_mod()
@@ -455,7 +473,7 @@ contains
 
     if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
 
-    call load_adapt_mpi(read_p_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
+    call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
     
     itime = nint(time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
@@ -464,7 +482,7 @@ contains
     write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
     write(cmd_archive, '(A,I4.4,A)') "checkpoint_" , cp_idx, ".tgz"
     write(command, '(A,A,A,A,A,A,A,A,A)') "if [ -e ", cmd_archive, " ]; then rm -f ", cmd_files, &
-         "; else tar c -z -f ", cmd_archive, " ", cmd_files, "; fi"
+         "; else tar c -z -f ", cmd_archive, " ", cmd_files, "; fi" !JEMF
 
     call barrier() ! do not delete files before everyone has read them
 
@@ -480,7 +498,7 @@ contains
       character(38+4+22+4+6) command
       cp_idx = cp_idx + 1
       call write_load_conn(cp_idx)
-      writ_checkpoint = dump_adapt_mpi(write_p_wc, write_u_wc, cp_idx, custom_dump)
+      writ_checkpoint = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
   end function
  
   subroutine compress_files(iwrite)
@@ -494,7 +512,7 @@ contains
       command = '\rm tmp; ls -1 fort.1' // s_time // '* > tmp' 
       CALL system(command)
 
-      !command = 'tar cjf fort.1' // s_time //'.tbz -T tmp --remove-files &'
+      !command = 'tar cjf fort.1' // s_time //'.tbz -T tmp --remove-files &' !JEMF
       !CALL system(command)
 
       command = '\rm tmp; ls -1 fort.2' // s_time // '* > tmp' 

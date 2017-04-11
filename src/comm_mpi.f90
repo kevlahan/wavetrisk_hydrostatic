@@ -542,7 +542,7 @@ contains
                 if (l_start .le. lev .and. lev .le. l_end) then
                    k = k + 1
                    field%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
-                   if (id .lt. 0 .and. field%pos .eq. S_VELO) &
+                   if (id .lt. 0 .and. field%pos .eq. AT_EDGE) &
                         field%data(d_dest)%elts(abs(id)+1) = &
                         -field%data(d_dest)%elts(abs(id)+1)
                 end if

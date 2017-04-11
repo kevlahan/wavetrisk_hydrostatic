@@ -993,7 +993,7 @@ contains
              src_id = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
              field%data(dest_loc)%elts(abs(dest_id)+1) = field%data(src_loc)%elts(src_id+1)
-             if (dest_id .lt. 0 .and. pos .eq. S_VELO) &
+             if (dest_id .lt. 0 .and. pos .eq. AT_EDGE) &
                   field%data(dest_loc)%elts(abs(dest_id)+1) = &
                   -field%data(dest_loc)%elts(abs(dest_id)+1)
           end do
@@ -1082,6 +1082,10 @@ contains
       full_depth = dom%topo%elts(id+1)*phi
       do k = 1, zlevels
          full_depth = full_depth + sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+         if (isnan(sol(S_MASS,k)%data(dom%id+1)%elts(id+1))) then
+              write(0,*) "ERROR: a mass element is NaN"
+              stop
+         endif
       end do
 
       if (full_depth .le. 0) then ! sqrt will give NaN
