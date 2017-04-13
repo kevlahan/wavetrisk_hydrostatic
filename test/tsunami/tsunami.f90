@@ -2,10 +2,9 @@ module tsunami_mod
   use main_mod
 
   !2 layers check fields exactly the same
-  !same for 3 layers
+  !same for 3, 5 or 10 layers
   !implement independent layers (incompressible) but use DYNAMICO equations
-  !add in vertical integration
-  !add in potential temperature
+  !add in vertical integration: run tsunami case with perturbation to the top level
 
   implicit none
 
@@ -418,31 +417,30 @@ contains
     end if
   end subroutine tide_gauge
 
-  subroutine write_and_export(k)
-    integer l, k, zlev
+  subroutine write_and_export(wstep, zlev)
+    !write and export at timestep wstep and vertical level zlev
+    integer l, wstep, zlev
     integer u, i
 
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 1 ! export only one vertical level
-
     do l = level_start, level_end
        minv = 1.d63;
        maxv = -1.d63;
-       u = 100000+100*k
+       u = 10000000+100000*l+1000*zlev+wstep
 
-       call write_level_mpi(write_primal, u+l, l, zlev, .True.)
+       call write_level_mpi(write_primal, u, l, zlev, .True.)
 
-       do i = 1, N_VAR_OUT
-          minv(i) = -sync_max_d(-minv(i))
-          maxv(i) =  sync_max_d( maxv(i))
-       end do
-       if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-       if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
-       u = 200000+100*k
+       !do i = 1, N_VAR_OUT
+       !   minv(i) = -sync_max_d(-minv(i))
+       !   maxv(i) =  sync_max_d( maxv(i))
+       !end do
+       !if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
+       !     "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+       !if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
+       !     "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+       !u = 200000+100*k !JEMF unclear what these lines do, this line in particular
     end do
 
     call post_levelout()
@@ -605,7 +603,7 @@ program tsunami
   n_patch_old = 2; call finish_new_patches(); call barrier()
 
   if (rank .eq. 0) write(*,*) 'Write initial values and grid'
-  if (write_init) call write_and_export(iwrite)
+  if (write_init) call write_and_export(iwrite,3)
 
   do while (time .lt. time_end)
      call start_timing()
@@ -678,7 +676,7 @@ program tsunami
 
      if (aligned) then
         iwrite = iwrite + 1
-        call write_and_export(iwrite)
+        call write_and_export(iwrite,3)
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
         call update_bdry(arrival, 9)
         call update_bdry(wave_h, 9)

@@ -462,6 +462,7 @@ contains
   end function
 
   subroutine write_primal(dom, p, i, j, k, offs, dims, fid)
+      !write primal grid for k-th vertical level
       type(Domain) dom
       integer p
       integer i, j, k
@@ -482,9 +483,9 @@ contains
       idSW = idx(i - 1, j - 1, offs, dims)
       idS  = idx(i,     j - 1, offs, dims)
       
-      outv(1) = dom%topo%elts(id+1)
-      if (penalize) outv(2) = penal%data(d)%elts(id+1)
-      outv(3) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1) ! / (1+alpha_m1*penal%data(d)%elts(id+1))
+      outv(1) = 0.0_8 !dom%topo%elts(id+1)
+      outv(2) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)-sol(S_MASS,k-1)%data(dom%id+1)%elts(id+1)
+      outv(3) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
       outv(4) = dom%kin_energy%elts(id+1)
 
       if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
