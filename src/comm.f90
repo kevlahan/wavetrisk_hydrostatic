@@ -1100,8 +1100,9 @@ contains
 
       vel = -1.0e16
       do k = 1, zlevels
-         vel  = max(vel, abs(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)) + sqrt(csq))
+         vel  = max(vel, abs(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
       end do
+      vel = vel + sqrt(csq)
 
       dt = min(dt, cfl_num*dx/vel)
 
