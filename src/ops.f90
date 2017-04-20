@@ -24,7 +24,7 @@ contains
       integer, dimension(2,9) :: dims
       integer id, idS, idW, idSW, idN, idE, idNE
       real(8) pv_SW, pv_W, pv_S, pv_LORT, pv_UPLT, pv_SW_LORT, pv_SW_UPLT, pv
-      real(8) phi(0:N_BDRY), full_depth(0:N_BDRY)
+      real(8) phi(0:N_BDRY)
 
       phi(0:NORTHEAST) = 1.0
 
@@ -82,7 +82,7 @@ contains
          
          pv_SW_LORT = (dom%coriolis%elts(LORT+TRIAG*idSW+1) + &
               dom%vort%elts(LORT+TRIAG*idSW+1))/( &
-              full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
+              mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
               mass(idS+1)*dom%areas%elts(idS +1)%part(3) + &
               mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
          
@@ -93,7 +93,7 @@ contains
          
          pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + &
               dom%vort%elts(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1))/ &
-              (full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) &
+              (mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) &
               + mass(id+1)*dom%areas%elts(id  +1)%part(4) &
               + mass(idW+1)*dom%areas%elts(idW +1)%part(6))
          
@@ -123,7 +123,7 @@ contains
          
          pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) &
               + dom%vort%elts(TRIAG*idSW+UPLT+1)) &
-              /(full_depth(SOUTHWEST)*dom%areas%elts(idSW  +1)%part(2) &
+              /(mass(idSW+1)*dom%areas%elts(idSW  +1)%part(2) &
               + mass(id+1)*sum(dom%areas%elts(id  +1)%part(3:4)) &
               + mass(idW+1)*dom%areas%elts(idW +1)%part(6))
          
@@ -134,7 +134,7 @@ contains
          
          pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + &
               dom%vort%elts(TRIAG*idSW+LORT+1)*dom%triarea%elts(TRIAG*idSW+LORT+1))/ &
-              (full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) &
+              (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) &
               + mass(idS+1)*dom%areas%elts(idS+1)%part(3) &
               + mass(id+1)*dom%areas%elts(id+1)%part(5))
          
@@ -193,7 +193,7 @@ contains
       real(8) u_prim_dn, u_dual_dn, u_prim_sw, u_dual_sw, u_prim_lt, u_dual_lt
       real(8) pv_LORT, pv_UPLT, pv_S, pv_W, vort_W, vort_S, vort_LORT, vort_UPLT
       logical S_bdry, W_bdry
-      real(8) phi(0:N_BDRY), full_depth(0:N_BDRY)
+      real(8) phi(0:N_BDRY)
       
       call comp_offs3(dom, p, offs, dims)
 
@@ -330,8 +330,6 @@ contains
           phi(SOUTHWEST) = 1.0
 
           if (penalize) phi(SOUTHWEST) = phi(SOUTHWEST) + alpha_m1*penal%data(dom%id+1)%elts(id+sw+1)
-
-          full_depth(SOUTHWEST) = mass(id+sw+1)
 
           vort_SW = - (velo(EDGE*(id+sw)+RT+1)*dom%len%elts(EDGE*(id+sw)+RT+1) + u_prim_sw + u_prim_dn)
 
