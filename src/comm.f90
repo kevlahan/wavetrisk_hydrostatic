@@ -1079,7 +1079,7 @@ contains
       phi = 1.0
       if (penalize) phi = phi + alpha_m1*penal%data(dom%id+1)%elts(id+1)
 
-      full_depth = dom%topo%elts(id+1)*phi
+      full_depth = 0.0_8
       do k = 1, zlevels
          full_depth = full_depth + sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
          if (isnan(sol(S_MASS,k)%data(dom%id+1)%elts(id+1))) then

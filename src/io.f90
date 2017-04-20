@@ -483,8 +483,8 @@ contains
       idSW = idx(i - 1, j - 1, offs, dims)
       idS  = idx(i,     j - 1, offs, dims)
       
-      outv(1) = 0.0_8 !dom%topo%elts(id+1)
-      outv(2) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)-sol(S_MASS,k-1)%data(dom%id+1)%elts(id+1)
+      outv(1) = 0.0_8
+      outv(2) = -sol(S_MASS,k)%data(dom%id+1)%elts(id+1) !+sol(S_MASS,k+1)%data(dom%id+1)%elts(id+1) !JEMF
       outv(3) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
       outv(4) = dom%kin_energy%elts(id+1)
 

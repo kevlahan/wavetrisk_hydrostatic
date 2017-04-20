@@ -35,7 +35,6 @@ module domain_mod
      type(Float_Array) pedlen
      type(Float_Array) len
 
-     type(Float_Array) topo
      type(Areas_Array) areas
      type(Float_Array) triarea
 

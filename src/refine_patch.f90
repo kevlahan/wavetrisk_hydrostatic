@@ -178,7 +178,6 @@ contains
       call extend(dom%coriolis, TRIAG*num, 0.0_8)
       call apply_onescale_to_patch(coriolis, dom, p_chd, z_null, -1, 1)
       call extend(dom%windstress, EDGE*num, 0.0_8)
-      call extend(dom%topo, num, 0.0_8)
       call extend(dom%bernoulli, num, 0.0_8)
       call extend(dom%kin_energy, num, 0.0_8)
 

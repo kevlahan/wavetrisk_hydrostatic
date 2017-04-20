@@ -38,8 +38,7 @@ contains
 
          if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
          
-         full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + &
-                             dom%topo%elts((/id,idN,idE,idS,idW/)+1) * phi(0:WEST)
+         full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1)
 
          dom%vort%elts(TRIAG*idSW+LORT+1) = &
               (velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1) &
@@ -78,8 +77,7 @@ contains
 
          if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,id,idE,idS,idW,idNE/)+1)
                   
-         full_depth(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + &
-              dom%topo%elts((/id,id,idE,idS,idW,idNE/)+1) * phi(0:NORTHEAST)
+         full_depth(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1)
 
          dom%vort%elts(LORT+TRIAG*idSW+1) = - &
               ((velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) + &
@@ -122,8 +120,7 @@ contains
          
          if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,id,idS,idW,idNE/)+1)
 
-         full_depth(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + &
-              dom%topo%elts((/id,idN,id,idS,idW,idNE/)+1) * phi(0:NORTHEAST)
+         full_depth(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1)
          
          dom%vort%elts(TRIAG*idSW+UPLT+1) = &
               - velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1) &
@@ -165,8 +162,7 @@ contains
          
          if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
 
-         full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + &
-              dom%topo%elts((/id,idN,idE,idS,idW/)+1) * phi(0:WEST)
+         full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1)
          
          dom%vort%elts(LORT+TRIAG*id+1) = - &
               (velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1) - &
@@ -343,7 +339,7 @@ contains
 
           if (penalize) phi(SOUTHWEST) = phi(SOUTHWEST) + alpha_m1*penal%data(dom%id+1)%elts(id+sw+1)
 
-          full_depth(SOUTHWEST) = mass(id+sw+1) + dom%topo%elts(id+sw+1) * phi(SOUTHWEST)
+          full_depth(SOUTHWEST) = mass(id+sw+1)
 
           vort_SW = - (velo(EDGE*(id+sw)+RT+1)*dom%len%elts(EDGE*(id+sw)+RT+1) + u_prim_sw + u_prim_dn)
 
@@ -384,8 +380,7 @@ contains
           if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + &
                   alpha_m1*penal%data(dom%id+1)%elts(id+(/0,n,e,s,w,ne/)+1)
 
-          full_depth(0:NORTHEAST) = mass(id+(/0,n,e,s,w,ne/)+1) + &
-                             dom%topo%elts(id+(/0,n,e,s,w,ne/)+1) * phi(0:NORTHEAST)
+          full_depth(0:NORTHEAST) = mass(id+(/0,n,e,s,w,ne/)+1)
 
           h_mflux(EDGE*id+UP+1) = u_dual_up*(full_depth(0) + full_depth(NORTH))*0.5_8
           h_mflux(EDGE*id+DG+1) = u_dual_dg*(full_depth(NORTHEAST) + full_depth(0))*0.5_8
@@ -409,7 +404,6 @@ contains
 
           if (viscosity .ne. 0) dom%divu%elts(id+1) = dom%areas%elts(id+1)%hex_inv * &
                   (u_dual_up - u_dual_dg + u_dual_rt - u_dual_dn + u_dual_sw - u_dual_lt)
-
 
           dom%vort%elts(LORT+TRIAG*id+1) = - (u_prim_rt + u_prim_dg + velo(EDGE*(id+E)+UP+1)*dom%len%elts(EDGE*(id+E)+UP+1))
           dom%vort%elts(TRIAG*id+UPLT+1) =    u_prim_dg + u_prim_up + velo(EDGE*(id+N)+RT+1)*dom%len%elts(EDGE*(id+N)+RT+1) 
@@ -556,7 +550,7 @@ contains
        
       if (wind_stress .or. bottom_friction) then
 
-         hk_phi = dom%topo%elts((/idN,idNE,idE,id/)+1)*phi + mass((/idN,idNE,idE,id/)+1)
+         hk_phi = mass((/idN,idNE,idE,id/)+1)
 
           where (hk_phi .ne. 0) hk_phi = phi/hk_phi
 

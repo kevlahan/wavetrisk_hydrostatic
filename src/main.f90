@@ -233,7 +233,6 @@ contains
           grid(d)%pedlen%length      = init_state(d)%n_edge
           grid(d)%len%length         = init_state(d)%n_edge
           grid(d)%coriolis%length    = init_state(d)%n_tria
-          grid(d)%topo%length        = init_state(d)%n_node
           grid(d)%windstress%length  = init_state(d)%n_edge
           grid(d)%overl_areas%length = init_state(d)%n_node
           grid(d)%I_u_wgt%length     = init_state(d)%n_node
@@ -366,7 +365,6 @@ contains
 
     ! deallocate init_geometry allocations
     do d = 1, size(grid)
-       deallocate(grid(d)%topo%elts)
        deallocate(grid(d)%windstress%elts)
        deallocate(grid(d)%coriolis%elts)
        deallocate(grid(d)%triarea%elts)

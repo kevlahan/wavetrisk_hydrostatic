@@ -27,13 +27,7 @@ module twolayergauss_mod
 
   real(8) :: csq, c_p
 
-  real(8) :: U 
-  real(8) :: Fr
-
   real(8) :: VELO_SCALE
-
-  ! Coordinates of initial condition
-  real(8) :: LON_MIN, LON_MAX, LAT_MIN, LAT_MAX
 
   real(8), parameter :: LAND = 1
   real(8), parameter :: SEA  = 0
@@ -43,25 +37,9 @@ module twolayergauss_mod
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin, k_tsu
 
-  integer, dimension(2) :: OKADA_DIM
-  integer :: BATHY_PER_DEG, npts_chi, npts_topo
-  real(8), allocatable :: okada_data(:,:)
-  real(4), allocatable :: bathy_data(:,:)
-
-  type(Float_Field) arrival, wave_h
-
-  integer, allocatable :: n_patch_old(:), n_node_old(:)
-
   logical const_bathymetry
 
-  logical :: calc_tide_gauges
   integer iwrite, j
-  integer, parameter :: n_gauge = 22
-  real(8) max_height
-  real(8) cur_gauge, last_gauge_dist, glo_gauge_dist
-  real(8), dimension (1:n_gauge) :: tide_record
-  real(8), dimension (1:n_gauge,1:2) :: station_coord
-  type(Coord) :: gauge_coord
 
 contains
   subroutine apply_initial_conditions()
@@ -72,59 +50,14 @@ contains
           call apply_onescale(init_sol, l, k, 0, 1)
        end do
     end do
-
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch(cpt_topo_penal, grid(d), p-1, z_null, -2, 3)
-       end do
-    end do
-
-    do l = level_start, level_end
-       ! FIXME: works only for zero initial height perturbation at poles
-       if (penalize) call apply_onescale(penalize_ic, l, z_null, 0, 0) 
-    end do
   end subroutine apply_initial_conditions
 
   subroutine write_and_print_step()
     real(4) timing
     timing = get_timing()
-    if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 2(1X,ES13.4))') &
-         time, dt, timing, level_end, n_active, max_height, VELO_SCALE
+    if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
+         time, dt, timing, level_end, n_active, VELO_SCALE
   end subroutine write_and_print_step
-
-  subroutine cpt_max_dh(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, k
-
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) .gt. 0) then
-       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) then
-          do k = 1, zlevels
-             max_height = max(max_height, abs(sol(S_MASS,k)%data(dom%id+1)%elts(id+1)))
-          end do
-       end if
-    end if
-  end subroutine cpt_max_dh
-
-  subroutine penalize_ic(dom, i, j, offs, dims)
-    type(Domain) dom
-    integer i, j, k 
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, d
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
-
-    do k = 1, zlevels
-       sol(S_MASS,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1)* &
-            (1+alpha_m1*penal%data(d)%elts(id+1))
-    end do
-  end subroutine penalize_ic
 
   subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
@@ -144,7 +77,7 @@ contains
 
     rgrc = acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = exp(-100.0_8*rgrc*rgrc)
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8 + exp(-100.0_8*rgrc*rgrc)
 
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
@@ -187,200 +120,6 @@ contains
     close(fid)
   end subroutine read_test_case_parameters
 
-  subroutine cpt_topo_penal(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer e, grid_level
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-    real(8) lon, lat
-    real(8) s, t
-    real(8) geo, M_chi, b, h, dx_local
-    real(8), dimension(3) :: dx_primal, dx_dual
-
-    id = idx(i, j, offs, dims)
-    if (.not. penalize) then
-       dom%topo%elts(id+1) = 1
-       return
-    end if
-
-    do e = 1, 3
-       dx_primal(e) = dom%len%elts(EDGE*id+e)
-       dx_dual(e)   = dom%pedlen%elts(EDGE*id+e)
-    end do
-    dx_local = max(maxval(dx_primal), maxval(dx_dual))
-    if (dx_local.eq.0.0_8) dx_local = dx_min
-
-    call cart2sph(dom%node%elts(id+1), lon, lat)
-    
-    s = lon/MATH_PI*dble(180*BATHY_PER_DEG)
-    t = lat/MATH_PI*dble(180*BATHY_PER_DEG)
-
-    call smoothed_penal_topo(s, t, b, penal%data(dom%id+1)%elts(id+1), dx_local)
-
-    if (const_bathymetry) b = 0
-    dom%topo%elts(id+1) = 1.0_8 + b
-  end subroutine cpt_topo_penal
-
-  subroutine smoothed_penal_topo(s0, t0, stopo, spenal, dx_smooth)
-    real(8) s0, t0, stopo, spenal, dx_smooth
-    integer s, t, is0, it0
-    integer i, j
-    real(8) chi_sum, topo_sum, sw_chi, sw_topo, M_chi, M_topo, r, wgt_chi, wgt_topo
-    type(Coord) :: p, q
-
-    p = proj_lon_lat(s0,t0)
-    is0=nint(s0); it0=nint(t0)
-
-    ! Smooth penalization mask
-    if (npts_chi.eq.0) then ! no smooth
-       if (bathy_data(is0,it0) > 0.0_8) then
-          spenal = LAND
-       else
-          spenal = SEA
-       end if
-    else ! smooth
-       sw_chi   = 0.0_8
-       chi_sum  = 0.0_8
-       do i = -npts_chi, npts_chi
-          do j = -npts_chi, npts_chi
-             s = is0+i ; t = it0+j
-             call wrap_lonlat(s, t)
-             q = proj_lon_lat(dble(s), dble(t))
-
-             r = norm(vector(p,q))
-             wgt_chi  = radial_basis_fun(r, npts_chi,  dx_smooth)
-
-             if (bathy_data(s, t) > 0.0_8) then ! land
-                M_chi = LAND ! = 1
-             else ! sea: geo < 0
-                M_chi = SEA ! = 0
-             end if
-             chi_sum  = chi_sum  + M_chi *wgt_chi
-             sw_chi  = sw_chi  + wgt_chi
-          end do
-       end do
-       spenal = chi_sum/sw_chi
-    end if
-
-    if (npts_topo.eq.0) then 
-       if (bathy_data(is0,it0) > 0.0_8) then
-          stopo = 0.0_8
-       else
-          stopo = (-min(bathy_data(s, t), -Hmin) -H_star)/Hdim
-       end if
-    else
-       sw_topo  = 0.0_8
-       topo_sum = 0.0_8
-       do i = -npts_topo, npts_topo
-          do j = -npts_topo, npts_topo
-             s = is0+i ; t = it0+j
-             call wrap_lonlat(s, t)
-             q = proj_lon_lat(dble(s), dble(t))
-
-             r = norm(vector(p,q))
-             wgt_topo = radial_basis_fun(r, npts_topo, dx_smooth)
-
-             if (bathy_data(s, t) > 0.0_8) then ! land
-                M_topo = 0.0_8
-             else ! sea: geo < 0
-                M_topo = (-min(bathy_data(s, t), -Hmin) -H_star)/Hdim
-             end if
-             topo_sum = topo_sum + M_topo*wgt_topo
-             sw_topo = sw_topo + wgt_topo
-          end do
-       end do
-       stopo  = topo_sum/sw_topo
-    end if
-  end subroutine smoothed_penal_topo
-
-  type(Coord) function proj_lon_lat(s,t)
-    real(8) :: s, t
-    real(8) :: lon, lat
-
-    lon = s*MATH_PI/dble(180*BATHY_PER_DEG)
-    lat = t*MATH_PI/dble(180*BATHY_PER_DEG)
-    proj_lon_lat = project_on_sphere(sph2cart(lon, lat))
-  end function proj_lon_lat
-
-  real(8) function radial_basis_fun(r, npts, dx_local)
-    real(8) r, alph, dx_local
-    integer :: npts
-    alph = 1.0_8 / (npts/2 * dx_local)
-
-    radial_basis_fun = exp(-(alph*r)**2)
-  end function radial_basis_fun
-
-  subroutine wrap_lonlat(s, t)
-    ! longitude: wraparound allows for values outside [-180,180]
-    ! latitude: works only if there is no cost at the pole
-    integer s, t
-    if (t .lt. lbound(bathy_data,2)) t = lbound(bathy_data,2) ! pole
-    if (t .gt. ubound(bathy_data,2)) t = ubound(bathy_data,2) ! pole
-    if (s .lt. lbound(bathy_data,1)) s = s + 360*BATHY_PER_DEG
-    if (s .gt. ubound(bathy_data,1)) s = s - 360*BATHY_PER_DEG
-  end subroutine wrap_lonlat
-
-  subroutine finish_new_patches()
-    integer d, p
-    do d = 1, size(grid)
-       do p = n_patch_old(d)+1, grid(d)%patch%length
-          call apply_onescale_to_patch(cpt_topo_penal, grid(d), p-1, z_null, -2, 3)
-       end do
-    end do
-  end subroutine finish_new_patches
-
-  subroutine first_arrival(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, k, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-
-    id = idx(i, j, offs, dims)
-
-    if (sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim .gt. 0.05 &
-         .and. dom%mask_n%elts(id+1) .ge. ADJZONE) &
-         arrival%data(dom%id+1)%elts(id+1) = min(time*Tdim, arrival%data(dom%id+1)%elts(id+1))
-  end subroutine first_arrival
-
-  subroutine wave_height(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, k, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) .gt. 0) then
-       wave_h%data(dom%id+1)%elts(id+1) = &
-            max(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim, wave_h%data(dom%id+1)%elts(id+1))
-    end if
-  end subroutine wave_height
-
-  subroutine tide_gauge(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, k, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-    real(8) :: cur_gauge_dist
-
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) .gt. 0) then
-       cur_gauge_dist = norm(vector(dom%node%elts(id+1), gauge_coord))
-       if (cur_gauge_dist .lt. last_gauge_dist) then
-          cur_gauge = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)*Hdim
-          last_gauge_dist = cur_gauge_dist
-       end if
-    end if
-  end subroutine tide_gauge
-
   subroutine write_and_export(k)
     integer l, k, zlev
     integer u, i
@@ -388,7 +127,7 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 2 ! export only one vertical level
+    zlev = 1 ! export only one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
@@ -472,20 +211,19 @@ program twolayergauss
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of twolayergauss: 100km
   c_p = sqrt(f0**2/k_tsu**2 + csq) ! Maximum phase wave speed
 
-  U = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
-  Fr = U/c_p ! Froude number 
-  VELO_SCALE   = U
+  VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
 
   wind_stress      = .False.
   penalize         = .False.
   bottom_friction  = .False.
-  calc_tide_gauges = .False.
+  const_bathymetry = .True.
 
   if (rank.eq.0) then
-     write(*,'(A,L1)') "wind_stress     = ", wind_stress
-     write(*,'(A,L1)') "penalize        = ", penalize
-     write(*,'(A,L1)') "bottom friction = ", bottom_friction
-     write(*,'(A,L1)') "tide gauges     = ", calc_tide_gauges
+     write(*,'(A,L1)') "wind_stress      = ", wind_stress
+     write(*,'(A,L1)') "penalize         = ", penalize
+     write(*,'(A,L1)') "bottom friction  = ", bottom_friction
+     write(*,'(A,L1)') "const_bathymetry = ", const_bathymetry
+     if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
   viscosity = 0.0_8 !1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
@@ -495,29 +233,10 @@ program twolayergauss
   write_init = (resume .eq. NONE)
   iwrite = 0
 
-  if (.not. penalize) then
-     const_bathymetry = .True.
-     if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
-  else
-     ieta = 1.0_8/eta
-     alpha_m1 = alpha - 1.0_8
-  end if
-
   call initialize(apply_initial_conditions, 1, set_thresholds, twolayergauss_dump, twolayergauss_load)
-  if (allocated(okada_data)) deallocate(okada_data)
-
-  call init_Float_Field(wave_h, S_MASS)
-  call init_Float_Field(arrival, S_MASS)
-  do d = 1, n_domain(rank+1)
-     call init(wave_h%data(d), grid(d)%node%length)
-     call init(arrival%data(d), grid(d)%node%length)
-     wave_h%data(d)%elts = 0.0_8
-     arrival%data(d)%elts = 1.0e8_8
-  end do
 
   if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
-  allocate(n_patch_old(size(grid)), n_node_old(size(grid)))
-  n_patch_old = 2; call finish_new_patches(); call barrier()
+  call barrier()
 
   if (rank .eq. 0) write(*,*) 'Write initial values and grid'
   if (write_init) call write_and_export(iwrite)
@@ -529,24 +248,11 @@ program twolayergauss
         call update_bdry(sol(S_MASS,k), NONE)
      end do
 
-     max_height = 0
-
-     do l = level_start, level_end
-        do k = 1, zlevels
-           call apply_onescale(cpt_max_dh, l, k, 0, 1)
-        end do
-     end do
-
-     max_height = sync_max_d(max_height)
      VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, 180.0_8*4.0_8))
 
      call set_thresholds()
 
-     n_patch_old = grid(:)%patch%length
-     n_node_old = grid(:)%node%length
-
      call time_step(dt_write, aligned)
-     call finish_new_patches()
 
      call stop_timing()
 
@@ -556,7 +262,7 @@ program twolayergauss
           'time [h] =', time/3600.0_8*Tdim, &
           ', dt [s] =', dt*Tdim, &
           ', min. depth =', fd, &
-          ', U =', VELO_SCALE, &
+          ', VELO_SCALE =', VELO_SCALE, &
           ', d.o.f. =', sum(n_active)
 
      call print_load_balance()
@@ -565,10 +271,6 @@ program twolayergauss
         iwrite = iwrite + 1
         call write_and_export(iwrite)
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
-        !call update_bdry(arrival, 9)
-        !call update_bdry(wave_h, 9)
-        !call export_2d(cart2sph2, (/arrival, wave_h/), 2, 10000+10*iwrite/CP_EVERY, 9, &
-        !     (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), (/1.0e8_8, 0.0_8/))
         ierr = writ_checkpoint(twolayergauss_dump)
 
         ! let all cpus exit gracefully if NaN has been produced
@@ -579,26 +281,7 @@ program twolayergauss
            stop
         end if
 
-        do d = 1, n_domain(rank+1)
-           deallocate(wave_h%data(d)%elts)
-           deallocate(arrival%data(d)%elts)
-        end do
-        deallocate(wave_h%data)
-        deallocate(arrival%data)
         call restart_full(set_thresholds, twolayergauss_load)
-        deallocate(n_patch_old); allocate(n_patch_old(size(grid)))
-        deallocate(n_node_old);  allocate(n_node_old(size(grid)))
-        call init_Float_Field(wave_h, S_MASS)
-        call init_Float_Field(arrival, S_MASS)
-        do d = 1, n_domain(rank+1)
-           call init(wave_h%data(d), grid(d)%node%length)
-           call init(arrival%data(d), grid(d)%node%length)
-           wave_h%data(d)%elts = 0.0_8
-           arrival%data(d)%elts = 1.0e8_8
-        end do
-        n_patch_old = 2; call finish_new_patches()
-        ! finish_new_patches takes long time (the smoothing of penalization)
-        ! barrier here so that this does not affect following timing
         call barrier()
      end if
   end do

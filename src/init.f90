@@ -306,7 +306,6 @@ contains
        call init(grid(d)%triarea,    grid(d)%node%length*TRIAG)
        call init(grid(d)%coriolis,    grid(d)%node%length*TRIAG)
        call init(grid(d)%windstress, grid(d)%node%length*EDGE)
-       call init(grid(d)%topo,       grid(d)%node%length)
     end do
   end subroutine init_geometry
 
