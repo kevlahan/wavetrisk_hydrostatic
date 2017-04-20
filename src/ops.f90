@@ -4,7 +4,7 @@ module ops_mod
   use viscous_mod
   implicit none
 
-  real(8) :: totaldmass, totalabsdmass
+  real(8) :: totaldmass, totalabsdmass, totaldtemp, totalabsdtemp
   integer :: tic
 
 contains
@@ -355,6 +355,10 @@ contains
           h_mflux(EDGE*(id+s )+UP+1) = u_dual_dn*(mass(id+s+1) + mass(id+1))*0.5_8
           h_mflux(EDGE*(id+sw)+DG+1) = u_dual_sw*(mass(id+1) + mass(id+sw+1))*0.5_8
           h_mflux(EDGE*(id+ w)+RT+1) = u_dual_lt*(mass(id+w+1) + mass(id+1))*0.5_8
+
+          h_tflux(EDGE*(id+s )+UP+1) = u_dual_dn*(temp(id+s+1) + temp(id+1))*0.5_8
+          h_tflux(EDGE*(id+sw)+DG+1) = u_dual_sw*(temp(id+1) + temp(id+sw+1))*0.5_8
+          h_tflux(EDGE*(id+ w)+RT+1) = u_dual_lt*(temp(id+w+1) + temp(id+1))*0.5_8
       end subroutine
 
       subroutine comput()
@@ -373,6 +377,10 @@ contains
           h_mflux(EDGE*id+UP+1) = u_dual_up*(mass(id+1) + mass(id+n+1))*0.5_8
           h_mflux(EDGE*id+DG+1) = u_dual_dg*(mass(id+ne+1) + mass(id+1))*0.5_8
           h_mflux(EDGE*id+RT+1) = u_dual_rt*(mass(id+1) + mass(id+e+1))*0.5_8
+
+          h_tflux(EDGE*id+UP+1) = u_dual_up*(temp(id+1) + temp(id+n+1))*0.5_8
+          h_tflux(EDGE*id+DG+1) = u_dual_dg*(temp(id+ne+1) + temp(id+1))*0.5_8
+          h_tflux(EDGE*id+RT+1) = u_dual_rt*(temp(id+1) + temp(id+e+1))*0.5_8
 
           u_prim_dn = velo(EDGE*(id+s)+UP+1)*dom%len%elts(EDGE*(id+s)+UP+1)
           u_dual_dn = velo(EDGE*(id+s)+UP+1)*dom%pedlen%elts(EDGE*(id+s)+UP+1)
@@ -751,7 +759,7 @@ contains
     offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
   end subroutine
 
-  subroutine sum_dmass(dom, i, j, zlev, offs, dims)
+  subroutine sum_dmassdtemp(dom, i, j, zlev, offs, dims)
       type(Domain) dom
       integer i
       integer j
@@ -767,6 +775,10 @@ contains
 
       totaldmass = totaldmass + dmass(id+1)/dom%areas%elts(id+1)%hex_inv
       totalabsdmass = totalabsdmass + abs(dmass(id+1)/dom%areas%elts(id+1)%hex_inv)
+
+      totaldtemp = totaldtemp + dtemp(id+1)/dom%areas%elts(id+1)%hex_inv
+      totalabsdtemp = totalabsdtemp + abs(dtemp(id+1)/dom%areas%elts(id+1)%hex_inv)
+
       tic=tic+1
   end subroutine
 end module ops_mod

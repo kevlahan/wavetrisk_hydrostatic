@@ -79,6 +79,8 @@ contains
 
     sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8 + exp(-100.0_8*rgrc*rgrc)
 
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = 1.0_8 + exp(-100.0_8*rgrc*rgrc)
+
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
 

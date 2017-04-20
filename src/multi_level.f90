@@ -465,21 +465,26 @@ contains
 
        totaldmass=0.0_8
        totalabsdmass=0.0_8
+       totaldtemp=0.0_8
+       totalabsdtemp=0.0_8
        tic=0
        do d = 1, size(grid)
           dmass   => dq(S_MASS,k)%data(d)%elts
+          dtemp   => dq(S_TEMP,k)%data(d)%elts
 
           do p = 3, grid(d)%patch%length !in principle, p should start at the coarsest patch p=2
-             call apply_onescale_to_patch(sum_dmass, grid(d), p - 1, k, 0, 0)
+             call apply_onescale_to_patch(sum_dmassdtemp, grid(d), p - 1, k, 0, 0)
           end do
 
-          nullify(dmass)
+          nullify(dmass, dtemp)
        end do
 
        if (totalabsdmass.gt.0) then
-        PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass/totalabsdmass, ' and number of nodes is', tic
+        PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass/totalabsdmass, ' tempflux/abs(tempflux) is', &
+            totaldtemp/totalabsdtemp, ' and number of nodes is', tic
        else
-        PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass, ' and number of nodes is', tic
+        PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass, ' tempflux/abs(tempflux) is', &
+            totaldtemp, ' and number of nodes is', tic
        end if
     end do
     
