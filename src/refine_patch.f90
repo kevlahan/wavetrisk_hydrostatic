@@ -179,6 +179,15 @@ contains
       call apply_onescale_to_patch(coriolis, dom, p_chd, z_null, -1, 1)
       call extend(dom%windstress, EDGE*num, 0.0_8)
       call extend(dom%bernoulli, num, 0.0_8)
+      call extend(dom%exner, num, 0.0_8)
+      call extend(dom%surf_press, num, 0.0_8)
+      call extend(dom%press, num, 0.0_8)
+      call extend(dom%surf_geopot, num, 0.0_8)
+      call extend(dom%geopot, num, 0.0_8)
+      call extend(dom%spec_vol, num, 0.0_8)
+      call extend(dom%adj_mass, num, 0.0_8)
+      call extend(dom%adj_temp, num, 0.0_8)
+      call extend(dom%adj_spec_vol, num, 0.0_8)
       call extend(dom%kin_energy, num, 0.0_8)
 
       do k = 1, zlevels

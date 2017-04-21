@@ -480,11 +480,11 @@ contains
        end do
 
        if (totalabsdmass.gt.0) then
-        PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass/totalabsdmass, ' tempflux/abs(tempflux) is', &
-            totaldtemp/totalabsdtemp, ' and number of nodes is', tic
+        PRINT *, 'at level', k, ', massflux/abs(massflux) is', totaldmass/totalabsdmass, ', tempflux/abs(tempflux) is', &
+            totaldtemp/totalabsdtemp, ', and number of nodes is', tic
        else
-        PRINT *, 'at level', k, ' massflux/abs(massflux) is', totaldmass, ' tempflux/abs(tempflux) is', &
-            totaldtemp, ' and number of nodes is', tic
+        PRINT *, 'at level', k, ', massflux/abs(massflux) is', totaldmass, ', tempflux/abs(tempflux) is', &
+            totaldtemp, ', and number of nodes is', tic
        end if
     end do
     

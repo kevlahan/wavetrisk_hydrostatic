@@ -242,6 +242,15 @@ contains
           grid(d)%level%length       = init_state(d)%n_node
 
           grid(d)%bernoulli%length   = init_state(d)%n_node
+          grid(d)%exner%length   = init_state(d)%n_node
+          grid(d)%surf_press%length   = init_state(d)%n_node
+          grid(d)%press%length   = init_state(d)%n_node
+          grid(d)%surf_geopot%length   = init_state(d)%n_node
+          grid(d)%geopot%length   = init_state(d)%n_node
+          grid(d)%spec_vol%length   = init_state(d)%n_node
+          grid(d)%adj_mass%length   = init_state(d)%n_node
+          grid(d)%adj_temp%length   = init_state(d)%n_node
+          grid(d)%adj_spec_vol%length   = init_state(d)%n_node
           grid(d)%kin_energy%length  = init_state(d)%n_node
           grid(d)%qe%length          = init_state(d)%n_edge
           grid(d)%vort%length        = init_state(d)%n_tria
@@ -357,6 +366,15 @@ contains
 
     do d = 1, size(grid)
        deallocate(grid(d)%bernoulli%elts)
+       deallocate(grid(d)%exner%elts)
+       deallocate(grid(d)%surf_press%elts)
+       deallocate(grid(d)%press%elts)
+       deallocate(grid(d)%surf_geopot%elts)
+       deallocate(grid(d)%geopot%elts)
+       deallocate(grid(d)%spec_vol%elts)
+       deallocate(grid(d)%adj_mass%elts)
+       deallocate(grid(d)%adj_temp%elts)
+       deallocate(grid(d)%adj_spec_vol%elts)
        deallocate(grid(d)%vort%elts)
        deallocate(grid(d)%divu%elts)
        deallocate(grid(d)%qe%elts)

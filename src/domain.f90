@@ -42,6 +42,15 @@ module domain_mod
      type(Float_Array) windstress
 
      type(Float_Array) bernoulli !Bernoulli function
+     type(Float_Array) exner !Exner pressure
+     type(Float_Array) surf_press !surface pressure (compressible) or surface Lagrange multiplier (incompressible)
+     type(Float_Array) press !pressure (compressible case) or Lagrange multiplier (incompressible case)
+     type(Float_Array) surf_geopot !surface geopotential
+     type(Float_Array) geopot !geopotential
+     type(Float_Array) spec_vol !specific volume
+     type(Float_Array) adj_mass !mass in adjacent vertical cell
+     type(Float_Array) adj_temp !temp in adjacent vertical cell
+     type(Float_Array) adj_spec_vol !specific volume in adjacent vertical cell
      type(Float_Array) divu !divergence of velocity field
      type(Float_Array) kin_energy !kinetic energy
      type(Float_Array) qe !potential vorticity
