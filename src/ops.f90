@@ -440,6 +440,7 @@ contains
 
   subroutine upward_nodal_integration(dom, id, zlev)
     !integrate pressure/Lagrange multiplier and pressure quantities upward at all nodes
+    !INCOMPRESSIBLE CASE ONLY (JEMF)
     type(Domain) dom
     integer id, zlev
 
@@ -493,6 +494,43 @@ contains
     dom%adj_temp%elts(id+1)=temp(id+1)
     dom%adj_spec_vol%elts(id+1)=dom%spec_vol%elts(id+1)
   end subroutine upward_nodal_integration
+
+  subroutine integrate_pressure_down(dom, i, j, zlev, offs, dims)
+    !pressure is computed here during downward integration from zlev=zlevels to zlev=1
+    !INCOMPRESSIBLE CASE ONLY (JEMF)
+    type(Domain) dom
+    integer i
+    integer j
+    integer zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer id
+
+    id   = idx(i,     j,     offs, dims)
+
+    !incompressible case
+    !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
+    if (zlev .eq. zlevels) then !top zlev, it is an exception
+       dom%press%elts(id+1)=press_infty+0.5_8*grav_accel*mass(id+1)*(1.0_8-temp(id+1)/mass(id+1))
+    else !other layers equal to half of previous layer and half of current layer
+       dom%press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*dom%adj_mass%elts(id+1)* &
+            (1.0_8-dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1))+ &
+            0.5_8*grav_accel*mass(id+1)*(1.0_8-temp(id+1)/mass(id+1))
+    end if
+
+    !surface pressure is set (even at t=0) from downward numerical integration
+    if (zlev .eq. 1) then
+       !PRINT *, 'theoretical surface pressure=', dom%surf_press%elts(id+1), &
+       !    ', numerical surface pressure=', (dom%pressure%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
+       !    ', error=', abs(dom%surf_press%elts(id+1)-(dom%pressure%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
+       dom%surf_press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)* &
+            (1.0_8-temp(id+1)/mass(id+1))
+    end if
+
+    !quantities for vertical integration in next zlev
+    dom%adj_mass%elts(id+1)=mass(id+1)
+    dom%adj_temp%elts(id+1)=temp(id+1)
+  end subroutine integrate_pressure_down
 
   function get_weights(dom, id, offs)
     !find weights for Qperp computation [Aechtner thesis page 44]
