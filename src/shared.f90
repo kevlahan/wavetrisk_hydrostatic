@@ -291,6 +291,7 @@ module shared_mod
   ! simulation variables
   real(8) dt_write, time_end, time
   real(8) viscosity, friction_coeff, omega, radius, grav_accel, cfl_num, kmax
+  real(8) cst_density, press_infty
   integer istep, resume
   logical advect_only, wind_stress, bottom_friction
 
@@ -349,6 +350,9 @@ contains
     omega = 7.292e-05_8
     grav_accel = 9.80616_8
     radius = 6371220.0_8
+
+    cst_density = 1.0_8 !JEMF
+    press_infty = 0.0_8
 
     ! default values
     threshold = 0.0_8

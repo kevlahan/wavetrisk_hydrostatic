@@ -36,6 +36,7 @@ module twolayergauss_mod
   integer :: CP_EVERY 
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin, k_tsu
+  real(8) :: initial_summed_mass(2), summed_mass(2)
 
   logical const_bathymetry
 
@@ -51,6 +52,21 @@ contains
        end do
     end do
   end subroutine apply_initial_conditions
+
+  subroutine sum_total_mass(initialgo)
+    integer k
+    logical initialgo
+
+    summed_mass=0.0_8
+       do k = 1, zlevels
+          call apply_onescale(sum_the_mass, 5, k, 0, 0)
+       end do
+    PRINT *, 'summed_mass is', summed_mass
+
+    if (initialgo) then
+        initial_summed_mass=summed_mass
+    end if
+  end subroutine sum_total_mass
 
   subroutine write_and_print_step()
     real(4) timing
@@ -83,6 +99,19 @@ contains
 
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
+
+  subroutine sum_the_mass(dom, i, j, zlev, offs, dims)
+    type(Domain) dom
+    integer i, j, k, zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer id, d
+
+    d = dom%id+1
+    id = idx(i, j, offs, dims)
+
+    summed_mass(zlev)=summed_mass(zlev)+sol(S_MASS,zlev)%data(d)%elts(id+1)/dom%areas%elts(id+1)%hex_inv
+  end subroutine sum_the_mass
 
   subroutine read_test_case_parameters(filename)
     character(*) filename
@@ -237,6 +266,8 @@ program twolayergauss
 
   call initialize(apply_initial_conditions, 1, set_thresholds, twolayergauss_dump, twolayergauss_load)
 
+     call sum_total_mass(.True.)
+
   if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
   call barrier()
 
@@ -286,6 +317,9 @@ program twolayergauss
         call restart_full(set_thresholds, twolayergauss_load)
         call barrier()
      end if
+
+     call sum_total_mass(.False.)
+     PRINT*, 'relative change in mass', abs(summed_mass-initial_summed_mass)/initial_summed_mass
   end do
   if (rank .eq. 0) then
      close(1011)
