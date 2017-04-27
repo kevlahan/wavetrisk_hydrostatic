@@ -184,9 +184,9 @@ contains
     end if
   end subroutine post_step1
 
-  subroutine step1(dom, p)
+  subroutine step1(dom, p, zlev)
     type(Domain) dom
-    integer p
+    integer p, zlev
     integer i, j, id, offs(0:N_BDRY), dims(2,N_BDRY)
     integer n, e, s, w, ne, sw
     real(8) u_prim_up, u_dual_up, u_prim_dg, u_dual_dg, u_prim_rt, u_dual_rt
@@ -362,6 +362,11 @@ contains
     end subroutine comp_ijmin
 
     subroutine comput()
+      !computes physical quantities during upward integration
+      call upward_nodal_integration(dom, id, zlev)
+
+                !find the velocity on primal and dual grid edges, which are equal except for the length of the
+          !side they are on
       u_prim_up = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
       u_dual_up = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
       u_prim_dg = velo(EDGE*id+DG+1)*dom%len%elts(EDGE*id+DG+1)
@@ -374,14 +379,17 @@ contains
       if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + &
            alpha_m1*penal%data(dom%id+1)%elts(id+(/0,n,e,s,w,ne/)+1)
 
+          !find the horizontal mass flux as the velocity multiplied by the mass there
       h_mflux(EDGE*id+UP+1) = u_dual_up*(mass(id+1) + mass(id+n+1))*0.5_8
       h_mflux(EDGE*id+DG+1) = u_dual_dg*(mass(id+ne+1) + mass(id+1))*0.5_8
       h_mflux(EDGE*id+RT+1) = u_dual_rt*(mass(id+1) + mass(id+e+1))*0.5_8
 
+          !find the horizontal temperature flux as the velocity multiplied by the temp there
       h_tflux(EDGE*id+UP+1) = u_dual_up*(temp(id+1) + temp(id+n+1))*0.5_8
       h_tflux(EDGE*id+DG+1) = u_dual_dg*(temp(id+ne+1) + temp(id+1))*0.5_8
       h_tflux(EDGE*id+RT+1) = u_dual_rt*(temp(id+1) + temp(id+e+1))*0.5_8
 
+          !find additional primal and dual velocities: down, southwest (counter-diagonal), left
       u_prim_dn = velo(EDGE*(id+s)+UP+1)*dom%len%elts(EDGE*(id+s)+UP+1)
       u_dual_dn = velo(EDGE*(id+s)+UP+1)*dom%pedlen%elts(EDGE*(id+s)+UP+1)
       u_prim_sw = velo(EDGE*(id+sw)+DG+1)*dom%len%elts(EDGE*(id+sw)+DG+1)

@@ -393,7 +393,7 @@ contains
           h_tflux => horiz_tempflux(k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call step1(grid(d), grid(d)%lev(level_end)%elts(j))
+             call step1(grid(d), grid(d)%lev(level_end)%elts(j), k)
           end do
           call apply_to_penta_d(post_step1, grid(d), level_end, z_null)
 
