@@ -379,11 +379,30 @@ contains
     integer k, l
     integer p
     type(Float_Field), target :: q(S_MASS:S_TEMP,1:zlevels), dq(S_MASS:S_TEMP,1:zlevels)
-
-    do k = 1, zlevels
+    
+    !first integrate pressure down across all grid points in order to compute surface pressure
+    do k = zlevels, 1, -1
        call update_bdry(q(S_MASS,k), NONE)
-       call update_bdry(q(S_VELO,k), NONE)
+       !call update_bdry(q(S_VELO,k), NONE) !JEMF
        call update_bdry(q(S_TEMP,k), NONE)
+
+       do d = 1, size(grid)
+          mass    => q(S_MASS,k)%data(d)%elts
+          temp    => q(S_TEMP,k)%data(d)%elts
+
+          do p = 2, grid(d)%patch%length !in principle, p should start at the coarsest patch p=2
+             call apply_onescale_to_patch(integrate_pressure_down, grid(d), p - 1, k, 0, 1)
+          end do
+
+          nullify(mass, temp)
+       end do
+    end do
+
+    !then integrate all quantities upward
+    do k = 1, zlevels
+       !call update_bdry(q(S_MASS,k), NONE) !JEMF
+       call update_bdry(q(S_VELO,k), NONE)
+       !call update_bdry(q(S_TEMP,k), NONE)
 
        do d = 1, size(grid)
           mass    => q(S_MASS,k)%data(d)%elts
@@ -455,12 +474,15 @@ contains
        if (advect_only) return
        
        do d = 1, size(grid)
+          mass    =>  q(S_MASS,k)%data(d)%elts
+          temp    =>  q(S_TEMP,k)%data(d)%elts
           dvelo => dq(S_VELO,k)%data(d)%elts
           
           do p = 2, grid(d)%patch%length
-             call apply_onescale_to_patch(du_gradB, grid(d), p - 1, z_null, 0, 0)
+             call apply_onescale_to_patch(du_gradB_gradExn, grid(d), p - 1, k, 0, 0)
+             !call apply_onescale_to_patch(du_gradB, grid(d), p - 1, z_null, 0, 0) !JEMF: original
           end do
-          nullify(dvelo)
+          nullify(mass,temp,dvelo)
        end do
 
        totaldmass=0.0_8
@@ -479,13 +501,13 @@ contains
           nullify(dmass, dtemp)
        end do
 
-       if (totalabsdmass.gt.0) then
-        PRINT *, 'at level', k, ', massflux/abs(massflux) is', totaldmass/totalabsdmass, ', tempflux/abs(tempflux) is', &
-            totaldtemp/totalabsdtemp, ', and number of nodes is', tic
-       else
-        PRINT *, 'at level', k, ', massflux/abs(massflux) is', totaldmass, ', tempflux/abs(tempflux) is', &
-            totaldtemp, ', and number of nodes is', tic
-       end if
+       !if (totalabsdmass.gt.0) then
+       ! PRINT *, 'at level', k, ', massflux/abs(massflux) is', totaldmass/totalabsdmass, ', tempflux/abs(tempflux) is', &
+       !     totaldtemp/totalabsdtemp, ', and number of nodes is', tic
+       !else
+       ! PRINT *, 'at level', k, ', massflux/abs(massflux) is', totaldmass, ', tempflux/abs(tempflux) is', &
+       !     totaldtemp, ', and number of nodes is', tic
+       !end if
     end do
     
   end subroutine trend_ml

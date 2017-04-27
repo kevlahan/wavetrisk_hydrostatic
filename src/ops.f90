@@ -365,8 +365,8 @@ contains
       !computes physical quantities during upward integration
       call upward_nodal_integration(dom, id, zlev)
 
-                !find the velocity on primal and dual grid edges, which are equal except for the length of the
-          !side they are on
+      !find the velocity on primal and dual grid edges, which are equal except for the length of the
+      !side they are on
       u_prim_up = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
       u_dual_up = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
       u_prim_dg = velo(EDGE*id+DG+1)*dom%len%elts(EDGE*id+DG+1)
@@ -404,7 +404,11 @@ contains
 
       if (phi(0) .ne. 0) phi(0) = 1.0_8/phi(0)
 
-      dom%bernoulli%elts(id+1) = grav_accel*mass(id+1)*phi(0) + dom%kin_energy%elts(id+1)
+      ! define the Bernoulli function for the incompressible case
+      dom%bernoulli%elts(id+1) = dom%geopot%elts(id+1) + dom%kin_energy%elts(id+1)+ &
+                dom%press%elts(id+1)/cst_density
+
+      !dom%bernoulli%elts(id+1) = grav_accel*mass(id+1)*phi(0) + dom%kin_energy%elts(id+1) !JEMF: original lines
 
       if (viscosity .ne. 0) dom%divu%elts(id+1) = dom%areas%elts(id+1)%hex_inv * &
            (u_dual_up - u_dual_dg + u_dual_rt - u_dual_dn + u_dual_sw - u_dual_lt)
@@ -830,6 +834,43 @@ contains
     dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)))/&
          dom%len%elts(EDGE*id+UP+1)
   end subroutine du_gradB
+
+  subroutine du_gradB_gradExn(dom, i, j, zlev, offs, dims)
+      !add gradient of the Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
+      !mass and potential temperature trend is zero
+      type(Domain) dom
+      integer i
+      integer j
+      integer zlev
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,N_BDRY + 1) :: dims
+      integer id
+      integer idE
+      integer idN
+      integer idNE
+      
+      id   = idx(i,     j,     offs, dims)
+      idE  = idx(i + 1, j,     offs, dims)
+      idN  = idx(i,     j + 1, offs, dims)
+      idNE = idx(i + 1, j + 1, offs, dims)
+
+      !see DYNAMICO between (23)-(25), geopotential still known from step1_upw
+      !the theta multiplying the exner gradient is the edge-averaged non-mass-weighted potential temperature
+      dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) - (dom%bernoulli%elts(idE+1) - &
+                dom%bernoulli%elts(id+1))/dom%len%elts(EDGE*id+RT+1) &
+                - 0.5_8*(temp(id+1)/mass(id+1)+temp(idE+1)/mass(idE+1))*(dom%exner%elts(idE+1) - &
+                dom%exner%elts(id+1))/dom%len%elts(EDGE*id+RT+1)
+      
+      dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) - (dom%bernoulli%elts(id+1) - &
+                dom%bernoulli%elts(idNE+1))/dom%len%elts(EDGE*id+DG+1) &
+                - 0.5_8*(temp(id+1)/mass(id+1)+temp(idNE+1)/mass(idNE+1))*(dom%exner%elts(id+1) - &
+                dom%exner%elts(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+      
+      dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) - (dom%bernoulli%elts(idN+1) - &
+                dom%bernoulli%elts(id+1))/dom%len%elts(EDGE*id+UP+1) &
+                - 0.5_8*(temp(id+1)/mass(id+1)+temp(idN+1)/mass(idN+1))*(dom%exner%elts(idN+1) - &
+                dom%exner%elts(id+1))/dom%len%elts(EDGE*id+UP+1)
+  end subroutine du_gradB_gradExn
 
   subroutine comp_offs3(dom, p, offs, dims)
     type(Domain) dom
