@@ -91,7 +91,11 @@ contains
 
     rgrc = acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8 + exp(-100.0_8*rgrc*rgrc)
+    dom%surf_press%elts(id+1) = 0.0_8
+
+    dom%surf_geopot%elts(id+1) = 0.0_8
+
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8 + 0.01_8*exp(-100.0_8*rgrc*rgrc)
 
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = 0.0_8
 

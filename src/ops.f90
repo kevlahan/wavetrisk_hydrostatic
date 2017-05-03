@@ -292,7 +292,13 @@ contains
           n = dims(1,NORTHEAST)
           e = 1
           ne = n+e
-          call comput()
+
+          if (offs(NORTHEAST).ne.1) then
+            call comput()
+          else
+            !PRINT *, 'Prevented the node from being done twice!'
+          end if
+
        end if
     end if
 
@@ -363,7 +369,9 @@ contains
 
     subroutine comput()
       !computes physical quantities during upward integration
+      !if (abs(dom%adj_mass%elts(id+1)-mass(id+1)).gt.(1e-15_8)) then
       call upward_nodal_integration(dom, id, zlev)
+      !end if
 
       !find the velocity on primal and dual grid edges, which are equal except for the length of the
       !side they are on
@@ -496,10 +504,11 @@ contains
     !compute exner pressure from the geopotential
     dom%exner%elts(id+1)=-dom%geopot%elts(id+1)
 
-    if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain
-       PRINT *, '--------WARNING: node is being considered twice'
-       stop
-    end if
+    !if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain
+    !   PRINT *, '--------WARNING: node is being considered twice'
+     !  PRINT *, 'zlev', zlev, 'id', id
+       !stop
+    !end if
 
     !quantities for vertical integration in next zlev
     dom%adj_mass%elts(id+1)=mass(id+1)
@@ -525,9 +534,9 @@ contains
     if (zlev .eq. zlevels) then !top zlev, it is an exception
        dom%press%elts(id+1)=press_infty+0.5_8*grav_accel*mass(id+1)*(1.0_8-temp(id+1)/mass(id+1))
     else !other layers equal to half of previous layer and half of current layer
-       dom%press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*dom%adj_mass%elts(id+1)* &
-            (1.0_8-dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1))+ &
-            0.5_8*grav_accel*mass(id+1)*(1.0_8-temp(id+1)/mass(id+1))
+       dom%press%elts(id+1)=dom%press%elts(id+1)+ &
+            0.5_8*grav_accel*(dom%adj_mass%elts(id+1)*(1.0_8-dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1))+ &
+            mass(id+1)*(1.0_8-temp(id+1)/mass(id+1)))
     end if
 
     !surface pressure is set (even at t=0) from downward numerical integration
