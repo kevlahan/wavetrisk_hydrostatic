@@ -420,9 +420,6 @@ contains
       ! define the Bernoulli function for the incompressible case !JEMF: add in rho_r everywhere
       dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + dom%press%elts(id+1) + dom%geopot%elts(id+1)
 
-
-      !dom%bernoulli%elts(id+1) = grav_accel*mass(id+1)*phi(0) + dom%kin_energy%elts(id+1) !JEMF: original lines
-
       if (viscosity .ne. 0) dom%divu%elts(id+1) = dom%areas%elts(id+1)%hex_inv * &
            (u_dual_up - u_dual_dg + u_dual_rt - u_dual_dn + u_dual_sw - u_dual_lt)
 
@@ -479,9 +476,9 @@ contains
        dom%press%elts(id+1)=dom%surf_press%elts(id+1)-0.5_8*grav_accel* &
             mass(id+1)*(temp(id+1)/mass(id+1))
     else !other layers equal to half of previous layer and half of current layer
-       dom%press%elts(id+1)=dom%press%elts(id+1)-0.5_8*grav_accel*dom%adj_mass%elts(id+1)* &
-            (dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1)) &
-            - 0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))
+       dom%press%elts(id+1)=dom%press%elts(id+1)-0.5_8*grav_accel* &
+            (dom%adj_mass%elts(id+1)*(dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1)) &
+            +mass(id+1)*(temp(id+1)/mass(id+1)))
     end if
 
     if (zlev .eq. zlevels) then !top zlev, purely diagnostic
@@ -499,18 +496,18 @@ contains
     if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
        dom%geopot%elts(id+1)=dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*mass(id+1)*dom%spec_vol%elts(id+1)
     else !other layers equal to half of previous layer and half of current layer
-       dom%geopot%elts(id+1)=dom%geopot%elts(id+1) + 0.5_8*grav_accel*mass(id+1)*dom%spec_vol%elts(id+1) &
-            + 0.5_8*grav_accel*dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1)
+       dom%geopot%elts(id+1)=dom%geopot%elts(id+1) + 0.5_8*grav_accel*(mass(id+1)*dom%spec_vol%elts(id+1) &
+            + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
     end if
 
     !compute exner pressure from the geopotential
     dom%exner%elts(id+1)=-dom%geopot%elts(id+1)
 
-    !if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain
-    !   PRINT *, '--------WARNING: node is being considered twice'
-     !  PRINT *, 'zlev', zlev, 'id', id
-       !stop
-    !end if
+    if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain
+       PRINT *, '--------WARNING: during upward integration, node is being considered twice'
+       PRINT *, 'zlev', zlev, 'id', id
+       stop
+    end if
 
     !quantities for vertical integration in next zlev
     dom%adj_mass%elts(id+1)=mass(id+1)
@@ -547,6 +544,12 @@ contains
     !       ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
     !       ', error=', abs(dom%surf_press%elts(id+1)-(dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
        dom%surf_press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))
+    end if
+
+    if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain
+       PRINT *, '--------WARNING: during downward integration, node is being considered twice'
+       PRINT *, 'zlev', zlev, 'id', id
+       stop
     end if
 
     !quantities for vertical integration in next zlev
