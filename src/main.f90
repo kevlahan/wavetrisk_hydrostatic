@@ -146,7 +146,8 @@ contains
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
 
-    call restart_full(set_thresholds, custom_load)
+    !call restart_full(set_thresholds, custom_load) !JEMF: works (without saving surface_geopotential, i.e.,
+    !for zero surface geopotential) but switched off for now
   end subroutine initialize
 
   subroutine record_init_state(init_state)
@@ -195,7 +196,9 @@ contains
 
     dt = idt/time_mult
 
-    call RK45_opt()
+    call RK45_opt() !JEMF
+
+    !call Forward_Euler()
 
     if (min_level .lt. max_level) then ! adaptive simulation
        call adapt()

@@ -1,4 +1,4 @@
-module twolayergauss_mod
+module onelayergauss_mod
   use main_mod
 
   !c is 180 m/s approx
@@ -95,14 +95,13 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.5_8
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.5_8 + 0.01_8*exp(-100.0_8*rgrc*rgrc)
 
     if (zlev.eq.2) then
-        sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) &
-            + 0.0_8 * exp(-100.0_8*rgrc*rgrc)
+        sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
     end if
 
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = 0.0_8
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
 
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
@@ -187,23 +186,23 @@ contains
     integer fid
     write(fid) VELO_SCALE
     write(fid) iwrite
-  end subroutine twolayergauss_dump
+  end subroutine onelayergauss_dump
 
-  subroutine twolayergauss_load(fid)
+  subroutine onelayergauss_load(fid)
     integer fid
     read(fid) VELO_SCALE
     read(fid) iwrite
-  end subroutine twolayergauss_load
+  end subroutine onelayergauss_load
 
   subroutine set_thresholds() ! inertia-gravity wave
     tol_mass = VELO_SCALE*c_p/grav_accel * threshold**(3.0_8/2.0_8)
     tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
   end subroutine set_thresholds
-end module twolayergauss_mod
+end module onelayergauss_mod
 
-program twolayergauss
+program onelayergauss
   use main_mod
-  use twolayergauss_mod
+  use onelayergauss_mod
   implicit none
 
   integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
@@ -220,7 +219,7 @@ program twolayergauss
   logical write_init
 
   call init_main_mod()
-  call read_test_case_parameters("twolayergauss.in")
+  call read_test_case_parameters("onelayergauss.in")
 
   ! Shared non-dimensional parameters
   radius     = R_star / Ldim
@@ -233,7 +232,7 @@ program twolayergauss
   kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
 
   csq = grav_accel*H
-  k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of twolayergauss: 100km
+  k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of onelayergauss: 100km
   c_p = sqrt(f0**2/k_tsu**2 + csq) ! Maximum phase wave speed
 
   VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
@@ -258,9 +257,8 @@ program twolayergauss
   write_init = (resume .eq. NONE)
   iwrite = 0
 
-  call initialize(apply_initial_conditions, 1, set_thresholds, twolayergauss_dump, twolayergauss_load)
-
-     call sum_total_mass(.True.)
+  call initialize(apply_initial_conditions, 1, set_thresholds, onelayergauss_dump, onelayergauss_load)
+  call sum_total_mass(.True.)
 
   if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
   call barrier()
@@ -283,6 +281,7 @@ program twolayergauss
 
      call stop_timing()
 
+
      call write_and_print_step()
 
      if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
@@ -298,7 +297,7 @@ program twolayergauss
         iwrite = iwrite + 1
         call write_and_export(iwrite)
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
-        ierr = writ_checkpoint(twolayergauss_dump)
+        ierr = writ_checkpoint(onelayergauss_dump)
 
         ! let all cpus exit gracefully if NaN has been produced
         ierr = sync_max(ierr)
@@ -308,7 +307,7 @@ program twolayergauss
            stop
         end if
 
-        call restart_full(set_thresholds, twolayergauss_load)
+        call restart_full(set_thresholds, onelayergauss_load)
         call barrier()
      end if
 
@@ -319,4 +318,4 @@ program twolayergauss
      close(8450)
   end if
   call finalize()
-end program twolayergauss
+end program onelayergauss

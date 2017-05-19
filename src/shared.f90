@@ -299,6 +299,10 @@ module shared_mod
   logical penalize
   real(8) alpha_m1, ieta
 
+  real(8) nonunique_pent_locs(10*2**(2*DOMAIN_LEVEL),3)
+  real(8) unique_pent_locs(12,3)
+  logical pentagon_done(12)
+
 contains
   
   subroutine init_shared_mod()

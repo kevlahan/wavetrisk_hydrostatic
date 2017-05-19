@@ -483,8 +483,8 @@ contains
       idSW = idx(i - 1, j - 1, offs, dims)
       idS  = idx(i,     j - 1, offs, dims)
       
-      outv(1) = 0.0_8
-      outv(2) = -sol(S_MASS,k)%data(dom%id+1)%elts(id+1) !+sol(S_MASS,k+1)%data(dom%id+1)%elts(id+1) !JEMF
+      outv(1) = sol(S_TEMP,k)%data(dom%id+1)%elts(id+1)/sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+      outv(2) = -sol(S_MASS,k)%data(dom%id+1)%elts(id+1)!+sol(S_MASS,k-1)%data(dom%id+1)%elts(id+1) !JEMF
       outv(3) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
       outv(4) = dom%kin_energy%elts(id+1)
 
@@ -606,7 +606,7 @@ contains
     end do
   end subroutine read_u_wc_and_mask
 
-  subroutine read_mass(dom, p, i, j, zlev, offs, dims, fid)
+  subroutine read_masstemp(dom, p, i, j, zlev, offs, dims, fid)
       type(Domain) dom
       integer p, i
       integer j, zlev, k
@@ -617,6 +617,7 @@ contains
       
       id = idx(i, j, offs, dims)
       read(fid) sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) ! for pole
+      read(fid) sol(S_TEMP,zlev)%data(dom%id+1)%elts(id+1) ! for pole
   end subroutine
 
   subroutine read_mt_wc_and_mask(dom, p, i, j, offs, dims, fid)
@@ -633,6 +634,7 @@ contains
       do k = 1, zlevels
          read(fid,*) wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1)
          read(fid,*) wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1)
+         write(0,*) 'reading k', k, 'id', id
       end do
   end subroutine
 
@@ -650,10 +652,11 @@ contains
       do k = 1, zlevels
          write(fid,*) wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1)
          write(fid,*) wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1)
+         write(0,*) 'writing k', k, 'id', id
       end do
   end subroutine
 
-  subroutine write_mass(dom, p, i, j, zlev, offs, dims, fid)
+  subroutine write_masstemp(dom, p, i, j, zlev, offs, dims, fid)
       type(Domain) dom
       integer p, i, zlev
       integer j, k
@@ -664,6 +667,7 @@ contains
       
       id = idx(i, j, offs, dims)
       write(fid) sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) ! for pole
+      write(fid) sol(S_TEMP,zlev)%data(dom%id+1)%elts(id+1) ! for pole
   end subroutine
 
   subroutine load_adapt_mpi(node_in_rout, edge_in_rout, id, custom_load)
@@ -692,11 +696,11 @@ contains
        call custom_load(fid_no(d))
 
        do k = 1, zlevels
-          call apply_to_pole_d(read_mass, grid(d), min_level-1, k, fid_no(d), .True.)
+          call apply_to_pole_d(read_masstemp, grid(d), min_level-1, k, fid_no(d), .True.)
        end do
 
        do k = 1, zlevels
-          do v = S_MASS, S_VELO
+          do v = S_MASS, S_TEMP
              read(fid_no(d)) ( sol(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
           end do
@@ -725,7 +729,7 @@ contains
              p_par = grid(d)%lev(l)%elts(j)
 
              do k = 1, zlevels
-                do v = S_MASS, S_VELO
+                do v = S_MASS, S_TEMP
                    read(fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), &
                         i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
@@ -769,6 +773,7 @@ contains
     do k = 1, zlevels
        wav_coeff(S_MASS,k)%bdry_uptodate = .False.
        wav_coeff(S_VELO,k)%bdry_uptodate = .False.
+       wav_coeff(S_TEMP,k)%bdry_uptodate = .False.
     end do
   end subroutine load_adapt_mpi
 
@@ -812,7 +817,7 @@ contains
        call custom_dump(fid_no)
 
        do k = 1, zlevels
-          call apply_to_pole_d(write_mass, grid(d), min_level-1, k, fid_no, .True.)
+          call apply_to_pole_d(write_masstemp, grid(d), min_level-1, k, fid_no, .True.)
        end do
        
        do k = 1, zlevels
@@ -829,7 +834,7 @@ contains
        end do
 
        do k = 1, zlevels
-          do v = S_MASS, S_VELO
+          do v = S_MASS, S_TEMP
              write(fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
           end do
@@ -861,7 +866,7 @@ contains
              end do
 
              do k = 1, zlevels
-                do v = S_MASS, S_VELO
+                do v = S_MASS, S_TEMP
                    write(fid_no) (wav_coeff(v,k)%data(d)%elts(i),  &
                         i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))

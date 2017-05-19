@@ -382,6 +382,7 @@ contains
     
     !first integrate pressure down across all grid points in order to compute surface pressure
     do k = zlevels, 1, -1
+       !PRINT *, '-----integration down, zlev= ', k
        call update_bdry(q(S_MASS,k), NONE)
        !call update_bdry(q(S_VELO,k), NONE) !JEMF
        call update_bdry(q(S_TEMP,k), NONE)
@@ -400,9 +401,12 @@ contains
 
     !then integrate all quantities upward
     do k = 1, zlevels
+       !PRINT *, '-----integration up, zlev= ', k
        !call update_bdry(q(S_MASS,k), NONE) !JEMF
        call update_bdry(q(S_VELO,k), NONE)
        !call update_bdry(q(S_TEMP,k), NONE)
+
+       pentagon_done=.false.
 
        do d = 1, size(grid)
           mass    => q(S_MASS,k)%data(d)%elts
@@ -469,48 +473,69 @@ contains
           nullify(mass, velo, temp, dvelo, h_mflux, h_tflux)
        end do
 
-       !JEMF: items got taken out
+       !JEMF: lines of code dealing with multi-scale case got taken out
        
        if (advect_only) return
-       
+
        do d = 1, size(grid)
           mass    =>  q(S_MASS,k)%data(d)%elts
           temp    =>  q(S_TEMP,k)%data(d)%elts
-          dvelo => dq(S_VELO,k)%data(d)%elts
+          dvelo   => dq(S_VELO,k)%data(d)%elts
           
           do p = 2, grid(d)%patch%length
              call apply_onescale_to_patch(du_gradB_gradExn, grid(d), p - 1, k, 0, 0)
-             !call apply_onescale_to_patch(du_gradB, grid(d), p - 1, z_null, 0, 0) !JEMF: original
           end do
           nullify(mass,temp,dvelo)
        end do
-
-       totaldmass=0.0_8
-       totalabsdmass=0.0_8
-       totaldtemp=0.0_8
-       totalabsdtemp=0.0_8
-       tic=0
-       do d = 1, size(grid)
-          dmass   => dq(S_MASS,k)%data(d)%elts
-          dtemp   => dq(S_TEMP,k)%data(d)%elts
-
-          do p = 3, grid(d)%patch%length !in principle, p should start at the coarsest patch p=2
-             call apply_onescale_to_patch(sum_dmassdtemp, grid(d), p - 1, k, 0, 0)
-          end do
-
-          nullify(dmass, dtemp)
-       end do
-
-       !if (totalabsdmass.gt.0) then
-       ! PRINT *, 'at level', k, ', massflux/abs(massflux) is', totaldmass/totalabsdmass, ', tempflux/abs(tempflux) is', &
-       !     totaldtemp/totalabsdtemp, ', and number of nodes is', tic
-       !else
-       ! PRINT *, 'at level', k, ', massflux/abs(massflux) is', totaldmass, ', tempflux/abs(tempflux) is', &
-       !     totaldtemp, ', and number of nodes is', tic
-       !end if
     end do
-    
   end subroutine trend_ml
+
+  subroutine find_pentagons()
+    !find the locations of the pentagons on the grid, so that no points will be double-counted by apply_to_penta_d
+    !note that
+    integer d, k, kb
+    logical alreadyappearing
+
+    nonunique_pent_locs=0.0_8
+
+    k=1
+    do d = 1, size(grid)
+       !note that not every subdomain will yield pentagon points, if no pentagon point is found then entry will be all zero
+       call apply_to_penta_d(locate_pentagons, grid(d), level_end, k) !only look at one scale and one zlev
+       !PRINT *, 'k', k
+       k=k+1
+    end do
+
+    unique_pent_locs=0.0_8
+
+    kb=1
+    do k=10*2**(2*DOMAIN_LEVEL),2,-1
+       alreadyappearing=ANY((abs(nonunique_pent_locs(:k-1,1)-nonunique_pent_locs(k,1)).lt.(1.0e-8)).AND. &
+            (abs(nonunique_pent_locs(:k-1,2)-nonunique_pent_locs(k,2)).lt.(1.0e-8)).AND. &
+            (abs(nonunique_pent_locs(:k-1,3)-nonunique_pent_locs(k,3)).lt.(1.0e-8)) )
+       if (.not.alreadyappearing) then
+          if (maxval(abs(nonunique_pent_locs(k,:))).gt.(1.0e-10)) then !only store if entry is not zeros
+            unique_pent_locs(kb,:)=nonunique_pent_locs(k,:)
+            kb=kb+1
+          end if
+       end if
+    end do
+
+    if (maxval(abs(nonunique_pent_locs(1,:))).gt.(1.0e-10)) then !only store if entry is not zeros
+        unique_pent_locs(kb,:)=nonunique_pent_locs(1,:)
+    end if
+
+    if (kb.ne.12) then
+       write(*,*) 'fatal error: identifying incorrect number of pentagons (i.e., not 12)', kb
+       stop
+    end if
+
+    PRINT *, '(x,y,z) locations of the pentagons:'
+
+    do kb=1,12,1
+       PRINT *, unique_pent_locs(kb,1), unique_pent_locs(kb,2), unique_pent_locs(kb,3)
+    end do
+  end subroutine find_pentagons
 
   subroutine Qperp_cpt_restr(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom

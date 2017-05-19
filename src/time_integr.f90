@@ -37,7 +37,7 @@ contains
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
           do v = S_MASS, S_TEMP
-             start = (1+2*(v-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
              
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
                   alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
@@ -64,7 +64,7 @@ contains
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
           do v = S_MASS, S_TEMP
-             start = (1+2*(v-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
                   alpha*sols(v,k)%data(d)%elts(start+1:sols(v,k)%data(d)%length) &
                   + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
@@ -85,7 +85,7 @@ contains
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
           do v = S_MASS, S_TEMP
-             start = (1+2*(v-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
                   alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
                   + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
@@ -116,11 +116,11 @@ contains
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
           do v = S_MASS, S_TEMP
-             call init(q1(v,k)%data(d), sol(v,k)%data(d)%length); q1(v,k)%data(d)%elts = dble(2-v)
-             call init(q2(v,k)%data(d), sol(v,k)%data(d)%length); q2(v,k)%data(d)%elts = dble(2-v)
-             call init(q3(v,k)%data(d), sol(v,k)%data(d)%length); q3(v,k)%data(d)%elts = dble(2-v)
-             call init(q4(v,k)%data(d), sol(v,k)%data(d)%length); q4(v,k)%data(d)%elts = dble(2-v)
-             call init(dq1(v,k)%data(d), sol(v,k)%data(d)%length); dq1(v,k)%data(d)%elts = dble(2-v)
+             call init(q1(v,k)%data(d), sol(v,k)%data(d)%length); q1(v,k)%data(d)%elts = dble(3-v)
+             call init(q2(v,k)%data(d), sol(v,k)%data(d)%length); q2(v,k)%data(d)%elts = dble(3-v)
+             call init(q3(v,k)%data(d), sol(v,k)%data(d)%length); q3(v,k)%data(d)%elts = dble(3-v)
+             call init(q4(v,k)%data(d), sol(v,k)%data(d)%length); q4(v,k)%data(d)%elts = dble(3-v)
+             call init(dq1(v,k)%data(d), sol(v,k)%data(d)%length); dq1(v,k)%data(d)%elts = dble(3-v) !JEMF
           end do
        end do
     end do
@@ -134,6 +134,7 @@ contains
           do v = S_MASS, S_TEMP
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
              if (n_new .gt. 0) then
+                PRINT *, 'manage_RK_mem is extending arrays'
                 call extend(q1(v,k)%data(d),  n_new, dble(2-v))
                 call extend(q2(v,k)%data(d),  n_new, dble(2-v))
                 call extend(q3(v,k)%data(d),  n_new, dble(2-v))
@@ -162,29 +163,42 @@ contains
 
     call manage_RK_mem()
 
+    !PRINT *, 'RK substep 1 below'
     call trend_ml(sol, trend)
-    
     call RK_sub_step1(sol, trend, alpha(1,1), dt*beta(1,1), q1)
     call WT_after_step(q1)
 
+    !PRINT *, 'RK substep 2 below'
     call trend_ml(q1, trend)
     call RK_sub_step2(sol, q1, trend, alpha(1:2,2), dt*beta(2,2), q2)
     call WT_after_step(q2)
 
+    !PRINT *, 'RK substep 3 below'
     call trend_ml(q2, trend)
     call RK_sub_step2(sol, q2, trend, (/alpha(1,3), alpha(3,3)/), dt*beta(3,3), q3)
     call WT_after_step(q3)
 
+    !PRINT *, 'RK substep 4 below'
     call trend_ml(q3, trend)
     call RK_sub_step2(sol, q3, trend, (/alpha(1,4), alpha(4,4)/), dt*beta(4,4), q4)
     call WT_after_step(q4)
 
+    !PRINT *, 'RK final step below'
     call trend_ml(q4, dq1)
     call RK_sub_step4(sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), &
          dt*beta(4:5,5), sol)
 
     call WT_after_step(sol, level_start-1)
   end subroutine RK45_opt
+
+  subroutine Forward_Euler()
+    integer d, v
+
+    PRINT *, 'Euler Step below'
+    call trend_ml(sol, trend)
+    call RK_sub_step1(sol, trend, 1.0_8, dt, sol)
+    call WT_after_step(sol, level_start-1)
+  end subroutine Forward_Euler
   
   subroutine WT_after_step(q, l_start0)
     type(Float_Field), target :: q(S_MASS:S_TEMP, 1:zlevels)

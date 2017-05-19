@@ -4,10 +4,9 @@ module threelayergauss_mod
   !c is 180 m/s approx
 
   !TO DO:
-  !run two layer case for long time, see if it fails for zero perturbation case 
-  !(we checked that Qperp not the issue)
-  !it is the pentagon points
-  !do three layer case without overwriting adjacent quantities
+  !check that two layer case runs indefinitely without error for slight perturbation of upper layer
+  !if that fails, one layer case
+  !check commits for intermediate changes that may have introduced an error
 
   implicit none
 
@@ -105,10 +104,10 @@ contains
 
     if (zlev.eq.3) then
         sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) &
-            + 0.00_8 * exp(-100.0_8*rgrc*rgrc)
+            + 0.01_8 * exp(-100.0_8*rgrc*rgrc)
     end if
 
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = 0.0_8
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
 
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
@@ -219,7 +218,7 @@ program threelayergauss
   character(9+len_cmd_archive) command1
   character(6+len_cmd_files) command2
 
-  integer j_gauge, k, l, d
+  integer j_gauge, k, l, d, p
   logical aligned
   character(8+8+29+14) command
   integer ierr, num
@@ -266,6 +265,8 @@ program threelayergauss
 
   call initialize(apply_initial_conditions, 1, set_thresholds, threelayergauss_dump, threelayergauss_load)
 
+ call find_pentagons()
+
      call sum_total_mass(.True.)
 
   if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
@@ -279,6 +280,7 @@ program threelayergauss
 
      do k = 1, zlevels
         call update_bdry(sol(S_MASS,k), NONE)
+        !call update_bdry(sol(S_TEMP,k), NONE)
      end do
 
      VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, 180.0_8*4.0_8))

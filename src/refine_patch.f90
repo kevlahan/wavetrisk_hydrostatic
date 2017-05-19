@@ -202,7 +202,7 @@ contains
       end do
       
       if (penalize) call extend(penal%data(d), num, 1.0_8)
-            call extend(dom%qe, EDGE*num, 0.0_8)
+      call extend(dom%qe, EDGE*num, 0.0_8)
       call extend(dom%vort, TRIAG*num, 0.0_8)
       call extend(dom%divu, num, 0.0_8)
       call extend(dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))

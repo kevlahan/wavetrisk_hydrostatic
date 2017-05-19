@@ -78,6 +78,13 @@ module domain_mod
   type(Float_Field), ALLOCATABLE, TARGET :: sol(:,:), trend(:,:), wav_coeff(:,:)
   type(Float_Field), ALLOCATABLE, TARGET :: horiz_tempflux(:), horiz_massflux(:)
 
+  !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
+  !we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
+  !and theta_k is the potential temperature
+  !therefore 1-theta in the DYNAMICO paper is really 1-theta^b=theta_k/theta_r=theta'_k which
+  !is what they are solving for in the code (and changes some of the equations in the paper, more specifically
+  !the equation below (18) and the equation below (24))
+  !we will solve for theta'_k and Theta'_k
   real(8), pointer :: mass(:), dmass(:), h_mflux(:)
   real(8), pointer :: velo(:), dvelo(:)
   real(8), pointer :: temp(:), dtemp(:), h_tflux(:)
