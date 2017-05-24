@@ -81,8 +81,8 @@ contains
     integer id, d
     real(8) lon, lat
     real(8) s, t, rgrc
-    real(8), parameter :: lon_c_t = MATH_PI/2.0_8
-    real(8), parameter :: lat_c_t = MATH_PI/6.0_8
+    real(8), parameter :: lon_c_t = MATH_PI/3.0_8
+    real(8), parameter :: lat_c_t = MATH_PI/2.0_8
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
@@ -95,7 +95,7 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8 + 0.01_8*exp(-100.0_8*rgrc*rgrc)
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.25_8 + 0.01_8*exp(-100.0_8*rgrc*rgrc)
 
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
 
