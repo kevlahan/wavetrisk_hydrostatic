@@ -123,6 +123,8 @@ contains
 !       level_end = level_end - 1
 !   end do
     n_active = (/sum(n_active_nodes), sum(n_active_edges)/)
+
+    cpt_dt_mpi = dt
   end function
 
   integer function sync_max(val)
