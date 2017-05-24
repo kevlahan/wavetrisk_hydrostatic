@@ -82,7 +82,7 @@ contains
     real(8) lon, lat
     real(8) s, t, rgrc
     real(8), parameter :: lon_c_t = MATH_PI/3.0_8
-    real(8), parameter :: lat_c_t = MATH_PI/2.0_8
+    real(8), parameter :: lat_c_t = MATH_PI/6.0_8
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
