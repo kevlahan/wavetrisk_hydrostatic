@@ -503,11 +503,11 @@ contains
     !compute exner pressure from the geopotential
     dom%exner%elts(id+1)=-dom%geopot%elts(id+1)
 
-    if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain
-       PRINT *, '--------WARNING: during upward integration, node is being considered twice'
-       PRINT *, 'zlev', zlev, 'id', id
-       stop
-    end if
+    !if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain, errors are usually resolved by setting p to start at 3 in ops.f90
+    !   PRINT *, '--------WARNING: during upward integration, node is being considered twice'
+    !   PRINT *, 'zlev', zlev, 'id', id
+       !stop
+    !end if
 
     !quantities for vertical integration in next zlev
     dom%adj_mass%elts(id+1)=mass(id+1)
@@ -544,13 +544,14 @@ contains
     !       ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
     !       ', error=', abs(dom%surf_press%elts(id+1)-(dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
        dom%surf_press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))
+       !PRINT *, 'surf_press', dom%surf_press%elts(id+1)
     end if
 
-    if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain
-       PRINT *, '--------WARNING: during downward integration, node is being considered twice'
-       PRINT *, 'zlev', zlev, 'id', id
-       stop
-    end if
+    !if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.lt.zlevels)) then !statement catches double execution of a node, which may occur exactly once per subdomain, errors are usually resolved by setting p to start at 3 in ops.f90
+    !   PRINT *, '--------WARNING: during downward integration, node is being considered twice'
+    !   PRINT *, 'zlev', zlev, 'id', id
+       !stop
+    !end if
 
     !quantities for vertical integration in next zlev
     dom%adj_mass%elts(id+1)=mass(id+1)

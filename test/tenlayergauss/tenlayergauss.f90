@@ -95,14 +95,13 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.1_8
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8/dble(zlevels)
 
-    if (zlev.eq.10) then
-        sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) &
-            + 0.001_8 * exp(-100.0_8*rgrc*rgrc)
+    if (zlev.eq.zlevels) then
+        sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
     end if
 
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = 0.0_8
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
 
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
@@ -152,7 +151,7 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 10 ! export only one vertical level
+    zlev = zlevels ! export only one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
@@ -259,8 +258,7 @@ program tenlayergauss
   iwrite = 0
 
   call initialize(apply_initial_conditions, 1, set_thresholds, tenlayergauss_dump, tenlayergauss_load)
-
-     call sum_total_mass(.True.)
+  call sum_total_mass(.True.)
 
   if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
   call barrier()
@@ -282,6 +280,7 @@ program tenlayergauss
      call time_step(dt_write, aligned)
 
      call stop_timing()
+
 
      call write_and_print_step()
 
