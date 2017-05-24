@@ -178,7 +178,6 @@ contains
     logical, intent(out) :: aligned
     integer(8)  idt, ialign
 
-    write (*,*) 'time_step is being determined in main.f90'
     dt = cpt_dt_mpi()
 
     ! match certain times exactly
