@@ -6,8 +6,6 @@ program trisk2vtk
   ! filetype = primal (hexagons) or dual (triangles)
   ! tstart   = first file to read
   ! tend     = last file to read
-  ! jmin     = minimum scale to save
-  ! jmax     = maximum scale to save
   ! file_vtk = file for vtk data
 
   implicit none
@@ -33,7 +31,7 @@ program trisk2vtk
   real(4), parameter :: Udim = sqrt(Hdim*g)
   real(4), parameter :: Tdim = Ldim/Udim
 
-  logical :: file_exists
+  logical :: compressed_file_exists, file_exists
 
   ! Get input parameters
   call get_command_argument(1, arg); file_base = arg
@@ -44,7 +42,7 @@ program trisk2vtk
 
   if (filetype .eq. " ") then
      write(*,*) " "
-     write(*,*) "Usage: trisk2vtk file_base filetype tbegin tend jmin jmax file_vtk"
+     write(*,*) "Usage: trisk2vtk file_base filetype tbegin tend file_vtk"
      write(*,*) " "
      write(*,*) "file_base = base name for files"
      write(*,*) "filetype  = primal (hexagons) or dual (triangles)"
@@ -67,15 +65,21 @@ program trisk2vtk
   end if
 
   do itime = tstart, tend
-     ! Uncompress base file
      write (s_time,'(I3.3)') itime
-     command = 'tar xjf ' // trim(file_base) // s_time // '.tbz'
-     write(*,*) command
-     CALL system(command)
 
-     ! Delete un-needed file
-     command = '\rm ' // trim(file_base) // s_time // '00'
-     CALL system(command)
+     ! Check if files are compressed
+     filename_in = trim(file_base) // s_time // '.tbz'
+     inquire(FILE=trim(filename_in), EXIST=compressed_file_exists)
+     
+     if (compressed_file_exists) then ! Uncompress base file
+        command = 'tar xjf ' // filename_in
+        write(*,*) command
+        CALL system(command)
+
+        ! Delete un-needed file
+        command = '\rm ' // trim(file_base) // s_time // '00'
+        CALL system(command)
+     end if
 
      ! Find number of scales
      j = 1 ; jmin = 0
@@ -180,8 +184,10 @@ program trisk2vtk
         close(iunit)
 
         ! Delete uncompressed file
-        command = '\rm ' // trim(filename_in)
-        CALL system(command)
+        if (compressed_file_exists) then
+           command = '\rm ' // trim(filename_in)
+           CALL system(command)
+        end if
      end do
           
      ! Write out data in old vtk format
