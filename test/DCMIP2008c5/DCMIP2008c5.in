@@ -1,0 +1,12 @@
+max_level	5
+zlevels         18 !18 or 49
+threshold	0.00
+optimize_grid	0	! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
+const_bathymetry	T	
+Hmin	50		! ignored if const_bathymetry is true
+eta	1e-3
+alpha	1e-1
+dt_write 15              ! minutes
+CP_EVERY 96
+time_end	24	! hours
+resume  -1
