@@ -291,9 +291,9 @@ module shared_mod
   ! simulation variables
   real(8) dt_write, time_end, time
   real(8) viscosity, friction_coeff, omega, radius, grav_accel, cfl_num, kmax
-  real(8) cst_density, press_infty
+  real(8) cst_density, press_infty, ref_press, kappa, c_p, R_d
   integer istep, resume
-  logical advect_only, wind_stress, bottom_friction
+  logical advect_only, wind_stress, bottom_friction, compressible
 
   ! for penalization boundary condition
   logical penalize
@@ -350,13 +350,17 @@ contains
     bfly_no2 = reshape((/-3, -2, 1, -2, 3, 2, -1, 2, 1, 3, -3, -1, -1, -3, 3, &
          1, 2, -1, 2, 3, -2, 1, -2, -3/), (/2, 4, 3/))
 
-    ! earth parameters
+    ! earth parameters (used in src folder, can not be in test case file, all dimensional)
+    ! these parameters are never used, since values are reset in test case file, but are needed for compilation
     omega = 7.292e-05_8
     grav_accel = 9.80616_8
     radius = 6371220.0_8
-
     cst_density = 1.0_8 !JEMF
     press_infty = 0.0_8
+    R_d = 1.0_8
+    c_p = 1.0_8
+    kappa = R_d/c_p
+    ref_press = 1.0_8
 
     ! default values
     threshold = 0.0_8

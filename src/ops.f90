@@ -294,9 +294,9 @@ contains
           ne = n+e
 
           if (offs(NORTHEAST).ne.1) then
-            call comput()
+             call comput()
           else
-            !PRINT *, 'Prevented the node from being done twice!'
+             !PRINT *, 'Prevented the node from being done twice!'
           end if
 
        end if
@@ -370,12 +370,6 @@ contains
     subroutine comput()
       !computes physical quantities during upward integration
 
-      if (is_pentagon(dom, id)) then
-        !PRINT *, 'this is a pentagon point'
-        if (.not.repeating_pentagon(dom,id)) then
-        end if
-      end if
-
       call upward_nodal_integration(dom, id, zlev)
 
       !find the velocity on primal and dual grid edges, which are equal except for the length of the
@@ -392,17 +386,17 @@ contains
       if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + &
            alpha_m1*penal%data(dom%id+1)%elts(id+(/0,n,e,s,w,ne/)+1)
 
-          !find the horizontal mass flux as the velocity multiplied by the mass there
+      !find the horizontal mass flux as the velocity multiplied by the mass there
       h_mflux(EDGE*id+UP+1) = u_dual_up*(mass(id+1) + mass(id+n+1))*0.5_8
       h_mflux(EDGE*id+DG+1) = u_dual_dg*(mass(id+ne+1) + mass(id+1))*0.5_8
       h_mflux(EDGE*id+RT+1) = u_dual_rt*(mass(id+1) + mass(id+e+1))*0.5_8
 
-          !find the horizontal temperature flux as the velocity multiplied by the temp there
+      !find the horizontal temperature flux as the velocity multiplied by the temp there
       h_tflux(EDGE*id+UP+1) = u_dual_up*(temp(id+1) + temp(id+n+1))*0.5_8
       h_tflux(EDGE*id+DG+1) = u_dual_dg*(temp(id+ne+1) + temp(id+1))*0.5_8
       h_tflux(EDGE*id+RT+1) = u_dual_rt*(temp(id+1) + temp(id+e+1))*0.5_8
 
-          !find additional primal and dual velocities: down, southwest (counter-diagonal), left
+      !find additional primal and dual velocities: down, southwest (counter-diagonal), left
       u_prim_dn = velo(EDGE*(id+s)+UP+1)*dom%len%elts(EDGE*(id+s)+UP+1)
       u_dual_dn = velo(EDGE*(id+s)+UP+1)*dom%pedlen%elts(EDGE*(id+s)+UP+1)
       u_prim_sw = velo(EDGE*(id+sw)+DG+1)*dom%len%elts(EDGE*(id+sw)+DG+1)
@@ -418,7 +412,11 @@ contains
       if (phi(0) .ne. 0) phi(0) = 1.0_8/phi(0)
 
       ! define the Bernoulli function for the incompressible case !JEMF: add in rho_r everywhere
-      dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + dom%press%elts(id+1) + dom%geopot%elts(id+1)
+      if (compressible) then
+         dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + dom%geopot%elts(id+1)
+      else !incompressible case
+         dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + dom%press%elts(id+1) + dom%geopot%elts(id+1)
+      end if
 
       if (viscosity .ne. 0) dom%divu%elts(id+1) = dom%areas%elts(id+1)%hex_inv * &
            (u_dual_up - u_dual_dg + u_dual_rt - u_dual_dn + u_dual_sw - u_dual_lt)
@@ -462,7 +460,7 @@ contains
 
   subroutine upward_nodal_integration(dom, id, zlev)
     !integrate pressure/Lagrange multiplier and pressure quantities upward at all nodes
-    !INCOMPRESSIBLE CASE ONLY (JEMF)
+    !INCOMPRESSIBLE CASE TESTED ONLY (JEMF)
     type(Domain) dom
     integer id, zlev
 
@@ -471,42 +469,74 @@ contains
        stop
     end if
 
-    !incompressible case: integrate the Lagrange multiplier (saved as pressure) from bottom zlev up to top zlev
-    if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
-       dom%press%elts(id+1)=dom%surf_press%elts(id+1)-0.5_8*grav_accel* &
-            mass(id+1)*(temp(id+1)/mass(id+1))
-    else !other layers equal to half of previous layer and half of current layer
-       dom%press%elts(id+1)=dom%press%elts(id+1)-0.5_8*grav_accel* &
-            (dom%adj_mass%elts(id+1)*(dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1)) &
-            +mass(id+1)*(temp(id+1)/mass(id+1)))
-    end if
-
-    if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-       if (abs((dom%press%elts(id+1)-0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))) &
-            -press_infty).gt.(1e-11_8)) then
-          PRINT *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
-          stop
+    if (compressible) then !compressible case
+       !integrate the pressure from bottom zlev up to top zlev
+       if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
+          dom%press%elts(id+1)=dom%surf_press%elts(id+1)-0.5_8*grav_accel*mass(id+1)
+       else !other layers equal to half of previous layer and half of current layer
+          dom%press%elts(id+1)=dom%press%elts(id+1)-0.5_8*grav_accel*mass(id+1) &
+               -0.5_8*grav_accel*dom%adj_mass%elts(id+1)
        end if
+
+       if (zlev .eq. zlevels) then !top zlev, purely diagnostic
+          !PRINT *, 'numerical pressure top boundary:', dom%pressure%elts(id+1)-0.5_8*grav_accel*mass(id+1), &
+          !              'analytical pressure top boundary:', press_infty
+          if (abs((dom%press%elts(id+1)-0.5_8*grav_accel*mass(id+1))-press_infty).gt.(1e-11_8)) then
+             PRINT *, 'warning: upward integration of pressure not resulting in zero at top interface'
+             stop
+          end if
+       end if
+
+       !compute exner pressure from the pressure
+       dom%exner%elts(id+1)=c_p*(dom%press%elts(id+1)/ref_press)**kappa
+       !compute the specific volume as kappa*theta*pi/p
+       dom%spec_vol%elts(id+1)=kappa*temp(id+1)/mass(id+1)*dom%exner%elts(id+1)/dom%press%elts(id+1)
+
+       !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
+       if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
+          dom%geopot%elts(id+1)=dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*mass(id+1)*dom%spec_vol%elts(id+1)
+       else !other layers equal to half of previous layer and half of current layer
+          dom%geopot%elts(id+1)=dom%geopot%elts(id+1) + 0.5_8*grav_accel*mass(id+1)*dom%spec_vol%elts(id+1) &
+               + 0.5_8*grav_accel*dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1)
+       end if
+    else !incompressible case
+       !incompressible case: integrate the Lagrange multiplier (saved as pressure) from bottom zlev up to top zlev
+       if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
+          dom%press%elts(id+1)=dom%surf_press%elts(id+1)-0.5_8*grav_accel* &
+               mass(id+1)*(temp(id+1)/mass(id+1))
+       else !other layers equal to half of previous layer and half of current layer
+          dom%press%elts(id+1)=dom%press%elts(id+1)-0.5_8*grav_accel* &
+               (dom%adj_mass%elts(id+1)*(dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1)) &
+               +mass(id+1)*(temp(id+1)/mass(id+1)))
+       end if
+
+       if (zlev .eq. zlevels) then !top zlev, purely diagnostic
+          if (abs((dom%press%elts(id+1)-0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))) &
+               -press_infty).gt.(1e-11_8)) then
+             PRINT *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
+             stop
+          end if
+       end if
+
+       !compute the specific volume as 1 divided by the constant density
+       dom%spec_vol%elts(id+1)=1.0_8/cst_density
+
+       !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
+       if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
+          dom%geopot%elts(id+1)=dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*mass(id+1)*dom%spec_vol%elts(id+1)
+       else !other layers equal to half of previous layer and half of current layer
+          dom%geopot%elts(id+1)=dom%geopot%elts(id+1) + 0.5_8*grav_accel*(mass(id+1)*dom%spec_vol%elts(id+1) &
+               + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
+       end if
+
+       !compute exner pressure from the geopotential
+       dom%exner%elts(id+1)=-dom%geopot%elts(id+1)
     end if
-
-    !compute the specific volume as 1 divided by the constant density
-    dom%spec_vol%elts(id+1)=1.0_8/cst_density
-
-    !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
-    if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
-       dom%geopot%elts(id+1)=dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*mass(id+1)*dom%spec_vol%elts(id+1)
-    else !other layers equal to half of previous layer and half of current layer
-       dom%geopot%elts(id+1)=dom%geopot%elts(id+1) + 0.5_8*grav_accel*(mass(id+1)*dom%spec_vol%elts(id+1) &
-            + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
-    end if
-
-    !compute exner pressure from the geopotential
-    dom%exner%elts(id+1)=-dom%geopot%elts(id+1)
 
     !if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.gt.1)) then !statement catches double execution of a node, which may occur exactly once per subdomain, errors are usually resolved by setting p to start at 3 in ops.f90
     !   PRINT *, '--------WARNING: during upward integration, node is being considered twice'
     !   PRINT *, 'zlev', zlev, 'id', id
-       !stop
+    !stop
     !end if
 
     !quantities for vertical integration in next zlev
@@ -517,7 +547,7 @@ contains
 
   subroutine integrate_pressure_down(dom, i, j, zlev, offs, dims)
     !pressure is computed here during downward integration from zlev=zlevels to zlev=1
-    !INCOMPRESSIBLE CASE ONLY (JEMF)
+    !INCOMPRESSIBLE CASE TESTED ONLY (JEMF)
     type(Domain) dom
     integer i
     integer j
@@ -528,30 +558,47 @@ contains
 
     id   = idx(i,     j,     offs, dims)
 
-    !incompressible case
-    !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
-    if (zlev .eq. zlevels) then !top zlev, it is an exception
-       dom%press%elts(id+1)=press_infty+0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))
-    else !other layers equal to half of previous layer and half of current layer
-       dom%press%elts(id+1)=dom%press%elts(id+1)+ &
-            0.5_8*grav_accel*(dom%adj_mass%elts(id+1)*(dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1))+ &
-            mass(id+1)*(temp(id+1)/mass(id+1)))
-    end if
+    if (compressible) then !compressible case
+       !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
+       if (zlev .eq. zlevels) then !top zlev, it is an exception
+          dom%press%elts(id+1)=press_infty+0.5_8*grav_accel*mass(id+1)
+       else !other layers equal to half of previous layer and half of current layer
+          dom%press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1) &
+               +0.5_8*grav_accel*dom%adj_mass%elts(id+1)
+       end if
 
-    !surface pressure is set (even at t=0) from downward numerical integration
-    if (zlev .eq. 1) then
-    !   PRINT *, 'theoretical surface pressure=', dom%surf_press%elts(id+1), &
-    !       ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
-    !       ', error=', abs(dom%surf_press%elts(id+1)-(dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
-       dom%surf_press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))
-       !PRINT *, 'surf_press', dom%surf_press%elts(id+1)
-    end if
+       !surface pressure is set (even at t=0) from downward numerical integration
+       if (zlev .eq. 1) then
+          !PRINT *, 'theoretical surface pressure=', dom%surf_press%elts(id+1), &
+          !    ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
+          !    ', error=', abs(dom%surf_press%elts(id+1)-(dom%pressure%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
+          dom%surf_press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)
+       end if
+    else !incompressible case
+       !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
+       if (zlev .eq. zlevels) then !top zlev, it is an exception
+          dom%press%elts(id+1)=press_infty+0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))
+       else !other layers equal to half of previous layer and half of current layer
+          dom%press%elts(id+1)=dom%press%elts(id+1)+ &
+               0.5_8*grav_accel*(dom%adj_mass%elts(id+1)*(dom%adj_temp%elts(id+1)/dom%adj_mass%elts(id+1))+ &
+               mass(id+1)*(temp(id+1)/mass(id+1)))
+       end if
 
-    !if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.lt.zlevels)) then !statement catches double execution of a node, which may occur exactly once per subdomain, errors are usually resolved by setting p to start at 3 in ops.f90
-    !   PRINT *, '--------WARNING: during downward integration, node is being considered twice'
-    !   PRINT *, 'zlev', zlev, 'id', id
+       !surface pressure is set (even at t=0) from downward numerical integration
+       if (zlev .eq. 1) then
+          !   PRINT *, 'theoretical surface pressure=', dom%surf_press%elts(id+1), &
+          !       ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
+          !       ', error=', abs(dom%surf_press%elts(id+1)-(dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
+          dom%surf_press%elts(id+1)=dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)*(temp(id+1)/mass(id+1))
+          !PRINT *, 'surf_press', dom%surf_press%elts(id+1)
+       end if
+
+       !if ((abs(dom%adj_mass%elts(id+1)-mass(id+1)).lt.(1e-11_8)).and.(zlev.lt.zlevels)) then !statement catches double execution of a node, which may occur exactly once per subdomain, errors are usually resolved by setting p to start at 3 in ops.f90
+       !   PRINT *, '--------WARNING: during downward integration, node is being considered twice'
+       !   PRINT *, 'zlev', zlev, 'id', id
        !stop
-    !end if
+       !end if
+    end if
 
     !quantities for vertical integration in next zlev
     dom%adj_mass%elts(id+1)=mass(id+1)
@@ -850,60 +897,78 @@ contains
   end subroutine du_gradB
 
   subroutine du_gradB_gradExn(dom, i, j, zlev, offs, dims)
-      !add gradient of the Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
-      !mass and potential temperature trend is zero
-      type(Domain) dom
-      integer i
-      integer j
-      integer zlev
-      integer, dimension(N_BDRY + 1) :: offs
-      integer, dimension(2,N_BDRY + 1) :: dims
-      integer id
-      integer idE
-      integer idN
-      integer idNE
-      
-      id   = idx(i,     j,     offs, dims)
-      idE  = idx(i + 1, j,     offs, dims)
-      idN  = idx(i,     j + 1, offs, dims)
-      idNE = idx(i + 1, j + 1, offs, dims)
+    !add gradient of the Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
+    !mass and potential temperature trend is zero
+    type(Domain) dom
+    integer i
+    integer j
+    integer zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer id
+    integer idE
+    integer idN
+    integer idNE
 
-      !see DYNAMICO between (23)-(25), geopotential still known from step1_upw
-      !the theta multiplying the exner gradient is the edge-averaged non-mass-weighted potential temperature
-      dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - &
-                (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)) &
-                - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idE+1)/mass(idE+1))* &
-                (dom%exner%elts(idE+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+RT+1)
-      
-      dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - &
-                (dom%bernoulli%elts(id+1) - dom%bernoulli%elts(idNE+1)) &
-                - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idNE+1)/mass(idNE+1))* &
-                (dom%exner%elts(id+1) - dom%exner%elts(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
+    id   = idx(i,     j,     offs, dims)
+    idE  = idx(i + 1, j,     offs, dims)
+    idN  = idx(i,     j + 1, offs, dims)
+    idNE = idx(i + 1, j + 1, offs, dims)
 
-      dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - &
-                (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)) &
-                - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idN+1)/mass(idN+1)) * &
-                (dom%exner%elts(idN+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+UP+1)
+    !see DYNAMICO between (23)-(25), geopotential still known from step1_upw
+    !the theta multiplying the exner gradient is the edge-averaged non-mass-weighted potential temperature
+
+    if (compressible) then
+       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - &
+            (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)) &
+            - 0.5_8*(temp(id+1)/mass(id+1)+temp(idE+1)/mass(idE+1))* &
+            (dom%exner%elts(idE+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+RT+1)
+
+       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - &
+            (dom%bernoulli%elts(id+1) - dom%bernoulli%elts(idNE+1)) &
+            - 0.5_8*(temp(id+1)/mass(id+1)+temp(idNE+1)/mass(idNE+1))* &
+            (dom%exner%elts(id+1) - dom%exner%elts(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
+
+       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - &
+            (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)) &
+            - 0.5_8*(temp(id+1)/mass(id+1)+temp(idN+1)/mass(idN+1)) * &
+            (dom%exner%elts(idN+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+UP+1)
+    else !incompressible case
+       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - &
+            (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)) &
+            - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idE+1)/mass(idE+1))* &
+            (dom%exner%elts(idE+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+RT+1)
+
+       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - &
+            (dom%bernoulli%elts(id+1) - dom%bernoulli%elts(idNE+1)) &
+            - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idNE+1)/mass(idNE+1))* &
+            (dom%exner%elts(id+1) - dom%exner%elts(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
+
+       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - &
+            (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)) &
+            - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idN+1)/mass(idN+1)) * &
+            (dom%exner%elts(idN+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+UP+1)
+    end if
   end subroutine du_gradB_gradExn
 
   subroutine check_temp(dom, i, j, zlev, offs, dims)
-      type(Domain) dom
-      integer i
-      integer j
-      integer zlev
-      integer, dimension(N_BDRY + 1) :: offs
-      integer, dimension(2,N_BDRY + 1) :: dims
-      integer id
-      integer idE
-      integer idN
-      integer idNE
-      
-      id   = idx(i,     j,     offs, dims)
+    type(Domain) dom
+    integer i
+    integer j
+    integer zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer id
+    integer idE
+    integer idN
+    integer idNE
 
-      if (abs(temp(id+1)).gt.(1e-2)) then
-        !PRINT *, 'zlev', zlev, 'temp', temp(id+1)
-        !stop
-      end if
+    id   = idx(i,     j,     offs, dims)
+
+    if (abs(temp(id+1)).gt.(1e-2)) then
+       !PRINT *, 'zlev', zlev, 'temp', temp(id+1)
+       !stop
+    end if
   end subroutine check_temp
 
   subroutine comp_offs3(dom, p, offs, dims)
@@ -937,75 +1002,75 @@ contains
   end subroutine comp_offs3
 
   subroutine locate_pentagons(dom, p, c, offs, dims, zlev)
-      !determine and store pentagon locations
-      !zlev is really ipent, i.e. it functions as a counter for the amount of pentagons
-      type(Domain) dom
-      integer p
-      integer c
-      integer zlev
-      integer, dimension(N_BDRY + 1) :: offs
-      integer, dimension(2,9) :: dims
-      integer id
+    !determine and store pentagon locations
+    !zlev is really ipent, i.e. it functions as a counter for the amount of pentagons
+    type(Domain) dom
+    integer p
+    integer c
+    integer zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,9) :: dims
+    integer id
 
-      if (c .eq. IJMINUS) then
-         id   = idx( 0,  0, offs, dims)
-      elseif (c .eq. IPLUSJMINUS) then
-         id   = idx(PATCH_SIZE,    0, offs, dims)
-      elseif (c .eq. IMINUSJPLUS) then
-         id   = idx(0,  PATCH_SIZE,   offs, dims)
-      elseif (c .eq. IJPLUS) then
-         id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
-      end if
+    if (c .eq. IJMINUS) then
+       id   = idx( 0,  0, offs, dims)
+    elseif (c .eq. IPLUSJMINUS) then
+       id   = idx(PATCH_SIZE,    0, offs, dims)
+    elseif (c .eq. IMINUSJPLUS) then
+       id   = idx(0,  PATCH_SIZE,   offs, dims)
+    elseif (c .eq. IJPLUS) then
+       id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
+    end if
 
-      nonunique_pent_locs(zlev,1)=dom%node%elts(id+1)%x
-      nonunique_pent_locs(zlev,2)=dom%node%elts(id+1)%y
-      nonunique_pent_locs(zlev,3)=dom%node%elts(id+1)%z
-  end subroutine
+    nonunique_pent_locs(zlev,1)=dom%node%elts(id+1)%x
+    nonunique_pent_locs(zlev,2)=dom%node%elts(id+1)%y
+    nonunique_pent_locs(zlev,3)=dom%node%elts(id+1)%z
+  end subroutine locate_pentagons
 
   function is_pentagon(dom, id)
-      !determine if a pentagon has been done
-      type(Domain) dom
-      integer id, index_closest
-      logical is_pentagon
-      real(8) pentloc(3), prox_closest
+    !determine if a pentagon has been done
+    type(Domain) dom
+    integer id, index_closest
+    logical is_pentagon
+    real(8) pentloc(3), prox_closest
 
-      is_pentagon=.false.
+    is_pentagon=.false.
 
-      pentloc=(/ dom%node%elts(id+1)%x, dom%node%elts(id+1)%y, dom%node%elts(id+1)%z/)
+    pentloc=(/ dom%node%elts(id+1)%x, dom%node%elts(id+1)%y, dom%node%elts(id+1)%z/)
 
-      index_closest =minloc(abs(unique_pent_locs(:,1)-pentloc(1)) + abs(unique_pent_locs(:,2)-pentloc(2)) &
-                + abs(unique_pent_locs(:,3)-pentloc(3)),DIM=1)
+    index_closest =minloc(abs(unique_pent_locs(:,1)-pentloc(1)) + abs(unique_pent_locs(:,2)-pentloc(2)) &
+         + abs(unique_pent_locs(:,3)-pentloc(3)),DIM=1)
 
-      prox_closest = abs(unique_pent_locs(index_closest,1)-pentloc(1)) &
-                + abs(unique_pent_locs(index_closest,2)-pentloc(2)) &
-                + abs(unique_pent_locs(index_closest,3)-pentloc(3))
+    prox_closest = abs(unique_pent_locs(index_closest,1)-pentloc(1)) &
+         + abs(unique_pent_locs(index_closest,2)-pentloc(2)) &
+         + abs(unique_pent_locs(index_closest,3)-pentloc(3))
 
-      if (prox_closest .lt. 1.0e-16) then
-        is_pentagon=.true.
-      end if
-  end function
+    if (prox_closest .lt. 1.0e-16) then
+       is_pentagon=.true.
+    end if
+  end function is_pentagon
 
   function repeating_pentagon(dom, id)
-      !determine if a pentagon is being repeated
-      type(Domain) dom
-      integer id, index_closest
-      logical repeating_pentagon
-      real(8) pentloc(3), prox_closest
+    !determine if a pentagon is being repeated
+    type(Domain) dom
+    integer id, index_closest
+    logical repeating_pentagon
+    real(8) pentloc(3), prox_closest
 
-      repeating_pentagon=.false.
+    repeating_pentagon=.false.
 
-      pentloc=(/ dom%node%elts(id+1)%x, dom%node%elts(id+1)%y, dom%node%elts(id+1)%z/)
+    pentloc=(/ dom%node%elts(id+1)%x, dom%node%elts(id+1)%y, dom%node%elts(id+1)%z/)
 
-      index_closest =minloc(abs(unique_pent_locs(:,1)-pentloc(1)) + abs(unique_pent_locs(:,2)-pentloc(2)) &
-                + abs(unique_pent_locs(:,3)-pentloc(3)),DIM=1)
+    index_closest =minloc(abs(unique_pent_locs(:,1)-pentloc(1)) + abs(unique_pent_locs(:,2)-pentloc(2)) &
+         + abs(unique_pent_locs(:,3)-pentloc(3)),DIM=1)
 
-      if (pentagon_done(index_closest)) then !if true, we are indeed repeating
-        repeating_pentagon=.true.
-        !PRINT *, 'we are repeating a pentagon'
-      else !mark it as done
-        pentagon_done(index_closest)=.true.
-      end if
-  end function
+    if (pentagon_done(index_closest)) then !if true, we are indeed repeating
+       repeating_pentagon=.true.
+       !PRINT *, 'we are repeating a pentagon'
+    else !mark it as done
+       pentagon_done(index_closest)=.true.
+    end if
+  end function repeating_pentagon
 
   subroutine sum_dmassdtemp(dom, i, j, zlev, offs, dims)
     type(Domain) dom

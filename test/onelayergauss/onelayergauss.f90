@@ -25,12 +25,10 @@ module onelayergauss_mod
   real(8), parameter :: f0   = f0_star * Ldim/Udim
   real(8), parameter :: H    = H_star/Hdim
 
-  real(8) :: csq, c_p
+  real(8) :: csq
 
   real(8) :: VELO_SCALE
 
-  real(8), parameter :: LAND = 1
-  real(8), parameter :: SEA  = 0
   character(255) IC_file
 
   integer :: CP_EVERY 
@@ -191,7 +189,7 @@ contains
   end subroutine onelayergauss_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE*c_p/grav_accel * threshold**(3.0_8/2.0_8)
+    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8)
     tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
   end subroutine set_thresholds
 end module onelayergauss_mod
@@ -229,7 +227,6 @@ program onelayergauss
 
   csq = grav_accel*H
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of onelayergauss: 100km
-  c_p = sqrt(f0**2/k_tsu**2 + csq) ! Maximum phase wave speed
 
   VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
 
@@ -237,6 +234,7 @@ program onelayergauss
   penalize         = .False.
   bottom_friction  = .False.
   const_bathymetry = .True.
+  compressible     = .False.
 
   if (rank.eq.0) then
      write(*,'(A,L1)') "wind_stress      = ", wind_stress
