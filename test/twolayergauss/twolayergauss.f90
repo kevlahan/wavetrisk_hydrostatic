@@ -60,7 +60,7 @@ contains
         initotalmass=integrate_hex(mass_pert, level_start, k)
     else
         totalmass=integrate_hex(mass_pert, level_start, k)
-        PRINT *, 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 
