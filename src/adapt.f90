@@ -31,9 +31,10 @@ contains
 
     id = idx(i, j, offs, dims)
     do k = 1, zlevels
-       if (dom%mask_n%elts(id+1) .lt. ADJZONE) &
+       if (dom%mask_n%elts(id+1) .lt. ADJZONE) then
             wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1) = 0.0_8
-       wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1) = 0.0_8
+            wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1) = 0.0_8
+       end if
        do e = 1, EDGE
           if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) &
                wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8

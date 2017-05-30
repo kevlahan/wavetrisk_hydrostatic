@@ -134,7 +134,7 @@ contains
              exit
           else
              PRINT *, 'n_active(AT_NODE) is ', n_active(AT_NODE), ',   n_active(AT_EDGE) is ', n_active(AT_EDGE)
-          endif
+          end if
        end do
 
        cp_idx = 0
