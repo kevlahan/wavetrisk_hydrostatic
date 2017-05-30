@@ -274,7 +274,7 @@ contains
        else
           l_start = level_start
        end if
-       
+
        do v = S_MASS, S_TEMP
           call update_bdry1(wav_coeff(v,k), level_start, level_end)
           call update_bdry1(sca_coeff(v,k), l_start, level_end)
@@ -323,7 +323,7 @@ contains
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
              call apply_interscale_d(IWT_interp_wc_mt, grid(d), l, z_null, 0, 0)
           end do
-          
+
           call update_bdry__finish(sca_coeff(S_VELO,k), l+1)
 
           do d = 1, n_domain(rank+1)
@@ -332,7 +332,7 @@ contains
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              call apply_interscale_d(IWT_interpolate_u_inner, grid(d), l, z_null, 0, 0)
           end do
-          
+
           if (l .lt. level_end-1) call update_bdry__start(sca_coeff(S_VELO,k), l+1) ! for next outer velocity
           sca_coeff(:,k)%bdry_uptodate = .False.
        end do
@@ -782,7 +782,7 @@ contains
        call init_Float_Field(wav_coeff(S_VELO,k), POSIT(S_VELO))
        call init_Float_Field(wav_coeff(S_TEMP,k), POSIT(S_TEMP))
     end do
-    
+
     do d = 1, size(grid)
        num = grid(d)%node%length
        call init(grid(d)%overl_areas, num)
@@ -797,7 +797,7 @@ contains
        do i = 1, num
           call init_RF_Wgt(grid(d)%R_F_wgt%elts(i), (/0.0_4, 0.0_4, 0.0_4/))
        end do
-       
+
        do k = 1, zlevels
           call init(wav_coeff(S_MASS,k)%data(d), num)
           call init(wav_coeff(S_VELO,k)%data(d), EDGE*num)
@@ -1093,17 +1093,20 @@ contains
     id2W_chd  = idx(i_chd - 2, j_chd,     offs_chd, dims_chd)
     id2NE_chd = idx(i_chd + 2, j_chd + 2, offs_chd, dims_chd)
 
-    if (dom%mask_n%elts(idNE_chd+1) .ge. ADJZONE) &
-         wc_m(idNE_chd+1) = mass(idNE_chd+1) - I_p(dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
-         wc_t(idNE_chd+1) = temp(idNE_chd+1) - I_p(dom, temp, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
+    if (dom%mask_n%elts(idNE_chd+1) .ge. ADJZONE) then
+       wc_m(idNE_chd+1) = mass(idNE_chd+1) - I_p(dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
+       wc_t(idNE_chd+1) = temp(idNE_chd+1) - I_p(dom, temp, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
+    end if
 
-    if (dom%mask_n%elts(idN_chd+1) .ge. ADJZONE) &
-         wc_m(idN_chd+1) = mass(idN_chd+1) - I_p(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
-         wc_t(idN_chd+1) = temp(idN_chd+1) - I_p(dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
+    if (dom%mask_n%elts(idN_chd+1) .ge. ADJZONE) then
+       wc_m(idN_chd+1) = mass(idN_chd+1) - I_p(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
+       wc_t(idN_chd+1) = temp(idN_chd+1) - I_p(dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
+    end if
 
-    if (dom%mask_n%elts(idE_chd+1) .ge. ADJZONE) &
-         wc_m(idE_chd+1) = mass(idE_chd+1) - I_p(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
-         wc_t(idE_chd+1) = temp(idE_chd+1) - I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+    if (dom%mask_n%elts(idE_chd+1) .ge. ADJZONE) then
+       wc_m(idE_chd+1) = mass(idE_chd+1) - I_p(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+       wc_t(idE_chd+1) = temp(idE_chd+1) - I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+    end if
 
   end subroutine cpt_masstemp_wc
 
