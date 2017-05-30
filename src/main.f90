@@ -277,7 +277,7 @@ contains
           do i = 1, N_GLO_DOMAIN
               grid(d)%send_conn(i)%length = 0
               grid(d)%recv_pa(i)%length = 0
-              do v = AT_NODE, AT_EDGE !JEMF
+              do v = AT_NODE, AT_EDGE
                   grid(d)%pack(v,i)%length = init_state(d)%pack_len(v,i)
                   grid(d)%unpk(v,i)%length = init_state(d)%unpk_len(v,i)
               end do
@@ -408,7 +408,7 @@ contains
        if (penalize) deallocate(penal%data(d)%elts)
        deallocate(grid(d)%neigh_pa_over_pole%elts)
 
-       do k = AT_NODE, AT_EDGE !JEMF
+       do k = AT_NODE, AT_EDGE
           do i = 1, N_GLO_DOMAIN
              deallocate(grid(d)%pack(k,i)%elts)
              deallocate(grid(d)%unpk(k,i)%elts)

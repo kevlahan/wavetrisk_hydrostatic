@@ -246,8 +246,8 @@ contains
        wav_coeff(S_MASS,k)%bdry_uptodate = .False.
        wav_coeff(S_TEMP,k)%bdry_uptodate = .False.
 
-       call update_bdry(sol(S_MASS,k), NONE) !JEMF
-       call update_bdry(sol(S_TEMP,k), NONE) !JEMF
+       call update_bdry(sol(S_MASS,k), NONE)
+       call update_bdry(sol(S_TEMP,k), NONE) 
 
        do l = level_end - 1, level_start - 1, -1
           do d = 1, n_domain(rank+1)

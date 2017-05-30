@@ -112,7 +112,10 @@ contains
     idE_par  = idx(i_par + 1, j_par,     offs_par, dims_par)
     idNE_par = idx(i_par + 1, j_par + 1, offs_par, dims_par)
 
-    if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) dom%bernoulli%elts(id_par+1) = dom%bernoulli%elts(id_chd+1) !JEMF
+    if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) then
+        dom%bernoulli%elts(id_par+1) = dom%bernoulli%elts(id_chd+1)
+        dom%exner%elts(id_par+1) = dom%exner%elts(id_chd+1)
+    end if
 
     if (i_chd .ge. PATCH_SIZE .or. j_chd .ge. PATCH_SIZE) return
 
@@ -204,7 +207,6 @@ contains
            dom%overl_areas%elts(id_mm+1)%a(3)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv &
            *0.5_8*(dmass(id_pz+1) - dmass(id_mm2+1))
 
-
       !potential temperature
       flux_t = ( &
            dom%overl_areas%elts(id+1)%a(1)*dom%overl_areas%elts(id+1)%a(2)*dom%areas%elts(id+1)%hex_inv &
@@ -278,7 +280,7 @@ contains
            dom%R_F_wgt%elts(idx(i+1,j-1, offs, dims)+1)%enc) ! UPLT S
 
       flux_t(1) = - sum(h_tflux(id((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j-2, offs, dims)+1)%enc) &
-           - sum((h_tflux(id((/VPM,WMMM,UMZ/)+1)+1) -h_tflux(id((/UPZ,VPMM,WMM/)+1)+1)) * &
+            - sum((h_tflux(id((/VPM,WMMM,UMZ/)+1)+1) -h_tflux(id((/UPZ,VPMM,WMM/)+1)+1)) * &
            dom%R_F_wgt%elts(idx(i+1,j-1, offs, dims)+1)%enc) ! UPLT S
 
       flux_m(2) = sum(h_mflux(id((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(idx(i  ,j, offs, dims)+1)%enc) &
@@ -384,7 +386,6 @@ contains
     do k = zlevels, 1, -1
        !PRINT *, '-----integration down, zlev= ', k
        call update_bdry(q(S_MASS,k), NONE)
-       !call update_bdry(q(S_VELO,k), NONE) !JEMF
        call update_bdry(q(S_TEMP,k), NONE)
 
        do d = 1, size(grid)
@@ -402,9 +403,7 @@ contains
     !then integrate all quantities upward
     do k = 1, zlevels
        !PRINT *, '-----integration up, zlev= ', k
-       !call update_bdry(q(S_MASS,k), NONE) !JEMF
        call update_bdry(q(S_VELO,k), NONE)
-       !call update_bdry(q(S_TEMP,k), NONE)
 
        pentagon_done=.false.
 
@@ -474,7 +473,87 @@ contains
        end do
 
        !JEMF: lines of code dealing with multi-scale case got taken out
-       
+
+       do l = level_end-1, level_start, -1
+          call update_bdry__finish(dq(S_MASS,k), l+1)  ! <= comm dmass (l+1)
+          call update_bdry__finish(dq(S_TEMP,k), l+1)  ! <= comm dmass (l+1)
+
+          do d = 1, size(grid)
+             mass    =>  q(S_MASS,k)%data(d)%elts
+             velo    =>  q(S_VELO,k)%data(d)%elts
+             temp    =>  q(S_TEMP,k)%data(d)%elts
+             dmass   => dq(S_MASS,k)%data(d)%elts
+             dtemp   => dq(S_TEMP,k)%data(d)%elts
+             h_mflux => horiz_massflux(k)%data(d)%elts
+             h_tflux => horiz_tempflux(k)%data(d)%elts
+
+             do j = 1, grid(d)%lev(l)%length
+                p = grid(d)%lev(l)%elts(j)
+                call step1(grid(d), p, k)
+             end do
+
+             call apply_to_penta_d(post_step1, grid(d), l, k)
+             call cpt_or_restr_flux(grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
+
+             nullify(mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
+          end do
+
+          call update_bdry__start(horiz_massflux(k), l)  ! <= communicate flux (l)
+          call update_bdry__start(horiz_tempflux(k), l)  ! <= communicate flux (l)
+
+          do d = 1, size(grid)
+             velo => q(S_VELO,k)%data(d)%elts
+             mass => q(S_MASS,k)%data(d)%elts
+             
+             do j = 1, grid(d)%lev(l)%length !JEMF: fix viscosity
+                !if (viscosity .ne. 0) call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             nullify(velo, mass)
+          end do
+          
+          call update_bdry__finish(horiz_massflux(k), l)  ! <= comm flux (l)
+          call update_bdry__finish(horiz_tempflux(k), l)  ! <= comm flux (l)
+
+          do d = 1, size(grid)
+             dmass   => dq(S_MASS,k)%data(d)%elts
+             dtemp   => dq(S_TEMP,k)%data(d)%elts
+             h_mflux => horiz_massflux(k)%data(d)%elts
+             h_tflux => horiz_tempflux(k)%data(d)%elts
+
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch(masstemp_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1) !!!!! use flux (l) & cpt dmass (l)
+             end do
+             nullify(dmass, dtemp, h_mflux, h_tflux)
+          end do
+
+          dq(S_MASS,k)%bdry_uptodate = .False.
+          dq(S_TEMP,k)%bdry_uptodate = .False.
+
+          if (l .gt. level_start) then
+            call update_bdry__start(dq(S_MASS,k), l)  ! <= comm dp (l+1)
+            call update_bdry__start(dq(S_TEMP,k), l)  ! <= comm dp (l+1)
+          end if
+
+          if (advect_only) cycle
+          
+          do d = 1, size(grid)
+             mass    => q(S_MASS,k)%data(d)%elts
+             velo    => q(S_VELO,k)%data(d)%elts
+             temp    => q(S_TEMP,k)%data(d)%elts
+             dmass   => dq(S_MASS,k)%data(d)%elts
+             dvelo   => dq(S_VELO,k)%data(d)%elts
+             dtemp   => dq(S_TEMP,k)%data(d)%elts
+             h_mflux => horiz_massflux(k)%data(d)%elts
+             h_tflux => horiz_tempflux(k)%data(d)%elts
+
+             call cpt_or_restr_Qperp(grid(d), l, k)
+
+             nullify(mass, velo, temp, dmass, dvelo, dtemp, h_mflux, h_tflux)
+          end do
+          
+          dq(S_VELO,k)%bdry_uptodate = .False.
+       end do
+
        if (advect_only) return
 
        do d = 1, size(grid)

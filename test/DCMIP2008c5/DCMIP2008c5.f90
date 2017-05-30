@@ -3,10 +3,8 @@
 !to run: go to wavetrisk_hydrostatic/jobs/DCMIP2008c5 and execute
 !                   ../../bin/DCMIP2008c5
 
-!check steady state case
-!check one-layer case which should reduce to shallow water calculation
-!are pentagon points the culprit?
-!euler step for time integration
+!swap out kinetic energy (wind.f90 DYNAMICO)
+!put back multiple scales
 
 module DCMIP2008c5_mod
   use main_mod

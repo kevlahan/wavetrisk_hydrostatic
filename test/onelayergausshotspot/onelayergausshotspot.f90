@@ -1,4 +1,4 @@
-module onelayergauss_mod
+module onelayergausshotspot_mod
   use main_mod
 
   !c is 180 m/s approx
@@ -29,6 +29,8 @@ module onelayergauss_mod
 
   real(8) :: VELO_SCALE
 
+  real(8), parameter :: LAND = 1
+  real(8), parameter :: SEA  = 0
   character(255) IC_file
 
   integer :: CP_EVERY 
@@ -79,7 +81,7 @@ contains
     integer id, d
     real(8) lon, lat
     real(8) s, t, rgrc
-    real(8), parameter :: lon_c_t = MATH_PI/3.0_8
+    real(8), parameter :: lon_c_t = MATH_PI/2.0_8
     real(8), parameter :: lat_c_t = MATH_PI/6.0_8
 
     d = dom%id+1
@@ -93,9 +95,19 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8 + 0.01_8*exp(-100.0_8*rgrc*rgrc)
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8
 
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
+    if (zlev.eq.zlevels) then
+        sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
+    end if
+
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = 1.0_8
+
+    if (zlev.eq.zlevels) then
+        sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
+    end if
+
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
 
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
@@ -145,7 +157,7 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 1 ! export only one vertical level
+    zlev = zlevels ! export only one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
@@ -176,27 +188,27 @@ contains
     call cart2sph(cin, cout(1), cout(2))
   end subroutine cart2sph2
 
-  subroutine onelayergauss_dump(fid)
+  subroutine onelayergausshotspot_dump(fid)
     integer fid
     write(fid) VELO_SCALE
     write(fid) iwrite
-  end subroutine onelayergauss_dump
+  end subroutine onelayergausshotspot_dump
 
-  subroutine onelayergauss_load(fid)
+  subroutine onelayergausshotspot_load(fid)
     integer fid
     read(fid) VELO_SCALE
     read(fid) iwrite
-  end subroutine onelayergauss_load
+  end subroutine onelayergausshotspot_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8)
+    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8) !JEMF
     tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
   end subroutine set_thresholds
-end module onelayergauss_mod
+end module onelayergausshotspot_mod
 
-program onelayergauss
+program onelayergausshotspot
   use main_mod
-  use onelayergauss_mod
+  use onelayergausshotspot_mod
   implicit none
 
   integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
@@ -213,7 +225,7 @@ program onelayergauss
   logical write_init
 
   call init_main_mod()
-  call read_test_case_parameters("onelayergauss.in")
+  call read_test_case_parameters("onelayergausshotspot.in")
 
   ! Shared non-dimensional parameters
   radius     = R_star / Ldim
@@ -226,7 +238,7 @@ program onelayergauss
   kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
 
   csq = grav_accel*H
-  k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of onelayergauss: 100km
+  k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of onelayergausshotspot: 100km
 
   VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
 
@@ -251,7 +263,7 @@ program onelayergauss
   write_init = (resume .eq. NONE)
   iwrite = 0
 
-  call initialize(apply_initial_conditions, 1, set_thresholds, onelayergauss_dump, onelayergauss_load)
+  call initialize(apply_initial_conditions, 1, set_thresholds, onelayergausshotspot_dump, onelayergausshotspot_load)
   call sum_total_mass(.True.)
 
   if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
@@ -291,7 +303,7 @@ program onelayergauss
         iwrite = iwrite + 1
         call write_and_export(iwrite)
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
-        ierr = writ_checkpoint(onelayergauss_dump)
+        ierr = writ_checkpoint(onelayergausshotspot_dump)
 
         ! let all cpus exit gracefully if NaN has been produced
         ierr = sync_max(ierr)
@@ -301,7 +313,7 @@ program onelayergauss
            stop
         end if
 
-        call restart_full(set_thresholds, onelayergauss_load)
+        call restart_full(set_thresholds, onelayergausshotspot_load)
         call barrier()
      end if
 
@@ -312,4 +324,4 @@ program onelayergauss
      close(8450)
   end if
   call finalize()
-end program onelayergauss
+end program onelayergausshotspot

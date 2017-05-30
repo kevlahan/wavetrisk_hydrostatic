@@ -1,6 +1,6 @@
 TEST_CASE = tsunami
 # options: ser mpi mpi-lb
-ARCH = mpi
+ARCH = ser
 PARAM = param
 GEOM = sphere
 ARRAYS = dyn_array
