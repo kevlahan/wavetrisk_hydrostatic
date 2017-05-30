@@ -11,12 +11,12 @@ module adapt_mod
 
 contains
   subroutine init_adapt_mod()
-      logical :: initialized = .False.
-      if (initialized) return ! initialize only once
-      call init_comm_mod()
-      call init_refine_patch_mod()
-      max_level_exceeded = .False.
-      initialized = .True.
+    logical :: initialized = .False.
+    if (initialized) return ! initialize only once
+    call init_comm_mod()
+    call init_refine_patch_mod()
+    max_level_exceeded = .False.
+    initialized = .True.
   end subroutine init_adapt_mod
 
   subroutine compress(dom, i, j, zlev, offs, dims)
@@ -28,19 +28,19 @@ contains
     integer, dimension(2,9) :: dims
     integer id
     integer e, k
-    
+
     id = idx(i, j, offs, dims)
     do k = 1, zlevels
        if (dom%mask_n%elts(id+1) .lt. ADJZONE) &
             wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1) = 0.0_8
-            wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1) = 0.0_8
+       wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1) = 0.0_8
        do e = 1, EDGE
           if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) &
                wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
        end do
     end do
   end subroutine compress
-    
+
   subroutine adapt()
     integer l
 
@@ -77,70 +77,70 @@ contains
   end subroutine adapt
 
   logical function refine()
-      integer did_refine
-      logical required
-      integer d
-      integer p_par
-      integer c
-      integer p_chd
-      integer old_n_patch
-      
-      !  using tol masks call refine patch where necessary
-      did_refine = FALSE
-      do d = 1, size(grid)
-          old_n_patch = grid(d)%patch%length
-          do p_par = 2, grid(d)%patch%length
-              do c = 1, N_CHDRN
-                  p_chd = grid(d)%patch%elts(p_par)%children(c)
-                  required = check_child_required(grid(d), p_par - 1, c - 1)
-                  if (p_chd .gt. 0) then
-                  else if (required) then ! new patch required
-                      if (grid(d)%patch%elts(p_par)%level .eq. max_level) then
-                          max_level_exceeded = .True.
-                      else
-                          call refine_patch1(grid(d), p_par - 1, c - 1)
-                          did_refine = TRUE
-                      end if
-                  end if
-              end do
+    integer did_refine
+    logical required
+    integer d
+    integer p_par
+    integer c
+    integer p_chd
+    integer old_n_patch
+
+    !  using tol masks call refine patch where necessary
+    did_refine = FALSE
+    do d = 1, size(grid)
+       old_n_patch = grid(d)%patch%length
+       do p_par = 2, grid(d)%patch%length
+          do c = 1, N_CHDRN
+             p_chd = grid(d)%patch%elts(p_par)%children(c)
+             required = check_child_required(grid(d), p_par - 1, c - 1)
+             if (p_chd .gt. 0) then
+             else if (required) then ! new patch required
+                if (grid(d)%patch%elts(p_par)%level .eq. max_level) then
+                   max_level_exceeded = .True.
+                else
+                   call refine_patch1(grid(d), p_par - 1, c - 1)
+                   did_refine = TRUE
+                end if
+             end if
           end do
-          do p_par = 2, old_n_patch
-              do c = 1, N_CHDRN
-                  p_chd = grid(d)%patch%elts(p_par)%children(c)
-                  if (p_chd+1 .gt. old_n_patch) then
-                      call refine_patch2(grid(d), p_par - 1, c - 1)
-                  end if
-              end do
+       end do
+       do p_par = 2, old_n_patch
+          do c = 1, N_CHDRN
+             p_chd = grid(d)%patch%elts(p_par)%children(c)
+             if (p_chd+1 .gt. old_n_patch) then
+                call refine_patch2(grid(d), p_par - 1, c - 1)
+             end if
           end do
-      end do
-      refine = sync_max(did_refine) .eq. TRUE
-      return
-  end function
+       end do
+    end do
+    refine = sync_max(did_refine) .eq. TRUE
+    return
+  end function refine
 
   subroutine patch_count_active(dom, p)
-      type(Domain) dom
-      integer p
-      integer, dimension(N_BDRY + 1) :: offs
-      integer, dimension(2,N_BDRY + 1) :: dims
-      integer j, i, id, e
+    type(Domain) dom
+    integer p
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer j, i, id, e
 
-      ! TODO set FILLED_AND_FROZEN in `remove_inside_patches` to save work here
-      if (dom%patch%elts(p+1)%active .eq. FILLED_AND_FROZEN) return
+    ! TODO set FILLED_AND_FROZEN in `remove_inside_patches` to save work here
+    if (dom%patch%elts(p+1)%active .eq. FILLED_AND_FROZEN) return
 
-      dom%patch%elts(p+1)%active = 0
-      call get_offs_Domain(dom, p, offs, dims)
-      do j = 1, PATCH_SIZE
-          do i = 1, PATCH_SIZE
-              id = idx(i-1, j-1, offs, dims)
-              if (dom%mask_n%elts(id+1) .ge. ADJZONE) dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
-              do e = 1, EDGE
-                  if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) &
-                      dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
-              end do
+    dom%patch%elts(p+1)%active = 0
+    call get_offs_Domain(dom, p, offs, dims)
+    do j = 1, PATCH_SIZE
+       do i = 1, PATCH_SIZE
+          id = idx(i-1, j-1, offs, dims)
+          if (dom%mask_n%elts(id+1) .ge. ADJZONE) dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
+          do e = 1, EDGE
+             if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) &
+                  dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
           end do
-      end do
-  end subroutine
-  
+       end do
+    end do
+  end subroutine patch_count_active
+
   function get_child_and_neigh_patches(dom, p_par, c)
     integer get_child_and_neigh_patches(4)
     type(Domain) dom
@@ -154,7 +154,7 @@ contains
        get_child_and_neigh_patches(2) = dom%patch%elts(n+1)%children(modulo((c+1)-1,4)+1) 
        get_child_and_neigh_patches(3) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
     endif
-    
+
     n = dom%patch%elts(p_par+1)%neigh(c+4) ! corner
     if (n .gt. 0) then
        get_child_and_neigh_patches(4) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
@@ -185,7 +185,7 @@ contains
     check_children_fillup = dble(active)/dble(N_CHDRN*5*DOF_PER_PATCH)
   end function check_children_fillup
 
-  
+
   logical function remove_inside_patches()
     ! removes patches that are not required because they are far enough away from the locally finest level
     integer d, k, p, l, c, c1
@@ -269,5 +269,5 @@ contains
     end do
     check_child_required = .False.
   end function check_child_required
-  
+
 end module adapt_mod

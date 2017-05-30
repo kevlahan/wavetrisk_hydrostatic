@@ -55,7 +55,7 @@ module domain_mod
      type(Float_Array) kin_energy !kinetic energy
      type(Float_Array) qe !potential vorticity
      type(Float_Array) vort !vorticity
-     
+
      type(Overl_Area_Array) overl_areas
      type(Iu_Wgt_Array) I_u_wgt
      type(RF_Wgt_Array) R_F_wgt
@@ -378,7 +378,7 @@ contains
           end if
 
           call get_offs_Domain(dom, p_par, offs, dims)
-          
+
           if (c .eq. NORTHWEST) then
              call routine(dom, p_par, 0, PATCH_SIZE, zlev, offs, dims, ival) ! NORTHPOLE
           else
@@ -767,7 +767,7 @@ contains
     type(Domain) self
     integer side
     integer p
-    
+
     p = self%bdry_patch%length
 
     call append(self%bdry_patch, Bdry_Patch(self%node%length, side, 0))
@@ -858,7 +858,7 @@ contains
 
     p_chd = self%patch%elts(p_par+1)%children(c+1)
     if (p_chd .gt. 0) find_neigh_bdry_patch_Domain = self%patch%elts(p_chd+1)%neigh(s+1)
-    
+
     if (s .ge. 4) return
 
     if (find_neigh_bdry_patch_Domain .eq. 0) then
@@ -868,7 +868,7 @@ contains
           if (p_chd .gt. 0) find_neigh_bdry_patch_Domain = self%patch%elts(p_chd+1)%neigh((modulo(s-1,4)+4)+1)
        end if
     end if
-    
+
     if (find_neigh_bdry_patch_Domain .eq. 0) then
        call find_neigh_patch2_Domain(self, p_par, c, modulo(s-1,4), p_par1, c1)
        if (p_par1 .gt. 0) then
@@ -886,7 +886,7 @@ contains
     integer, intent(in) :: p_par0, c0, s0
     integer, intent(out) :: p_par, c
     integer s_par
-    
+
     s_par = par_side(c0, s0)
     if (s0 .eq. c0 .or. s0 .eq. modulo(c0 + 1, 4) .or. (s0 .eq. c0 + 4)) then
        p_par = self%patch%elts(p_par0+1)%neigh(s0+1)
@@ -897,9 +897,9 @@ contains
     end if
 
     c = ngb_chd_idx(c0, s0)
-    
+
   contains
-    
+
     integer function ngb_chd_idx(c, s)
       integer c
       integer s
@@ -928,7 +928,7 @@ contains
     integer p_chd
     integer s_help
     integer n_side
-    
+
     call find_neigh_patch2_Domain(self, p_par, c, s_chd, n_par, c1)
 
     s_par = par_side(c, s_chd)
@@ -993,7 +993,7 @@ contains
   subroutine init_Domain(self)
     type(Domain) self
     integer i, k, l, r
-    
+
     call init(self%patch, 1)
     call init(self%bdry_patch, 1)
     call init(self%node, 1)

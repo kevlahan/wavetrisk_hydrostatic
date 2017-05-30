@@ -12,7 +12,7 @@ module comm_mpi_mod
   integer, allocatable :: stat_ray(:,:)
 
 contains
-  
+
   subroutine init_comm_mpi()
     allocate(send_lengths(n_process), send_offsets(n_process))
     allocate(recv_lengths(n_process), recv_offsets(n_process))
@@ -44,35 +44,35 @@ contains
     n_active_per_lev = n_active_edges(level_start:level_end) + n_active_nodes(level_start:level_end)
 
     if (rank .eq. 0) write(*,'(6X,A,A,3(1X,A))') '   N_p   ', '   N_u   ','of all active', 'of full level', 'fill-in'
-    
+
     recommended_level_start = level_start
-    
+
     do l = level_start, level_end
        n_full = max_nodes_per_level(l) + max_nodes_per_level(l,EDGE)
-       
+
        ! fill-in: additional nodes on level `l` if it'd become lowest level 
        ! minus the nodes on lower levels which would be removed
        fillin = n_full-n_active_per_lev(l)-sum(n_active_per_lev(level_start:l-1))
-       
+
        if (rank .eq. 0) then
           write(*,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
-            'lev', l, n_active_nodes(l), n_active_edges(l), &
-            float(n_active_per_lev(l))/float(sum(n_active(S_MASS:S_VELO)))*100.0, '%', &
-            float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
-            fillin, float(fillin)/float(sum(n_active(S_MASS:S_VELO)))*100.0, '%'
+               'lev', l, n_active_nodes(l), n_active_edges(l), &
+               float(n_active_per_lev(l))/float(sum(n_active(S_MASS:S_VELO)))*100.0, '%', &
+               float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
+               fillin, float(fillin)/float(sum(n_active(S_MASS:S_VELO)))*100.0, '%'
        end if
-       
+
        if (fillin .le. 0) recommended_level_start = l
     end do
 
     if (rank .eq. 0) then
        write(*,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(S_MASS:S_VELO), 100.0, '%', &
-         float(sum(n_active(S_MASS:S_VELO)))/float(n_full)*100.0, '%', &
-         n_full/sum(n_active(S_MASS:S_VELO))
+            float(sum(n_active(S_MASS:S_VELO)))/float(n_full)*100.0, '%', &
+            n_full/sum(n_active(S_MASS:S_VELO))
     end if
-    
+
     write_active_per_level = recommended_level_start
-    
+
   end function write_active_per_level
 
   subroutine write_load_conn(id)
@@ -80,7 +80,7 @@ contains
     integer id
     character(5+4) filename
     integer r, fid
-    
+
     fid = 599
     write(filename, '(A,I4.4)')  "conn.", id
 
@@ -95,23 +95,23 @@ contains
        else
           open(unit=fid, file=filename, recl=333333, access='APPEND')
        end if
-       
+
        call write_load_conn1(fid)
        close(fid)
        call MPI_Barrier(MPI_Comm_World, ierror)
     end do
-    
+
   end subroutine write_load_conn
 
   subroutine get_load_balance(mini,avg,maxi)
     integer d, load, mini, load_sum, maxi
     real(8) avg
-    
+
     load = 0
     do d = 1, size(grid)
        load = load + domain_load(grid(d))
     end do
-    
+
     call MPI_Reduce(load, maxi,     1, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_WORLD, ierror)
     call MPI_Reduce(load, mini,     1, MPI_INTEGER, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
     call MPI_Reduce(load, load_sum, 1, MPI_INTEGER, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
@@ -122,10 +122,10 @@ contains
   subroutine print_load_balance()
     integer load_min, load_max
     real(8) rel_imbalance, load_avg
-    
+
     call get_load_balance(load_min, load_avg, load_max)
     rel_imbalance = dble(load_max)/load_avg
-    
+
     if (rank .eq. 0) write(*,*) 'min load, average load, max load:', load_min, load_avg, load_max
     if (rank .eq. 0) write(*,*) 'relative imbalance (1=perfect balance)', rel_imbalance
   end subroutine print_load_balance
@@ -136,20 +136,20 @@ contains
     character(5+6) filename
     integer r
     logical eval_pole
-    
+
     write(filename, '(A,I6)')  "fort.", fid
     do r = 1, n_process
        if (r .ne. rank+1) then ! write only if our turn, otherwise only wait at Barrier
           call MPI_Barrier(MPI_Comm_World, ierror)
           cycle 
        end if
-       
+
        if (r .eq. 1) then ! first process opens without append to delete old file if existing
           open(unit=fid, file=filename)
        else
           open(unit=fid, file=filename, access='APPEND')
        end if
-       
+
        if (eval_pole) call apply_to_pole(out_rout, l, zlev, fid, .False.)
 
        call apply_onescale__int(out_rout, l, zlev, 0, 0, fid)
@@ -205,9 +205,9 @@ contains
           end do
        end do
     end do
-    
+
   contains
-    
+
     subroutine handle_neigh(dom, d0)
       type(Domain) dom
       integer d0, r0
@@ -281,7 +281,7 @@ contains
 
   subroutine alltoall()
     integer i
-    
+
     call MPI_Alltoall(send_lengths, 1, MPI_INTEGER, &
          recv_lengths, 1, MPI_INTEGER, &
          MPI_COMM_WORLD, ierror)
@@ -305,7 +305,7 @@ contains
   end subroutine alltoall
 
   subroutine comm_masks_mpi(l)
-      !communication of mask information in a subdomain between different processes
+    !communication of mask information in a subdomain between different processes
     integer l
     integer r_dest, r_src, d_src, d_dest, dest, id, i, kk
 
@@ -411,7 +411,7 @@ contains
   subroutine update_bdry(field, l)
     type(Float_Field) :: field
     integer l
-    
+
     call update_bdry__start (field, l)
     call update_bdry__finish(field, l)
   end subroutine update_bdry

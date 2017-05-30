@@ -16,7 +16,7 @@ contains
     integer k
     integer i, d, r, d_ngb
     integer n_domain_floor
-    
+
     n_domain_floor = N_GLO_DOMAIN/n_process
     d = 0
     do r = 1, n_process

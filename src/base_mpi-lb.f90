@@ -11,7 +11,7 @@ module arch_mod
   integer, allocatable :: glo_id(:,:)
 
 contains
-  
+
   subroutine distribute_grid(k)
     integer k
 
@@ -43,7 +43,7 @@ contains
        !  - every domain is assigned to a rank
 
        accepted_inbalance = 0.1_8
-       
+
        do while (d .lt. N_GLO_DOMAIN) ! increase accepted_inbalance until all domains fit
           d = 0
           do r = 1, n_process
@@ -74,14 +74,14 @@ contains
           end if
        end do
     end if
-    
+
     n_domain = 0
     do d = 1, N_GLO_DOMAIN
        r = owner(d)
        loc_id(d) = n_domain(r+1)
        n_domain(r+1) = n_domain(r+1) + 1
     end do
-    
+
     if (allocated(glo_id)) deallocate(glo_id)
     allocate(glo_id(n_process,maxval(n_domain)))
 

@@ -9,10 +9,10 @@ module comm_mod
   real sync_val
 
 contains
-  
+
   subroutine init_comm_mod()
     logical :: initialized = .False.
-    
+
     if (initialized) return ! initialize only once
     call init_arch_mod()
     call init_domain_mod()
@@ -23,7 +23,7 @@ contains
 
   subroutine init_comm()
     integer k, s, d
-    
+
     allocate(n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
 
     n_active_edges = 0
@@ -102,7 +102,7 @@ contains
     integer i
     integer src_id
     integer dest_id
-    
+
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
        do dest_loc = 1, size(grid)
@@ -961,7 +961,7 @@ contains
     integer pa
     integer e
     integer id
-    
+
     call append(dom%send_conn(src+1), i)
     call append(dom%send_conn(src+1), j)
     call append(dom%send_conn(src+1), pa)
@@ -1068,14 +1068,14 @@ contains
           n_active_edges(l) = n_active_edges(l) + 1
        end if
     end do
-    
+
   contains
 
     subroutine cpt_dt()
       integer k
       real(8) vel, full_depth
       real(8) phi, csq, dx
-      
+
       phi = 1.0
       if (penalize) phi = phi + alpha_m1*penal%data(dom%id+1)%elts(id+1)
 
@@ -1083,8 +1083,8 @@ contains
       do k = 1, zlevels
          full_depth = full_depth + sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
          if (isnan(sol(S_MASS,k)%data(dom%id+1)%elts(id+1))) then
-              write(0,*) "ERROR: a mass element is NaN"
-              stop
+            write(0,*) "ERROR: a mass element is NaN"
+            stop
          endif
       end do
 
@@ -1131,5 +1131,5 @@ contains
             grid(d)%unpk(AT_NODE,:)%length + grid(d)%unpk(AT_EDGE,:)%length)/2
     end do
   end subroutine write_load_conn1
-  
+
 end module comm_mod

@@ -155,7 +155,7 @@ contains
     integer item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_Int_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Int_Array
@@ -165,7 +165,7 @@ contains
     real(8) item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_Float_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Float_Array
@@ -175,7 +175,7 @@ contains
     type(Coord) item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_Coord_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Coord_Array
@@ -185,7 +185,7 @@ contains
     type(Areas) item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_Areas_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Areas_Array
@@ -195,7 +195,7 @@ contains
     type(Overl_Area) item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_Overl_Area_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Overl_Area_Array
@@ -205,7 +205,7 @@ contains
     type(Iu_Wgt) item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_Iu_Wgt_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Iu_Wgt_Array
@@ -215,7 +215,7 @@ contains
     type(RF_Wgt) item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_RF_Wgt_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_RF_Wgt_Array
@@ -225,7 +225,7 @@ contains
     type(Patch) item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_Patch_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Patch_Array
@@ -235,7 +235,7 @@ contains
     type(Bdry_Patch) item
 
     if (arr%length .eq. size(arr%elts)) call dbl_alloc_Bdry_Patch_Array(arr, arr%length + 1)
-    
+
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Bdry_Patch_Array
@@ -246,7 +246,7 @@ contains
     integer items
 
     if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Int_Array(arr, arr%length + N)
-    
+
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Int_Array
@@ -257,7 +257,7 @@ contains
     real(8) items
 
     if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Float_Array(arr, arr%length + N)
-    
+
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Float_Array
@@ -268,7 +268,7 @@ contains
     type(Coord) items
 
     if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Coord_Array(arr, arr%length + N)
-    
+
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Coord_Array
@@ -279,7 +279,7 @@ contains
     type(Areas) items
 
     if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Areas_Array(arr, arr%length + N)
-    
+
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Areas_Array
@@ -290,7 +290,7 @@ contains
     type(Overl_Area) items
 
     if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Overl_Area_Array(arr, arr%length + N)
-    
+
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Overl_Area_Array
@@ -301,7 +301,7 @@ contains
     type(Iu_Wgt) items
 
     if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Iu_Wgt_Array(arr, arr%length + N)
-    
+
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Iu_Wgt_Array
@@ -312,7 +312,7 @@ contains
     type(RF_Wgt) items
 
     if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_RF_Wgt_Array(arr, arr%length + N)
-    
+
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_RF_Wgt_Array
