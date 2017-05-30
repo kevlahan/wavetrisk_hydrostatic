@@ -15,22 +15,22 @@ module patch_mod
      integer active
      logical deleted
   end type Patch
-  
+
   type Bdry_Patch
      integer elts_start
      integer side
      integer neigh
   end type Bdry_Patch
-  
+
   type Overl_Area
      real(8), dimension(4) :: a
      real(4), dimension(2) :: split  
   end type Overl_Area
-  
+
   type Iu_Wgt
      real(4), dimension(9) :: enc  
   end type Iu_Wgt
-  
+
   type RF_Wgt
      real(4), dimension(3) :: enc
   end type RF_Wgt

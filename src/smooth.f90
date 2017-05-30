@@ -77,14 +77,14 @@ contains
     integer k
 
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    
+
     call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
     call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
 
     maxerror = 0.0_8
     l2error = 0.0_8
     call  apply_onescale(check_d, level_end-1, z_null, 0, 0)
-    
+
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
     if (rank .eq. 0) write(*,*) 'grid quality before optimization:', maxerror, l2error
@@ -98,7 +98,7 @@ contains
     do while(maxerror .gt. tol)
        maxerror = 0.0_8
        call comm_nodes3_mpi(get_coord, set_coord, NONE)
-       
+
        call apply_onescale(Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
        call apply_onescale(Xu_smooth_assign, level_end-1, z_null, 0, 0)
        maxerror = sync_max_d(maxerror)
@@ -108,13 +108,13 @@ contains
     if (rank .eq. 0) write(*,*) 'convergence: ', k, maxerror
 
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    
+
     call apply_onescale2(ccentre,    level_end-1, z_null, -2, 1)
     call apply_onescale2(midpt,      level_end-1, z_null, -1, 1)
     call apply_onescale2(check_grid, level_end-1, z_null,  0, 0)
-    
+
     call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    
+
     call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
     call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
 
@@ -182,7 +182,7 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,9) :: dims
     integer id
-    
+
     id = idx(i, j, offs, dims)
 
     maxerror = max(maxerror, dist(dom%node%elts(id+1), sums(id+1,dom%id+1)))
@@ -208,7 +208,7 @@ contains
          mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1),dom%ccentre%elts(TRIAG*idS+UPLT+1))), &
          dist(dom%midpt%elts(EDGE*id+DG+1), mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1),dom%ccentre%elts(TRIAG*id+UPLT+1))), &
          dist(dom%midpt%elts(EDGE*id+UP+1), mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1),dom%ccentre%elts(TRIAG*id+UPLT+1)) )/)
-    
+
     maxerror = max(maxerror, maxval(error))
     l2error = l2error + sum(error**2)
   end subroutine check_d

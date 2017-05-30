@@ -2,7 +2,7 @@ module geom_mod
   use param_mod
   use shared_mod
   implicit none
-  
+
   type Coord
      real(8) x
      real(8) y
@@ -27,7 +27,7 @@ contains
     type(Coord) init
     type(Coord) term
     type(Coord) v
-    
+
     v = vector(init, term)
     direction = normalize_Coord(v)
   end function direction
@@ -73,11 +73,11 @@ contains
     type(Coord) normal2
     type(Coord) neg_int_pt
     real(8) inpr
-    
+
     inters_pt = arc2_no2
     does_inters = .True.
     troubles = .False.
-    
+
     if (norm(vector(arc1_no2, arc2_no2)) .lt. eps()) return
 
     normal1 = cross(arc1_no1, arc1_no2)

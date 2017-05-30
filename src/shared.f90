@@ -278,7 +278,7 @@ module shared_mod
   integer level_start, level_end 
 
   real(8) threshold ! threshold level on wavelet coefficients for grid adaptation
-  
+
   integer n_active(AT_NODE:AT_EDGE) ! number of active points at grid locations (node and edge)
 
   logical dynamic_adapt
@@ -304,7 +304,7 @@ module shared_mod
   logical pentagon_done(12)
 
 contains
-  
+
   subroutine init_shared_mod()
     logical :: initialized = .False.
 
@@ -412,5 +412,5 @@ contains
        exp__flush = 0.0_8
     end if
   end function exp__flush
-  
+
 end module shared_mod

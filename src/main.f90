@@ -16,10 +16,10 @@ module main_mod
   implicit none
   integer cp_idx
   type Initial_State
-      integer n_patch, n_bdry_patch
-      integer n_node, n_edge, n_tria
-      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
-  end type
+     integer n_patch, n_bdry_patch
+     integer n_node, n_edge, n_tria
+     integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
+  end type Initial_State
   type(Initial_State), allocatable :: ini_st(:)
   integer, allocatable :: node_level_start(:), edge_level_start(:)
 
@@ -27,7 +27,7 @@ module main_mod
   real(8) time_mult
 
 contains
-  
+
   subroutine init_main_mod()
     call init_arch_mod()
     call init_domain_mod()
@@ -41,7 +41,7 @@ contains
     call init_mask_mod()
     call init_adapt_mod()
     time_mult = 1.0
-  end subroutine
+  end subroutine init_main_mod
 
   subroutine initialize(apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
     external apply_init_cond, set_thresholds, custom_dump, custom_load
@@ -65,7 +65,7 @@ contains
     call init_grid()
     call init_comm_mpi()
     call init_geometry()
-    
+
     if (optimize_grid .eq. XU_GRID) call smooth_Xu(1.0e6_8*eps())
     if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid()
 
@@ -79,7 +79,7 @@ contains
     call init_wavelets()
     call init_masks()
     call add_second_level()
-    
+
     call apply_onescale2(set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
     call apply_interscale(mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
@@ -119,7 +119,7 @@ contains
                grid(k)%node%length)) .gt. tol_mass) &
                .or. (abs(wav_coeff(S_TEMP,1)%data(k)%elts(node_level_start(k) : &
                grid(k)%node%length)) .gt. tol_temp)), k = 1, n_domain(rank+1)) /)), &
-
+               
                
                sum((/(count(abs(wav_coeff(S_VELO,1)%data(k)%elts(edge_level_start(k): &
                grid(k)%midpt%length)) .gt. tol_velo), k = 1, n_domain(rank+1)) /)) &
@@ -130,10 +130,10 @@ contains
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
 
           if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) then
-            PRINT *, 'exiting because there are no active nodes'
-            exit
+             PRINT *, 'exiting because there are no active nodes'
+             exit
           else
-            PRINT *, 'n_active(AT_NODE) is ', n_active(AT_NODE), ',   n_active(AT_EDGE) is ', n_active(AT_EDGE)
+             PRINT *, 'n_active(AT_NODE) is ', n_active(AT_NODE), ',   n_active(AT_EDGE) is ', n_active(AT_EDGE)
           endif
        end do
 
@@ -163,7 +163,7 @@ contains
        init_state(d)%n_node       = grid(d)%node%length
        init_state(d)%n_edge       = grid(d)%midpt%length
        init_state(d)%n_tria       = grid(d)%ccentre%length
-       
+
        do i = 1, N_GLO_DOMAIN
           do v = AT_NODE, AT_EDGE
              init_state(d)%pack_len(v,i) = grid(d)%pack(v,i)%length 
@@ -212,86 +212,86 @@ contains
   end subroutine time_step
 
   subroutine reset(init_state)
-      type(Initial_State), allocatable :: init_state(:)
-      integer k, l, d, v, i
-      integer num(AT_NODE:AT_EDGE)
-      
-      do d = 1, size(grid)
-          grid(d)%lev(min_level+1:max_level)%length = 0
+    type(Initial_State), allocatable :: init_state(:)
+    integer k, l, d, v, i
+    integer num(AT_NODE:AT_EDGE)
+
+    do d = 1, size(grid)
+       grid(d)%lev(min_level+1:max_level)%length = 0
+    end do
+
+    level_start = min_level
+    level_end = level_start
+
+    do d = 1, size(grid)
+       num = (/init_state(d)%n_node, init_state(d)%n_edge/)  
+       grid(d)%patch%length       = init_state(d)%n_patch 
+       grid(d)%bdry_patch%length  = init_state(d)%n_bdry_patch 
+       grid(d)%node%length        = init_state(d)%n_node 
+       grid(d)%midpt%length       = init_state(d)%n_edge
+       grid(d)%ccentre%length     = init_state(d)%n_tria
+       grid(d)%areas%length       = init_state(d)%n_node
+       grid(d)%triarea%length     = init_state(d)%n_tria
+       grid(d)%pedlen%length      = init_state(d)%n_edge
+       grid(d)%len%length         = init_state(d)%n_edge
+       grid(d)%coriolis%length    = init_state(d)%n_tria
+       grid(d)%windstress%length  = init_state(d)%n_edge
+       grid(d)%overl_areas%length = init_state(d)%n_node
+       grid(d)%I_u_wgt%length     = init_state(d)%n_node
+       grid(d)%R_F_wgt%length     = init_state(d)%n_node
+       grid(d)%mask_n%length      = init_state(d)%n_node
+       grid(d)%mask_e%length      = init_state(d)%n_edge
+       grid(d)%level%length       = init_state(d)%n_node
+
+       grid(d)%bernoulli%length   = init_state(d)%n_node
+       grid(d)%exner%length   = init_state(d)%n_node
+       grid(d)%surf_press%length   = init_state(d)%n_node
+       grid(d)%press%length   = init_state(d)%n_node
+       grid(d)%surf_geopot%length   = init_state(d)%n_node
+       grid(d)%geopot%length   = init_state(d)%n_node
+       grid(d)%spec_vol%length   = init_state(d)%n_node
+       grid(d)%adj_mass%length   = init_state(d)%n_node
+       grid(d)%adj_temp%length   = init_state(d)%n_node
+       grid(d)%adj_spec_vol%length   = init_state(d)%n_node
+       grid(d)%kin_energy%length  = init_state(d)%n_node
+       grid(d)%qe%length          = init_state(d)%n_edge
+       grid(d)%vort%length        = init_state(d)%n_tria
+
+       if (penalize) penal%data(d)%length = num(AT_NODE)
+
+       do k = 1, zlevels
+          horiz_massflux(k)%data(d)%length = num(AT_EDGE)
+          horiz_tempflux(k)%data(d)%length = num(AT_EDGE)
+          do v = S_MASS, S_TEMP
+             wav_coeff(v,k)%data(d)%length = num(POSIT(v))
+             trend(v,k)%data(d)%length = num(POSIT(v))
+             sol(v,k)%data(d)%length = num(POSIT(v))
+             dq1(v,k)%data(d)%length = num(POSIT(v))
+             q1(v,k)%data(d)%length = num(POSIT(v))
+             q2(v,k)%data(d)%length = num(POSIT(v))
+             q3(v,k)%data(d)%length = num(POSIT(v))
+             q4(v,k)%data(d)%length = num(POSIT(v))
+          end do
        end do
-       
-      level_start = min_level
-      level_end = level_start
-      
-      do d = 1, size(grid)
-          num = (/init_state(d)%n_node, init_state(d)%n_edge/)  
-          grid(d)%patch%length       = init_state(d)%n_patch 
-          grid(d)%bdry_patch%length  = init_state(d)%n_bdry_patch 
-          grid(d)%node%length        = init_state(d)%n_node 
-          grid(d)%midpt%length       = init_state(d)%n_edge
-          grid(d)%ccentre%length     = init_state(d)%n_tria
-          grid(d)%areas%length       = init_state(d)%n_node
-          grid(d)%triarea%length     = init_state(d)%n_tria
-          grid(d)%pedlen%length      = init_state(d)%n_edge
-          grid(d)%len%length         = init_state(d)%n_edge
-          grid(d)%coriolis%length    = init_state(d)%n_tria
-          grid(d)%windstress%length  = init_state(d)%n_edge
-          grid(d)%overl_areas%length = init_state(d)%n_node
-          grid(d)%I_u_wgt%length     = init_state(d)%n_node
-          grid(d)%R_F_wgt%length     = init_state(d)%n_node
-          grid(d)%mask_n%length      = init_state(d)%n_node
-          grid(d)%mask_e%length      = init_state(d)%n_edge
-          grid(d)%level%length       = init_state(d)%n_node
 
-          grid(d)%bernoulli%length   = init_state(d)%n_node
-          grid(d)%exner%length   = init_state(d)%n_node
-          grid(d)%surf_press%length   = init_state(d)%n_node
-          grid(d)%press%length   = init_state(d)%n_node
-          grid(d)%surf_geopot%length   = init_state(d)%n_node
-          grid(d)%geopot%length   = init_state(d)%n_node
-          grid(d)%spec_vol%length   = init_state(d)%n_node
-          grid(d)%adj_mass%length   = init_state(d)%n_node
-          grid(d)%adj_temp%length   = init_state(d)%n_node
-          grid(d)%adj_spec_vol%length   = init_state(d)%n_node
-          grid(d)%kin_energy%length  = init_state(d)%n_node
-          grid(d)%qe%length          = init_state(d)%n_edge
-          grid(d)%vort%length        = init_state(d)%n_tria
-          
-          if (penalize) penal%data(d)%length = num(AT_NODE)
-
-          do k = 1, zlevels
-             horiz_massflux(k)%data(d)%length = num(AT_EDGE)
-             horiz_tempflux(k)%data(d)%length = num(AT_EDGE)
-             do v = S_MASS, S_TEMP
-                wav_coeff(v,k)%data(d)%length = num(POSIT(v))
-                trend(v,k)%data(d)%length = num(POSIT(v))
-                sol(v,k)%data(d)%length = num(POSIT(v))
-                dq1(v,k)%data(d)%length = num(POSIT(v))
-                q1(v,k)%data(d)%length = num(POSIT(v))
-                q2(v,k)%data(d)%length = num(POSIT(v))
-                q3(v,k)%data(d)%length = num(POSIT(v))
-                q4(v,k)%data(d)%length = num(POSIT(v))
-             end do
+       do i = 1, N_GLO_DOMAIN
+          grid(d)%send_conn(i)%length = 0
+          grid(d)%recv_pa(i)%length = 0
+          do v = AT_NODE, AT_EDGE
+             grid(d)%pack(v,i)%length = init_state(d)%pack_len(v,i)
+             grid(d)%unpk(v,i)%length = init_state(d)%unpk_len(v,i)
           end do
-          
-          do i = 1, N_GLO_DOMAIN
-              grid(d)%send_conn(i)%length = 0
-              grid(d)%recv_pa(i)%length = 0
-              do v = AT_NODE, AT_EDGE
-                  grid(d)%pack(v,i)%length = init_state(d)%pack_len(v,i)
-                  grid(d)%unpk(v,i)%length = init_state(d)%unpk_len(v,i)
-              end do
-          end do
+       end do
 
-          grid(d)%send_pa_all%length = 0
-          grid(d)%neigh_pa_over_pole%length = level_end*2 + 2
+       grid(d)%send_pa_all%length = 0
+       grid(d)%neigh_pa_over_pole%length = level_end*2 + 2
 
-          ! level 2: set patch children to zero
-          do i = 2,5
-              grid(d)%patch%elts(i+1)%children = 0
-          end do
-      end do
-  end subroutine
+       ! level 2: set patch children to zero
+       do i = 2,5
+          grid(d)%patch%elts(i+1)%children = 0
+       end do
+    end do
+  end subroutine reset
 
   subroutine restart_full(set_thresholds, custom_load)
     external set_thresholds, custom_load
@@ -332,7 +332,7 @@ contains
        deallocate(grid(d)%mask_e%elts)
        deallocate(grid(d)%level%elts)
     end do
-    
+
     ! deallocate init_wavelets allocations
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -345,7 +345,7 @@ contains
        deallocate(wav_coeff(S_TEMP,k)%data)
     end do
     deallocate(wav_coeff)
- 
+
     ! deallocate init_wavelets allocations
     do d = 1, size(grid)
        deallocate(grid(d)%R_F_wgt%elts)
@@ -402,7 +402,7 @@ contains
           deallocate(sol(S_TEMP,k)%data(d)%elts)
        end do
     end do
-    
+
     ! deallocate init_grid allocations
     do d = 1, n_domain(rank+1)
        if (penalize) deallocate(penal%data(d)%elts)
@@ -442,7 +442,7 @@ contains
        deallocate(grid(d)%bdry_patch%elts) 
        deallocate(grid(d)%patch%elts) 
     end do
-    
+
     if (penalize) deallocate(penal%data)
 
     do k = 1, zlevels
@@ -492,7 +492,7 @@ contains
     if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
 
     call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
-    
+
     itime = nint(time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
 
@@ -512,32 +512,32 @@ contains
   end subroutine restart_full
 
   integer function writ_checkpoint(custom_dump)
-      external custom_dump, custom_load
-      character(38+4+22+4+6) command
-      cp_idx = cp_idx + 1
-      call write_load_conn(cp_idx)
-      writ_checkpoint = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
-  end function
- 
+    external custom_dump, custom_load
+    character(38+4+22+4+6) command
+    cp_idx = cp_idx + 1
+    call write_load_conn(cp_idx)
+    writ_checkpoint = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
+  end function writ_checkpoint
+
   subroutine compress_files(iwrite)
-      integer :: iwrite
+    integer :: iwrite
 
-      character(3) :: s_time
-      character(130) :: command
-  
-      write(s_time, '(i3.3)') iwrite
+    character(3) :: s_time
+    character(130) :: command
 
-      command = '\rm tmp; ls -1 fort.1' // s_time // '* > tmp' 
-      CALL system(command)
+    write(s_time, '(i3.3)') iwrite
 
-      !command = 'tar cjf fort.1' // s_time //'.tbz -T tmp --remove-files &' !JEMF
-      !CALL system(command)
+    command = '\rm tmp; ls -1 fort.1' // s_time // '* > tmp' 
+    CALL system(command)
 
-      command = '\rm tmp; ls -1 fort.2' // s_time // '* > tmp' 
-      CALL system(command)
+    !command = 'tar cjf fort.1' // s_time //'.tbz -T tmp --remove-files &' !JEMF
+    !CALL system(command)
 
-      !command = 'tar cjf fort.2' // s_time //'.tbz -T tmp --remove-files &'
-      !CALL system(command)
+    command = '\rm tmp; ls -1 fort.2' // s_time // '* > tmp' 
+    CALL system(command)
+
+    !command = 'tar cjf fort.2' // s_time //'.tbz -T tmp --remove-files &'
+    !CALL system(command)
   end subroutine compress_files
 
-end module
+end module main_mod

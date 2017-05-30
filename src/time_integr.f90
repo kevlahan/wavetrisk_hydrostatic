@@ -10,19 +10,19 @@ module time_integr_mod
   implicit none
 
   type(Float_Field), allocatable :: q1(:,:), q2(:,:), q3(:,:), q4(:,:), dq1(:,:)
-  
+
 contains
-  
+
   subroutine init_time_integr_mod()
     logical :: initialized = .False.
     integer v, d
-    
+
     if (initialized) return ! initialize only once
-    
+
     call init_comm_mod()
     call init_ops_mod()
     call init_multi_level_mod()
-    
+
     dt = 30.
     initialized = .True.
   end subroutine init_time_integr_mod
@@ -38,7 +38,7 @@ contains
        do d = 1, n_domain(rank+1)
           do v = S_MASS, S_TEMP
              start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
-             
+
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
                   alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
                   + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
@@ -102,7 +102,7 @@ contains
 
     allocate(q1(S_MASS:S_TEMP, 1:zlevels), q2(S_MASS:S_TEMP, 1:zlevels), q3(S_MASS:S_TEMP, 1:zlevels), &
          q4(S_MASS:S_TEMP, 1:zlevels), dq1(S_MASS:S_TEMP, 1:zlevels))
-    
+
     do k = 1, zlevels
        do v = S_MASS, S_TEMP
           call init_Float_Field(q1(v,k), POSIT(v))
@@ -125,10 +125,10 @@ contains
        end do
     end do
   end subroutine init_RK_mem
-  
+
   subroutine manage_RK_mem() !JEMF: untested, may need POSIT(v) somewhere
     integer d, k, v, n_new
-    
+
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
           do v = S_MASS, S_TEMP
@@ -192,12 +192,12 @@ contains
     call RK_sub_step1(sol, trend, 1.0_8, dt, sol)
     call WT_after_step(sol, level_start-1)
   end subroutine Forward_Euler
-  
+
   subroutine WT_after_step(q, l_start0)
     type(Float_Field), target :: q(S_MASS:S_TEMP, 1:zlevels)
     integer, optional :: l_start0
     integer l, ll, d, k, l_start
-    
+
     !  everything needed in terms of forward and backward wavelet transform
     !         after one time step (e.g. RK sub-step)
     !         A) compute mass wavelets and perform backwards transform
@@ -230,21 +230,21 @@ contains
              call apply_interscale_d(cpt_masstemp_wc, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
           end do
-          
+
           wav_coeff(:,k)%bdry_uptodate = .False.
        end do
 
        do l = level_start+1, level_end
           do d = 1, n_domain(rank+1)
-              do ll = 1, grid(d)%lev(l)%length
-                  call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), z_null, 0, 1)
-              end do
+             do ll = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), z_null, 0, 1)
+             end do
           end do
           wav_coeff(:,k)%bdry_uptodate = .False.
        end do
     end do
-    
+
     call inverse_wavelet_transform(q)
   end subroutine WT_after_step
-  
+
 end module time_integr_mod
