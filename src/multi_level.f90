@@ -400,20 +400,20 @@ contains
        end do
     end do
 
-    !then integrate all quantities upward
+    ! Calculate trend on finest scale
     do k = 1, zlevels
        !PRINT *, '-----integration up, zlev= ', k
        call update_bdry(q(S_VELO,k), NONE)
-
+       
        pentagon_done=.false.
-
+       
        do d = 1, size(grid)
           mass    => q(S_MASS,k)%data(d)%elts
           velo    => q(S_VELO,k)%data(d)%elts
           temp    => q(S_TEMP,k)%data(d)%elts
           h_mflux => horiz_massflux(k)%data(d)%elts
           h_tflux => horiz_tempflux(k)%data(d)%elts
-
+          
           do j = 1, grid(d)%lev(level_end)%length
              call step1(grid(d), grid(d)%lev(level_end)%elts(j), k)
           end do
@@ -471,13 +471,14 @@ contains
 
           nullify(mass, velo, temp, dvelo, h_mflux, h_tflux)
        end do
+    end do
 
-       !JEMF: lines of code dealing with multi-scale case got taken out
-
-       do l = level_end-1, level_start, -1
+    ! Calculate trend on coarser scales
+    do l = level_end-1, level_start, -1
+       do k = 1, zlevels
           call update_bdry__finish(dq(S_MASS,k), l+1)  ! <= comm dmass (l+1)
           call update_bdry__finish(dq(S_TEMP,k), l+1)  ! <= comm dmass (l+1)
-
+          
           do d = 1, size(grid)
              mass    =>  q(S_MASS,k)%data(d)%elts
              velo    =>  q(S_VELO,k)%data(d)%elts
@@ -486,6 +487,11 @@ contains
              dtemp   => dq(S_TEMP,k)%data(d)%elts
              h_mflux => horiz_massflux(k)%data(d)%elts
              h_tflux => horiz_tempflux(k)%data(d)%elts
+
+             ! Calculate surface pressure
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch(integrate_pressure_down, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+             end do
 
              do j = 1, grid(d)%lev(l)%length
                 p = grid(d)%lev(l)%elts(j)
@@ -508,7 +514,7 @@ contains
              do j = 1, grid(d)%lev(l)%length !JEMF: fix viscosity
                 !if (viscosity .ne. 0) call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
-             nullify(velo, mass)
+             nullify (velo, mass)
           end do
 
           call update_bdry__finish(horiz_massflux(k), l)  ! <= comm flux (l)
@@ -553,18 +559,21 @@ contains
 
           dq(S_VELO,k)%bdry_uptodate = .False.
        end do
+    end do
+    
+    if (advect_only) return
 
-       if (advect_only) return
-
+    ! Add gradient terms at all scales
+    do k = 1, zlevels
        do d = 1, size(grid)
           mass    =>  q(S_MASS,k)%data(d)%elts
           temp    =>  q(S_TEMP,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
-
+          
           do p = 2, grid(d)%patch%length
              call apply_onescale_to_patch(du_gradB_gradExn, grid(d), p - 1, k, 0, 0)
           end do
-          nullify(mass,temp,dvelo)
+          nullify(mass, temp,dvelo)
        end do
     end do
   end subroutine trend_ml

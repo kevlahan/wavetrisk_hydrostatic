@@ -93,7 +93,7 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8!/dble(zlevels)
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8/dble(zlevels)
 
     if (zlev.eq.zlevels) then
         sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
