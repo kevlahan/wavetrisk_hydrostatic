@@ -803,6 +803,7 @@ contains
 
     do k = 1, zlevels
        call update_bdry(wav_coeff(S_MASS,k), NONE)
+       call update_bdry(wav_coeff(S_TEMP,k), NONE)
     end do
 
     call apply_interscale(restrict_mt, min_level-1, z_null, 0, 1) ! +1 to include poles
