@@ -5,6 +5,7 @@ module ops_mod
   implicit none
 
   real(8) :: totaldmass, totalabsdmass, totaldtemp, totalabsdtemp
+  real(8) :: sum_mass, sum_temp
   integer :: tic
 
 contains
@@ -370,8 +371,6 @@ contains
     subroutine comput()
       !computes physical quantities during upward integration
 
-      call upward_nodal_integration(dom, id, zlev)
-
       !find the velocity on primal and dual grid edges, which are equal except for the length of the
       !side they are on
       u_prim_up = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
@@ -458,11 +457,18 @@ contains
     end subroutine comput
   end subroutine step1
 
-  subroutine upward_nodal_integration(dom, id, zlev)
+  subroutine integrate_pressure_up(dom, i, j, zlev, offs, dims)
     !integrate pressure/Lagrange multiplier and pressure quantities upward at all nodes
     !INCOMPRESSIBLE CASE TESTED ONLY (JEMF)
     type(Domain) dom
-    integer id, zlev
+    integer i
+    integer j
+    integer zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer id
+
+    id   = idx(i,     j,     offs, dims)
 
     if (mass(id+1) .lt. 1e-4_8) then
        print *, 'fatal error: a horizontal layer thickness is being squeezed to zero, namely, at zlev=', zlev
@@ -530,7 +536,7 @@ contains
     dom%adj_mass%elts(id+1)     = mass(id+1)
     dom%adj_temp%elts(id+1)     = temp(id+1)
     dom%adj_spec_vol%elts(id+1) = dom%spec_vol%elts(id+1)
-  end subroutine upward_nodal_integration
+  end subroutine integrate_pressure_up
 
   subroutine integrate_pressure_down(dom, i, j, zlev, offs, dims)
     !pressure is computed here during downward integration from zlev=zlevels to zlev=1
@@ -929,7 +935,7 @@ contains
     end if
   end subroutine du_gradB_gradExn
 
-  subroutine check_temp(dom, i, j, zlev, offs, dims)
+  subroutine sum_mass_temp(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
@@ -937,17 +943,12 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
-    integer idE
-    integer idN
-    integer idNE
 
     id   = idx(i,     j,     offs, dims)
 
-    if (abs(temp(id+1)).gt.(1e-2)) then
-       !PRINT *, 'zlev', zlev, 'temp', temp(id+1)
-       !stop
-    end if
-  end subroutine check_temp
+    sum_mass = sum_mass + abs(mass(id+1))
+    sum_temp = sum_temp + abs(temp(id+1))
+  end subroutine sum_mass_temp
 
   subroutine comp_offs3(dom, p, offs, dims)
     type(Domain) dom

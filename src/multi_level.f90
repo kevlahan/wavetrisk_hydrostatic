@@ -413,6 +413,10 @@ contains
           temp    => q(S_TEMP,k)%data(d)%elts
           h_mflux => horiz_massflux(k)%data(d)%elts
           h_tflux => horiz_tempflux(k)%data(d)%elts
+
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch(integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+          end do
           
           do j = 1, grid(d)%lev(level_end)%length
              call step1(grid(d), grid(d)%lev(level_end)%elts(j), k)
@@ -487,6 +491,10 @@ contains
              dtemp   => dq(S_TEMP,k)%data(d)%elts
              h_mflux => horiz_massflux(k)%data(d)%elts
              h_tflux => horiz_tempflux(k)%data(d)%elts
+
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch(integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+             end do
 
              do j = 1, grid(d)%lev(l)%length
                 p = grid(d)%lev(l)%elts(j)
