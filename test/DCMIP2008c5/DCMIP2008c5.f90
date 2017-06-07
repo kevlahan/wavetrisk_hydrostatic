@@ -3,8 +3,7 @@
 !to run: go to wavetrisk_hydrostatic/jobs/DCMIP2008c5 and execute
 !                   ../../bin/DCMIP2008c5
 
-!swap out kinetic energy (wind.f90 DYNAMICO)
-!put back multiple scales
+!TO DO swap out kinetic energy (wind.f90 DYNAMICO)
 
 module DCMIP2008c5_mod
   use main_mod
@@ -52,8 +51,8 @@ module DCMIP2008c5_mod
   integer :: CP_EVERY, iwrite, j
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, the_area
-
-  real(8), allocatable :: a_vert(:), b_vert(:), the_mass(:), prev_mass(:)
+  real(8), allocatable :: a_vert(:), b_vert(:)
+  real(8) :: initotalmass, totalmass
 
   logical const_bathymetry, wasprinted
 
@@ -83,7 +82,7 @@ contains
   subroutine check_initial_conditions()
     integer k, d, p, l
     do k = zlevels, 1, -1
-        do d = 1, size(grid)
+       do d = 1, size(grid)
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch(show_grid_data, grid(d), p - 1, k, 0, 0)
           end do
@@ -99,20 +98,20 @@ contains
   end subroutine write_and_print_step
 
   subroutine initialize_a_b_vert()
-    allocate(a_vert(zlevels+1), b_vert(zlevels+1), the_mass(zlevels), prev_mass(zlevels))
+    allocate(a_vert(zlevels+1), b_vert(zlevels+1))
 
     if (zlevels.eq.18) then
-        a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+       a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
             0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
             0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
             0.0_8, 0.0_8 /)
-        a_vert=a_vert(19:1:-1) ! DCMIP order is opposite ours
-        b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
+       a_vert=a_vert(19:1:-1) ! DCMIP order is opposite ours
+       b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
             0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
             0.953189_8, 0.985056_8, 1.0_8/)
-        b_vert=b_vert(19:1:-1)
+       b_vert=b_vert(19:1:-1)
     elseif (zlevels.eq.49) then
-        a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
+       a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
             0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
             0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
             0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
@@ -121,8 +120,8 @@ contains
             0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
             0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
             0.0_8, 0.0_8 /)
-        a_vert=a_vert(50:1:-1)
-        b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
+       a_vert=a_vert(50:1:-1)
+       b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
             0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
             0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
             0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
@@ -130,10 +129,10 @@ contains
             0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
             0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
             0.9851122_8, 1.0_8/)
-        b_vert=b_vert(50:1:-1)
+       b_vert=b_vert(50:1:-1)
     else
-        write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
-        stop
+       write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
+       stop
     end if
   end subroutine initialize_a_b_vert
 
@@ -159,8 +158,8 @@ contains
 
     !set initial surface pressure; it is given and does not need to be computed via a downward integration
     dom%surf_press%elts(id+1) = p_sp_t*exp(-((a_t*N_t*N_t*u_0_t)/(2.0_8*grav_accel_t*grav_accel_t*kappa_t))* &
-        (u_0_t/a_t+2.0_8*omega_t)*(sin(lat)*sin(lat)-1.0_8)-((N_t*N_t)/(grav_accel_t*grav_accel_t*kappa_t))* &
-        dom%surf_geopot%elts(id+1))
+         (u_0_t/a_t+2.0_8*omega_t)*(sin(lat)*sin(lat)-1.0_8)-((N_t*N_t)/(grav_accel_t*grav_accel_t*kappa_t))* &
+         dom%surf_geopot%elts(id+1))
 
     !now initialize all the layers
     !set initial mass field
@@ -168,25 +167,25 @@ contains
     lev_z=log(dom%surf_press%elts(id+1)/lev_press)*T_0_t*R_d_t/grav_accel_t !see (92) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
 
     if (zlev.eq.1) then
-        sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z
-        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+dom%surf_press%elts(id+1))
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z
+       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+dom%surf_press%elts(id+1))
     elseif (zlev.eq.zlevels) then
-        sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z - dom%adj_mass%elts(id+1)
-        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+press_infty_t)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z - dom%adj_mass%elts(id+1)
+       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+press_infty_t)
     else
-        sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z - dom%adj_mass%elts(id+1)
-        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+dom%adj_temp%elts(id+1))
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z - dom%adj_mass%elts(id+1)
+       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+dom%adj_temp%elts(id+1))
     end if
     !error of integration: deltap^3/(12*g*p^2)
 
     !print out representative layer thicknesses
     if (.not.wasprinted) then
-        if (rank .eq. 0) write(*,'(A,I2,A,F8.2,A,F9.2,A,F9.2)') &
+       if (rank .eq. 0) write(*,'(A,I2,A,F8.2,A,F9.2,A,F9.2)') &
             'zlev=', zlev, &
             ',   thickness (in metres)=', sol(S_MASS,zlev)%data(d)%elts(id+1), &
             ',   z coord (in metres)=', lev_z, &
             ',   layer upper interface pressure (in Pascals)=', lev_press
-        wasprinted=.true.
+       wasprinted=.true.
     end if
 
     !note that sol(S_MASS) is not exactly mass
@@ -196,15 +195,15 @@ contains
 
     !set initial velocity field
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
-        dom%node%elts(idE+1))
+         dom%node%elts(idE+1))
     sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1) = proj_vel(vel_fun, dom%node%elts(idNE+1), &
-        dom%node%elts(id+1))
+         dom%node%elts(id+1))
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
-        dom%node%elts(idN+1))
+         dom%node%elts(idN+1))
 
     !set initial mass-weighted potential temperature; uniform
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = T_0_t*sol(S_MASS,zlev)%data(d)%elts(id+1)* &
-            (lev_press / ref_press_t)**(-kappa_t) !mass weighted potential temperature
+         (lev_press / ref_press_t)**(-kappa_t) !mass weighted potential temperature
     !PRINT *,' potential temperature', sol(S_TEMP,zlev)%data(d)%elts(id+1)
     !PRINT *, (lev_press / ref_press)**(-kappa)
     !PRINT *, lev_press / ref_press
@@ -225,7 +224,7 @@ contains
     id = idx(i, j, offs, dims)
 
     if (zlev.eq.1) then
-        dom%surf_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/geopotdim
+       dom%surf_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/geopotdim
     end if
 
     sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)/massdim
@@ -294,25 +293,24 @@ contains
   end subroutine read_test_case_parameters
 
   subroutine vel_fun(lon, lat, u, v)
-      real(8) lon, lat
-      real(8) u, v
-      u = u_0_t*cos(lat)
-      v = 0.0_8
-  end subroutine
+    real(8) lon, lat
+    real(8) u, v
+    u = u_0_t*cos(lat)
+    v = 0.0_8
+  end subroutine vel_fun
 
-  subroutine total_mass(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, k, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
+  subroutine sum_total_mass(initialgo)
+    integer k
+    logical initialgo
 
-    id = idx(i, j, offs, dims)
-
-    !if (dom%mask_n%elts(id+1) .gt. 0) then !vertical summation in the column
-        the_mass(zlev)=the_mass(zlev)+sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)/dom%areas%elts(id+1)%hex_inv
-    !end if
-  end subroutine total_mass
+    k=1 !select vertical level
+    if (initialgo) then
+       initotalmass=integrate_hex(mass_pert, level_start, k)
+    else
+       totalmass=integrate_hex(mass_pert, level_start, k)
+       if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+    end if
+  end subroutine sum_total_mass
 
   subroutine sphere_area(dom, i, j, zlev, offs, dims)
     type(Domain) dom
@@ -326,33 +324,36 @@ contains
     the_area=the_area+1.0_8/dom%areas%elts(id+1)%hex_inv
   end subroutine sphere_area
 
-  subroutine write_and_export(k,zlev)
+  subroutine write_and_export(k)
     integer l, k, zlev
     integer u, i
 
-    !zlev = 1 ! export only one vertical level
-    write(*,*) 'writing and exporting primal grid data for zlev=', zlev
-
-    !call ctrend(sol, trend) !JEMF
-
+    call trend_ml(sol, trend)
     call pre_levelout()
+
+    zlev = zlevels ! export only one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
        maxv = -1.d63;
-       u = 10000000+10000*k+100*l+zlev
+       u = 100000+100*k
 
-       call write_level_mpi(write_primal, u, l, zlev, .True.)
+       call write_level_mpi(write_primal, u+l, l, zlev, .True.)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
           maxv(i) =  sync_max_d( maxv(i))
        end do
+       if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
+            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+       if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
+            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+       u = 200000+100*k
     end do
 
     call post_levelout()
     call barrier
-    if (rank .eq. 0) call compress_files(k) 
+    !if (rank .eq. 0) call compress_files(k)
   end subroutine write_and_export
 
   subroutine cart2sph2(cin, cout)
@@ -444,27 +445,18 @@ program DCMIP2008c5
   end if
 
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
-  write (*,*) 'DCMIP2008c5.f90 has applied initial conditions'
-  !call check_initial_conditions()
-  call find_pentagons() !find pentagons on the grid !JEMF: probably move somewhere outside of testfile
+  call sum_total_mass(.True.)
 
-  the_mass=0.0_8
-  do k = 1, zlevels
-    call apply_onescale(total_mass, 5, k, 0, 0)
-  end do
-
-       if (rank .eq. 0) write(*,'(A,18(F10.3,1X))') 'mass per layer (J=5) =', the_mass!*massdim !JEMF: 18 is hardcoded
-       if (rank .eq. 0) write(*,'(A,(F12.3,1X))') 'total mass (J=5) =', sum(the_mass)!*massdim
-prev_mass=the_mass
 
   if (rank .eq. 0) write (*,*) 'thresholds for mass, velo, temp:',  tol_mass, tol_velo, tol_temp
+  call barrier()
+
   if (rank .eq. 0) write(*,*) 'Write initial values and grid'
-  if (write_init) call write_and_export(iwrite,2) !write first zlevel to file
-        call write_and_export(iwrite,18)
+  if (write_init) call write_and_export(iwrite) !write first zlevel to file
 
   do while (time .lt. time_end)
      do k = 1, zlevels
-     call write_step(0, time, k) !write to terminal some output for the kth vertical level
+        call write_step(0, time, k) !write to terminal some output for the kth vertical level
      end do
 
      call start_timing()
@@ -480,21 +472,6 @@ prev_mass=the_mass
 
      call time_step(dt_write, aligned)
 
-     PRINT *, 'DCMIP2008c5 flag1'
-
-     the_mass=0.0_8
-     do k = 1, zlevels
-         call apply_onescale(total_mass, 5, k, 0, 0)
-     end do
-
-    if (rank .eq. 0) write(*,'(A,18(F10.3,1X))') 'mass per layer (J=5) =', the_mass!*massdim !JEMF: 18 is hardcoded
-    if (rank .eq. 0) write(*,'(A,(F12.3,1X))') 'total mass (J=5) =', sum(the_mass)!*massdim
-    if (rank .eq. 0) write(*,'(A,18(es10.2,1X))') 'relative change per layer (J=5) =', 100.0_8*(the_mass-prev_mass)/prev_mass !JEMF: 18 is hardcoded
-    if (rank .eq. 0) write(*,'(A,18(es10.2,1X))') 'relative total change (J=5) =', 100.0_8*(sum(the_mass)- &
-        sum(prev_mass))/sum(prev_mass) !JEMF: 18 is hardcoded
-
-     !prev_mass=the_mass
-
      call stop_timing()
 
      call write_and_print_step()
@@ -506,11 +483,9 @@ prev_mass=the_mass
 
      call print_load_balance()
 
-     !if (aligned) then
-        iwrite = iwrite + 1
+     if (aligned) then
         !call write_and_export(iwrite,1)
-        call write_and_export(iwrite,2)
-        call write_and_export(iwrite,18)
+        call write_and_export(iwrite)
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
         ierr = writ_checkpoint(DCMIP2008c5_dump)
 
@@ -522,10 +497,10 @@ prev_mass=the_mass
            stop
         end if
 
-        !call restart_full(set_thresholds, DCMIP2008c5_load)
+        call restart_full(set_thresholds, DCMIP2008c5_load)
         call barrier()
-     !end if
-     !stop
+     end if
+     call sum_total_mass(.False.)
   end do
   if (rank .eq. 0) then
      close(1011)
