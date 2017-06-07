@@ -404,9 +404,9 @@ contains
     do k = 1, zlevels
        !PRINT *, '-----integration up, zlev= ', k
        call update_bdry(q(S_VELO,k), NONE)
-       
+
        pentagon_done=.false.
-       
+
        do d = 1, size(grid)
           mass    => q(S_MASS,k)%data(d)%elts
           velo    => q(S_VELO,k)%data(d)%elts
@@ -417,7 +417,7 @@ contains
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch(integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
           end do
-          
+
           do j = 1, grid(d)%lev(level_end)%length
              call step1(grid(d), grid(d)%lev(level_end)%elts(j), k)
           end do
@@ -482,7 +482,7 @@ contains
        do k = 1, zlevels
           call update_bdry__finish(dq(S_MASS,k), l+1)  ! <= comm dmass (l+1)
           call update_bdry__finish(dq(S_TEMP,k), l+1)  ! <= comm dmass (l+1)
-          
+
           do d = 1, size(grid)
              mass    =>  q(S_MASS,k)%data(d)%elts
              velo    =>  q(S_VELO,k)%data(d)%elts
@@ -563,7 +563,7 @@ contains
           dq(S_VELO,k)%bdry_uptodate = .False.
        end do
     end do
-    
+
     if (advect_only) return
 
     ! Add gradient terms at all scales
@@ -572,7 +572,7 @@ contains
           mass    =>  q(S_MASS,k)%data(d)%elts
           temp    =>  q(S_TEMP,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
-          
+
           do p = 2, grid(d)%patch%length
              call apply_onescale_to_patch(du_gradB_gradExn, grid(d), p - 1, k, 0, 0)
           end do
@@ -580,53 +580,6 @@ contains
        end do
     end do
   end subroutine trend_ml
-
-  subroutine find_pentagons()
-    !find the locations of the pentagons on the grid, so that no points will be double-counted by apply_to_penta_d
-    !note that
-    integer d, k, kb
-    logical alreadyappearing
-
-    nonunique_pent_locs=0.0_8
-
-    k=1
-    do d = 1, size(grid)
-       !note that not every subdomain will yield pentagon points, if no pentagon point is found then entry will be all zero
-       call apply_to_penta_d(locate_pentagons, grid(d), level_end, k) !only look at one scale and one zlev
-       !PRINT *, 'k', k
-       k=k+1
-    end do
-
-    unique_pent_locs=0.0_8
-
-    kb=1
-    do k=10*2**(2*DOMAIN_LEVEL),2,-1
-       alreadyappearing=ANY((abs(nonunique_pent_locs(:k-1,1)-nonunique_pent_locs(k,1)).lt.(1.0e-8)).AND. &
-            (abs(nonunique_pent_locs(:k-1,2)-nonunique_pent_locs(k,2)).lt.(1.0e-8)).AND. &
-            (abs(nonunique_pent_locs(:k-1,3)-nonunique_pent_locs(k,3)).lt.(1.0e-8)) )
-       if (.not.alreadyappearing) then
-          if (maxval(abs(nonunique_pent_locs(k,:))).gt.(1.0e-10)) then !only store if entry is not zeros
-             unique_pent_locs(kb,:)=nonunique_pent_locs(k,:)
-             kb=kb+1
-          end if
-       end if
-    end do
-
-    if (maxval(abs(nonunique_pent_locs(1,:))).gt.(1.0e-10)) then !only store if entry is not zeros
-       unique_pent_locs(kb,:)=nonunique_pent_locs(1,:)
-    end if
-
-    if (kb.ne.12) then
-       write(*,*) 'fatal error: identifying incorrect number of pentagons (i.e., not 12)', kb
-       stop
-    end if
-
-    PRINT *, '(x,y,z) locations of the pentagons:'
-
-    do kb=1,12,1
-       PRINT *, unique_pent_locs(kb,1), unique_pent_locs(kb,2), unique_pent_locs(kb,3)
-    end do
-  end subroutine find_pentagons
 
   subroutine Qperp_cpt_restr(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
