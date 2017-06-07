@@ -189,8 +189,9 @@ contains
   end subroutine onelayergauss_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8)
-    tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
+    tol_mass = VELO_SCALE * sqrt(csq)/grav_accel * threshold**(1.5_8)
+    tol_velo = VELO_SCALE                        * threshold**(1.5_8)
+    tol_temp = tol_mass
   end subroutine set_thresholds
 end module onelayergauss_mod
 
@@ -228,7 +229,7 @@ program onelayergauss
   csq = grav_accel*H
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of onelayergauss: 100km
 
-  VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
+  VELO_SCALE   = grav_accel*0.5_8*0.01_8/sqrt(csq)  ! Characteristic velocity based on initial perturbation
 
   wind_stress      = .False.
   penalize         = .False.

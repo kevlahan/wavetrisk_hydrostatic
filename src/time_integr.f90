@@ -246,7 +246,7 @@ contains
        end do
     end do
 
-   call inverse_wavelet_transform (wav_coeff, q)
+   call inverse_wavelet_transform (q)
   end subroutine WT_after_step
 
 end module time_integr_mod

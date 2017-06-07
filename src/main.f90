@@ -99,7 +99,7 @@ contains
        tol_temp  = tol_temp/2.0_8
 
        call apply_init_cond()
-       call forward_wavelet_transform(wav_coeff)
+       call forward_wavelet_transform()
 
        do while(level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
@@ -111,7 +111,7 @@ contains
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
 
           call apply_init_cond()
-          call forward_wavelet_transform(wav_coeff)
+          call forward_wavelet_transform()
 
           n_active = (/&
                
@@ -145,9 +145,6 @@ contains
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
-
-    !--Initialize trend wavelets to solution wavelets to set up correct structure (will be over-written)
-    wav_coeff_trend = wav_coeff
 
     !call restart_full(set_thresholds, custom_load) !JEMF: works (without saving surface_geopotential, i.e.,
     !for zero surface geopotential) but switched off for now
@@ -205,7 +202,7 @@ contains
     if (min_level .lt. max_level) then ! adaptive simulation
        call adapt()
        if (level_end .gt. level_start) then ! currently several levels exist
-          call inverse_wavelet_transform(wav_coeff, sol, level_start)
+          call inverse_wavelet_transform(sol, level_start)
        end if
     end if
 
@@ -266,15 +263,14 @@ contains
           horiz_massflux(k)%data(d)%length = num(AT_EDGE)
           horiz_tempflux(k)%data(d)%length = num(AT_EDGE)
           do v = S_MASS, S_TEMP
-             wav_coeff(v,k)%data(d)%length       = num(POSIT(v))
-             wav_coeff_trend(v,k)%data(d)%length = num(POSIT(v))
-             trend(v,k)%data(d)%length           = num(POSIT(v))
-             sol(v,k)%data(d)%length             = num(POSIT(v))
-             dq1(v,k)%data(d)%length             = num(POSIT(v))
-             q1(v,k)%data(d)%length              = num(POSIT(v))
-             q2(v,k)%data(d)%length              = num(POSIT(v))
-             q3(v,k)%data(d)%length              = num(POSIT(v))
-             q4(v,k)%data(d)%length              = num(POSIT(v))
+             wav_coeff(v,k)%data(d)%length = num(POSIT(v))
+             trend(v,k)%data(d)%length = num(POSIT(v))
+             sol(v,k)%data(d)%length = num(POSIT(v))
+             dq1(v,k)%data(d)%length = num(POSIT(v))
+             q1(v,k)%data(d)%length = num(POSIT(v))
+             q2(v,k)%data(d)%length = num(POSIT(v))
+             q3(v,k)%data(d)%length = num(POSIT(v))
+             q4(v,k)%data(d)%length = num(POSIT(v))
           end do
        end do
 
@@ -343,20 +339,12 @@ contains
           deallocate(wav_coeff(S_VELO,k)%data(d)%elts)
           deallocate(wav_coeff(S_MASS,k)%data(d)%elts)
           deallocate(wav_coeff(S_TEMP,k)%data(d)%elts)
-          
-          deallocate(wav_coeff_trend(S_VELO,k)%data(d)%elts)
-          deallocate(wav_coeff_trend(S_MASS,k)%data(d)%elts)
-          deallocate(wav_coeff_trend(S_TEMP,k)%data(d)%elts)
        end do
        deallocate(wav_coeff(S_VELO,k)%data)
        deallocate(wav_coeff(S_MASS,k)%data)
        deallocate(wav_coeff(S_TEMP,k)%data)
-       
-       deallocate(wav_coeff_trend(S_VELO,k)%data)
-       deallocate(wav_coeff_trend(S_MASS,k)%data)
-       deallocate(wav_coeff_trend(S_TEMP,k)%data)
     end do
-    deallocate(wav_coeff, wav_coeff_trend)
+    deallocate(wav_coeff)
 
     ! deallocate init_wavelets allocations
     do d = 1, size(grid)
@@ -520,7 +508,7 @@ contains
 
     call set_thresholds()
     call adapt()
-    call inverse_wavelet_transform(wav_coeff, sol, level_start-1)
+    call inverse_wavelet_transform(sol, level_start-1)
   end subroutine restart_full
 
   integer function writ_checkpoint(custom_dump)

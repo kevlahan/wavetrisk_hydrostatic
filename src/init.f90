@@ -25,8 +25,7 @@ contains
     integer loz
 
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(S_MASS:S_TEMP,1:zlevels), trend(S_MASS:S_TEMP,1:zlevels))
-    allocate (wav_coeff(S_MASS:S_TEMP, 1:zlevels), wav_coeff_trend(S_MASS:S_TEMP, 1:zlevels))
+    allocate (sol(S_MASS:S_TEMP,1:zlevels), trend(S_MASS:S_TEMP,1:zlevels), wav_coeff(S_MASS:S_TEMP, 1:zlevels))
     allocate (horiz_massflux(1:zlevels), horiz_tempflux(1:zlevels))
 
     do k = 1, zlevels

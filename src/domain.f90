@@ -75,7 +75,7 @@ module domain_mod
 
   type(Domain), allocatable :: grid(:)
 
-  type(Float_Field), ALLOCATABLE, TARGET :: sol(:,:), trend(:,:), wav_coeff(:,:), wav_coeff_trend(:,:)
+  type(Float_Field), ALLOCATABLE, TARGET :: sol(:,:), trend(:,:), wav_coeff(:,:)
   type(Float_Field), ALLOCATABLE, TARGET :: horiz_tempflux(:), horiz_massflux(:)
 
   !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
