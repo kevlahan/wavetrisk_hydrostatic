@@ -480,7 +480,7 @@ contains
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
        else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(mass(id+1)-dom%adj_mass%elts(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(mass(id+1)+dom%adj_mass%elts(id+1))
        end if
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
