@@ -7,7 +7,7 @@ module twolayergauss_mod
 
   ! Dimensional physical parameters
   real(8), parameter :: g_star     = 9.80665
-  real(8), parameter :: rho        = 1.027e3
+  real(8), parameter :: rho_star   = 1.027e3
   real(8), parameter :: H_star     = 3.344175893265152e+03 ! mean ocean depth
   real(8), parameter :: R_star     = 6371e3
   real(8), parameter :: L_star     = R_star
@@ -24,10 +24,11 @@ module twolayergauss_mod
   ! Non-dimensional parameters
   real(8), parameter :: f0   = f0_star * Ldim/Udim
   real(8), parameter :: H    = H_star/Hdim
+  real(8), parameter :: rho  = rho_star
 
   real(8) :: csq
 
-  real(8) :: VELO_SCALE
+  real(8) :: MASS_SCALE, VELO_SCALE
 
   character(255) IC_file
 
@@ -193,8 +194,10 @@ contains
   end subroutine twolayergauss_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8)
-    tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
+    tol_mass = sqrt(csq) * VELO_SCALE/grav_accel * threshold
+    tol_velo = VELO_SCALE                        * threshold
+    !tol_temp = MASS_SCALE                        * threshold
+    tol_temp = 1e6_8
   end subroutine set_thresholds
 end module twolayergauss_mod
 
@@ -232,7 +235,8 @@ program twolayergauss
   csq = grav_accel*H
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of twolayergauss: 100km
 
-  VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
+  VELO_SCALE   = grav_accel*0.5_8*0.01_8/sqrt(csq)  ! Characteristic velocity based on initial perturbation
+  MASS_SCALE   = rho * H/real(zlevels)
 
   wind_stress      = .False.
   penalize         = .False.
@@ -270,8 +274,6 @@ program twolayergauss
      do k = 1, zlevels
         call update_bdry(sol(S_MASS,k), NONE)
      end do
-
-     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, 180.0_8*4.0_8))
 
      call set_thresholds()
 

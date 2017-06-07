@@ -182,6 +182,8 @@ contains
     call RK_sub_step4(sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), &
          dt*beta(4:5,5), sol)
 
+    
+    ! Calculate wavelet coefficients of solution at new time step on adapted grid
     call WT_after_step(sol, level_start-1)
   end subroutine RK45_opt
 
@@ -243,8 +245,54 @@ contains
           wav_coeff(:,k)%bdry_uptodate = .False.
        end do
     end do
-
-    call inverse_wavelet_transform(q)
   end subroutine WT_after_step
+  
+  subroutine WT_trend (q, l_start0)
+    ! Wavelet coefficients of trend
+
+    type(Float_Field), target :: q(S_MASS:S_TEMP, 1:zlevels)
+    integer, optional :: l_start0
+    integer l, ll, d, k, l_start
+
+    do k = 1, zlevels
+       if (present(l_start0)) then
+          l_start = l_start0
+          if (max_level .gt. min_level) call apply_interscale(restrict_u, level_start-1, z_null, 0, 0)
+       else
+          l_start = level_start
+       end if
+
+       call update_bdry(q(S_MASS,k), NONE)
+       call update_bdry(q(S_VELO,k), NONE)
+       call update_bdry(q(S_TEMP,k), NONE)
+
+       do l = l_start, level_end-1
+          do d = 1, n_domain(rank+1)
+             wc_u => wav_coeff_trend(S_VELO,k)%data(d)%elts
+             wc_m => wav_coeff_trend(S_MASS,k)%data(d)%elts
+             wc_t => wav_coeff_trend(S_TEMP,k)%data(d)%elts
+
+             velo => q(S_VELO,k)%data(d)%elts
+             mass => q(S_MASS,k)%data(d)%elts
+             temp => q(S_TEMP,k)%data(d)%elts
+
+             call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d(cpt_masstemp_wc, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
+          end do
+
+          wav_coeff_trend(:,k)%bdry_uptodate = .False.
+       end do
+
+       do l = level_start+1, level_end
+          do d = 1, n_domain(rank+1)
+             do ll = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch(compress_trend, grid(d), grid(d)%lev(l)%elts(ll), z_null, 0, 1)
+             end do
+          end do
+          wav_coeff_trend(:,k)%bdry_uptodate = .False.
+       end do
+    end do
+  end subroutine WT_trend
 
 end module time_integr_mod

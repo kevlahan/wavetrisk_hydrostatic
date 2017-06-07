@@ -219,8 +219,9 @@ contains
     I_u_inner = u
   end function I_u_inner
 
-  subroutine forward_wavelet_transform()
+  subroutine forward_wavelet_transform(wav)
     integer k, l, d
+    type(Float_Field), target :: wav(S_MASS:S_TEMP, 1:zlevels)
 
     do k = 1, zlevels
        do l = level_end - 1, level_start - 1, -1
@@ -228,30 +229,31 @@ contains
           call update_bdry(sol(S_TEMP,k), l+1)
           do d = 1, n_domain(rank+1)
              mass => sol(S_MASS,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              temp => sol(S_TEMP,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
 
              call apply_interscale_d(cpt_masstemp_wc, grid(d), l, z_null, 0, 0)
 
              nullify(wc_m, wc_t, mass, temp)
           end do
 
-          call update_bdry(wav_coeff(S_MASS,k), l+1)
-          call update_bdry(wav_coeff(S_TEMP,k), l+1)
+          call update_bdry(wav(S_MASS,k), l+1)
+          call update_bdry(wav(S_TEMP,k), l+1)
           call apply_interscale(restrict_mt, l, z_null, 0, 1) ! +1 to include poles
           call apply_interscale(restrict_u, l, z_null, 0, 0)
        end do
        sol(:,k)%bdry_uptodate = .False.
-       wav_coeff(S_MASS,k)%bdry_uptodate = .False.
-       wav_coeff(S_TEMP,k)%bdry_uptodate = .False.
+       wav(S_MASS,k)%bdry_uptodate = .False.
+       wav(S_TEMP,k)%bdry_uptodate = .False.
 
        call update_bdry(sol(S_MASS,k), NONE)
        call update_bdry(sol(S_TEMP,k), NONE) 
 
        do l = level_end - 1, level_start - 1, -1
           do d = 1, n_domain(rank+1)
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
              velo => sol(S_VELO,k)%data(d)%elts
              call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
@@ -259,12 +261,12 @@ contains
           end do
        end do
 
-       wav_coeff(S_VELO,k)%bdry_uptodate = .False.
+       wav(S_VELO,k)%bdry_uptodate = .False.
     end do
   end subroutine forward_wavelet_transform
 
-  subroutine inverse_wavelet_transform(sca_coeff, l_start0)
-    type(Float_Field), target :: sca_coeff(S_MASS:S_TEMP, 1:zlevels)
+  subroutine inverse_wavelet_transform(wav, sca, l_start0)
+    type(Float_Field), target :: wav(S_MASS:S_TEMP, 1:zlevels), sca(S_MASS:S_TEMP, 1:zlevels)
     integer, optional :: l_start0
     integer l, d, k, v, l_start
 
@@ -276,18 +278,20 @@ contains
        end if
 
        do v = S_MASS, S_TEMP
-          call update_bdry1(wav_coeff(v,k), level_start, level_end)
-          call update_bdry1(sca_coeff(v,k), l_start, level_end)
+          call update_bdry1(wav(v,k), level_start, level_end)
+          call update_bdry1(sca(v,k), l_start, level_end)
        end do
 
-       sca_coeff(:,k)%bdry_uptodate = .False.
+       sca(:,k)%bdry_uptodate = .False.
 
        do l = l_start, level_end-1
           do d = 1, n_domain(rank+1)
-             mass => sca_coeff(S_MASS,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             temp => sca_coeff(S_TEMP,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             mass => sca(S_MASS,k)%data(d)%elts
+             temp => sca(S_TEMP,k)%data(d)%elts
+
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
+
              if (present(l_start0)) then
                 call apply_interscale_d2(IWT_inject_h_and_undo_update, grid(d), l, z_null, 0, 1) ! needs wc
              else
@@ -295,15 +299,17 @@ contains
              end if
           end do
 
-          if (l .gt. l_start) call update_bdry__finish(sca_coeff(S_VELO,k), l) ! for next outer velocity
+          if (l .gt. l_start) call update_bdry__finish(sca(S_VELO,k), l) ! for next outer velocity
 
-          call update_bdry__start(sca_coeff(S_MASS,k), l+1)
-          call update_bdry__start(sca_coeff(S_TEMP,k), l+1)
+          call update_bdry__start(sca(S_MASS,k), l+1)
+          call update_bdry__start(sca(S_TEMP,k), l+1)
 
           do d = 1, n_domain(rank+1)
              if (advect_only) cycle
-             velo => sca_coeff(S_VELO,k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+             
+             velo => sca(S_VELO,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
+             
              if (present(l_start0)) then
                 call apply_interscale_d2(IWT_interpolate_u_outer_add_wc, grid(d), l, z_null, 0, 1) ! needs val
              else
@@ -312,29 +318,31 @@ contains
              call apply_to_penta_d(IWT_interp_vel_penta, grid(d), l, z_null)
           end do
 
-          call update_bdry__finish(sca_coeff(S_MASS,k), l+1)
-          call update_bdry__finish(sca_coeff(S_TEMP,k), l+1)
-          call update_bdry__start(sca_coeff(S_VELO,k), l+1)
+          call update_bdry__finish(sca(S_MASS,k), l+1)
+          call update_bdry__finish(sca(S_TEMP,k), l+1)
+          
+          call update_bdry__start(sca(S_VELO,k), l+1)
 
           do d = 1, n_domain(rank+1)
-             mass => sca_coeff(S_MASS,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             temp => sca_coeff(S_TEMP,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             mass => sca(S_MASS,k)%data(d)%elts
+             temp => sca(S_TEMP,k)%data(d)%elts
+
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
              call apply_interscale_d(IWT_interp_wc_mt, grid(d), l, z_null, 0, 0)
           end do
 
-          call update_bdry__finish(sca_coeff(S_VELO,k), l+1)
+          call update_bdry__finish(sca(S_VELO,k), l+1)
 
           do d = 1, n_domain(rank+1)
              if (advect_only) cycle
-             velo => sca_coeff(S_VELO,k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+             velo => sca(S_VELO,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
              call apply_interscale_d(IWT_interpolate_u_inner, grid(d), l, z_null, 0, 0)
           end do
 
-          if (l .lt. level_end-1) call update_bdry__start(sca_coeff(S_VELO,k), l+1) ! for next outer velocity
-          sca_coeff(:,k)%bdry_uptodate = .False.
+          if (l .lt. level_end-1) call update_bdry__start(sca(S_VELO,k), l+1) ! for next outer velocity
+          sca(:,k)%bdry_uptodate = .False.
        end do
     end do
   end subroutine inverse_wavelet_transform
@@ -781,6 +789,10 @@ contains
        call init_Float_Field(wav_coeff(S_MASS,k), POSIT(S_MASS))
        call init_Float_Field(wav_coeff(S_VELO,k), POSIT(S_VELO))
        call init_Float_Field(wav_coeff(S_TEMP,k), POSIT(S_TEMP))
+       
+       call init_Float_Field(wav_coeff_trend(S_MASS,k), POSIT(S_MASS))
+       call init_Float_Field(wav_coeff_trend(S_VELO,k), POSIT(S_VELO))
+       call init_Float_Field(wav_coeff_trend(S_TEMP,k), POSIT(S_TEMP))
     end do
 
     do d = 1, size(grid)
@@ -802,6 +814,10 @@ contains
           call init(wav_coeff(S_MASS,k)%data(d), num)
           call init(wav_coeff(S_VELO,k)%data(d), EDGE*num)
           call init(wav_coeff(S_TEMP,k)%data(d), num)
+
+          call init(wav_coeff_trend(S_MASS,k)%data(d), num)
+          call init(wav_coeff_trend(S_VELO,k)%data(d), EDGE*num)
+          call init(wav_coeff_trend(S_TEMP,k)%data(d), num)
        end do
     end do
   end subroutine init_wavelets
