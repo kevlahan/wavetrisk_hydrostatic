@@ -32,16 +32,17 @@ module DCMIP2008c5_mod
   real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
 
   ! Dimensional scaling
-  real(8), parameter :: Ldim = sqrt(d2_t)                                ! horizontal length scale
-  real(8), parameter :: Hdim = h_0_t                                     ! vertical length scale
-  real(8), parameter :: Udim = u_0_t                                     ! velocity scale
-  real(8), parameter :: Tdim = Ldim/Udim                                 ! time scale
-  real(8), parameter :: Tempdim = T_0_t                                  ! temperature (=T, not theta, from DYNAMICO) scale
-  real(8), parameter :: pdim = ref_press_t                               ! pressure scale
-  real(8), parameter :: R_ddim = R_d_t                                   ! R_d scale
-  real(8), parameter :: massdim = pdim*Hdim/(Tempdim*R_d_t)              ! mass (=rho*dz following DYNAMICO) scale
-  real(8), parameter :: specvoldim = (R_d_t*Tempdim)/pdim                ! specific volume scale
-  real(8), parameter :: geopotdim = (Hdim/(Udim*Udim))*massdim*specvoldim*Hdim ! geopotential scale
+  real(8), parameter :: Ldim = sqrt(d2_t)                             ! horizontal length scale
+  real(8), parameter :: Hdim = h_0_t                                  ! vertical length scale
+  real(8), parameter :: Udim = u_0_t                                  ! velocity scale
+  real(8), parameter :: acceldim = Udim*Udim/Hdim                     ! acceleration scale
+  real(8), parameter :: Tdim = Ldim/Udim                              ! time scale
+  real(8), parameter :: Tempdim = T_0_t                               ! temperature scale (both theta and T from DYNAMICO)
+  real(8), parameter :: pdim = ref_press_t                            ! pressure scale
+  real(8), parameter :: R_ddim = R_d_t                                ! R_d scale
+  real(8), parameter :: massdim = pdim*Hdim/(Tempdim*R_d_t)           ! mass (=rho*dz following DYNAMICO) scale
+  real(8), parameter :: specvoldim = (R_d_t*Tempdim)/pdim             ! specific volume scale
+  real(8), parameter :: geopotdim = acceldim*massdim*specvoldim/Hdim  ! geopotential scale JEMF
 
   real(8) :: csq
 
@@ -367,7 +368,7 @@ program DCMIP2008c5
 
   ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
   omega = omega_t * Tdim
-  grav_accel = grav_accel_t * Hdim/(Udim*Udim)
+  grav_accel = grav_accel_t / acceldim
   radius = a_t / Ldim
   press_infty = press_infty_t / pdim
   R_d = R_d_t / R_d_t
@@ -376,6 +377,8 @@ program DCMIP2008c5
   ref_press = ref_press_t / pdim
   cst_density = cst_density_t !not non-dimensionalized at present, NOT USED HERE
 
+  PRINT *, 'massdim=', massdim
+  PRINT *, 'Tempdim=', Tempdim
   PRINT *, 'Tdim=', Tdim
 
   VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
@@ -425,7 +428,6 @@ program DCMIP2008c5
      call time_step(dt_write, aligned)
 
      call stop_timing()
-
 
      call write_and_print_step()
 
