@@ -489,7 +489,7 @@ contains
        outv(2) = outv(2) + sol(S_MASS,m)%data(dom%id+1)%elts(id+1)
     end do
     outv(3) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
-    outv(4) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+    outv(4) = dom%surf_press%elts(id+1)
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
        outl = nint(active_level%data(dom%id+1)%elts(id+1))

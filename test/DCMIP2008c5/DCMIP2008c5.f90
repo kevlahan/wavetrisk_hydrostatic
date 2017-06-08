@@ -4,6 +4,8 @@
 !                   ../../bin/DCMIP2008c5
 
 !TO DO: swap out kinetic energy (wind.f90 DYNAMICO)
+! add coriolis correction to timestep calculation
+! do interpolation for pressure levels
 
 module DCMIP2008c5_mod
   use main_mod
