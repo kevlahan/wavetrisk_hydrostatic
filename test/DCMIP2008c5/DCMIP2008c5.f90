@@ -1,9 +1,9 @@
-!to compile low-res: go to wavetrisk_hydrostatic and execute
+!to compile with level_start=5, go to wavetrisk_hydrostatic and execute
 !                   make BUILD_DIR=build TEST_CASE=DCMIP2008c5 PARAM=param_J5
 !to run: go to wavetrisk_hydrostatic/jobs/DCMIP2008c5 and execute
 !                   ../../bin/DCMIP2008c5
 
-!TO DO swap out kinetic energy (wind.f90 DYNAMICO)
+!TO DO: swap out kinetic energy (wind.f90 DYNAMICO)
 
 module DCMIP2008c5_mod
   use main_mod
@@ -15,10 +15,10 @@ module DCMIP2008c5_mod
   real(8), parameter :: grav_accel_t = 9.80616_8 !gravitational acceleration in meters per second squared
   real(8), parameter :: omega_t      = 7.29211e-5 !Earth’s angular velocity in radians per second
   real(8), parameter :: f0_t         = 2.0_8*omega_t !Coriolis parameter
-  real(8), parameter :: u_0_t        = 0.0_8 !20.0_8 !velocity in meters per second
+  real(8), parameter :: u_0_t        = 20.0_8 !velocity in meters per second
   real(8), parameter :: T_0_t        = 288.0_8 !temperature in Kelvin
   real(8), parameter :: d2_t         = (1500.0e+03)**2 !square of half width of Gaussian mountain profile in meters
-  real(8), parameter :: h_0_t        = 0.0_8 !2000.0_8 !mountain height in meters
+  real(8), parameter :: h_0_t        = 2000.0_8 !mountain height in meters
   real(8), parameter :: lon_c_t      = MATH_PI/2.0_8 !mountain peak longitudinal location in radians
   real(8), parameter :: lat_c_t      = MATH_PI/6.0_8 !mountain peak latitudinal location in radians
   real(8), parameter :: p_sp_t       = 930.0e2 !South Pole surface pressure in Pascals
@@ -33,8 +33,8 @@ module DCMIP2008c5_mod
 
   ! Dimensional scaling
   real(8), parameter :: Ldim = sqrt(d2_t)                                ! horizontal length scale
-  real(8), parameter :: Hdim = 100.0_8 !h_0_t                                     ! vertical length scale
-  real(8), parameter :: Udim = 20.0_8 !u_0_t                                     ! velocity scale
+  real(8), parameter :: Hdim = h_0_t                                     ! vertical length scale
+  real(8), parameter :: Udim = u_0_t                                     ! velocity scale
   real(8), parameter :: Tdim = Ldim/Udim                                 ! time scale
   real(8), parameter :: Tempdim = T_0_t                                  ! temperature (=T, not theta, from DYNAMICO) scale
   real(8), parameter :: pdim = ref_press_t                               ! pressure scale
@@ -43,32 +43,28 @@ module DCMIP2008c5_mod
   real(8), parameter :: specvoldim = (R_d_t*Tempdim)/pdim                ! specific volume scale
   real(8), parameter :: geopotdim = (Hdim/(Udim*Udim))*massdim*specvoldim*Hdim ! geopotential scale
 
-  ! Non-dimensional parameters
-  real(8) :: VELO_SCALE !probably remove
+  real(8) :: csq
+
+  real(8) :: VELO_SCALE
 
   character(255) IC_file
 
-  integer :: CP_EVERY, iwrite, j
+  integer :: CP_EVERY 
 
-  real(8) :: Hmin, eta, alpha, dh_min, dh_max, the_area
+  real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin, k_tsu
+
   real(8), allocatable :: a_vert(:), b_vert(:)
+
   real(8) :: initotalmass, totalmass
 
   logical const_bathymetry, wasprinted
 
+  integer iwrite, j
+
 contains
   subroutine apply_initial_conditions()
-    integer l, k
+    integer l, d, p, k
 
-    ! check if the default values for the physical parameters in shared.f90 were properly reset
-    !if ((abs(omega-1.0_8).lt.1.0e-10).or.(abs(grav_accel-1.0_8).lt.1.0e-10).or.(abs(radius-1.0_8).lt.1.0e-10).or. &
-    !        (abs(press_infty-1.0_8).lt.1.0e-10).or.(abs(R_d-1.0_8).lt.1.0e-10).or.(abs(c_p-1.0_8).lt.1.0e-10).or.&
-    !        (abs(kappa-1.0_8).lt.1.0e-10).or.(abs(ref_press-1.0_8).lt.1.0e-10)) then
-    !    write(0,*) "One of the physical parameters' default values of 1.0_8 in shared.f90 were not reset properly"
-    !    stop
-    !end if
-
-    ! set the initial conditions
     wasprinted=.false.
     do l = level_start, level_end
        do k = 1, zlevels
@@ -79,23 +75,18 @@ contains
     end do
   end subroutine apply_initial_conditions
 
-  subroutine check_initial_conditions()
-    integer k, d, p, l
-    do k = zlevels, 1, -1
-       do d = 1, size(grid)
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch(show_grid_data, grid(d), p - 1, k, 0, 0)
-          end do
-       end do
-    end do
-  end subroutine check_initial_conditions
+  subroutine sum_total_mass(initialgo)
+    integer k
+    logical initialgo
 
-  subroutine write_and_print_step()
-    real(4) timing
-    timing = get_timing()
-    if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
-         time, dt, timing, level_end, n_active, VELO_SCALE
-  end subroutine write_and_print_step
+    k=1 !select vertical level
+    if (initialgo) then
+       initotalmass=integrate_hex(mass_pert, level_start, k)
+    else
+       totalmass=integrate_hex(mass_pert, level_start, k)
+       if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+    end if
+  end subroutine sum_total_mass
 
   subroutine initialize_a_b_vert()
     allocate(a_vert(zlevels+1), b_vert(zlevels+1))
@@ -136,6 +127,20 @@ contains
     end if
   end subroutine initialize_a_b_vert
 
+  subroutine vel_fun(lon, lat, u, v)
+    real(8) lon, lat
+    real(8) u, v
+    u = u_0_t*cos(lat)
+    v = 0.0_8
+  end subroutine vel_fun
+
+  subroutine write_and_print_step()
+    real(4) timing
+    timing = get_timing()
+    if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
+         time, dt, timing, level_end, n_active, VELO_SCALE
+  end subroutine write_and_print_step
+
   subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i, j, k, zlev
@@ -150,13 +155,13 @@ contains
     idE = idx(i + 1, j, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
-    call cart2sph(dom%node%elts(id+1), lon, lat) !lambda is longitude, phi is latitude (DCMIP2008)
+    call cart2sph(dom%node%elts(id+1), lon, lat)
 
-    !set surface geopotential (note that this really only needs to be done once (improve this later))
+    !set surface geopotential (note that this really only needs to be done once (improve this later JEMF))
     rgrc = a_t*acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
     dom%surf_geopot%elts(id+1) = grav_accel_t*h_0_t * exp(-rgrc*rgrc/d2_t)
 
-    !set initial surface pressure; it is given and does not need to be computed via a downward integration
+    !set initial surface pressure; it is given but only used to set the initial mass distribution
     dom%surf_press%elts(id+1) = p_sp_t*exp(-((a_t*N_t*N_t*u_0_t)/(2.0_8*grav_accel_t*grav_accel_t*kappa_t))* &
          (u_0_t/a_t+2.0_8*omega_t)*(sin(lat)*sin(lat)-1.0_8)-((N_t*N_t)/(grav_accel_t*grav_accel_t*kappa_t))* &
          dom%surf_geopot%elts(id+1))
@@ -188,9 +193,7 @@ contains
        wasprinted=.true.
     end if
 
-    !note that sol(S_MASS) is not exactly mass
-    !it is pseudo-density in the DYNAMICO paper but rhodz in the DYNAMICO code
-    !we choose it to be rho*dz here, as well, as to facilitate vertical integration
+    !note that sol(S_MASS) was not exactly rho*dz so far, it was just dz
     sol(S_MASS,zlev)%data(d)%elts(id+1)=sol(S_MASS,zlev)%data(d)%elts(id+1)/dom%spec_vol%elts(id+1)
 
     !set initial velocity field
@@ -201,9 +204,12 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
          dom%node%elts(idN+1))
 
-    !set initial mass-weighted potential temperature; uniform
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = T_0_t*sol(S_MASS,zlev)%data(d)%elts(id+1)* &
-         (lev_press / ref_press_t)**(-kappa_t) !mass weighted potential temperature
+    !set initial non-mass-weighted potential temperature; uniform
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = T_0_t*(lev_press / ref_press_t)**(-kappa_t)
+
+    !now make it mass-weighted
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
+
     !PRINT *,' potential temperature', sol(S_TEMP,zlev)%data(d)%elts(id+1)
     !PRINT *, (lev_press / ref_press)**(-kappa)
     !PRINT *, lev_press / ref_press
@@ -222,6 +228,9 @@ contains
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
+    idN = idx(i, j + 1, offs, dims)
+    idE = idx(i + 1, j, offs, dims)
+    idNE = idx(i + 1, j + 1, offs, dims)
 
     if (zlev.eq.1) then
        dom%surf_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/geopotdim
@@ -236,22 +245,7 @@ contains
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/Tempdim
   end subroutine nondim_sol
 
-  subroutine show_grid_data(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, k, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, d, idN, idE, idNE
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
-
-    PRINT *, 'dom%surf_press%elts(id+1)', dom%surf_press%elts(id+1)
-
-  end subroutine show_grid_data
-
   subroutine read_test_case_parameters(filename)
-    !read in test case parameters
     character(*) filename
     integer :: fid = 500
     character(255) varname
@@ -267,7 +261,7 @@ contains
     read(fid,*) varname, dt_write
     read(fid,*) varname, CP_EVERY
     read(fid,*) varname, time_end
-    read(fid,*) varname, resume 
+    read(fid,*) varname, resume
 
     if (rank.eq.0) then
        write(*,'(A,i3)')     "max_level        = ", max_level
@@ -284,45 +278,12 @@ contains
        write(*,'(A,i6)')     "resume           = ", resume
        write(*,*) ' '
     end if
-
     dt_write = dt_write * 60_8/Tdim
     time_end = time_end * 60_8**2/Tdim
 
     call initialize_a_b_vert()
     close(fid)
   end subroutine read_test_case_parameters
-
-  subroutine vel_fun(lon, lat, u, v)
-    real(8) lon, lat
-    real(8) u, v
-    u = u_0_t*cos(lat)
-    v = 0.0_8
-  end subroutine vel_fun
-
-  subroutine sum_total_mass(initialgo)
-    integer k
-    logical initialgo
-
-    k=1 !select vertical level
-    if (initialgo) then
-       initotalmass=integrate_hex(mass_pert, level_start, k)
-    else
-       totalmass=integrate_hex(mass_pert, level_start, k)
-       if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
-    end if
-  end subroutine sum_total_mass
-
-  subroutine sphere_area(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, k, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-
-    id = idx(i, j, offs, dims)
-
-    the_area=the_area+1.0_8/dom%areas%elts(id+1)%hex_inv
-  end subroutine sphere_area
 
   subroutine write_and_export(k)
     integer l, k, zlev
@@ -375,9 +336,8 @@ contains
   end subroutine DCMIP2008c5_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE*c_p/grav_accel * threshold**(3.0_8/2.0_8)
+    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8)
     tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
-    tol_temp = VELO_SCALE*c_p/grav_accel * threshold**(3.0_8/2.0_8) !JEMF: this for now
   end subroutine set_thresholds
 end module DCMIP2008c5_mod
 
@@ -393,7 +353,7 @@ program DCMIP2008c5
   character(9+len_cmd_archive) command1
   character(6+len_cmd_files) command2
 
-  integer k, l, d
+  integer j_gauge, k, l, d
   logical aligned
   character(8+8+29+14) command
   integer ierr, num
@@ -418,55 +378,47 @@ program DCMIP2008c5
 
   PRINT *, 'Tdim=', Tdim
 
-  VELO_SCALE = 1.0_8
+  VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
 
   wind_stress      = .False.
   penalize         = .False.
   bottom_friction  = .False.
-  compressible  = .True.
+  const_bathymetry = .True.
+  compressible     = .True.
 
   if (rank.eq.0) then
-     write(*,'(A,L1)') "wind_stress     = ", wind_stress
-     write(*,'(A,L1)') "penalize        = ", penalize
-     write(*,'(A,L1)') "bottom friction = ", bottom_friction
-     write(*,'(A,L1)') "compressibility = ", compressible
-  end if
-
-  write_init = .True. !(resume .eq. NONE)
-  iwrite = 0
-
-  if (.not. penalize) then
-     const_bathymetry = .True.
+     write(*,'(A,L1)') "wind_stress      = ", wind_stress
+     write(*,'(A,L1)') "penalize         = ", penalize
+     write(*,'(A,L1)') "bottom friction  = ", bottom_friction
+     write(*,'(A,L1)') "const_bathymetry = ", const_bathymetry
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
-  else
-     if (rank .eq. 0) write (*,*) 'Not supposed to run with penalization or bathymetry'
-     call finalize()
-     stop
   end if
+
+  viscosity = 0.0_8 !1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
+  friction_coeff = 3e-3_8 ! Bottom friction
+  if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
+
+  write_init = (resume .eq. NONE)
+  iwrite = 0
 
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
   call sum_total_mass(.True.)
 
-
-  if (rank .eq. 0) write (*,*) 'thresholds for mass, velo, temp:',  tol_mass, tol_velo, tol_temp
+  if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
   call barrier()
 
   if (rank .eq. 0) write(*,*) 'Write initial values and grid'
-  if (write_init) call write_and_export(iwrite) !write first zlevel to file
+  if (write_init) call write_and_export(iwrite)
 
   do while (time .lt. time_end)
-     do k = 1, zlevels
-        call write_step(0, time, k) !write to terminal some output for the kth vertical level
-     end do
-
      call start_timing()
 
      do k = 1, zlevels
         call update_bdry(sol(S_MASS,k), NONE)
-        call update_bdry(sol(S_TEMP,k), NONE) !JEMF: update velocity?
+        call update_bdry(sol(S_TEMP,k), NONE) !JEMF
      end do
 
-     VELO_SCALE = 1.0_8
+     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, 180.0_8*4.0_8))
 
      call set_thresholds()
 
@@ -474,17 +426,20 @@ program DCMIP2008c5
 
      call stop_timing()
 
+
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,A,I9)') &
-          '---------- time [h] =', time/3600.0_8*Tdim, &
+     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
+          'time [h] =', time/3600.0_8*Tdim, &
           ', dt [s] =', dt*Tdim, &
+          ', min. depth =', fd, &
+          ', VELO_SCALE =', VELO_SCALE, &
           ', d.o.f. =', sum(n_active)
 
      call print_load_balance()
 
      if (aligned) then
-        !call write_and_export(iwrite,1)
+        iwrite = iwrite + 1
         call write_and_export(iwrite)
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
         ierr = writ_checkpoint(DCMIP2008c5_dump)
@@ -500,6 +455,7 @@ program DCMIP2008c5
         call restart_full(set_thresholds, DCMIP2008c5_load)
         call barrier()
      end if
+
      call sum_total_mass(.False.)
   end do
   if (rank .eq. 0) then
