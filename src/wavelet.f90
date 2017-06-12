@@ -221,9 +221,9 @@ contains
 
   subroutine forward_wavelet_transform()
     integer k, l, d
-
-    do k = 1, zlevels
-       do l = level_end - 1, level_start - 1, -1
+   
+    do l = level_end - 1, level_start - 1, -1
+       do k = 1, zlevels
           call update_bdry(sol(S_MASS,k), l+1)
           call update_bdry(sol(S_TEMP,k), l+1)
           do d = 1, n_domain(rank+1)
@@ -242,14 +242,18 @@ contains
           call apply_interscale(restrict_mt, l, z_null, 0, 1) ! +1 to include poles
           call apply_interscale(restrict_u, l, z_null, 0, 0)
        end do
+    end do
+
+    do k = 1, zlevels
        sol(:,k)%bdry_uptodate = .False.
        wav_coeff(S_MASS,k)%bdry_uptodate = .False.
        wav_coeff(S_TEMP,k)%bdry_uptodate = .False.
 
-       call update_bdry(sol(S_MASS,k), NONE)
-       call update_bdry(sol(S_TEMP,k), NONE) 
-
-       do l = level_end - 1, level_start - 1, -1
+       call update_bdry(sol(S_VELO,k), NONE)
+    end do
+    
+    do l = level_end - 1, level_start - 1, -1
+       do k = 1, zlevels
           do d = 1, n_domain(rank+1)
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              velo => sol(S_VELO,k)%data(d)%elts
@@ -258,7 +262,9 @@ contains
              nullify(wc_u, velo)
           end do
        end do
+    end do
 
+    do k = 1, zlevels
        wav_coeff(S_VELO,k)%bdry_uptodate = .False.
     end do
   end subroutine forward_wavelet_transform
@@ -268,21 +274,23 @@ contains
     integer, optional :: l_start0
     integer l, d, k, v, l_start
 
-    do k = 1, zlevels
-       if (present(l_start0)) then
-          l_start = l_start0
-       else
-          l_start = level_start
-       end if
+    if (present(l_start0)) then
+       l_start = l_start0
+    else
+       l_start = level_start
+    end if
 
+    do k = 1, zlevels
        do v = S_MASS, S_TEMP
           call update_bdry1(wav_coeff(v,k), level_start, level_end)
           call update_bdry1(sca_coeff(v,k), l_start, level_end)
        end do
 
        sca_coeff(:,k)%bdry_uptodate = .False.
+    end do
 
-       do l = l_start, level_end-1
+    do l = l_start, level_end-1
+       do k = 1, zlevels
           do d = 1, n_domain(rank+1)
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
@@ -299,7 +307,6 @@ contains
 
           call update_bdry__start(sca_coeff(S_MASS,k), l+1)
           call update_bdry__start(sca_coeff(S_TEMP,k), l+1)
-
           do d = 1, n_domain(rank+1)
              if (advect_only) cycle
              velo => sca_coeff(S_VELO,k)%data(d)%elts
@@ -311,11 +318,10 @@ contains
              end if
              call apply_to_penta_d(IWT_interp_vel_penta, grid(d), l, z_null)
           end do
-
           call update_bdry__finish(sca_coeff(S_MASS,k), l+1)
           call update_bdry__finish(sca_coeff(S_TEMP,k), l+1)
-          call update_bdry__start(sca_coeff(S_VELO,k), l+1)
 
+          call update_bdry__start(sca_coeff(S_VELO,k), l+1)
           do d = 1, n_domain(rank+1)
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
@@ -323,7 +329,6 @@ contains
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
              call apply_interscale_d(IWT_interp_wc_mt, grid(d), l, z_null, 0, 0)
           end do
-
           call update_bdry__finish(sca_coeff(S_VELO,k), l+1)
 
           do d = 1, n_domain(rank+1)
@@ -334,7 +339,7 @@ contains
           end do
 
           if (l .lt. level_end-1) call update_bdry__start(sca_coeff(S_VELO,k), l+1) ! for next outer velocity
-          sca_coeff(:,k)%bdry_uptodate = .False.
+          sca_coeff(S_MASS:S_VELO,k)%bdry_uptodate = .False.
        end do
     end do
   end subroutine inverse_wavelet_transform
@@ -887,11 +892,11 @@ contains
                         hex(3*i-1), pt)
                    typ(-i+3) = OUTER1
                 else
-                   write(0,*), 'ERROR: overlap area', dom%id, offs_chd(1), i_chd, j_chd, 'A', does_inters0, does_inters1
+                   write(0,*) 'ERROR: overlap area', dom%id, offs_chd(1), i_chd, j_chd, 'A', does_inters0, does_inters1
                 end if
              end if
           else
-             write(0,*),'ERROR: overlap area', dom%id, offs_chd(1), i_chd, j_chd, 'B', does_inters0, does_inters1
+             write(0,*) 'ERROR: overlap area', dom%id, offs_chd(1), i_chd, j_chd, 'B', does_inters0, does_inters1
           end if
        end if
     end do

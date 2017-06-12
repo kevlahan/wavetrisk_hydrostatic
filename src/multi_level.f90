@@ -421,7 +421,7 @@ contains
           do j = 1, grid(d)%lev(level_end)%length
              call step1(grid(d), grid(d)%lev(level_end)%elts(j), k)
           end do
-          call apply_to_penta_d(post_step1, grid(d), level_end, z_null)
+          call apply_to_penta_d(post_step1, grid(d), level_end, k)
 
           nullify(mass, velo, temp, h_mflux, h_tflux)
        end do
@@ -514,8 +514,8 @@ contains
              velo => q(S_VELO,k)%data(d)%elts
              mass => q(S_MASS,k)%data(d)%elts
 
-             do j = 1, grid(d)%lev(l)%length !JEMF: fix viscosity
-                !if (viscosity .ne. 0) call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             do j = 1, grid(d)%lev(l)%length 
+                if (viscosity .ne. 0) call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (velo, mass)
           end do

@@ -28,7 +28,7 @@ module twolayergauss_mod
 
   real(8) :: csq
 
-  real(8) :: MASS_SCALE, VELO_SCALE
+  real(8) :: VELO_SCALE
 
   character(255) IC_file
 
@@ -61,7 +61,7 @@ contains
         initotalmass=integrate_hex(mass_pert, level_start, k)
     else
         totalmass=integrate_hex(mass_pert, level_start, k)
-        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+!        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 
@@ -94,14 +94,12 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8/dble(zlevels)
-
     if (zlev.eq.zlevels) then
-        sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0e-2_8*exp(-1.0e2_8*rgrc*rgrc)
+    else
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
     end if
-
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
-
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
 
@@ -194,10 +192,9 @@ contains
   end subroutine twolayergauss_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = sqrt(csq) * VELO_SCALE/grav_accel * threshold
-    tol_velo = VELO_SCALE                        * threshold
-    !tol_temp = MASS_SCALE                        * threshold
-    tol_temp = 1e6_8
+    tol_mass = VELO_SCALE * sqrt(csq)/grav_accel * threshold**(1.5_8)
+    tol_velo = VELO_SCALE                        * threshold**(1.5_8)
+    tol_temp = tol_mass
   end subroutine set_thresholds
 end module twolayergauss_mod
 
@@ -235,8 +232,15 @@ program twolayergauss
   csq = grav_accel*H
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of twolayergauss: 100km
 
-  VELO_SCALE   = grav_accel*0.5_8*0.01_8/sqrt(csq)  ! Characteristic velocity based on initial perturbation
-  MASS_SCALE   = rho * H/real(zlevels)
+  VELO_SCALE   = grav_accel*0.5_8*1e-2_8/sqrt(csq)  ! Characteristic velocity based on initial perturbation
+
+ ! Set (non-dimensional) mean values of variables
+  allocate (mean(S_MASS:S_TEMP,1:zlevels))
+  do k = 1, zlevels
+     mean(S_MASS,k) = 1.0_8/real(zlevels)
+     mean(S_TEMP,k) = mean(S_MASS,k)
+     mean(S_VELO,k) = 0.0_8
+  end do
 
   wind_stress      = .False.
   penalize         = .False.
@@ -252,7 +256,7 @@ program twolayergauss
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
-  viscosity = 0.0_8 !1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
+  viscosity = 0.0_8!1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
   friction_coeff = 3e-3_8 ! Bottom friction
   if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
 

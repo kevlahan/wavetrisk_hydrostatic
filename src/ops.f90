@@ -25,7 +25,7 @@ contains
     integer, dimension(2,9) :: dims
     integer id, idS, idW, idSW, idN, idE, idNE
     real(8) pv_SW, pv_W, pv_S, pv_LORT, pv_UPLT, pv_SW_LORT, pv_SW_UPLT, pv
-    real(8) phi(0:N_BDRY)
+    real(8) phi(0:N_BDRY), full_depth(0:N_BDRY)
 
     phi(0:NORTHEAST) = 1.0
 
@@ -39,25 +39,27 @@ contains
 
        if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
 
+       full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
+
        dom%vort%elts(TRIAG*idSW+LORT+1) = &
             (velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1) &
             -velo(EDGE*idSW+1)*dom%len%elts(EDGE*idSW+1) &
             -velo(EDGE*idS+UP+1)*dom%len%elts(EDGE*idS+UP+1))
 
        pv_SW = (dom%coriolis%elts(TRIAG*idSW+1) + dom%vort%elts(TRIAG*idSW+1))/ &
-            (mass(idW+1)*dom%areas%elts(idW+1)%part(6) &
-            + mass(id+1)*sum(dom%areas%elts(id+1)%part(4:5)) &
-            + mass(idS+1)*dom%areas%elts(idS+1)%part(3))
+            (full_depth(WEST)*dom%areas%elts(idW+1)%part(6) &
+            + full_depth(0)*sum(dom%areas%elts(id+1)%part(4:5)) &
+            + full_depth(SOUTH)*dom%areas%elts(idS+1)%part(3))
 
        pv_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + dom%vort%elts(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1))/ &
-            (mass(idW+1)*dom%areas%elts(idW+1)%part(1) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-            + mass(idN+1)*dom%areas%elts(idN+1)%part(5))
+            (full_depth(WEST)*dom%areas%elts(idW+1)%part(1) &
+            + full_depth(0)*dom%areas%elts(id+1)%part(3) &
+            + full_depth(NORTH)*dom%areas%elts(idN+1)%part(5))
 
        pv_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + dom%vort%elts(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1))/ &
-            (mass(idS+1)*dom%areas%elts(idS+1)%part(2) &
-            + mass(idE+1)*dom%areas%elts(idE+1)%part(4) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(6))
+            (full_depth(SOUTH)*dom%areas%elts(idS+1)%part(2) &
+            + full_depth(EAST)*dom%areas%elts(idE+1)%part(4) &
+            + full_depth(0)*dom%areas%elts(id+1)%part(6))
 
        dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
        dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
@@ -76,6 +78,8 @@ contains
 
        if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,id,idE,idS,idW,idNE/)+1)
 
+       full_depth(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
+       
        dom%vort%elts(LORT+TRIAG*idSW+1) = - &
             ((velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) + &
             velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)) - &
@@ -83,20 +87,20 @@ contains
 
        pv_SW_LORT = (dom%coriolis%elts(LORT+TRIAG*idSW+1) + &
             dom%vort%elts(LORT+TRIAG*idSW+1))/( &
-            mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
-            mass(idS+1)*dom%areas%elts(idS +1)%part(3) + &
-            mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
+            full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
+            full_depth(SOUTH)*dom%areas%elts(idS +1)%part(3) + &
+            full_depth(0)*sum(dom%areas%elts(id+1)%part(5:6)))
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + dom%vort%elts(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1))/ &
-            (mass(id+1)*dom%areas%elts(id  +1)%part(1) &
-            + mass(idE+1)*dom%areas%elts(idE +1)%part(3) &
-            + mass(idNE+1)*dom%areas%elts(idNE+1)%part(5))
+            (full_depth(0)*dom%areas%elts(id  +1)%part(1) &
+            + full_depth(EAST)*dom%areas%elts(idE +1)%part(3) &
+            + full_depth(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
 
        pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + &
             dom%vort%elts(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1))/ &
-            (mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) &
-            + mass(id+1)*dom%areas%elts(id  +1)%part(4) &
-            + mass(idW+1)*dom%areas%elts(idW +1)%part(6))
+            (full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) &
+            + full_depth(0)*dom%areas%elts(id  +1)%part(4) &
+            + full_depth(WEST)*dom%areas%elts(idW +1)%part(6))
 
        dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
        dom%vort%elts(TRIAG*idS +UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
@@ -117,6 +121,8 @@ contains
 
        if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,id,idS,idW,idNE/)+1)
 
+       full_depth(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
+       
        dom%vort%elts(TRIAG*idSW+UPLT+1) = &
             - velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1) &
             + velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1) &
@@ -124,20 +130,20 @@ contains
 
        pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) &
             + dom%vort%elts(TRIAG*idSW+UPLT+1)) &
-            /(mass(idSW+1)*dom%areas%elts(idSW  +1)%part(2) &
-            + mass(id+1)*sum(dom%areas%elts(id  +1)%part(3:4)) &
-            + mass(idW+1)*dom%areas%elts(idW +1)%part(6))
+            /(full_depth(SOUTHWEST)*dom%areas%elts(idSW  +1)%part(2) &
+            + full_depth(0)*sum(dom%areas%elts(id  +1)%part(3:4)) &
+            + full_depth(WEST)*dom%areas%elts(idW +1)%part(6))
 
        pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + dom%vort%elts(TRIAG*id+UPLT+1)*dom%triarea%elts(TRIAG*id+UPLT+1))/ &
-            (mass(id+1)*dom%areas%elts(id+1)%part(2) &
-            + mass(idNE+1)*dom%areas%elts(idNE+1)%part(4) &
-            + mass(idN+1)*dom%areas%elts(idN+1)%part(6))
+            (full_depth(0)*dom%areas%elts(id+1)%part(2) &
+            + full_depth(NORTHEAST)*dom%areas%elts(idNE+1)%part(4) &
+            + full_depth(NORTH)*dom%areas%elts(idN+1)%part(6))
 
        pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + &
             dom%vort%elts(TRIAG*idSW+LORT+1)*dom%triarea%elts(TRIAG*idSW+LORT+1))/ &
-            (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) &
-            + mass(idS+1)*dom%areas%elts(idS+1)%part(3) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(5))
+            (full_depth(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) &
+            + full_depth(SOUTH)*dom%areas%elts(idS+1)%part(3) &
+            + full_depth(0)*dom%areas%elts(id+1)%part(5))
 
        dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(TRIAG*idSW+UPLT+1)/dom%triarea%elts(TRIAG*idSW+UPLT+1)  
        dom%vort%elts(TRIAG*idW +LORT+1) = dom%vort%elts(TRIAG*idSW+UPLT+1)
@@ -157,25 +163,27 @@ contains
 
        if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
 
+       full_depth(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
+       
        dom%vort%elts(LORT+TRIAG*id+1) = - &
             (velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1) - &
             velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1) - &
             velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id+UP+1))
 
        pv = (dom%coriolis%elts(TRIAG*id+1) + dom%vort%elts(LORT+TRIAG*id+1))/ &          
-            (mass(idE+1)*dom%areas%elts(idE+1)%part(3) + &
-            mass(id+1)*sum(dom%areas%elts(id+1)%part(1:2)) + &
-            mass(idN+1)*dom%areas%elts(idN+1)%part(6))
+            (full_depth(EAST)*dom%areas%elts(idE+1)%part(3) + &
+            full_depth(0)*sum(dom%areas%elts(id+1)%part(1:2)) + &
+            full_depth(NORTH)*dom%areas%elts(idN+1)%part(6))
 
        pv_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + dom%vort%elts(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1))/ &
-            (mass(idW+1)*dom%areas%elts(idW+1)%part(1) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-            + mass(idN+1)*dom%areas%elts(idN+1)%part(5))
+            (full_depth(WEST)*dom%areas%elts(idW+1)%part(1) &
+            + full_depth(0)*dom%areas%elts(id+1)%part(3) &
+            + full_depth(NORTH)*dom%areas%elts(idN+1)%part(5))
 
        pv_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + dom%vort%elts(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1))/ &
-            (mass(idS+1)*dom%areas%elts(idS+1)%part(2) &
-            + mass(idE+1)*dom%areas%elts(idE+1)%part(4) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(6))
+            (full_depth(SOUTH)*dom%areas%elts(idS+1)%part(2) &
+            + full_depth(EAST)*dom%areas%elts(idE+1)%part(4) &
+            + full_depth(0)*dom%areas%elts(id+1)%part(6))
 
        dom%vort%elts(LORT+TRIAG*id+1) = dom%vort%elts(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
        dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(LORT+TRIAG*id+1)
@@ -194,7 +202,7 @@ contains
     real(8) u_prim_dn, u_dual_dn, u_prim_sw, u_dual_sw, u_prim_lt, u_dual_lt
     real(8) pv_LORT, pv_UPLT, pv_S, pv_W, vort_W, vort_S, vort_LORT, vort_UPLT
     logical S_bdry, W_bdry
-    real(8) phi(0:N_BDRY)
+    real(8) phi(0:N_BDRY), full_depth(0:N_BDRY), full_temp(0:N_BDRY)
 
     call comp_offs3(dom, p, offs, dims)
 
@@ -338,19 +346,22 @@ contains
 
       if (penalize) phi(SOUTHWEST) = phi(SOUTHWEST) + alpha_m1*penal%data(dom%id+1)%elts(id+sw+1)
 
+      full_depth(SOUTHWEST) = mass(id+sw+1) + mean(S_MASS,zlev)
+      full_temp(SOUTHWEST)  = temp(id+sw+1) + mean(S_TEMP,zlev)
+      
       vort_SW = - (velo(EDGE*(id+sw)+RT+1)*dom%len%elts(EDGE*(id+sw)+RT+1) + u_prim_sw + u_prim_dn)
 
       pv_LORT = (dom%coriolis%elts(TRIAG*(id+sw)+LORT+1) + vort_SW)/( &
-           mass(id+sw+1)*dom%areas%elts(id+sw+1)%part(1) + &
-           mass(id+s+1)*dom%areas%elts(id+s +1)%part(3) + &
-           mass(id+1)*dom%areas%elts(id   +1)%part(5))
-
+           full_depth(SOUTHWEST)*dom%areas%elts(id+sw+1)%part(1) + &
+           full_depth(SOUTH)*dom%areas%elts(id+s +1)%part(3) + &
+           full_depth(0)*dom%areas%elts(id   +1)%part(5))
+      
       vort_SW = u_prim_lt + u_prim_sw + velo(EDGE*(id+sw)+UP+1)*dom%len%elts(EDGE*(id+sw)+UP+1) 
 
       pv_UPLT = (dom%coriolis%elts(TRIAG*(id+sw)+UPLT+1) + vort_SW)/( &
-           mass(id+sw+1)*dom%areas%elts(id+sw+1)%part(2) + &
-           mass(id+1)*dom%areas%elts(id   +1)%part(4) + &
-           mass(id+w+1)*dom%areas%elts(id+w +1)%part(6))
+           full_depth(SOUTHWEST)*dom%areas%elts(id+sw+1)%part(2) + &
+           full_depth(0)*dom%areas%elts(id   +1)%part(4) + &
+           full_depth(WEST)*dom%areas%elts(id+w +1)%part(6))
 
       dom%vort%elts(TRIAG*(id+w)+LORT+1) = vort_W/dom%triarea%elts(TRIAG*(id+w)+LORT+1) 
       dom%vort%elts(TRIAG*(id+s)+UPLT+1) = vort_S/dom%triarea%elts(TRIAG*(id+s)+UPLT+1) 
@@ -359,13 +370,13 @@ contains
       dom%qe%elts(EDGE*(id+sw)+DG+1) = 0.5_8*(pv_LORT+pv_UPLT)
       dom%qe%elts(EDGE*(id+s )+UP+1) = 0.5_8*(pv_LORT+pv_S)
 
-      h_mflux(EDGE*(id+s )+UP+1) = u_dual_dn*(mass(id+s+1) + mass(id+1))*0.5_8
-      h_mflux(EDGE*(id+sw)+DG+1) = u_dual_sw*(mass(id+1) + mass(id+sw+1))*0.5_8
-      h_mflux(EDGE*(id+ w)+RT+1) = u_dual_lt*(mass(id+w+1) + mass(id+1))*0.5_8
+      h_mflux(EDGE*(id+s )+UP+1) = 0.5_8*u_dual_dn*(full_depth(SOUTH) + full_depth(0))
+      h_mflux(EDGE*(id+sw)+DG+1) = 0.5_8*u_dual_sw*(full_depth(0)     + full_depth(SOUTHWEST))
+      h_mflux(EDGE*(id+ w)+RT+1) = 0.5_8*u_dual_lt*(full_depth(WEST)  + full_depth(0))
 
-      h_tflux(EDGE*(id+s )+UP+1) = u_dual_dn*(temp(id+s+1) + temp(id+1))*0.5_8
-      h_tflux(EDGE*(id+sw)+DG+1) = u_dual_sw*(temp(id+1) + temp(id+sw+1))*0.5_8
-      h_tflux(EDGE*(id+ w)+RT+1) = u_dual_lt*(temp(id+w+1) + temp(id+1))*0.5_8
+      h_tflux(EDGE*(id+s )+UP+1) = 0.5_8*u_dual_dn*(full_temp(SOUTH) + full_temp(0))
+      h_tflux(EDGE*(id+sw)+DG+1) = 0.5_8*u_dual_sw*(full_temp(0)     + full_temp(SOUTHWEST))
+      h_tflux(EDGE*(id+ w)+RT+1) = 0.5_8*u_dual_lt*(full_temp(WEST)  + full_temp(0))
     end subroutine comp_ijmin
 
     subroutine comput()
@@ -385,15 +396,18 @@ contains
       if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + &
            alpha_m1*penal%data(dom%id+1)%elts(id+(/0,n,e,s,w,ne/)+1)
 
+      full_depth(0:NORTHEAST) = mass(id+(/0,n,e,s,w,ne/)+1) + mean(S_MASS,zlev)
+      full_temp(0:NORTHEAST)  = temp(id+(/0,n,e,s,w,ne/)+1) + mean(S_TEMP,zlev)
+
       !find the horizontal mass flux as the velocity multiplied by the mass there
-      h_mflux(EDGE*id+UP+1) = u_dual_up*(mass(id+1) + mass(id+n+1))*0.5_8
-      h_mflux(EDGE*id+DG+1) = u_dual_dg*(mass(id+ne+1) + mass(id+1))*0.5_8
-      h_mflux(EDGE*id+RT+1) = u_dual_rt*(mass(id+1) + mass(id+e+1))*0.5_8
+      h_mflux(EDGE*id+UP+1) = u_dual_up*(full_depth(0) + full_depth(NORTH))*0.5_8
+      h_mflux(EDGE*id+DG+1) = u_dual_dg*(full_depth(NORTHEAST) + full_depth(0))*0.5_8
+      h_mflux(EDGE*id+RT+1) = u_dual_rt*(full_depth(0) + full_depth(EAST))*0.5_8
 
       !find the horizontal temperature flux as the velocity multiplied by the temp there
-      h_tflux(EDGE*id+UP+1) = u_dual_up*(temp(id+1) + temp(id+n+1))*0.5_8
-      h_tflux(EDGE*id+DG+1) = u_dual_dg*(temp(id+ne+1) + temp(id+1))*0.5_8
-      h_tflux(EDGE*id+RT+1) = u_dual_rt*(temp(id+1) + temp(id+e+1))*0.5_8
+      h_tflux(EDGE*id+UP+1) = u_dual_up*(full_temp(0) + full_temp(NORTH))*0.5_8
+      h_tflux(EDGE*id+DG+1) = u_dual_dg*(full_temp(NORTHEAST) + full_temp(0))*0.5_8
+      h_tflux(EDGE*id+RT+1) = u_dual_rt*(full_temp(0) + full_temp(EAST))*0.5_8
 
       !find additional primal and dual velocities: down, southwest (counter-diagonal), left
       u_prim_dn = velo(EDGE*(id+s)+UP+1)*dom%len%elts(EDGE*(id+s)+UP+1)
@@ -429,24 +443,24 @@ contains
            u_prim_rt + velo(EDGE*(id+S)+DG+1)*dom%len%elts(EDGE*(id+S)+DG+1) + u_prim_dn
 
       pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + dom%vort%elts(TRIAG*id+LORT+1))/( &
-           mass(id+1)*dom%areas%elts(id   +1)%part(1) + &
-           mass(id+e+1)*dom%areas%elts(id+E +1)%part(3) + &
-           mass(id+ne+1)*dom%areas%elts(id+NE+1)%part(5))
+           full_depth(0)*dom%areas%elts(id   +1)%part(1) + &
+           full_depth(EAST)*dom%areas%elts(id+E +1)%part(3) + &
+           full_depth(NORTHEAST)*dom%areas%elts(id+NE+1)%part(5))
 
       pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + dom%vort%elts(TRIAG*id+UPLT+1))/( &
-           mass(id+1)*dom%areas%elts(id   +1)%part(2) + &
-           mass(id+ne+1)*dom%areas%elts(id+NE+1)%part(4) + &
-           mass(id+n+1)*dom%areas%elts(id+N +1)%part(6))
+           full_depth(0)*dom%areas%elts(id   +1)%part(2) + &
+           full_depth(NORTHEAST)*dom%areas%elts(id+NE+1)%part(4) + &
+           full_depth(NORTH)*dom%areas%elts(id+N +1)%part(6))
 
       pv_W = (dom%coriolis%elts(TRIAG*(id+W)+LORT+1) + vort_W)/( &
-           mass(id+w+1)*dom%areas%elts(id+W+1)%part(1) + &
-           mass(id+1)*dom%areas%elts(id  +1)%part(3) + &
-           mass(id+n+1)*dom%areas%elts(id+N+1)%part(5))
+           full_depth(WEST)*dom%areas%elts(id+W+1)%part(1) + &
+           full_depth(0)*dom%areas%elts(id  +1)%part(3) + &
+           full_depth(NORTH)*dom%areas%elts(id+N+1)%part(5))
 
       pv_S = (dom%coriolis%elts(TRIAG*(id+S)+UPLT+1) + vort_S)/( &
-           mass(id+s+1)*dom%areas%elts(id+S+1)%part(2) + &
-           mass(id+e+1)*dom%areas%elts(id+E+1)%part(4) + &
-           mass(id+1)*dom%areas%elts(id  +1)%part(6))
+           full_depth(SOUTH)*dom%areas%elts(id+S+1)%part(2) + &
+           full_depth(EAST)*dom%areas%elts(id+E+1)%part(4) + &
+           full_depth(0)*dom%areas%elts(id  +1)%part(6))
 
       dom%vort%elts(TRIAG*id+LORT+1) = dom%vort%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1) 
       dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(TRIAG*id+UPLT+1)/dom%triarea%elts(TRIAG*id+UPLT+1) 
@@ -459,7 +473,6 @@ contains
 
   subroutine integrate_pressure_up(dom, i, j, zlev, offs, dims)
     !integrate pressure/Lagrange multiplier and pressure quantities upward at all nodes
-    !INCOMPRESSIBLE CASE TESTED ONLY (JEMF)
     type(Domain) dom
     integer i
     integer j
@@ -470,8 +483,9 @@ contains
 
     id   = idx(i,     j,     offs, dims)
 
-    if (mass(id+1) .lt. 1e-4_8) then
+    if (mass(id+1)+mean(S_MASS,zlev) .lt. 1e-4_8) then
        print *, 'fatal error: a horizontal layer thickness is being squeezed to zero, namely, at zlev=', zlev
+       write(6,*) mass(id+1), mean(S_MASS,zlev)
        stop
     end if
 
@@ -893,6 +907,7 @@ contains
     integer idE
     integer idN
     integer idNE
+    real(8) full_pot_temp(0:N_BDRY)
 
     id   = idx(i,     j,     offs, dims)
     idE  = idx(i + 1, j,     offs, dims)
@@ -902,35 +917,40 @@ contains
     !see DYNAMICO between (23)-(25), geopotential still known from step1_upw
     !the theta multiplying the exner gradient is the edge-averaged non-mass-weighted potential temperature
 
+    full_pot_temp(0)         = (temp(id+1)   + mean(S_TEMP,zlev))/(mass(id+1)   + mean(S_MASS,zlev))
+    full_pot_temp(NORTH)     = (temp(idN+1)  + mean(S_TEMP,zlev))/(mass(idN+1)  + mean(S_MASS,zlev))
+    full_pot_temp(EAST)      = (temp(idE+1)  + mean(S_TEMP,zlev))/(mass(idE+1)  + mean(S_MASS,zlev))
+    full_pot_temp(NORTHEAST) = (temp(idNE+1) + mean(S_TEMP,zlev))/(mass(idNE+1) + mean(S_MASS,zlev))
+    
     if (compressible) then
        dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - &
             (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)) &
-            - 0.5_8*(temp(id+1)/mass(id+1)+temp(idE+1)/mass(idE+1))* &
+            - 0.5_8*(full_pot_temp(0)+full_pot_temp(EAST))* &
             (dom%exner%elts(idE+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+RT+1)
 
        dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - &
             (dom%bernoulli%elts(id+1) - dom%bernoulli%elts(idNE+1)) &
-            - 0.5_8*(temp(id+1)/mass(id+1)+temp(idNE+1)/mass(idNE+1))* &
+            - 0.5_8*(full_pot_temp(0)+full_pot_temp(NORTHEAST))* &
             (dom%exner%elts(id+1) - dom%exner%elts(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
 
        dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - &
             (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)) &
-            - 0.5_8*(temp(id+1)/mass(id+1)+temp(idN+1)/mass(idN+1)) * &
+            - 0.5_8*(full_pot_temp(0)+full_pot_temp(NORTH)) * &
             (dom%exner%elts(idN+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+UP+1)
     else !incompressible case
        dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - &
             (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)) &
-            - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idE+1)/mass(idE+1))* &
+            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(EAST))* &
             (dom%exner%elts(idE+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+RT+1)
 
        dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - &
             (dom%bernoulli%elts(id+1) - dom%bernoulli%elts(idNE+1)) &
-            - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idNE+1)/mass(idNE+1))* &
+            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTHEAST))* &
             (dom%exner%elts(id+1) - dom%exner%elts(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
 
        dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - &
             (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)) &
-            - 0.5_8*(2.0_8-temp(id+1)/mass(id+1)-temp(idN+1)/mass(idN+1)) * &
+            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTH)) * &
             (dom%exner%elts(idN+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+UP+1)
     end if
   end subroutine du_gradB_gradExn

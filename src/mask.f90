@@ -314,10 +314,14 @@ contains
        call update_bdry1(wav_coeff(S_TEMP,k), level_start, level_end)
     end do
 
-    call apply_onescale(mask_tol, level_end, z_null, -1, 2)
+    do k = 1, zlevels
+       call apply_onescale(mask_tol, level_end, k, -1, 2)
+    end do
 
     do l = level_end-1, level_start, -1
-       call apply_onescale(mask_tol, l, z_null, -1, 2)
+       do k = 1, zlevels
+          call apply_onescale(mask_tol, l, k, -1, 2)
+       end do
        call apply_interscale(mask_active_nodes, l, z_null,  0, 1)
        call apply_interscale(mask_active_edges, l, z_null, -1, 1)
        call comm_masks_mpi(l)
@@ -329,24 +333,21 @@ contains
     integer i
     integer j
     integer zlev
-    integer k
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
     integer e
+    integer mask_mass, mask_temp, mask_velo
 
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) .eq. FROZEN) return
 
-    do k = 1, zlevels
-       call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1), tol_mass)
-       call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1), tol_temp)
-       do e = 1, EDGE
-          call set_active_mask(dom%mask_e%elts(EDGE*id+e), wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e), tol_velo)
-       end do
+    call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_MASS,zlev)%data(dom%id+1)%elts(id+1), tol_mass)
+    call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_TEMP,zlev)%data(dom%id+1)%elts(id+1), tol_temp)
+    do e = 1, EDGE
+       call set_active_mask(dom%mask_e%elts(EDGE*id+e), wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e), tol_velo)
     end do
-
   end subroutine mask_tol
 
   subroutine set_active_mask(mask, wc, tol)
@@ -656,7 +657,7 @@ contains
     end if
   end subroutine mask_active_nodes
 
-  subroutine mask_n_if_all_u(dom, i, j, zlev, offs, dims)
+  subroutine mask_n_if_all_e(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
@@ -682,9 +683,9 @@ contains
 
        call set_at_least(dom%mask_n%elts(id+1), ADJZONE)
     end if
-  end subroutine mask_n_if_all_u
+  end subroutine mask_n_if_all_e
 
-  subroutine mask_e_if_both_p(dom, i, j, zlev, offs, dims)
+  subroutine mask_e_if_both_n(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
@@ -719,7 +720,7 @@ contains
        call set_at_least(dom%mask_e%elts(EDGE*id+UP+1), ADJZONE)
     end if
 
-  end subroutine mask_e_if_both_p
+  end subroutine mask_e_if_both_n
 
   subroutine complete_masks()
     integer l
@@ -728,7 +729,7 @@ contains
 
     do l = level_end-1, level_start, -1
        call apply_interscale(mask_adj_scale, l, z_null, 0, 1)
-       call apply_onescale(mask_e_if_both_p, l+1, z_null, 0, 0)
+       call apply_onescale(mask_e_if_both_n, l+1, z_null, 0, 0)
     end do
 
     call comm_masks_mpi(NONE)
@@ -746,11 +747,11 @@ contains
     end if
 
     do l = level_end-1, level_start+1, -1
-       call apply_onescale(mask_n_if_all_u, l+1, z_null, 0, 1)
+       call apply_onescale(mask_n_if_all_e, l+1, z_null, 0, 1)
        call apply_interscale(inj_p_adjzone, l,   z_null, 0, 1)
     end do
 
-    if (level_start+1 .le. level_end) call apply_onescale(mask_n_if_all_u, level_start+1, z_null, 0, 1)
+    if (level_start+1 .le. level_end) call apply_onescale(mask_n_if_all_e, level_start+1, z_null, 0, 1)
   end subroutine complete_masks
 
 end module mask_mod

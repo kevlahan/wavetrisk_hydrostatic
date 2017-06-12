@@ -126,7 +126,7 @@ contains
     end do
   end subroutine init_RK_mem
 
-  subroutine manage_RK_mem() !JEMF: untested, may need POSIT(v) somewhere
+  subroutine manage_RK_mem()
     integer d, k, v, n_new
 
     do k = 1, zlevels
@@ -134,11 +134,11 @@ contains
           do v = S_MASS, S_TEMP
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
              if (n_new .gt. 0) then
-                call extend(q1(v,k)%data(d),  n_new, dble(2-v))
-                call extend(q2(v,k)%data(d),  n_new, dble(2-v))
-                call extend(q3(v,k)%data(d),  n_new, dble(2-v))
-                call extend(q4(v,k)%data(d),  n_new, dble(2-v))
-                call extend(dq1(v,k)%data(d), n_new, dble(2-v))
+                call extend(q1(v,k)%data(d),  n_new, dble(3-v))
+                call extend(q2(v,k)%data(d),  n_new, dble(3-v))
+                call extend(q3(v,k)%data(d),  n_new, dble(3-v))
+                call extend(q4(v,k)%data(d),  n_new, dble(3-v))
+                call extend(dq1(v,k)%data(d), n_new, dble(3-v))
              end if
           end do
        end do

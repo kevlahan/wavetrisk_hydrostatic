@@ -46,7 +46,7 @@ contains
   subroutine initialize(apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
     external apply_init_cond, set_thresholds, custom_dump, custom_load
     character(20+4+4) command
-    integer k, stage, ierr
+    integer k, d, stage, ierr
 
     if (min_level .gt. max_level) then
        if (rank .eq. 0) write(*,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
@@ -113,18 +113,20 @@ contains
           call apply_init_cond()
           call forward_wavelet_transform()
 
-          n_active = (/&
-               
-               sum((/(count((abs(wav_coeff(S_MASS,1)%data(k)%elts(node_level_start(k) : &
-               grid(k)%node%length)) .gt. tol_mass) &
-               .or. (abs(wav_coeff(S_TEMP,1)%data(k)%elts(node_level_start(k) : &
-               grid(k)%node%length)) .gt. tol_temp)), k = 1, n_domain(rank+1)) /)), &
-               
-               
-               sum((/(count(abs(wav_coeff(S_VELO,1)%data(k)%elts(edge_level_start(k): &
-               grid(k)%midpt%length)) .gt. tol_velo), k = 1, n_domain(rank+1)) /)) &
-               
-               /)
+          n_active = 0.0_8
+          do k = 1, zlevels
+             n_active = n_active + (/ &
+                  sum((/(count(( &
+             abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_mass) &
+                  .or. &
+             abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_temp), &
+                  d = 1, n_domain(rank+1)) /)), &
+                  
+                  sum((/(count( &
+             abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d): grid(d)%midpt%length)) .gt. tol_velo), &
+                  d = 1, n_domain(rank+1)) /)) &
+                  /)
+          end do
 
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
@@ -146,7 +148,7 @@ contains
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
 
-    !call restart_full(set_thresholds, custom_load) !JEMF: works (without saving surface_geopotential, i.e.,
+    call restart_full(set_thresholds, custom_load) !JEMF: works (without saving surface_geopotential, i.e.,
     !for zero surface geopotential) but switched off for now
   end subroutine initialize
 

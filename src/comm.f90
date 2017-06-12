@@ -1073,30 +1073,30 @@ contains
 
     subroutine cpt_dt()
       integer k
-      real(8) vel, full_depth
+      real(8) vel, full_mass
       real(8) phi, csq, dx
 
       phi = 1.0
       if (penalize) phi = phi + alpha_m1*penal%data(dom%id+1)%elts(id+1)
 
-      full_depth = 0.0_8
+      full_mass = 0.0_8
       do k = 1, zlevels
-         full_depth = full_depth + sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+         full_mass = full_mass + sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)
          if (isnan(sol(S_MASS,k)%data(dom%id+1)%elts(id+1))) then
             write(0,*) "ERROR: a mass element is NaN"
             stop
          endif
       end do
 
-      if (full_depth .le. 0) then ! sqrt will give NaN
+      if (full_mass .le. 0) then ! sqrt will give NaN
          where_error = dom%node%elts(id+1)
       end if
 
-      fd = min(fd, full_depth)
+      fd = min(fd, full_mass)
 
       dx   = min(dom%len%elts(EDGE*id+e), dom%pedlen%elts(id*EDGE+e))
 
-      csq  = grav_accel*full_depth
+      csq  = grav_accel*full_mass
 
       vel = -1.0e16
       do k = 1, zlevels

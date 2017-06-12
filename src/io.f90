@@ -225,7 +225,7 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims
 
     id = idx(i, j, offs, dims)
-    mass_pert = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+    mass_pert = sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)
   end function mass_pert
 
   real(8) function pot_energy(dom, i, j, k, offs, dims)
@@ -483,12 +483,12 @@ contains
     idSW = idx(i - 1, j - 1, offs, dims)
     idS  = idx(i,     j - 1, offs, dims)
 
-    outv(1) = sol(S_TEMP,k)%data(dom%id+1)%elts(id+1)/sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+    outv(1) = sol(S_TEMP,k)%data(dom%id+1)%elts(id+1)/sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_TEMP,k)
     outv(2) = 0.0_8
     do m = 1, zlevels
-       outv(2) = outv(2) + sol(S_MASS,m)%data(dom%id+1)%elts(id+1)
+       outv(2) = outv(2) + sol(S_MASS,m)%data(dom%id+1)%elts(id+1) + mean(S_MASS,m)
     end do
-    outv(3) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+    outv(3) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)
     outv(4) = dom%surf_press%elts(id+1)
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
