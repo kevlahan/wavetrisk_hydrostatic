@@ -362,7 +362,7 @@ contains
     R_d = 1.0_8
     c_p = 1.0_8
     kappa = R_d/c_p
-    ref_press = 1.0_8
+    ref_press = 0.0_8
 
     ! default values
     threshold = 0.0_8
