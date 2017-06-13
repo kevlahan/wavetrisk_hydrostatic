@@ -25,7 +25,7 @@ contains
     real(8) integrated_mass(zlevels), integrated_temp(zlevels), pressure(zlevels)
     real(8) integrated_velo(zlevels,EDGE)
     real(8) new_mass(zlevels), new_temp(zlevels), new_velo(zlevels,EDGE) !all are integrated quantities
-    real(8) dep_stencil(7), indep_stencil(7), top_press, bottom_press, centre_press
+    real(8) top_press, bottom_press, centre_press
     integer stencil(7)
 
     d = dom%id + 1
@@ -46,7 +46,7 @@ contains
        end do
     end do
 
-    !calculate pressure as it will be the independent coordinate
+    !calculate current pressure distribution as it will be the independent coordinate
     pressure(1)=0.5_8*grav_accel*sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)
     do k = 2 , zlevels
        pressure(k)=integrated_mass(k-1)+ 0.5_8*grav_accel* &
@@ -54,7 +54,7 @@ contains
             sol(S_MASS,zlevels-k+2)%data(dom%id+1)%elts(id+1))
     end do
 
-    !interpolate using the moving stencil
+    !interpolate using the moving stencil (note that in case of extreme shifting of the layers, we may extrapolate)
     do k = 1, zlevels
        top_press=a_vert(k+1)*ref_press+b_vert(k+1)*dom%surf_press%elts(id+1) !should be ref_press_t JEMF
        bottom_press=a_vert(k)*ref_press+b_vert(k)*dom%surf_press%elts(id+1)
@@ -72,6 +72,9 @@ contains
           new_velo(k,e)=seven_point_interp(pressure(stencil), integrated_velo(stencil,e), centre_press)
        end do
     end do
+
+    !assign values to mass, temp and velo field
+    !...
   end subroutine remap_lagrangian
 
   function seven_point_interp(xv, yv, xd)
