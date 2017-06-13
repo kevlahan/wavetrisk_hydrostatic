@@ -74,7 +74,18 @@ contains
     end do
 
     !assign values to mass, temp and velo field
-    !...
+    sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)=integrated_mass(1)
+    sol(S_TEMP,zlevels)%data(dom%id+1)%elts(id+1)=integrated_temp(1)
+    do e = 1, EDGE
+       sol(S_VELO,zlevels)%data(dom%id+1)%elts(EDGE*id+e)=integrated_velo(1,e)
+    end do
+    do k = 2 , zlevels
+       sol(S_MASS,zlevels-k+1)%data(dom%id+1)%elts(id+1)=integrated_mass(k)-integrated_mass(k-1)
+       sol(S_TEMP,zlevels-k+1)%data(dom%id+1)%elts(id+1)=integrated_temp(k)-integrated_temp(k-1)
+       do e = 1, EDGE
+          sol(S_VELO,zlevels-k+1)%data(dom%id+1)%elts(EDGE*id+e)=integrated_velo(k,e)-integrated_velo(k-1,e)
+       end do
+    end do
   end subroutine remap_lagrangian
 
   function seven_point_interp(xv, yv, xd)
