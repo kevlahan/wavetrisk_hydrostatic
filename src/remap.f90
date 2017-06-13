@@ -19,8 +19,10 @@ contains
     integer, dimension(2,9) :: dims
     integer fid
     integer id, idW, idSW, idS
-    integer d, outl
-    real(8) integrated_mass(zlevels), pressure(zlevels)
+    integer e, d
+    real(8) integrated_mass(zlevels), integrated_temp(zlevels), pressure(zlevels)
+    real(8) integrated_velo(zlevels,EDGE)
+    real(8) new_mass(zlevels), new_temp(zlevels), new_velo(zlevels,EDGE)
 
     d = dom%id + 1
 
@@ -29,14 +31,26 @@ contains
     idSW = idx(i - 1, j - 1, offs, dims)
     idS  = idx(i,     j - 1, offs, dims)
 
-    !integrate all quantities vertically downward
-    integrated_mass(1)=0.5_8*(sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)+mean(S_MASS,zlevels))
-    pressure(1)=grav_accel*integrated_mass(1)
+    !integrate all quantities vertically downward and calculate pressure
+    integrated_mass(1)=sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)
+    integrated_temp(1)=sol(S_TEMP,zlevels)%data(dom%id+1)%elts(id+1)
+    do e = 1, EDGE
+       integrated_velo(1,e)=sol(S_VELO,zlevels)%data(dom%id+1)%elts(EDGE*id+e)
+    end do
     do k = 2 , zlevels
-       integrated_mass(k)=integrated_mass(k-1)+ 0.5_8* &
-            (sol(S_MASS,zlevels-k+1)%data(dom%id+1)%elts(id+1)+mean(S_MASS,zlevels-k+1)+ &
-            sol(S_MASS,zlevels-k+2)%data(dom%id+1)%elts(id+1)+mean(S_MASS,zlevels-k+2))
-       pressure(k)=grav_accel*integrated_mass(k)
+       integrated_mass(k)=integrated_mass(k-1)+sol(S_MASS,zlevels-k+1)%data(dom%id+1)%elts(id+1)
+       integrated_temp(k)=integrated_temp(k-1)+sol(S_TEMP,zlevels-k+1)%data(dom%id+1)%elts(id+1)
+       do e = 1, EDGE
+          integrated_velo(k,e)=integrated_velo(k-1,e)+sol(S_VELO,zlevels-k+1)%data(dom%id+1)%elts(EDGE*id+e)
+       end do
+    end do
+
+    !calculate pressure as it will be the independent coordinate
+    pressure(1)=0.5_8*grav_accel*sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)
+    do k = 2 , zlevels
+       pressure(k)=integrated_mass(k-1)+ 0.5_8*grav_accel* &
+            (sol(S_MASS,zlevels-k+1)%data(dom%id+1)%elts(id+1)+ &
+            sol(S_MASS,zlevels-k+2)%data(dom%id+1)%elts(id+1))
     end do
   end subroutine remap_lagrangian
 

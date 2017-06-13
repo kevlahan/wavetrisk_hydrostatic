@@ -303,6 +303,8 @@ module shared_mod
   real(8) unique_pent_locs(12,3)
   logical pentagon_done(12)
 
+  real(8), allocatable :: a_vert(:), b_vert(:)
+
 contains
 
   subroutine init_shared_mod()
