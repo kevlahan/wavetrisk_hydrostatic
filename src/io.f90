@@ -804,9 +804,8 @@ contains
     do k = 1, zlevels
        call update_bdry(wav_coeff(S_MASS,k), NONE)
        call update_bdry(wav_coeff(S_TEMP,k), NONE)
+       call apply_interscale(restrict_mt, min_level-1, k, 0, 1) ! +1 to include poles
     end do
-
-    call apply_interscale(restrict_mt, min_level-1, z_null, 0, 1) ! +1 to include poles
 
     do d = 1, size(grid)
        write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)

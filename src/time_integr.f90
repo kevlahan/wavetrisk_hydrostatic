@@ -209,7 +209,7 @@ contains
     do k = 1, zlevels
        if (present(l_start0)) then
           l_start = l_start0
-          if (max_level .gt. min_level) call apply_interscale(restrict_u, level_start-1, z_null, 0, 0)
+          if (max_level .gt. min_level) call apply_interscale(restrict_u, level_start-1, k, 0, 0)
        else
           l_start = level_start
        end if
@@ -239,14 +239,14 @@ contains
        do l = level_start+1, level_end
           do d = 1, n_domain(rank+1)
              do ll = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), z_null, 0, 1)
+                call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), k, 0, 1)
              end do
           end do
           wav_coeff(:,k)%bdry_uptodate = .False.
        end do
     end do
 
-   call inverse_wavelet_transform (q)
+    call inverse_wavelet_transform (q)
   end subroutine WT_after_step
 
 end module time_integr_mod

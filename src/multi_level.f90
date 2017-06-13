@@ -475,11 +475,9 @@ contains
 
           nullify(mass, velo, temp, dvelo, h_mflux, h_tflux)
        end do
-    end do
 
-    ! Calculate trend on coarser scales
-    do l = level_end-1, level_start, -1
-       do k = 1, zlevels
+       ! Calculate trend on coarser scales
+       do l = level_end-1, level_start, -1
           call update_bdry__finish(dq(S_MASS,k), l+1)  ! <= comm dmass (l+1)
           call update_bdry__finish(dq(S_TEMP,k), l+1)  ! <= comm dmass (l+1)
 

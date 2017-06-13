@@ -30,20 +30,17 @@ contains
     integer e, k
 
     id = idx(i, j, offs, dims)
-    do k = 1, zlevels
-       if (dom%mask_n%elts(id+1) .lt. ADJZONE) then
-            wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1) = 0.0_8
-            wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1) = 0.0_8
-       end if
-       do e = 1, EDGE
-          if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) &
-               wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
-       end do
+    if (dom%mask_n%elts(id+1) .lt. ADJZONE) then
+       wav_coeff(S_MASS,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+       wav_coeff(S_TEMP,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+    end if
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
     end do
   end subroutine compress
 
   subroutine adapt()
-    integer l
+    integer k, l
 
     do l = level_start+1, level_end
        call apply_onescale__int(set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
@@ -71,7 +68,9 @@ contains
     call complete_masks()
 
     do l = level_start+1, level_end
-       call apply_onescale(compress, l, z_null, 0, 1)
+       do k = 1, zlevels
+          call apply_onescale(compress, l, k, 0, 1)
+       end do
     end do
 
     wav_coeff(:,:)%bdry_uptodate = .False.

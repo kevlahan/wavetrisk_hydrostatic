@@ -221,9 +221,10 @@ contains
 
   subroutine forward_wavelet_transform()
     integer k, l, d
-   
-    do l = level_end - 1, level_start - 1, -1
-       do k = 1, zlevels
+
+    do k = 1, zlevels
+       do l = level_end - 1, level_start - 1, -1
+
           call update_bdry(sol(S_MASS,k), l+1)
           call update_bdry(sol(S_TEMP,k), l+1)
           do d = 1, n_domain(rank+1)
@@ -239,21 +240,17 @@ contains
 
           call update_bdry(wav_coeff(S_MASS,k), l+1)
           call update_bdry(wav_coeff(S_TEMP,k), l+1)
-          call apply_interscale(restrict_mt, l, z_null, 0, 1) ! +1 to include poles
-          call apply_interscale(restrict_u, l, z_null, 0, 0)
+          call apply_interscale(restrict_mt, l, k, 0, 1) ! +1 to include poles
+          call apply_interscale(restrict_u, l, k, 0, 0)
        end do
-    end do
 
-    do k = 1, zlevels
        sol(:,k)%bdry_uptodate = .False.
        wav_coeff(S_MASS,k)%bdry_uptodate = .False.
        wav_coeff(S_TEMP,k)%bdry_uptodate = .False.
 
        call update_bdry(sol(S_VELO,k), NONE)
-    end do
-    
-    do l = level_end - 1, level_start - 1, -1
-       do k = 1, zlevels
+
+       do l = level_end - 1, level_start - 1, -1
           do d = 1, n_domain(rank+1)
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              velo => sol(S_VELO,k)%data(d)%elts
@@ -262,9 +259,7 @@ contains
              nullify(wc_u, velo)
           end do
        end do
-    end do
 
-    do k = 1, zlevels
        wav_coeff(S_VELO,k)%bdry_uptodate = .False.
     end do
   end subroutine forward_wavelet_transform
@@ -287,10 +282,8 @@ contains
        end do
 
        sca_coeff(:,k)%bdry_uptodate = .False.
-    end do
 
-    do l = l_start, level_end-1
-       do k = 1, zlevels
+       do l = l_start, level_end-1
           do d = 1, n_domain(rank+1)
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
@@ -1489,22 +1482,20 @@ contains
     idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
 
-    do k = 1, zlevels
-       if (dom%mask_e%elts(EDGE*id_chd+RT+1) .gt. 0) &
-            sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_par+RT+1) = &
-            0.5_8*(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_chd+RT+1) + &
-            sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*idE_chd+RT+1))
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .gt. 0) &
+         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_par+RT+1) = &
+         0.5_8*(sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_chd+RT+1) + &
+         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*idE_chd+RT+1))
 
-       if (dom%mask_e%elts(EDGE*id_chd+DG+1) .gt. 0) &
-            sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_par+DG+1) = &
-            0.5_8*(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*idNE_chd+DG+1) + &
-            sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_chd+DG+1))
+    if (dom%mask_e%elts(EDGE*id_chd+DG+1) .gt. 0) &
+         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_par+DG+1) = &
+         0.5_8*(sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*idNE_chd+DG+1) + &
+         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_chd+DG+1))
 
-       if (dom%mask_e%elts(EDGE*id_chd+UP+1) .gt. 0) &
-            sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_par+UP+1) = &
-            0.5_8*(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id_chd+UP+1) + &
-            sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*idN_chd+UP+1))
-    end do
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .gt. 0) &
+         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_par+UP+1) = &
+         0.5_8*(sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_chd+UP+1) + &
+         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*idN_chd+UP+1))
   end subroutine restrict_u
 
   subroutine check_m(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
@@ -1592,7 +1583,7 @@ contains
     integer idS
     integer id2SW
     integer idSE
-    integer d, k
+    integer d
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     if (dom%mask_n%elts(id_chd+1) .eq. 0) return
@@ -1613,40 +1604,37 @@ contains
     idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
 
     d = dom%id+1
-
+    
     !mass
-    do k = 1, zlevels
-       sol(S_MASS,k)%data(d)%elts(id_par+1) = sol(S_MASS,k)%data(d)%elts(id_chd+1) + &
-            (wav_coeff(S_MASS,k)%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-            wav_coeff(S_MASS,k)%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
-            dom%areas%elts(id_par+1)%hex_inv
+    sol(S_MASS,zlev)%data(d)%elts(id_par+1) = sol(S_MASS,zlev)%data(d)%elts(id_chd+1) + &
+         (wav_coeff(S_MASS,zlev)%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wav_coeff(S_MASS,zlev)%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+         dom%areas%elts(id_par+1)%hex_inv
 
-       !potential temperature
-       sol(S_TEMP,k)%data(d)%elts(id_par+1) = sol(S_TEMP,k)%data(d)%elts(id_chd+1) + &
-            (wav_coeff(S_TEMP,k)%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-            wav_coeff(S_TEMP,k)%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
-            dom%areas%elts(id_par+1)%hex_inv
-
-    end do
+    !potential temperature
+    sol(S_TEMP,zlev)%data(d)%elts(id_par+1) = sol(S_TEMP,zlev)%data(d)%elts(id_chd+1) + &
+         (wav_coeff(S_TEMP,zlev)%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wav_coeff(S_TEMP,zlev)%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+         dom%areas%elts(id_par+1)%hex_inv
   end subroutine restrict_mt
 end module wavelet_mod
