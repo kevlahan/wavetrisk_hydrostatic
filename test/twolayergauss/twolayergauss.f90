@@ -25,6 +25,7 @@ module twolayergauss_mod
   real(8), parameter :: f0   = f0_star * Ldim/Udim
   real(8), parameter :: H    = H_star/Hdim
   real(8), parameter :: rho  = rho_star
+  real(8), parameter :: dh = 1e-3_8 ! initial surface perturbation
 
   real(8) :: csq
 
@@ -95,7 +96,7 @@ contains
     dom%surf_geopot%elts(id+1) = 0.0_8
 
     if (zlev.eq.zlevels) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0e-2_8*exp(-1.0e2_8*rgrc*rgrc)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = dh*exp(-1.0e2_8*rgrc*rgrc)
     else
        sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
     end if
@@ -232,7 +233,7 @@ program twolayergauss
   csq = grav_accel*H
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of twolayergauss: 100km
 
-  VELO_SCALE   = grav_accel*0.5_8*1e-2_8/sqrt(csq)  ! Characteristic velocity based on initial perturbation
+  VELO_SCALE   = grav_accel*0.5_8*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation
 
  ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_TEMP,1:zlevels))
