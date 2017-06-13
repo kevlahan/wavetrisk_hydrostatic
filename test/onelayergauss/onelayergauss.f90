@@ -25,6 +25,8 @@ module onelayergauss_mod
   real(8), parameter :: f0   = f0_star * Ldim/Udim
   real(8), parameter :: H    = H_star/Hdim
 
+  real(8), parameter :: dh = 1e-3_8
+
   real(8) :: csq
 
   real(8) :: VELO_SCALE
@@ -93,7 +95,7 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1e-2_8*exp(-1.0e2_8*rgrc*rgrc)
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = dh*exp(-1.0e3_8*rgrc*rgrc)
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
@@ -227,7 +229,7 @@ program onelayergauss
   csq = grav_accel*H
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of onelayergauss: 100km
 
-  VELO_SCALE   = grav_accel*0.5_8*1e-2_8/sqrt(csq)  ! Characteristic velocity based on initial perturbation
+  VELO_SCALE   = grav_accel*0.5_8*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation
 
   ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_TEMP,1:zlevels))
