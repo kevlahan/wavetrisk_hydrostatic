@@ -34,7 +34,7 @@ module tenlayergauss_mod
   integer :: CP_EVERY 
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin, k_tsu
-  real(8) :: initotalmass, totalmass, timing
+  real(8) :: initotalmass, totalmass, timing, total_time
 
   logical const_bathymetry
 
@@ -291,6 +291,7 @@ program tenlayergauss
   if (rank .eq. 0) write(*,*) 'Write initial values and grid'
   if (write_init) call write_and_export(iwrite)
 
+  total_time = 0_8
   do while (time .lt. time_end)
      call start_timing()
      
@@ -313,6 +314,7 @@ program tenlayergauss
 
      call stop_timing()
      timing = get_timing()
+     total_time = total_time + timing
 
      call write_and_print_step()
 
@@ -347,6 +349,7 @@ program tenlayergauss
      call sum_total_mass(.False.)
   end do
   if (rank .eq. 0) then
+     write(6,'(A,ES11.4)') 'Total cpu time = ', total_time
      close(1011)
      close(8450)
   end if
