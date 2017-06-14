@@ -34,7 +34,7 @@ module tenlayergauss_mod
   integer :: CP_EVERY 
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin, k_tsu
-  real(8) :: initotalmass, totalmass
+  real(8) :: initotalmass, totalmass, timing
 
   logical const_bathymetry
 
@@ -312,15 +312,17 @@ program tenlayergauss
      call time_step(dt_write, aligned)
 
      call stop_timing()
+     timing = get_timing()
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
+     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,ES13.5),A,I9,A,ES11.4)') &
           'time [h] =', time/3600.0_8*Tdim, &
           ', dt [s] =', dt*Tdim, &
           ', min. depth =', fd, &
           ', VELO_SCALE =', VELO_SCALE, &
-          ', d.o.f. =', sum(n_active)
+          ', d.o.f. =', sum(n_active), &
+          ', cpu = ', timing
 
      call print_load_balance()
 

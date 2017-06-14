@@ -384,13 +384,12 @@ contains
 
     !first integrate pressure down across all grid points in order to compute surface pressure
     do k = zlevels, 1, -1
-       !PRINT *, '-----integration down, zlev= ', k
        call update_bdry(q(S_MASS,k), NONE)
        call update_bdry(q(S_TEMP,k), NONE)
 
        do d = 1, size(grid)
-          mass    => q(S_MASS,k)%data(d)%elts
-          temp    => q(S_TEMP,k)%data(d)%elts
+          mass => q(S_MASS,k)%data(d)%elts
+          temp => q(S_TEMP,k)%data(d)%elts
 
           do p = 2, grid(d)%patch%length !in principle, p should start at the coarsest patch p=2
              call apply_onescale_to_patch(integrate_pressure_down, grid(d), p - 1, k, 0, 1)
@@ -402,7 +401,6 @@ contains
 
     ! Calculate trend on finest scale
     do k = 1, zlevels
-       !PRINT *, '-----integration up, zlev= ', k
        call update_bdry(q(S_VELO,k), NONE)
 
        pentagon_done=.false.
