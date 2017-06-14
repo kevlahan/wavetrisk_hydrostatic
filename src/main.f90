@@ -132,12 +132,7 @@ contains
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
 
-          if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) then
-             PRINT *, 'exiting because there are no active nodes'
-             exit
-          else
-             PRINT *, 'n_active(AT_NODE) is ', n_active(AT_NODE), ',   n_active(AT_EDGE) is ', n_active(AT_EDGE)
-          end if
+          if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) exit
        end do
 
        cp_idx = 0
