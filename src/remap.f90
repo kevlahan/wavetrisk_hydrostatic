@@ -2,8 +2,6 @@ module remap_mod
   use geom_mod
   use domain_mod
   use arch_mod
-  use adapt_mod
-  use smooth_mod
   use comm_mpi_mod
   implicit none
 
@@ -110,4 +108,16 @@ contains
        seven_point_interp=interp_diff(mi,1)+(xd-xv(mi))*seven_point_interp
     end do
   end function seven_point_interp
+
+  subroutine remap_coordinates
+    integer l
+
+    PRINT *, 'we are remapping the coordinates'
+
+    do l = level_start, level_end
+       call write_level_mpi(remap_lagrangian, 0, l, 0, .True.) !we are not really writing; both 0 spots are not used
+    end do
+
+    call barrier
+  end subroutine remap_coordinates
 end module remap_mod
