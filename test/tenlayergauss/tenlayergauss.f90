@@ -1,8 +1,5 @@
 module tenlayergauss_mod
   use main_mod
-
-  !c is 180 m/s approx
-
   implicit none
 
   ! Dimensional physical parameters
@@ -24,6 +21,7 @@ module tenlayergauss_mod
   ! Non-dimensional parameters
   real(8), parameter :: f0   = f0_star * Ldim/Udim
   real(8), parameter :: H    = H_star/Hdim
+  real(8), parameter :: dh   = 1e-3_8
 
   real(8) :: csq
 
@@ -39,6 +37,8 @@ module tenlayergauss_mod
   real(8) :: initotalmass, totalmass
 
   logical const_bathymetry
+
+  real(8) max_dh
 
   integer iwrite, j
 
@@ -62,7 +62,7 @@ contains
         initotalmass=integrate_hex(mass_pert, level_start, k)
     else
         totalmass=integrate_hex(mass_pert, level_start, k)
-        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+!        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 
@@ -72,6 +72,21 @@ contains
     if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
          time, dt, timing, level_end, n_active, VELO_SCALE
   end subroutine write_and_print_step
+
+  subroutine cpt_max_dh(dom, i, j, zlev, offs, dims)
+      type(Domain) dom
+      integer i, j, zlev
+      integer, dimension(N_BDRY + 1) :: offs
+      integer, dimension(2,N_BDRY + 1) :: dims
+      integer id
+      
+      id = idx(i, j, offs, dims)
+      
+      if (dom%mask_n%elts(id+1) .gt. 0) then
+          if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) &
+              max_dh = max(max_dh, abs(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
+      end if
+  end subroutine
 
   subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
@@ -95,14 +110,14 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8/dble(zlevels)
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
 
     if (zlev.eq.zlevels) then
-        sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = dh*exp(-1e3_8*rgrc*rgrc)
+    else
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
     end if
-
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
-
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
 
@@ -195,8 +210,9 @@ contains
   end subroutine tenlayergauss_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8) !JEMF
-    tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
+    tol_mass = VELO_SCALE * c_p/grav_accel * threshold**(1.5_8)
+    tol_velo = VELO_SCALE                        * threshold**(1.5_8)
+    tol_temp = tol_mass
   end subroutine set_thresholds
 end module tenlayergauss_mod
 
@@ -232,9 +248,18 @@ program tenlayergauss
   kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
 
   csq = grav_accel*H
+  c_p = sqrt(csq)
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of tenlayergauss: 100km
 
-  VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
+  VELO_SCALE   = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation
+
+  ! Set (non-dimensional) mean values of variables
+  allocate (mean(S_MASS:S_TEMP,1:zlevels))
+  do k = 1, zlevels
+     mean(S_MASS,k) = 1.0_8/real(zlevels)
+     mean(S_TEMP,k) = mean(S_MASS,k)
+     mean(S_VELO,k) = 0.0_8
+  end do
 
   wind_stress      = .False.
   penalize         = .False.
@@ -268,19 +293,25 @@ program tenlayergauss
 
   do while (time .lt. time_end)
      call start_timing()
-
+     
      do k = 1, zlevels
         call update_bdry(sol(S_MASS,k), NONE)
      end do
 
-     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, 180.0_8*4.0_8))
+     max_dh = 0
+     do l = level_start, level_end
+        do k = 1, zlevels
+           call apply_onescale(cpt_max_dh, l, k, 0, 1)
+        end do
+     end do
+     max_dh = sync_max_d(max_dh)
+     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel * max_dh / c_p))
 
      call set_thresholds()
 
      call time_step(dt_write, aligned)
 
      call stop_timing()
-
 
      call write_and_print_step()
 
