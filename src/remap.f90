@@ -46,16 +46,17 @@ contains
     !calculate current pressure distribution as it will be the independent coordinate
     pressure(1)=0.5_8*grav_accel*sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)
     do kb = 2 , zlevels
-       pressure(kb)=integrated_mass(kb-1)+ 0.5_8*grav_accel* &
+       pressure(kb)=pressure(kb-1)+ 0.5_8*grav_accel* &
             (sol(S_MASS,zlevels-kb+1)%data(dom%id+1)%elts(id+1)+ &
             sol(S_MASS,zlevels-kb+2)%data(dom%id+1)%elts(id+1))
     end do
+    PRINT *, 'pressure is', pressure(1:zlevels)
 
     !interpolate using the moving stencil (note that in case of extreme shifting of the layers, we may extrapolate)
     do kb = 1, zlevels
        !top_press=a_vert(kb+1)*ref_press+b_vert(kb+1)*dom%surf_press%elts(id+1) !should be ref_press_t JEMF
        !bottom_press=a_vert(kb)*ref_press+b_vert(kb)*dom%surf_press%elts(id+1)
-       centre_press=0.5_8*kb !(top_press+bottom_press) !JEMF
+       centre_press=0.5_8 +1.0_8*(kb-1) !(top_press+bottom_press) !JEMF temporarily disabled for tenlayergauss
        if (kb .le. 4) then
           stencil=(/ (m, m = 1,7) /)
        else if (kb .ge. (zlevels-3)) then
@@ -71,16 +72,16 @@ contains
     end do
 
     !assign values to mass, temp and velo field
-    sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)=integrated_mass(1)
-    sol(S_TEMP,zlevels)%data(dom%id+1)%elts(id+1)=integrated_temp(1)
+    sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)=new_mass(1)
+    sol(S_TEMP,zlevels)%data(dom%id+1)%elts(id+1)=new_temp(1)
     do e = 1, EDGE
-       sol(S_VELO,zlevels)%data(dom%id+1)%elts(EDGE*id+e)=integrated_velo(1,e)
+       sol(S_VELO,zlevels)%data(dom%id+1)%elts(EDGE*id+e)=new_velo(1,e)
     end do
     do kb = 2 , zlevels
-       sol(S_MASS,zlevels-kb+1)%data(dom%id+1)%elts(id+1)=integrated_mass(kb)-integrated_mass(kb-1)
-       sol(S_TEMP,zlevels-kb+1)%data(dom%id+1)%elts(id+1)=integrated_temp(kb)-integrated_temp(kb-1)
+       sol(S_MASS,zlevels-kb+1)%data(dom%id+1)%elts(id+1)=new_mass(kb)-new_mass(kb-1)
+       sol(S_TEMP,zlevels-kb+1)%data(dom%id+1)%elts(id+1)=new_temp(kb)-new_temp(kb-1)
        do e = 1, EDGE
-          sol(S_VELO,zlevels-kb+1)%data(dom%id+1)%elts(EDGE*id+e)=integrated_velo(kb,e)-integrated_velo(kb-1,e)
+          sol(S_VELO,zlevels-kb+1)%data(dom%id+1)%elts(EDGE*id+e)=new_velo(kb,e)-new_velo(kb-1,e)
        end do
     end do
   end subroutine remap_column
