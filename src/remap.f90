@@ -7,9 +7,9 @@ module remap_mod
 
 contains
 
-  subroutine remap_lagrangian(dom, p, i, j, k, offs, dims, fid)
+  subroutine remap_column(dom, p, i, j, k, offs, dims, fid)
     !remap the Lagrangian coordinate to prevent layer squeezing
-    !input k is unused, as is input fid
+    !inputs k and fid are unused
     !tested only for zlevels>7
     type(Domain) dom
     integer p
@@ -84,28 +84,29 @@ contains
           sol(S_VELO,zlevels-k+1)%data(dom%id+1)%elts(EDGE*id+e)=integrated_velo(k,e)-integrated_velo(k-1,e)
        end do
     end do
-  end subroutine remap_lagrangian
+  end subroutine remap_column
 
   function seven_point_interp(xv, yv, xd)
     !seven point interpolation as in Yang (2001)
     !uses the seven values in xv and yv to calculate the value yd at xd
-    real(8) xv(7), yv(7), xd, seven_point_interp, interp_diff(7,7)
+    real(8) xv(0:6), yv(0:6), xd, seven_point_interp
+    real(8) interp_diff(0:6,0:6) !second index describes order of finite difference
     integer mi, ni
 
     !construct interpolating polynomial by calculating Newton differences
-    interp_diff(1,:)=yv
+    interp_diff(0,0:6)=yv(0:6) !zeroth order finite differences for x_0 thru x_6
 
-    do mi = 2, 7
-       do ni = 1, mi
-          interp_diff(mi,ni)=(interp_diff(mi-1,ni+1)-interp_diff(mi-1,ni))/(xv(ni+1)-xv(ni))
+    do mi = 1, 6
+       do ni = 0, 6-mi
+          interp_diff(mi,ni)=(interp_diff(mi-1,ni+1)-interp_diff(mi-1,ni))/(xv(ni+mi)-xv(ni))
        end do
     end do
 
     !evaluate the polynomial using Horner's algorithm
-    seven_point_interp=interp_diff(7,1)
+    seven_point_interp=interp_diff(6,0)
 
-    do mi = 6, 1, -1
-       seven_point_interp=interp_diff(mi,1)+(xd-xv(mi))*seven_point_interp
+    do mi = 5, 0, -1
+       seven_point_interp=interp_diff(mi,0)+(xd-xv(mi))*seven_point_interp
     end do
   end function seven_point_interp
 
@@ -115,7 +116,7 @@ contains
     PRINT *, 'we are remapping the coordinates'
 
     do l = level_start, level_end
-       call write_level_mpi(remap_lagrangian, 0, l, 0, .True.) !we are not really writing; both 0 spots are not used
+       call write_level_mpi(remap_column, 0, l, 0, .True.) !we are not really writing; both 0 spots are not used
     end do
 
     call barrier

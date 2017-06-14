@@ -12,6 +12,7 @@ module main_mod
   use mask_mod
   use adapt_mod
   use smooth_mod
+  use remap_mod
 
   implicit none
   integer cp_idx
