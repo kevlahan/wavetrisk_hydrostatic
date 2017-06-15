@@ -237,7 +237,7 @@ contains
     do j = 2, PATCH_SIZE-1
        id = offs(0) + PATCH_SIZE*(j-1)
        e = +1; ne = n+e
-       w = offs(WEST) + (dims(1,WEST)-PATCH_SIZE)*(j-1) ! correct for dimension smaller than patch if boundary
+       w = offs(WEST) + (dims(1,WEST)-PATCH_SIZE)*(j-1) ! Correct for dimension smaller than patch if boundary
        sw = w-dims(1,WEST)
        call comput()
        if (W_bdry) call comp_ijmin()
@@ -270,8 +270,8 @@ contains
     e = offs(EAST) + (dims(1,EAST)-PATCH_SIZE)*LAST
     call comput()
 
-    if (dom%patch%elts(p+1)%neigh(NORTH) .lt. 0) then ! neighbour is boundary
-       if (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(NORTH)+1)%side .gt. 0) then ! domain bdry
+    if (dom%patch%elts(p+1)%neigh(NORTH) .lt. 0) then ! Neighbour is boundary
+       if (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(NORTH)+1)%side .gt. 0) then ! Domain boundary
           id = offs(0)+PATCH_SIZE*LAST + offs(NORTH) ! id + n
           s =                                   - offs(NORTH) ! relative to current id
           w = offs(NORTHWEST)                   - offs(NORTH) 
@@ -302,12 +302,8 @@ contains
           e = 1
           ne = n+e
 
-          if (offs(NORTHEAST).ne.1) then
-             call comput()
-          else
-             !PRINT *, 'Prevented the node from being done twice!'
-          end if
-
+          ! Avoid doing nodes twice
+          if (offs(NORTHEAST).ne.1) call comput()
        end if
     end if
 
@@ -380,10 +376,10 @@ contains
     end subroutine comp_ijmin
 
     subroutine comput()
-      !computes physical quantities during upward integration
+      ! Computes physical quantities during upward integration
 
-      !find the velocity on primal and dual grid edges, which are equal except for the length of the
-      !side they are on
+      ! Find the velocity on primal and dual grid edges, which are equal except for the length of the
+      ! side they are on
       u_prim_up = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
       u_dual_up = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
       u_prim_dg = velo(EDGE*id+DG+1)*dom%len%elts(EDGE*id+DG+1)
@@ -399,17 +395,17 @@ contains
       full_depth(0:NORTHEAST) = mass(id+(/0,n,e,s,w,ne/)+1) + mean(S_MASS,zlev)
       full_temp(0:NORTHEAST)  = temp(id+(/0,n,e,s,w,ne/)+1) + mean(S_TEMP,zlev)
 
-      !find the horizontal mass flux as the velocity multiplied by the mass there
+      ! Find the horizontal mass flux as the velocity multiplied by the mass there
       h_mflux(EDGE*id+UP+1) = u_dual_up*(full_depth(0) + full_depth(NORTH))*0.5_8
       h_mflux(EDGE*id+DG+1) = u_dual_dg*(full_depth(NORTHEAST) + full_depth(0))*0.5_8
       h_mflux(EDGE*id+RT+1) = u_dual_rt*(full_depth(0) + full_depth(EAST))*0.5_8
 
-      !find the horizontal temperature flux as the velocity multiplied by the temp there
+      ! Find the horizontal temperature flux as the velocity multiplied by the temp there
       h_tflux(EDGE*id+UP+1) = u_dual_up*(full_temp(0) + full_temp(NORTH))*0.5_8
       h_tflux(EDGE*id+DG+1) = u_dual_dg*(full_temp(NORTHEAST) + full_temp(0))*0.5_8
       h_tflux(EDGE*id+RT+1) = u_dual_rt*(full_temp(0) + full_temp(EAST))*0.5_8
 
-      !find additional primal and dual velocities: down, southwest (counter-diagonal), left
+      ! Find additional primal and dual velocities: down, southwest (counter-diagonal), left
       u_prim_dn = velo(EDGE*(id+s)+UP+1)*dom%len%elts(EDGE*(id+s)+UP+1)
       u_dual_dn = velo(EDGE*(id+s)+UP+1)*dom%pedlen%elts(EDGE*(id+s)+UP+1)
       u_prim_sw = velo(EDGE*(id+sw)+DG+1)*dom%len%elts(EDGE*(id+sw)+DG+1)
@@ -424,11 +420,11 @@ contains
 
       if (phi(0) .ne. 0) phi(0) = 1.0_8/phi(0)
 
-      ! define the Bernoulli function for the incompressible case !JEMF: add in rho_r everywhere
-      if (compressible) then
+      ! Define the Bernoulli function
+      if (compressible) then ! Compressible case
          dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + dom%geopot%elts(id+1)
-      else !incompressible case
-         dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + dom%press%elts(id+1) + dom%geopot%elts(id+1)
+      else ! Incompressible case
+         dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + dom%geopot%elts(id+1) + dom%press%elts(id+1)
       end if
 
       if (viscosity .ne. 0) dom%divu%elts(id+1) = dom%areas%elts(id+1)%hex_inv * &
@@ -465,9 +461,9 @@ contains
       dom%vort%elts(TRIAG*id+LORT+1) = dom%vort%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1) 
       dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(TRIAG*id+UPLT+1)/dom%triarea%elts(TRIAG*id+UPLT+1) 
 
-      dom%qe%elts(EDGE*id+RT+1) = 0.5*(pv_S+pv_LORT)
-      dom%qe%elts(EDGE*id+DG+1) = 0.5*(pv_UPLT+pv_LORT)
-      dom%qe%elts(EDGE*id+UP+1) = 0.5*(pv_UPLT+pv_W)
+      dom%qe%elts(EDGE*id+RT+1) = 0.5_8*(pv_S    + pv_LORT)
+      dom%qe%elts(EDGE*id+DG+1) = 0.5_8*(pv_UPLT + pv_LORT)
+      dom%qe%elts(EDGE*id+UP+1) = 0.5_8*(pv_UPLT + pv_W)
     end subroutine comput
   end subroutine step1
 
@@ -987,16 +983,16 @@ contains
        end if
     end do
 
-    offs(1:N_BDRY) = offs(1:N_BDRY) - offs(0) ! make relative
-    offs(SOUTH) = offs(SOUTH) +  dims(1,SOUTH)*(dims(2,SOUTH)-1)
+    offs(1:N_BDRY)  = offs(1:N_BDRY)  - offs(0) ! make relative
+    offs(SOUTH)     = offs(SOUTH)     + dims(1,SOUTH)*(dims(2,SOUTH)-1)
     offs(SOUTHEAST) = offs(SOUTHEAST) + dims(1,SOUTHEAST)*(dims(2,SOUTH)-1)
-    offs(WEST)  = offs(WEST) + (dims(1,WEST)-1)
+    offs(WEST)      = offs(WEST)      + (dims(1,WEST)-1)
     offs(NORTHWEST) = offs(NORTHWEST) + (dims(1,NORTHWEST)-1)
     offs(SOUTHWEST) = offs(SOUTHWEST) + dims(1,SOUTHWEST)*dims(2,SOUTHWEST) - 1
-    offs(NORTH) = offs(NORTH) - PATCH_SIZE*(PATCH_SIZE-1) 
+    offs(NORTH)     = offs(NORTH)     - PATCH_SIZE*(PATCH_SIZE-1) 
     offs(NORTHWEST) = offs(NORTHWEST) - PATCH_SIZE*(PATCH_SIZE-1) 
-    offs(EAST)  = offs(EAST)  -            (PATCH_SIZE-1)
-    offs(SOUTHEAST) = offs(SOUTHEAST) -(PATCH_SIZE-1)
+    offs(EAST)      = offs(EAST)      - (PATCH_SIZE-1)
+    offs(SOUTHEAST) = offs(SOUTHEAST) - (PATCH_SIZE-1)
     offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
   end subroutine comp_offs3
 
@@ -1019,7 +1015,5 @@ contains
 
     totaldtemp = totaldtemp + dtemp(id+1)/dom%areas%elts(id+1)%hex_inv
     totalabsdtemp = totalabsdtemp + abs(dtemp(id+1)/dom%areas%elts(id+1)%hex_inv)
-
-    tic=tic+1
   end subroutine sum_dmassdtemp
 end module ops_mod

@@ -382,7 +382,7 @@ contains
     integer p
     type(Float_Field), target :: q(S_MASS:S_TEMP,1:zlevels), dq(S_MASS:S_TEMP,1:zlevels)
 
-    !first integrate pressure down across all grid points in order to compute surface pressure
+    ! First integrate pressure down across all grid points in order to compute surface pressure
     do k = zlevels, 1, -1
        call update_bdry(q(S_MASS,k), NONE)
        call update_bdry(q(S_TEMP,k), NONE)
@@ -391,7 +391,7 @@ contains
           mass => q(S_MASS,k)%data(d)%elts
           temp => q(S_TEMP,k)%data(d)%elts
 
-          do p = 2, grid(d)%patch%length !in principle, p should start at the coarsest patch p=2
+          do p = 2, grid(d)%patch%length ! In principle, p should start at the coarsest patch p=2
              call apply_onescale_to_patch(integrate_pressure_down, grid(d), p - 1, k, 0, 1)
           end do
 
@@ -402,8 +402,6 @@ contains
     ! Calculate trend on finest scale
     do k = 1, zlevels
        call update_bdry(q(S_VELO,k), NONE)
-
-       pentagon_done=.false.
 
        do d = 1, size(grid)
           mass    => q(S_MASS,k)%data(d)%elts
@@ -451,15 +449,16 @@ contains
        horiz_tempflux(k)%bdry_uptodate = .False.
 
        if (level_start .lt. level_end) then
-          call update_bdry__finish(horiz_massflux(k), level_end) ! <= communicate flux (Jmax)
-          call update_bdry__finish(horiz_tempflux(k), level_end) ! <= communicate flux (Jmax)
-          call update_bdry__start(dq(S_MASS,k),       level_end) ! <= communicate dmass (l+1)
-          call update_bdry__start(dq(S_TEMP,k),       level_end) ! <= communicate dmass (l+1)
+          call update_bdry__finish(horiz_massflux(k), level_end) ! <= finish non-blocking communicate mass flux (Jmax)
+          call update_bdry__finish(horiz_tempflux(k), level_end) ! <= finish non-blocking communicate temp flux (Jmax)
+          call update_bdry__start(dq(S_MASS,k),       level_end) ! <= start non-blocking communicate dmass (l+1)
+          call update_bdry__start(dq(S_TEMP,k),       level_end) ! <= start non-blocking communicate dtemp (l+1)
        end if
 
-       ! compute velocity trend
+       ! Compute velocity trend
        do d = 1, size(grid)
           if (advect_only) cycle
+          
           mass    =>  q(S_MASS,k)%data(d)%elts
           velo    =>  q(S_VELO,k)%data(d)%elts
           temp    =>  q(S_TEMP,k)%data(d)%elts
@@ -476,8 +475,8 @@ contains
 
        ! Calculate trend on coarser scales
        do l = level_end-1, level_start, -1
-          call update_bdry__finish(dq(S_MASS,k), l+1)  ! <= comm dmass (l+1)
-          call update_bdry__finish(dq(S_TEMP,k), l+1)  ! <= comm dmass (l+1)
+          call update_bdry__finish(dq(S_MASS,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
+          call update_bdry__finish(dq(S_TEMP,k), l+1) ! <= finish non-blocking communicate dtemp (l+1)
 
           do d = 1, size(grid)
              mass    =>  q(S_MASS,k)%data(d)%elts
@@ -503,21 +502,24 @@ contains
              nullify(mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
           end do
 
-          call update_bdry__start(horiz_massflux(k), l)  ! <= communicate flux (l)
-          call update_bdry__start(horiz_tempflux(k), l)  ! <= communicate flux (l)
+          call update_bdry__start(horiz_massflux(k), l)  ! <= start non-blocking communicate flux (l)
+          call update_bdry__start(horiz_tempflux(k), l)  ! <= start non-blocking communicate flux (l)
+          
+          if (viscosity .ne. 0) then ! Calculate viscous term
+             do d = 1, size(grid)
+                velo => q(S_VELO,k)%data(d)%elts
+                mass => q(S_MASS,k)%data(d)%elts
 
-          do d = 1, size(grid)
-             velo => q(S_VELO,k)%data(d)%elts
-             mass => q(S_MASS,k)%data(d)%elts
+                do j = 1, grid(d)%lev(l)%length 
+                   call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                end do
 
-             do j = 1, grid(d)%lev(l)%length 
-                if (viscosity .ne. 0) call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                nullify (velo, mass)
              end do
-             nullify (velo, mass)
-          end do
-
-          call update_bdry__finish(horiz_massflux(k), l)  ! <= comm flux (l)
-          call update_bdry__finish(horiz_tempflux(k), l)  ! <= comm flux (l)
+          end if
+       
+          call update_bdry__finish(horiz_massflux(k), l)  ! <= finish non-blocking communicate flux (l)
+          call update_bdry__finish(horiz_tempflux(k), l)  ! <= finish non-blocking communicate flux (l)
 
           do d = 1, size(grid)
              dmass   => dq(S_MASS,k)%data(d)%elts
@@ -526,7 +528,7 @@ contains
              h_tflux => horiz_tempflux(k)%data(d)%elts
 
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(masstemp_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1) !!!!! use flux (l) & cpt dmass (l)
+                call apply_onescale_to_patch(masstemp_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1) ! use flux (l) & cpt dmass (l)
              end do
              nullify(dmass, dtemp, h_mflux, h_tflux)
           end do
@@ -535,8 +537,8 @@ contains
           dq(S_TEMP,k)%bdry_uptodate = .False.
 
           if (l .gt. level_start) then
-             call update_bdry__start(dq(S_MASS,k), l)  ! <= comm dp (l+1)
-             call update_bdry__start(dq(S_TEMP,k), l)  ! <= comm dp (l+1)
+             call update_bdry__start(dq(S_MASS,k), l)  ! <= start non-blocking communicate dmass (l+1)
+             call update_bdry__start(dq(S_TEMP,k), l)  ! <= start non-blocking communicate dtemp (l+1)
           end if
 
           if (advect_only) cycle
@@ -572,7 +574,7 @@ contains
           do p = 2, grid(d)%patch%length
              call apply_onescale_to_patch(du_gradB_gradExn, grid(d), p - 1, k, 0, 0)
           end do
-          nullify(mass, temp,dvelo)
+          nullify(mass, temp, dvelo)
        end do
     end do
   end subroutine trend_ml

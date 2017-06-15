@@ -120,7 +120,7 @@ contains
              call init(q2(v,k)%data(d), sol(v,k)%data(d)%length); q2(v,k)%data(d)%elts = dble(3-v)
              call init(q3(v,k)%data(d), sol(v,k)%data(d)%length); q3(v,k)%data(d)%elts = dble(3-v)
              call init(q4(v,k)%data(d), sol(v,k)%data(d)%length); q4(v,k)%data(d)%elts = dble(3-v)
-             call init(dq1(v,k)%data(d), sol(v,k)%data(d)%length); dq1(v,k)%data(d)%elts = dble(3-v) !JEMF
+             call init(dq1(v,k)%data(d), sol(v,k)%data(d)%length); dq1(v,k)%data(d)%elts = dble(3-v) 
           end do
        end do
     end do
@@ -181,7 +181,6 @@ contains
     call trend_ml(q4, dq1)
     call RK_sub_step4(sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), &
          dt*beta(4:5,5), sol)
-
     
     ! Calculate wavelet coefficients of solution at new time step on adapted grid
     call WT_after_step(sol, level_start-1)

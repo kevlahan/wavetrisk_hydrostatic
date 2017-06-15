@@ -114,6 +114,7 @@ contains
           call apply_init_cond()
           call forward_wavelet_transform()
 
+          !--Check whether there are any active nodes at this scale
           n_active = 0.0_8
           do k = 1, zlevels
              n_active = n_active + (/ &
@@ -128,11 +129,10 @@ contains
                   d = 1, n_domain(rank+1)) /)) &
                   /)
           end do
-
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
 
-          if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) exit
+          if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) exit !--No active nodes at this scale
        end do
 
        cp_idx = 0
@@ -144,8 +144,7 @@ contains
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
 
-    call restart_full(set_thresholds, custom_load) !JEMF: works (without saving surface_geopotential, i.e.,
-    !for zero surface geopotential) but switched off for now
+    call restart_full(set_thresholds, custom_load) 
   end subroutine initialize
 
   subroutine record_init_state(init_state)
@@ -178,14 +177,14 @@ contains
 
     dt = cpt_dt_mpi()
 
-    ! match certain times exactly
+    ! Match certain times exactly
     idt    = nint(dt*time_mult, 8)
     ialign = nint(align_time*time_mult, 8)
 
     if (ialign .gt. 0 .and. cp_idx .ne. resume) then
        aligned = (modulo(itime+idt,ialign) .lt. modulo(itime,ialign))
     else
-       resume = NONE ! set unequal cp_idx => only first step after resume is protected from alignment
+       resume = NONE ! Set unequal cp_idx => only first step after resume is protected from alignment
        aligned = .False.
     end if
 
@@ -193,13 +192,13 @@ contains
 
     dt = idt/time_mult
 
-    call RK45_opt() !JEMF
+    call RK45_opt() 
 
     !call Forward_Euler()
 
-    if (min_level .lt. max_level) then ! adaptive simulation
+    if (min_level .lt. max_level) then ! Adaptive simulation
        call adapt()
-       if (level_end .gt. level_start) then ! currently several levels exist
+       if (level_end .gt. level_start) then ! Several levels exist; interpolate solution onto active grid
           call inverse_wavelet_transform(sol, level_start)
        end if
     end if

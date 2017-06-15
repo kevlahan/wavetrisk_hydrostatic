@@ -1001,12 +1001,12 @@ contains
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
 
-    if (rank .eq. 0) write(*,*) 'grid quality before optimization:', maxerror, l2error
+    if (rank .eq. 0) write(*,'(A,2(es12.4,1x))') 'Grid quality before optimization:', maxerror, l2error
 
     fid = get_fid()
     if (level_start .ne. level_end) then
        write(0,*) level_end, level_start
-       write(0,*) "reading HR grid points for `level_start` unequal `level_end` not implemented"
+       write(0,*) "Reading HR grid points for `level_start` unequal `level_end` not implemented"
        return
     end if
 
@@ -1042,7 +1042,7 @@ contains
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
-    if (rank .eq. 0) write(*,*) 'grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
+    if (rank .eq. 0) write(*,'(A,2(es12.4,1x))') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
   end subroutine read_HR_optim_grid
 
   integer function dom_id_from_HR_id(d_HR)

@@ -285,10 +285,10 @@ program tenlayergauss
   call initialize(apply_initial_conditions, 1, set_thresholds, tenlayergauss_dump, tenlayergauss_load)
   call sum_total_mass(.True.)
 
-  if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
+  if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
   call barrier()
 
-  if (rank .eq. 0) write(*,*) 'Write initial values and grid'
+  if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   if (write_init) call write_and_export(iwrite)
 
   total_time = 0_8
@@ -306,7 +306,7 @@ program tenlayergauss
         end do
      end do
      max_dh = sync_max_d(max_dh)
-     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel * max_dh / c_p))
+     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel*max_dh/c_p))
 
      call set_thresholds()
 
