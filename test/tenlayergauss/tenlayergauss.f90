@@ -293,12 +293,7 @@ program tenlayergauss
 
   total_time = 0_8
   do while (time .lt. time_end)
-     call start_timing()
-     
-     do k = 1, zlevels
-        call update_bdry(sol(S_MASS,k), NONE)
-     end do
-
+     ! Set thresholds dynamically
      max_dh = 0
      do l = level_start, level_end
         do k = 1, zlevels
@@ -307,11 +302,10 @@ program tenlayergauss
      end do
      max_dh = sync_max_d(max_dh)
      VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel*max_dh/c_p))
-
      call set_thresholds()
 
+     call start_timing()
      call time_step(dt_write, aligned)
-
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
@@ -348,10 +342,12 @@ program tenlayergauss
 
      call sum_total_mass(.False.)
   end do
+
   if (rank .eq. 0) then
      write(6,'(A,ES11.4)') 'Total cpu time = ', total_time
      close(1011)
      close(8450)
   end if
+
   call finalize()
 end program tenlayergauss
