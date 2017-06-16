@@ -71,7 +71,7 @@ LINKER = $(COMPILER)
 
 $(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
 	mkdir -p $(PREFIX)/bin
-	$(LINKER) $(FLAGS) -fcheck=all -g -o $@ $^ $(LIBS)
+	$(LINKER) $(FLAGS) -o $@ $^ $(LIBS)
 
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 	$(COMPILER) -c $< -o $@ $(FLAGS) -fcheck=all -g
