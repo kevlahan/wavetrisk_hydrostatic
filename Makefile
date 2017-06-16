@@ -74,7 +74,7 @@ $(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
 	$(LINKER) $(FLAGS) -o $@ $^ $(LIBS)
 
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
-	$(COMPILER) -c $< -o $@ $(FLAGS) -fcheck=all -g
+	$(COMPILER) -c $< -o $@ $(FLAGS) 
 
 clean:
 	rm -f $(BUILD_DIR)/*
