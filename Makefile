@@ -6,7 +6,7 @@ GEOM = sphere
 ARRAYS = dyn_array
 
 BUILD_DIR = build
-OPTIM_FLAGS = -O3
+OPTIM_FLAGS = -O0 -g -fpe0
 MPIF90 = mpif90
 PREFIX = .
 
@@ -29,7 +29,7 @@ ifeq ($(MACHINE),if)
 else
  ifeq ($(MACHINE),orc)
    VENDOR = intel
-   LIBS = -llapack
+   LIBS =  -L/opt/sharcnet/mkl/10.3.9/mkl/lib/intel64/ -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
  else
   ifeq ($(MACHINE),req)
     VENDOR = path
