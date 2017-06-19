@@ -239,7 +239,6 @@ contains
 
     if (area .eq. 0.0_8) then ! Avoid overflow for unused zero area hexagons
        self%hex_inv = 1.0_8
-       write (6,*) centre%x, centre%y, centre%z
     else
        self%hex_inv = 1.0_8/area
     end if
