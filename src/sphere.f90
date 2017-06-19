@@ -237,7 +237,7 @@ contains
     end do
     area = sum(self%part)
 
-    if (area .eq. 0.0_8) then ! Avoid overflow for unused zero area hexagons
+    if (area .eq. 0.0_8) then ! Avoid overflow for unused zero area hexagons (points at origin and 10 lozenge vertices)
        self%hex_inv = 1.0_8
     else
        self%hex_inv = 1.0_8/area

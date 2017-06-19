@@ -6,7 +6,7 @@ GEOM = sphere
 ARRAYS = dyn_array
 
 BUILD_DIR = build
-OPTIM_FLAGS = -O0 -g 
+OPTIM_FLAGS = -O2 
 MPIF90 = mpif90
 PREFIX = .
 
