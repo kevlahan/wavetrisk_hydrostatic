@@ -6,7 +6,7 @@ GEOM = sphere
 ARRAYS = dyn_array
 
 BUILD_DIR = build
-OPTIM_FLAGS = -O0 -g -fpe0
+OPTIM_FLAGS = -O0 -g 
 MPIF90 = mpif90
 PREFIX = .
 
@@ -17,7 +17,7 @@ SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
       multi_level.f90 adapt.f90 smooth.f90 io.f90 remap.f90 time_integr.f90 main.f90
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
-INTEL_FLAGS = -module $(BUILD_DIR) #-traceback -check bounds
+INTEL_FLAGS = -fpe0 -module $(BUILD_DIR) #-traceback -check bounds
 GNU_FLAGS = -J$(BUILD_DIR)
 
 MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
