@@ -46,6 +46,8 @@ contains
     character(5+4) filename
     integer fid
 
+    fid = 599
+
     write(filename, '(A,I4.4)')  "conn.", id
     open(unit=fid, file=filename)
     call write_load_conn1(fid)
