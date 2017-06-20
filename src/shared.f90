@@ -365,7 +365,7 @@ contains
 
     ! default values
     threshold = 0.0_8
-    cfl_num = 0.2_8
+    cfl_num = 1.0_8
     min_level = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level = min_level
     level_start = min_level
