@@ -391,7 +391,7 @@ contains
           mass => q(S_MASS,k)%data(d)%elts
           temp => q(S_TEMP,k)%data(d)%elts
 
-          do p = 2, grid(d)%patch%length ! In principle, p should start at the coarsest patch p=2
+          do p = 3, grid(d)%patch%length ! In principle, p should start at the coarsest patch p=2
              call apply_onescale_to_patch(integrate_pressure_down, grid(d), p - 1, k, 0, 1)
           end do
 
@@ -571,7 +571,7 @@ contains
           temp    =>  q(S_TEMP,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
 
-          do p = 2, grid(d)%patch%length
+          do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch(du_gradB_gradExn, grid(d), p - 1, k, 0, 0)
           end do
           nullify(mass, temp, dvelo)
