@@ -126,8 +126,8 @@ contains
     call get_load_balance(load_min, load_avg, load_max)
     rel_imbalance = dble(load_max)/load_avg
 
-    if (rank .eq. 0) write(*,*) 'min load, average load, max load:', load_min, load_avg, load_max
-    if (rank .eq. 0) write(*,*) 'relative imbalance (1=perfect balance)', rel_imbalance
+    if (rank .eq. 0) write(6,'(A,1x,i9,1x,f10.1,1x,i9)') 'min load, average load, max load:', load_min, load_avg, load_max
+    if (rank .eq. 0) write(6,'(A,1x,f10.2)') 'relative imbalance (1=perfect balance)', rel_imbalance
   end subroutine print_load_balance
 
   subroutine write_level_mpi(out_rout, fid, l, zlev, eval_pole)
