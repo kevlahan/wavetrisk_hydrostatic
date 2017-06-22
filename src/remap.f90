@@ -20,15 +20,19 @@ contains
     integer id
     integer e
     integer d
-    real(8) integrated_mass(zlevels), integrated_temp(zlevels), pressure(zlevels)
+    real(8) integrated_mass(zlevels), integrated_temp(zlevels), pressure(zlevels), surface_pressure
     real(8) integrated_velo(zlevels,EDGE)
     real(8) new_mass(zlevels), new_temp(zlevels), new_velo(zlevels,EDGE) !all are integrated quantities
     real(8) top_press, bottom_press, centre_press
     integer stencil(7)
+    logical printit
 
     d = dom%id + 1
     id   = idx(i,     j,     offs, dims)
 
+    printit=(abs(sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)-1.1_8).lt.(1e-4))
+
+    if (printit) then
     !integrate all quantities vertically downward
     integrated_mass(1)=sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)
     integrated_temp(1)=sol(S_TEMP,zlevels)%data(dom%id+1)%elts(id+1)
@@ -43,6 +47,8 @@ contains
        end do
     end do
 
+    PRINT *, 'integrated_mass', integrated_mass
+
     !calculate current pressure distribution as it will be the independent coordinate
     pressure(1)=0.5_8*grav_accel*sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)
     do kb = 2 , zlevels
@@ -50,13 +56,21 @@ contains
             (sol(S_MASS,zlevels-kb+1)%data(dom%id+1)%elts(id+1)+ &
             sol(S_MASS,zlevels-kb+2)%data(dom%id+1)%elts(id+1))
     end do
-    PRINT *, 'pressure is', pressure(1:zlevels)
+    surface_pressure=pressure(zlevels) + 0.5_8*grav_accel*sol(S_MASS,1)%data(dom%id+1)%elts(id+1)
+
+    PRINT *, 'surface pressure is', surface_pressure
 
     !interpolate using the moving stencil (note that in case of extreme shifting of the layers, we may extrapolate)
     do kb = 1, zlevels
-       !top_press=a_vert(kb+1)*ref_press+b_vert(kb+1)*dom%surf_press%elts(id+1) !should be ref_press_t JEMF
-       !bottom_press=a_vert(kb)*ref_press+b_vert(kb)*dom%surf_press%elts(id+1)
-       centre_press=0.5_8 +1.0_8*(kb-1) !(top_press+bottom_press) !JEMF temporarily disabled for tenlayergauss
+        if (allocated(a_vert).and.allocated(b_vert)) then !a_vert and b_vert are allocated so they will be used
+            top_press=a_vert(kb+1)*ref_press+b_vert(kb+1)*surface_pressure !should be ref_press_t JEMF
+            bottom_press=a_vert(kb)*ref_press+b_vert(kb)*surface_pressure
+            centre_press=(top_press+bottom_press)/2.0_8
+        else  !layers will be equi-distributed
+            centre_press=ref_press+(kb-0.5_8)*(surface_pressure-ref_press)/zlevels
+            PRINT *, 'centre_press', centre_press
+        end if
+
        if (kb .le. 4) then
           stencil=(/ (m, m = 1,7) /)
        else if (kb .ge. (zlevels-3)) then
@@ -72,18 +86,23 @@ contains
     end do
 
     !assign values to mass, temp and velo field
+    PRINT *, 'old mass at zlevels', sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)
     sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)=new_mass(1)
+    PRINT *, 'new mass at zlevels', sol(S_MASS,zlevels)%data(dom%id+1)%elts(id+1)
     sol(S_TEMP,zlevels)%data(dom%id+1)%elts(id+1)=new_temp(1)
     do e = 1, EDGE
        sol(S_VELO,zlevels)%data(dom%id+1)%elts(EDGE*id+e)=new_velo(1,e)
     end do
     do kb = 2 , zlevels
+       PRINT *, 'old mass at zlevels-kb+1', sol(S_MASS,zlevels-kb+1)%data(dom%id+1)%elts(id+1)
        sol(S_MASS,zlevels-kb+1)%data(dom%id+1)%elts(id+1)=new_mass(kb)-new_mass(kb-1)
+       PRINT *, 'new mass at zlevels-kb+1', sol(S_MASS,zlevels-kb+1)%data(dom%id+1)%elts(id+1)
        sol(S_TEMP,zlevels-kb+1)%data(dom%id+1)%elts(id+1)=new_temp(kb)-new_temp(kb-1)
        do e = 1, EDGE
           sol(S_VELO,zlevels-kb+1)%data(dom%id+1)%elts(EDGE*id+e)=new_velo(kb,e)-new_velo(kb-1,e)
        end do
     end do
+    end if
   end subroutine remap_column
 
   function seven_point_interp(xv, yv, xd)
