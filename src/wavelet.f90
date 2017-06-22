@@ -1434,7 +1434,34 @@ contains
     call get_overl_areas(dom, i_par, j_par, i_chd, j_chd + 1, offs_par, dims_par, offs_chd, dims_chd, UP, area, typ)
     call init_Overl_Area(dom%overl_areas%elts(idN_chd+1), area)
     call basic_F_restr_wgt(dom, i_par, j_par, UP, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
+
+    call set_coarse_overlay()
   end subroutine set_RF_wgts
+
+  subroutine set_coarse_overlay()
+    ! Set overlay quantities on coarsest level
+    integer :: d, p
+
+    p = 2
+    do d = 1, size(grid)
+       call apply_onescale_to_patch(zero_overlay, grid(d), p - 1, z_null, 0, 1)
+    end do
+  end subroutine set_coarse_overlay
+
+ subroutine zero_overlay(dom, i, j, zlev, offs, dims)
+    ! Sets overlay values to zero
+    type(Domain) dom
+    integer i
+    integer j
+    integer zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer id
+
+    id   = idx(i,     j,     offs, dims)
+    dom%overl_areas%elts(id+1)%a     = 0.0_8
+    dom%overl_areas%elts(id+1)%split = 0.0_8
+  end subroutine zero_overlay
 
   subroutine set_WT_wgts(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
