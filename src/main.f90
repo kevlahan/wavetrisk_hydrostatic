@@ -259,7 +259,7 @@ contains
        do k = 1, zlevels
           horiz_massflux(k)%data(d)%length = num(AT_EDGE)
           horiz_tempflux(k)%data(d)%length = num(AT_EDGE)
-          do v = S_MASS, S_TEMP
+          do v = S_MASS, S_VELO
              wav_coeff(v,k)%data(d)%length = num(POSIT(v))
              trend(v,k)%data(d)%length = num(POSIT(v))
              sol(v,k)%data(d)%length = num(POSIT(v))
@@ -302,7 +302,7 @@ contains
     ! deallocate init_RK_mem allocations
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = S_MASS, S_TEMP
+          do v = S_MASS, S_VELO
              deallocate(q1(v,k)%data(d)%elts)
              deallocate(q2(v,k)%data(d)%elts)
              deallocate(q3(v,k)%data(d)%elts)
@@ -311,7 +311,7 @@ contains
           end do
        end do
 
-       do v = S_MASS, S_TEMP
+       do v = S_MASS, S_VELO
           deallocate(q1(v,k)%data)
           deallocate(q2(v,k)%data)
           deallocate(q3(v,k)%data)
@@ -445,7 +445,7 @@ contains
     do k = 1, zlevels
        deallocate(horiz_massflux(k)%data)
        deallocate(horiz_tempflux(k)%data)
-       do v = S_MASS, S_TEMP
+       do v = S_MASS, S_VELO
           deallocate(sol(v,k)%data)
           deallocate(trend(v,k)%data)
        end do

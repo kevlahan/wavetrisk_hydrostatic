@@ -57,18 +57,18 @@ contains
        if (rank .eq. 0) then
           write(*,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
                'lev', l, n_active_nodes(l), n_active_edges(l), &
-               float(n_active_per_lev(l))/float(sum(n_active(S_MASS:S_VELO)))*100.0, '%', &
+               float(n_active_per_lev(l))/float(sum(n_active(AT_NODE:AT_EDGE)))*100.0, '%', &
                float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
-               fillin, float(fillin)/float(sum(n_active(S_MASS:S_VELO)))*100.0, '%'
+               fillin, float(fillin)/float(sum(n_active(AT_NODE:AT_EDGE)))*100.0, '%'
        end if
 
        if (fillin .le. 0) recommended_level_start = l
     end do
 
     if (rank .eq. 0) then
-       write(*,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(S_MASS:S_VELO), 100.0, '%', &
-            float(sum(n_active(S_MASS:S_VELO)))/float(n_full)*100.0, '%', &
-            n_full/sum(n_active(S_MASS:S_VELO))
+       write(*,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(AT_NODE:AT_EDGE), 100.0, '%', &
+            float(sum(n_active(AT_NODE:AT_EDGE)))/float(n_full)*100.0, '%', &
+            n_full/sum(n_active(AT_NODE:AT_EDGE))
     end if
 
     write_active_per_level = recommended_level_start
@@ -408,6 +408,14 @@ contains
     call update_bdry__finish1(field, l_start, l_end)
   end subroutine update_bdry1
 
+  subroutine update_array_bdry1(field, l_start, l_end)
+    type(Float_Field), dimension(:,:) :: field
+    integer l_start, l_end
+
+    call update_array_bdry__start1 (field, l_start, l_end)
+    call update_array_bdry__finish1(field, l_start, l_end)
+  end subroutine update_array_bdry1
+
   subroutine update_bdry(field, l)
     type(Float_Field) :: field
     integer l
@@ -415,6 +423,24 @@ contains
     call update_bdry__start (field, l)
     call update_bdry__finish(field, l)
   end subroutine update_bdry
+
+  subroutine update_vector_bdry(field, l)
+    ! Updates field array
+    type(Float_Field), dimension(:) :: field
+    integer l
+
+    call update_vector_bdry__start (field, l)
+    call update_vector_bdry__finish(field, l)
+  end subroutine update_vector_bdry
+  
+  subroutine update_array_bdry(field, l)
+    ! Updates field array
+    type(Float_Field), dimension(:,:) :: field
+    integer l
+
+    call update_array_bdry__start (field, l)
+    call update_array_bdry__finish(field, l)
+  end subroutine update_array_bdry
 
   subroutine update_bdry__start(field, l)
     type(Float_Field) :: field
@@ -426,6 +452,30 @@ contains
        call update_bdry__start1(field, l, l)
     endif
   end subroutine update_bdry__start
+  
+  subroutine update_vector_bdry__start(field, l)
+    ! Finishes boundary update for field arrays
+    type(Float_Field), dimension(:) :: field
+    integer l
+
+    if (l .eq. NONE) then 
+       call update_vector_bdry__start1(field, level_start-1, level_end)
+    else
+       call update_vector_bdry__start1(field, l, l)
+    endif
+  end subroutine update_vector_bdry__start
+  
+  subroutine update_array_bdry__start(field, l)
+    ! Finishes boundary update for field arrays
+    type(Float_Field), dimension(:,:) :: field
+    integer l
+
+    if (l .eq. NONE) then 
+       call update_array_bdry__start1(field, level_start-1, level_end)
+    else
+       call update_array_bdry__start1(field, l, l)
+    endif
+  end subroutine update_array_bdry__start
 
   subroutine update_bdry__start1(field, l_start, l_end)
     type(Float_Field) :: field
@@ -505,6 +555,228 @@ contains
     call cp_bdry_inside(field)
   end subroutine update_bdry__start1
 
+  subroutine update_vector_bdry__start1(field, l_start, l_end)
+    ! Communicates boundary data in field, where fields is a Float_Field array
+    type(Float_Field) :: field(:)
+    integer l_start, l_end
+    integer r_dest, r_src, d_src, d_dest, dest, id, i, k, r
+    integer multipl, lev
+
+    integer :: i1
+    integer :: sz
+    logical :: ret
+
+    ! Find shape of field
+    sz = size(field)
+    
+    ! Check if boundaries of all field elements are up to date
+    ret = .true.
+    do i1 = 1, sz
+       if (.not. field(i1)%bdry_uptodate) ret=.false.
+    end do
+    if (ret) return
+
+    send_buf%length = 0 ! reset
+
+    do r_dest = 1, n_process ! destination for inter process communication
+       send_offsets(r_dest) = send_buf%length
+       do d_src = 1, n_domain(rank+1)
+          if (r_dest .eq. rank+1) cycle ! TODO communicate inside domain
+          do d_dest = 1, n_domain(r_dest)
+             dest = glo_id(r_dest,d_dest)+1
+
+             ! Loop over each element of field array
+             do i1 = 1, sz
+                do i = 1, grid(d_src)%pack(field(i1)%pos,dest)%length
+                   id = grid(d_src)%pack(field(i1)%pos,dest)%elts(i)
+
+                   if (field(i1)%pos .eq. AT_NODE) then
+                      multipl = 1
+                   else
+                      multipl = EDGE
+                   end if
+
+                   lev = grid(d_src)%level%elts(id/multipl+1)
+                   if (l_start .le. lev .and. lev .le. l_end) call append(send_buf, field(i1)%data(d_src)%elts(id+1))
+                end do
+             end do
+
+          end do
+       end do
+       send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+    end do
+
+    ! determine recv buff lengths
+    recv_buf%length = 0
+    do r_src = 1, n_process 
+       recv_offsets(r_src) = recv_buf%length
+       do d_src = 1, n_domain(r_src)
+          if (r_src .eq. rank+1) cycle 
+          do d_dest = 1, n_domain(rank+1)
+
+             ! Loop over each element of field array
+             do i1 = 1, sz
+                do i = 1, grid(d_dest)%unpk(field(i1)%pos,glo_id(r_src,d_src)+1)%length
+                   id = abs(grid(d_dest)%unpk(field(i1)%pos,glo_id(r_src,d_src)+1)%elts(i))
+
+                   if (field(i1)%pos .eq. AT_NODE) then
+                      multipl = 1
+                   else
+                      multipl = EDGE
+                   end if
+
+                   lev = grid(d_dest)%level%elts(id/multipl+1)
+                   if (l_start .le. lev .and. lev .le. l_end) recv_buf%length = recv_buf%length + 1
+                end do
+             end do
+
+          end do
+       end do
+       recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+    end do
+
+    if (size(recv_buf%elts) .lt. recv_buf%length) then
+       deallocate(recv_buf%elts)
+       allocate(recv_buf%elts(recv_buf%length))
+    end if
+
+    ! Post all receives first
+    nreq = 0
+    do r = 1, n_process
+       if (r .eq. rank+1 .or. recv_lengths(r) .eq. 0) cycle
+       nreq = nreq + 1
+       call MPI_irecv(recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
+            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+    end do
+
+    do r = 1, n_process
+       if (r .eq. rank+1 .or. send_lengths(r) .eq. 0) cycle
+       nreq = nreq + 1
+       call MPI_isend(send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
+            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+    end do
+
+    ! communicate inside domain
+    do i1 = 1, sz
+       call cp_bdry_inside(field(i1))
+    end do
+  end subroutine update_vector_bdry__start1
+
+  subroutine update_array_bdry__start1(field, l_start, l_end)
+    ! Communicates boundary data in field, where fields is a Float_Field array
+    type(Float_Field) :: field(:,:)
+    integer l_start, l_end
+    integer r_dest, r_src, d_src, d_dest, dest, id, i, k, r
+    integer multipl, lev
+
+    integer :: i1, i2
+    integer, dimension(2) :: sz
+    logical :: ret
+
+    ! Find shape of field
+    sz = shape(field)
+
+    ! Check if boundaries of all field elements are up to date
+    ret = .true.
+    do i2 = 1, sz(2)
+       do i1 = 1, sz(1)
+          if (.not. field(i1,i2)%bdry_uptodate) ret=.false.
+       end do
+    end do
+    if (ret) return
+
+    send_buf%length = 0 ! reset
+
+    do r_dest = 1, n_process ! destination for inter process communication
+       send_offsets(r_dest) = send_buf%length
+       do d_src = 1, n_domain(rank+1)
+          if (r_dest .eq. rank+1) cycle ! TODO communicate inside domain
+          do d_dest = 1, n_domain(r_dest)
+             dest = glo_id(r_dest,d_dest)+1
+
+             ! Loop over each element of field array
+             do i2 = 1, sz(2)
+                do i1 = 1, sz(1)
+                   do i = 1, grid(d_src)%pack(field(i1,i2)%pos,dest)%length
+                      id = grid(d_src)%pack(field(i1,i2)%pos,dest)%elts(i)
+
+                      if (field(i1,i2)%pos .eq. AT_NODE) then
+                         multipl = 1
+                      else
+                         multipl = EDGE
+                      end if
+                      
+                      lev = grid(d_src)%level%elts(id/multipl+1)
+                      if (l_start .le. lev .and. lev .le. l_end) call append(send_buf, field(i1,i2)%data(d_src)%elts(id+1))
+                   end do
+                end do
+             end do
+             
+          end do
+       end do
+       send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+    end do
+
+    ! determine recv buff lengths
+    recv_buf%length = 0
+    do r_src = 1, n_process 
+       recv_offsets(r_src) = recv_buf%length
+       do d_src = 1, n_domain(r_src)
+          if (r_src .eq. rank+1) cycle 
+          do d_dest = 1, n_domain(rank+1)
+
+             ! Loop over each element of field array
+             do i2 = 1, sz(2)
+                do i1 = 1, sz(1)
+                   do i = 1, grid(d_dest)%unpk(field(i1,i2)%pos,glo_id(r_src,d_src)+1)%length
+                      id = abs(grid(d_dest)%unpk(field(i1,i2)%pos,glo_id(r_src,d_src)+1)%elts(i))
+
+                       if (field(i1,i2)%pos .eq. AT_NODE) then
+                         multipl = 1
+                      else
+                         multipl = EDGE
+                      end if
+                      
+                      lev = grid(d_dest)%level%elts(id/multipl+1)
+                      if (l_start .le. lev .and. lev .le. l_end) recv_buf%length = recv_buf%length + 1
+                   end do
+                end do
+             end do
+
+          end do
+       end do
+       recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+    end do
+
+    if (size(recv_buf%elts) .lt. recv_buf%length) then
+       deallocate(recv_buf%elts)
+       allocate(recv_buf%elts(recv_buf%length))
+    end if
+
+    ! Post all receives first
+    nreq = 0
+    do r = 1, n_process
+       if (r .eq. rank+1 .or. recv_lengths(r) .eq. 0) cycle
+       nreq = nreq + 1
+       call MPI_irecv(recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
+            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+    end do
+
+    do r = 1, n_process
+       if (r .eq. rank+1 .or. send_lengths(r) .eq. 0) cycle
+       nreq = nreq + 1
+       call MPI_isend(send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
+            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+    end do
+
+    ! communicate inside domain
+    do i2 = 1, sz(2)
+       do i1 = 1, sz(1)
+          call cp_bdry_inside(field(i1,i2))
+       end do
+    end do
+  end subroutine update_array_bdry__start1
+
   subroutine update_bdry__finish(field, l)
     type(Float_Field) :: field
     integer l
@@ -515,6 +787,30 @@ contains
        call update_bdry__finish1(field, l, l)
     endif
   end subroutine update_bdry__finish
+  
+  subroutine update_vector_bdry__finish(field, l)
+    ! Finishes boundary update for field arrays
+    type(Float_Field), dimension(:) :: field
+    integer l
+
+    if (l .eq. NONE) then 
+       call update_vector_bdry__finish1(field, level_start-1, level_end)
+    else
+       call update_vector_bdry__finish1(field, l, l)
+    endif
+  end subroutine update_vector_bdry__finish
+  
+  subroutine update_array_bdry__finish(field, l)
+    ! Finishes boundary update for field arrays
+    type(Float_Field), dimension(:,:) :: field
+    integer l
+
+    if (l .eq. NONE) then 
+       call update_array_bdry__finish1(field, level_start-1, level_end)
+    else
+       call update_array_bdry__finish1(field, l, l)
+    endif
+  end subroutine update_array_bdry__finish
 
   subroutine update_bdry__finish1(field, l_start, l_end)
     type(Float_Field) :: field
@@ -555,6 +851,134 @@ contains
     if (l_start .lt. l_end) field%bdry_uptodate = .True.
   end subroutine update_bdry__finish1
 
+  subroutine update_vector_bdry__finish1(field, l_start, l_end)
+    ! Communicates boundary data in field, where fields is a Float_Field array
+    type(Float_Field) :: field(:)
+    integer l_start, l_end
+    integer r_dest, r_src, d_src, d_dest, dest, id, i, k
+    integer multipl, lev
+
+    integer :: i1
+    integer :: sz
+    logical :: ret
+
+    ! Find shape of field
+    sz = size(field)
+
+    ! Check if boundaries of all field elements are up to date
+    ret = .true.
+    do i1 = 1, sz
+       if (.not. field(i1)%bdry_uptodate) ret=.false.
+    end do
+    if (ret) return
+
+    k = 0
+    call MPI_Waitall(nreq, req, stat_ray, ierror)
+    
+    do r_src = 1, n_process 
+       if (r_src .eq. rank+1) cycle ! inside domain
+       do d_src = 1, n_domain(r_src)
+          do d_dest = 1, n_domain(rank+1)
+
+             do i1 = 1, sz
+                do i = 1, grid(d_dest)%unpk(field(i1)%pos,glo_id(r_src,d_src)+1)%length
+                   id = grid(d_dest)%unpk(field(i1)%pos,glo_id(r_src,d_src)+1)%elts(i)
+
+                   if (field(i1)%pos .eq. AT_NODE) then
+                      multipl = 1
+                   else
+                      multipl = EDGE
+                   end if
+
+                   lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
+                   if (l_start .le. lev .and. lev .le. l_end) then
+                      k = k + 1
+                      field(i1)%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
+                      if (id .lt. 0 .and. field(i1)%pos .eq. AT_EDGE) &
+                           field(i1)%data(d_dest)%elts(abs(id)+1) = -field(i1)%data(d_dest)%elts(abs(id)+1)
+                   end if
+                end do
+             end do
+
+          end do
+       end do
+    end do
+
+    ! assumes routine is either called for one level, or all levels ever to be updated
+    if (l_start .lt. l_end) then
+       do i1 = 1, sz
+          field(i1)%bdry_uptodate = .True.
+       end do
+    end if
+  end subroutine update_vector_bdry__finish1
+  
+  subroutine update_array_bdry__finish1(field, l_start, l_end)
+    ! Communicates boundary data in field, where fields is a Float_Field array
+    type(Float_Field) :: field(:,:)
+    integer l_start, l_end
+    integer r_dest, r_src, d_src, d_dest, dest, id, i, k
+    integer multipl, lev
+
+    integer :: i1, i2
+    integer, dimension (2) :: sz
+    logical :: ret
+
+    ! Find shape of field
+    sz = shape(field)
+
+    ! Check if boundaries of all field elements are up to date
+    ret = .true.
+    do i2 = 1, sz(2)
+       do i1 = 1, sz(1)
+          if (.not. field(i1,i2)%bdry_uptodate) ret=.false.
+       end do
+    end do
+    if (ret) return
+
+    k = 0
+    call MPI_Waitall(nreq, req, stat_ray, ierror)
+    
+    do r_src = 1, n_process 
+       if (r_src .eq. rank+1) cycle ! inside domain
+       do d_src = 1, n_domain(r_src)
+          do d_dest = 1, n_domain(rank+1)
+
+             do i2 = 1, sz(2)
+                do i1 = 1, sz(1)
+                   do i = 1, grid(d_dest)%unpk(field(i1,i2)%pos,glo_id(r_src,d_src)+1)%length
+                      id = grid(d_dest)%unpk(field(i1,i2)%pos,glo_id(r_src,d_src)+1)%elts(i)
+
+                       if (field(i1,i2)%pos .eq. AT_NODE) then
+                         multipl = 1
+                      else
+                         multipl = EDGE
+                      end if
+                      
+                      lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
+                      if (l_start .le. lev .and. lev .le. l_end) then
+                         k = k + 1
+                         field(i1,i2)%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
+                         if (id .lt. 0 .and. field(i1,i2)%pos .eq. AT_EDGE) &
+                              field(i1,i2)%data(d_dest)%elts(abs(id)+1) = -field(i1,i2)%data(d_dest)%elts(abs(id)+1)
+                      end if
+                   end do
+                end do
+             end do
+                   
+          end do
+       end do
+    end do
+
+    ! assumes routine is either called for one level, or all levels ever to be updated
+    if (l_start .lt. l_end) then
+       do i2 = 1, sz(2)
+          do i1 = 1, sz(1)
+             field(i1,i2)%bdry_uptodate = .True.
+          end do
+       end do
+    end if
+  end subroutine update_array_bdry__finish1
+  
   subroutine comm_nodes9_mpi(get, set, l)
     external get, set
     real(8), dimension(7) :: val

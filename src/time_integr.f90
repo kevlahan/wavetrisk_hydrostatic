@@ -29,14 +29,14 @@ contains
 
   subroutine RK_sub_step4(sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
     real(8) :: alpha(4), dt(2)
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels) :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels)  :: trend1, trend2
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: sol1, sol2, sol3, sol4
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels)  :: trend1, trend2
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), intent(inout) :: dest
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = S_MASS, S_TEMP
+          do v = S_MASS, S_VELO
              start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
 
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
@@ -56,14 +56,14 @@ contains
 
   subroutine RK_sub_step1(sols, trends, alpha, dt, dest)
     real(8) :: alpha, dt
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels) :: sols
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels) :: trends
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: sols
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), intent(inout) :: dest
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = S_MASS, S_TEMP
+          do v = S_MASS, S_VELO
              start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
                   alpha*sols(v,k)%data(d)%elts(start+1:sols(v,k)%data(d)%length) &
@@ -77,14 +77,14 @@ contains
 
   subroutine RK_sub_step2(sol1, sol2, trends, alpha, dt, dest)
     real(8) :: alpha(2), dt
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels) :: sol1, sol2
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels) :: trends
-    type(Float_Field), dimension(S_MASS:S_TEMP, 1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: sol1, sol2
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), intent(inout) :: dest
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = S_MASS, S_TEMP
+          do v = S_MASS, S_VELO
              start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
                   alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
@@ -100,11 +100,11 @@ contains
   subroutine init_RK_mem()
     integer d, k, v
 
-    allocate(q1(S_MASS:S_TEMP, 1:zlevels), q2(S_MASS:S_TEMP, 1:zlevels), q3(S_MASS:S_TEMP, 1:zlevels), &
-         q4(S_MASS:S_TEMP, 1:zlevels), dq1(S_MASS:S_TEMP, 1:zlevels))
+    allocate(q1(S_MASS:S_VELO, 1:zlevels), q2(S_MASS:S_VELO, 1:zlevels), q3(S_MASS:S_VELO, 1:zlevels), &
+         q4(S_MASS:S_VELO, 1:zlevels), dq1(S_MASS:S_VELO, 1:zlevels))
 
     do k = 1, zlevels
-       do v = S_MASS, S_TEMP
+       do v = S_MASS, S_VELO
           call init_Float_Field(q1(v,k), POSIT(v))
           call init_Float_Field(q2(v,k), POSIT(v))
           call init_Float_Field(q3(v,k), POSIT(v))
@@ -115,7 +115,7 @@ contains
 
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = S_MASS, S_TEMP
+          do v = S_MASS, S_VELO
              call init(q1(v,k)%data(d), sol(v,k)%data(d)%length); q1(v,k)%data(d)%elts = dble(3-v)
              call init(q2(v,k)%data(d), sol(v,k)%data(d)%length); q2(v,k)%data(d)%elts = dble(3-v)
              call init(q3(v,k)%data(d), sol(v,k)%data(d)%length); q3(v,k)%data(d)%elts = dble(3-v)
@@ -131,7 +131,7 @@ contains
 
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = S_MASS, S_TEMP
+          do v = S_MASS, S_VELO
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
              if (n_new .gt. 0) then
                 call extend(q1(v,k)%data(d),  n_new, dble(3-v))
@@ -195,7 +195,7 @@ contains
   end subroutine Forward_Euler
 
   subroutine WT_after_step(q, l_start0)
-    type(Float_Field), target :: q(S_MASS:S_TEMP, 1:zlevels)
+    type(Float_Field), target :: q(S_MASS:S_VELO, 1:zlevels)
     integer, optional :: l_start0
     integer l, ll, d, k, l_start
 
@@ -205,6 +205,7 @@ contains
     !            to conserve mass
     !         B) interpolate values for next step
 
+
     do k = 1, zlevels
        if (present(l_start0)) then
           l_start = l_start0
@@ -212,13 +213,13 @@ contains
        else
           l_start = level_start
        end if
+    end do
 
-       call update_bdry(q(S_MASS,k), NONE)
-       call update_bdry(q(S_VELO,k), NONE)
-       call update_bdry(q(S_TEMP,k), NONE)
+    call update_array_bdry(q, NONE)
 
-       do l = l_start, level_end-1
-          do d = 1, n_domain(rank+1)
+    do l = l_start, level_end-1
+       do d = 1, n_domain(rank+1)
+          do k = 1, zlevels
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
@@ -231,18 +232,20 @@ contains
              call apply_interscale_d(cpt_masstemp_wc, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
           end do
-
-          wav_coeff(:,k)%bdry_uptodate = .False.
        end do
 
-       do l = level_start+1, level_end
-          do d = 1, n_domain(rank+1)
-             do ll = 1, grid(d)%lev(l)%length
+       wav_coeff%bdry_uptodate = .False.
+    end do
+
+    do l = level_start+1, level_end
+       do d = 1, n_domain(rank+1)
+          do ll = 1, grid(d)%lev(l)%length
+             do k = 1, zlevels
                 call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), k, 0, 1)
              end do
           end do
-          wav_coeff(:,k)%bdry_uptodate = .False.
        end do
+       wav_coeff%bdry_uptodate = .False.
     end do
 
     call inverse_wavelet_transform (q)

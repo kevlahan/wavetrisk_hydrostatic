@@ -69,8 +69,24 @@ contains
   subroutine update_bdry1(field, l_start, l_end)
     type(Float_Field) :: field
     integer l_start, l_end
+    
     call cp_bdry_inside(field)
   end subroutine update_bdry1
+
+  subroutine update_array_bdry1(field, l_start, l_end)
+    type(Float_Field), dimension(:,:) :: field
+    integer l_start, l_end
+    integer :: i1, i2
+    integer, dimension(2) :: sz
+
+    sz = shape(field)
+
+    do i2 = 1, sz(2)
+       do i1 = 1, sz(1)
+          call cp_bdry_inside(field(i1,i2))
+       end do
+    end do
+  end subroutine update_array_bdry1
 
   subroutine comm_nodes9_mpi(get, set, l)
     external get, set
@@ -95,16 +111,79 @@ contains
     call cp_bdry_inside(field)
   end subroutine update_bdry
 
+  subroutine update_vector_bdry(field, l)
+    type(Float_Field), dimension(:) :: field
+    integer l, i1, i2, sz
+
+    sz = size(field)
+
+    do i1 = 1, sz
+       call cp_bdry_inside(field(i1))
+    end do
+  end subroutine update_vector_bdry
+
+  subroutine update_array_bdry(field, l)
+    type(Float_Field), dimension(:,:) :: field
+    integer l
+    integer :: i1, i2
+    integer, dimension (2) :: sz
+
+    sz = shape(field)
+
+    do i2 = 1, sz(2)
+       do i1 = 1, sz(1)
+          call cp_bdry_inside(field(i1,i2))
+       end do
+    end do
+  end subroutine update_array_bdry
+
   subroutine update_bdry__start(field, l)
     type(Float_Field) field
     integer l
     call cp_bdry_inside(field)
   end subroutine update_bdry__start
+  
+  subroutine update_vector_bdry__start(field, l)
+    type(Float_Field), dimension(:) :: field
+    integer l, i1, sz
+    
+    sz = size(field)
+
+    do i1 = 1, sz
+       call cp_bdry_inside(field(i1))
+    end do
+  end subroutine update_vector_bdry__start
+
+  subroutine update_array_bdry__start(field, l)
+    type(Float_Field), dimension(:,:) :: field
+    integer l
+
+    integer :: i1, i2
+    integer, dimension (2) :: sz
+
+    sz = shape(field)
+
+    do i2 = 1, sz(2)
+       do i1 = 1, sz(1)
+          call cp_bdry_inside(field(i1,i2))
+       end do
+    end do
+  end subroutine update_array_bdry__start
 
   subroutine update_bdry__finish(field, l)
     type(Float_Field) field
     integer l
   end subroutine update_bdry__finish
+
+  subroutine update_vector_bdry__finish(field, l)
+    type(Float_Field), dimension(:) :: field
+    integer l
+  end subroutine update_vector_bdry__finish
+
+  subroutine update_array_bdry__finish(field, l)
+    type(Float_Field), dimension(:,:) :: field
+    integer l
+  end subroutine update_array_bdry__finish
 
   real(8) function cpt_dt_mpi()
     integer l, ierror

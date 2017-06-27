@@ -260,13 +260,13 @@ module shared_mod
   data O2 /2,3, 3,1, 1,2/ 
 
   ! indices of prognostic variables in sol, trend etc
-  integer, parameter :: S_MASS = 1, S_VELO = 2, S_TEMP = 3
+  integer, parameter :: S_MASS = 1,  S_TEMP = 2, S_VELO = 3
 
   ! number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
-  integer, dimension(S_MASS:S_TEMP) :: MULT
+  integer, dimension(S_MASS:S_VELO) :: MULT
 
   ! location of each variable on the grid (at an edge or at a node)
-  integer, dimension(S_MASS:S_TEMP) :: POSIT
+  integer, dimension(S_MASS:S_VELO) :: POSIT
 
   ! grid optimization choices
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2

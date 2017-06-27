@@ -25,11 +25,11 @@ contains
     integer loz
 
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(S_MASS:S_TEMP,1:zlevels), trend(S_MASS:S_TEMP,1:zlevels), wav_coeff(S_MASS:S_TEMP, 1:zlevels))
+    allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels), wav_coeff(S_MASS:S_VELO, 1:zlevels))
     allocate (horiz_massflux(1:zlevels), horiz_tempflux(1:zlevels))
 
     do k = 1, zlevels
-       do v = S_MASS, S_TEMP
+       do v = S_MASS, S_VELO
           call init_Float_Field(sol(v,k), POSIT(v))
           call init_Float_Field(trend(v,k), POSIT(v))
        end do

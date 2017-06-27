@@ -308,11 +308,7 @@ contains
   subroutine mask_active()
     integer k, l
 
-    do k = 1, zlevels
-       call update_bdry1(wav_coeff(S_MASS,k), level_start, level_end)
-       call update_bdry1(wav_coeff(S_VELO,k), level_start, level_end)
-       call update_bdry1(wav_coeff(S_TEMP,k), level_start, level_end)
-    end do
+    call update_array_bdry1(wav_coeff, level_start, level_end)
 
     do k = 1, zlevels
        call apply_onescale(mask_tol, level_end, k, -1, 2)
