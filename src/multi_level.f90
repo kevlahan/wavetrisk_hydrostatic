@@ -86,24 +86,15 @@ contains
   end subroutine post_refine
 
   subroutine flux_cpt_restr(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    !compute flux restriction of mass and potential temperature by summing coarse, corrective and small fluxes
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
-    integer p_chd
+    ! Compute flux restriction of mass and potential temperature by summing coarse, corrective and small fluxes
+    type(Domain) :: dom
+    integer :: p_chd, i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
     integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_par
-    integer id_chd
-    integer idN_par
-    integer idE_par
-    integer idNE_par
-    real(8) sm_flux_m(4), sm_flux_t(4), c_c_flux_m, c_c_flux_t, p_c_flux_m, p_c_flux_t
+    integer :: id_par, id_chd, idN_par, idE_par, idNE_par
+    real(8), dimension(4) :: sm_flux_m, sm_flux_t
 
     id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
     id_par   = idx(i_par,     j_par,     offs_par, dims_par)
@@ -120,47 +111,56 @@ contains
     if (i_chd .ge. PATCH_SIZE .or. j_chd .ge. PATCH_SIZE) return
 
     if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) .ge. RESTRCT) then
-       call interp_small_fluxes(dom, i_chd, j_chd, offs_chd, dims_chd, sm_flux_m, sm_flux_t)
+       sm_flux_m = interp_flux(h_mflux, dom, i_chd, j_chd, offs_chd, dims_chd)
+       sm_flux_t = interp_flux(h_tflux, dom, i_chd, j_chd, offs_chd, dims_chd)
     end if
 
     if (dom%mask_e%elts(EDGE*id_par+RT+1) .ge. RESTRCT) then
-       call part_coarse_fluxes(dom, i_chd+1, j_chd, RT, offs_chd, dims_chd, p_c_flux_m, p_c_flux_t)
-       call corr_coarse_fluxes(dom, i_par, j_par, i_chd+1, j_chd, RT, c_c_flux_m, c_c_flux_t)
-
-       h_mflux(EDGE*id_par+RT+1) = p_c_flux_m + c_c_flux_m + sm_flux_m(1) + sm_flux_m(2)
-       h_tflux(EDGE*id_par+RT+1) = p_c_flux_t + c_c_flux_t + sm_flux_t(1) + sm_flux_t(2)
+       h_mflux(EDGE*id_par+RT+1) = &
+            complete_coarse_flux(dmass, h_mflux, sm_flux_m, dom, i_par, j_par, i_chd, j_chd, RT, offs_chd, dims_chd)
+       h_tflux(EDGE*id_par+RT+1) = &
+            complete_coarse_flux(dtemp, h_tflux, sm_flux_t, dom, i_par, j_par, i_chd, j_chd, RT, offs_chd, dims_chd)
     end if
 
     if (dom%mask_e%elts(EDGE*id_par+DG+1) .ge. RESTRCT) then
-       call part_coarse_fluxes(dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd, p_c_flux_m, p_c_flux_t)
-       call corr_coarse_fluxes(dom, i_par, j_par, i_chd + 1, j_chd + 1, DG, c_c_flux_m, c_c_flux_t)
-
-       h_mflux(DG+EDGE*id_par+1) = p_c_flux_m + c_c_flux_m + sm_flux_m(2) + sm_flux_m(3)
-       h_tflux(DG+EDGE*id_par+1) = p_c_flux_t + c_c_flux_t + sm_flux_t(2) + sm_flux_t(3)
+       h_mflux(DG+EDGE*id_par+1) = &
+            complete_coarse_flux(dmass, h_mflux, sm_flux_m, dom, i_par, j_par, i_chd, j_chd, DG, offs_chd, dims_chd)
+       h_tflux(DG+EDGE*id_par+1) = &
+            complete_coarse_flux(dtemp, h_tflux, sm_flux_t, dom, i_par, j_par, i_chd, j_chd, DG, offs_chd, dims_chd)
     end if
 
     if (dom%mask_e%elts(EDGE*id_par+UP+1) .ge. RESTRCT) then
-       call part_coarse_fluxes(dom, i_chd, j_chd + 1, UP, offs_chd, dims_chd, p_c_flux_m, p_c_flux_t)
-       call corr_coarse_fluxes(dom, i_par, j_par, i_chd, j_chd + 1, UP, c_c_flux_m, c_c_flux_t)
-
-       h_mflux(EDGE*id_par+UP+1) = p_c_flux_m + c_c_flux_m + sm_flux_m(3) + sm_flux_m(4)
-       h_tflux(EDGE*id_par+UP+1) = p_c_flux_t + c_c_flux_t + sm_flux_t(3) + sm_flux_t(4)
+       h_mflux(EDGE*id_par+UP+1) = &
+            complete_coarse_flux(dmass, h_mflux, sm_flux_m, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
+       h_tflux(EDGE*id_par+UP+1) = &
+            complete_coarse_flux(dtemp, h_tflux, sm_flux_t, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
     end if
-
   contains
-
-    subroutine corr_coarse_fluxes(dom, i_par, j_par, i_chd, j_chd, e, flux_m, flux_t)
-      !compute correction of coarse fluxes for mass and potential temperature
+    function complete_coarse_flux(scalar, flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
+      real(8) :: complete_coarse_flux
+      real(8), dimension(:), pointer :: scalar, flux
+      real(8), dimension(4) :: sm_flux
       type(Domain) :: dom
       integer :: i_par, j_par, i_chd, j_chd, e
-      real(8) :: flux_m, flux_t
+      integer, dimension(N_BDRY + 1) :: offs_chd
+      integer, dimension(2,N_BDRY + 1) :: dims_chd
 
-      ! Mass
-      flux_m = coarse_flux(dmass, dom, i_par, j_par, i_chd, j_chd, e)
+      real(8) :: p_flux, c_flux
 
-      ! Potential temperature
-      flux_t = coarse_flux(dtemp, dom, i_par, j_par, i_chd, j_chd, e)
-    end subroutine corr_coarse_fluxes
+      if (e .eq. RT) then
+         p_flux = part_flux(scalar, flux, dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
+         c_flux = coarse_flux(scalar, dom, i_par, j_par, i_chd+1, j_chd, RT)
+         complete_coarse_flux = p_flux + c_flux + sm_flux(1) + sm_flux(2)
+      elseif (e .eq. DG) then
+          p_flux = part_flux(scalar, flux, dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd)
+          c_flux = coarse_flux(scalar, dom, i_par, j_par, i_chd+1, j_chd+1, DG)
+          complete_coarse_flux = p_flux + c_flux + sm_flux(2) + sm_flux(3)
+      elseif (e .eq. UP) then
+         p_flux = part_flux(scalar, flux, dom, i_chd, j_chd+1, UP, offs_chd, dims_chd)
+         c_flux = coarse_flux(scalar, dom, i_par, j_par, i_chd, j_chd+1, UP)
+         complete_coarse_flux = p_flux + c_flux + sm_flux(3) + sm_flux(4)
+      end if
+    end function complete_coarse_flux
 
     function coarse_flux (scalar, dom, i_par, j_par, i_chd, j_chd, e)
       real(8) :: coarse_flux
@@ -243,17 +243,6 @@ contains
       id(WMM+1)  = ed_idx(ij_mm(1), ij_mm(2), hex_sides(:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
     end subroutine get_indices
 
-    subroutine interp_small_fluxes(dom, i, j, offs, dims, flux_m, flux_t)
-      type(Domain) dom
-      integer i, j
-      integer, dimension(N_BDRY + 1) :: offs
-      integer, dimension(2,N_BDRY + 1) :: dims
-      real(8), dimension(4) :: flux_m, flux_t
-
-      flux_m = interp_flux(h_mflux, dom, i, j, offs, dims)
-      flux_t = interp_flux(h_tflux, dom, i, j, offs, dims)
-    end subroutine interp_small_fluxes
-
     function interp_flux (flux, dom, i, j, offs, dims)
       real(8), dimension(4) :: interp_flux
       real(8), dimension(:), pointer :: flux
@@ -285,19 +274,6 @@ contains
            + sum((flux(id((/WPPP,UPZ,VMP/)+1)+1) - flux(id((/VMPP,WPP,UMZ/)+1)+1))* &
            dom%R_F_wgt%elts(idx(i-2,j+1, offs, dims)+1)%enc) ! LORT W
     end function interp_flux
-
-    subroutine part_coarse_fluxes(dom, i, j, e, offs, dims, flux_m, flux_t)
-      type(Domain) dom
-      integer i, j, e
-      integer, dimension(N_BDRY + 1) :: offs
-      integer, dimension(2,N_BDRY + 1) :: dims
-      real(8) area(2), ol_area(4)
-      integer id(20)
-      real(8) flux_m, flux_t
-
-      flux_m = part_flux(dmass, h_mflux, dom, i, j, e, offs, dims)
-      flux_t = part_flux(dtemp, h_tflux, dom, i, j, e, offs, dims)
-    end subroutine part_coarse_fluxes
 
     function part_flux(scalar, flux, dom, i, j, e, offs, dims)
       real(8) :: part_flux
