@@ -257,8 +257,9 @@ contains
        if (penalize) penal%data(d)%length = num(AT_NODE)
 
        do k = 1, zlevels
-          horiz_massflux(k)%data(d)%length = num(AT_EDGE)
-          horiz_tempflux(k)%data(d)%length = num(AT_EDGE)
+          do v = S_MASS, S_TEMP
+             horiz_flux(v,k)%data(d)%length = num(AT_EDGE)
+          end do
           do v = S_MASS, S_VELO
              wav_coeff(v,k)%data(d)%length = num(POSIT(v))
              trend(v,k)%data(d)%length = num(POSIT(v))
@@ -355,11 +356,12 @@ contains
     ! deallocate precompute_geometry allocations
     do k = 1, zlevels
        do d = 1, size(grid)
-          deallocate(trend(S_VELO,k)%data(d)%elts)
-          deallocate(trend(S_MASS,k)%data(d)%elts)
-          deallocate(trend(S_TEMP,k)%data(d)%elts)
-          deallocate(horiz_massflux(k)%data(d)%elts)
-          deallocate(horiz_tempflux(k)%data(d)%elts)
+          do v = S_MASS, S_VELO
+             deallocate(trend(v,k)%data(d)%elts)
+          end do
+          do v = S_MASS, S_TEMP
+             deallocate(horiz_flux(v,k)%data(d)%elts)
+          end do
        end do
     end do
 
@@ -443,15 +445,16 @@ contains
     if (penalize) deallocate(penal%data)
 
     do k = 1, zlevels
-       deallocate(horiz_massflux(k)%data)
-       deallocate(horiz_tempflux(k)%data)
+       do v = S_MASS, S_TEMP
+          deallocate(horiz_flux(v,k)%data)
+       end do
        do v = S_MASS, S_VELO
           deallocate(sol(v,k)%data)
           deallocate(trend(v,k)%data)
        end do
     end do
 
-    deallocate(sol, trend, horiz_massflux, horiz_tempflux)
+    deallocate(sol, trend, horiz_flux)
     deallocate(grid)
 
     ! init_shared_mod()

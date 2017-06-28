@@ -106,6 +106,7 @@ contains
     integer i_par
     integer id_par
     integer num, d
+    integer v
     type(Coord), dimension(6) :: tmp
 
     call get_offs_Domain(dom, p, offs_par, dims_par)
@@ -191,14 +192,13 @@ contains
     call extend(dom%kin_energy, num, 0.0_8)
 
     do k = 1, zlevels
-       call extend(trend(S_MASS,k)%data(d), num, 0.0_8)
+       do v = S_MASS, S_TEMP
+          call extend(trend(v,k)%data(d), num, 0.0_8)
+          call extend(horiz_flux(v,k)%data(d), num*EDGE, 0.0_8)
+          call extend(wav_coeff(v,k)%data(d), num, 0.0_8)
+       end do
        call extend(trend(S_VELO,k)%data(d), num*EDGE, 0.0_8)
-       call extend(trend(S_TEMP,k)%data(d), num, 0.0_8)
-       call extend(horiz_massflux(k)%data(d), num*EDGE, 0.0_8)
-       call extend(horiz_tempflux(k)%data(d), num*EDGE, 0.0_8)
-       call extend(wav_coeff(S_MASS,k)%data(d), num, 0.0_8)
        call extend(wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
-       call extend(wav_coeff(S_TEMP,k)%data(d), num, 0.0_8)
     end do
 
     if (penalize) call extend(penal%data(d), num, 1.0_8)

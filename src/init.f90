@@ -26,15 +26,16 @@ contains
 
     allocate (grid(n_domain(rank+1)))
     allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels), wav_coeff(S_MASS:S_VELO, 1:zlevels))
-    allocate (horiz_massflux(1:zlevels), horiz_tempflux(1:zlevels))
+    allocate (horiz_flux(S_MASS:S_TEMP,1:zlevels))
 
     do k = 1, zlevels
        do v = S_MASS, S_VELO
           call init_Float_Field(sol(v,k), POSIT(v))
           call init_Float_Field(trend(v,k), POSIT(v))
        end do
-       call init_Float_Field(horiz_massflux(k), AT_EDGE)
-       call init_Float_Field(horiz_tempflux(k), AT_EDGE)
+       do v = S_MASS, S_TEMP
+          call init_Float_Field(horiz_flux(v,k), AT_EDGE)
+       end do
     end do
 
     if (penalize) call init_Float_Field(penal, AT_NODE)
@@ -285,7 +286,7 @@ contains
 
   subroutine init_geometry()
     integer d
-    integer i
+    integer i, v
 
     do d = 1, size(grid)
        call init(grid(d)%ccentre, grid(d)%node%length*TRIAG)
@@ -310,7 +311,7 @@ contains
   end subroutine init_geometry
 
   subroutine precompute_geometry()
-    integer d, k
+    integer d, k, v
 
     call apply_onescale2(ccentre, min_level-1, z_null, -2, 1)
 
@@ -330,8 +331,9 @@ contains
           call init(trend(S_MASS,k)%data(d),   grid(d)%node%length)
           call init(trend(S_VELO,k)%data(d),   grid(d)%node%length*EDGE); trend(S_VELO,k)%data(d)%elts = 0
           call init(trend(S_TEMP,k)%data(d),   grid(d)%node%length)
-          call init(horiz_massflux(k)%data(d), grid(d)%node%length*EDGE)
-          call init(horiz_tempflux(k)%data(d), grid(d)%node%length*EDGE)
+          do v = S_MASS, S_TEMP
+             call init(horiz_flux(v,k)%data(d), grid(d)%node%length*EDGE)
+          end do
        end do
     end do
 

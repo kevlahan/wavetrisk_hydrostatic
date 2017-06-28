@@ -74,9 +74,7 @@ module domain_mod
   end type Float_Field
 
   type(Domain), allocatable :: grid(:)
-
-  type(Float_Field), ALLOCATABLE, TARGET :: sol(:,:), trend(:,:), wav_coeff(:,:)
-  type(Float_Field), ALLOCATABLE, TARGET :: horiz_tempflux(:), horiz_massflux(:)
+  type(Float_Field), dimension(:,:), allocatable, target :: sol, trend, wav_coeff, horiz_flux
 
   !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
   !we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
