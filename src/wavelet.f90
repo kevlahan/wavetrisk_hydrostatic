@@ -224,15 +224,15 @@ contains
 
     do l = level_end - 1, level_start - 1, -1
        call update_array_bdry(sol(S_MASS:S_TEMP,:), l+1)
-       do k = 1, zlevels
-          do d = 1, n_domain(rank+1)
+       do d = 1, n_domain(rank+1)
+          do k = 1, zlevels
              mass => sol(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              temp => sol(S_TEMP,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-
+             
              call apply_interscale_d(cpt_masstemp_wc, grid(d), l, z_null, 0, 0)
-
+             
              nullify(wc_m, wc_t, mass, temp)
           end do
        end do
@@ -249,10 +249,10 @@ contains
     wav_coeff(S_MASS:S_TEMP,:)%bdry_uptodate = .False.
 
     call update_vector_bdry(sol(S_VELO,:), NONE)
-
+    
     do l = level_end - 1, level_start - 1, -1
-       do k = 1, zlevels
-          do d = 1, n_domain(rank+1)
+       do d = 1, n_domain(rank+1)
+          do k = 1, zlevels
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              velo => sol(S_VELO,k)%data(d)%elts
              call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
@@ -260,7 +260,7 @@ contains
              nullify(wc_u, velo)
           end do
        end do
-    end do       
+    end do
     wav_coeff(S_VELO,:)%bdry_uptodate = .False.
   end subroutine forward_wavelet_transform
 
@@ -343,8 +343,7 @@ contains
     end do
   end subroutine inverse_wavelet_transform
 
-  real(8) function interp_outer_u(dom, i, j, e, offs, dims, i_chd, j_chd, &
-       offs_chd, dims_chd)
+  real(8) function interp_outer_u(dom, i, j, e, offs, dims, i_chd, j_chd, offs_chd, dims_chd)
     type(Domain) dom
     integer i
     integer j

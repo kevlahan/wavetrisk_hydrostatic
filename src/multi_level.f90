@@ -342,8 +342,8 @@ contains
     call update_array_bdry(q, NONE)
 
     ! First integrate pressure down across all grid points in order to compute surface pressure
-    do k = zlevels, 1, -1
-       do d = 1, size(grid)
+    do d = 1, size(grid)
+       do k = zlevels, 1, -1
           mass => q(S_MASS,k)%data(d)%elts
           temp => q(S_TEMP,k)%data(d)%elts
 
