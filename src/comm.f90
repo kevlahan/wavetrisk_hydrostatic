@@ -985,6 +985,7 @@ contains
     integer i, pos
 
     pos = field%pos
+    
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
        do dest_loc = 1, size(grid)
@@ -992,7 +993,9 @@ contains
           do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
              src_id = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
+             
              field%data(dest_loc)%elts(abs(dest_id)+1) = field%data(src_loc)%elts(src_id+1)
+             
              if (dest_id .lt. 0 .and. pos .eq. AT_EDGE) &
                   field%data(dest_loc)%elts(abs(dest_id)+1) = &
                   -field%data(dest_loc)%elts(abs(dest_id)+1)
@@ -1000,6 +1003,71 @@ contains
        end do
     end do
   end subroutine cp_bdry_inside
+
+  subroutine cp_bdry_inside_vector(field)
+    type(Float_Field), dimension(:) :: field
+    integer src_loc, src_glo
+    integer dest_loc, dest_glo
+    integer src_id, dest_id
+    integer i, pos, i1, sz
+
+    ! Find size of field
+    sz = size(field)
+
+    do src_loc = 1, size(grid)
+       src_glo = glo_id(rank+1,src_loc)
+       do dest_loc = 1, size(grid)
+          dest_glo = glo_id(rank+1,dest_loc)
+          do i1 = 1, sz
+             pos = field(i1)%pos
+             do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
+                src_id = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
+                dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
+
+                field(i1)%data(dest_loc)%elts(abs(dest_id)+1) = field(i1)%data(src_loc)%elts(src_id+1)
+
+                if (dest_id .lt. 0 .and. pos .eq. AT_EDGE) &
+                     field(i1)%data(dest_loc)%elts(abs(dest_id)+1) = &
+                     -field(i1)%data(dest_loc)%elts(abs(dest_id)+1)
+             end do
+          end do
+       end do
+    end do
+  end subroutine cp_bdry_inside_vector
+
+   subroutine cp_bdry_inside_array(field)
+    type(Float_Field), dimension(:,:) :: field
+    integer :: src_loc, src_glo
+    integer :: dest_loc, dest_glo
+    integer :: src_id, dest_id
+    integer :: i, pos, i1, i2
+    integer, dimension(2) :: sz
+
+    ! Find size of field
+    sz = shape(field)
+
+    do src_loc = 1, size(grid)
+       src_glo = glo_id(rank+1,src_loc)
+       do dest_loc = 1, size(grid)
+          dest_glo = glo_id(rank+1,dest_loc)
+          do i2 = 1, sz(2)
+             do i1 = 1, sz(1)
+                pos = field(i1,i2)%pos
+                do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
+                   src_id = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
+                   dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
+
+                   field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1) = field(i1,i2)%data(src_loc)%elts(src_id+1)
+
+                   if (dest_id .lt. 0 .and. pos .eq. AT_EDGE) &
+                        field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1) = &
+                        -field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1)
+                end do
+             end do
+          end do
+       end do
+    end do
+  end subroutine cp_bdry_inside_array
 
   subroutine comm_nodes(get, set)
     external get

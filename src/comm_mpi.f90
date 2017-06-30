@@ -657,9 +657,7 @@ contains
     end do
 
     ! communicate inside domain
-    do i1 = 1, sz
-       call cp_bdry_inside(field(i1))
-    end do
+    call cp_bdry_inside_vector(field)
   end subroutine update_vector_bdry__start1
 
   subroutine update_array_bdry__start1(field, l_start, l_end)
@@ -770,11 +768,7 @@ contains
     end do
 
     ! communicate inside domain
-    do i2 = 1, sz(2)
-       do i1 = 1, sz(1)
-          call cp_bdry_inside(field(i1,i2))
-       end do
-    end do
+    call cp_bdry_inside_array(field)
   end subroutine update_array_bdry__start1
 
   subroutine update_bdry__finish(field, l)
@@ -905,11 +899,7 @@ contains
     end do
 
     ! assumes routine is either called for one level, or all levels ever to be updated
-    if (l_start .lt. l_end) then
-       do i1 = 1, sz
-          field(i1)%bdry_uptodate = .True.
-       end do
-    end if
+    if (l_start .lt. l_end) field%bdry_uptodate = .True.
   end subroutine update_vector_bdry__finish1
   
   subroutine update_array_bdry__finish1(field, l_start, l_end)
@@ -920,7 +910,7 @@ contains
     integer multipl, lev
 
     integer :: i1, i2
-    integer, dimension (2) :: sz
+    integer, dimension(2) :: sz
     logical :: ret
 
     ! Find shape of field
@@ -970,13 +960,7 @@ contains
     end do
 
     ! assumes routine is either called for one level, or all levels ever to be updated
-    if (l_start .lt. l_end) then
-       do i2 = 1, sz(2)
-          do i1 = 1, sz(1)
-             field(i1,i2)%bdry_uptodate = .True.
-          end do
-       end do
-    end if
+    if (l_start .lt. l_end) field%bdry_uptodate = .True.
   end subroutine update_array_bdry__finish1
   
   subroutine comm_nodes9_mpi(get, set, l)
