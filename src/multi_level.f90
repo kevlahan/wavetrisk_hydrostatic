@@ -328,7 +328,6 @@ contains
        end do
        call apply_interscale_to_patch(Qperp_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
     end do
-
   end subroutine cpt_or_restr_Qperp
 
   subroutine trend_ml(q, dq)
@@ -342,8 +341,8 @@ contains
     call update_array_bdry(q, NONE)
 
     ! First integrate pressure down across all grid points in order to compute surface pressure
-    do d = 1, size(grid)
-       do k = zlevels, 1, -1
+    do k = zlevels, 1, -1
+       do d = 1, size(grid)
           mass => q(S_MASS,k)%data(d)%elts
           temp => q(S_TEMP,k)%data(d)%elts
 
@@ -356,8 +355,8 @@ contains
     end do
 
     ! Calculate trend on finest scale
-    do d = 1, size(grid)
-       do k = 1, zlevels
+    do k = 1, zlevels
+       do d = 1, size(grid)
           mass    => q(S_MASS,k)%data(d)%elts
           velo    => q(S_VELO,k)%data(d)%elts
           temp    => q(S_TEMP,k)%data(d)%elts
@@ -382,8 +381,8 @@ contains
     end if
 
     ! compute mass and potential temperature trend
-    do d = 1, size(grid)
-       do k = 1, zlevels
+    do k = 1, zlevels
+       do d = 1, size(grid)
           mass    =>  q(S_MASS,k)%data(d)%elts
           velo    =>  q(S_VELO,k)%data(d)%elts
           temp    =>  q(S_TEMP,k)%data(d)%elts
@@ -393,14 +392,14 @@ contains
           h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(masstemp_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch(scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
 
           nullify(mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
        end do
     end do
 
-    dq%bdry_uptodate             = .False.
+    dq%bdry_uptodate         = .False.
     horiz_flux%bdry_uptodate = .False.
 
     if (level_start .lt. level_end) then
@@ -409,8 +408,8 @@ contains
     end if
 
     ! Compute velocity trend
-    do d = 1, size(grid)
-       do k = 1, zlevels
+    do k = 1, zlevels
+       do d = 1, size(grid)
           if (advect_only) cycle
           
           mass    =>  q(S_MASS,k)%data(d)%elts
@@ -428,12 +427,11 @@ contains
        end do
     end do
 
-       ! Calculate trend on coarser scales
+    ! Calculate trend on coarser scales
     do l = level_end-1, level_start, -1
        call update_array_bdry__finish(dq(S_MASS:S_TEMP,:), l+1) ! <= finish non-blocking communicate dmass (l+1)
-
-       do d = 1, size(grid)
-          do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, size(grid)
              mass    =>  q(S_MASS,k)%data(d)%elts
              velo    =>  q(S_VELO,k)%data(d)%elts
              temp    =>  q(S_TEMP,k)%data(d)%elts
@@ -461,8 +459,9 @@ contains
        call update_array_bdry__start(horiz_flux, l)  ! <= start non-blocking communicate flux (l)
           
        if (viscosity .ne. 0) then ! Calculate viscous term
-          do d = 1, size(grid)
-             do k = 1, zlevels
+          do k = 1, zlevels
+             do d = 1, size(grid)
+
                 velo => q(S_VELO,k)%data(d)%elts
                 mass => q(S_MASS,k)%data(d)%elts
                 
@@ -477,15 +476,15 @@ contains
        
        call update_array_bdry__finish(horiz_flux, l)  ! <= finish non-blocking communicate flux (l)
 
-       do d = 1, size(grid)
-          do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, size(grid)
              dmass   => dq(S_MASS,k)%data(d)%elts
              dtemp   => dq(S_TEMP,k)%data(d)%elts
              h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
              h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(masstemp_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1) ! use flux (l) & cpt dmass (l)
+                call apply_onescale_to_patch(scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1) ! use flux (l) & cpt dmass (l)
              end do
              nullify(dmass, dtemp, h_mflux, h_tflux)
           end do
@@ -499,8 +498,8 @@ contains
        
        if (advect_only) cycle
 
-       do d = 1, size(grid)
-          do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, size(grid)
              mass    => q(S_MASS,k)%data(d)%elts
              velo    => q(S_VELO,k)%data(d)%elts
              temp    => q(S_TEMP,k)%data(d)%elts
@@ -522,8 +521,8 @@ contains
     if (advect_only) return
 
     ! Add gradient terms at all scales
-    do d = 1, size(grid)
-       do k = 1, zlevels
+    do k = 1, zlevels
+       do d = 1, size(grid)
           mass    =>  q(S_MASS,k)%data(d)%elts
           temp    =>  q(S_TEMP,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
@@ -576,7 +575,6 @@ contains
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
        dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
     end if
-
   end subroutine Qperp_cpt_restr
 
   subroutine cpt_or_restr_flux(dom, l)

@@ -486,7 +486,7 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
 
-    id   = idx(i,     j,     offs, dims)
+    id   = idx(i, j, offs, dims)
 
     if (mass(id+1)+mean(S_MASS,zlev) .lt. 1e-4_8) then
        print *, 'fatal error: a horizontal layer thickness is being squeezed to zero, namely, at zlev=', zlev
@@ -568,7 +568,7 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
 
-    id   = idx(i,     j,     offs, dims)
+    id   = idx(i, j, offs, dims)
 
     if (compressible) then !compressible case
        !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
@@ -843,7 +843,7 @@ contains
          dom%qe%elts(EDGE*id+UP+1))*wgt2(5)
   end subroutine du_Qperp
 
-  subroutine masstemp_trend(dom, i, j, zlev, offs, dims)
+  subroutine scalar_trend(dom, i, j, zlev, offs, dims)
     type(Domain) :: dom
     integer :: i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
@@ -853,12 +853,12 @@ contains
 
     id   = idx(i, j, offs, dims)
     
-    dmass(id+1) = scalar_trend(h_mflux, dom, i, j, offs, dims, id)
-    dtemp(id+1) = scalar_trend(h_tflux, dom, i, j, offs, dims, id)
-  end subroutine masstemp_trend
+    dmass(id+1) = eval_scalar_trend(h_mflux, dom, i, j, offs, dims, id)
+    dtemp(id+1) = eval_scalar_trend(h_tflux, dom, i, j, offs, dims, id)
+  end subroutine scalar_trend
 
-  function scalar_trend(h_flux, dom, i, j, offs, dims, id)
-    real(8) :: scalar_trend
+  function eval_scalar_trend(h_flux, dom, i, j, offs, dims, id)
+    real(8) :: eval_scalar_trend
     real(8), dimension(:), pointer :: h_flux
     type(Domain) :: dom
     integer :: i, j, id
@@ -871,10 +871,11 @@ contains
     idW  = idx(i - 1, j,     offs, dims)
     idSW = idx(i - 1, j - 1, offs, dims)
     
-    scalar_trend = -(h_flux(EDGE*id+UP+1)  - h_flux(EDGE*id+DG+1)   + h_flux(EDGE*id+RT+1) - &
-         h_flux(EDGE*idS+UP+1) + h_flux(EDGE*idSW+DG+1) - h_flux(EDGE*idW+RT+1)) &
-         *dom%areas%elts(id+1)%hex_inv
-  end function scalar_trend
+    eval_scalar_trend = -(h_flux(EDGE*id+UP+1)   - h_flux(EDGE*id+DG+1) + &
+                          h_flux(EDGE*id+RT+1)   - h_flux(EDGE*idS+UP+1) + &
+                          h_flux(EDGE*idSW+DG+1) - h_flux(EDGE*idW+RT+1)) &
+                          *dom%areas%elts(id+1)%hex_inv
+  end function eval_scalar_trend
 
   subroutine du_gradB(dom, i, j, zlev, offs, dims)
     !add gradient of the Bernoulli function to dvelo [Aechtner thesis page 58]

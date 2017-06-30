@@ -224,14 +224,14 @@ contains
 
     do l = level_end - 1, level_start - 1, -1
        call update_array_bdry(sol(S_MASS:S_TEMP,:), l+1)
-       do d = 1, n_domain(rank+1)
-          do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, n_domain(rank+1)
              mass => sol(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              temp => sol(S_TEMP,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
              
-             call apply_interscale_d(cpt_masstemp_wc, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d(cpt_scalar_wc, grid(d), l, z_null, 0, 0)
              
              nullify(wc_m, wc_t, mass, temp)
           end do
@@ -251,8 +251,8 @@ contains
     call update_vector_bdry(sol(S_VELO,:), NONE)
     
     do l = level_end - 1, level_start - 1, -1
-       do d = 1, n_domain(rank+1)
-          do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, n_domain(rank+1)
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              velo => sol(S_VELO,k)%data(d)%elts
              call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
@@ -281,8 +281,8 @@ contains
     sca_coeff%bdry_uptodate = .False.
 
     do l = l_start, level_end-1
-       do d = 1, n_domain(rank+1)
-          do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, n_domain(rank+1)
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              temp => sca_coeff(S_TEMP,k)%data(d)%elts
@@ -299,15 +299,15 @@ contains
        
        call update_array_bdry__start(sca_coeff(S_MASS:S_TEMP,:), l+1)
        
-       do d = 1, n_domain(rank+1)
+       do k = 1, zlevels
+          do d = 1, n_domain(rank+1)
           if (advect_only) cycle
-          do k = 1, zlevels
-             velo => sca_coeff(S_VELO,k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             if (present(l_start0)) then
-                call apply_interscale_d2(IWT_interpolate_u_outer_add_wc, grid(d), l, z_null, 0, 1) ! needs val
-             else
-                call apply_interscale_d2(IWT_interpolate_u_outer, grid(d), l, z_null, 0, 1) ! needs val
+          velo => sca_coeff(S_VELO,k)%data(d)%elts
+          wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+          if (present(l_start0)) then
+             call apply_interscale_d2(IWT_interpolate_u_outer_add_wc, grid(d), l, z_null, 0, 1) ! needs val
+          else
+             call apply_interscale_d2(IWT_interpolate_u_outer, grid(d), l, z_null, 0, 1) ! needs val
              end if
              call apply_to_penta_d(IWT_interp_vel_penta, grid(d), l, z_null)
           end do
@@ -316,8 +316,8 @@ contains
        call update_array_bdry__finish(sca_coeff(S_MASS:S_TEMP,:), l+1)
        call update_vector_bdry__start(sca_coeff(S_VELO,:), l+1)
 
-       do d = 1, n_domain(rank+1)
-          do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, n_domain(rank+1)
              mass => sca_coeff(S_MASS,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              temp => sca_coeff(S_TEMP,k)%data(d)%elts
@@ -328,9 +328,9 @@ contains
        
        call update_vector_bdry__finish(sca_coeff(S_VELO,:), l+1)
 
-       do d = 1, n_domain(rank+1)
+       do k = 1, zlevels
+          do d = 1, n_domain(rank+1)
           if (advect_only) cycle
-          do k = 1, zlevels
              velo => sca_coeff(S_VELO,k)%data(d)%elts
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              call apply_interscale_d(IWT_interpolate_u_inner, grid(d), l, z_null, 0, 0)
@@ -992,7 +992,7 @@ contains
          wav(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end function inject
 
-  subroutine cpt_masstemp_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine cpt_scalar_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     !compute wavelet coefficients for mass and potential temperature
     type(Domain) dom
     integer i_par
@@ -1039,7 +1039,7 @@ contains
        wc_t(idE_chd+1) = temp(idE_chd+1) - I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
     end if
 
-  end subroutine cpt_masstemp_wc
+  end subroutine cpt_scalar_wc
 
   subroutine IWT_interp_wc_scalar(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     !inverse transform for mass and potential temperature: interpolate and add wavelet coefficent

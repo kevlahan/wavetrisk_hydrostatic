@@ -615,7 +615,7 @@ contains
     end do
   end subroutine read_u_wc_and_mask
 
-  subroutine read_masstemp(dom, p, i, j, zlev, offs, dims, fid)
+  subroutine read_scalar(dom, p, i, j, zlev, offs, dims, fid)
     type(Domain) dom
     integer p, i
     integer j, zlev, k
@@ -627,7 +627,7 @@ contains
     id = idx(i, j, offs, dims)
     read(fid) sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) ! for pole
     read(fid) sol(S_TEMP,zlev)%data(dom%id+1)%elts(id+1) ! for pole
-  end subroutine read_masstemp
+  end subroutine read_scalar
 
   subroutine read_mt_wc_and_mask(dom, p, i, j, offs, dims, fid)
     !read in wavelet coefficients of mass and potential temperature (not mask though??)
@@ -665,7 +665,7 @@ contains
     end do
   end subroutine write_mt_wc
 
-  subroutine write_masstemp(dom, p, i, j, zlev, offs, dims, fid)
+  subroutine write_scalar(dom, p, i, j, zlev, offs, dims, fid)
     type(Domain) dom
     integer p, i, zlev
     integer j, k
@@ -677,7 +677,7 @@ contains
     id = idx(i, j, offs, dims)
     write(fid) sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) ! for pole
     write(fid) sol(S_TEMP,zlev)%data(dom%id+1)%elts(id+1) ! for pole
-  end subroutine write_masstemp
+  end subroutine write_scalar
 
   subroutine load_adapt_mpi(node_in_rout, edge_in_rout, id, custom_load)
     ! one file per domain
@@ -705,7 +705,7 @@ contains
        call custom_load(fid_no(d))
 
        do k = 1, zlevels
-          call apply_to_pole_d(read_masstemp, grid(d), min_level-1, k, fid_no(d), .True.)
+          call apply_to_pole_d(read_scalar, grid(d), min_level-1, k, fid_no(d), .True.)
        end do
 
        do k = 1, zlevels
@@ -826,7 +826,7 @@ contains
        call custom_dump(fid_no)
 
        do k = 1, zlevels
-          call apply_to_pole_d(write_masstemp, grid(d), min_level-1, k, fid_no, .True.)
+          call apply_to_pole_d(write_scalar, grid(d), min_level-1, k, fid_no, .True.)
        end do
 
        do k = 1, zlevels

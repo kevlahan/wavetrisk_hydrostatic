@@ -9,7 +9,7 @@ module time_integr_mod
   use arch_mod
   implicit none
 
-  type(Float_Field), allocatable :: q1(:,:), q2(:,:), q3(:,:), q4(:,:), dq1(:,:)
+  type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
 
 contains
 
@@ -30,12 +30,12 @@ contains
   subroutine RK_sub_step4(sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
     real(8) :: alpha(4), dt(2)
     type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels)  :: trend1, trend2
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: trend1, trend2
     type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), intent(inout) :: dest
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
-       do d = 1, n_domain(rank+1)
+       do d = 1, size(grid)
           do v = S_MASS, S_VELO
              start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
 
@@ -62,7 +62,7 @@ contains
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
-       do d = 1, n_domain(rank+1)
+       do d = 1, size(grid)
           do v = S_MASS, S_VELO
              start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
@@ -83,7 +83,7 @@ contains
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
-       do d = 1, n_domain(rank+1)
+       do d = 1, size(grid)
           do v = S_MASS, S_VELO
              start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
              dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
@@ -114,7 +114,7 @@ contains
     end do
 
     do k = 1, zlevels
-       do d = 1, n_domain(rank+1)
+       do d = 1, size(grid)
           do v = S_MASS, S_VELO
              call init(q1(v,k)%data(d), sol(v,k)%data(d)%length); q1(v,k)%data(d)%elts = dble(3-v)
              call init(q2(v,k)%data(d), sol(v,k)%data(d)%length); q2(v,k)%data(d)%elts = dble(3-v)
@@ -130,7 +130,7 @@ contains
     integer d, k, v, n_new
 
     do k = 1, zlevels
-       do d = 1, n_domain(rank+1)
+       do d = 1, size(grid)
           do v = S_MASS, S_VELO
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
              if (n_new .gt. 0) then
@@ -205,7 +205,6 @@ contains
     !            to conserve mass
     !         B) interpolate values for next step
 
-
     do k = 1, zlevels
        if (present(l_start0)) then
           l_start = l_start0
@@ -218,8 +217,8 @@ contains
     call update_array_bdry(q, NONE)
 
     do l = l_start, level_end-1
-       do d = 1, n_domain(rank+1)
-          do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, size(grid)
              wc_u => wav_coeff(S_VELO,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
@@ -229,18 +228,17 @@ contains
              temp => q(S_TEMP,k)%data(d)%elts
 
              call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
-             call apply_interscale_d(cpt_masstemp_wc, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d(cpt_scalar_wc, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
           end do
        end do
-
        wav_coeff%bdry_uptodate = .False.
     end do
 
     do l = level_start+1, level_end
-       do d = 1, n_domain(rank+1)
-          do ll = 1, grid(d)%lev(l)%length
-             do k = 1, zlevels
+       do k = 1, zlevels
+          do d = 1, size(grid)
+             do ll = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), k, 0, 1)
              end do
           end do
@@ -248,7 +246,7 @@ contains
        wav_coeff%bdry_uptodate = .False.
     end do
 
-    call inverse_wavelet_transform (q)
+    call inverse_wavelet_transform(q)
   end subroutine WT_after_step
 
 end module time_integr_mod

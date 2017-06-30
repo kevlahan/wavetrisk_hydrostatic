@@ -305,7 +305,7 @@ contains
        call init(grid(d)%pedlen,     grid(d)%node%length*EDGE)
        call init(grid(d)%len,        grid(d)%node%length*EDGE)
        call init(grid(d)%triarea,    grid(d)%node%length*TRIAG)
-       call init(grid(d)%coriolis,    grid(d)%node%length*TRIAG)
+       call init(grid(d)%coriolis,   grid(d)%node%length*TRIAG)
        call init(grid(d)%windstress, grid(d)%node%length*EDGE)
     end do
   end subroutine init_geometry
@@ -338,22 +338,21 @@ contains
     end do
 
     do d = 1, size(grid)
-       call init(grid(d)%bernoulli, grid(d)%node%length)
-       call init(grid(d)%exner, grid(d)%node%length)
-       call init(grid(d)%surf_press, grid(d)%node%length)
-       call init(grid(d)%press, grid(d)%node%length)
-       call init(grid(d)%surf_geopot, grid(d)%node%length)
-       call init(grid(d)%geopot, grid(d)%node%length)
-       call init(grid(d)%spec_vol, grid(d)%node%length)
-       call init(grid(d)%adj_mass, grid(d)%node%length)
-       call init(grid(d)%adj_temp, grid(d)%node%length)
+       call init(grid(d)%bernoulli,    grid(d)%node%length)
+       call init(grid(d)%exner,        grid(d)%node%length)
+       call init(grid(d)%surf_press,   grid(d)%node%length)
+       call init(grid(d)%press,        grid(d)%node%length)
+       call init(grid(d)%surf_geopot,  grid(d)%node%length)
+       call init(grid(d)%geopot,       grid(d)%node%length)
+       call init(grid(d)%spec_vol,     grid(d)%node%length)
+       call init(grid(d)%adj_mass,     grid(d)%node%length)
+       call init(grid(d)%adj_temp,     grid(d)%node%length)
        call init(grid(d)%adj_spec_vol, grid(d)%node%length)
-       call init(grid(d)%kin_energy, grid(d)%node%length)
-       call init(grid(d)%qe,   grid(d)%node%length*EDGE)
-       call init(grid(d)%divu, grid(d)%node%length)
-       call init(grid(d)%vort, grid(d)%node%length*TRIAG)
+       call init(grid(d)%kin_energy,   grid(d)%node%length)
+       call init(grid(d)%qe,           grid(d)%node%length*EDGE)
+       call init(grid(d)%divu,         grid(d)%node%length)
+       call init(grid(d)%vort,         grid(d)%node%length*TRIAG)
     end do
-
   end subroutine precompute_geometry
 
   subroutine init_connections()
