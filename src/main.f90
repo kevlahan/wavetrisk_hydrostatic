@@ -257,9 +257,6 @@ contains
        if (penalize) penal%data(d)%length = num(AT_NODE)
 
        do k = 1, zlevels
-          do v = S_MASS, S_TEMP
-             horiz_flux(v,k)%data(d)%length = num(AT_EDGE)
-          end do
           do v = S_MASS, S_VELO
              wav_coeff(v,k)%data(d)%length = num(POSIT(v))
              trend(v,k)%data(d)%length = num(POSIT(v))
@@ -269,6 +266,9 @@ contains
              q2(v,k)%data(d)%length = num(POSIT(v))
              q3(v,k)%data(d)%length = num(POSIT(v))
              q4(v,k)%data(d)%length = num(POSIT(v))
+          end do
+          do v = S_MASS, S_TEMP
+             horiz_flux(v,k)%data(d)%length = num(AT_EDGE)
           end do
        end do
 
@@ -285,7 +285,7 @@ contains
        grid(d)%neigh_pa_over_pole%length = level_end*2 + 2
 
        ! level 2: set patch children to zero
-       do i = 2,5
+       do i = 2, 5
           grid(d)%patch%elts(i+1)%children = 0
        end do
     end do
@@ -311,7 +311,6 @@ contains
              deallocate(dq1(v,k)%data(d)%elts)
           end do
        end do
-
        do v = S_MASS, S_VELO
           deallocate(q1(v,k)%data)
           deallocate(q2(v,k)%data)
@@ -324,32 +323,50 @@ contains
 
     deallocate(ini_st)
 
-    ! deallocate init_masks allocations
+    ! deallocate mask and geometry allocations
     do d = 1, size(grid)
        deallocate(grid(d)%mask_n%elts)
        deallocate(grid(d)%mask_e%elts)
        deallocate(grid(d)%level%elts)
-    end do
-
-    ! deallocate init_wavelets allocations
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          deallocate(wav_coeff(S_VELO,k)%data(d)%elts)
-          deallocate(wav_coeff(S_MASS,k)%data(d)%elts)
-          deallocate(wav_coeff(S_TEMP,k)%data(d)%elts)
-       end do
-       deallocate(wav_coeff(S_VELO,k)%data)
-       deallocate(wav_coeff(S_MASS,k)%data)
-       deallocate(wav_coeff(S_TEMP,k)%data)
-    end do
-    deallocate(wav_coeff)
-
-    ! deallocate init_wavelets allocations
-    do d = 1, size(grid)
        deallocate(grid(d)%R_F_wgt%elts)
        deallocate(grid(d)%I_u_wgt%elts)
        deallocate(grid(d)%overl_areas%elts)
+       deallocate(grid(d)%bernoulli%elts)
+       deallocate(grid(d)%exner%elts)
+       deallocate(grid(d)%surf_press%elts)
+       deallocate(grid(d)%press%elts)
+       deallocate(grid(d)%surf_geopot%elts)
+       deallocate(grid(d)%geopot%elts)
+       deallocate(grid(d)%spec_vol%elts)
+       deallocate(grid(d)%adj_mass%elts)
+       deallocate(grid(d)%adj_temp%elts)
+       deallocate(grid(d)%adj_spec_vol%elts)
+       deallocate(grid(d)%vort%elts)
+       deallocate(grid(d)%divu%elts)
+       deallocate(grid(d)%qe%elts)
+       deallocate(grid(d)%kin_energy%elts)
+       deallocate(grid(d)%windstress%elts)
+       deallocate(grid(d)%coriolis%elts)
+       deallocate(grid(d)%triarea%elts)
+       deallocate(grid(d)%len%elts)
+       deallocate(grid(d)%pedlen%elts)
+       deallocate(grid(d)%areas%elts)
+       deallocate(grid(d)%midpt%elts)
+       deallocate(grid(d)%ccentre%elts)
     end do
+
+    ! deallocate wavelet allocations
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             deallocate(wav_coeff(v,k)%data(d)%elts)
+          end do
+       end do
+       do v = S_MASS, S_VELO
+          deallocate(wav_coeff(v,k)%data)
+       end do
+    end do
+    deallocate(wav_coeff)
 
     deallocate(node_level_start, edge_level_start)
 
@@ -365,45 +382,17 @@ contains
        end do
     end do
 
-    do d = 1, size(grid)
-       deallocate(grid(d)%bernoulli%elts)
-       deallocate(grid(d)%exner%elts)
-       deallocate(grid(d)%surf_press%elts)
-       deallocate(grid(d)%press%elts)
-       deallocate(grid(d)%surf_geopot%elts)
-       deallocate(grid(d)%geopot%elts)
-       deallocate(grid(d)%spec_vol%elts)
-       deallocate(grid(d)%adj_mass%elts)
-       deallocate(grid(d)%adj_temp%elts)
-       deallocate(grid(d)%adj_spec_vol%elts)
-       deallocate(grid(d)%vort%elts)
-       deallocate(grid(d)%divu%elts)
-       deallocate(grid(d)%qe%elts)
-       deallocate(grid(d)%kin_energy%elts)
-    end do
-
-    ! deallocate init_geometry allocations
-    do d = 1, size(grid)
-       deallocate(grid(d)%windstress%elts)
-       deallocate(grid(d)%coriolis%elts)
-       deallocate(grid(d)%triarea%elts)
-       deallocate(grid(d)%len%elts)
-       deallocate(grid(d)%pedlen%elts)
-       deallocate(grid(d)%areas%elts)
-       deallocate(grid(d)%midpt%elts)
-       deallocate(grid(d)%ccentre%elts)
-    end do
-
+    ! deallocate solution arrays
     do k = 1, zlevels
-       do d = 1, n_domain(rank+1)
-          deallocate(sol(S_VELO,k)%data(d)%elts) 
-          deallocate(sol(S_MASS,k)%data(d)%elts)
-          deallocate(sol(S_TEMP,k)%data(d)%elts)
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             deallocate(sol(v,k)%data(d)%elts) 
+          end do
        end do
     end do
 
     ! deallocate init_grid allocations
-    do d = 1, n_domain(rank+1)
+    do d = 1, size(grid)
        if (penalize) deallocate(penal%data(d)%elts)
        deallocate(grid(d)%neigh_pa_over_pole%elts)
 
@@ -454,8 +443,7 @@ contains
        end do
     end do
 
-    deallocate(sol, trend, horiz_flux)
-    deallocate(grid)
+    deallocate(grid, sol, trend, horiz_flux)
 
     ! init_shared_mod()
     level_start = min_level

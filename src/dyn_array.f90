@@ -342,7 +342,7 @@ contains
   subroutine dbl_alloc_Int_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(Int_Array) arr
-    integer N
+    integer N, ierr
     integer, allocatable :: tmparr(:)
 
     allocate(tmparr(2*N),stat=ierr)
@@ -367,7 +367,7 @@ contains
   subroutine dbl_alloc_Float_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(Float_Array) arr
-    integer N
+    integer N, ierr
     real(8), allocatable :: tmparr(:)
 
     allocate(tmparr(2*N), stat=ierr)
@@ -392,7 +392,7 @@ contains
   subroutine dbl_alloc_Coord_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(Coord_Array) arr
-    integer N
+    integer N, ierr
     type(Coord), allocatable :: tmparr(:)
 
     allocate(tmparr(2*N), stat=ierr)
@@ -417,7 +417,7 @@ contains
   subroutine dbl_alloc_Areas_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(Areas_Array) arr
-    integer N
+    integer N, ierr
     type(Areas), allocatable :: tmparr(:)
 
     allocate(tmparr(2*N), stat=ierr)
@@ -442,7 +442,7 @@ contains
   subroutine dbl_alloc_Overl_Area_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(Overl_Area_Array) arr
-    integer N
+    integer N, ierr
     type(Overl_Area), allocatable :: tmparr(:)
 
     allocate(tmparr(2*N), stat=ierr)
@@ -467,7 +467,7 @@ contains
   subroutine dbl_alloc_Iu_Wgt_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(Iu_Wgt_Array) arr
-    integer N
+    integer N, ierr
     type(Iu_Wgt), allocatable :: tmparr(:)
 
     allocate(tmparr(2*N), stat=ierr)
@@ -492,7 +492,7 @@ contains
   subroutine dbl_alloc_RF_Wgt_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(RF_Wgt_Array) arr
-    integer N
+    integer N, ierr
     type(RF_Wgt), allocatable :: tmparr(:)
 
     allocate(tmparr(2*N), stat=ierr)
@@ -517,7 +517,7 @@ contains
   subroutine dbl_alloc_Patch_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(Patch_Array) arr
-    integer N
+    integer N, ierr
     type(Patch), allocatable :: tmparr(:)
 
     allocate(tmparr(2*N), stat=ierr)
@@ -542,7 +542,7 @@ contains
   subroutine dbl_alloc_Bdry_Patch_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     type(Bdry_Patch_Array) arr
-    integer N
+    integer N, ierr
     type(Bdry_Patch), allocatable :: tmparr(:)
 
     allocate(tmparr(2*N), stat=ierr)

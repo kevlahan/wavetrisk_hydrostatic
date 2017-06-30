@@ -254,7 +254,7 @@ program tenlayergauss
   VELO_SCALE   = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation
 
   ! Set (non-dimensional) mean values of variables
-  allocate (mean(S_MASS:S_TEMP,1:zlevels))
+  allocate (mean(S_MASS:S_VELO,1:zlevels))
   do k = 1, zlevels
      mean(S_MASS,k) = 1.0_8/real(zlevels)
      mean(S_TEMP,k) = mean(S_MASS,k)

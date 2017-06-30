@@ -240,7 +240,7 @@ contains
        call update_array_bdry(wav_coeff(S_MASS:S_TEMP,:), l+1)
        
        do k = 1, zlevels
-          call apply_interscale(restrict_mt, l, k, 0, 1) ! +1 to include poles
+          call apply_interscale(restrict_scalar, l, k, 0, 1) ! +1 to include poles
           call apply_interscale(restrict_u, l, k, 0, 0)
        end do
     end do
@@ -322,7 +322,7 @@ contains
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              temp => sca_coeff(S_TEMP,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d(IWT_interp_wc_mt, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d(IWT_interp_wc_scalar, grid(d), l, z_null, 0, 0)
           end do
        end do
        
@@ -776,14 +776,14 @@ contains
   end subroutine cpt_velo_wc
 
   subroutine init_wavelets()
-    integer d
-    integer num
-    integer i, k
+    integer :: d
+    integer :: num
+    integer :: i, k, v
 
     do k = 1, zlevels
-       call init_Float_Field(wav_coeff(S_MASS,k), POSIT(S_MASS))
-       call init_Float_Field(wav_coeff(S_VELO,k), POSIT(S_VELO))
-       call init_Float_Field(wav_coeff(S_TEMP,k), POSIT(S_TEMP))
+       do v = S_MASS, S_VELO
+          call init_Float_Field(wav_coeff(v,k), POSIT(v))
+       end do
     end do
 
     do d = 1, size(grid)
@@ -802,15 +802,15 @@ contains
        end do
 
        do k = 1, zlevels
-          call init(wav_coeff(S_MASS,k)%data(d), num)
+          do v = S_MASS, S_TEMP
+             call init(wav_coeff(v,k)%data(d), num)
+          end do
           call init(wav_coeff(S_VELO,k)%data(d), EDGE*num)
-          call init(wav_coeff(S_TEMP,k)%data(d), num)
        end do
     end do
   end subroutine init_wavelets
 
-  subroutine get_overl_areas(dom, i_par, j_par, i_chd, j_chd, offs_par, &
-       dims_par, offs_chd, dims_chd, e, area, typ)
+  subroutine get_overl_areas(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, offs_chd, dims_chd, e, area, typ)
     type(Domain) dom
     integer i_par
     integer j_par
@@ -912,30 +912,15 @@ contains
   end subroutine normalize2
 
   subroutine IWT_inject_h_and_undo_update__fast(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
+    type(Domain) :: dom
+    integer :: i_par, j_par, i_chd, j_chd
+    integer :: zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
     integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_par
-    integer id_chd
-    integer idE
-    integer idNE
-    integer idN2E
-    integer id2NE
-    integer idN
-    integer idW
-    integer idNW
-    integer idS2W
-    integer idSW
-    integer idS
-    integer id2SW
-    integer idSE
+    integer :: id_par, id_chd
+   
     ! locally filled, IWT reproduces previous value
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
@@ -944,82 +929,41 @@ contains
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
-    idE   = idx(i_chd + 1, j_chd, offs_chd, dims_chd)
-    idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idN2E = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
-    id2NE = idx(i_chd + 1, j_chd + 2, offs_chd, dims_chd)
-    idN   = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-    idW   = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
-    idNW  = idx(i_chd - 1, j_chd + 1, offs_chd, dims_chd)
-    idS2W = idx(i_chd - 2, j_chd - 1, offs_chd, dims_chd)
-    idSW  = idx(i_chd - 1, j_chd - 1, offs_chd, dims_chd)
-    idS   = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
-    id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
-    idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
-
-    !mass
-    mass(id_chd+1) = mass(id_par+1) - &
-         (wc_m(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wc_m(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wc_m(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wc_m(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wc_m(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wc_m(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wc_m(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wc_m(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wc_m(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wc_m(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wc_m(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wc_m(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
-
-    !potential temperature
-    temp(id_chd+1) = temp(id_par+1) - &
-         (wc_t(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wc_t(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wc_t(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wc_t(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wc_t(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wc_t(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wc_t(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wc_t(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wc_t(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wc_t(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wc_t(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wc_t(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
+    mass(id_chd+1) = inject(mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    temp(id_chd+1) = inject(temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine IWT_inject_h_and_undo_update__fast
 
   subroutine IWT_inject_h_and_undo_update(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     !apparently an older version of IWT_inject_h_and_undo_update__fast, but almost identical except for if statement
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
+    type(Domain) :: dom
+    integer :: i_par, j_par, i_chd, j_chd
+    integer :: zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
     integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_par
-    integer id_chd
-    integer idE
-    integer idNE
-    integer idN2E
-    integer id2NE
-    integer idN
-    integer idW
-    integer idNW
-    integer idS2W
-    integer idSW
-    integer idS
-    integer id2SW
-    integer idSE
+    integer :: id_par, id_chd
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
     if (dom%mask_n%elts(id_chd+1) .eq. FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
+    mass(id_chd+1) = inject(mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    temp(id_chd+1) = inject(temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+  end subroutine IWT_inject_h_and_undo_update
+
+  function inject(scalar, wav, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    real(8) :: inject
+    real(8) :: scalar
+    type(Domain) :: dom
+    integer :: id_par, i_chd, j_chd
+    real(8), dimension(:), pointer :: wav
+    integer, dimension(N_BDRY + 1) :: offs_chd
+    integer, dimension(2,N_BDRY + 1) :: dims_chd
+
+    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
+  
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
     idN2E = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
@@ -1033,36 +977,20 @@ contains
     id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
     idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
 
-    !mass
-    mass(id_chd+1) = mass(id_par+1) - &
-         (wc_m(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wc_m(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wc_m(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wc_m(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wc_m(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wc_m(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wc_m(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wc_m(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wc_m(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wc_m(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wc_m(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wc_m(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
-
-    !potential temperature
-    temp(id_chd+1) = temp(id_par+1) - &
-         (wc_t(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wc_t(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wc_t(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wc_t(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wc_t(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wc_t(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wc_t(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wc_t(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wc_t(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wc_t(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wc_t(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wc_t(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
-  end subroutine IWT_inject_h_and_undo_update
+    inject = scalar - &
+         (wav(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+         wav(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+         wav(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wav(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+         wav(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+         wav(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+         wav(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+         wav(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wav(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+         wav(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+         wav(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wav(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
+  end function inject
 
   subroutine cpt_masstemp_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     !compute wavelet coefficients for mass and potential temperature
@@ -1113,7 +1041,7 @@ contains
 
   end subroutine cpt_masstemp_wc
 
-  subroutine IWT_interp_wc_mt(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine IWT_interp_wc_scalar(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     !inverse transform for mass and potential temperature: interpolate and add wavelet coefficent
     type(Domain) dom
     integer i_par
@@ -1149,18 +1077,14 @@ contains
 
     !mass
     mass(idNE_chd+1) = I_p(dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) + wc_m(idNE_chd+1)
-
-    mass(idN_chd+1) = I_p(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd) + wc_m(idN_chd+1)
-
-    mass(idE_chd+1) = I_p(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd) + wc_m(idE_chd+1)
+    mass(idN_chd+1)  = I_p(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd) + wc_m(idN_chd+1)
+    mass(idE_chd+1)  = I_p(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd) + wc_m(idE_chd+1)
 
     !potential temperature
     temp(idNE_chd+1) = I_p(dom, temp, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) + wc_t(idNE_chd+1)
-
-    temp(idN_chd+1) = I_p(dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd) + wc_t(idN_chd+1)
-
-    temp(idE_chd+1) = I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd) + wc_t(idE_chd+1)
-  end subroutine IWT_interp_wc_mt
+    temp(idN_chd+1)  = I_p(dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd) + wc_t(idN_chd+1)
+    temp(idE_chd+1)  = I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd) + wc_t(idE_chd+1)
+  end subroutine IWT_interp_wc_scalar
 
   subroutine local_coord(midpt, endpt1, endpt2, x, y)
     type(Coord) midpt
@@ -1589,39 +1513,43 @@ contains
          dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end subroutine check_m
 
-  subroutine restrict_mt(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine restrict_scalar(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     !restrict both mass and potential temperature
     type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
+    integer :: i_par, j_par, i_chd, j_chd
+    integer :: zlev
     integer, dimension(N_BDRY + 1) :: offs_par
     integer, dimension(2,N_BDRY + 1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
     integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_chd
-    integer id_par
-    integer idE
-    integer idNE
-    integer idN2E
-    integer id2NE
-    integer idN
-    integer idW
-    integer idNW
-    integer idS2W
-    integer idSW
-    integer idS
-    integer id2SW
-    integer idSE
-    integer d
-
+    
+    integer :: id_chd, id_par, d, v
+   
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    
     if (dom%mask_n%elts(id_chd+1) .eq. 0) return
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
+    d = dom%id+1
+
+    do v = S_MASS, S_TEMP
+       sol(v,zlev)%data(d)%elts(id_par+1) = restrict_s(sol(S_MASS,zlev)%data(d)%elts(id_chd+1), wav_coeff(v,zlev), &
+            dom, d, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    end do
+  end subroutine restrict_scalar
+
+  function restrict_s(scalar, wav, dom, d, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    real(8) :: restrict_s
+    real(8) :: scalar
+    type(Domain) :: dom
+    type(Float_Field) :: wav
+    integer ::  id_par, i_chd, j_chd
+    integer, dimension(N_BDRY + 1) :: offs_chd
+    integer, dimension(2,N_BDRY + 1) :: dims_chd
+    
+    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE, d
+   
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
     idN2E = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
@@ -1634,39 +1562,20 @@ contains
     idS   = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
     id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
     idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
-
-    d = dom%id+1
     
-    !mass
-    sol(S_MASS,zlev)%data(d)%elts(id_par+1) = sol(S_MASS,zlev)%data(d)%elts(id_chd+1) + &
-         (wav_coeff(S_MASS,zlev)%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wav_coeff(S_MASS,zlev)%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+    restrict_s = scalar + &
+         (wav%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+         wav%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+         wav%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wav%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+         wav%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+         wav%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+         wav%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+         wav%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wav%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+         wav%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+         wav%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wav%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
          dom%areas%elts(id_par+1)%hex_inv
-
-    !potential temperature
-    sol(S_TEMP,zlev)%data(d)%elts(id_par+1) = sol(S_TEMP,zlev)%data(d)%elts(id_chd+1) + &
-         (wav_coeff(S_TEMP,zlev)%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wav_coeff(S_TEMP,zlev)%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
-         dom%areas%elts(id_par+1)%hex_inv
-  end subroutine restrict_mt
+  end function restrict_s
 end module wavelet_mod
