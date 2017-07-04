@@ -560,7 +560,7 @@ contains
     type(Float_Field) :: field(:)
     integer l_start, l_end
     integer r_dest, r_src, d_src, d_dest, dest, id, i, k, r
-    integer multipl, lev
+    integer multipl, lev, pos
 
     integer :: i1
     integer :: sz
@@ -584,23 +584,21 @@ contains
           if (r_dest .eq. rank+1) cycle ! TODO communicate inside domain
           do d_dest = 1, n_domain(r_dest)
              dest = glo_id(r_dest,d_dest)+1
-
              ! Loop over each element of field array
              do i1 = 1, sz
-                do i = 1, grid(d_src)%pack(field(i1)%pos,dest)%length
-                   id = grid(d_src)%pack(field(i1)%pos,dest)%elts(i)
-
-                   if (field(i1)%pos .eq. AT_NODE) then
-                      multipl = 1
-                   else
-                      multipl = EDGE
-                   end if
+                pos = field(i1)%pos
+                if (pos .eq. AT_NODE) then
+                   multipl = 1
+                else
+                   multipl = EDGE
+                end if
+                do i = 1, grid(d_src)%pack(pos,dest)%length
+                   id = grid(d_src)%pack(pos,dest)%elts(i)
 
                    lev = grid(d_src)%level%elts(id/multipl+1)
                    if (l_start .le. lev .and. lev .le. l_end) call append(send_buf, field(i1)%data(d_src)%elts(id+1))
                 end do
              end do
-
           end do
        end do
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
@@ -613,17 +611,16 @@ contains
        do d_src = 1, n_domain(r_src)
           if (r_src .eq. rank+1) cycle 
           do d_dest = 1, n_domain(rank+1)
-
              ! Loop over each element of field array
              do i1 = 1, sz
-                do i = 1, grid(d_dest)%unpk(field(i1)%pos,glo_id(r_src,d_src)+1)%length
-                   id = abs(grid(d_dest)%unpk(field(i1)%pos,glo_id(r_src,d_src)+1)%elts(i))
-
-                   if (field(i1)%pos .eq. AT_NODE) then
-                      multipl = 1
-                   else
-                      multipl = EDGE
-                   end if
+                pos = field(i1)%pos
+                if (pos .eq. AT_NODE) then
+                   multipl = 1
+                else
+                   multipl = EDGE
+                end if
+                do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
+                   id = abs(grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i))
 
                    lev = grid(d_dest)%level%elts(id/multipl+1)
                    if (l_start .le. lev .and. lev .le. l_end) recv_buf%length = recv_buf%length + 1
@@ -665,7 +662,7 @@ contains
     type(Float_Field) :: field(:,:)
     integer l_start, l_end
     integer r_dest, r_src, d_src, d_dest, dest, id, i, k, r
-    integer multipl, lev
+    integer multipl, lev, pos
 
     integer :: i1, i2
     integer, dimension(2) :: sz
@@ -695,21 +692,20 @@ contains
              ! Loop over each element of field array
              do i2 = 1, sz(2)
                 do i1 = 1, sz(1)
-                   do i = 1, grid(d_src)%pack(field(i1,i2)%pos,dest)%length
-                      id = grid(d_src)%pack(field(i1,i2)%pos,dest)%elts(i)
+                   pos = field(i1,i2)%pos
+                   if (pos .eq. AT_NODE) then
+                      multipl = 1
+                   else
+                      multipl = EDGE
+                   end if
+                   do i = 1, grid(d_src)%pack(pos,dest)%length
+                      id = grid(d_src)%pack(pos,dest)%elts(i)
 
-                      if (field(i1,i2)%pos .eq. AT_NODE) then
-                         multipl = 1
-                      else
-                         multipl = EDGE
-                      end if
-                      
                       lev = grid(d_src)%level%elts(id/multipl+1)
                       if (l_start .le. lev .and. lev .le. l_end) call append(send_buf, field(i1,i2)%data(d_src)%elts(id+1))
                    end do
                 end do
              end do
-             
           end do
        end do
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
@@ -726,21 +722,20 @@ contains
              ! Loop over each element of field array
              do i2 = 1, sz(2)
                 do i1 = 1, sz(1)
-                   do i = 1, grid(d_dest)%unpk(field(i1,i2)%pos,glo_id(r_src,d_src)+1)%length
-                      id = abs(grid(d_dest)%unpk(field(i1,i2)%pos,glo_id(r_src,d_src)+1)%elts(i))
+                   pos = field(i1,i2)%pos
+                   if (field(i1,i2)%pos .eq. AT_NODE) then
+                      multipl = 1
+                   else
+                      multipl = EDGE
+                   end if
+                   do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
+                      id = abs(grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i))
 
-                       if (field(i1,i2)%pos .eq. AT_NODE) then
-                         multipl = 1
-                      else
-                         multipl = EDGE
-                      end if
-                      
                       lev = grid(d_dest)%level%elts(id/multipl+1)
                       if (l_start .le. lev .and. lev .le. l_end) recv_buf%length = recv_buf%length + 1
                    end do
                 end do
              end do
-
           end do
        end do
        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
@@ -850,7 +845,7 @@ contains
     type(Float_Field) :: field(:)
     integer l_start, l_end
     integer r_dest, r_src, d_src, d_dest, dest, id, i, k
-    integer multipl, lev
+    integer multipl, lev, pos
 
     integer :: i1
     integer :: sz
@@ -873,27 +868,25 @@ contains
        if (r_src .eq. rank+1) cycle ! inside domain
        do d_src = 1, n_domain(r_src)
           do d_dest = 1, n_domain(rank+1)
-
              do i1 = 1, sz
-                do i = 1, grid(d_dest)%unpk(field(i1)%pos,glo_id(r_src,d_src)+1)%length
-                   id = grid(d_dest)%unpk(field(i1)%pos,glo_id(r_src,d_src)+1)%elts(i)
-
-                   if (field(i1)%pos .eq. AT_NODE) then
-                      multipl = 1
-                   else
-                      multipl = EDGE
-                   end if
+                pos = field(i1)%pos 
+                if (pos .eq. AT_NODE) then
+                   multipl = 1
+                else
+                   multipl = EDGE
+                end if
+                do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
+                   id = grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i)
 
                    lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
                    if (l_start .le. lev .and. lev .le. l_end) then
                       k = k + 1
                       field(i1)%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
-                      if (id .lt. 0 .and. field(i1)%pos .eq. AT_EDGE) &
+                      if (id .lt. 0 .and. pos .eq. AT_EDGE) &
                            field(i1)%data(d_dest)%elts(abs(id)+1) = -field(i1)%data(d_dest)%elts(abs(id)+1)
                    end if
                 end do
              end do
-
           end do
        end do
     end do
@@ -907,7 +900,7 @@ contains
     type(Float_Field) :: field(:,:)
     integer l_start, l_end
     integer r_dest, r_src, d_src, d_dest, dest, id, i, k
-    integer multipl, lev
+    integer multipl, lev, pos
 
     integer :: i1, i2
     integer, dimension(2) :: sz
@@ -927,34 +920,31 @@ contains
 
     k = 0
     call MPI_Waitall(nreq, req, stat_ray, ierror)
-    
+
     do r_src = 1, n_process 
        if (r_src .eq. rank+1) cycle ! inside domain
        do d_src = 1, n_domain(r_src)
           do d_dest = 1, n_domain(rank+1)
-
              do i2 = 1, sz(2)
                 do i1 = 1, sz(1)
-                   do i = 1, grid(d_dest)%unpk(field(i1,i2)%pos,glo_id(r_src,d_src)+1)%length
-                      id = grid(d_dest)%unpk(field(i1,i2)%pos,glo_id(r_src,d_src)+1)%elts(i)
-
-                       if (field(i1,i2)%pos .eq. AT_NODE) then
-                         multipl = 1
-                      else
-                         multipl = EDGE
-                      end if
-                      
+                   pos = field(i1,i2)%pos
+                   if (pos .eq. AT_NODE) then
+                      multipl = 1
+                   else
+                      multipl = EDGE
+                   end if
+                   do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
+                      id = grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i)
                       lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
                       if (l_start .le. lev .and. lev .le. l_end) then
                          k = k + 1
                          field(i1,i2)%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
-                         if (id .lt. 0 .and. field(i1,i2)%pos .eq. AT_EDGE) &
+                         if (id .lt. 0 .and. pos .eq. AT_EDGE) &
                               field(i1,i2)%data(d_dest)%elts(abs(id)+1) = -field(i1,i2)%data(d_dest)%elts(abs(id)+1)
                       end if
                    end do
                 end do
              end do
-                   
           end do
        end do
     end do
