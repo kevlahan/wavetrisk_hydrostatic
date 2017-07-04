@@ -810,7 +810,13 @@ contains
     call update_array_bdry(wav_coeff(S_MASS:S_TEMP,:), NONE)
     
     do k = 1, zlevels
-       call apply_interscale(restrict_scalar, min_level-1, k, 0, 1) ! +1 to include poles
+       do d = 1, size(grid)
+          mass => sol(S_MASS,k)%data(d)%elts
+          wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+          temp => sol(S_TEMP,k)%data(d)%elts
+          wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+          call apply_interscale_d(restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+       end do
     end do
 
     do d = 1, size(grid)

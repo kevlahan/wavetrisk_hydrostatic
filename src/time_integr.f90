@@ -195,7 +195,7 @@ contains
   end subroutine Forward_Euler
 
   subroutine WT_after_step(q, l_start0)
-    type(Float_Field), target :: q(S_MASS:S_VELO, 1:zlevels)
+    type(Float_Field), target :: q(S_MASS:S_VELO, 1:zlevels), wav(S_MASS:S_VELO, 1:zlevels)
     integer, optional :: l_start0
     integer l, ll, d, k, l_start
 
@@ -204,11 +204,16 @@ contains
     !         A) compute mass wavelets and perform backwards transform
     !            to conserve mass
     !         B) interpolate values for next step
-
+    
     do k = 1, zlevels
        if (present(l_start0)) then
           l_start = l_start0
-          if (max_level .gt. min_level) call apply_interscale(restrict_u, level_start-1, k, 0, 0)
+          if (max_level .gt. min_level) then
+             do d = 1, size(grid)
+                velo => sol(S_VELO,k)%data(d)%elts
+                call apply_interscale_d(restrict_u, grid(d), level_start-1, k, 0, 0)
+             end do
+          end if
        else
           l_start = level_start
        end if
@@ -246,7 +251,7 @@ contains
        wav_coeff%bdry_uptodate = .False.
     end do
 
-    call inverse_wavelet_transform(q)
+    call inverse_wavelet_transform(q, wav_coeff)
   end subroutine WT_after_step
 
 end module time_integr_mod

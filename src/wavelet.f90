@@ -219,17 +219,19 @@ contains
     I_u_inner = u
   end function I_u_inner
 
-  subroutine forward_wavelet_transform()
+  subroutine forward_wavelet_transform(fun, wav)
+    type(Float_Field), dimension(:,:), target :: fun, wav
+    
     integer k, l, d
 
     do l = level_end - 1, level_start - 1, -1
-       call update_array_bdry(sol(S_MASS:S_TEMP,:), l+1)
+       call update_array_bdry(fun(S_MASS:S_TEMP,:), l+1)
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
-             mass => sol(S_MASS,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             temp => sol(S_TEMP,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             mass => fun(S_MASS,k)%data(d)%elts
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             temp => fun(S_TEMP,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
              
              call apply_interscale_d(cpt_scalar_wc, grid(d), l, z_null, 0, 0)
              
@@ -237,35 +239,43 @@ contains
           end do
        end do
 
-       call update_array_bdry(wav_coeff(S_MASS:S_TEMP,:), l+1)
+       call update_array_bdry(wav(S_MASS:S_TEMP,:), l+1)
        
        do k = 1, zlevels
-          call apply_interscale(restrict_scalar, l, k, 0, 1) ! +1 to include poles
-          call apply_interscale(restrict_u, l, k, 0, 0)
+          do d = 1, size(grid)
+             mass => fun(S_MASS,k)%data(d)%elts
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             temp => fun(S_TEMP,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d(restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
+
+             velo => fun(S_VELO,k)%data(d)%elts
+             call apply_interscale_d(restrict_u, grid(d), l, k, 0, 0)
+          end do
        end do
     end do
 
-    sol%bdry_uptodate = .False.
-    wav_coeff(S_MASS:S_TEMP,:)%bdry_uptodate = .False.
+    fun%bdry_uptodate = .False.
+    wav(S_MASS:S_TEMP,:)%bdry_uptodate = .False.
 
-    call update_vector_bdry(sol(S_VELO,:), NONE)
+    call update_vector_bdry(fun(S_VELO,:), NONE)
     
     do l = level_end - 1, level_start - 1, -1
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             velo => sol(S_VELO,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
+             velo => fun(S_VELO,k)%data(d)%elts
              call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
              nullify(wc_u, velo)
           end do
        end do
     end do
-    wav_coeff(S_VELO,:)%bdry_uptodate = .False.
+    wav(S_VELO,:)%bdry_uptodate = .False.
   end subroutine forward_wavelet_transform
 
-  subroutine inverse_wavelet_transform(sca_coeff, l_start0)
-    type(Float_Field), target :: sca_coeff(S_MASS:S_VELO, 1:zlevels)
+  subroutine inverse_wavelet_transform(sca, wav, l_start0)
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), target :: sca, wav
     integer, optional :: l_start0
     integer l, d, k, v, l_start
 
@@ -275,18 +285,18 @@ contains
        l_start = level_start
     end if
 
-    call update_array_bdry1(wav_coeff, level_start, level_end)
-    call update_array_bdry1(sca_coeff, l_start, level_end)
+    call update_array_bdry1(wav, level_start, level_end)
+    call update_array_bdry1(sca, l_start, level_end)
 
-    sca_coeff%bdry_uptodate = .False.
+    sca%bdry_uptodate = .False.
 
     do l = l_start, level_end-1
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
-             mass => sca_coeff(S_MASS,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             temp => sca_coeff(S_TEMP,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             mass => sca(S_MASS,k)%data(d)%elts
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             temp => sca(S_TEMP,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
              if (present(l_start0)) then
                 call apply_interscale_d2(IWT_inject_h_and_undo_update, grid(d), l, z_null, 0, 1) ! needs wc
              else
@@ -295,15 +305,15 @@ contains
           end do
        end do
 
-       if (l .gt. l_start) call update_vector_bdry__finish(sca_coeff(S_VELO,:), l) ! for next outer velocity
+       if (l .gt. l_start) call update_vector_bdry__finish(sca(S_VELO,:), l) ! for next outer velocity
        
-       call update_array_bdry__start(sca_coeff(S_MASS:S_TEMP,:), l+1)
+       call update_array_bdry__start(sca(S_MASS:S_TEMP,:), l+1)
        
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
           if (advect_only) cycle
-          velo => sca_coeff(S_VELO,k)%data(d)%elts
-          wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+          velo => sca(S_VELO,k)%data(d)%elts
+          wc_u => wav(S_VELO,k)%data(d)%elts
           if (present(l_start0)) then
              call apply_interscale_d2(IWT_interpolate_u_outer_add_wc, grid(d), l, z_null, 0, 1) ! needs val
           else
@@ -313,33 +323,33 @@ contains
           end do
        end do
 
-       call update_array_bdry__finish(sca_coeff(S_MASS:S_TEMP,:), l+1)
-       call update_vector_bdry__start(sca_coeff(S_VELO,:), l+1)
+       call update_array_bdry__finish(sca(S_MASS:S_TEMP,:), l+1)
+       call update_vector_bdry__start(sca(S_VELO,:), l+1)
 
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
-             mass => sca_coeff(S_MASS,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             temp => sca_coeff(S_TEMP,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             mass => sca(S_MASS,k)%data(d)%elts
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             temp => sca(S_TEMP,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
              call apply_interscale_d(IWT_interp_wc_scalar, grid(d), l, z_null, 0, 0)
           end do
        end do
        
-       call update_vector_bdry__finish(sca_coeff(S_VELO,:), l+1)
+       call update_vector_bdry__finish(sca(S_VELO,:), l+1)
 
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
           if (advect_only) cycle
-             velo => sca_coeff(S_VELO,k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+             velo => sca(S_VELO,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
              call apply_interscale_d(IWT_interpolate_u_inner, grid(d), l, z_null, 0, 0)
           end do
        end do
        
-       if (l .lt. level_end-1) call update_vector_bdry__start(sca_coeff(S_VELO,:), l+1) ! for next outer velocity
+       if (l .lt. level_end-1) call update_vector_bdry__start(sca(S_VELO,:), l+1) ! for next outer velocity
        
-       sca_coeff%bdry_uptodate = .False.
+       sca%bdry_uptodate = .False.
     end do
   end subroutine inverse_wavelet_transform
 
@@ -775,7 +785,8 @@ contains
          wc_u(EDGE*idNE_chd+UP+1) = velo(EDGE*idNE_chd+UP+1) - u_inner(6)
   end subroutine cpt_velo_wc
 
-  subroutine init_wavelets()
+  subroutine init_wavelets(wav)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
     integer :: d
     integer :: num
     integer :: i, k, v
@@ -783,6 +794,7 @@ contains
     do k = 1, zlevels
        do v = S_MASS, S_VELO
           call init_Float_Field(wav_coeff(v,k), POSIT(v))
+          call init_Float_Field(trend_wav_coeff(v,k), POSIT(v))
        end do
     end do
 
@@ -804,8 +816,10 @@ contains
        do k = 1, zlevels
           do v = S_MASS, S_TEMP
              call init(wav_coeff(v,k)%data(d), num)
+             call init(trend_wav_coeff(v,k)%data(d), num)
           end do
           call init(wav_coeff(S_VELO,k)%data(d), EDGE*num)
+          call init(trend_wav_coeff(S_VELO,k)%data(d), EDGE*num)
        end do
     end do
   end subroutine init_wavelets
@@ -1439,19 +1453,13 @@ contains
     idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
 
     if (dom%mask_e%elts(EDGE*id_chd+RT+1) .gt. 0) &
-         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_par+RT+1) = &
-         0.5_8*(sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_chd+RT+1) + &
-         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*idE_chd+RT+1))
+         velo(EDGE*id_par+RT+1) = 0.5_8*(velo(EDGE*id_chd+RT+1) + velo(EDGE*idE_chd+RT+1))
 
     if (dom%mask_e%elts(EDGE*id_chd+DG+1) .gt. 0) &
-         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_par+DG+1) = &
-         0.5_8*(sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*idNE_chd+DG+1) + &
-         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_chd+DG+1))
+         velo(EDGE*id_par+DG+1) = 0.5_8*(velo(EDGE*idNE_chd+DG+1) + velo(EDGE*id_chd+DG+1))
 
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) .gt. 0) &
-         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_par+UP+1) = &
-         0.5_8*(sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id_chd+UP+1) + &
-         sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*idN_chd+UP+1))
+         velo(EDGE*id_par+UP+1) = 0.5_8*(velo(EDGE*id_chd+UP+1) + velo(EDGE*idN_chd+UP+1))
   end subroutine restrict_u
 
   subroutine check_m(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
@@ -1523,7 +1531,7 @@ contains
     integer, dimension(N_BDRY + 1) :: offs_chd
     integer, dimension(2,N_BDRY + 1) :: dims_chd
     
-    integer :: id_chd, id_par, d, v
+    integer :: id_chd, id_par
    
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     
@@ -1531,19 +1539,15 @@ contains
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    d = dom%id+1
-
-    do v = S_MASS, S_TEMP
-       sol(v,zlev)%data(d)%elts(id_par+1) = restrict_s(sol(S_MASS,zlev)%data(d)%elts(id_chd+1), wav_coeff(v,zlev), &
-            dom, d, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    end do
+    mass(id_par+1) = restrict_s(mass(id_chd+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    temp(id_par+1) = restrict_s(temp(id_chd+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine restrict_scalar
 
-  function restrict_s(scalar, wav, dom, d, id_par, i_chd, j_chd, offs_chd, dims_chd)
+  function restrict_s(scalar, wc, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     real(8) :: restrict_s
     real(8) :: scalar
+    real(8), dimension(:), pointer :: wc
     type(Domain) :: dom
-    type(Float_Field) :: wav
     integer ::  id_par, i_chd, j_chd
     integer, dimension(N_BDRY + 1) :: offs_chd
     integer, dimension(2,N_BDRY + 1) :: dims_chd
@@ -1564,18 +1568,18 @@ contains
     idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
     
     restrict_s = scalar + &
-         (wav%data(d)%elts(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wav%data(d)%elts(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wav%data(d)%elts(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wav%data(d)%elts(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wav%data(d)%elts(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wav%data(d)%elts(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wav%data(d)%elts(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wav%data(d)%elts(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wav%data(d)%elts(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wav%data(d)%elts(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wav%data(d)%elts(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wav%data(d)%elts(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+         (wc(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+         wc(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+         wc(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wc(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+         wc(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+         wc(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+         wc(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+         wc(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wc(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+         wc(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+         wc(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wc(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
          dom%areas%elts(id_par+1)%hex_inv
   end function restrict_s
 end module wavelet_mod

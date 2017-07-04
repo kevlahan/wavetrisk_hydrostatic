@@ -100,7 +100,7 @@ contains
        tol_temp  = tol_temp/2.0_8
 
        call apply_init_cond()
-       call forward_wavelet_transform()
+       call forward_wavelet_transform(sol, wav_coeff)
 
        do while(level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
@@ -112,7 +112,7 @@ contains
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
 
           call apply_init_cond()
-          call forward_wavelet_transform()
+          call forward_wavelet_transform(sol, wav_coeff)
 
           !--Check whether there are any active nodes at this scale
           n_active = 0.0_8
@@ -199,7 +199,7 @@ contains
     if (min_level .lt. max_level) then ! Adaptive simulation
        call adapt()
        if (level_end .gt. level_start) then ! Several levels exist; interpolate solution onto active grid
-          call inverse_wavelet_transform(sol, level_start)
+          call inverse_wavelet_transform(sol, wav_coeff, level_start)
        end if
     end if
 
@@ -259,6 +259,7 @@ contains
        do k = 1, zlevels
           do v = S_MASS, S_VELO
              wav_coeff(v,k)%data(d)%length = num(POSIT(v))
+             trend_wav_coeff(v,k)%data(d)%length = num(POSIT(v))
              trend(v,k)%data(d)%length = num(POSIT(v))
              sol(v,k)%data(d)%length = num(POSIT(v))
              dq1(v,k)%data(d)%length = num(POSIT(v))
@@ -360,13 +361,15 @@ contains
        do d = 1, size(grid)
           do v = S_MASS, S_VELO
              deallocate(wav_coeff(v,k)%data(d)%elts)
+             deallocate(trend_wav_coeff(v,k)%data(d)%elts)
           end do
        end do
        do v = S_MASS, S_VELO
           deallocate(wav_coeff(v,k)%data)
+          deallocate(trend_wav_coeff(v,k)%data)
        end do
     end do
-    deallocate(wav_coeff)
+    deallocate(wav_coeff, trend_wav_coeff)
 
     deallocate(node_level_start, edge_level_start)
 
@@ -496,7 +499,7 @@ contains
 
     call set_thresholds()
     call adapt()
-    call inverse_wavelet_transform(sol, level_start-1)
+    call inverse_wavelet_transform(sol, wav_coeff, level_start-1)
   end subroutine restart_full
 
   integer function writ_checkpoint(custom_dump)
