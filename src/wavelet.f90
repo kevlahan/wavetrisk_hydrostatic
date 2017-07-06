@@ -785,7 +785,6 @@ contains
          wc_u(EDGE*idNE_chd+UP+1) = velo(EDGE*idNE_chd+UP+1) - u_inner(6)
   end subroutine cpt_velo_wc
 
-  subroutine init_wavelets(wav)
   subroutine init_wavelets()
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
     integer :: d
