@@ -251,6 +251,7 @@ contains
 
              velo => fun(S_VELO,k)%data(d)%elts
              call apply_interscale_d(restrict_u, grid(d), l, k, 0, 0)
+             nullify(mass, temp, velo, wc_m, wc_t)
           end do
        end do
     end do
@@ -274,7 +275,7 @@ contains
     wav(S_VELO,:)%bdry_uptodate = .False.
   end subroutine forward_wavelet_transform
 
-  subroutine inverse_wavelet_transform(sca, wav, l_start0)
+  subroutine inverse_wavelet_transform(wav, sca, l_start0)
     type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), target :: sca, wav
     integer, optional :: l_start0
     integer l, d, k, v, l_start
@@ -786,7 +787,6 @@ contains
   end subroutine cpt_velo_wc
 
   subroutine init_wavelets()
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
     integer :: d
     integer :: num
     integer :: i, k, v

@@ -44,9 +44,10 @@ contains
     do d = 1, n_domain(rank+1)
        call init_Domain(grid(d))
        do k = 1, zlevels
-          call init(sol(S_MASS,k)%data(d), 1)
+          do v = S_MASS, S_TEMP
+             call init(sol(v,k)%data(d), 1)
+          end do
           call init(sol(S_VELO,k)%data(d), EDGE)
-          call init(sol(S_TEMP,k)%data(d), 1)
        end do
     end do
 

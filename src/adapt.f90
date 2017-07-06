@@ -39,14 +39,15 @@ contains
     end do
   end subroutine compress
 
-  subroutine adapt()
+  subroutine adapt(wav)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: wav
     integer k, l
 
     do l = level_start+1, level_end
        call apply_onescale__int(set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
-    call mask_active()
+    call mask_active(wav)
     call comm_masks_mpi(NONE)
 
     do l = level_start, level_end

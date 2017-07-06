@@ -196,9 +196,11 @@ contains
           call extend(trend(v,k)%data(d), num, 0.0_8)
           call extend(horiz_flux(v,k)%data(d), num*EDGE, 0.0_8)
           call extend(wav_coeff(v,k)%data(d), num, 0.0_8)
+          call extend(trend_wav_coeff(v,k)%data(d), num, 0.0_8)
        end do
        call extend(trend(S_VELO,k)%data(d), num*EDGE, 0.0_8)
        call extend(wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
+       call extend(trend_wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
     end do
 
     if (penalize) call extend(penal%data(d), num, 1.0_8)

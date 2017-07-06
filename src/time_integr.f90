@@ -145,7 +145,8 @@ contains
     end do
   end subroutine manage_RK_mem
 
-  subroutine RK45_opt()
+  subroutine RK45_opt(trend)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: trend
     !see A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011
     real(8), dimension(5,5) :: alpha
     real(8), dimension(5,5) :: beta
@@ -162,46 +163,44 @@ contains
 
     call manage_RK_mem()
 
-    call trend_ml(sol, trend)
     call RK_sub_step1(sol, trend, alpha(1,1), dt*beta(1,1), q1)
-    call WT_after_step(q1)
+    call WT_after_step(q1, wav_coeff)
 
     call trend_ml(q1, trend)
     call RK_sub_step2(sol, q1, trend, alpha(1:2,2), dt*beta(2,2), q2)
-    call WT_after_step(q2)
+    call WT_after_step(q2, wav_coeff)
 
     call trend_ml(q2, trend)
     call RK_sub_step2(sol, q2, trend, (/alpha(1,3), alpha(3,3)/), dt*beta(3,3), q3)
-    call WT_after_step(q3)
+    call WT_after_step(q3, wav_coeff)
 
     call trend_ml(q3, trend)
     call RK_sub_step2(sol, q3, trend, (/alpha(1,4), alpha(4,4)/), dt*beta(4,4), q4)
-    call WT_after_step(q4)
+    call WT_after_step(q4, wav_coeff)
 
     call trend_ml(q4, dq1)
-    call RK_sub_step4(sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), &
-         dt*beta(4:5,5), sol)
-    
-    ! Calculate wavelet coefficients of solution at new time step on adapted grid
-    call WT_after_step(sol, level_start-1)
+    call RK_sub_step4(sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), dt*beta(4:5,5), sol)
+
+    call WT_after_step(sol, wav_coeff, level_start-1)
   end subroutine RK45_opt
 
-  subroutine Forward_Euler()
+  subroutine Forward_Euler(trend)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: trend
     integer d, v
 
     call trend_ml(sol, trend)
     call RK_sub_step1(sol, trend, 1.0_8, dt, sol)
-    call WT_after_step(sol, level_start-1)
+    call WT_after_step(sol, wav_coeff, level_start-1)
   end subroutine Forward_Euler
 
-  subroutine WT_after_step(q, l_start0)
-    type(Float_Field), target :: q(S_MASS:S_VELO, 1:zlevels), wav(S_MASS:S_VELO, 1:zlevels)
+  subroutine WT_after_step(q, wav, l_start0)
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), target :: q, wav
     integer, optional :: l_start0
     integer l, ll, d, k, l_start
 
     !  everything needed in terms of forward and backward wavelet transform
     !         after one time step (e.g. RK sub-step)
-    !         A) compute mass wavelets and perform backwards transform
+    !         A) compute wavelets and perform backwards transform
     !            to conserve mass
     !         B) interpolate values for next step
     
@@ -224,9 +223,9 @@ contains
     do l = l_start, level_end-1
        do k = 1, zlevels
           do d = 1, size(grid)
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
 
              velo => q(S_VELO,k)%data(d)%elts
              mass => q(S_MASS,k)%data(d)%elts
@@ -237,7 +236,7 @@ contains
              call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
           end do
        end do
-       wav_coeff%bdry_uptodate = .False.
+       wav%bdry_uptodate = .False.
     end do
 
     do l = level_start+1, level_end
@@ -248,10 +247,10 @@ contains
              end do
           end do
        end do
-       wav_coeff%bdry_uptodate = .False.
+       wav%bdry_uptodate = .False.
     end do
 
-    call inverse_wavelet_transform(q, wav_coeff)
+    call inverse_wavelet_transform(wav, q)
   end subroutine WT_after_step
 
 end module time_integr_mod

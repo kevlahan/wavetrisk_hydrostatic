@@ -305,18 +305,35 @@ contains
 
   end subroutine set_masks
 
-  subroutine mask_active()
-    integer k, l
+  subroutine mask_active(wav)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
+    integer :: d, j, k, l
 
-    call update_array_bdry1(wav_coeff, level_start, level_end)
-
+    call update_array_bdry1(wav, level_start, level_end)
+    
     do k = 1, zlevels
-       call apply_onescale(mask_tol, level_end, k, -1, 2)
+       do d = 1, size(grid)
+          wc_m => wav(S_MASS,k)%data(d)%elts
+          wc_t => wav(S_TEMP,k)%data(d)%elts
+          wc_u => wav(S_VELO,k)%data(d)%elts
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch(mask_tol, grid(d), grid(d)%lev(level_end)%elts(j), k, -1, 2)
+          end do
+          nullify(wc_m, wc_t, wc_u)
+       end do
     end do
-
+    
     do l = level_end-1, level_start, -1
        do k = 1, zlevels
-          call apply_onescale(mask_tol, l, k, -1, 2)
+          do d = 1, size(grid)
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch(mask_tol, grid(d), grid(d)%lev(l)%elts(j), k, -1, 2)
+             end do
+             nullify(wc_m, wc_t, wc_u)
+          end do
        end do
        call apply_interscale(mask_active_nodes, l, z_null,  0, 1)
        call apply_interscale(mask_active_edges, l, z_null, -1, 1)
@@ -339,10 +356,10 @@ contains
 
     if (dom%mask_n%elts(id+1) .eq. FROZEN) return
 
-    call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_MASS,zlev)%data(dom%id+1)%elts(id+1), tol_mass)
-    call set_active_mask(dom%mask_n%elts(id+1), wav_coeff(S_TEMP,zlev)%data(dom%id+1)%elts(id+1), tol_temp)
+    call set_active_mask(dom%mask_n%elts(id+1), wc_m(id+1), tol_mass)
+    call set_active_mask(dom%mask_n%elts(id+1), wc_t(id+1), tol_temp)
     do e = 1, EDGE
-       call set_active_mask(dom%mask_e%elts(EDGE*id+e), wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e), tol_velo)
+       call set_active_mask(dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), tol_velo)
     end do
   end subroutine mask_tol
 

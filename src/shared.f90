@@ -293,7 +293,7 @@ module shared_mod
   real(8) viscosity, friction_coeff, omega, radius, grav_accel, cfl_num, kmax
   real(8) cst_density, press_infty, ref_press, kappa, c_p, R_d
   integer istep, resume
-  logical advect_only, wind_stress, bottom_friction, compressible
+  logical advect_only, wind_stress, bottom_friction, compressible, adapt_trend
 
   ! for penalization boundary condition
   logical penalize
@@ -365,6 +365,7 @@ contains
 
     ! default values
     threshold = 0.0_8
+    adapt_trend = .false.
     cfl_num = 1.0_8
     min_level = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level = min_level
