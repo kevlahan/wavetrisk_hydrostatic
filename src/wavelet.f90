@@ -786,6 +786,7 @@ contains
   end subroutine cpt_velo_wc
 
   subroutine init_wavelets(wav)
+  subroutine init_wavelets()
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
     integer :: d
     integer :: num
