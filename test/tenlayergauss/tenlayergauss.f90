@@ -21,7 +21,7 @@ module tenlayergauss_mod
   ! Non-dimensional parameters
   real(8), parameter :: f0   = f0_star * Ldim/Udim
   real(8), parameter :: H    = H_star/Hdim
-  real(8), parameter :: dh   = 1e-3_8
+  real(8), parameter :: dh   = 1e-2_8
 
   real(8) :: csq
 
@@ -113,7 +113,7 @@ contains
     sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
 
     if (zlev.eq.zlevels) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = dh*exp(-1e3_8*rgrc*rgrc)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = dh*exp(-1e1_8*rgrc*rgrc)
     else
        sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
     end if
