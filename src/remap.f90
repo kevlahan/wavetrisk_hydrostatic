@@ -8,9 +8,10 @@ module remap_mod
 contains
 
   subroutine remap_column(dom, p, i, j, k, offs, dims, fid)
-    !remap the Lagrangian coordinate to prevent layer squeezing
-    !inputs k and fid are unused
+    !remap the Lagrangian coordinate with the goal of preventing layer squeezing
+    !the inputs k and fid are unused
     !tested only for zlevels>7
+    !we interpolate on the full (not the perturbation) quantities
     type(Domain) dom
     integer p
     integer i, j, k, m, kb
@@ -33,23 +34,26 @@ contains
 
     !if (printit) then
        !integrate all quantities vertically downward from the top, all quantities located at interfaces
-       integrated_mass(1)=0.0_8
-       integrated_temp(1)=0.0_8
+       integrated_mass(1) = 0.0_8
+       integrated_temp(1) = 0.0_8
        do e = 1, EDGE
-          integrated_velo(1,e)=0.0_8
+          integrated_velo(1,e) = 0.0_8
        end do
        do kb = 2, zlevels + 1
-          integrated_mass(kb)=integrated_mass(kb-1)+sol(S_MASS,zlevels-kb+2)%data(dom%id+1)%elts(id+1)
-          integrated_temp(kb)=integrated_temp(kb-1)+sol(S_TEMP,zlevels-kb+2)%data(dom%id+1)%elts(id+1)
+          integrated_mass(kb) = integrated_mass(kb-1) + &
+            sol(S_MASS,zlevels-kb+2)%data(dom%id+1)%elts(id+1) + mean(S_MASS,zlevels-kb+2)
+          integrated_temp(kb) = integrated_temp(kb-1) + &
+            sol(S_TEMP,zlevels-kb+2)%data(dom%id+1)%elts(id+1) + mean(S_TEMP,zlevels-kb+2)
           do e = 1, EDGE
-             integrated_velo(kb,e)=integrated_velo(kb-1,e)+sol(S_VELO,zlevels-kb+2)%data(dom%id+1)%elts(EDGE*id+e)
+             integrated_velo(kb,e) = integrated_velo(kb-1,e) + &
+                sol(S_VELO,zlevels-kb+2)%data(dom%id+1)%elts(EDGE*id+e) + mean(S_VELO,zlevels-kb+2) !JEMF mean velo
           end do
        end do
 
        !calculate current pressure distribution (at the interfaces) as it will be the independent coordinate
-       pressure(1)=press_infty
+       pressure(1) = press_infty
        do kb = 2, zlevels + 1
-          pressure(kb)=pressure(kb-1)+grav_accel*sol(S_MASS,zlevels-kb+2)%data(dom%id+1)%elts(id+1)
+          pressure(kb) = pressure(kb-1) + grav_accel*sol(S_MASS,zlevels-kb+2)%data(dom%id+1)%elts(id+1)
        end do
 
        !interpolate using the moving stencil (note that in case of extreme shifting of the layers, we may extrapolate)
@@ -63,25 +67,35 @@ contains
          !    PRINT *, 'layer_pressure', layer_pressure
 
           if (kb .le. 4) then
-             stencil=(/ (m, m = 1, 7) /)
+             stencil = (/ (m, m = 1, 7) /)
           else if (kb .ge. (zlevels-3)) then
-             stencil=(/ (m, m = zlevels-5, zlevels+1) /)
+             stencil = (/ (m, m = zlevels-5, zlevels+1) /)
           else
-             stencil=(/ (m, m = kb-3, kb+3) /)
+             stencil = (/ (m, m = kb-3, kb+3) /)
           end if
-          new_mass(kb)=seven_point_interp(pressure(stencil), integrated_mass(stencil), layer_pressure)
-          new_temp(kb)=seven_point_interp(pressure(stencil), integrated_temp(stencil), layer_pressure)
+          new_mass(kb) = seven_point_interp(pressure(stencil), integrated_mass(stencil), layer_pressure)
+          new_temp(kb) = seven_point_interp(pressure(stencil), integrated_temp(stencil), layer_pressure)
           do e = 1, EDGE
-             new_velo(kb,e)=seven_point_interp(pressure(stencil), integrated_velo(stencil,e), layer_pressure)
+             new_velo(kb,e) = seven_point_interp(pressure(stencil), integrated_velo(stencil,e), layer_pressure)
           end do
        end do
 
-       !assign values to mass, temp and velo field
+       !temporarily assign full quantities to mass, temp and velo field (instead of perturbation quantities)
        do kb = 1 , zlevels
           sol(S_MASS,kb)%data(dom%id+1)%elts(id+1)=new_mass(zlevels-kb+2)-new_mass(zlevels-kb+1)
           sol(S_TEMP,kb)%data(dom%id+1)%elts(id+1)=new_temp(zlevels-kb+2)-new_temp(zlevels-kb+1)
           do e = 1, EDGE
              sol(S_VELO,kb)%data(dom%id+1)%elts(EDGE*id+e)=new_velo(zlevels-kb+2,e)-new_velo(zlevels-kb+1,e)
+          end do
+       end do
+
+       !now assign perturbation quantities to mass, temp and velo field
+       do kb = 1 , zlevels
+          sol(S_MASS,kb)%data(dom%id+1)%elts(id+1) = sol(S_MASS,kb)%data(dom%id+1)%elts(id+1) - mean(S_MASS,kb)
+          sol(S_TEMP,kb)%data(dom%id+1)%elts(id+1) = sol(S_TEMP,kb)%data(dom%id+1)%elts(id+1) - mean(S_TEMP,kb)
+          do e = 1, EDGE
+             sol(S_VELO,kb)%data(dom%id+1)%elts(EDGE*id+e) = sol(S_VELO,kb)%data(dom%id+1)%elts(EDGE*id+e) - &
+                mean(S_VELO,kb)
           end do
        end do
     !end if
@@ -96,19 +110,19 @@ contains
     integer mi, ni
 
     !construct interpolating polynomial by calculating Newton differences
-    interp_diff(0,0:6)=yv(0:6) !zeroth order finite differences for x_0 thru x_6
+    interp_diff(0,0:6) = yv(0:6) !zeroth order finite differences for x_0 thru x_6
 
     do mi = 1, 6
        do ni = 0, 6-mi
-          interp_diff(mi,ni)=(interp_diff(mi-1,ni+1)-interp_diff(mi-1,ni))/(xv(ni+mi)-xv(ni))
+          interp_diff(mi,ni) = (interp_diff(mi-1,ni+1)-interp_diff(mi-1,ni))/(xv(ni+mi)-xv(ni))
        end do
     end do
 
     !evaluate the polynomial using Horner's algorithm
-    seven_point_interp=interp_diff(6,0)
+    seven_point_interp = interp_diff(6,0)
 
     do mi = 5, 0, -1
-       seven_point_interp=interp_diff(mi,0)+(xd-xv(mi))*seven_point_interp
+       seven_point_interp = interp_diff(mi,0)+(xd-xv(mi))*seven_point_interp
     end do
   end function seven_point_interp
 
