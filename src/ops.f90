@@ -596,7 +596,7 @@ contains
     else !incompressible case !JEMF: fix total mass
        !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
        if (zlev .eq. zlevels) then !top zlev, it is an exception
-          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*temp(id+1)
+          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_temp
        else !other layers equal to half of previous layer and half of current layer
           dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(dom%adj_temp%elts(id+1)+ full_temp)
        end if
