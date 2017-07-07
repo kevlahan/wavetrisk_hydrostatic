@@ -42,7 +42,13 @@ contains
             sol(S_TEMP,zlevels-kb+2)%data(dom%id+1)%elts(id+1) + mean(S_TEMP,zlevels-kb+2)
        do e = 1, EDGE
           integrated_velo(kb,e) = integrated_velo(kb-1,e) + &
-               sol(S_VELO,zlevels-kb+2)%data(dom%id+1)%elts(EDGE*id+e) + mean(S_VELO,zlevels-kb+2) !JEMF mean velo
+               sol(S_VELO,zlevels-kb+2)%data(dom%id+1)%elts(EDGE*id+e) + mean(S_VELO,zlevels-kb+2)
+
+          !if the mean velocity is non-zero, this routine will not work properly
+          if (abs(mean(S_VELO,zlevels-kb+2)).gt.1.0e-14) then
+            write(6,*) 'fatal error: mean velocity is not zero'
+            stop
+          end if
        end do
     end do
 

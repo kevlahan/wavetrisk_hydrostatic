@@ -1,19 +1,12 @@
-!to compile with level_start=5, go to wavetrisk_hydrostatic and execute
-!                   make BUILD_DIR=build TEST_CASE=DCMIP2008c5 PARAM=param_J5
-!to run: go to wavetrisk_hydrostatic/jobs/DCMIP2008c5 and execute
-!                   ../../bin/DCMIP2008c5
-
 !TO DO: swap out kinetic energy (wind.f90 DYNAMICO)
 ! add coriolis correction to timestep calculation
-! do interpolation for pressure levels
+! fix ARK method
 
-module DCMIP2008c5_mod
+module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   use main_mod
-
   implicit none
 
-  ! DCMIP2008 test case 5 parameters, all dimensional, subscript _t denotes test case values in contrast
-  ! to those set in shared.f90
+  ! all dimensional, subscript _t denotes test case values in contrast to those set in shared.f90
   real(8), parameter :: grav_accel_t = 9.80616_8 !gravitational acceleration in meters per second squared
   real(8), parameter :: omega_t      = 7.29211e-5 !Earth’s angular velocity in radians per second
   real(8), parameter :: f0_t         = 2.0_8*omega_t !Coriolis parameter
@@ -44,23 +37,24 @@ module DCMIP2008c5_mod
   real(8), parameter :: R_ddim = R_d_t                                ! R_d scale
   real(8), parameter :: massdim = pdim*Hdim/(Tempdim*R_d_t)           ! mass (=rho*dz following DYNAMICO) scale
   real(8), parameter :: specvoldim = (R_d_t*Tempdim)/pdim             ! specific volume scale
-  real(8), parameter :: geopotdim = acceldim*massdim*specvoldim/Hdim  ! geopotential scale JEMF
+  real(8), parameter :: geopotdim = acceldim*massdim*specvoldim/Hdim  ! geopotential scale
 
   real(8) :: csq
 
   real(8) :: VELO_SCALE
 
+  real(8), parameter :: LAND = 1
+  real(8), parameter :: SEA  = 0
   character(255) IC_file
 
   integer :: CP_EVERY 
 
-  real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin, k_tsu
-
-  real(8), allocatable :: a_vert(:), b_vert(:)
-
-  real(8) :: initotalmass, totalmass
+  real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin
+  real(8) :: initotalmass, totalmass, timing, total_time, dh, mean_mass(1:18), mean_temp(1:18), nr_nodes
 
   logical const_bathymetry, wasprinted
+
+  real(8) max_dh
 
   integer iwrite, j
 
@@ -87,9 +81,31 @@ contains
        initotalmass=integrate_hex(mass_pert, level_start, k)
     else
        totalmass=integrate_hex(mass_pert, level_start, k)
-       if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+       !        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
+
+  subroutine write_and_print_step()
+    real(4) timing
+    timing = get_timing()
+    if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
+         time, dt, timing, level_end, n_active, VELO_SCALE
+  end subroutine write_and_print_step
+
+  subroutine cpt_max_dh(dom, i, j, zlev, offs, dims)
+    type(Domain) dom
+    integer i, j, zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer id
+
+    id = idx(i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) .gt. 0) then
+       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) &
+            max_dh = max(max_dh, abs(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
+    end if
+  end subroutine cpt_max_dh
 
   subroutine initialize_a_b_vert()
     allocate(a_vert(zlevels+1), b_vert(zlevels+1))
@@ -130,20 +146,6 @@ contains
     end if
   end subroutine initialize_a_b_vert
 
-  subroutine vel_fun(lon, lat, u, v)
-    real(8) lon, lat
-    real(8) u, v
-    u = u_0_t*cos(lat)
-    v = 0.0_8
-  end subroutine vel_fun
-
-  subroutine write_and_print_step()
-    real(4) timing
-    timing = get_timing()
-    if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
-         time, dt, timing, level_end, n_active, VELO_SCALE
-  end subroutine write_and_print_step
-
   subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i, j, k, zlev
@@ -160,9 +162,9 @@ contains
 
     call cart2sph(dom%node%elts(id+1), lon, lat)
 
-    !set surface geopotential (note that this really only needs to be done once (improve this later JEMF))
+    !set surface geopotential (note that this really only needs to be done once)
     rgrc = a_t*acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
-    dom%surf_geopot%elts(id+1) = grav_accel_t*h_0_t * exp(-rgrc*rgrc/d2_t)
+    dom%surf_geopot%elts(id+1) = grav_accel_t * h_0_t * exp(-rgrc*rgrc/d2_t)
 
     !set initial surface pressure; it is given but only used to set the initial mass distribution
     dom%surf_press%elts(id+1) = p_sp_t*exp(-((a_t*N_t*N_t*u_0_t)/(2.0_8*grav_accel_t*grav_accel_t*kappa_t))* &
@@ -199,6 +201,8 @@ contains
     !note that sol(S_MASS) was not exactly rho*dz so far, it was just dz
     sol(S_MASS,zlev)%data(d)%elts(id+1)=sol(S_MASS,zlev)%data(d)%elts(id+1)/dom%spec_vol%elts(id+1)
 
+    mean_mass(zlev)=mean_mass(zlev) + sol(S_MASS,zlev)%data(d)%elts(id+1)
+
     !set initial velocity field
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
          dom%node%elts(idE+1))
@@ -213,16 +217,21 @@ contains
     !now make it mass-weighted
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
 
+    mean_temp(zlev)=mean_temp(zlev) + sol(S_TEMP,zlev)%data(d)%elts(id+1)
+
     !PRINT *,' potential temperature', sol(S_TEMP,zlev)%data(d)%elts(id+1)
     !PRINT *, (lev_press / ref_press)**(-kappa)
     !PRINT *, lev_press / ref_press
     !PRINT *, '--'
+
+    nr_nodes = nr_nodes+1
 
     dom%adj_mass%elts(id+1) = lev_z !adj_mass is used to save adjacent lev_z
     dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
   end subroutine init_sol
 
   subroutine nondim_sol(dom, i, j, zlev, offs, dims) !nondimensionalize the initial conditions
+    !and subtract non-dimensional mean quantities
     type(Domain) dom
     integer i, j, k, zlev
     integer, dimension(N_BDRY + 1) :: offs
@@ -241,12 +250,23 @@ contains
 
     sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)/massdim
 
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) - mean(S_MASS,zlev)
+
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1)/Udim
     sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1) = sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1)/Udim
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)/Udim
 
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/Tempdim
+
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1) - mean(S_TEMP,zlev)
   end subroutine nondim_sol
+
+  subroutine vel_fun(lon, lat, u, v)
+    real(8) lon, lat
+    real(8) u, v
+    u = u_0_t*cos(lat)
+    v = 0.0_8
+  end subroutine vel_fun
 
   subroutine read_test_case_parameters(filename)
     character(*) filename
@@ -339,8 +359,9 @@ contains
   end subroutine DCMIP2008c5_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8)
-    tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
+    tol_mass = VELO_SCALE * c_p/grav_accel * threshold**(1.5_8)
+    tol_velo = VELO_SCALE                        * threshold**(1.5_8)
+    tol_temp = tol_mass
   end subroutine set_thresholds
 end module DCMIP2008c5_mod
 
@@ -366,7 +387,7 @@ program DCMIP2008c5
   call read_test_case_parameters("DCMIP2008c5.in")
 
   ! for this testcase, set the pressure at infinity (which is usually close to zero)
-  press_infty_t = a_vert(zlevels+1)*ref_press_t ! note that b_vert at top level is 0
+  press_infty_t = a_vert(zlevels+1)*ref_press_t ! note that b_vert at top level is 0, a_vert is small but non-zero
 
   ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
   omega = omega_t * Tdim
@@ -383,7 +404,29 @@ program DCMIP2008c5
   PRINT *, 'Tempdim=', Tempdim
   PRINT *, 'Tdim=', Tdim
 
-  VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
+  ! Set (non-dimensional) mean values of variables, JEMF: hardcoded for now
+  allocate (mean(S_MASS:S_VELO,1:zlevels))
+  mean(S_MASS,1:zlevels)= (/152.61_8, 298.41_8, 542.58_8, 741.99_8, 891.11_8, 976.80_8, 1006.45_8, &
+       979.30_8, 912.76_8, 812.65_8, 698.99_8, 576.77_8, 462.47_8, 355.41_8, 375.00_8, 293.81_8, 131.65_8, 26.676_8 /)
+  mean(S_MASS,1:zlevels) = mean(S_MASS,1:zlevels)/massdim
+  mean(S_TEMP,1:zlevels)= (/44134.40_8, 87042.93_8, 160872.80_8, 225332.45_8, 279334.28_8, 318471.31_8, 343952.80_8, &
+       353477.40_8, 350691.68_8, 334861.89_8, 311348.38_8, 279787.52_8, 246285.69_8, 209281.66_8, 260190.12_8, &
+       262399.32_8, 155839.45_8, 42472.01_8 /)
+  mean(S_TEMP,1:zlevels) = mean(S_TEMP,1:zlevels) / Tempdim
+  mean(S_VELO,1:zlevels) = 0.0_8
+
+  mean_mass=0.0_8
+  mean_temp=0.0_8
+  nr_nodes=0
+
+  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
+  dx_max = 2.0_8*MATH_PI * radius
+
+  kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
+
+  csq = grav_accel*a_t !JEMF
+  c_p = sqrt(csq)
+  VELO_SCALE   = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
   wind_stress      = .False.
   penalize         = .False.
@@ -396,6 +439,7 @@ program DCMIP2008c5
      write(*,'(A,L1)') "penalize         = ", penalize
      write(*,'(A,L1)') "bottom friction  = ", bottom_friction
      write(*,'(A,L1)') "const_bathymetry = ", const_bathymetry
+     write(*,'(A,L1)') "compressible = ", compressible
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
@@ -409,36 +453,48 @@ program DCMIP2008c5
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
   call sum_total_mass(.True.)
 
-  if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
+  !PRINT *, 'mean_mass', mean_mass
+  !PRINT *, 'mean_temp', mean_temp
+  !PRINT *, 'nr_nodes', nr_nodes
+  !PRINT *, 'real nr_nodes', nr_nodes/18
+  !    PRINT *, 'real dimensional mean_mass', mean_mass/(nr_nodes/18)
+  !PRINT *, 'real dimensional mean_temp', mean_temp/(nr_nodes/18)
+  !stop
+
+  if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
   call barrier()
 
-  if (rank .eq. 0) write(*,*) 'Write initial values and grid'
+  if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   if (write_init) call write_and_export(iwrite)
 
+  total_time = 0_8
   do while (time .lt. time_end)
-     call start_timing()
-
-     do k = 1, zlevels
-        call update_bdry(sol(S_MASS,k), NONE)
-        call update_bdry(sol(S_TEMP,k), NONE) !JEMF
+     ! Set thresholds dynamically
+     max_dh = 0
+     do l = level_start, level_end
+        do k = 1, zlevels
+           call apply_onescale(cpt_max_dh, l, k, 0, 1) !compute averages here
+        end do
      end do
-
-     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, 180.0_8*4.0_8))
-
+     max_dh = sync_max_d(max_dh)
+     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel*max_dh/c_p))
      call set_thresholds()
 
+     call start_timing()
      call time_step(dt_write, aligned)
-
      call stop_timing()
+     timing = get_timing()
+     total_time = total_time + timing
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
+     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,ES13.5),A,I9,A,ES11.4)') &
           'time [h] =', time/3600.0_8*Tdim, &
           ', dt [s] =', dt*Tdim, &
           ', min. depth =', fd, &
           ', VELO_SCALE =', VELO_SCALE, &
-          ', d.o.f. =', sum(n_active)
+          ', d.o.f. =', sum(n_active), &
+          ', cpu = ', timing
 
      call print_load_balance()
 
@@ -462,9 +518,12 @@ program DCMIP2008c5
 
      call sum_total_mass(.False.)
   end do
+
   if (rank .eq. 0) then
+     write(6,'(A,ES11.4)') 'Total cpu time = ', total_time
      close(1011)
      close(8450)
   end if
+
   call finalize()
 end program DCMIP2008c5
