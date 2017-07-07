@@ -485,25 +485,29 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
+    real(8) full_mass, full_temp
 
     id   = idx(i, j, offs, dims)
 
-    if (mass(id+1)+mean(S_MASS,zlev) .lt. 1e-4_8) then
+    full_mass = mass(id+1)+mean(S_MASS,zlev)
+    full_temp = temp(id+1)+mean(S_TEMP,zlev)
+
+    if (full_mass .lt. 1e-6_8) then
        print *, 'fatal error: a horizontal layer thickness is being squeezed to zero, namely, at zlev=', zlev
-       write(6,*) mass(id+1), mean(S_MASS,zlev)
+       write(6,*) 'mean+perturbation=', full_mass
        stop
     end if
 
     if (compressible) then !compressible case
        !integrate the pressure from bottom zlev up to top zlev
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_mass
        else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(mass(id+1)+dom%adj_mass%elts(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(full_mass+dom%adj_mass%elts(id+1))
        end if
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          if (abs((dom%press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)) - press_infty) .gt. 1e-11_8) then
+          if (abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty) .gt. 1e-11_8) then
              PRINT *, 'warning: upward integration of pressure not resulting in zero at top interface'
              stop
           end if
@@ -512,25 +516,25 @@ contains
        !compute exner pressure from the pressure
        dom%exner%elts(id+1) = c_p*(dom%press%elts(id+1)/ref_press)**kappa
        !compute the specific volume as kappa*theta*pi/p
-       dom%spec_vol%elts(id+1) = kappa*temp(id+1)/mass(id+1)*dom%exner%elts(id+1)/dom%press%elts(id+1)
+       dom%spec_vol%elts(id+1) = kappa*(full_temp/full_mass)*dom%exner%elts(id+1)/dom%press%elts(id+1)
 
        !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
-          dom%geopot%elts(id+1) = dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*mass(id+1)*dom%spec_vol%elts(id+1)
+          dom%geopot%elts(id+1) = dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*full_mass*dom%spec_vol%elts(id+1)
        else !other layers equal to half of previous layer and half of current layer
           dom%geopot%elts(id+1) = dom%geopot%elts(id+1) + &
-               0.5_8*grav_accel*(mass(id+1)*dom%spec_vol%elts(id+1) + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
+               0.5_8*grav_accel*(full_mass*dom%spec_vol%elts(id+1) + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
        end if
-    else !incompressible case
+    else !incompressible case !JEMF: fix total mass
        !incompressible case: integrate the Lagrange multiplier (saved as pressure) from bottom zlev up to top zlev
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*temp(id+1)
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_temp
        else !other layers equal to half of previous layer and half of current layer     
-          dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(dom%adj_temp%elts(id+1) + temp(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(dom%adj_temp%elts(id+1) + full_temp)
        end if
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1) - press_infty).gt. 1e-11_8) then
+          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*full_temp - press_infty).gt. 1e-11_8) then
              print *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
              stop
           end if
@@ -541,10 +545,10 @@ contains
 
        !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
-          dom%geopot%elts(id+1) = dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*mass(id+1)*dom%spec_vol%elts(id+1)
+          dom%geopot%elts(id+1) = dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*full_mass*dom%spec_vol%elts(id+1)
        else !other layers equal to half of previous layer and half of current layer
           dom%geopot%elts(id+1) = dom%geopot%elts(id+1) + &
-               0.5_8*grav_accel*(mass(id+1)*dom%spec_vol%elts(id+1) + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
+               0.5_8*grav_accel*(full_mass*dom%spec_vol%elts(id+1) + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
        end if
 
        !compute exner pressure from the geopotential
@@ -552,8 +556,8 @@ contains
     end if
 
     !quantities for vertical integration in next zlev
-    dom%adj_mass%elts(id+1)     = mass(id+1)
-    dom%adj_temp%elts(id+1)     = temp(id+1)
+    dom%adj_mass%elts(id+1)     = full_mass
+    dom%adj_temp%elts(id+1)     = full_temp
     dom%adj_spec_vol%elts(id+1) = dom%spec_vol%elts(id+1)
   end subroutine integrate_pressure_up
 
@@ -567,15 +571,19 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
+    real(8) full_mass, full_temp
 
     id   = idx(i, j, offs, dims)
+
+    full_mass = mass(id+1)+mean(S_MASS,zlev)
+    full_temp = temp(id+1)+mean(S_TEMP,zlev)
 
     if (compressible) then !compressible case
        !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
        if (zlev .eq. zlevels) then !top zlev, it is an exception
-          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*mass(id+1)
+          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_mass
        else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(mass(id+1) + dom%adj_mass%elts(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(full_mass + dom%adj_mass%elts(id+1))
        end if
 
        !surface pressure is set (even at t=0) from downward numerical integration
@@ -583,14 +591,14 @@ contains
           !PRINT *, 'theoretical surface pressure=', dom%surf_press%elts(id+1), &
           !    ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
           !    ', error=', abs(dom%surf_press%elts(id+1)-(dom%pressure%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
-          dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*mass(id+1)
+          dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_mass
        end if
-    else !incompressible case
+    else !incompressible case !JEMF: fix total mass
        !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
        if (zlev .eq. zlevels) then !top zlev, it is an exception
           dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*temp(id+1)
        else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(dom%adj_temp%elts(id+1)+ temp(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(dom%adj_temp%elts(id+1)+ full_temp)
        end if
 
        !surface pressure is set (even at t=0) from downward numerical integration
@@ -598,14 +606,14 @@ contains
           !   PRINT *, 'theoretical surface pressure=', dom%surf_press%elts(id+1), &
           !       ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
           !       ', error=', abs(dom%surf_press%elts(id+1)-(dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
-          dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*temp(id+1)
+          dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_temp
           !PRINT *, 'surf_press', dom%surf_press%elts(id+1)
        end if
     end if
 
     !quantities for vertical integration in next zlev
-    dom%adj_mass%elts(id+1) = mass(id+1)
-    dom%adj_temp%elts(id+1) = temp(id+1)
+    dom%adj_mass%elts(id+1) = full_mass
+    dom%adj_temp%elts(id+1) = full_temp
   end subroutine integrate_pressure_down
 
   function get_weights(dom, id, offs)
