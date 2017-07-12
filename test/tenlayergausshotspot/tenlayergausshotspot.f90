@@ -1,8 +1,5 @@
 module tenlayergausshotspot_mod
   use main_mod
-
-  !c is 180 m/s approx
-
   implicit none
 
   ! Dimensional physical parameters
@@ -24,6 +21,7 @@ module tenlayergausshotspot_mod
   ! Non-dimensional parameters
   real(8), parameter :: f0   = f0_star * Ldim/Udim
   real(8), parameter :: H    = H_star/Hdim
+  real(8), parameter :: dh   = 5e-1_8
 
   real(8) :: csq
 
@@ -36,16 +34,18 @@ module tenlayergausshotspot_mod
   integer :: CP_EVERY 
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin, k_tsu
-  real(8) :: initotalmass, totalmass
+  real(8) :: initotalmass, totalmass, timing, total_time
 
   logical const_bathymetry
+
+  real(8) max_dh
 
   integer iwrite, j
 
 contains
   subroutine apply_initial_conditions()
     integer l, d, p, k
-    
+
     do l = level_start, level_end
        do k = 1, zlevels
           call apply_onescale(init_sol, l, k, 0, 1)
@@ -59,10 +59,10 @@ contains
 
     k=1 !select vertical level
     if (initialgo) then
-        initotalmass=integrate_hex(mass_pert, level_start, k)
+       initotalmass=integrate_hex(mass_pert, level_start, k)
     else
-        totalmass=integrate_hex(mass_pert, level_start, k)
-        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+       totalmass=integrate_hex(mass_pert, level_start, k)
+       !        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 
@@ -73,6 +73,21 @@ contains
          time, dt, timing, level_end, n_active, VELO_SCALE
   end subroutine write_and_print_step
 
+  subroutine cpt_max_dh(dom, i, j, zlev, offs, dims)
+    type(Domain) dom
+    integer i, j, zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    integer id
+
+    id = idx(i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) .gt. 0) then
+       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) &
+            max_dh = max(max_dh, abs(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
+    end if
+  end subroutine cpt_max_dh
+
   subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i, j, k, zlev
@@ -80,9 +95,11 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, d
     real(8) lon, lat
-    real(8) s, t, rgrc
+    real(8) s, t, rgrc, rgrcb
     real(8), parameter :: lon_c_t = MATH_PI/2.0_8
     real(8), parameter :: lat_c_t = MATH_PI/6.0_8
+    real(8), parameter :: lon_b_t = MATH_PI/8.0_8
+    real(8), parameter :: lat_b_t = MATH_PI/2.0_8
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
@@ -91,20 +108,22 @@ contains
 
     rgrc = acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
 
+    rgrcb = acos(sin(lat_b_t)*sin(lat)+cos(lat_b_t)*cos(lat)*cos(lon-lon_b_t))
+
     dom%surf_press%elts(id+1) = 0.0_8
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 1.0_8/dble(zlevels)
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
 
     if (zlev.eq.zlevels) then
-        sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = dh*exp(-1e1_8*rgrc*rgrc)
     end if
 
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = 1.0_8 + 0.1_8 * dble(zlev)/dble(zlevels)
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = 0.1_8 * dble(zlev)/dble(zlevels)
 
     if (zlev.eq.zlevels) then
-        !sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1) + 0.01_8*exp(-100.0_8*rgrc*rgrc)
+       sol(S_TEMP,zlev)%data(d)%elts(id+1) = dh*exp(-1e1_8*rgrcb*rgrcb)
     end if
 
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
@@ -201,8 +220,9 @@ contains
   end subroutine tenlayergausshotspot_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE                * threshold**(3.0_8/2.0_8) !JEMF
-    tol_velo = VELO_SCALE                * threshold**(3.0_8/2.0_8)
+    tol_mass = VELO_SCALE * c_p/grav_accel * threshold**(1.5_8)
+    tol_velo = VELO_SCALE                        * threshold**(1.5_8)
+    tol_temp = tol_mass
   end subroutine set_thresholds
 end module tenlayergausshotspot_mod
 
@@ -238,9 +258,18 @@ program tenlayergausshotspot
   kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
 
   csq = grav_accel*H
+  c_p = sqrt(csq)
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of tenlayergausshotspot: 100km
 
-  VELO_SCALE   = 180.0_8*4.0_8 ! Characteristic velocity based on initial perturbation
+  VELO_SCALE   = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation
+
+  ! Set (non-dimensional) mean values of variables
+  allocate (mean(S_MASS:S_VELO,1:zlevels))
+  do k = 1, zlevels
+     mean(S_MASS,k) = 1.0_8/real(zlevels)
+     mean(S_TEMP,k) = mean(S_MASS,k)
+     mean(S_VELO,k) = 0.0_8
+  end do
 
   wind_stress      = .False.
   penalize         = .False.
@@ -266,36 +295,40 @@ program tenlayergausshotspot
   call initialize(apply_initial_conditions, 1, set_thresholds, tenlayergausshotspot_dump, tenlayergausshotspot_load)
   call sum_total_mass(.True.)
 
-  if (rank .eq. 0) write (*,*) 'thresholds p, u:',  tol_mass, tol_velo
+  if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
   call barrier()
 
-  if (rank .eq. 0) write(*,*) 'Write initial values and grid'
+  if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   if (write_init) call write_and_export(iwrite)
 
+  total_time = 0_8
   do while (time .lt. time_end)
-     call start_timing()
-
-     do k = 1, zlevels
-        call update_bdry(sol(S_MASS,k), NONE)
+     ! Set thresholds dynamically
+     max_dh = 0
+     do l = level_start, level_end
+        do k = 1, zlevels
+           call apply_onescale(cpt_max_dh, l, k, 0, 1)
+        end do
      end do
-
-     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, 180.0_8*4.0_8))
-
+     max_dh = sync_max_d(max_dh)
+     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel*max_dh/c_p))
      call set_thresholds()
 
+     call start_timing()
      call time_step(dt_write, aligned)
-
      call stop_timing()
-
+     timing = get_timing()
+     total_time = total_time + timing
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,E13.5),A,I9)') &
+     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,ES13.5),A,I9,A,ES11.4)') &
           'time [h] =', time/3600.0_8*Tdim, &
           ', dt [s] =', dt*Tdim, &
           ', min. depth =', fd, &
           ', VELO_SCALE =', VELO_SCALE, &
-          ', d.o.f. =', sum(n_active)
+          ', d.o.f. =', sum(n_active), &
+          ', cpu = ', timing
 
      call print_load_balance()
 
@@ -319,9 +352,12 @@ program tenlayergausshotspot
 
      call sum_total_mass(.False.)
   end do
+
   if (rank .eq. 0) then
+     write(6,'(A,ES11.4)') 'Total cpu time = ', total_time
      close(1011)
      close(8450)
   end if
+
   call finalize()
 end program tenlayergausshotspot
