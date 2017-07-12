@@ -252,13 +252,35 @@ contains
 
     sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) - mean(S_MASS,zlev)
 
+    !if (abs(sol(S_MASS,zlev)%data(d)%elts(id+1)/mean(S_MASS,zlev)).gt.1.0_8) then
+    !   PRINT *, 'fatal error: mass perturbation is large, perturbation/mean>1'
+    !   PRINT *, 'mean=', mean(S_MASS,zlev), 'perturbation=', sol(S_MASS,zlev)%data(d)%elts(id+1)
+    !   stop
+    !end if
+
+    if ((sol(S_MASS,zlev)%data(d)%elts(id+1)+mean(S_MASS,zlev)).lt.1e-4) then
+       PRINT *, 'fatal error: mass has mean+perturbation<0'
+       stop
+    end if
+
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1)/Udim
     sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1) = sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1)/Udim
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)/Udim
 
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/Tempdim
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/(Tempdim*massdim)
 
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1) - mean(S_TEMP,zlev)
+
+    !if (abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)/mean(S_TEMP,zlev)).gt.1.0_8) then
+    !   PRINT *, 'fatal error: temperature perturbation is large, perturbation/mean>1'
+    !   PRINT *, 'mean=', mean(S_TEMP,zlev), 'perturbation=', sol(S_TEMP,zlev)%data(d)%elts(id+1)
+    !   stop
+    !end if
+
+    if ((sol(S_TEMP,zlev)%data(d)%elts(id+1)+mean(S_TEMP,zlev)).lt.1e-4) then
+       PRINT *, 'fatal error: temperature has mean+perturbation<0'
+       stop
+    end if
   end subroutine nondim_sol
 
   subroutine vel_fun(lon, lat, u, v)

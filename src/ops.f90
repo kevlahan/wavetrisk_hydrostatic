@@ -525,7 +525,7 @@ contains
           dom%geopot%elts(id+1) = dom%geopot%elts(id+1) + &
                0.5_8*grav_accel*(full_mass*dom%spec_vol%elts(id+1) + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
        end if
-    else !incompressible case !JEMF: fix total mass
+    else !incompressible case
        !incompressible case: integrate the Lagrange multiplier (saved as pressure) from bottom zlev up to top zlev
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_temp
@@ -583,29 +583,23 @@ contains
        if (zlev .eq. zlevels) then !top zlev, it is an exception
           dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_mass
        else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(full_mass + dom%adj_mass%elts(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(dom%adj_mass%elts(id+1) + full_mass)
        end if
 
        !surface pressure is set (even at t=0) from downward numerical integration
        if (zlev .eq. 1) then
-          !PRINT *, 'theoretical surface pressure=', dom%surf_press%elts(id+1), &
-          !    ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
-          !    ', error=', abs(dom%surf_press%elts(id+1)-(dom%pressure%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
           dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_mass
        end if
-    else !incompressible case !JEMF: fix total mass
+    else !incompressible case
        !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
        if (zlev .eq. zlevels) then !top zlev, it is an exception
           dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_temp
        else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(dom%adj_temp%elts(id+1)+ full_temp)
+          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(dom%adj_temp%elts(id+1) + full_temp)
        end if
 
        !surface pressure is set (even at t=0) from downward numerical integration
        if (zlev .eq. 1) then
-          !   PRINT *, 'theoretical surface pressure=', dom%surf_press%elts(id+1), &
-          !       ', numerical surface pressure=', (dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)), &
-          !       ', error=', abs(dom%surf_press%elts(id+1)-(dom%press%elts(id+1)+0.5_8*grav_accel*mass(id+1)))
           dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_temp
           !PRINT *, 'surf_press', dom%surf_press%elts(id+1)
        end if
