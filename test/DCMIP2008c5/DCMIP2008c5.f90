@@ -66,7 +66,7 @@ contains
     do l = level_start, level_end
        do k = 1, zlevels
           call apply_onescale(init_sol, l, k, 0, 1)
-          call apply_onescale(nondim_sol, l, k, 0, 1)
+          !call apply_onescale(nondim_sol, l, k, 0, 1)
           wasprinted=.false.
        end do
     end do
@@ -323,8 +323,8 @@ contains
        write(*,'(A,i6)')     "resume           = ", resume
        write(*,*) ' '
     end if
-    dt_write = dt_write * 60_8/Tdim
-    time_end = time_end * 60_8**2/Tdim
+    dt_write = dt_write * 60_8!/Tdim
+    time_end = time_end * 60_8**2!/Tdim
 
     call initialize_a_b_vert()
     close(fid)
@@ -412,14 +412,14 @@ program DCMIP2008c5
   press_infty_t = a_vert(zlevels+1)*ref_press_t ! note that b_vert at top level is 0, a_vert is small but non-zero
 
   ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
-  omega = omega_t * Tdim
-  grav_accel = grav_accel_t / acceldim
-  radius = a_t / Ldim
-  press_infty = press_infty_t / pdim
-  R_d = R_d_t / R_d_t
-  c_p = c_p_t / R_d_t
+  omega = omega_t !* Tdim
+  grav_accel = grav_accel_t !/ acceldim
+  radius = a_t !/ Ldim
+  press_infty = press_infty_t !/ pdim
+  R_d = R_d_t !/ R_d_t
+  c_p = c_p_t !/ R_d_t
   kappa = kappa_t
-  ref_press = ref_press_t / pdim
+  ref_press = ref_press_t !/ pdim
   cst_density = cst_density_t !not non-dimensionalized at present, NOT USED HERE
 
   PRINT *, 'massdim=', massdim
@@ -431,10 +431,12 @@ program DCMIP2008c5
   mean(S_MASS,1:zlevels)= (/152.61_8, 298.41_8, 542.58_8, 741.99_8, 891.11_8, 976.80_8, 1006.45_8, &
        979.30_8, 912.76_8, 812.65_8, 698.99_8, 576.77_8, 462.47_8, 355.41_8, 375.00_8, 293.81_8, 131.65_8, 26.676_8 /)
   mean(S_MASS,1:zlevels) = mean(S_MASS,1:zlevels)/massdim
+  mean(S_MASS,1:zlevels) = 0.0_8
   mean(S_TEMP,1:zlevels)= (/44134.40_8, 87042.93_8, 160872.80_8, 225332.45_8, 279334.28_8, 318471.31_8, 343952.80_8, &
        353477.40_8, 350691.68_8, 334861.89_8, 311348.38_8, 279787.52_8, 246285.69_8, 209281.66_8, 260190.12_8, &
        262399.32_8, 155839.45_8, 42472.01_8 /)
   mean(S_TEMP,1:zlevels) = mean(S_TEMP,1:zlevels) / Tempdim
+  mean(S_TEMP,1:zlevels) = 0.0_8
   mean(S_VELO,1:zlevels) = 0.0_8
 
   mean_mass=0.0_8
@@ -511,8 +513,8 @@ program DCMIP2008c5
      call write_and_print_step()
 
      if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,ES13.5),A,I9,A,ES11.4)') &
-          'time [h] =', time/3600.0_8*Tdim, &
-          ', dt [s] =', dt*Tdim, &
+          'time [h] =', time/3600.0_8, &
+          ', dt [s] =', dt, &
           ', min. depth =', fd, &
           ', VELO_SCALE =', VELO_SCALE, &
           ', d.o.f. =', sum(n_active), &
@@ -539,6 +541,8 @@ program DCMIP2008c5
      end if
 
      call sum_total_mass(.False.)
+
+     !call remap_coordinates()
   end do
 
   if (rank .eq. 0) then

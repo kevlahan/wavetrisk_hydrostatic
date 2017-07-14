@@ -152,7 +152,8 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, d, idN, idE, idNE
-    real(8) lon, lat, lev_z, lev_press, lev_spec_volume, mean_geopot, pert_geopot, eta_c, eta_v
+    real(8) lon, lat, lev_press, lev_spec_volume, mean_geopot, pert_geopot, eta_c, eta_v
+    real(8) pert_z, mean_z, total_z, topo_z !all layer thicknesses (not absolute z coordinates)
     !we use eta_c instead of just eta (cause eta is already defined) as the nondimensional vertical coordinate
     !eta_c is one near the bottom of the domain and 0 near the top (counter-intuitively)
 
@@ -165,25 +166,62 @@ contains
     call cart2sph(dom%node%elts(id+1), lon, lat) !JEMF: check that we need not multiply by MATH_PI
 
     lev_press = (a_vert(zlev+1)+b_vert(zlev+1))*ref_press_t !see eq (117) in NCAR paper
-
     PRINT *, 'lev_press', lev_press
 
-    !JEMF: this should, in principle, be lev_z
-    !see (92) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
-    lev_z=log(ref_press_t/lev_press)*T_0_t*R_d_t/grav_accel_t
-
-    PRINT *, 'lev_z', lev_z
+    !preliminary (unused) calculation of total_z from (92) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
+    !this is the z coordinate of the interface starting from the topography
+    total_z = log(ref_press_t/lev_press)*T_0_t*R_d_t/grav_accel_t
+    PRINT *, 'total_z', total_z
 
     eta_c = lev_press/ref_press_t
-
     PRINT *, 'eta_c', eta_c
 
     eta_v = (eta_c - eta_0) * MATH_PI / 2.0_8
-
     PRINT *, 'eta_v', eta_v
 
-    PRINT *, 'eta_t', eta_t
+    !!! calculate masses
+    !define mean geopotential so we can determine mass distribution
+    if (eta_c .gt. eta_t) then
+        mean_geopot = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t))
+        PRINT *, 'active'
+    else
+        mean_geopot = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t)) - &
+            R_d_t*DeltaT_t*((log(eta_c/eta_t)+137.0_8/60.0_8)*eta_t**5-5.0_8*eta_c*eta_t**4+ &
+            5.0_8*eta_t**3*eta_c**2-(10.0_8/3.0_8)*eta_t**2*eta_c**3+(5.0_8/4.0_8)*eta_t*eta_c**4-0.2_8*eta_c**5)
+    end if
 
+    !define pertubation geopotential so we can determine mass distribution
+    pert_geopot = u_0_t*cos(eta_v)**(3.0_8/2.0_8)* &
+        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
+        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+
+    !define surface geopotential
+    dom%surf_geopot%elts(id+1) = u_0_t*cos(eta_v)**(3.0_8/2.0_8)* &
+        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
+        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+
+    !define associated surface topography height
+    topo_z = dom%surf_geopot%elts(id+1)/grav_accel_t
+    PRINT *, 'topo_z', topo_z
+
+    !now we set the heights (not masses yet)
+    if (zlev.eq.1) then !bottom layer
+        mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t
+        pert_z = pert_geopot/grav_accel_t
+        PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
+        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press !JEMF: probably need to interpolate denominator
+        sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
+        mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
+    else !other layers need differencing
+        mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t - dom%adj_mass%elts(id+1)
+        pert_z = pert_geopot/grav_accel_t
+        PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
+        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press !JEMF: probably need to interpolate denominator
+        sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
+        mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
+    end if
+
+    !!! calculate temperatures
     !set real, non-mass weighted mean temperature from (8) and (9)
     if (eta_c .gt. eta_t) then
         mean(S_TEMP,zlev)=T_0_t*eta_c**(R_d_t*Gamma_t/grav_accel_t)
@@ -196,65 +234,18 @@ contains
         ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*2.0_8*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
         +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
 
-    !define mean geopotential so we can determine mass distribution
-    if (eta_c .gt. eta_t) then
-        mean_geopot = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t))
-        PRINT *, 'active'
-    else
-        mean_geopot = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t)) - &
-            R_d_t*DeltaT_t*((log(eta_c/eta_t)+137.0_8/60.0_8)*eta_t**5-5.0_8*eta_c*eta_t**4+ &
-            5.0_8*eta_t**3*eta_c**2-(10.0_8/3.0_8)*eta_t**2*eta_c**3+(5.0_8/4.0_8)*eta_t*eta_c**4-0.2_8*eta_c**5)
-    end if
+    !convert non-mass-weighted temperatures to potential temperatures
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)*(lev_press / ref_press_t)**(-kappa_t)
+    mean(S_TEMP,zlev) = mean(S_TEMP,zlev)*(lev_press / ref_press_t)**(-kappa_t)
 
-    pert_geopot = u_0_t*cos(eta_v)**(3.0_8/2.0_8)* &
-        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
-        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
-
-    eta_c = 1.0_8
-
-    dom%surf_geopot%elts(id+1)= (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t)) + &
-        u_0_t*cos(eta_v)**(3.0_8/2.0_8)* &
-        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
-        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
-
-    PRINT *, 'dom%surf_geopot%elts(id+1)/g', dom%surf_geopot%elts(id+1)/grav_accel_t
-
-    PRINT *, 'we calculate height to be', (mean_geopot+pert_geopot)/grav_accel_t
-
-    PRINT *, 'first layer thickness is therefore', (mean_geopot+pert_geopot)/grav_accel_t - &
-        dom%surf_geopot%elts(id+1)/grav_accel_t
+    !now make it mass-weighted
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
+    mean(S_TEMP,zlev) = mean(S_TEMP,zlev)*(lev_press / ref_press_t)**(-kappa_t)
 
     stop
 
-    !set surface geopotential (note that this really only needs to be done once)
-    dom%surf_geopot%elts(id+1) = 0.0_8 !JEMF to be set
-
-    !set initial mass field
-    if (zlev.eq.1) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z
-       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+dom%surf_press%elts(id+1))
-    elseif (zlev.eq.zlevels) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z - dom%adj_mass%elts(id+1)
-       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+press_infty_t)
-    else
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z - dom%adj_mass%elts(id+1)
-       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+dom%adj_temp%elts(id+1))
-    end if
-
-    !print out representative layer thicknesses
-    if (.not.wasprinted) then
-       if (rank .eq. 0) write(*,'(A,I2,A,F8.2,A,F9.2,A,F9.2)') &
-            'zlev=', zlev, &
-            ',   thickness (in metres)=', sol(S_MASS,zlev)%data(d)%elts(id+1), &
-            ',   z coord (in metres)=', lev_z, &
-            ',   layer upper interface pressure (in Pascals)=', lev_press
-       wasprinted=.true.
-    end if
-
-    !note that sol(S_MASS) was not exactly rho*dz so far, it was just dz
-    sol(S_MASS,zlev)%data(d)%elts(id+1)=sol(S_MASS,zlev)%data(d)%elts(id+1)/dom%spec_vol%elts(id+1)
-
-    mean_mass(zlev)=mean_mass(zlev) + sol(S_MASS,zlev)%data(d)%elts(id+1)
+    !!! calculate velocities
+    lon = eta_v
 
     !set initial velocity field
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
@@ -264,23 +255,8 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
          dom%node%elts(idN+1))
 
-    !set initial non-mass-weighted potential temperature; uniform
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = T_0_t*(lev_press / ref_press_t)**(-kappa_t)
-
-    !now make it mass-weighted
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
-
-    mean_temp(zlev)=mean_temp(zlev) + sol(S_TEMP,zlev)%data(d)%elts(id+1)
-
-    !PRINT *,' potential temperature', sol(S_TEMP,zlev)%data(d)%elts(id+1)
-    !PRINT *, (lev_press / ref_press)**(-kappa)
-    !PRINT *, lev_press / ref_press
-    !PRINT *, '--'
-
-    nr_nodes = nr_nodes+1
-
-    dom%adj_mass%elts(id+1) = lev_z !adj_mass is used to save adjacent lev_z
-    dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
+    dom%adj_mass%elts(id+1) = mean_z !adj_mass is used to save adjacent mean_geopot
+    !dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
   end subroutine init_sol
 
   subroutine vel_fun(lon, lat, u, v)
