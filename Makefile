@@ -1,7 +1,7 @@
-TEST_CASE = tsunami
+TEST_CASE = tenlayergauss
 # options: ser mpi mpi-lb
-ARCH = ser
-PARAM = param
+ARCH = mpi-lb
+PARAM = param_J4
 GEOM = sphere
 ARRAYS = dyn_array
 

@@ -712,9 +712,6 @@ contains
           do v = S_MASS, S_VELO
              read(fid_no(d)) ( sol(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
-             
-             read(fid_no(d)) ( trend(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
-                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
           end do
        end do
 
@@ -743,10 +740,6 @@ contains
              do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    read(fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), &
-                        i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
-
-                   read(fid_no(d)) (trend_wav_coeff(v,k)%data(d)%elts(i), &
                         i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
                 end do
@@ -787,7 +780,6 @@ contains
     end do
 
     wav_coeff%bdry_uptodate = .False.
-    trend_wav_coeff%bdry_uptodate = .False.
   end subroutine load_adapt_mpi
 
   subroutine default_dump(fid)
@@ -856,8 +848,6 @@ contains
           do v = S_MASS, S_VELO
              write(fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
-             write(fid_no) (trend(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
-                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
           end do
        end do
 
@@ -889,10 +879,6 @@ contains
              do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    write(fid_no) (wav_coeff(v,k)%data(d)%elts(i),  &
-                        i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
-
-                   write(fid_no) (trend_wav_coeff(v,k)%data(d)%elts(i),  &
                         i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
                 end do

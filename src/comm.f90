@@ -1174,7 +1174,7 @@ contains
 
       dt = min(dt, cfl_num*dx/vel)
 
-      if (viscosity .ne. 0) dt = min(dt, 0.1d0*dx**2/viscosity)
+      if (viscosity .ne. 0) dt = min(dt, 1.0_8*dx**2/viscosity)
     end subroutine cpt_dt
   end subroutine min_dt
 

@@ -1183,8 +1183,7 @@ contains
     end do
 
     loc_min = dt
-    call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
 
     cpt_dt_mpi = glo_min
     if (penalize) cpt_dt_mpi = min(cpt_dt_mpi, 2.0_8/ieta)
@@ -1196,8 +1195,7 @@ contains
     end if
 
     loc_min = fd
-    call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
     fd = glo_min
 
     if (fd .le. 0 .and. .not. advect_only) then
@@ -1211,13 +1209,11 @@ contains
 
     n_active_loc = (/sum(n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end))/)
 
-    call MPI_Allreduce(n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce(n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
 
     n_active = n_active_glo
 
-    call MPI_Allreduce(level_end, n_level_glo, 1, MPI_INTEGER, MPI_MAX, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce(level_end, n_level_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
 
     level_end = n_level_glo
 

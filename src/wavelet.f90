@@ -276,7 +276,7 @@ contains
   end subroutine forward_wavelet_transform
 
   subroutine inverse_wavelet_transform(wav, sca, l_start0)
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), target :: sca, wav
+    type(Float_Field), dimension(:,:), target :: sca, wav
     integer, optional :: l_start0
     integer l, d, k, v, l_start
 

@@ -40,8 +40,8 @@ contains
   end subroutine compress
 
   subroutine adapt(wav)
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: wav
-    integer k, l
+    type(Float_Field), dimension(:,:) :: wav
+    integer k, l, d
 
     do l = level_start+1, level_end
        call apply_onescale__int(set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)

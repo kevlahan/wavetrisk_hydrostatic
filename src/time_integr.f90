@@ -29,9 +29,9 @@ contains
 
   subroutine RK_sub_step4(sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
     real(8) :: alpha(4), dt(2)
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: trend1, trend2
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(:,:) :: sol1, sol2, sol3, sol4
+    type(Float_Field), dimension(:,:) :: trend1, trend2
+    type(Float_Field), dimension(:,:), intent(inout) :: dest
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
@@ -56,9 +56,9 @@ contains
 
   subroutine RK_sub_step1(sols, trends, alpha, dt, dest)
     real(8) :: alpha, dt
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: sols
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: trends
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(:,:) :: sols
+    type(Float_Field), dimension(:,:) :: trends
+    type(Float_Field), dimension(:,:), intent(inout) :: dest
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
@@ -77,9 +77,9 @@ contains
 
   subroutine RK_sub_step2(sol1, sol2, trends, alpha, dt, dest)
     real(8) :: alpha(2), dt
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: sol1, sol2
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels) :: trends
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(:,:) :: sol1, sol2
+    type(Float_Field), dimension(:,:) :: trends
+    type(Float_Field), dimension(:,:), intent(inout) :: dest
     integer k, v, s, t, d, start
 
     do k = 1, zlevels
@@ -146,7 +146,7 @@ contains
   end subroutine manage_RK_mem
 
   subroutine RK45_opt(trend)
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: trend
+    type(Float_Field), dimension(:,:), target :: trend
     !see A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011
     real(8), dimension(5,5) :: alpha
     real(8), dimension(5,5) :: beta
@@ -182,19 +182,27 @@ contains
     call RK_sub_step4(sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), dt*beta(4:5,5), sol)
 
     call WT_after_step(sol, wav_coeff, level_start-1)
+    
+    if (adapt_trend) call trend_ml(sol, trend)
   end subroutine RK45_opt
 
-  subroutine Forward_Euler(trend)
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: trend
-    integer d, v
+  function wav_coeff_predict(trend)
+    ! Predicts wavelet coefficients at next time step using a forward Euler step
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav_coeff_predict
+    type(Float_Field), dimension(:,:), target :: trend
 
-    call trend_ml(sol, trend)
-    call RK_sub_step1(sol, trend, 1.0_8, dt, sol)
-    call WT_after_step(sol, wav_coeff, level_start-1)
-  end subroutine Forward_Euler
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: sol_euler
+
+    sol_euler = sol
+    call RK_sub_step1(sol, trend, 1.0_8, dt, sol_Euler)
+    
+    wav_coeff_predict = wav_coeff
+    !call WT_after_step(sol_euler, wav_coeff_predict, level_start-1)
+     call forward_wavelet_transform(sol_euler, wav_coeff_predict)
+  end function wav_coeff_predict
 
   subroutine WT_after_step(q, wav, l_start0)
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), target :: q, wav
+    type(Float_Field), dimension(:,:), target :: q, wav
     integer, optional :: l_start0
     integer l, ll, d, k, l_start
 
