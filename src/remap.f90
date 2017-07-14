@@ -63,9 +63,11 @@ contains
     !again new quantities are computed top-down
     do kb = 1, zlevels + 1
        if (allocated(a_vert).and.allocated(b_vert)) then !a_vert and b_vert are allocated so they will be used
-          layer_pressure=a_vert(kb)*ref_press+b_vert(kb)*pressure(zlevels+1) !should be ref_press_t JEMF
+          layer_pressure=a_vert(zlevels+2-kb)*ref_press+b_vert(zlevels+2-kb)*pressure(zlevels+1)
+          !PRINT *, 'ref_press=', ref_press, ', pressure(zlevels+1)=', pressure(zlevels+1), &
+          !  ' dom%surf_press%elts(id+1)=', dom%surf_press%elts(id+1)
        else  !layers will be equi-distributed
-          layer_pressure=press_infty+(kb-1.0_8)*(pressure(zlevels+1)-press_infty)/zlevels !JEMF check ref_press or infty
+          layer_pressure=press_infty+(kb-1.0_8)*(pressure(zlevels+1)-press_infty)/zlevels
        end if
 
        if (kb .le. 4) then
@@ -133,7 +135,7 @@ contains
     PRINT *, 'we are remapping the coordinates'
 
     do l = level_start, level_end
-       call write_level_mpi(remap_column, 0, l, 0, .True.) !we are not really writing; both 0 spots are not used
+       call write_level_mpi(remap_column, 0, l, 0, .True.) !we are not really writing; both 0 entries are not used
     end do
 
     call barrier
