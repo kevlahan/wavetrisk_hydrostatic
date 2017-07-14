@@ -238,31 +238,29 @@ contains
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)*(lev_press / ref_press_t)**(-kappa_t)
     mean(S_TEMP,zlev) = mean(S_TEMP,zlev)*(lev_press / ref_press_t)**(-kappa_t)
 
-    !now make it mass-weighted
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
-    mean(S_TEMP,zlev) = mean(S_TEMP,zlev)*(lev_press / ref_press_t)**(-kappa_t)
-
-    stop
+    !now make these quantities mass-weighted, note that the perturbation comprises three terms
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)+ &
+        mean(S_MASS,zlev)*sol(S_TEMP,zlev)%data(d)%elts(id+1)+sol(S_MASS,zlev)%data(d)%elts(id+1)*mean(S_TEMP,zlev)
+    mean(S_TEMP,zlev) = mean(S_TEMP,zlev)*mean(S_MASS,zlev)
 
     !!! calculate velocities
-    lon = eta_v
-
     !set initial velocity field
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
-         dom%node%elts(idE+1))
-    sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1) = proj_vel(vel_fun, dom%node%elts(idNE+1), &
-         dom%node%elts(id+1))
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
-         dom%node%elts(idN+1))
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel_eta(vel_fun, dom%node%elts(id+1), &
+         dom%node%elts(idE+1), eta_v)
+    sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1) = proj_vel_eta(vel_fun, dom%node%elts(idNE+1), &
+         dom%node%elts(id+1), eta_v)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel_eta(vel_fun, dom%node%elts(id+1), &
+         dom%node%elts(idN+1), eta_v)
 
     dom%adj_mass%elts(id+1) = mean_z !adj_mass is used to save adjacent mean_geopot
     !dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
   end subroutine init_sol
 
-  subroutine vel_fun(lon, lat, u, v)
+  subroutine vel_fun(lon, lat, u, v, eta_v) !lon plays role of eta_v
     real(8) lon, lat
     real(8) u, v
-    u = u_0_t*cos(lat)
+    real(8) eta_v
+    u = u_0_t*(cos(eta_v)**(3.0_8/2.0_8))*(sin(2.0_8*lat)**2)
     v = 0.0_8
   end subroutine vel_fun
 

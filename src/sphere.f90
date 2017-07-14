@@ -270,4 +270,32 @@ contains
     proj_vel = inner(direction(ep1, ep2), Coord(vel(1), vel(2), vel(3)))
   end function proj_vel
 
+  real(8) function proj_vel_eta(vel_fun, ep1, ep2, eta_z)
+    !extention of proj_vel that allows for another parameter eta_z to be passed in vel_fun
+    external vel_fun
+    type(Coord) ep1
+    type(Coord) ep2
+    type(Coord) co
+    real(8) lon
+    real(8) lat
+    real(8), dimension(3) :: e_lat
+    real(8), dimension(3) :: e_lon
+    real(8) u
+    real(8) v
+    real(8) eta_z
+    real(8), dimension(3) :: vel
+
+    co = mid_pt(ep1, ep2)
+
+    call cart2sph(co, lon, lat)
+
+    e_lat = (/-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)/)
+    e_lon = (/-sin(lon), cos(lon), 0.0_8/)
+
+    call vel_fun(lon, lat, u, v, eta_z)
+
+    vel = e_lat*v + e_lon*u
+    proj_vel_eta = inner(direction(ep1, ep2), Coord(vel(1), vel(2), vel(3)))
+  end function proj_vel_eta
+
 end module geom_mod
