@@ -13,32 +13,16 @@ module DCMIP2008c1_mod ! DCMIP2008 test case 5 parameters
   real(8), parameter :: u_0_t        = 35.0_8 !velocity in meters per second
   real(8), parameter :: T_0_t        = 288.0_8 !temperature in Kelvin
   real(8), parameter :: DeltaT_t     = 4.8e+05 !empirical temperature difference in the atmosphere in Kelvin
-  real(8), parameter :: d2_t         = (1500.0e+03)**2 !square of half width of Gaussian mountain profile in meters
-  real(8), parameter :: h_0_t        = 2000.0_8 !mountain height in meters
   real(8), parameter :: a_t          = 6.371229e6 !mean radius of the Earth in meters
   real(8), parameter :: ref_press_t  = 100000.6_8 !reference pressure (mean surface pressure) in Pascals
   real(8), parameter :: R_d_t        = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
   real(8), parameter :: c_p_t        = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
   real(8), parameter :: kappa_t      = R_d_t/c_p_t !kappa=R_d/c_p
   real(8), parameter :: N_t          = sqrt(grav_accel_t*grav_accel_t/(c_p_t*T_0_t)) !Brunt-Vaisala buoyancy frequency
-  real(8), parameter :: cst_density_t= 100.0_8 !density for the incompressible case in kilogram per metres cubed
   real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
   real(8), parameter :: eta_t        = 0.2_8 !non-dimensional location of tropopause
   real(8), parameter :: eta_0        = 0.252_8 !non-dimensional constant to do with eta
   real(8), parameter :: Gamma_T      = 0.005_8 !temperature lapse rate in Kelvin per metres
-
-  ! Dimensional scaling
-  real(8), parameter :: Ldim = sqrt(d2_t)                             ! horizontal length scale
-  real(8), parameter :: Hdim = h_0_t                                  ! vertical length scale
-  real(8), parameter :: Udim = u_0_t                                  ! velocity scale
-  real(8), parameter :: acceldim = Udim*Udim/Hdim                     ! acceleration scale
-  real(8), parameter :: Tdim = Ldim/Udim                              ! time scale
-  real(8), parameter :: Tempdim = T_0_t                               ! temperature scale (both theta and T from DYNAMICO)
-  real(8), parameter :: pdim = ref_press_t                            ! pressure scale
-  real(8), parameter :: R_ddim = R_d_t                                ! R_d scale
-  real(8), parameter :: massdim = pdim*Hdim/(Tempdim*R_d_t)           ! mass (=rho*dz following DYNAMICO) scale
-  real(8), parameter :: specvoldim = (R_d_t*Tempdim)/pdim             ! specific volume scale
-  real(8), parameter :: geopotdim = acceldim*massdim*specvoldim/Hdim  ! geopotential scale
 
   real(8) :: csq
 
@@ -65,7 +49,7 @@ contains
 
     wasprinted=.false.
     do l = level_start, level_end
-       do k = 1, zlevels
+       do k = 1, 2
           call apply_onescale(init_sol, l, k, 0, 1)
           wasprinted=.false.
        end do
@@ -152,18 +136,20 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, d, idN, idE, idNE
-    real(8) lon, lat, lev_press, lev_spec_volume, mean_geopot, pert_geopot, eta_c, eta_v
+    real(8) lon, lat, lev_press, lev_spec_volume, mean_geopot, pert_geopot
+    real(8) eta_c, eta_v, eta_v_s
     real(8) pert_z, mean_z, total_z, topo_z !all layer thicknesses (not absolute z coordinates)
     !we use eta_c instead of just eta (cause eta is already defined) as the nondimensional vertical coordinate
     !eta_c is one near the bottom of the domain and 0 near the top (counter-intuitively)
 
+    PRINT *, '=========BELOW IS ZLEV=', zlev
     d = dom%id+1
     id = idx(i, j, offs, dims)
     idN = idx(i, j + 1, offs, dims)
     idE = idx(i + 1, j, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
-    call cart2sph(dom%node%elts(id+1), lon, lat) !JEMF: check that we need not multiply by MATH_PI
+    call cart2sph(dom%node%elts(id+1), lon, lat)
 
     lev_press = (a_vert(zlev+1)+b_vert(zlev+1))*ref_press_t !see eq (117) in NCAR paper
     PRINT *, 'lev_press', lev_press
@@ -195,10 +181,12 @@ contains
         ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
         +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
 
+    eta_v_s = (1.0_8 - eta_0) * MATH_PI / 2.0_8 !eta_v at the surface
+
     !define surface geopotential
-    dom%surf_geopot%elts(id+1) = u_0_t*cos(eta_v)**(3.0_8/2.0_8)* &
-        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
-        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+    dom%surf_geopot%elts(id+1) = u_0_t*cos(eta_v_s)**(3.0_8/2.0_8)* &
+        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v_s)**(3.0_8/2.0_8)) &
+        +((8.0_8/5.0_8)*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
 
     !define associated surface topography height
     topo_z = dom%surf_geopot%elts(id+1)/grav_accel_t
@@ -209,6 +197,10 @@ contains
         mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t
         pert_z = pert_geopot/grav_accel_t
         PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
+        if ((mean_z + pert_z).lt.0.0_8) then
+            PRINT *, 'warning at zlev=1, we have negative total thickness'
+            stop
+        end if
         dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press !JEMF: probably need to interpolate denominator
         sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
         mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
@@ -216,6 +208,10 @@ contains
         mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t - dom%adj_mass%elts(id+1)
         pert_z = pert_geopot/grav_accel_t
         PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
+        if ((mean_z + pert_z).lt.0.0_8) then
+            PRINT *, 'warning at zlev=2, we have negative total thickness'
+            stop
+        end if
         dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press !JEMF: probably need to interpolate denominator
         sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
         mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
@@ -254,6 +250,8 @@ contains
 
     dom%adj_mass%elts(id+1) = mean_z !adj_mass is used to save adjacent mean_geopot
     !dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
+
+    PRINT *, '========='
   end subroutine init_sol
 
   subroutine vel_fun(lon, lat, u, v, eta_v) !lon plays role of eta_v
@@ -386,27 +384,12 @@ program DCMIP2008c1
   ! for this testcase, set the pressure at infinity (which is usually close to zero)
   press_infty_t = a_vert(zlevels+1)*ref_press_t ! note that b_vert at top level is 0, a_vert is small but non-zero
 
-  ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
-  omega = omega_t !* Tdim
-  grav_accel = grav_accel_t !/ acceldim
-  radius = a_t !/ Ldim
-  press_infty = press_infty_t !/ pdim
-  R_d = R_d_t !/ R_d_t
-  c_p = c_p_t !/ R_d_t
-  kappa = kappa_t
-  ref_press = ref_press_t !/ pdim
-  cst_density = cst_density_t !not non-dimensionalized at present, NOT USED HERE
-
-  PRINT *, 'massdim=', massdim
-  PRINT *, 'Tempdim=', Tempdim
-  PRINT *, 'Tdim=', Tdim
-
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
   dx_max = 2.0_8*MATH_PI * radius
 
   kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
 
-  csq = grav_accel*a_t !JEMF
+  csq = grav_accel*a_t
   c_p = sqrt(csq)
   VELO_SCALE   = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
