@@ -22,7 +22,7 @@ module DCMIP2008c1_mod ! DCMIP2008 test case 5 parameters
   real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
   real(8), parameter :: eta_t        = 0.2_8 !non-dimensional location of tropopause
   real(8), parameter :: eta_0        = 0.252_8 !non-dimensional constant to do with eta
-  real(8), parameter :: Gamma_T      = 0.005_8 !temperature lapse rate in Kelvin per metres
+  real(8), parameter :: Gamma_t      = 0.005_8 !temperature lapse rate in Kelvin per metres
 
   real(8) :: csq
 
@@ -49,7 +49,7 @@ contains
 
     wasprinted=.false.
     do l = level_start, level_end
-       do k = 1, 2
+       do k = 1, zlevels
           call apply_onescale(init_sol, l, k, 0, 1)
           wasprinted=.false.
        end do
@@ -132,7 +132,7 @@ contains
 
   subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
-    integer i, j, k, zlev
+    integer i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, d, idN, idE, idNE
@@ -151,13 +151,21 @@ contains
 
     call cart2sph(dom%node%elts(id+1), lon, lat)
 
+    !!! testing
+    lev_press = (a_vert(1)+b_vert(1))*ref_press_t !see eq (117) in NCAR paper
+    PRINT *, 'very first lev_press', lev_press
+
+    eta_c = lev_press/ref_press_t
+    PRINT *, 'very first eta_c', eta_c
+    !!! testing
+
     lev_press = (a_vert(zlev+1)+b_vert(zlev+1))*ref_press_t !see eq (117) in NCAR paper
     PRINT *, 'lev_press', lev_press
 
-    !preliminary (unused) calculation of total_z from (92) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
-    !this is the z coordinate of the interface starting from the topography
-    total_z = log(ref_press_t/lev_press)*T_0_t*R_d_t/grav_accel_t
-    PRINT *, 'total_z', total_z
+    !!preliminary (unused) calculation of total_z from (92) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
+    !!this is the z coordinate of the interface starting from the topography
+    !total_z = log(ref_press_t/lev_press)*T_0_t*R_d_t/grav_accel_t
+    !PRINT *, 'total_z', total_z
 
     eta_c = lev_press/ref_press_t
     PRINT *, 'eta_c', eta_c
@@ -166,27 +174,30 @@ contains
     PRINT *, 'eta_v', eta_v
 
     !!! calculate masses
-    !define mean geopotential so we can determine mass distribution
+    !define mean geopotential
     if (eta_c .gt. eta_t) then
         mean_geopot = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t))
         PRINT *, 'active'
     else
         mean_geopot = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t)) - &
-            R_d_t*DeltaT_t*((log(eta_c/eta_t)+137.0_8/60.0_8)*eta_t**5-5.0_8*eta_c*eta_t**4+ &
-            5.0_8*eta_t**3*eta_c**2-(10.0_8/3.0_8)*eta_t**2*eta_c**3+(5.0_8/4.0_8)*eta_t*eta_c**4-0.2_8*eta_c**5)
+            R_d_t*DeltaT_t*((log(eta_c/eta_t)+137.0_8/60.0_8)*(eta_t**5)-5.0_8*eta_c*(eta_t**4)+ &
+            5.0_8*(eta_t**3)*(eta_c**2)-(10.0_8/3.0_8)*(eta_t**2)*(eta_c**3)+ &
+            (5.0_8/4.0_8)*eta_t*(eta_c**4)-0.2_8*(eta_c**5))
     end if
 
-    !define pertubation geopotential so we can determine mass distribution
-    pert_geopot = u_0_t*cos(eta_v)**(3.0_8/2.0_8)* &
+    !define perturbation geopotential
+    pert_geopot = u_0_t*(cos(eta_v)**(3.0_8/2.0_8))* &
         ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
         +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
 
-    eta_v_s = (1.0_8 - eta_0) * MATH_PI / 2.0_8 !eta_v at the surface
+    eta_v_s = (1.0_8 - eta_0) * MATH_PI / 2.0_8 !this is the value of eta_v at the surface
 
     !define surface geopotential
-    dom%surf_geopot%elts(id+1) = u_0_t*cos(eta_v_s)**(3.0_8/2.0_8)* &
+    dom%surf_geopot%elts(id+1) = u_0_t*(cos(eta_v_s)**(3.0_8/2.0_8))* &
         ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v_s)**(3.0_8/2.0_8)) &
         +((8.0_8/5.0_8)*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+
+    PRINT *, 'surface geopotential', dom%surf_geopot%elts(id+1)
 
     !define associated surface topography height
     topo_z = dom%surf_geopot%elts(id+1)/grav_accel_t
@@ -205,8 +216,8 @@ contains
         sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
         mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
     else !other layers need differencing
-        mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t - dom%adj_mass%elts(id+1)
-        pert_z = pert_geopot/grav_accel_t
+        mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t-dom%adj_mass%elts(id+1)
+        pert_z = pert_geopot/grav_accel_t-dom%adj_temp%elts(id+1)
         PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
         if ((mean_z + pert_z).lt.0.0_8) then
             PRINT *, 'warning at zlev=2, we have negative total thickness'
@@ -249,12 +260,12 @@ contains
          dom%node%elts(idN+1), eta_v)
 
     dom%adj_mass%elts(id+1) = mean_z !adj_mass is used to save adjacent mean_geopot
-    !dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
+    dom%adj_temp%elts(id+1) = pert_z !adj_mass is used to save adjacent pert_geopot
 
     PRINT *, '========='
   end subroutine init_sol
 
-  subroutine vel_fun(lon, lat, u, v, eta_v) !lon plays role of eta_v
+  subroutine vel_fun(lon, lat, u, v, eta_v)
     real(8) lon, lat
     real(8) u, v
     real(8) eta_v
