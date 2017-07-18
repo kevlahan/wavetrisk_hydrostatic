@@ -470,7 +470,7 @@ contains
        end do
 
        call update_array_bdry(horiz_flux, l)
-       
+
        do k = 1, zlevels
           do d = 1, size(grid)
              dmass   => dq(S_MASS,k)%data(d)%elts

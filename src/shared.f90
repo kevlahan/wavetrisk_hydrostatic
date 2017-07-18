@@ -365,7 +365,7 @@ contains
 
     ! default values
     threshold = 0.0_8
-    adapt_trend = .false.
+    adapt_trend = .true.
     cfl_num = 1.0_8
     min_level = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level = min_level
