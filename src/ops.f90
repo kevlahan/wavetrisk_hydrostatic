@@ -507,8 +507,10 @@ contains
        end if
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          if (abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty) .gt. 1e-11_8) then
+          if (abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty) .gt. 1e-10_8) then
              PRINT *, 'warning: upward integration of pressure not resulting in zero at top interface'
+             PRINT *, 'observed pressure - pressure_infty =', abs((dom%press%elts(id+1) &
+                - 0.5_8*grav_accel*full_mass) - press_infty)
              stop
           end if
        end if

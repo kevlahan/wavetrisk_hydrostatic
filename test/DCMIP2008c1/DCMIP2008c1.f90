@@ -36,7 +36,7 @@ module DCMIP2008c1_mod ! DCMIP2008 test case 5 parameters
   integer :: CP_EVERY 
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin
-  real(8) :: initotalmass, totalmass, timing, total_time, dh, mean_mass(1:18), mean_temp(1:18), nr_nodes
+  real(8) :: initotalmass, totalmass, timing, total_time, dh
 
   logical const_bathymetry, wasprinted
 
@@ -137,13 +137,13 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, d, idN, idE, idNE
-    real(8) lon, lat, lev_press, lev_spec_volume, mean_geopot, pert_geopot
-    real(8) eta_c, eta_v
-    real(8) pert_z, mean_z !all layer thicknesses (not absolute z coordinates)
-    !we use eta_c instead of just eta (cause eta is already defined) as the nondimensional vertical coordinate
-    !eta_c is one near the bottom of the domain and 0 near the top (counter-intuitively)
+    real(8) lon, lat
+    real(8) press_top, press_bottom !pressure at top and bottom interface of this layer
+    real(8) eta_top, eta_bottom
+    real(8) pert_geopot_top, pert_geopot_bottom, mean_geopot_top, mean_geopot_bottom
+    real(8) total_temp_top, total_temp_bottom
+    real(8) pert_dz, mean_dz !all layer thicknesses dz (these are NOT absolute z coordinates)
 
-    !PRINT *, '=========BELOW IS ZLEV=', zlev
     d = dom%id+1
     id = idx(i, j, offs, dims)
     idN = idx(i, j + 1, offs, dims)
@@ -152,119 +152,150 @@ contains
 
     call cart2sph(dom%node%elts(id+1), lon, lat)
 
-    lev_press = (a_vert(zlev+1)+b_vert(zlev+1))*ref_press_t !see eq (117) in NCAR paper
-    !PRINT *, 'lev_press', lev_press
-
-    eta_c = lev_press/ref_press_t
-    !PRINT *, 'eta_c', eta_c
-
-    !!! calculate masses
-    !define mean geopotential
-    mean_geopot = mean_geopotential(lon,lat,eta_c)
-
-    !define perturbation geopotential
-    pert_geopot = perturbation_geopotential(lon,lat,eta_c)
-
-    !define surface geopotential
+    !calculate the surface geopotential
     dom%surf_geopot%elts(id+1) = perturbation_geopotential(lon,lat,eta_s)
 
-    !PRINT *, 'surface geopotential', dom%surf_geopot%elts(id+1)
+    !consider the top interface
+    press_top = (a_vert(zlev+1)+b_vert(zlev+1))*ref_press_t !see eq (117) in NCAR paper
+    eta_top = press_top/ref_press_t
+    mean_geopot_top = mean_geopotential(lon,lat,eta_top)
+    pert_geopot_top = perturbation_geopotential(lon,lat,eta_top)
 
-    !now we set the heights (not masses yet)
-    if (zlev.eq.1) then !bottom layer
-        mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t
-        pert_z = pert_geopot/grav_accel_t
-        !PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
-        if ((mean_z + pert_z).lt.0.0_8) then
-            PRINT *, 'warning at zlev=1, we have negative total thickness'
-            stop
-        end if
-        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press !JEMF: need to fix this cause temp is not constant
-        sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
-        mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
-    else !other layers need differencing
-        mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t-dom%adj_mass%elts(id+1)
-        pert_z = pert_geopot/grav_accel_t-dom%adj_temp%elts(id+1)
-        !PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
-        if ((mean_z + pert_z).lt.0.0_8) then
-            PRINT *, 'warning at zlev= ', zlev, 'we have negative total thickness'
-            stop
-        end if
-        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press
-        sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
-        mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
+    !consider the bottom interface
+    press_bottom = (a_vert(zlev)+b_vert(zlev))*ref_press_t
+    eta_bottom = press_bottom/ref_press_t
+    mean_geopot_bottom = mean_geopotential(lon,lat,eta_bottom)
+    pert_geopot_bottom = perturbation_geopotential(lon,lat,eta_bottom)
+
+    !now we set the layer thickness (not masses yet)
+    mean_dz = (mean_geopot_top-mean_geopot_bottom)/grav_accel_t
+    pert_dz = (pert_geopot_top-pert_geopot_bottom)/grav_accel_t
+    if ((mean_dz + pert_dz).lt.0.0_8) then
+       PRINT *, 'fatal error: we have negative total thickness'
+       PRINT *, 'mean height', mean_dz, 'pert height', pert_dz, 'sum is', mean_dz + pert_dz
+       stop
     end if
 
     !print out representative layer thicknesses
     if (.not.wasprinted) then
        if (rank .eq. 0) write(*,'(A,I2,A,F8.2)') &
             'zlev=', zlev, &
-            ',   thickness (in metres)=', mean_z + pert_z
+            ',   horizontally mean layer thickness dz (in metres)=', mean_dz
        wasprinted=.true.
     end if
 
-    !!! calculate temperatures
-    !set real, non-mass weighted mean temperature from (8) and (9)
-    if (eta_c .gt. eta_t) then
-        mean(S_TEMP,zlev)=T_0_t*eta_c**(R_d_t*Gamma_t/grav_accel_t)
-    else
-        mean(S_TEMP,zlev)=T_0_t*eta_c**(R_d_t*Gamma_t/grav_accel_t)+DeltaT_t*((eta_t-eta_c)**5)
-    end if
+    !set total temperature at top and bottom
+    total_temp_top = mean_temperature(lon,lat,eta_top)+perturbation_temperature(lon,lat,eta_top)
+    total_temp_bottom = mean_temperature(lon,lat,eta_bottom)+perturbation_temperature(lon,lat,eta_bottom)
 
-    !set real, non-mass weighted perturbation temperature from (10)
-    sol(S_TEMP,zlev)%data(d)%elts(id+1)=0.75_8*(eta_c*MATH_PI*u_0_t/R_d_t)*sin(eta_v)*sqrt(cos(eta_v))* &
-        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*2.0_8*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
-        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+    !calculate specific volume as an average of its value at top and bottom interface
+    dom%spec_vol%elts(id+1) = 0.5_8*kappa_t*c_p_t*(total_temp_top/press_top + &
+         total_temp_bottom/press_bottom) !JEMF !?
+    sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_dz/dom%spec_vol%elts(id+1)
+    mean(S_MASS,zlev)=mean_dz/dom%spec_vol%elts(id+1)
 
-    !convert non-mass-weighted temperatures to potential temperatures
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)*(lev_press / ref_press_t)**(-kappa_t)
-    mean(S_TEMP,zlev) = mean(S_TEMP,zlev)*(lev_press / ref_press_t)**(-kappa_t)
+    !convert temperatures at top and bottom interface to potential temperatures and average them to get
+    !temperature in the centre of the layer
+    mean(S_TEMP,zlev) = 0.5_8*(mean_temperature(lon,lat,eta_top)*(press_top/ref_press_t)**(-kappa_t) + &
+         mean_temperature(lon,lat,eta_bottom)*(press_bottom/ref_press_t)**(-kappa_t))
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = 0.5_8*(perturbation_temperature(lon,lat,eta_top)* &
+         (press_top/ref_press_t)**(-kappa_t) + &
+         perturbation_temperature(lon,lat,eta_bottom)*(press_bottom/ref_press_t)**(-kappa_t))
 
     !now make these quantities mass-weighted, note that the perturbation comprises three terms
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)+ &
-        mean(S_MASS,zlev)*sol(S_TEMP,zlev)%data(d)%elts(id+1)+sol(S_MASS,zlev)%data(d)%elts(id+1)*mean(S_TEMP,zlev)
+         mean(S_MASS,zlev)*sol(S_TEMP,zlev)%data(d)%elts(id+1)+sol(S_MASS,zlev)%data(d)%elts(id+1)*mean(S_TEMP,zlev)
     mean(S_TEMP,zlev) = mean(S_TEMP,zlev)*mean(S_MASS,zlev)
 
-    !!! calculate velocities
     !set initial velocity field
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel_eta(vel_fun, dom%node%elts(id+1), &
-         dom%node%elts(idE+1), eta_v)
+         dom%node%elts(idE+1), 0.5_8*(eta_top+eta_bottom))
     sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1) = proj_vel_eta(vel_fun, dom%node%elts(idNE+1), &
-         dom%node%elts(id+1), eta_v)
+         dom%node%elts(id+1), 0.5_8*(eta_top+eta_bottom))
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel_eta(vel_fun, dom%node%elts(id+1), &
-         dom%node%elts(idN+1), eta_v)
+         dom%node%elts(idN+1), 0.5_8*(eta_top+eta_bottom)) !JEMF
 
-    dom%adj_mass%elts(id+1) = mean_z !adj_mass is used to save adjacent mean_geopot
-    dom%adj_temp%elts(id+1) = pert_z !adj_mass is used to save adjacent pert_geopot
+    !check for NaNs temporarily (remove later)
+    if (isnan(sol(S_TEMP,zlev)%data(d)%elts(id+1))) then
+       stop
+    end if
+
+    if (isnan(sol(S_MASS,zlev)%data(d)%elts(id+1))) then
+       stop
+    end if
+
+    if (isnan(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1))) then
+       stop
+    end if
+
+    if (isnan(sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1))) then
+       stop
+    end if
+
+    if (isnan(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1))) then
+       stop
+    end if
+
+    if (isnan(mean(S_TEMP,zlev))) then
+       stop
+    end if
+
+    if (isnan(mean(S_MASS,zlev))) then
+       stop
+    end if
   end subroutine init_sol
 
-    real(8) function mean_geopotential(lon,lat,eta_c)
+  real(8) function mean_geopotential(lon,lat,eta_c)
     real(8) lon, lat, eta_c
+    !we use eta_c instead of eta (since eta is already defined) as the nondimensional vertical coordinate
 
-        mean_geopotential = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t))
+    mean_geopotential = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t))
     if (eta_c .lt. eta_t) then
-        mean_geopotential = mean_geopotential - &
+       mean_geopotential = mean_geopotential - &
             R_d_t*DeltaT_t*((log(eta_c/eta_t)+137.0_8/60.0_8)*(eta_t**5)-5.0_8*eta_c*(eta_t**4)+ &
             5.0_8*(eta_t**3)*(eta_c**2)-(10.0_8/3.0_8)*(eta_t**2)*(eta_c**3)+ &
             (5.0_8/4.0_8)*eta_t*(eta_c**4)-0.2_8*(eta_c**5))
     end if
   end function mean_geopotential
 
-    real(8) function perturbation_geopotential(lon,lat,eta_c)
+  real(8) function perturbation_geopotential(lon,lat,eta_c)
     real(8) lon, lat, eta_c
     real(8) eta_v
 
-        eta_v = (eta_c - eta_0) * MATH_PI / 2.0_8
+    eta_v = (eta_c - eta_0) * MATH_PI / 2.0_8
 
-        perturbation_geopotential = u_0_t*(cos(eta_v)**(3.0_8/2.0_8))* &
-        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
-        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+    perturbation_geopotential = u_0_t*(cos(eta_v)**(3.0_8/2.0_8))* &
+         ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
+         +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
   end function perturbation_geopotential
 
-  subroutine vel_fun(lon, lat, u, v, eta_v)
-    real(8) lon, lat
+  real(8) function mean_temperature(lon,lat,eta_c)
+    real(8) lon, lat, eta_c
+
+    mean_temperature = T_0_t*eta_c**(R_d_t*Gamma_t/grav_accel_t)
+    if (eta_c .lt. eta_t) then
+       mean_temperature = mean_temperature + DeltaT_t*((eta_t-eta_c)**5)
+    end if
+  end function mean_temperature
+
+  real(8) function perturbation_temperature(lon,lat,eta_c)
+    real(8) lon, lat, eta_c
+    real(8) eta_v
+
+    eta_v = (eta_c - eta_0) * MATH_PI / 2.0_8
+
+    perturbation_temperature = 0.75_8*(eta_c*MATH_PI*u_0_t/R_d_t)*sin(eta_v)*sqrt(cos(eta_v))* &
+         ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*2.0_8*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
+         +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+  end function perturbation_temperature
+
+  subroutine vel_fun(lon, lat, u, v, eta_c)
+    real(8) lon, lat, eta_c
     real(8) u, v
     real(8) eta_v
+
+    eta_v = (eta_c - eta_0) * MATH_PI / 2.0_8
+
     u = u_0_t*(cos(eta_v)**(3.0_8/2.0_8))*(sin(2.0_8*lat)**2)
     v = 0.0_8
   end subroutine vel_fun
@@ -425,13 +456,8 @@ program DCMIP2008c1
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c1_dump, DCMIP2008c1_load)
   call sum_total_mass(.True.)
 
-  !PRINT *, 'mean_mass', mean_mass
-  !PRINT *, 'mean_temp', mean_temp
-  !PRINT *, 'nr_nodes', nr_nodes
-  !PRINT *, 'real nr_nodes', nr_nodes/18
-  !    PRINT *, 'real dimensional mean_mass', mean_mass/(nr_nodes/18)
-  !PRINT *, 'real dimensional mean_temp', mean_temp/(nr_nodes/18)
-  !stop
+  PRINT *, 'mean_mass', mean(S_MASS,1:zlevels)
+  PRINT *, 'mean_temp', mean(S_TEMP,1:zlevels)
 
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
   call barrier()
