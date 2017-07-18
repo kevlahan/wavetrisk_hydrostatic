@@ -22,6 +22,7 @@ module DCMIP2008c1_mod ! DCMIP2008 test case 5 parameters
   real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
   real(8), parameter :: eta_t        = 0.2_8 !non-dimensional location of tropopause
   real(8), parameter :: eta_0        = 0.252_8 !non-dimensional constant to do with eta
+  real(8), parameter :: eta_s        = 1.0_8 !eta at the surface
   real(8), parameter :: Gamma_t      = 0.005_8 !temperature lapse rate in Kelvin per metres
 
   real(8) :: csq
@@ -137,12 +138,12 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id, d, idN, idE, idNE
     real(8) lon, lat, lev_press, lev_spec_volume, mean_geopot, pert_geopot
-    real(8) eta_c, eta_v, eta_v_s
-    real(8) pert_z, mean_z, total_z, topo_z !all layer thicknesses (not absolute z coordinates)
+    real(8) eta_c, eta_v
+    real(8) pert_z, mean_z !all layer thicknesses (not absolute z coordinates)
     !we use eta_c instead of just eta (cause eta is already defined) as the nondimensional vertical coordinate
     !eta_c is one near the bottom of the domain and 0 near the top (counter-intuitively)
 
-    PRINT *, '=========BELOW IS ZLEV=', zlev
+    !PRINT *, '=========BELOW IS ZLEV=', zlev
     d = dom%id+1
     id = idx(i, j, offs, dims)
     idN = idx(i, j + 1, offs, dims)
@@ -151,81 +152,55 @@ contains
 
     call cart2sph(dom%node%elts(id+1), lon, lat)
 
-    !!! testing
-    lev_press = (a_vert(1)+b_vert(1))*ref_press_t !see eq (117) in NCAR paper
-    PRINT *, 'very first lev_press', lev_press
-
-    eta_c = lev_press/ref_press_t
-    PRINT *, 'very first eta_c', eta_c
-    !!! testing
-
     lev_press = (a_vert(zlev+1)+b_vert(zlev+1))*ref_press_t !see eq (117) in NCAR paper
-    PRINT *, 'lev_press', lev_press
-
-    !!preliminary (unused) calculation of total_z from (92) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
-    !!this is the z coordinate of the interface starting from the topography
-    !total_z = log(ref_press_t/lev_press)*T_0_t*R_d_t/grav_accel_t
-    !PRINT *, 'total_z', total_z
+    !PRINT *, 'lev_press', lev_press
 
     eta_c = lev_press/ref_press_t
-    PRINT *, 'eta_c', eta_c
-
-    eta_v = (eta_c - eta_0) * MATH_PI / 2.0_8
-    PRINT *, 'eta_v', eta_v
+    !PRINT *, 'eta_c', eta_c
 
     !!! calculate masses
     !define mean geopotential
-    if (eta_c .gt. eta_t) then
-        mean_geopot = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t))
-        PRINT *, 'active'
-    else
-        mean_geopot = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t)) - &
-            R_d_t*DeltaT_t*((log(eta_c/eta_t)+137.0_8/60.0_8)*(eta_t**5)-5.0_8*eta_c*(eta_t**4)+ &
-            5.0_8*(eta_t**3)*(eta_c**2)-(10.0_8/3.0_8)*(eta_t**2)*(eta_c**3)+ &
-            (5.0_8/4.0_8)*eta_t*(eta_c**4)-0.2_8*(eta_c**5))
-    end if
+    mean_geopot = mean_geopotential(lon,lat,eta_c)
 
     !define perturbation geopotential
-    pert_geopot = u_0_t*(cos(eta_v)**(3.0_8/2.0_8))* &
-        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
-        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
-
-    eta_v_s = (1.0_8 - eta_0) * MATH_PI / 2.0_8 !this is the value of eta_v at the surface
+    pert_geopot = perturbation_geopotential(lon,lat,eta_c)
 
     !define surface geopotential
-    dom%surf_geopot%elts(id+1) = u_0_t*(cos(eta_v_s)**(3.0_8/2.0_8))* &
-        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v_s)**(3.0_8/2.0_8)) &
-        +((8.0_8/5.0_8)*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+    dom%surf_geopot%elts(id+1) = perturbation_geopotential(lon,lat,eta_s)
 
-    PRINT *, 'surface geopotential', dom%surf_geopot%elts(id+1)
-
-    !define associated surface topography height
-    topo_z = dom%surf_geopot%elts(id+1)/grav_accel_t
-    PRINT *, 'topo_z', topo_z
+    !PRINT *, 'surface geopotential', dom%surf_geopot%elts(id+1)
 
     !now we set the heights (not masses yet)
     if (zlev.eq.1) then !bottom layer
         mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t
         pert_z = pert_geopot/grav_accel_t
-        PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
+        !PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
         if ((mean_z + pert_z).lt.0.0_8) then
             PRINT *, 'warning at zlev=1, we have negative total thickness'
             stop
         end if
-        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press !JEMF: probably need to interpolate denominator
+        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press !JEMF: need to fix this cause temp is not constant
         sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
         mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
     else !other layers need differencing
         mean_z = (mean_geopot-dom%surf_geopot%elts(id+1))/grav_accel_t-dom%adj_mass%elts(id+1)
         pert_z = pert_geopot/grav_accel_t-dom%adj_temp%elts(id+1)
-        PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
+        !PRINT *, 'mean height', mean_z, 'pert height', pert_z, 'sum is', mean_z + pert_z
         if ((mean_z + pert_z).lt.0.0_8) then
-            PRINT *, 'warning at zlev=2, we have negative total thickness'
+            PRINT *, 'warning at zlev= ', zlev, 'we have negative total thickness'
             stop
         end if
-        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press !JEMF: probably need to interpolate denominator
+        dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/lev_press
         sol(S_MASS,zlev)%data(d)%elts(id+1)=pert_z/dom%spec_vol%elts(id+1)
         mean(S_MASS,zlev)=mean_z/dom%spec_vol%elts(id+1)
+    end if
+
+    !print out representative layer thicknesses
+    if (.not.wasprinted) then
+       if (rank .eq. 0) write(*,'(A,I2,A,F8.2)') &
+            'zlev=', zlev, &
+            ',   thickness (in metres)=', mean_z + pert_z
+       wasprinted=.true.
     end if
 
     !!! calculate temperatures
@@ -261,9 +236,30 @@ contains
 
     dom%adj_mass%elts(id+1) = mean_z !adj_mass is used to save adjacent mean_geopot
     dom%adj_temp%elts(id+1) = pert_z !adj_mass is used to save adjacent pert_geopot
-
-    PRINT *, '========='
   end subroutine init_sol
+
+    real(8) function mean_geopotential(lon,lat,eta_c)
+    real(8) lon, lat, eta_c
+
+        mean_geopotential = (T_0_t*grav_accel_t/Gamma_t)*(1.0_8-eta_c**(R_d_t*Gamma_t/grav_accel_t))
+    if (eta_c .lt. eta_t) then
+        mean_geopotential = mean_geopotential - &
+            R_d_t*DeltaT_t*((log(eta_c/eta_t)+137.0_8/60.0_8)*(eta_t**5)-5.0_8*eta_c*(eta_t**4)+ &
+            5.0_8*(eta_t**3)*(eta_c**2)-(10.0_8/3.0_8)*(eta_t**2)*(eta_c**3)+ &
+            (5.0_8/4.0_8)*eta_t*(eta_c**4)-0.2_8*(eta_c**5))
+    end if
+  end function mean_geopotential
+
+    real(8) function perturbation_geopotential(lon,lat,eta_c)
+    real(8) lon, lat, eta_c
+    real(8) eta_v
+
+        eta_v = (eta_c - eta_0) * MATH_PI / 2.0_8
+
+        perturbation_geopotential = u_0_t*(cos(eta_v)**(3.0_8/2.0_8))* &
+        ((-2.0_8*(sin(lat)**6)*(cos(lat)**2+1.0_8/3.0_8)+10.0_8/63.0_8)*u_0_t*(cos(eta_v)**(3.0_8/2.0_8)) &
+        +(8.0_8/5.0_8*(cos(lat)**3)*((sin(lat)**2)+2.0_8/3.0_8)-MATH_PI/4.0_8)*a_t*Omega_t)
+  end function perturbation_geopotential
 
   subroutine vel_fun(lon, lat, u, v, eta_v)
     real(8) lon, lat
