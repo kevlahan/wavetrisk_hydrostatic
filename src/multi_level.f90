@@ -372,6 +372,12 @@ contains
           end do
           call apply_to_penta_d(post_step1, grid(d), level_end, k)
 
+          if (viscosity .ne. 0.0_8) then
+             do j = 1, grid(d)%lev(level_end)%length
+                call apply_onescale_to_patch(flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
+             end do
+          end if
+
           nullify(mass, velo, temp, h_mflux, h_tflux)
        end do
     end do
@@ -445,37 +451,26 @@ contains
              end do
 
              do j = 1, grid(d)%lev(l)%length
-                p = grid(d)%lev(l)%elts(j)
-                call step1(grid(d), p, k)
+                call step1(grid(d), grid(d)%lev(l)%elts(j), k)
              end do
 
              call apply_to_penta_d(post_step1, grid(d), l, k)
+
+             ! Diffuse scalars
+             if (viscosity .ne. 0.0_8) then
+                do  j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch(flux_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+                end do
+             end if
+             
              call cpt_or_restr_flux(grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
              nullify(mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
           end do
        end do
 
-       call update_array_bdry__start(horiz_flux, l)  ! <= start non-blocking communicate flux (l)
-          
-       if (viscosity .ne. 0) then ! Calculate viscous term
-          do k = 1, zlevels
-             do d = 1, size(grid)
-
-                velo => q(S_VELO,k)%data(d)%elts
-                mass => q(S_MASS,k)%data(d)%elts
-                
-                do j = 1, grid(d)%lev(l)%length 
-                   call apply_onescale_to_patch(divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-                end do
-                
-                nullify (velo, mass)
-             end do
-          end do
-       end if
+       call update_array_bdry(horiz_flux, l)
        
-       call update_array_bdry__finish(horiz_flux, l)  ! <= finish non-blocking communicate flux (l)
-
        do k = 1, zlevels
           do d = 1, size(grid)
              dmass   => dq(S_MASS,k)%data(d)%elts

@@ -25,8 +25,6 @@ module tenlayergauss_mod
 
   real(8) :: csq
 
-  real(8) :: VELO_SCALE
-
   real(8), parameter :: LAND = 1
   real(8), parameter :: SEA  = 0
   character(255) IC_file
@@ -38,7 +36,9 @@ module tenlayergauss_mod
 
   logical const_bathymetry
 
-  real(8) max_dmass, max_velo
+  real(8) :: max_dmass
+  real(8) :: max_mass, max_temp, max_velo
+  real(8) :: mass_scale, temp_scale, velo_scale
 
   integer iwrite, j
 
@@ -73,28 +73,7 @@ contains
          time, dt, timing, level_end, n_active, VELO_SCALE
   end subroutine write_and_print_step
 
-  subroutine cpt_max_dmass(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, k
-    real(8) :: tmp
-
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) .gt. 0) then
-       tmp = 0.0_8
-       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) then
-          do k = 1, zlevels
-             tmp = tmp + sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
-          end do
-          max_dmass = max(max_dmass, abs(tmp))
-       end if
-    end if
-  end subroutine cpt_max_dmass
-
-  subroutine cpt_max_velo(dom, i, j, zlev, offs, dims)
+  subroutine cpt_max_vars(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
@@ -103,9 +82,36 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    ! Max velocity based on kinetic energy
-    max_velo = max(max_velo, sqrt(dom%kin_energy%elts(id+1)))
-  end subroutine cpt_max_velo
+    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+       max_mass = max(max_mass, abs(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
+       max_temp = max(max_mass, abs(sol(S_TEMP,zlev)%data(dom%id+1)%elts(id+1)))
+       do e = 1, EDGE
+          max_velo  = max(max_velo, abs(sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e)))
+       end do
+    end if
+  end subroutine cpt_max_vars
+
+   subroutine cpt_max_trend(dom, i, j, zlev, offs, dims)
+    type(Domain) :: dom
+    integer :: i, j, zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    
+    integer :: id, e
+
+    id = idx(i, j, offs, dims)
+
+    ! Maximum trends
+    if (dom%mask_n%elts(id+1) .gt. 0) then
+       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) then
+          max_mass = max(max_mass, abs(trend(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
+          max_temp = max(max_temp, abs(trend(S_TEMP,zlev)%data(dom%id+1)%elts(id+1)))
+          do e = 1, EDGE
+             max_velo  = max(max_velo, abs(trend(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e)))
+          end do
+       end if
+    endif
+  end subroutine cpt_max_trend
 
   subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
@@ -117,6 +123,9 @@ contains
     real(8) s, t, rgrc
     real(8), parameter :: lon_c_t = MATH_PI/2.0_8
     real(8), parameter :: lat_c_t = MATH_PI/6.0_8
+
+    ! real(8), parameter :: width = 5e-2
+     real(8), parameter :: width = 1e-1
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
@@ -132,7 +141,7 @@ contains
     sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
 
     if (zlev.eq.zlevels) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = max_dmass*exp(-1e3_8*rgrc*rgrc)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = max_dmass*exp(-(rgrc/width)**2)
     else
        sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
     end if
@@ -229,26 +238,40 @@ contains
   end subroutine tenlayergauss_load
 
   subroutine set_thresholds(itype)
-    ! Scaling for inertia-gravity wave
     integer, optional :: itype
+    integer :: d, k, l, p
+    
+    ! Dimensional scaling
+    !tol_mass = mass_scale * c_p/radius * threshold !  dmass/T = max_dmass c/L
+    !tol_velo = velo_scale * c_p/radius * threshold ! U/T = U c/L
+    !!tol_velo = 2.0_8*mass_scale*sqrt(grav_accel/H) * c_p/radius * threshold ! U/T = U c/L
 
-    if (.not. present(itype)) then ! dynamic scaling on trend
-       tol_mass = max_dmass * c_p/radius * threshold !  dmass/T = max_dmass c/L
-       !tol_velo = 2.0_8*max_dmass*sqrt(grav_accel/H) * c_p/radius * threshold ! U/T = U c/L
-       tol_velo = velo_scale * c_p/radius * threshold ! U/T = U c/L
-       tol_temp = tol_mass
-    elseif (itype .eq. 1) then ! scale on variables
-       if (adapt_trend) then
-          dt = cpt_dt_mpi()
-          tol_mass = max_dmass  * threshold*dt
-          tol_velo = velo_scale * threshold*dt
-          tol_temp = tol_mass 
-       else
-          tol_mass = max_dmass * threshold 
-          tol_velo = velo_scale * threshold
-          tol_temp = tol_mass
-       end if
+    max_mass = 0.0_8
+    max_temp = 0.0_8
+    max_velo = 0.0_8
+    do l = level_start, level_end
+       do k = 1, zlevels
+          if (adapt_trend) then
+             call apply_onescale(cpt_max_trend, l, k, 0, 1)
+          else
+             call apply_onescale(cpt_max_vars, l, k, 0, 1)
+          end if
+       end do
+    end do
+    mass_scale = sync_max_d(max_mass)
+    temp_scale = sync_max_d(max_temp)
+    velo_scale = sync_max_d(max_velo)
+    
+    ! Velocity is initially zero
+    if (adapt_trend .and. istep.eq.0) then
+       mass_scale = max_dmass * c_p/radius
+       temp_scale = mass_scale
     end if
+    if (.not. adapt_trend .and. istep.eq.0) velo_scale = 2.0_8*mass_scale*sqrt(grav_accel/H)
+
+    tol_mass = mass_scale * threshold
+    tol_temp = temp_scale * threshold
+    tol_velo = velo_scale * threshold
   end subroutine set_thresholds
 end module tenlayergauss_mod
 
@@ -273,6 +296,14 @@ program tenlayergauss
   call init_main_mod()
   call read_test_case_parameters("tenlayergauss.in")
 
+  ! Set (non-dimensional) mean values of variables
+  allocate (mean(S_MASS:S_VELO,1:zlevels))
+  do k = 1, zlevels
+     mean(S_MASS,k) = 1.0_8/real(zlevels)
+     mean(S_TEMP,k) = mean(S_MASS,k)
+     mean(S_VELO,k) = 0.0_8
+  end do
+
   ! Shared non-dimensional parameters
   radius     = R_star / Ldim
   grav_accel = g_star * Hdim/Udim**2
@@ -288,16 +319,11 @@ program tenlayergauss
   c_p = sqrt(csq)
   k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of tenlayergauss: 100km
 
-  velo_scale = 2.0_8*max_dmass*sqrt(grav_accel/H)/sqrt(csq)  ! Characteristic velocity based on initial perturbation
-
-  ! Set (non-dimensional) mean values of variables
-  allocate (mean(S_MASS:S_VELO,1:zlevels))
-  do k = 1, zlevels
-     mean(S_MASS,k) = 1.0_8/real(zlevels)
-     mean(S_TEMP,k) = mean(S_MASS,k)
-     mean(S_VELO,k) = 0.0_8
-  end do
-
+  ! Initially set tolerances based on variables
+!  mass_scale = max_dmass
+!  temp_scale = mass_scale 
+!  velo_scale = 2.0_8*max_dmass*sqrt(grav_accel/H) ! Characteristic velocity based on initial perturbation
+  
   wind_stress      = .False.
   penalize         = .False.
   bottom_friction  = .False.
@@ -312,12 +338,12 @@ program tenlayergauss
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
-  viscosity = 0.0_8
   !viscosity = 1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
- ! viscosity = 1.0_8/((2.0_8*MATH_PI/dx_min)/16.0_8)**2     ! grid scale viscosity
+  !viscosity = 1e2_8/(2.0_8*MATH_PI/dx_min)**2    ! Viscosity level to damp out small waves
   viscosity = 0.0_8
+
   friction_coeff = 3e-3_8 ! Bottom friction
-  if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
+  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity = ',  viscosity
 
   write_init = (resume .eq. NONE)
   iwrite = 0
@@ -333,24 +359,7 @@ program tenlayergauss
 
   total_time = 0_8
   do while (time .lt. time_end)
-     ! Set thresholds dynamically
-     max_dmass = 0.0_8
-     max_velo = 0.0_8
-     do l = level_start, level_end
-        call apply_onescale(cpt_max_dmass,   l, k, 0, 1)
-        do k = 1, zlevels
-           call apply_onescale(cpt_max_velo, l, k, 0, 1)
-        end do
-     end do
-     max_dmass = sync_max_d(max_dmass)
-     max_velo = sync_max_d(max_velo)
-     velo_scale = max(0.9*velo_scale, max_velo) ! Initial velocity is zero ... adjust gradually
-
-     if (adapt_trend) then
-        call set_thresholds()
-     else
-        call set_thresholds(1)
-     end if
+     call set_thresholds()
 
      call start_timing()
      call time_step(dt_write, aligned)
@@ -360,14 +369,15 @@ program tenlayergauss
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,3(A,ES13.5),A,I9,A,ES11.4,1x)') &
-          'time [h] =', time/3600.0_8*Tdim, &
-          ', dt [s] =', dt*Tdim, &
-          ', min. depth =', fd, &
-          ', mass scale =', max_dmass*Hdim, &
-          ', velo scale =', velo_scale*Udim, &
-          ', d.o.f. =', sum(n_active), &
-          ', cpu = ', timing
+     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,4(A,ES13.5),A,I9,A,ES11.4,1x)') &
+          'time [h] = ', time/3600.0_8*Tdim, &
+          ' dt [s] = ', dt*Tdim, &
+          ' min. depth = ', fd, &
+          ' mass tol = ', tol_mass, &
+          ' temp tol = ', tol_temp, &
+          ' velo tol = ', tol_velo, &
+          ' d.o.f. = ', sum(n_active), &
+          ' cpu = ', timing
 
      call print_load_balance()
 

@@ -93,48 +93,62 @@ contains
     if (resume .ge. 0) then
        if (rank .eq. 0) write(*,*) 'Resuming from checkpoint', resume
     else
-       call set_thresholds(1)
-
-       if (adapt_trend) then ! Re-scale tolerances to adapt to initial conditions, not trend
-          dt = cpt_dt_mpi()
-          tol_mass = tol_mass*dt
-          tol_velo = tol_velo*dt
-          tol_temp = tol_temp*dt
-       else
-          tol_mass = tol_mass/2.0_8
-          tol_velo = tol_velo/2.0_8
-          tol_temp = tol_temp/2.0_8
-       end if
-       
        call apply_init_cond()
+       if (adapt_trend) then
+          call trend_ml(sol, trend)
+          call forward_wavelet_transform(trend, trend_wav_coeff)
+       end if
        call forward_wavelet_transform(sol, wav_coeff)
        
        do while(level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
-          
-          call adapt(wav_coeff)
+
+          call set_thresholds()
+          if (adapt_trend) then
+             call adapt(trend_wav_coeff)
+          else
+             call adapt(wav_coeff)
+          end if
 
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
 
           call apply_init_cond()
+          if (adapt_trend) then
+             call trend_ml(sol, trend)
+             call forward_wavelet_transform(trend, trend_wav_coeff)
+          end if
           call forward_wavelet_transform(sol, wav_coeff)
           
           !--Check whether there are any active nodes at this scale
           n_active = 0.0_8
           do k = 1, zlevels
-             n_active = n_active + (/ &
-                  sum((/(count(( &
-                  abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_mass) &
-                  .or. &
-                  abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_temp), &
-                  d = 1, n_domain(rank+1)) /)), &
-                  
-                  sum((/(count( &
-                  abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d): grid(d)%midpt%length)) .gt. tol_velo), &
-                  d = 1, n_domain(rank+1)) /)) &
-                  /)
+             if (adapt_trend) then
+                n_active = n_active + (/ &
+                     sum((/(count(( &
+                     abs(trend_wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_mass) &
+                     .or. &
+                     abs(trend_wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_temp), &
+                     d = 1, n_domain(rank+1)) /)), &
+                     
+                     sum((/(count( &
+                     abs(trend_wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d): grid(d)%midpt%length)) .gt. tol_velo), &
+                     d = 1, n_domain(rank+1)) /)) &
+                     /)
+             else
+                n_active = n_active + (/ &
+                     sum((/(count(( &
+                     abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_mass) &
+                     .or. &
+                     abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_temp), &
+                     d = 1, n_domain(rank+1)) /)), &
+                     
+                     sum((/(count( &
+                     abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d): grid(d)%midpt%length)) .gt. tol_velo), &
+                     d = 1, n_domain(rank+1)) /)) &
+                     /)
+             end if
           end do
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
@@ -143,15 +157,17 @@ contains
        end do
 
        cp_idx = 0
-       
-       call set_thresholds(1)
 
-       call adapt(wav_coeff)
+       call set_thresholds()
+       if (adapt_trend) then
+          call adapt(trend_wav_coeff)
+       else
+          call adapt(wav_coeff)
+       end if
 
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
-
     call restart_full(set_thresholds, custom_load) 
   end subroutine initialize
 
@@ -162,7 +178,6 @@ contains
     allocate (init_state(size(grid)))
 
     do d = 1, size(grid)
-
        init_state(d)%n_patch      = grid(d)%patch%length
        init_state(d)%n_bdry_patch = grid(d)%bdry_patch%length
        init_state(d)%n_node       = grid(d)%node%length
@@ -206,11 +221,13 @@ contains
        if (adapt_trend) then
           call forward_wavelet_transform(trend, trend_wav_coeff)
           call adapt(trend_wav_coeff)
+          call inverse_wavelet_transform(trend_wav_coeff, trend)
+          call inverse_wavelet_transform(wav_coeff, sol)
        else
           call adapt(wav_coeff)
+          call inverse_wavelet_transform(wav_coeff, sol)
+          call trend_ml(sol, trend)
        end if
-       call inverse_wavelet_transform(wav_coeff, sol)
-       call trend_ml(sol, trend)
     end if
 
     istep = istep + 1
@@ -507,20 +524,21 @@ contains
 
     if (rank .eq. 0) call system(command)
 
-    ! Set thresholds for solution
-    call set_thresholds(1)
-
-    ! Adapt on solution
-    call adapt(wav_coeff)
-
-    ! Interpolate onto adapted grid
+    ! Adapt
     call inverse_wavelet_transform(wav_coeff, sol, level_start-1)
-
-    ! Calculate initial trend
     call trend_ml(sol, trend)
-    
-    ! Calculate trend wavelets
-    if (adapt_trend) call forward_wavelet_transform(trend, trend_wav_coeff)
+    if (adapt_trend) then
+       call set_thresholds()
+       call forward_wavelet_transform(trend, trend_wav_coeff)
+       call adapt(trend_wav_coeff)
+       call inverse_wavelet_transform(trend_wav_coeff, trend, level_start-1)
+       call inverse_wavelet_transform(wav_coeff, sol, level_start-1)
+    else
+       call set_thresholds()
+       call adapt(wav_coeff)
+       call inverse_wavelet_transform(wav_coeff, sol, level_start-1)
+       call trend_ml(sol, trend)
+    end if
   end subroutine restart_full
 
   integer function writ_checkpoint(custom_dump)
