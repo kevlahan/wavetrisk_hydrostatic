@@ -437,8 +437,8 @@ program DCMIP2008c1
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c1_dump, DCMIP2008c1_load)
   call sum_total_mass(.True.)
 
-  PRINT *, 'mean_mass', mean(S_MASS,1:zlevels)
-  PRINT *, 'mean_temp', mean(S_TEMP,1:zlevels)
+  PRINT *, 'dimensional mean_mass', mean(S_MASS,1:zlevels)
+  PRINT *, 'dimensional mean_temp', mean(S_TEMP,1:zlevels)
 
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
   call barrier()
@@ -460,7 +460,7 @@ program DCMIP2008c1
      call set_thresholds()
 
      call start_timing()
-     call time_step(dt_write, aligned)
+     call time_step(dt_write, aligned, set_thresholds)
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
