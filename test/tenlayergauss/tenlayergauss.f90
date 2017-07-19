@@ -231,14 +231,23 @@ contains
     read(fid) velo_scale
     read(fid) iwrite
   end subroutine tenlayergauss_load
-
+  
   subroutine set_thresholds(itype)
     ! Scaling for inertia-gravity wave
     integer, optional :: itype
     integer :: l, k
-    
+
+    ! tol_mass = max_mass * c_p/radius * threshold !  dmass/T = max_mass c/L
+    ! tol_velo = 2.0_8*max_mass*sqrt(grav_accel/H) * c_p/radius * threshold ! U/T = U c/L
+    ! tol_temp = tol_mass
+
     ! Set thresholds dynamically
-    if (istep.ne.0) then
+    if (istep.eq.0) then
+       dt = cpt_dt_mpi()
+       tol_mass = mass_scale * threshold**1.5
+       tol_temp = temp_scale * threshold**1.5
+       tol_velo = velo_scale * threshold**1.5
+    else
        max_mass = 0.0_8
        max_temp = 0.0_8
        max_velo = 0.0_8
@@ -254,23 +263,12 @@ contains
        mass_scale = sync_max_d(max_mass)
        temp_scale = sync_max_d(max_temp)
        velo_scale = sync_max_d(max_velo)
-    end if
 
-    ! tol_mass = max_mass * c_p/radius * threshold !  dmass/T = max_mass c/L
-    ! tol_velo = 2.0_8*max_mass*sqrt(grav_accel/H) * c_p/radius * threshold ! U/T = U c/L
-    ! tol_temp = tol_mass
-
-    if (istep.eq.0) then
-       dt = cpt_dt_mpi()
-       tol_mass = mass_scale * threshold*dt
-       tol_temp = temp_scale * threshold*dt
-       tol_velo = velo_scale * threshold*dt
-    else
        tol_mass = mass_scale * threshold
        tol_temp = temp_scale * threshold
        tol_velo = velo_scale * threshold
     end if
-    end subroutine set_thresholds
+  end subroutine set_thresholds
 end module tenlayergauss_mod
 
 program tenlayergauss
@@ -336,10 +334,9 @@ program tenlayergauss
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
-  viscosity = 0.0_8
+  !viscosity = 0.0_8
   !viscosity = 1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
- ! viscosity = 1.0_8/((2.0_8*MATH_PI/dx_min)/16.0_8)**2     ! grid scale viscosity
-  viscosity = 0.0_8
+  viscosity = 1e2_8/(2.0_8*MATH_PI/dx_min)**2     ! grid scale viscosity
   friction_coeff = 3e-3_8 ! Bottom friction
   if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
 
@@ -366,14 +363,14 @@ program tenlayergauss
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,3(A,ES13.5),A,I9,A,ES11.4,1x)') &
-          'time [h] =', time/3600.0_8*Tdim, &
-          ', dt [s] =', dt*Tdim, &
-          ', min. depth =', fd, &
-          ', mass scale =', mass_scale, &
-          ', velo scale =', velo_scale, &
-          ', d.o.f. =', sum(n_active), &
-          ', cpu = ', timing
+     if (rank .eq. 0) write(*,'(A,F8.4,A,F8.4,3(A,ES12.4),A,I9,A,ES11.4,1x)') &
+          'time [h] = ', time/3600.0_8*Tdim, &
+          ' dt [s] = ', dt*Tdim, &
+          ' min. depth = ', fd, &
+          ' mass scale = ', mass_scale, &
+          ' velo scale = ', velo_scale, &
+          ' d.o.f. = ', sum(n_active), &
+          ' cpu = ', timing
 
      call print_load_balance()
 

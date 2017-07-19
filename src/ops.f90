@@ -700,7 +700,7 @@ contains
 
     call du_Qperp(dom, i, j, zlev, offs, dims)
 
-    if (viscosity .ne. 0) call diff_mom(dom, i, j, zlev, offs, dims)
+    if (viscosity .ne. 0.0_8) call diff_mom(dom, i, j, zlev, offs, dims)
 
     idN  = idx(i,     j + 1, offs, dims)
     idE  = idx(i + 1, j,     offs, dims)

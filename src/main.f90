@@ -192,6 +192,7 @@ contains
 
     call RK45_opt(trend)
 
+    ! Set thresholds dynamically based on new solution
     call set_thresholds()
 
     if (min_level .lt. max_level) then ! Adaptive simulation
@@ -204,7 +205,6 @@ contains
        call inverse_wavelet_transform(wav_coeff, sol)
        call trend_ml(sol, trend)
     end if
-
 
     itime = itime + idt
     time  = itime/time_mult

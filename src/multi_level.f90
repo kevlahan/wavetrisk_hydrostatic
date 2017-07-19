@@ -309,7 +309,7 @@ contains
     end function part_flux
   end subroutine flux_cpt_restr
 
-  subroutine cpt_or_restr_Qperp(dom, l, zlev)
+  subroutine cpt_or_restr_du_source(dom, l, zlev)
     type(Domain) dom
     integer l
     integer j
@@ -326,9 +326,9 @@ contains
              call apply_onescale_to_patch(du_source, dom, p_par, zlev, 0, 0)
           end if
        end do
-       call apply_interscale_to_patch(Qperp_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
+       call apply_interscale_to_patch(du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
     end do
-  end subroutine cpt_or_restr_Qperp
+  end subroutine cpt_or_restr_du_source
 
   subroutine trend_ml(q, dq)
     !compute mass, velocity and potential temperature trend
@@ -426,7 +426,7 @@ contains
           h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(du_Qperp, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
+             call apply_onescale_to_patch(du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
           nullify(mass, velo, temp, dvelo, h_mflux, h_tflux)
@@ -504,7 +504,7 @@ contains
              h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
              h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
-             call cpt_or_restr_Qperp(grid(d), l, k)
+             call cpt_or_restr_du_source(grid(d), l, k)
 
              nullify(mass, velo, temp, dmass, dvelo, dtemp, h_mflux, h_tflux)
           end do
@@ -530,7 +530,7 @@ contains
     end do
   end subroutine trend_ml
 
-  subroutine Qperp_cpt_restr(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine du_source_cpt_restr(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain) dom
     integer i_par
     integer j_par
@@ -570,7 +570,7 @@ contains
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
        dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
     end if
-  end subroutine Qperp_cpt_restr
+  end subroutine du_source_cpt_restr
 
   subroutine cpt_or_restr_flux(dom, l)
     type(Domain) dom
