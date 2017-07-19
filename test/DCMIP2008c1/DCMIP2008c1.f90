@@ -214,35 +214,6 @@ contains
          dom%node%elts(id+1), 0.5_8*(eta_top+eta_bottom))
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel_eta(vel_fun, dom%node%elts(id+1), &
          dom%node%elts(idN+1), 0.5_8*(eta_top+eta_bottom)) !JEMF
-
-    !check for NaNs temporarily (remove later)
-    if (isnan(sol(S_TEMP,zlev)%data(d)%elts(id+1))) then
-       stop
-    end if
-
-    if (isnan(sol(S_MASS,zlev)%data(d)%elts(id+1))) then
-       stop
-    end if
-
-    if (isnan(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1))) then
-       stop
-    end if
-
-    if (isnan(sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1))) then
-       stop
-    end if
-
-    if (isnan(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1))) then
-       stop
-    end if
-
-    if (isnan(mean(S_TEMP,zlev))) then
-       stop
-    end if
-
-    if (isnan(mean(S_MASS,zlev))) then
-       stop
-    end if
   end subroutine init_sol
 
   real(8) function mean_geopotential(lon,lat,eta_c)
@@ -419,6 +390,16 @@ program DCMIP2008c1
   call init_main_mod()
   call read_test_case_parameters("DCMIP2008c1.in")
 
+  ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
+  omega = omega_t
+  grav_accel = grav_accel_t
+  radius = a_t
+  press_infty = press_infty_t
+  R_d = R_d_t
+  c_p = c_p_t
+  kappa = kappa_t
+  ref_press = ref_press_t
+
   ! for this testcase, set the pressure at infinity (which is usually close to zero)
   press_infty_t = a_vert(zlevels+1)*ref_press_t ! note that b_vert at top level is 0, a_vert is small but non-zero
 
@@ -446,7 +427,7 @@ program DCMIP2008c1
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
-  viscosity = 0.0_8 !1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
+  viscosity = 0.0_8 ! grid scale viscosity
   friction_coeff = 3e-3_8 ! Bottom friction
   if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
 
