@@ -122,6 +122,8 @@ contains
     real(8), parameter :: lon_c_t = MATH_PI/2.0_8
     real(8), parameter :: lat_c_t = MATH_PI/6.0_8
 
+    real(8), parameter :: width = 0.1_8
+
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
@@ -136,7 +138,7 @@ contains
     sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
 
     if (zlev.eq.zlevels) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = max_dmass*exp(-1e3_8*rgrc*rgrc)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = max_dmass*exp(-(rgrc/width)**2)
     else
        sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
     end if
@@ -244,9 +246,9 @@ contains
     ! Set thresholds dynamically
     if (istep.eq.0) then
        dt = cpt_dt_mpi()
-       tol_mass = mass_scale * threshold**1.5
-       tol_temp = temp_scale * threshold**1.5
-       tol_velo = velo_scale * threshold**1.5
+       tol_mass = mass_scale * threshold*dt
+       tol_temp = temp_scale * threshold*dt
+       tol_velo = velo_scale * threshold*dt
     else
        max_mass = 0.0_8
        max_temp = 0.0_8
@@ -334,9 +336,10 @@ program tenlayergauss
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
-  !viscosity = 0.0_8
+  viscosity = 0.0_8
   !viscosity = 1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
-  viscosity = 1e2_8/(2.0_8*MATH_PI/dx_min)**2     ! grid scale viscosity
+  !viscosity = 1e2_8/(2.0_8*MATH_PI/dx_min)**2     ! grid scale viscosity
+
   friction_coeff = 3e-3_8 ! Bottom friction
   if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
 

@@ -74,7 +74,7 @@ contains
        end do
     end do
 
-    wav_coeff(:,:)%bdry_uptodate = .False.
+    wav%bdry_uptodate = .False.
   end subroutine adapt
 
   logical function refine()

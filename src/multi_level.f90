@@ -404,7 +404,7 @@ contains
           nullify(mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
        end do
     end do
-
+    
     dq%bdry_uptodate         = .False.
     horiz_flux%bdry_uptodate = .False.
 
