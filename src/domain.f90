@@ -88,7 +88,7 @@ module domain_mod
   real(8), pointer :: temp(:), dtemp(:), h_tflux(:)
   real(8), pointer :: wc_u(:), wc_m(:), wc_t(:)
 
-  real(8), allocatable :: mean(:,:)
+  real(8), allocatable :: mean(:,:), mean_press(:), mean_exner(:), mean_spec_vol(:)
 
   ! for penalization boundary condition
   type(Float_Field), target :: penal

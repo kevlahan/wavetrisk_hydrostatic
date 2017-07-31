@@ -176,14 +176,6 @@ contains
        stop
     end if
 
-    !print out representative layer thicknesses
-    if (.not.wasprinted) then
-       if (rank .eq. 0) write(*,'(A,I2,A,F8.2)') &
-            'zlev=', zlev, &
-            ',   horizontally mean layer thickness dz (in metres)=', mean_dz
-       wasprinted=.true.
-    end if
-
     !set total temperature at top and bottom
     total_temp_top = mean_temperature(lon,lat,eta_top)+perturbation_temperature(lon,lat,eta_top)
     total_temp_bottom = mean_temperature(lon,lat,eta_bottom)+perturbation_temperature(lon,lat,eta_bottom)
@@ -214,6 +206,26 @@ contains
          dom%node%elts(id+1), 0.5_8*(eta_top+eta_bottom))
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel_eta(vel_fun, dom%node%elts(id+1), &
          dom%node%elts(idN+1), 0.5_8*(eta_top+eta_bottom)) !JEMF
+
+    !print out representative layer thicknesses and set mean_pressure (done recursively so only set once)
+    if (.not.wasprinted) then
+       if (rank .eq. 0) write(*,'(A,I2,A,F8.2)') &
+            'zlev=', zlev, &
+            ',   horizontally mean layer thickness dz (in metres)=', mean_dz
+       wasprinted=.true.
+
+       !set mean pressure
+       if (zlev .eq. 1) then
+          mean_press(zlev) = -0.5_8*grav_accel*mean(S_MASS,zlev)
+       else
+          mean_press(zlev) = mean_press(zlev-1) - 0.5_8*grav_accel*mean(S_MASS,zlev) &
+               - 0.5_8*grav_accel*mean(S_MASS,zlev-1)
+       end if
+
+       if (zlev .eq. zlevels) then
+          mean_press(:) = mean_press(:) - (mean_press(zlev)- 0.5_8*grav_accel*mean(S_MASS,zlev))
+       end if
+    end if
   end subroutine init_sol
 
   real(8) function mean_geopotential(lon,lat,eta_c)
@@ -307,7 +319,8 @@ contains
     dt_write = dt_write * 60_8!/Tdim
     time_end = time_end * 60_8**2!/Tdim
 
-    allocate (mean(S_MASS:S_VELO,1:zlevels))
+    allocate (mean(S_MASS:S_VELO,1:zlevels), mean_press(1:zlevels), mean_spec_vol(1:zlevels), &
+         mean_exner(1:zlevels))
     call initialize_a_b_vert()
     close(fid)
   end subroutine read_test_case_parameters
@@ -437,8 +450,17 @@ program DCMIP2008c1
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c1_dump, DCMIP2008c1_load)
   call sum_total_mass(.True.)
 
+  !set mean exner and mean specific volume once
+  do k = 1, zlevels
+     mean_exner(k) = c_p*(mean_press(k)/ref_press)**kappa
+     mean_spec_vol(k) = kappa*(mean(S_TEMP,k)/mean(S_MASS,k))*mean_exner(k)/mean_press(k)
+  end do
+
   PRINT *, 'dimensional mean_mass', mean(S_MASS,1:zlevels)
   PRINT *, 'dimensional mean_temp', mean(S_TEMP,1:zlevels)
+  PRINT *, 'dimensional mean_press', mean_press(1:zlevels)
+  PRINT *, 'dimensional mean_spec_vol', mean_spec_vol(1:zlevels)
+  PRINT *, 'dimensional mean_exner', mean_exner(1:zlevels)
 
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
   call barrier()

@@ -486,7 +486,7 @@ contains
     ! Total potential temperature in layer k
     outv(1) = (sol(S_TEMP,k)%data(dom%id+1)%elts(id+1) + mean(S_TEMP,k))/ &
          (sol(S_MASS,k)%data(dom%id+1)%elts(id+1)  + mean(S_MASS,k))
-    
+
     ! Sum of total mass over vertical column
     outv(2) = 0.0_8
     do m = 1, zlevels
@@ -494,7 +494,7 @@ contains
     end do
 
     ! Vertical mass in layer k
-    outv(3) = sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)
+    outv(3) = dom%surf_geopot%elts(id+1)
     outv(4) = dom%surf_press%elts(id+1)
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
@@ -804,7 +804,7 @@ contains
     fid_grid = id+3000000
 
     call update_array_bdry(wav_coeff(S_MASS:S_TEMP,:), NONE)
-    
+
     do k = 1, zlevels
        do d = 1, size(grid)
           mass => sol(S_MASS,k)%data(d)%elts
