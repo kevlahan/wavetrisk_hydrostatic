@@ -79,7 +79,7 @@ contains
        if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,id,idE,idS,idW,idNE/)+1)
 
        full_mass(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
-       
+
        dom%vort%elts(LORT+TRIAG*idSW+1) = - &
             ((velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) + &
             velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)) - &
@@ -122,7 +122,7 @@ contains
        if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,id,idS,idW,idNE/)+1)
 
        full_mass(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
-       
+
        dom%vort%elts(TRIAG*idSW+UPLT+1) = &
             - velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1) &
             + velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1) &
@@ -164,7 +164,7 @@ contains
        if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
 
        full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
-       
+
        dom%vort%elts(LORT+TRIAG*id+1) = - &
             (velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1) - &
             velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1) - &
@@ -344,14 +344,14 @@ contains
 
       full_mass(SOUTHWEST) = mass(id+sw+1) + mean(S_MASS,zlev)
       full_temp(SOUTHWEST)  = temp(id+sw+1) + mean(S_TEMP,zlev)
-      
+
       vort_SW = - (velo(EDGE*(id+sw)+RT+1)*dom%len%elts(EDGE*(id+sw)+RT+1) + u_prim_sw + u_prim_dn)
 
       pv_LORT = (dom%coriolis%elts(TRIAG*(id+sw)+LORT+1) + vort_SW)/( &
            full_mass(SOUTHWEST)*dom%areas%elts(id+sw+1)%part(1) + &
            full_mass(SOUTH)*dom%areas%elts(id+s +1)%part(3) + &
            full_mass(0)*dom%areas%elts(id   +1)%part(5))
-      
+
       vort_SW = u_prim_lt + u_prim_sw + velo(EDGE*(id+sw)+UP+1)*dom%len%elts(EDGE*(id+sw)+UP+1) 
 
       pv_UPLT = (dom%coriolis%elts(TRIAG*(id+sw)+UPLT+1) + vort_SW)/( &
@@ -374,7 +374,7 @@ contains
     subroutine cal_flux1(h_flux, full_scalar)
       real(8), dimension(:), pointer :: h_flux
       real(8), dimension(0:N_BDRY) :: full_scalar
-      
+
       h_flux(EDGE*(id+s )+UP+1) = 0.5_8*u_dual_dn*(full_scalar(SOUTH) + full_scalar(0))
       h_flux(EDGE*(id+sw)+DG+1) = 0.5_8*u_dual_sw*(full_scalar(0)     + full_scalar(SOUTHWEST))
       h_flux(EDGE*(id+w )+RT+1) = 0.5_8*u_dual_lt*(full_scalar(WEST)  + full_scalar(0))
@@ -485,7 +485,7 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
-    real(8) full_mass, full_temp
+    real(8) full_mass, full_temp, pert_spec_vol, pert_exner, pert_press
 
     id   = idx(i, j, offs, dims)
 
@@ -510,7 +510,7 @@ contains
           if (abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty) .gt. 1e-10_8) then
              PRINT *, 'warning: upward integration of pressure not resulting in zero at top interface'
              PRINT *, 'observed pressure - pressure_infty =', abs((dom%press%elts(id+1) &
-                - 0.5_8*grav_accel*full_mass) - press_infty)
+                  - 0.5_8*grav_accel*full_mass) - press_infty)
              stop
           end if
        end if
@@ -520,13 +520,28 @@ contains
        !compute the specific volume as kappa*theta*pi/p
        dom%spec_vol%elts(id+1) = kappa*(full_temp/full_mass)*dom%exner%elts(id+1)/dom%press%elts(id+1)
 
+       !set perturbation quantities
+       pert_exner = dom%exner%elts(id+1)-mean_exner(zlev)
+       pert_press = dom%press%elts(id+1) - mean_press(zlev)
+       pert_spec_vol = (kappa*((full_temp/full_mass)*pert_exner + ((full_temp/full_mass)- &
+            mean(S_TEMP,zlev)/mean(S_TEMP,zlev))*mean_exner(zlev)) - &
+            mean_spec_vol(zlev)*pert_press)/dom%press%elts(id+1)
+
        !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
-          dom%geopot%elts(id+1) = dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*full_mass*dom%spec_vol%elts(id+1)
+          dom%geopot%elts(id+1) = dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*(full_mass*pert_spec_vol + &
+               mass(id+1)*mean_spec_vol(zlev))
        else !other layers equal to half of previous layer and half of current layer
           dom%geopot%elts(id+1) = dom%geopot%elts(id+1) + &
-               0.5_8*grav_accel*(full_mass*dom%spec_vol%elts(id+1) + dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1))
+               0.5_8*grav_accel*(full_mass*pert_spec_vol + mass(id+1)*mean_spec_vol(zlev)) + &
+               0.5_8*grav_accel*(dom%adj_mass%elts(id+1)*dom%adj_spec_vol%elts(id+1) + &
+               (dom%adj_mass%elts(id+1)-mean(S_MASS,zlev-1))*mean_spec_vol(zlev-1))
        end if
+
+       !quantities for vertical integration in next zlev
+       dom%adj_mass%elts(id+1)     = full_mass
+       dom%adj_temp%elts(id+1)     = full_temp
+       dom%adj_spec_vol%elts(id+1) = pert_spec_vol
     else !incompressible case
        !incompressible case: integrate the Lagrange multiplier (saved as pressure) from bottom zlev up to top zlev
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
@@ -555,12 +570,12 @@ contains
 
        !compute exner pressure from the geopotential
        dom%exner%elts(id+1) = -dom%geopot%elts(id+1)
-    end if
 
-    !quantities for vertical integration in next zlev
-    dom%adj_mass%elts(id+1)     = full_mass
-    dom%adj_temp%elts(id+1)     = full_temp
-    dom%adj_spec_vol%elts(id+1) = dom%spec_vol%elts(id+1)
+       !quantities for vertical integration in next zlev
+       dom%adj_mass%elts(id+1)     = full_mass
+       dom%adj_temp%elts(id+1)     = full_temp
+       dom%adj_spec_vol%elts(id+1) = dom%spec_vol%elts(id+1)
+    end if
   end subroutine integrate_pressure_up
 
   subroutine integrate_pressure_down(dom, i, j, zlev, offs, dims)
@@ -856,7 +871,7 @@ contains
     integer :: id
 
     id   = idx(i, j, offs, dims)
-    
+
     dmass(id+1) = eval_scalar_trend(h_mflux, dom, i, j, offs, dims, id)
     dtemp(id+1) = eval_scalar_trend(h_tflux, dom, i, j, offs, dims, id)
   end subroutine scalar_trend
@@ -870,15 +885,15 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims
 
     integer ::  idS, idW, idSW
-   
+
     idS  = idx(i,     j - 1, offs, dims)
     idW  = idx(i - 1, j,     offs, dims)
     idSW = idx(i - 1, j - 1, offs, dims)
-    
+
     eval_scalar_trend = -(h_flux(EDGE*id+UP+1)   - h_flux(EDGE*id+DG+1) + &
-                          h_flux(EDGE*id+RT+1)   - h_flux(EDGE*idS+UP+1) + &
-                          h_flux(EDGE*idSW+DG+1) - h_flux(EDGE*idW+RT+1)) &
-                          *dom%areas%elts(id+1)%hex_inv
+         h_flux(EDGE*id+RT+1)   - h_flux(EDGE*idS+UP+1) + &
+         h_flux(EDGE*idSW+DG+1) - h_flux(EDGE*idW+RT+1)) &
+         *dom%areas%elts(id+1)%hex_inv
   end function eval_scalar_trend
 
   subroutine du_gradB(dom, i, j, zlev, offs, dims)
@@ -936,7 +951,7 @@ contains
     full_pot_temp(NORTH)     = (temp(idN+1)  + mean(S_TEMP,zlev))/(mass(idN+1)  + mean(S_MASS,zlev))
     full_pot_temp(EAST)      = (temp(idE+1)  + mean(S_TEMP,zlev))/(mass(idE+1)  + mean(S_MASS,zlev))
     full_pot_temp(NORTHEAST) = (temp(idNE+1) + mean(S_TEMP,zlev))/(mass(idNE+1) + mean(S_MASS,zlev))
-    
+
     if (compressible) then
        dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - &
             (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)) &
