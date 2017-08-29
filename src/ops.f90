@@ -489,8 +489,8 @@ contains
 
     id   = idx(i, j, offs, dims)
 
-    full_mass = mass(id+1)+mean(S_MASS,zlev)
-    full_temp = temp(id+1)+mean(S_TEMP,zlev)
+    full_mass = mass(id+1) + mean(S_MASS,zlev)
+    full_temp = temp(id+1) + mean(S_TEMP,zlev)
 
     if (full_mass .lt. 1e-6_8) then
        print *, 'fatal error: a horizontal layer thickness is being squeezed to zero, namely, at zlev=', zlev
@@ -501,6 +501,7 @@ contains
     if (compressible) then !compressible case
        !integrate the pressure from bottom zlev up to top zlev
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer further down to the surface
+          !PRINT *, 'surf_press', dom%surf_press%elts(id+1)
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_mass
        else !other layers equal to half of previous layer and half of current layer
           dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(full_mass+dom%adj_mass%elts(id+1))
@@ -521,14 +522,15 @@ contains
        dom%spec_vol%elts(id+1) = kappa*(full_temp/full_mass)*dom%exner%elts(id+1)/dom%press%elts(id+1)
 
        !set perturbation quantities
-       pert_exner = dom%exner%elts(id+1)-mean_exner(zlev)
+       pert_exner = dom%exner%elts(id+1)- mean_exner(zlev)
        pert_press = dom%press%elts(id+1) - mean_press(zlev)
-       pert_spec_vol = (kappa*((full_temp/full_mass)*pert_exner + ((full_temp/full_mass)- &
-            mean(S_TEMP,zlev)/mean(S_TEMP,zlev))*mean_exner(zlev)) - &
+       pert_spec_vol = (kappa*((full_temp/full_mass)*pert_exner + ((full_temp/full_mass) - &
+            mean(S_TEMP,zlev)/mean(S_MASS,zlev))*mean_exner(zlev)) - &
             mean_spec_vol(zlev)*pert_press)/dom%press%elts(id+1)
 
        !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
+          !PRINT *, 'surf_geopot', dom%surf_geopot%elts(id+1)
           dom%geopot%elts(id+1) = dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*(full_mass*pert_spec_vol + &
                mass(id+1)*mean_spec_vol(zlev))
        else !other layers equal to half of previous layer and half of current layer
@@ -592,8 +594,8 @@ contains
 
     id   = idx(i, j, offs, dims)
 
-    full_mass = mass(id+1)+mean(S_MASS,zlev)
-    full_temp = temp(id+1)+mean(S_TEMP,zlev)
+    full_mass = mass(id+1) + mean(S_MASS,zlev)
+    full_temp = temp(id+1) + mean(S_TEMP,zlev)
 
     if (compressible) then !compressible case
        !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
