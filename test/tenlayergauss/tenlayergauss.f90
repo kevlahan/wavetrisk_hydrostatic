@@ -3,25 +3,34 @@ module tenlayergauss_mod
   implicit none
 
   ! Dimensional physical parameters
-  real(8), parameter :: g_star     = 9.80665_8
-  real(8), parameter :: rho        = 1.027e3_8
-  real(8), parameter :: H_star     = 3.344175893265152e+03 ! mean ocean depth
+  real(8), parameter :: H_star     = 3.344175893265152e+03
   real(8), parameter :: R_star     = 6371e3_8
   real(8), parameter :: L_star     = R_star
-  !real(8), parameter :: Omega_star = 7.29e-5_8
-  real(8), parameter :: Omega_star = 0.0_8
-  real(8), parameter :: tau_star   = 0.0_8
-  real(8), parameter :: f0_star    = 2.0_8*Omega_star
+
+  real(8), parameter :: grav_accel_t = 9.80616_8 !gravitational acceleration in meters per second squared
+  real(8), parameter :: h_0_t        = 3.344175893265152e+03 !mean ocean depth
+  real(8), parameter :: a_t          = 6.371229e6 !mean radius of the Earth in meters
+  real(8), parameter :: omega_t      = 0.0_8 !Earth’s angular velocity in radians per second
+  real(8), parameter :: f0_t         = 2.0_8*omega_t !Coriolis parameter
+  real(8), parameter :: T_0_t        = 288.0_8 !temperature in Kelvin
+  real(8), parameter :: ref_press_t  = 100145.6_8 !reference pressure (mean surface pressure) in Pascals
+  real(8), parameter :: R_d_t        = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
+  real(8), parameter :: c_p_t        = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
+  real(8), parameter :: kappa_t      = R_d_t/c_p_t !kappa=R_d/c_p
+  real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
 
   ! Dimensional scaling
-  real(8), parameter :: Ldim = L_star  ! Horizontal length scale 
-  real(8), parameter :: Hdim = H_star  ! Vertical length scale
-  real(8), parameter :: Udim = sqrt(H_star*g_star); ! Velocity scale is unperturbed wave speed
+  real(8), parameter :: Ldim = a_t  ! Horizontal length scale
+  real(8), parameter :: Hdim = h_0_t  ! Vertical length scale
+  real(8), parameter :: Udim = sqrt(h_0_t*grav_accel_t); ! Velocity scale is unperturbed wave speed
   real(8), parameter :: Tdim = Ldim/Udim            ! Time scale
+  real(8), parameter :: acceldim = Udim*Udim/Hdim  ! acceleration scale
+  real(8), parameter :: Tempdim = T_0_t   ! temperature scale (both theta and T from DYNAMICO)
+  real(8), parameter :: pdim = ref_press_t    ! pressure scale
+  real(8), parameter :: R_ddim = R_d_t  ! R_d scale
 
   ! Non-dimensional parameters
-  real(8), parameter :: f0   = f0_star * Ldim/Udim
-  real(8), parameter :: H    = H_star/Hdim
+  real(8), parameter :: H    = h_0_t/Hdim
 
   real(8) :: csq
 
@@ -42,7 +51,7 @@ module tenlayergauss_mod
 contains
   subroutine apply_initial_conditions()
     integer l, d, p, k
-    
+
     do l = level_start, level_end
        do k = 1, zlevels
           call apply_onescale(init_sol, l, k, 0, 1)
@@ -56,10 +65,10 @@ contains
 
     k=1 !select vertical level
     if (initialgo) then
-        initotalmass=integrate_hex(mass_pert, level_start, k)
+       initotalmass=integrate_hex(mass_pert, level_start, k)
     else
-        totalmass=integrate_hex(mass_pert, level_start, k)
-        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+       totalmass=integrate_hex(mass_pert, level_start, k)
+       if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 
@@ -70,7 +79,7 @@ contains
          time, dt, timing, level_end, n_active, VELO_SCALE
   end subroutine write_and_print_step
 
- 
+
   subroutine cpt_max_vars(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i, j, zlev
@@ -89,12 +98,12 @@ contains
     end if
   end subroutine cpt_max_vars
 
-   subroutine cpt_max_trend(dom, i, j, zlev, offs, dims)
+  subroutine cpt_max_trend(dom, i, j, zlev, offs, dims)
     type(Domain) :: dom
     integer :: i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
-    
+
     integer :: id, e
 
     id = idx(i, j, offs, dims)
@@ -110,7 +119,7 @@ contains
        end if
     endif
   end subroutine cpt_max_trend
-  
+
   subroutine init_sol(dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i, j, k, zlev
@@ -139,10 +148,12 @@ contains
 
     if (zlev.eq.zlevels) then
        sol(S_MASS,zlev)%data(d)%elts(id+1) = max_dmass*exp(-(rgrc/width)**2)
+       sol(S_TEMP,zlev)%data(d)%elts(id+1) = 1.0_8 + max_dmass*exp(-(rgrc/width)**2)
     else
        sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
+       sol(S_TEMP,zlev)%data(d)%elts(id+1) = 1.0_8
     end if
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
 
@@ -233,7 +244,7 @@ contains
     read(fid) velo_scale
     read(fid) iwrite
   end subroutine tenlayergauss_load
-  
+
   subroutine set_thresholds(itype)
     ! Scaling for inertia-gravity wave
     integer, optional :: itype
@@ -294,17 +305,22 @@ program tenlayergauss
   call init_main_mod()
   call read_test_case_parameters("tenlayergauss.in")
 
-  ! Shared non-dimensional parameters
-  radius     = R_star / Ldim
-  grav_accel = g_star * Hdim/Udim**2
-  omega      = Omega_star * Ldim/Udim
+  ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
+  omega = omega_t * Tdim
+  grav_accel = grav_accel_t / acceldim
+  radius = a_t / Ldim
+  press_infty = press_infty_t / pdim
+  R_d = R_d_t / R_d_t
+  c_p = c_p_t / R_d_t
+  kappa = kappa_t
+  ref_press = ref_press_t / pdim
 
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
   dx_max = 2.0_8*MATH_PI * radius
 
   kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
 
-  max_dmass = 1e-2_8
+  max_dmass = 5e-2_8
 
   csq = grav_accel*H
   c_p = sqrt(csq)
@@ -315,18 +331,43 @@ program tenlayergauss
   velo_scale = 2.0_8*max_dmass*sqrt(grav_accel/H)/sqrt(csq)  ! Characteristic velocity based on initial perturbation
 
   ! Set (non-dimensional) mean values of variables
-  allocate (mean(S_MASS:S_VELO,1:zlevels))
+  allocate (mean(S_MASS:S_VELO,1:zlevels), mean_press(1:zlevels), mean_spec_vol(1:zlevels), &
+       mean_exner(1:zlevels))
   do k = 1, zlevels
      mean(S_MASS,k) = 1.0_8/real(zlevels)
      mean(S_TEMP,k) = mean(S_MASS,k)
      mean(S_VELO,k) = 0.0_8
   end do
 
+  do k = 1, zlevels
+     !set mean pressure
+     if (k .eq. 1) then
+        mean_press(k) = -0.5_8*grav_accel*mean(S_MASS,k)
+     else
+        mean_press(k) = mean_press(k-1) - 0.5_8*grav_accel*mean(S_MASS,k) &
+             - 0.5_8*grav_accel*mean(S_MASS,k-1)
+     end if
+
+     if (k .eq. zlevels) then
+        mean_press(:) = mean_press(:) - (mean_press(k)- 0.5_8*grav_accel*mean(S_MASS,k))
+     end if
+  end do
+  PRINT *, 'mean_press', mean_press
+
+  !set mean exner and mean specific volume once
+  do k = 1, zlevels
+     mean_exner(k) = c_p*(mean_press(k)/ref_press)**kappa
+     mean_spec_vol(k) = kappa*(mean(S_TEMP,k)/mean(S_MASS,k))*mean_exner(k)/mean_press(k)
+  end do
+  PRINT *, 'mean_exner', mean_exner
+  PRINT *, 'mean_spec_vol', mean_spec_vol
+
+
   wind_stress      = .False.
   penalize         = .False.
   bottom_friction  = .False.
   const_bathymetry = .True.
-  compressible     = .False.
+  compressible     = .True.
 
   if (rank.eq.0) then
      write(*,'(A,L1)') "wind_stress      = ", wind_stress
@@ -356,7 +397,7 @@ program tenlayergauss
   if (write_init) call write_and_export(iwrite)
 
   total_time = 0_8
- 
+
   do while (time .lt. time_end)
      call start_timing()
      call time_step(dt_write, aligned, set_thresholds)

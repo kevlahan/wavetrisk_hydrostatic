@@ -505,7 +505,7 @@ program DCMIP2008c5
      call set_thresholds()
 
      call start_timing()
-     call time_step(dt_write, aligned)
+     call time_step(dt_write, aligned, set_thresholds)
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
