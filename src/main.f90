@@ -140,7 +140,7 @@ contains
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
 
-    !call restart_full(set_thresholds, custom_load)
+    call restart_full(set_thresholds, custom_load)
   end subroutine initialize
 
   subroutine record_init_state(init_state)

@@ -346,8 +346,8 @@ contains
           mass => q(S_MASS,k)%data(d)%elts
           temp => q(S_TEMP,k)%data(d)%elts
 
-          do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(integrate_pressure_down, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch(integrate_pressure_down, grid(d), p-1, k, 0, 1)
           end do
 
           nullify(mass, temp)
