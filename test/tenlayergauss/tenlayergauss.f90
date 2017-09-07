@@ -130,6 +130,7 @@ contains
     real(8) s, t, rgrc
     real(8), parameter :: lon_c_t = MATH_PI/2.0_8
     real(8), parameter :: lat_c_t = MATH_PI/6.0_8
+    real(8) :: pot_temp
 
     real(8), parameter :: width = 0.1_8
 
@@ -146,14 +147,21 @@ contains
 
     sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
 
+    ! Perturbation to mass and potential temperature
     if (zlev.eq.zlevels) then
        sol(S_MASS,zlev)%data(d)%elts(id+1) = max_dmass*exp(-(rgrc/width)**2)
-       sol(S_TEMP,zlev)%data(d)%elts(id+1) = 1.0_8 + max_dmass*exp(-(rgrc/width)**2)
+       pot_temp = max_dmass*exp(-(rgrc/width)**2)
     else
        sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
-       sol(S_TEMP,zlev)%data(d)%elts(id+1) = 1.0_8
+       pot_temp = 0.0_8
     end if
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
+    
+    !--Peturbation to mass weighted potential temperature
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*pot_temp + &
+         sol(S_MASS,zlev)%data(d)%elts(id+1)*mean(S_TEMP,zlev)/mean(S_MASS,zlev) + &
+         mean(S_MASS,zlev)*pot_temp
+    
+    !--Perturbation to velocity
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_sol
 
