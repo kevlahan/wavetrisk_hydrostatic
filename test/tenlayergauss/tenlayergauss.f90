@@ -308,14 +308,13 @@ program tenlayergauss
   logical write_init
 
   call init_main_mod()
+  call read_test_case_parameters("tenlayergauss.in")
 
   wind_stress      = .False.
   penalize         = .False.
   bottom_friction  = .False.
   const_bathymetry = .True.
   compressible     = .True.
-  
-  call read_test_case_parameters("tenlayergauss.in")
 
   press_infty = 14101_8/pdim
   
@@ -350,8 +349,12 @@ program tenlayergauss
      
      if (.not. compressible) mean(S_TEMP,k) = mean(S_MASS,k)*mean_density(k)/ref_density ! constant density ref_density
   end do
-  write(6,'("Mean temperatures = ", 100(es11.4,1x))') mean_temperature
-  write(6,'("Mean densities    = ", 100(es11.4,1x))') mean_density
+  if (rank.eq.0) then
+     write(6,'("Mean masses       = ", 100(es11.4,1x))') mean(S_MASS,:)
+     write(6,'("Mean temperatures = ", 100(es11.4,1x))') mean_temperature
+     write(6,'("Mean densities    = ", 100(es11.4,1x))') mean_density
+     write(6,*) ' '
+  end if
 
   ! Set mean pressure at each vertical level starting at top level
   do k = zlevels, 1, -1
@@ -359,7 +362,7 @@ program tenlayergauss
         if (k .eq. zlevels) then 
            mean_press(k) = press_infty + 0.5_8*grav_accel*mean(S_MASS,k)
         else
-           mean_press(k) = mean_press(k-1) + 0.5_8*grav_accel*(mean(S_MASS,k) + mean(S_MASS,k-1))
+           mean_press(k) = mean_press(k+1) + 0.5_8*grav_accel*(mean(S_MASS,k) + mean(S_MASS,k+1))
         end if
 
         ! Mean surface pressure is reference pressure
@@ -368,7 +371,7 @@ program tenlayergauss
         if (k .eq. zlevels) then
            mean_press(k) = press_infty + 0.5_8*grav_accel*mean(S_TEMP,k)
         else 
-           mean_press(k) = mean_press(k-1) + 0.5_8*grav_accel*(mean(S_TEMP,k)+mean(S_TEMP,k-1))
+           mean_press(k) = mean_press(k+1) + 0.5_8*grav_accel*(mean(S_TEMP,k)+mean(S_TEMP,k+1))
         end if
 
         ! Mean surface pressure is reference pressure
@@ -376,8 +379,10 @@ program tenlayergauss
      end if
   end do
 
-  write(6,'(A,100(es11.4,1x))'), 'Mean pressures    = ', mean_press
-  write(6,'(A,es11.4,/)'),       'Surface pressure  = ', ref_press
+  if (rank.eq.0) then
+     write(6,'(A,100(es11.4,1x))'), 'Mean pressures    = ', mean_press
+     write(6,'(A,es11.4,/)'),       'Surface pressure  = ', ref_press
+  end if
   
   ! Calculate mean mass-weighted potential temperature (assume constant temperature)
   if (compressible) then
@@ -393,8 +398,10 @@ program tenlayergauss
   end do
   
   if (compressible) then ! Only used in compressible case
-     write(6,'(A,100(es11.4,1x))')   'Mean exner            = ', mean_exner
-     write(6,'(A,100(es11.4,1x),/)') 'Mean specific volumes = ', mean_spec_vol
+     if (rank.eq.0) then
+        write(6,'(A,100(es11.4,1x))')   'Mean exner            = ', mean_exner
+        write(6,'(A,100(es11.4,1x),/)') 'Mean specific volumes = ', mean_spec_vol
+     end if
   end if
 
   ! Relative perturbation magnitudes
