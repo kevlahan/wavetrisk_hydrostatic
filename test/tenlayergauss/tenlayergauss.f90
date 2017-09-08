@@ -2,35 +2,35 @@ module tenlayergauss_mod
   use main_mod
   implicit none
 
-  ! Dimensional physical parameters
-  real(8), parameter :: H_star     = 3.344175893265152e+03
-  real(8), parameter :: R_star     = 6371e3_8
-  real(8), parameter :: L_star     = R_star
-
-  real(8), parameter :: grav_accel_t = 9.80616_8 !gravitational acceleration in meters per second squared
-  real(8), parameter :: h_0_t        = 3.344175893265152e+03 !mean ocean depth
-  real(8), parameter :: a_t          = 6.371229e6 !mean radius of the Earth in meters
-  real(8), parameter :: omega_t      = 0.0_8 !Earth’s angular velocity in radians per second
-  real(8), parameter :: f0_t         = 2.0_8*omega_t !Coriolis parameter
-  real(8), parameter :: T_0_t        = 288.0_8 !temperature in Kelvin
-  real(8), parameter :: ref_press_t  = 100145.6_8 !reference pressure (mean surface pressure) in Pascals
-  real(8), parameter :: R_d_t        = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
-  real(8), parameter :: c_p_t        = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
-  real(8), parameter :: kappa_t      = R_d_t/c_p_t !kappa=R_d/c_p
-  real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
-
+  ! Values for troposphere (roughly)
+  real(8), parameter :: grav_accel_t      = 9.80616_8 !gravitational acceleration in meters per second squared
+  real(8), parameter :: Height_t             = 11e3_8 ! Assumed atmosphere height
+  real(8), parameter :: ref_density_t     = 1.225_8 ! Density of air in kg/m^3
+  real(8), parameter :: a_t               = 6.371229e6 !mean radius of the Earth in meters
+  real(8), parameter :: omega_t           = 0.0_8 !Earth’s angular velocity in radians per second
+  real(8), parameter :: f0_t              = 2.0_8*omega_t !Coriolis parameter
+  real(8), parameter :: ref_temperature_t = 288.15_8 !temperature in Kelvin
+  real(8), parameter :: R_d_t             = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
+  real(8), parameter :: c_p_t             = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
+  real(8), parameter :: kappa_t           = R_d_t/c_p_t !kappa=R_d/c_p
+  
+  !real(8), parameter :: ref_press_t  = 100145.6_8 ! reference pressure (mean atmospheric surface pressure)
+  
   ! Dimensional scaling
-  real(8), parameter :: Ldim = a_t  ! Horizontal length scale
-  real(8), parameter :: Hdim = h_0_t  ! Vertical length scale
-  real(8), parameter :: Udim = sqrt(h_0_t*grav_accel_t); ! Velocity scale is unperturbed wave speed
+  real(8), parameter :: Ldim = 1.0!a_t  ! Horizontal length scale
+  real(8), parameter :: Hdim = 1.0!Height_t  ! Vertical length scale
+  real(8), parameter :: Udim = 1.0!sqrt(h_0_t*grav_accel_t); ! Velocity scale is unperturbed wave speed
   real(8), parameter :: Tdim = Ldim/Udim            ! Time scale
+  
   real(8), parameter :: acceldim = Udim*Udim/Hdim  ! acceleration scale
-  real(8), parameter :: Tempdim = T_0_t   ! temperature scale (both theta and T from DYNAMICO)
-  real(8), parameter :: pdim = ref_press_t    ! pressure scale
-  real(8), parameter :: R_ddim = R_d_t  ! R_d scale
+  real(8), parameter :: temperature_dim = 1.0!T_0_t   ! temperature scale (both theta and T from DYNAMICO)
+  real(8), parameter :: pdim = 1.0!ref_press_t    ! pressure scale
+  real(8), parameter :: R_dim = 1.0!R_d_t  ! R_d scale
+  real(8), parameter :: density_dim = 1.0!ref_density_t
 
   ! Non-dimensional parameters
-  real(8), parameter :: H    = h_0_t/Hdim
+  real(8), parameter :: H = Height_t/Hdim
+  real(8) :: ref_temperature, press_infty_t
 
   real(8) :: csq
 
@@ -42,7 +42,7 @@ module tenlayergauss_mod
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin, k_tsu
   real(8) :: initotalmass, totalmass, timing, total_time
-  real(8) :: max_mass, max_temp, max_velo, max_dmass, mass_scale, temp_scale, velo_scale
+  real(8) :: max_mass, max_temp, max_velo, max_dmass, max_dtemp, mass_scale, temp_scale, velo_scale
 
   logical const_bathymetry
 
@@ -78,7 +78,6 @@ contains
     if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
          time, dt, timing, level_end, n_active, VELO_SCALE
   end subroutine write_and_print_step
-
 
   subroutine cpt_max_vars(dom, i, j, zlev, offs, dims)
     type(Domain) dom
@@ -145,12 +144,10 @@ contains
 
     dom%surf_geopot%elts(id+1) = 0.0_8
 
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
-
     ! Perturbation to mass and potential temperature
     if (zlev.eq.zlevels) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = max_dmass*exp(-(rgrc/width)**2)
-       pot_temp = max_dmass*exp(-(rgrc/width)**2)
+       sol(S_MASS,zlev)%data(d)%elts(id+1) = mean(S_MASS,zlev) * max_dmass*exp(-(rgrc/width)**2)
+       pot_temp = 0.0_8!mean(S_TEMP,zlev)/mean(S_MASS,zlev) * max_dtemp*exp(-(rgrc/width)**2)
     else
        sol(S_MASS,zlev)%data(d)%elts(id+1) = 0.0_8
        pot_temp = 0.0_8
@@ -258,7 +255,7 @@ contains
     integer, optional :: itype
     integer :: l, k
 
-    ! tol_mass = max_mass * c_p/radius * threshold !  dmass/T = max_mass c/L
+    ! tol_mass = max_mass * sqrt(csq)/radius * threshold !  dmass/T = max_mass c/L
     ! tol_velo = 2.0_8*max_mass*sqrt(grav_accel/H) * c_p/radius * threshold ! U/T = U c/L
     ! tol_temp = tol_mass
 
@@ -311,78 +308,114 @@ program tenlayergauss
   logical write_init
 
   call init_main_mod()
-  call read_test_case_parameters("tenlayergauss.in")
-
-  ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
-  omega = omega_t * Tdim
-  grav_accel = grav_accel_t / acceldim
-  radius = a_t / Ldim
-  press_infty = press_infty_t / pdim
-  R_d = R_d_t / R_d_t
-  c_p = c_p_t / R_d_t
-  kappa = kappa_t
-  ref_press = ref_press_t / pdim
-
-  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
-  dx_max = 2.0_8*MATH_PI * radius
-
-  kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
-
-  max_dmass = 5e-2_8
-
-  csq = grav_accel*H
-  c_p = sqrt(csq)
-  k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of tenlayergauss: 100km
-
-  mass_scale = max_dmass
-  temp_scale = mass_scale
-  velo_scale = 2.0_8*max_dmass*sqrt(grav_accel/H)/sqrt(csq)  ! Characteristic velocity based on initial perturbation
-
-  ! Set (non-dimensional) mean values of variables
-  allocate (mean(S_MASS:S_VELO,1:zlevels), mean_press(1:zlevels), mean_spec_vol(1:zlevels), &
-       mean_exner(1:zlevels))
-  do k = 1, zlevels
-     mean(S_MASS,k) = 1.0_8/real(zlevels)
-     mean(S_TEMP,k) = mean(S_MASS,k)
-     mean(S_VELO,k) = 0.0_8
-  end do
-
-  do k = 1, zlevels
-     !set mean pressure
-     if (k .eq. 1) then
-        mean_press(k) = -0.5_8*grav_accel*mean(S_MASS,k)
-     else
-        mean_press(k) = mean_press(k-1) - 0.5_8*grav_accel*mean(S_MASS,k) &
-             - 0.5_8*grav_accel*mean(S_MASS,k-1)
-     end if
-
-     if (k .eq. zlevels) then
-        mean_press(:) = mean_press(:) - (mean_press(k)- 0.5_8*grav_accel*mean(S_MASS,k))
-     end if
-  end do
-  PRINT *, 'mean_press', mean_press
-
-  !set mean exner and mean specific volume once
-  do k = 1, zlevels
-     mean_exner(k) = c_p*(mean_press(k)/ref_press)**kappa
-     mean_spec_vol(k) = kappa*(mean(S_TEMP,k)/mean(S_MASS,k))*mean_exner(k)/mean_press(k)
-  end do
-  PRINT *, 'mean_exner', mean_exner
-  PRINT *, 'mean_spec_vol', mean_spec_vol
-
 
   wind_stress      = .False.
   penalize         = .False.
   bottom_friction  = .False.
   const_bathymetry = .True.
   compressible     = .True.
+  
+  call read_test_case_parameters("tenlayergauss.in")
 
+  press_infty = 14101_8/pdim
+  
+  omega           = omega_t * Tdim
+  grav_accel      = grav_accel_t / acceldim
+  radius          = a_t / Ldim
+  press_infty     = press_infty_t / pdim
+  ref_density     = ref_density_t/density_dim
+  kappa           = kappa_t
+  ref_temperature = ref_temperature_t/temperature_dim
+
+  R_d = R_d_t
+  c_p = c_p_t
+
+  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
+  dx_max = 2.0_8*MATH_PI * radius
+
+  kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
+
+  ! Set (non-dimensional) mean values of variables
+  allocate (mean(S_MASS:S_VELO,1:zlevels))
+  allocate (mean_press(1:zlevels), mean_spec_vol(1:zlevels), mean_exner(1:zlevels))
+  allocate (mean_density(1:zlevels), mean_temperature(1:zlevels))
+
+  mean(S_VELO,1:zlevels) = 0.0_8
+  
+  do k = 1, zlevels
+     mean_temperature(k) = ref_temperature - 6.5_8 * real(k-1+0.5) * H/real(zlevels)/1e3_8 ! Lapse rate for troposphere per km
+     mean_density(k)     = ref_density     - (ref_density-4.66348e-01_8)/real(zlevels) * real(k-1+0.5) ! Density profile for troposphere
+     
+     mean(S_MASS,k) = mean_density(k) * H/real(zlevels)
+     
+     if (.not. compressible) mean(S_TEMP,k) = mean(S_MASS,k)*mean_density(k)/ref_density ! constant density ref_density
+  end do
+  write(6,'("Mean temperatures = ", 100(es11.4,1x))') mean_temperature
+  write(6,'("Mean densities    = ", 100(es11.4,1x))') mean_density
+
+  ! Set mean pressure at each vertical level starting at top level
+  do k = zlevels, 1, -1
+     if (compressible) then ! Compressible case
+        if (k .eq. zlevels) then 
+           mean_press(k) = press_infty + 0.5_8*grav_accel*mean(S_MASS,k)
+        else
+           mean_press(k) = mean_press(k-1) + 0.5_8*grav_accel*(mean(S_MASS,k) + mean(S_MASS,k-1))
+        end if
+
+        ! Mean surface pressure is reference pressure
+        if (k .eq. 1) ref_press = mean_press(k) + 0.5_8*grav_accel*mean(S_MASS,k)
+     else ! Incompressible case
+        if (k .eq. zlevels) then
+           mean_press(k) = press_infty + 0.5_8*grav_accel*mean(S_TEMP,k)
+        else 
+           mean_press(k) = mean_press(k-1) + 0.5_8*grav_accel*(mean(S_TEMP,k)+mean(S_TEMP,k-1))
+        end if
+
+        ! Mean surface pressure is reference pressure
+        if (k .eq. 1) ref_press = mean_press(k) + 0.5_8*grav_accel*mean(S_TEMP,k)
+     end if
+  end do
+
+  write(6,'(A,100(es11.4,1x))'), 'Mean pressures    = ', mean_press
+  write(6,'(A,es11.4,/)'),       'Surface pressure  = ', ref_press
+  
+  ! Calculate mean mass-weighted potential temperature (assume constant temperature)
+  if (compressible) then
+     do k = 1, zlevels
+        mean(S_TEMP,k) = mean_temperature(k) * (ref_press/mean_press(k))**kappa * mean(S_MASS,k)
+     end do
+  end if
+
+  ! Set mean exner and mean specific volume once
+  do k = 1, zlevels
+     mean_exner(k) = c_p*(mean_press(k)/ref_press)**kappa
+     mean_spec_vol(k) = kappa*(mean(S_TEMP,k)/mean(S_MASS,k))*mean_exner(k)/mean_press(k)
+  end do
+  
+  if (compressible) then ! Only used in compressible case
+     write(6,'(A,100(es11.4,1x))')   'Mean exner            = ', mean_exner
+     write(6,'(A,100(es11.4,1x),/)') 'Mean specific volumes = ', mean_spec_vol
+  end if
+
+  ! Relative perturbation magnitudes
+  max_dmass = 5e-2_8
+  max_dtemp = 5e-2_8
+
+  csq = grav_accel*H
+  
+  k_tsu = 2.0_8*MATH_PI/(1e6_8/Ldim) ! Approximate wavelength of tenlayergauss: 100km
+
+  mass_scale = max_dmass * mean(S_MASS,zlevels)
+  temp_scale = mass_scale
+  velo_scale = 2.0_8*max_dmass*sqrt(grav_accel/H)/sqrt(csq)  ! Characteristic velocity based on initial perturbation
+  
   if (rank.eq.0) then
-     write(*,'(A,L1)') "wind_stress      = ", wind_stress
-     write(*,'(A,L1)') "penalize         = ", penalize
-     write(*,'(A,L1)') "bottom friction  = ", bottom_friction
-     write(*,'(A,L1)') "const_bathymetry = ", const_bathymetry
-     if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
+     write(6,'(A,L1)') "wind_stress      = ", wind_stress
+     write(6,'(A,L1)') "penalize         = ", penalize
+     write(6,'(A,L1)') "bottom friction  = ", bottom_friction
+     write(6,'(A,L1)') "const_bathymetry = ", const_bathymetry
+     write(*,'(A,L1)') "compressible     = ", compressible
+     write(6,*) ' '
   end if
 
   viscosity = 0.0_8
@@ -415,7 +448,7 @@ program tenlayergauss
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F8.4,A,F8.4,3(A,ES12.4),A,I9,A,ES11.4,1x)') &
+     if (rank .eq. 0) write(*,'(A,es11.4,A,es9.2,3(A,ES9.2),A,I9,A,ES9.2,1x)') &
           'time [h] = ', time/3600.0_8*Tdim, &
           ' dt [s] = ', dt*Tdim, &
           ' min. depth = ', fd, &

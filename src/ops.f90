@@ -530,7 +530,6 @@ contains
 
        !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
-          !PRINT *, 'surf_geopot', dom%surf_geopot%elts(id+1)
           dom%geopot%elts(id+1) = dom%surf_geopot%elts(id+1) + 0.5_8*grav_accel*(full_mass*pert_spec_vol + &
                mass(id+1)*mean_spec_vol(zlev))
        else !other layers equal to half of previous layer and half of current layer
@@ -553,14 +552,17 @@ contains
        end if
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*full_temp - press_infty).gt. 1e-11_8) then
+          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*full_temp - press_infty).gt. 1e-10_8) then
              print *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
+             write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id+1)-0.5_8*grav_accel*full_temp
+             write(6,'(A,es15.8)') "Press_infty = ", press_infty
+              write(6,'(A,es15.8)') "Difference = ",  dom%press%elts(id+1)-0.5_8*grav_accel*full_temp - press_infty
              stop
           end if
        end if
 
        !compute the specific volume as 1 divided by the constant density
-       dom%spec_vol%elts(id+1) = 1.0_8/cst_density
+       dom%spec_vol%elts(id+1) = 1.0_8/ref_density
 
        !integrate the geopotential; surf_geopot is in shared.f90; (18) and below in DYNAMICO
        if (zlev .eq. 1) then !bottom zlev, integrate half of a layer up from the surface
@@ -620,7 +622,6 @@ contains
        !surface pressure is set (even at t=0) from downward numerical integration
        if (zlev .eq. 1) then
           dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_temp
-          !PRINT *, 'surf_press', dom%surf_press%elts(id+1)
        end if
     end if
 
