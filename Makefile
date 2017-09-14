@@ -18,7 +18,7 @@ SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
 INTEL_FLAGS = -fpe0 -traceback -module $(BUILD_DIR) # -fpe0 -traceback -check bounds
-GNU_FLAGS = -J$(BUILD_DIR)
+GNU_FLAGS = -J$(BUILD_DIR) -fbacktrace -fcheck=all
 
 MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
 
