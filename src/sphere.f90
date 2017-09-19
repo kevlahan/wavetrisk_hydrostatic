@@ -244,31 +244,71 @@ contains
     end if
   end subroutine init_Areas
 
-  real(8) function proj_vel(vel_fun, ep1, ep2)
-    external vel_fun
-    type(Coord) ep1
-    type(Coord) ep2
-    type(Coord) co
-    real(8) lon
-    real(8) lat
-    real(8), dimension(3) :: e_lat
-    real(8), dimension(3) :: e_lon
-    real(8) u
-    real(8) v
-    real(8), dimension(3) :: vel
+  real(8) function proj_vel (vel_fun, ep1, ep2)
+    ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
+    ! given a function for zonal u and meridional v velocities as a function of longitude and latitude
+    external    :: vel_fun
+    type(Coord) :: ep1, ep2
+    
+    type(Coord)           :: co
+    real(8)               :: lon, lat, u, v
+    real(8), dimension(3) :: e_zonal, e_merid, vel
 
     co = mid_pt(ep1, ep2)
 
+    ! Find longitude and latitude coordinates of point co
     call cart2sph(co, lon, lat)
 
-    e_lat = (/-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)/)
-    e_lon = (/-sin(lon), cos(lon), 0.0_8/)
+    e_merid = (/-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)/) ! Meridional direction
+    e_zonal = (/-sin(lon), cos(lon), 0.0_8/)                       ! Zonal direction
 
+    ! Function returning zonal and meridional velocities given longitude and latitude
     call vel_fun(lon, lat, u, v)
 
-    vel = e_lat*v + e_lon*u
+    ! Velocity vector in Cartesian coordinates
+    vel = u*e_zonal + v*e_merid
+
+    ! Project velocity vector on direction given by points ep1, ep2
     proj_vel = inner(direction(ep1, ep2), Coord(vel(1), vel(2), vel(3)))
   end function proj_vel
+
+  subroutine zonal_meridional_vel (co, co_east, co_northeast, co_north, u, v, w, zlev, u_zonal, v_merid)
+    ! Finds zonal velocity u_zonal and meridional velocity v_merid given UVW velocities at position co
+    
+    integer     :: zlev
+    type(Coord) :: co, co_east, co_northeast, co_north
+    real (8)    :: u, v, w, u_zonal, v_merid
+    
+    type(Coord) :: rt_vel, dg_vel, up_vel, uvw_vel, e_merid, e_zonal
+    real(8)     :: lon, lat
+
+    ! Find longitude and latitude coordinates of point co
+    call cart2sph(co, lon, lat)
+    
+    e_zonal = Coord(-sin(lon), cos(lon), 0.0_8)                       ! Zonal direction
+    e_merid = Coord(-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+
+    ! U direction 
+    rt_vel = direction(co, co_east) ! Direction
+
+    ! V direction 
+    dg_vel = direction(co_northeast, co)
+
+    ! W direction 
+    up_vel = direction(co, co_north)
+
+    ! Velocity in Cartesian coordinates
+    uvw_vel = Coord( &
+         u*rt_vel%x + v*dg_vel%x + w*up_vel%x, &
+         u*rt_vel%y + v*dg_vel%y + w*up_vel%y, &
+         u*rt_vel%z + v*dg_vel%z + w*up_vel%z )
+
+    ! Zonal velocity
+    u_zonal = inner(uvw_vel, e_zonal)
+
+    ! Meridional velocity
+    v_merid = inner(uvw_vel, e_merid)
+  end subroutine zonal_meridional_vel
 
   real(8) function proj_vel_eta(vel_fun, ep1, ep2, eta_z)
     !extention of proj_vel that allows for another parameter eta_z to be passed in vel_fun

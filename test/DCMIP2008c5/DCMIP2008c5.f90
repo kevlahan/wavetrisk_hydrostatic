@@ -8,7 +8,7 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
 
   ! all dimensional, subscript _t denotes test case values in contrast to those set in shared.f90
   real(8), parameter :: grav_accel_t = 9.80616_8 !gravitational acceleration in meters per second squared
-  real(8), parameter :: omega_t      = 7.29211e-5 !Earth’s angular velocity in radians per second
+  real(8), parameter :: omega_t      = 7.29211e-5_8 !Earth’s angular velocity in radians per second
   real(8), parameter :: f0_t         = 2.0_8*omega_t !Coriolis parameter
   real(8), parameter :: u_0_t        = 20.0_8 !velocity in meters per second
   real(8), parameter :: T_0_t        = 288.0_8 !temperature in Kelvin
@@ -23,7 +23,7 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   real(8), parameter :: c_p_t        = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
   real(8), parameter :: kappa_t      = R_d_t/c_p_t !kappa=R_d/c_p
   real(8), parameter :: N_t          = sqrt(grav_accel_t*grav_accel_t/(c_p_t*T_0_t)) !Brunt-Vaisala buoyancy frequency
-  real(8), parameter :: cst_density_t= 100.0_8 !density for the incompressible case in kilogram per metres cubed
+  real(8), parameter :: ref_density_t= 100.0_8 !density for the incompressible case in kilogram per metres cubed
   real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
 
   ! Dimensional scaling
@@ -50,7 +50,7 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   integer :: CP_EVERY 
 
   real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin
-  real(8) :: initotalmass, totalmass, timing, total_time, dh, mean_mass(1:18), mean_temp(1:18), nr_nodes
+  real(8) :: initotalmass, totalmass, timing, total_time, dh
 
   logical const_bathymetry, wasprinted
 
@@ -66,7 +66,6 @@ contains
     do l = level_start, level_end
        do k = 1, zlevels
           call apply_onescale(init_sol, l, k, 0, 1)
-          !call apply_onescale(nondim_sol, l, k, 0, 1)
           wasprinted=.false.
        end do
     end do
@@ -108,7 +107,7 @@ contains
   end subroutine cpt_max_dh
 
   subroutine initialize_a_b_vert()
-    allocate(a_vert(zlevels+1), b_vert(zlevels+1))
+    allocate(a_vert(1:zlevels+1), b_vert(1:zlevels+1))
 
     if (zlevels.eq.18) then
        a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
@@ -118,8 +117,18 @@ contains
        a_vert=a_vert(19:1:-1) ! DCMIP order is opposite ours
        b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
             0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
-            0.953189_8, 0.985056_8, 1.0_8/)
+            0.953189_8, 0.985056_8, 1.0_8 /)
        b_vert=b_vert(19:1:-1)
+    elseif (zlevels.eq.26) then
+       a_vert=(/0.002194067, 0.004895209, 0.009882418, 0.01805201, 0.02983724, 0.04462334, 0.06160587, &
+            0.07851243, 0.07731271, 0.07590131, 0.07424086, 0.07228744, 0.06998933, 0.06728574, 0.06410509, &
+            0.06036322, 0.05596111, 0.05078225, 0.04468960, 0.03752191, 0.02908949, 0.02084739, 0.01334443, &
+            0.00708499, 0.00252136, 0.0, 0.0 /)
+       a_vert=a_vert(27:1:-1)
+       b_vert=(/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01505309, 0.03276228, 0.05359622, 0.07810627, &
+            0.1069411, 0.1408637, 0.1807720, 0.2277220, 0.2829562, 0.3479364, 0.4243822, 0.5143168, &
+            0.6201202, 0.7235355, 0.8176768, 0.8962153, 0.9534761, 0.9851122, 1.0 /)
+       b_vert=b_vert(27:1:-1)
     elseif (zlevels.eq.49) then
        a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
             0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
@@ -131,7 +140,7 @@ contains
             0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
             0.0_8, 0.0_8 /)
        a_vert=a_vert(50:1:-1)
-       b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
+       b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
             0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
             0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
             0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
@@ -151,8 +160,10 @@ contains
     integer i, j, k, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, d, idN, idE, idNE
-    real(8) lon, lat, rgrc, lev_z, lev_press, lev_spec_volume
+    integer :: id, d, idN, idE, idNE
+    real(8) :: lon, lat, rgrc,  lev_press, lev_press_top, lev_press_bottom, lev_spec_volume
+    real(8) :: lev_z, lev_z_top, lev_z_bottom, dz, dpress, pot_temp
+    real(8) :: A, B
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
@@ -164,130 +175,76 @@ contains
 
     !set surface geopotential (note that this really only needs to be done once)
     rgrc = a_t*acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
-    dom%surf_geopot%elts(id+1) = grav_accel_t * h_0_t * exp(-rgrc*rgrc/d2_t)
+    dom%surf_geopot%elts(id+1) = grav_accel_t * h_0_t * exp(-rgrc**2/d2_t)
 
-    !set initial surface pressure; it is given but only used to set the initial mass distribution
-    dom%surf_press%elts(id+1) = p_sp_t*exp(-((a_t*N_t*N_t*u_0_t)/(2.0_8*grav_accel_t*grav_accel_t*kappa_t))* &
-         (u_0_t/a_t+2.0_8*omega_t)*(sin(lat)*sin(lat)-1.0_8)-((N_t*N_t)/(grav_accel_t*grav_accel_t*kappa_t))* &
-         dom%surf_geopot%elts(id+1))
+    dom%surf_press%elts(id+1) = p_sp_t * exp ( &
+         - a_t*N_t**2*u_0_t/(2.0_8*grav_accel_t**2*kappa_t)*(u_0_t/a_t+2.0_8*omega_t)*(sin(lat)**2-1.0_8) &
+         - N_t**2/(grav_accel_t**2*kappa_t)*dom%surf_geopot%elts(id+1) )
+    
+    ! Pressure at top interface of vertical layer zlev in terms of A and B coefficients defining distribution of vertical grid levels
+    ! see (118) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
+    lev_press_top    = a_vert(zlev+1)*dom%surf_press%elts(id+1)  + b_vert(zlev+1)*dom%surf_press%elts(id+1) 
+    lev_press_bottom = a_vert(zlev)  *dom%surf_press%elts(id+1)  + b_vert(zlev)  *dom%surf_press%elts(id+1)
+    lev_press = 0.5_8 * (lev_press_top + lev_press_bottom)
 
-    !now initialize all the layers
-    !set initial mass field
-    lev_press=a_vert(zlev+1)*ref_press_t+b_vert(zlev+1)*dom%surf_press%elts(id+1)
-    lev_z=log(dom%surf_press%elts(id+1)/lev_press)*T_0_t*R_d_t/grav_accel_t !see (92) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
+    ! Equally spaced in pressure vertical layers
+    ! dpress           = (dom%surf_press%elts(id+1) - press_infty)/real(zlevels)  
+    ! lev_press        = dom%surf_press%elts(id+1) - 0.5_8*dpress - dpress*real(zlev-1)
+    ! lev_press_top    = lev_press - 0.5_8*dpress
+    ! lev_press_bottom = lev_press + 0.5_8*dpress
 
-    if (zlev.eq.1) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z
-       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+dom%surf_press%elts(id+1))
-    elseif (zlev.eq.zlevels) then
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z - dom%adj_mass%elts(id+1)
-       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+press_infty_t)
-    else
-       sol(S_MASS,zlev)%data(d)%elts(id+1) = lev_z - dom%adj_mass%elts(id+1)
-       dom%spec_vol%elts(id+1)=2.0_8*kappa_t*c_p_t*T_0_t/(lev_press+dom%adj_temp%elts(id+1))
-    end if
-    !error of integration: deltap^3/(12*g*p^2)
+    lev_z_top    = log(dom%surf_press%elts(id+1)/lev_press_top)   *T_0_t*R_d_t/grav_accel_t
+    lev_z_bottom = log(dom%surf_press%elts(id+1)/lev_press_bottom)*T_0_t*R_d_t/grav_accel_t
+    dz = lev_z_top - lev_z_bottom ! Thickness of layer zlev
+    lev_z = lev_z_bottom + 0.5_8*dz
+    
+    dom%spec_vol%elts(id+1) = R_d_t*T_0_t/lev_press ! Ideal gas law
+    
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = dz/dom%spec_vol%elts(id+1) ! rho dz
+    
+    ! Horizontally uniform potential temperature
+    pot_temp = T_0_t * (lev_press / ref_press_t)**(-kappa_t)
 
-    !print out representative layer thicknesses
+    ! Mass weighted potential temperature
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
+
+     ! Print out layer thicknesses
     if (.not.wasprinted) then
-       if (rank .eq. 0) write(*,'(A,I2,A,F8.2,A,F9.2,A,F9.2)') &
-            'zlev=', zlev, &
-            ',   thickness (in metres)=', sol(S_MASS,zlev)%data(d)%elts(id+1), &
-            ',   z coord (in metres)=', lev_z, &
-            ',   layer upper interface pressure (in Pascals)=', lev_press
-       wasprinted=.true.
+       if (rank .eq. 0) then
+           if(zlev.eq.1) then
+             write(6,'(3(A,es11.4))') &
+                  ' surf geopot =', dom%surf_geopot%elts(id+1), &
+                  ' surf press =', dom%surf_press%elts(id+1), &
+                  ' press_infty =', press_infty 
+          end if
+          
+          write(6,'(A,I2,1x,6(A,es11.4))') &
+               ' zlev = ', zlev, &
+               ' z =', lev_z, &
+               ' dz =', dz, &
+               ' press =', lev_press, &
+               ' mu =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
+               ' theta =', pot_temp, &
+               ' alpha =', dom%spec_vol%elts(id+1)
+          wasprinted=.true.
+       end if
     end if
+    
+    ! Set initial velocity field
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idE+1))
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, dom%node%elts(idNE+1), dom%node%elts(id+1))
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-    !note that sol(S_MASS) was not exactly rho*dz so far, it was just dz
-    sol(S_MASS,zlev)%data(d)%elts(id+1)=sol(S_MASS,zlev)%data(d)%elts(id+1)/dom%spec_vol%elts(id+1)
-
-    mean_mass(zlev)=mean_mass(zlev) + sol(S_MASS,zlev)%data(d)%elts(id+1)
-
-    !set initial velocity field
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
-         dom%node%elts(idE+1))
-    sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1) = proj_vel(vel_fun, dom%node%elts(idNE+1), &
-         dom%node%elts(id+1))
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1), &
-         dom%node%elts(idN+1))
-
-    !set initial non-mass-weighted potential temperature; uniform
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = T_0_t*(lev_press / ref_press_t)**(-kappa_t)
-
-    !now make it mass-weighted
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)*sol(S_TEMP,zlev)%data(d)%elts(id+1)
-
-    mean_temp(zlev)=mean_temp(zlev) + sol(S_TEMP,zlev)%data(d)%elts(id+1)
-
-    !PRINT *,' potential temperature', sol(S_TEMP,zlev)%data(d)%elts(id+1)
-    !PRINT *, (lev_press / ref_press)**(-kappa)
-    !PRINT *, lev_press / ref_press
-    !PRINT *, '--'
-
-    nr_nodes = nr_nodes+1
-
-    dom%adj_mass%elts(id+1) = lev_z !adj_mass is used to save adjacent lev_z
-    dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
+    !dom%adj_mass%elts(id+1) =  sol(S_MASS,zlev)%data(d)%elts(id+1) !adj_mass is used to save adjacent mass
+    !dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
   end subroutine init_sol
 
-  subroutine nondim_sol(dom, i, j, zlev, offs, dims) !nondimensionalize the initial conditions
-    !and subtract non-dimensional mean quantities
-    type(Domain) dom
-    integer i, j, k, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, d, idN, idE, idNE
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
-    idN = idx(i, j + 1, offs, dims)
-    idE = idx(i + 1, j, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-
-    if (zlev.eq.1) then
-       dom%surf_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/geopotdim
-    end if
-
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1)/massdim
-
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) - mean(S_MASS,zlev)
-
-    !if (abs(sol(S_MASS,zlev)%data(d)%elts(id+1)/mean(S_MASS,zlev)).gt.1.0_8) then
-    !   PRINT *, 'fatal error: mass perturbation is large, perturbation/mean>1'
-    !   PRINT *, 'mean=', mean(S_MASS,zlev), 'perturbation=', sol(S_MASS,zlev)%data(d)%elts(id+1)
-    !   stop
-    !end if
-
-    if ((sol(S_MASS,zlev)%data(d)%elts(id+1)+mean(S_MASS,zlev)).lt.1e-4) then
-       PRINT *, 'fatal error: mass has mean+perturbation<0'
-       stop
-    end if
-
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1)/Udim
-    sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1) = sol(S_VELO,zlev)%data(d)%elts(DG+EDGE*id+1)/Udim
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)/Udim
-
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/(Tempdim*massdim)
-
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_TEMP,zlev)%data(d)%elts(id+1) - mean(S_TEMP,zlev)
-
-    !if (abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)/mean(S_TEMP,zlev)).gt.1.0_8) then
-    !   PRINT *, 'fatal error: temperature perturbation is large, perturbation/mean>1'
-    !   PRINT *, 'mean=', mean(S_TEMP,zlev), 'perturbation=', sol(S_TEMP,zlev)%data(d)%elts(id+1)
-    !   stop
-    !end if
-
-    if ((sol(S_TEMP,zlev)%data(d)%elts(id+1)+mean(S_TEMP,zlev)).lt.1e-4) then
-       PRINT *, 'fatal error: temperature has mean+perturbation<0'
-       stop
-    end if
-  end subroutine nondim_sol
-
   subroutine vel_fun(lon, lat, u, v)
-    real(8) lon, lat
-    real(8) u, v
-    u = u_0_t*cos(lat)
-    v = 0.0_8
+    ! Zonal latitude-dependent wind
+    real(8) :: lon, lat
+    real(8) :: u, v
+    u = u_0_t*cos(lat)  ! Zonal velocity component
+    v = 0.0_8           ! Meridional velocity component
   end subroutine vel_fun
 
   subroutine read_test_case_parameters(filename)
@@ -337,7 +294,7 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = zlevels ! export only one vertical level
+    zlev = 6 ! export only one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
@@ -381,7 +338,7 @@ contains
   end subroutine DCMIP2008c5_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE * c_p/grav_accel * threshold**(1.5_8)
+    tol_mass = VELO_SCALE * sqrt(csq)/grav_accel * threshold**(1.5_8)
     tol_velo = VELO_SCALE                        * threshold**(1.5_8)
     tol_temp = tol_mass
   end subroutine set_thresholds
@@ -420,36 +377,27 @@ program DCMIP2008c5
   c_p = c_p_t !/ R_d_t
   kappa = kappa_t
   ref_press = ref_press_t !/ pdim
-  cst_density = cst_density_t !not non-dimensionalized at present, NOT USED HERE
+  ref_density = ref_density_t !not non-dimensionalized at present, NOT USED HERE
 
-  PRINT *, 'massdim=', massdim
-  PRINT *, 'Tempdim=', Tempdim
-  PRINT *, 'Tdim=', Tdim
+  PRINT *, 'massdim = ', massdim
+  PRINT *, 'Tempdim = ', Tempdim
+  PRINT *, 'Tdim    = ', Tdim
 
-  ! Set (non-dimensional) mean values of variables, JEMF: hardcoded for now
+  ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_VELO,1:zlevels))
-  mean(S_MASS,1:zlevels)= (/152.61_8, 298.41_8, 542.58_8, 741.99_8, 891.11_8, 976.80_8, 1006.45_8, &
-       979.30_8, 912.76_8, 812.65_8, 698.99_8, 576.77_8, 462.47_8, 355.41_8, 375.00_8, 293.81_8, 131.65_8, 26.676_8 /)
-  mean(S_MASS,1:zlevels) = mean(S_MASS,1:zlevels)/massdim
-  mean(S_MASS,1:zlevels) = 0.0_8
-  mean(S_TEMP,1:zlevels)= (/44134.40_8, 87042.93_8, 160872.80_8, 225332.45_8, 279334.28_8, 318471.31_8, 343952.80_8, &
-       353477.40_8, 350691.68_8, 334861.89_8, 311348.38_8, 279787.52_8, 246285.69_8, 209281.66_8, 260190.12_8, &
-       262399.32_8, 155839.45_8, 42472.01_8 /)
-  mean(S_TEMP,1:zlevels) = mean(S_TEMP,1:zlevels) / Tempdim
-  mean(S_TEMP,1:zlevels) = 0.0_8
-  mean(S_VELO,1:zlevels) = 0.0_8
+  allocate (mean_press(1:zlevels), mean_spec_vol(1:zlevels), mean_exner(1:zlevels))
+  allocate (mean_density(1:zlevels), mean_temperature(1:zlevels))
 
-  mean_mass=0.0_8
-  mean_temp=0.0_8
-  nr_nodes=0
+  ! Put both mean and perturbations into perturbation term
+  mean = 0.0_8
+  mean_press = 0.0_8; mean_spec_vol = 0.0_8; mean_exner = 0.0_8; mean_density = 0.0_8; mean_temperature = 0.0_8
 
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
   dx_max = 2.0_8*MATH_PI * radius
 
   kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
 
-  csq = grav_accel*a_t !JEMF
-  c_p = sqrt(csq)
+  csq = grav_accel*a_t 
   VELO_SCALE   = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
   wind_stress      = .False.
@@ -477,14 +425,6 @@ program DCMIP2008c5
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
   call sum_total_mass(.True.)
 
-  !PRINT *, 'mean_mass', mean_mass
-  !PRINT *, 'mean_temp', mean_temp
-  !PRINT *, 'nr_nodes', nr_nodes
-  !PRINT *, 'real nr_nodes', nr_nodes/18
-  !    PRINT *, 'real dimensional mean_mass', mean_mass/(nr_nodes/18)
-  !PRINT *, 'real dimensional mean_temp', mean_temp/(nr_nodes/18)
-  !stop
-
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
   call barrier()
 
@@ -501,7 +441,7 @@ program DCMIP2008c5
         end do
      end do
      max_dh = sync_max_d(max_dh)
-     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel*max_dh/c_p))
+     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel*max_dh/sqrt(csq)))
      call set_thresholds()
 
      call start_timing()
@@ -513,11 +453,11 @@ program DCMIP2008c5
      call write_and_print_step()
 
      if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,ES13.5),A,I9,A,ES11.4)') &
-          'time [h] =', time/3600.0_8, &
-          ', dt [s] =', dt, &
-          ', min. depth =', fd, &
-          ', VELO_SCALE =', VELO_SCALE, &
-          ', d.o.f. =', sum(n_active), &
+          'time [h] = ', time/3600.0_8, &
+          ', dt [s] = ', dt, &
+          ', min. depth = ', fd, &
+          ', VELO_SCALE = ', VELO_SCALE, &
+          ', d.o.f. = ', sum(n_active), &
           ', cpu = ', timing
 
      call print_load_balance()
@@ -525,6 +465,7 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         call write_and_export(iwrite)
+
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
         ierr = writ_checkpoint(DCMIP2008c5_dump)
 

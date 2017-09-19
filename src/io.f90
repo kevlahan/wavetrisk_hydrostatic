@@ -483,7 +483,7 @@ contains
     idSW = idx(i - 1, j - 1, offs, dims)
     idS  = idx(i,     j - 1, offs, dims)
 
-    ! Total potential temperature in layer k
+    ! Temperature in layer k
     outv(1) = (sol(S_TEMP,k)%data(dom%id+1)%elts(id+1) + mean(S_TEMP,k))/ &
          (sol(S_MASS,k)%data(dom%id+1)%elts(id+1)  + mean(S_MASS,k))
 
