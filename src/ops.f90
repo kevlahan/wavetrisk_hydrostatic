@@ -16,16 +16,15 @@ contains
     initialized = .True.
   end subroutine init_ops_mod
 
-  subroutine post_step1(dom, p, c, offs, dims, zlev)
-    type(Domain) dom
-    integer p
-    integer c
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
-    integer id, idS, idW, idSW, idN, idE, idNE
-    real(8) pv_SW, pv_W, pv_S, pv_LORT, pv_UPLT, pv_SW_LORT, pv_SW_UPLT, pv
-    real(8) phi(0:N_BDRY), full_mass(0:N_BDRY)
+  subroutine post_step1 (dom, p, c, offs, dims, zlev)
+    type(Domain)                 :: dom
+    integer                      :: p, c, zlev
+    integer, dimension(N_BDRY+1) :: offs
+    integer, dimension(2,9)      :: dims
+
+    integer                      :: id, idS, idW, idSW, idN, idE, idNE
+    real(8)                      :: pv_SW, pv_W, pv_S, pv_LORT, pv_UPLT, pv_SW_LORT, pv_SW_UPLT, pv
+    real(8), dimension(0:N_BDRY) :: phi, full_mass
 
     phi(0:NORTHEAST) = 1.0
 
@@ -131,8 +130,8 @@ contains
        pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) &
             + dom%vort%elts(TRIAG*idSW+UPLT+1)) &
             /(full_mass(SOUTHWEST)*dom%areas%elts(idSW  +1)%part(2) &
-            + full_mass(0)*sum(dom%areas%elts(id  +1)%part(3:4)) &
-            + full_mass(WEST)*dom%areas%elts(idW +1)%part(6))
+            + full_mass(0)*sum(dom%areas%elts(id+1)%part(3:4)) &
+            + full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
 
        pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + dom%vort%elts(TRIAG*id+UPLT+1)*dom%triarea%elts(TRIAG*id+UPLT+1))/ &
             (full_mass(0)*dom%areas%elts(id+1)%part(2) &
@@ -476,7 +475,7 @@ contains
     end subroutine comput
   end subroutine step1
 
-  subroutine vert_integrate_horiz_flux (dom, i, j, zlev, offs, dims)
+  subroutine vert_integrated_horiz_flux (dom, i, j, zlev, offs, dims)
     ! Integrate horizontal fluxes on the three edges vertically 
     type(Domain)                     :: dom
     integer                          :: i, j, zlev
@@ -501,7 +500,7 @@ contains
        dom%integr_horiz_flux%elts(EDGE*id+RT+1) = dom%integr_horiz_flux%elts(EDGE*id+RT+1) + &
             horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+RT+1)
     end do
-  end subroutine vert_integrate_horiz_flux
+  end subroutine vert_integrated_horiz_flux
 
   subroutine compute_vert_flux (dom, i, j, zlev, offs, dims)
     ! Computes vertical mass flux at upper interface of level zlev from mass trend and divergence of horizontal flux
@@ -917,17 +916,19 @@ contains
     if (lagrangian_vertical) then
        dmass(id+1) = horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
        dtemp(id+1) = horiz_div_flux(h_tflux, dom, i, j, offs, dims, id) 
-    else
-       ! Compute mass trend (mu_t) at level zlev from total mass trend (M_t)
-       dmass(id+1) = (a_vert(zlev+1)-a_vert(zlev)) * horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
+    else ! Mass-based vertical coordinates
+       
+       ! Compute mass trend (mu_t) at level zlev from total mass trend M_t
+       ! (our definition of a_vert, b_vert reversed compared with Dynamico paper)
+       dmass(id+1) = (b_vert(zlev+1)-b_vert(zlev)) * horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
 
        ! Compute horizontal divergence of horizontal temperature flux
        dtemp(id+1) = horiz_div_flux(h_tflux, dom, i, j, offs, dims, id)
 
-       ! Compute vertical mass flux at upper interface of level zlev
+       ! Compute vertical mass flux v_mflux at upper interface of level zlev
        call compute_vert_flux (dom, i, j, zlev, offs, dims)
 
-       ! Find potential temperature at current level
+       ! Find non mass-weighted potential temperature at current level
        full_pot_temp = (temp(id+1) + mean(S_TEMP,zlev))/(mass(id+1) + mean(S_MASS,zlev))
 
        ! Add vertical divergence of vertical potential temperature flux to

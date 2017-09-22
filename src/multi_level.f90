@@ -339,7 +339,7 @@ contains
     type(Float_Field), target :: q(S_MASS:S_VELO,1:zlevels), dq(S_MASS:S_VELO,1:zlevels), vert_flux(1:zlevels)
      type(Float_Field), target :: pot_temp
 
-    call update_array_bdry(q, NONE)
+    call update_array_bdry (q, NONE)
 
     if (.not. lagrangian_vertical) vert_flux = q(S_MASS,:) ! Set correct size of vertical flux (will be over-written)
 
@@ -350,7 +350,7 @@ contains
           temp => q(S_TEMP,k)%data(d)%elts
 
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch(integrate_pressure_down, grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
           end do
 
           nullify (mass, temp)
@@ -358,6 +358,8 @@ contains
     end do
 
     ! Calculate trend on finest scale
+
+    ! Compute each vertical level starting from surface
     do k = 1, zlevels
        do d = 1, size(grid)
           mass    => q(S_MASS,k)%data(d)%elts
@@ -368,35 +370,33 @@ contains
 
           ! Compute pressure, geopotential, exner, specific volume
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+             call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
           end do
 
           ! Compute horizontal fluxes, vorticity, potential vorticity, kinetic energy, Bernoulli 
           do j = 1, grid(d)%lev(level_end)%length
-             call step1(grid(d), grid(d)%lev(level_end)%elts(j), k)
+             call step1 (grid(d), grid(d)%lev(level_end)%elts(j), k)
           end do
-          call apply_to_penta_d(post_step1, grid(d), level_end, k)
+          call apply_to_penta_d (post_step1, grid(d), level_end, k)
 
-          ! Compute diffusion term
+          ! Add diffusion term to horizontal fluxes of mass only
           if (viscosity .ne. 0.0_8) then
              do j = 1, grid(d)%lev(level_end)%length
                 call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
              end do
           end if
 
-          nullify(mass, velo, temp, h_mflux, h_tflux)
+          nullify (mass, velo, temp, h_mflux, h_tflux)
        end do
     end do
 
-    if (level_start .lt. level_end) then
-       call update_array_bdry__start(horiz_flux, level_end) ! <= comm flux (Jmax)
-    end if
+    if (level_start .lt. level_end) call update_array_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
 
-    ! Compute vertically integrated horizontal mass flux
+    ! Compute vertically integrated horizontal mass flux (stored in integr_horiz_flux)
     if (.not. lagrangian_vertical) then
        do d = 1, size(grid)
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (vert_integrate_horiz_flux, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (vert_integrated_horiz_flux, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
        end do
     end if
@@ -417,14 +417,16 @@ contains
                 adj_temp_up => q(S_TEMP,k+1)%data(d)%elts
              end if
              
-             h_mflux => grid(d)%integr_horiz_flux%elts ! Use vertically integrated horizontal fluxes
-             ! We save vertical mass flux at all vertical levels in vert_flux
+             ! Use vertically integrated horizontal fluxes
+             h_mflux => grid(d)%integr_horiz_flux%elts
+             
+             ! Save vertical mass flux at all vertical levels in vert_flux
              v_mflux => vert_flux(k)%data(d)%elts 
           end if
           h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
 
           nullify (dmass, dtemp, h_mflux, h_tflux)
@@ -436,8 +438,8 @@ contains
     horiz_flux%bdry_uptodate = .False.
 
     if (level_start .lt. level_end) then
-       call update_array_bdry__finish(horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
-       call update_array_bdry__start(dq(S_MASS:S_TEMP,:), level_end) ! <= start non-blocking communicate dmass (l+1)
+       call update_array_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
+       call update_array_bdry__start (dq(S_MASS:S_TEMP,:), level_end) ! <= start non-blocking communicate dmass (l+1)
     end if
 
     ! Compute non gradient source terms in velocity trend 
@@ -453,7 +455,7 @@ contains
           h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch(du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
+             call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
           nullify(mass, velo, temp, dvelo, h_mflux, h_tflux)
@@ -462,7 +464,7 @@ contains
 
     ! Calculate trend on coarser scales
     do l = level_end-1, level_start, -1
-       call update_array_bdry__finish(dq(S_MASS:S_TEMP,:), l+1) ! <= finish non-blocking communicate dmass (l+1)
+       call update_array_bdry__finish (dq(S_MASS:S_TEMP,:), l+1) ! <= finish non-blocking communicate dmass (l+1)
        do k = 1, zlevels
           do d = 1, size(grid)
              mass    =>  q(S_MASS,k)%data(d)%elts
@@ -474,35 +476,35 @@ contains
              h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
 
              do j = 1, grid(d)%lev(l)%length
-                call step1(grid(d), grid(d)%lev(l)%elts(j), k)
+                call step1 (grid(d), grid(d)%lev(l)%elts(j), k)
              end do
 
-             call apply_to_penta_d(post_step1, grid(d), l, k)
+             call apply_to_penta_d (post_step1, grid(d), l, k)
 
-             ! Diffuse scalars
+             ! Add diffusion term to horizontal fluxes of mass only
              if (viscosity .ne. 0.0_8) then
                 do  j = 1, grid(d)%lev(l)%length
-                   call apply_onescale_to_patch(flux_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+                   call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
                 end do
              end if
              
-             call cpt_or_restr_flux(grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
+             call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
-             nullify(mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
+             nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
           end do
        end do
 
-       call update_array_bdry(horiz_flux, l)
+       call update_array_bdry (horiz_flux, l)
 
        ! Compute vertically integrated horizontal mass flux
        if (.not. lagrangian_vertical) then
           do d = 1, size(grid)
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(vert_integrate_horiz_flux, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (vert_integrated_horiz_flux, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
           end do
        end if
@@ -529,7 +531,7 @@ contains
              h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
 
              nullify (dmass, dtemp, h_mflux, h_tflux)
@@ -539,7 +541,7 @@ contains
 
        dq(S_MASS:S_TEMP,:)%bdry_uptodate = .False.
        
-       if (l .gt. level_start) call update_array_bdry__start(dq(S_MASS:S_TEMP,:), l)  ! <= start non-blocking communicate dmass (l+1)
+       if (l .gt. level_start) call update_array_bdry__start (dq(S_MASS:S_TEMP,:), l)  ! <= start non-blocking communicate dmass (l+1)
        
        if (advect_only) cycle
 
@@ -554,9 +556,9 @@ contains
              h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
              h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
-             call cpt_or_restr_du_source(grid(d), l, k)
+             call cpt_or_restr_du_source (grid(d), l, k)
 
-             nullify(mass, velo, temp, dmass, dvelo, dtemp, h_mflux, h_tflux)
+             nullify (mass, velo, temp, dmass, dvelo, dtemp, h_mflux, h_tflux)
           end do
        end do
           

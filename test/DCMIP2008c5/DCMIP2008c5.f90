@@ -21,6 +21,7 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   real(8), parameter :: ref_press_t  = 100145.6_8 !reference pressure (mean surface pressure) in Pascals
   real(8), parameter :: R_d_t        = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
   real(8), parameter :: c_p_t        = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
+  real(8), parameter :: c_v_t        = 717.6_8 ! specfic heat at constant volume c_v = R_d - c_p
   real(8), parameter :: kappa_t      = R_d_t/c_p_t !kappa=R_d/c_p
   real(8), parameter :: N_t          = sqrt(grav_accel_t*grav_accel_t/(c_p_t*T_0_t)) !Brunt-Vaisala buoyancy frequency
   real(8), parameter :: ref_density_t= 100.0_8 !density for the incompressible case in kilogram per metres cubed
@@ -172,41 +173,35 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer :: id, d, idN, idE, idNE
-    real(8) :: lon, lat, rgrc,  lev_press, lev_press_top, lev_press_bottom, lev_spec_volume
-    real(8) :: lev_z, lev_z_top, lev_z_bottom, dz, dpress, pot_temp
-    real(8) :: A, B
+    real(8) :: lon, lat, rgrc, lev_press, pot_temp
 
     d = dom%id+1
-    id = idx(i, j, offs, dims)
-    idN = idx(i, j + 1, offs, dims)
-    idE = idx(i + 1, j, offs, dims)
+    id   = idx(i, j, offs, dims)
+    idN  = idx(i, j + 1, offs, dims)
+    idE  = idx(i + 1, j, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
+    ! Find latitude and longitude from Cartesian coordinates
     call cart2sph(dom%node%elts(id+1), lon, lat)
 
-    !set surface geopotential (note that this really only needs to be done once)
+    ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
     rgrc = a_t*acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
     dom%surf_geopot%elts(id+1) = grav_accel_t * h_0_t * exp(-rgrc**2/d2_t)
 
+    ! Surface pressure
     dom%surf_press%elts(id+1) = p_sp_t * exp ( &
          - a_t*N_t**2*u_0_t/(2.0_8*grav_accel_t**2*kappa_t)*(u_0_t/a_t+2.0_8*omega_t)*(sin(lat)**2-1.0_8) &
          - N_t**2/(grav_accel_t**2*kappa_t)*dom%surf_geopot%elts(id+1) )
-    
-    ! Pressure at top interface of vertical layer zlev in terms of A and B coefficients defining distribution of vertical grid levels
-    ! see (118) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
-    lev_press_top    = a_vert(zlev+1)*ref_press_t  + b_vert(zlev+1)*dom%surf_press%elts(id+1) 
-    lev_press_bottom = a_vert(zlev)  *ref_press_t  + b_vert(zlev)  *dom%surf_press%elts(id+1)
-    dpress = lev_press_bottom - lev_press_top
-    lev_press = lev_press_bottom - 0.5_8*dpress
 
-    lev_z_top    = log(dom%surf_press%elts(id+1)/lev_press_top)   *T_0_t*R_d_t/grav_accel_t
-    lev_z_bottom = log(dom%surf_press%elts(id+1)/lev_press_bottom)*T_0_t*R_d_t/grav_accel_t
-    dz = lev_z_top - lev_z_bottom ! Thickness of layer zlev
-    lev_z = lev_z_bottom + 0.5_8*dz
-    
-    dom%spec_vol%elts(id+1) = R_d_t*T_0_t/lev_press ! Ideal gas law
-    
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = dz/dom%spec_vol%elts(id+1) ! rho dz
+    ! Pressure at level zlev
+    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press_t + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+
+    ! Specific volume at level zlev from ideal gas law
+    dom%spec_vol%elts(id+1) = R_d_t*T_0_t/lev_press
+
+    ! Mass/Area = rho*dz at level zlev
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = &
+         ((a_vert(zlev)-a_vert(zlev+1))*ref_press_t + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel_t
     
     ! Horizontally uniform potential temperature
     pot_temp = T_0_t * (lev_press / ref_press_t)**(-kappa_t)
@@ -224,12 +219,9 @@ contains
                   ' press_infty =', press_infty_t
           end if
           
-          write(6,'(A,I2,1x,7(A,es11.4))') &
+          write(6,'(A,I2,1x,4(A,es11.4))') &
                ' zlev = ', zlev, &
-               ' z =', lev_z, &
-               ' dz =', dz, &
                ' press =', lev_press, &
-               ' dpress =', dpress, &
                ' mu =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
                ' theta =', pot_temp, &
                ' alpha =', dom%spec_vol%elts(id+1)
@@ -241,9 +233,6 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idE+1))
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, dom%node%elts(idNE+1), dom%node%elts(id+1))
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idN+1))
-
-    !dom%adj_mass%elts(id+1) =  sol(S_MASS,zlev)%data(d)%elts(id+1) !adj_mass is used to save adjacent mass
-    !dom%adj_temp%elts(id+1) = lev_press !adj_temp is used to save adjacent lev_press
   end subroutine init_sol
 
   subroutine vel_fun(lon, lat, u, v)
