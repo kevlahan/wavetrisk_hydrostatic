@@ -256,6 +256,12 @@ contains
        grid(d)%qe%length          = init_state(d)%n_edge
        grid(d)%vort%length        = init_state(d)%n_tria
 
+       ! For mass-based vertical coordinates
+       grid(d)%adj_vflux%length         = init_state(d)%n_node
+       grid(d)%vert_velo%length         = init_state(d)%n_node
+       grid(d)%adj_velo%length          = init_state(d)%n_edge
+       grid(d)%integr_horiz_flux%length = init_state(d)%n_edge
+       
        if (penalize) penal%data(d)%length = num(AT_NODE)
 
        do k = 1, zlevels
@@ -356,6 +362,12 @@ contains
        deallocate(grid(d)%areas%elts)
        deallocate(grid(d)%midpt%elts)
        deallocate(grid(d)%ccentre%elts)
+
+       ! For mass-based vertical coordinates
+       deallocate(grid(d)%vert_velo%elts)
+       deallocate(grid(d)%adj_vflux%elts)
+       deallocate(grid(d)%adj_velo%elts)
+       deallocate(grid(d)%integr_horiz_flux%elts)
     end do
 
     ! deallocate wavelet allocations
@@ -386,6 +398,7 @@ contains
           end do
        end do
     end do
+
 
     ! deallocate solution arrays
     do k = 1, zlevels

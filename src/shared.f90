@@ -296,7 +296,7 @@ module shared_mod
   logical advect_only, wind_stress, bottom_friction, compressible, adapt_trend
 
   ! for penalization boundary condition
-  logical penalize
+  logical penalize, lagrangian_vertical
   real(8) alpha_m1, ieta
 
   real(8) nonunique_pent_locs(10*2**(2*DOMAIN_LEVEL),3)
@@ -381,6 +381,7 @@ contains
     bottom_friction = .False.
     advect_only = .False.
     dynamic_adapt = .False. !this logical is not used
+    lagrangian_vertical = .True. ! Lagrangian or mass based vertical coordinates
     optimize_grid = NO_OPTIM
 
     ! for penalization boundary condition

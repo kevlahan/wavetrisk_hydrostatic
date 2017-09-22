@@ -331,14 +331,17 @@ contains
   end subroutine cpt_or_restr_du_source
 
   subroutine trend_ml(q, dq)
-    !compute mass, velocity and potential temperature trend
+    ! Compute trends of prognostic variables
     integer d
     integer j
     integer k, l
     integer p
-    type(Float_Field), target :: q(S_MASS:S_VELO,1:zlevels), dq(S_MASS:S_VELO,1:zlevels)
+    type(Float_Field), target :: q(S_MASS:S_VELO,1:zlevels), dq(S_MASS:S_VELO,1:zlevels), vert_flux(1:zlevels)
+     type(Float_Field), target :: pot_temp
 
     call update_array_bdry(q, NONE)
+
+    if (.not. lagrangian_vertical) vert_flux = q(S_MASS,:) ! Set correct size of vertical flux (will be over-written)
 
     ! First integrate pressure down across all grid points in order to compute surface pressure
     do k = zlevels, 1, -1
@@ -350,7 +353,7 @@ contains
              call apply_onescale_to_patch(integrate_pressure_down, grid(d), p-1, k, 0, 1)
           end do
 
-          nullify(mass, temp)
+          nullify (mass, temp)
        end do
     end do
 
@@ -363,18 +366,21 @@ contains
           h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
           h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
+          ! Compute pressure, geopotential, exner, specific volume
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch(integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
           end do
 
+          ! Compute horizontal fluxes, vorticity, potential vorticity, kinetic energy, Bernoulli 
           do j = 1, grid(d)%lev(level_end)%length
              call step1(grid(d), grid(d)%lev(level_end)%elts(j), k)
           end do
           call apply_to_penta_d(post_step1, grid(d), level_end, k)
 
+          ! Compute diffusion term
           if (viscosity .ne. 0.0_8) then
              do j = 1, grid(d)%lev(level_end)%length
-                call apply_onescale_to_patch(flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
+                call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
              end do
           end if
 
@@ -386,22 +392,43 @@ contains
        call update_array_bdry__start(horiz_flux, level_end) ! <= comm flux (Jmax)
     end if
 
-    ! compute mass and potential temperature trend
+    ! Compute vertically integrated horizontal mass flux
+    if (.not. lagrangian_vertical) then
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (vert_integrate_horiz_flux, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+          end do
+       end do
+    end if
+
+    ! Compute scalar trends
     do k = 1, zlevels
        do d = 1, size(grid)
-          mass    =>  q(S_MASS,k)%data(d)%elts
-          velo    =>  q(S_VELO,k)%data(d)%elts
-          temp    =>  q(S_TEMP,k)%data(d)%elts
           dmass   => dq(S_MASS,k)%data(d)%elts
           dtemp   => dq(S_TEMP,k)%data(d)%elts
-          h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
+          if (lagrangian_vertical) then
+             h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
+          else
+             mass => q(S_MASS,k)%data(d)%elts
+             temp => q(S_TEMP,k)%data(d)%elts
+             
+             if (k<zlevels) then ! Provide temperature and mass at next vertical level
+                adj_mass_up => q(S_MASS,k+1)%data(d)%elts
+                adj_temp_up => q(S_TEMP,k+1)%data(d)%elts
+             end if
+             
+             h_mflux => grid(d)%integr_horiz_flux%elts ! Use vertically integrated horizontal fluxes
+             ! We save vertical mass flux at all vertical levels in vert_flux
+             v_mflux => vert_flux(k)%data(d)%elts 
+          end if
           h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch(scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
 
-          nullify(mass, velo, temp, dmass, dtemp, h_mflux, h_tflux)
+          nullify (dmass, dtemp, h_mflux, h_tflux)
+          if (.not. lagrangian_vertical) nullify (mass, temp, v_mflux, adj_mass_up, adj_temp_up)
        end do
     end do
     
@@ -413,7 +440,7 @@ contains
        call update_array_bdry__start(dq(S_MASS:S_TEMP,:), level_end) ! <= start non-blocking communicate dmass (l+1)
     end if
 
-    ! Compute velocity trend
+    ! Compute non gradient source terms in velocity trend 
     do k = 1, zlevels
        do d = 1, size(grid)
           if (advect_only) cycle
@@ -471,25 +498,48 @@ contains
 
        call update_array_bdry(horiz_flux, l)
 
+       ! Compute vertically integrated horizontal mass flux
+       if (.not. lagrangian_vertical) then
+          do d = 1, size(grid)
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch(vert_integrate_horiz_flux, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+          end do
+       end if
+       
+       ! Compute scalar trends at level l
        do k = 1, zlevels
           do d = 1, size(grid)
              dmass   => dq(S_MASS,k)%data(d)%elts
              dtemp   => dq(S_TEMP,k)%data(d)%elts
-             h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
+             if (lagrangian_vertical) then
+                h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
+             else
+                mass => q(S_MASS,k)%data(d)%elts
+                temp => q(S_TEMP,k)%data(d)%elts
+
+                if (k<zlevels) then ! Provide temperature and mass at next vertical level
+                   adj_mass_up => q(S_MASS,k+1)%data(d)%elts
+                   adj_temp_up => q(S_TEMP,k+1)%data(d)%elts
+                end if
+
+                h_mflux => grid(d)%integr_horiz_flux%elts ! Use vertically integrated horizontal fluxes
+                v_mflux => vert_flux(k)%data(d)%elts ! We save vertical mass flux at all levels at scale l in vert_flux
+             end if
              h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
 
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1) ! use flux (l) & cpt dmass (l)
+                call apply_onescale_to_patch(scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
-             nullify(dmass, dtemp, h_mflux, h_tflux)
+
+             nullify (dmass, dtemp, h_mflux, h_tflux)
+             if (.not. lagrangian_vertical) nullify (mass, temp, v_mflux, adj_mass_up, adj_temp_up)
           end do
        end do
 
        dq(S_MASS:S_TEMP,:)%bdry_uptodate = .False.
        
-       if (l .gt. level_start) then
-          call update_array_bdry__start(dq(S_MASS:S_TEMP,:), l)  ! <= start non-blocking communicate dmass (l+1)
-       end if
+       if (l .gt. level_start) call update_array_bdry__start(dq(S_MASS:S_TEMP,:), l)  ! <= start non-blocking communicate dmass (l+1)
        
        if (advect_only) cycle
 
@@ -517,15 +567,31 @@ contains
 
     ! Add gradient terms at all scales
     do k = 1, zlevels
+       ! Interpolate vertical flux at full level nodes
+       if (.not. lagrangian_vertical) then
+          do d = 1, size(grid)
+             v_mflux => vert_flux(k)%data(d)%elts
+             do p = 3, grid(d)%patch%length
+                call apply_onescale_to_patch (interp_vert_velo_at_full_levels, grid(d), p - 1, k, 0, 0)
+             end do
+             nullify (v_mflux)
+          end do
+       end if
+       
        do d = 1, size(grid)
           mass    =>  q(S_MASS,k)%data(d)%elts
           temp    =>  q(S_TEMP,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
 
+          if (.not. lagrangian_vertical) then
+             if (k<zlevels) adj_velo_up => q(S_VELO,k+1)%data(d)%elts
+          end if
+
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch(du_gradB_gradExn, grid(d), p - 1, k, 0, 0)
+             call apply_onescale_to_patch (du_gradB_gradExn, grid(d), p - 1, k, 0, 0)
           end do
-          nullify(mass, temp, dvelo)
+          nullify (mass, temp, dvelo)
+          if (.not. lagrangian_vertical) nullify (adj_velo_up)
        end do
     end do
   end subroutine trend_ml

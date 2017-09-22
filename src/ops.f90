@@ -343,7 +343,7 @@ contains
       if (penalize) phi(SOUTHWEST) = phi(SOUTHWEST) + alpha_m1*penal%data(dom%id+1)%elts(id+sw+1)
 
       full_mass(SOUTHWEST) = mass(id+sw+1) + mean(S_MASS,zlev)
-      full_temp(SOUTHWEST)  = temp(id+sw+1) + mean(S_TEMP,zlev)
+      full_temp(SOUTHWEST) = temp(id+sw+1) + mean(S_TEMP,zlev)
 
       vort_SW = - (velo(EDGE*(id+sw)+RT+1)*dom%len%elts(EDGE*(id+sw)+RT+1) + u_prim_sw + u_prim_dn)
 
@@ -385,9 +385,9 @@ contains
       real(8), dimension(0:N_BDRY) :: full_scalar
 
       ! Find the horizontal mass flux as the velocity multiplied by the mass there
-      h_flux(EDGE*id+UP+1) = u_dual_up*(full_scalar(0)         + full_scalar(NORTH))*0.5_8
-      h_flux(EDGE*id+DG+1) = u_dual_dg*(full_scalar(NORTHEAST) + full_scalar(0))*0.5_8
-      h_flux(EDGE*id+RT+1) = u_dual_rt*(full_scalar(0)         + full_scalar(EAST))*0.5_8
+      h_flux(EDGE*id+UP+1) = 0.5_8*u_dual_up*(full_scalar(0)         + full_scalar(NORTH))
+      h_flux(EDGE*id+DG+1) = 0.5_8*u_dual_dg*(full_scalar(NORTHEAST) + full_scalar(0))
+      h_flux(EDGE*id+RT+1) = 0.5_8*u_dual_rt*(full_scalar(0)         + full_scalar(EAST))
     end subroutine cal_flux2
 
     subroutine comput()
@@ -476,6 +476,57 @@ contains
     end subroutine comput
   end subroutine step1
 
+  subroutine vert_integrate_horiz_flux (dom, i, j, zlev, offs, dims)
+    ! Integrate horizontal fluxes on the three edges vertically 
+    type(Domain)                     :: dom
+    integer                          :: i, j, zlev
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+
+    integer :: id, k
+
+    id   = idx(i, j, offs, dims)
+
+    dom%integr_horiz_flux%elts(EDGE*id+UP+1) = 0.0_8
+    dom%integr_horiz_flux%elts(EDGE*id+DG+1) = 0.0_8
+    dom%integr_horiz_flux%elts(EDGE*id+RT+1) = 0.0_8
+    
+    do k = 1, zlevels
+       dom%integr_horiz_flux%elts(EDGE*id+UP+1) = dom%integr_horiz_flux%elts(EDGE*id+UP+1) + &
+            horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+UP+1)
+       
+       dom%integr_horiz_flux%elts(EDGE*id+DG+1) = dom%integr_horiz_flux%elts(EDGE*id+DG+1) + &
+            horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+DG+1)
+       
+       dom%integr_horiz_flux%elts(EDGE*id+RT+1) = dom%integr_horiz_flux%elts(EDGE*id+RT+1) + &
+            horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+RT+1)
+    end do
+  end subroutine vert_integrate_horiz_flux
+
+  subroutine compute_vert_flux (dom, i, j, zlev, offs, dims)
+    ! Computes vertical mass flux at upper interface of level zlev from mass trend and divergence of horizontal flux
+    ! when using mass-based vertical coordinates
+    type(Domain)                     :: dom
+    integer                          :: i, j, zlev
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+    
+    integer :: id, k
+
+    id   = idx(i, j, offs, dims)
+
+    if (zlev.eq.1) then 
+       v_mflux(id+1) = 0.0_8                   - dmass(id+1) + horiz_div_flux(h_mflux, dom, i, j, offs, dims, id) ! Flux is zero at surface
+    elseif (zlev.eq.zlevels) then ! Flux is zero at upper interface of top level
+       v_mflux(id+1) = 0.0_8
+    else
+       v_mflux(id+1) = dom%adj_mass%elts(id+1) - dmass(id+1) + horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
+    end if
+
+    ! Save current vertical mass flux for lower interface of next vertical level (use adj_mass)
+    dom%adj_mass%elts(id+1) = v_mflux(id+1)
+  end subroutine compute_vert_flux
+  
   subroutine integrate_pressure_up(dom, i, j, zlev, offs, dims)
     !integrate pressure/Lagrange multiplier and pressure quantities upward at all nodes
     type(Domain) dom
@@ -757,23 +808,14 @@ contains
   end subroutine du_source
 
   subroutine du_Qperp(dom, i, j, zlev, offs, dims)
-    !compute energy-conserving Qperp and add it to dvelo [Aechtner thesis page 44]
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
+    ! Compute energy-conserving Qperp and add it to dvelo [Aechtner thesis page 44]
+    type(Domain)                     :: dom
+    integer                          :: i, j, zlev
+    integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
-    integer idNW
-    integer idN
-    integer idNE
-    integer idW
-    integer id
-    integer idE
-    integer idSW
-    integer idS
-    integer idSE
-    real(8) wgt1(5), wgt2(5)
+
+    integer :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
+    real(8) :: wgt1(5), wgt2(5)
 
     idNW = idx(i - 1, j + 1, offs, dims)
     idN  = idx(i,     j + 1, offs, dims)
@@ -868,32 +910,77 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims
 
     integer :: id
+    real(8) :: v_tflux, full_pot_temp, full_pot_temp_up
 
     id   = idx(i, j, offs, dims)
 
-    dmass(id+1) = eval_scalar_trend(h_mflux, dom, i, j, offs, dims, id)
-    dtemp(id+1) = eval_scalar_trend(h_tflux, dom, i, j, offs, dims, id)
+    if (lagrangian_vertical) then
+       dmass(id+1) = horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
+       dtemp(id+1) = horiz_div_flux(h_tflux, dom, i, j, offs, dims, id) 
+    else
+       ! Compute mass trend (mu_t) at level zlev from total mass trend (M_t)
+       dmass(id+1) = (a_vert(zlev+1)-a_vert(zlev)) * horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
+
+       ! Compute horizontal divergence of horizontal temperature flux
+       dtemp(id+1) = horiz_div_flux(h_tflux, dom, i, j, offs, dims, id)
+
+       ! Compute vertical mass flux at upper interface of level zlev
+       call compute_vert_flux (dom, i, j, zlev, offs, dims)
+
+       ! Find potential temperature at current level
+       full_pot_temp = (temp(id+1) + mean(S_TEMP,zlev))/(mass(id+1) + mean(S_MASS,zlev))
+
+       ! Add vertical divergence of vertical potential temperature flux to
+       ! trend of mass-weighted potential temperature
+       if (zlev.eq.1) then  ! Vertical flux is zero at surface
+          ! Potential temperature at next level up
+          full_pot_temp_up = (adj_temp_up(id+1) + mean(S_TEMP,zlev))/(adj_mass_up(id+1) + mean(S_MASS,zlev))
+
+          ! Vertical flux of potential temperature at upper interface
+          v_tflux = 0.5_8*(full_pot_temp + full_pot_temp_up) * v_mflux(id+1)
+
+          dtemp(id+1) = dtemp(id+1) + v_tflux
+          
+       elseif (zlev.eq.zlevels) then ! Vertical flux is zero at top interface
+
+          dtemp(id+1) = dtemp(id+1) - dom%adj_vflux%elts(id+1)
+          
+       else
+          ! Potential temperature at next level up
+          full_pot_temp_up = (adj_temp_up(id+1) + mean(S_TEMP,zlev))/(adj_mass_up(id+1) + mean(S_MASS,zlev))
+          
+          ! Vertical flux of potential temperature at upper interface
+          v_tflux = 0.5_8*(full_pot_temp + full_pot_temp_up) * v_mflux(id+1)
+
+          dtemp(id+1) = dtemp(id+1) + (v_tflux - dom%adj_vflux%elts(id+1))
+          
+       end if
+
+       ! Save vertical flux of potential temperature for lower interface of next vertical level
+       dom%adj_vflux%elts(id+1) = v_tflux
+    end if
   end subroutine scalar_trend
 
-  function eval_scalar_trend(h_flux, dom, i, j, offs, dims, id)
-    real(8) :: eval_scalar_trend
+  function horiz_div_flux(h_flux, dom, i, j, offs, dims, id)
+    ! Computes negative of divergence of horizontal flux h_flux over hexagons -delta_i(U)
+    real(8)                        :: horiz_div_flux
     real(8), dimension(:), pointer :: h_flux
-    type(Domain) :: dom
-    integer :: i, j, id
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer ::  idS, idW, idSW
+    integer :: id, idS, idW, idSW
 
     idS  = idx(i,     j - 1, offs, dims)
     idW  = idx(i - 1, j,     offs, dims)
     idSW = idx(i - 1, j - 1, offs, dims)
 
-    eval_scalar_trend = -(h_flux(EDGE*id+UP+1)   - h_flux(EDGE*id+DG+1) + &
+    horiz_div_flux = -(h_flux(EDGE*id+UP+1)   - h_flux(EDGE*id+DG+1) + &
          h_flux(EDGE*id+RT+1)   - h_flux(EDGE*idS+UP+1) + &
          h_flux(EDGE*idSW+DG+1) - h_flux(EDGE*idW+RT+1)) &
          *dom%areas%elts(id+1)%hex_inv
-  end function eval_scalar_trend
+  end function horiz_div_flux
 
   subroutine du_gradB(dom, i, j, zlev, offs, dims)
     !add gradient of the Bernoulli function to dvelo [Aechtner thesis page 58]
@@ -923,20 +1010,17 @@ contains
          dom%len%elts(EDGE*id+UP+1)
   end subroutine du_gradB
 
-  subroutine du_gradB_gradExn(dom, i, j, zlev, offs, dims)
-    !add gradient of the Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
-    !mass and potential temperature trend is zero
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
+  subroutine du_gradB_gradExn (dom, i, j, zlev, offs, dims)
+    ! Add gradient of the Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
+    ! mass and potential temperature trend is zero
+    type(Domain)                     :: dom
+    integer                          :: i, j, zlev
+    integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-    integer idE
-    integer idN
-    integer idNE
-    real(8) full_pot_temp(0:N_BDRY)
+
+    integer :: id, idE, idN, idNE, e
+    real(8) :: full_pot_temp(0:N_BDRY)
+    real(8), dimension(3) :: v_star
 
     id   = idx(i,     j,     offs, dims)
     idE  = idx(i + 1, j,     offs, dims)
@@ -982,7 +1066,88 @@ contains
             - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTH)) * &
             (dom%exner%elts(idN+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+UP+1)
     end if
+
+    ! Add vertical flux gradient term
+    if (.not. lagrangian_vertical) then
+
+       ! Assume free slip boundary conditions at top and bottom of vertical layers (i.e. velocity at top interface and surface equals
+       ! velocity at adjacent full level)
+       
+       if (zlev.eq.1) then ! surface
+          ! Horizontal velocities at edges interpolated at upper interface
+          do e = 1, 3
+             v_star(e) = 0.5_8*(velo(EDGE*id+e) + adj_velo_up(EDGE*id+e))
+          end do
+          
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idE+1))  * &
+               (v_star(RT+1) - velo(EDGE*id+RT+1))
+          
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idNE+1)) * &
+               (v_star(DG+1) - velo(EDGE*id+DG+1))
+          
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idN+1))  * &
+               (v_star(UP+1) - velo(EDGE*id+UP+1))
+
+          ! Save horizontal velocities (needed for lower interface at next vertical level)
+          do e = 1, 3
+             dom%adj_velo%elts(EDGE*id+e) = v_star(e)
+          end do
+       elseif (zlev.eq.zlevels) then ! top level
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idE+1))  * &
+               (velo(EDGE*id+RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
+
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idNE+1)) * &
+               (velo(EDGE*id+DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
+          
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idN+1))  * &
+               (velo(EDGE*id+UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
+       else
+          ! Horizontal velocities at edges interpolated at upper interface
+          do e = 1, 3
+             v_star(e) = 0.5_8*(velo(EDGE*id+e) + adj_velo_up(EDGE*id+e))
+          end do
+          
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idE+1)) * &
+               (v_star(RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
+
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idNE+1)) * &
+               (v_star(DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
+          
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idN+1)) * &
+               (v_star(UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
+
+          ! Save horizontal velocities interpolated at upper interface (needed for lower interface at next vertical level)
+          do e = 1, 3
+             dom%adj_velo%elts(EDGE*id+e) = v_star(e)
+          end do
+       end if
+    end if
   end subroutine du_gradB_gradExn
+
+  subroutine interp_vert_velo_at_full_levels (dom, i, j, zlev, offs, dims)
+    ! Interpolate non mass-weighted vertical velocity at full levels from vertical velocity at interfaces 
+    type(Domain)                     :: dom
+    integer                          :: i, j, zlev
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+
+    integer :: id
+    real (8) :: velo
+    
+    id   = idx(i, j, offs, dims)
+
+    ! Non-mass weighted vertical velocity at upper interface
+    velo = v_mflux(id+1)/(mass(id+1) + mean(S_MASS,zlev))
+    
+    if (zlev.eq.1) then ! No vertical flux through lower interface of bottom level
+       dom%vert_velo%elts(id+1) = 0.5_8 * velo
+    else
+       dom%vert_velo%elts(id+1) = 0.5_8 * (velo + dom%adj_vflux%elts(id+1))
+    end if
+    
+    ! Save current vertical velocity at upper interface for lower interface of next vertical level (use adj_vflux)
+    dom%adj_vflux%elts(id+1) = velo
+  end subroutine interp_vert_velo_at_full_levels
 
   subroutine sum_mass_temp(dom, i, j, zlev, offs, dims)
     type(Domain) dom

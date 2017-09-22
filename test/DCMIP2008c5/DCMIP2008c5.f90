@@ -26,6 +26,8 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   real(8), parameter :: ref_density_t= 100.0_8 !density for the incompressible case in kilogram per metres cubed
   real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
 
+   logical, parameter :: uniform = .false. ! Whether uniform vertical grid in pressure
+
   ! Dimensional scaling
   real(8), parameter :: Ldim = sqrt(d2_t)                             ! horizontal length scale
   real(8), parameter :: Hdim = h_0_t                                  ! vertical length scale
@@ -107,51 +109,60 @@ contains
   end subroutine cpt_max_dh
 
   subroutine initialize_a_b_vert()
-    allocate(a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+    integer :: k
 
-    if (zlevels.eq.18) then
-       a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-            0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
-            0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
-            0.0_8, 0.0_8 /)
-       a_vert=a_vert(19:1:-1) ! DCMIP order is opposite ours
-       b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
-            0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
-            0.953189_8, 0.985056_8, 1.0_8 /)
-       b_vert=b_vert(19:1:-1)
-    elseif (zlevels.eq.26) then
-       a_vert=(/0.002194067, 0.004895209, 0.009882418, 0.01805201, 0.02983724, 0.04462334, 0.06160587, &
-            0.07851243, 0.07731271, 0.07590131, 0.07424086, 0.07228744, 0.06998933, 0.06728574, 0.06410509, &
-            0.06036322, 0.05596111, 0.05078225, 0.04468960, 0.03752191, 0.02908949, 0.02084739, 0.01334443, &
-            0.00708499, 0.00252136, 0.0, 0.0 /)
-       a_vert=a_vert(27:1:-1)
-       b_vert=(/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01505309, 0.03276228, 0.05359622, 0.07810627, &
-            0.1069411, 0.1408637, 0.1807720, 0.2277220, 0.2829562, 0.3479364, 0.4243822, 0.5143168, &
-            0.6201202, 0.7235355, 0.8176768, 0.8962153, 0.9534761, 0.9851122, 1.0 /)
-       b_vert=b_vert(27:1:-1)
-    elseif (zlevels.eq.49) then
-       a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
-            0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
-            0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
-            0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
-            0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
-            0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
-            0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
-            0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
-            0.0_8, 0.0_8 /)
-       a_vert=a_vert(50:1:-1)
-       b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
-            0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
-            0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
-            0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
-            0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
-            0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
-            0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
-            0.9851122_8, 1.0_8/)
-       b_vert=b_vert(50:1:-1)
+    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+
+    if (uniform) then
+       do k = 1, zlevels+1
+          a_vert(k) = real(k-1)/real(zlevels) * press_infty_t/ref_press_t
+          b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
+       end do
     else
-       write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
-       stop
+       if (zlevels.eq.18) then
+          a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+               0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
+               0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
+               0.0_8, 0.0_8 /)
+          a_vert=a_vert(19:1:-1) ! DCMIP order is opposite ours
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
+               0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
+               0.953189_8, 0.985056_8, 1.0_8 /)
+          b_vert=b_vert(19:1:-1)
+       elseif (zlevels.eq.26) then
+          a_vert=(/0.002194067, 0.004895209, 0.009882418, 0.01805201, 0.02983724, 0.04462334, 0.06160587, &
+               0.07851243, 0.07731271, 0.07590131, 0.07424086, 0.07228744, 0.06998933, 0.06728574, 0.06410509, &
+               0.06036322, 0.05596111, 0.05078225, 0.04468960, 0.03752191, 0.02908949, 0.02084739, 0.01334443, &
+               0.00708499, 0.00252136, 0.0, 0.0 /)
+          a_vert=a_vert(27:1:-1)
+          b_vert=(/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01505309, 0.03276228, 0.05359622, 0.07810627, &
+               0.1069411, 0.1408637, 0.1807720, 0.2277220, 0.2829562, 0.3479364, 0.4243822, 0.5143168, &
+               0.6201202, 0.7235355, 0.8176768, 0.8962153, 0.9534761, 0.9851122, 1.0 /)
+          b_vert=b_vert(27:1:-1)
+       elseif (zlevels.eq.49) then
+          a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
+               0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
+               0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
+               0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
+               0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
+               0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
+               0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
+               0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
+               0.0_8, 0.0_8 /)
+          a_vert=a_vert(50:1:-1)
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
+               0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
+               0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
+               0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
+               0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
+               0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
+               0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
+               0.9851122_8, 1.0_8/)
+          b_vert=b_vert(50:1:-1)
+       else
+          write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
+          stop
+       end if
     end if
   end subroutine initialize_a_b_vert
 
@@ -183,15 +194,10 @@ contains
     
     ! Pressure at top interface of vertical layer zlev in terms of A and B coefficients defining distribution of vertical grid levels
     ! see (118) in NCAR_ASP_2008_idealized_testcases_29May08.pdf
-    lev_press_top    = a_vert(zlev+1)*dom%surf_press%elts(id+1)  + b_vert(zlev+1)*dom%surf_press%elts(id+1) 
-    lev_press_bottom = a_vert(zlev)  *dom%surf_press%elts(id+1)  + b_vert(zlev)  *dom%surf_press%elts(id+1)
-    lev_press = 0.5_8 * (lev_press_top + lev_press_bottom)
-
-    ! Equally spaced in pressure vertical layers
-    ! dpress           = (dom%surf_press%elts(id+1) - press_infty)/real(zlevels)  
-    ! lev_press        = dom%surf_press%elts(id+1) - 0.5_8*dpress - dpress*real(zlev-1)
-    ! lev_press_top    = lev_press - 0.5_8*dpress
-    ! lev_press_bottom = lev_press + 0.5_8*dpress
+    lev_press_top    = a_vert(zlev+1)*ref_press_t  + b_vert(zlev+1)*dom%surf_press%elts(id+1) 
+    lev_press_bottom = a_vert(zlev)  *ref_press_t  + b_vert(zlev)  *dom%surf_press%elts(id+1)
+    dpress = lev_press_bottom - lev_press_top
+    lev_press = lev_press_bottom - 0.5_8*dpress
 
     lev_z_top    = log(dom%surf_press%elts(id+1)/lev_press_top)   *T_0_t*R_d_t/grav_accel_t
     lev_z_bottom = log(dom%surf_press%elts(id+1)/lev_press_bottom)*T_0_t*R_d_t/grav_accel_t
@@ -215,14 +221,15 @@ contains
              write(6,'(3(A,es11.4))') &
                   ' surf geopot =', dom%surf_geopot%elts(id+1), &
                   ' surf press =', dom%surf_press%elts(id+1), &
-                  ' press_infty =', press_infty 
+                  ' press_infty =', press_infty_t
           end if
           
-          write(6,'(A,I2,1x,6(A,es11.4))') &
+          write(6,'(A,I2,1x,7(A,es11.4))') &
                ' zlev = ', zlev, &
                ' z =', lev_z, &
                ' dz =', dz, &
                ' press =', lev_press, &
+               ' dpress =', dpress, &
                ' mu =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
                ' theta =', pot_temp, &
                ' alpha =', dom%spec_vol%elts(id+1)
@@ -283,7 +290,6 @@ contains
     dt_write = dt_write * 60_8!/Tdim
     time_end = time_end * 60_8**2!/Tdim
 
-    call initialize_a_b_vert()
     close(fid)
   end subroutine read_test_case_parameters
 
@@ -365,20 +371,27 @@ program DCMIP2008c5
   call init_main_mod()
   call read_test_case_parameters("DCMIP2008c5.in")
 
-  ! for this testcase, set the pressure at infinity (which is usually close to zero)
-  press_infty_t = a_vert(zlevels+1)*ref_press_t ! note that b_vert at top level is 0, a_vert is small but non-zero
-
   ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
   omega = omega_t !* Tdim
   grav_accel = grav_accel_t !/ acceldim
   radius = a_t !/ Ldim
-  press_infty = press_infty_t !/ pdim
+ 
   R_d = R_d_t !/ R_d_t
   c_p = c_p_t !/ R_d_t
   kappa = kappa_t
   ref_press = ref_press_t !/ pdim
   ref_density = ref_density_t !not non-dimensionalized at present, NOT USED HERE
+  
+  press_infty_t =  2.1973E+02_8
 
+  ! Initialize vertical grid
+  call initialize_a_b_vert()
+  
+  ! for this testcase, set the pressure at infinity (which is usually close to zero)
+  if (uniform) press_infty_t = a_vert(zlevels+1)*ref_press_t ! note that b_vert at top level is 0, a_vert is small but non-zero
+
+  press_infty = press_infty_t !/ pdim
+ 
   PRINT *, 'massdim = ', massdim
   PRINT *, 'Tempdim = ', Tempdim
   PRINT *, 'Tdim    = ', Tdim
@@ -395,7 +408,7 @@ program DCMIP2008c5
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
   dx_max = 2.0_8*MATH_PI * radius
 
-  kmin = MATH_PI/dx_max ; kmax = 2.0_8*MATH_PI/dx_max
+  kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
   csq = grav_accel*a_t 
   VELO_SCALE   = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
@@ -415,13 +428,13 @@ program DCMIP2008c5
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
-  viscosity = 0.0_8 !1.0_8/((2.0_8*MATH_PI/dx_min)/64.0_8)**2     ! grid scale viscosity
+  viscosity = 1.0_8/(kmax*10.0_8)**2     ! grid scale viscosity
   friction_coeff = 3e-3_8 ! Bottom friction
   if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
 
   write_init = (resume .eq. NONE)
   iwrite = 0
-
+  
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
   call sum_total_mass(.True.)
 
@@ -465,6 +478,7 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         call write_and_export(iwrite)
+        !call remap_coordinates()
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
         ierr = writ_checkpoint(DCMIP2008c5_dump)
@@ -482,8 +496,6 @@ program DCMIP2008c5
      end if
 
      call sum_total_mass(.False.)
-
-     !call remap_coordinates()
   end do
 
   if (rank .eq. 0) then

@@ -56,6 +56,12 @@ module domain_mod
      type(Float_Array) qe !potential vorticity
      type(Float_Array) vort !vorticity
 
+     ! For mass-based vertical coordinates
+     type(Float_Array) adj_vflux ! adjacent vertical flux (at nodes)
+     type(Float_Array) vert_velo ! vertical non-mass weighted velocity (at nodes)
+     type(Float_Array) integr_horiz_flux ! Vertically integrated horizontal flux (at edges)
+     type(Float_Array) adj_velo ! adjacent velocity (at edges)
+
      type(Overl_Area_Array) overl_areas
      type(Iu_Wgt_Array) I_u_wgt
      type(RF_Wgt_Array) R_F_wgt
@@ -73,7 +79,7 @@ module domain_mod
      integer pos
   end type Float_Field
 
-  type(Domain), allocatable :: grid(:)
+  type(Domain), allocatable, target :: grid(:)
   type(Float_Field), dimension(:,:), allocatable, target :: sol, trend, wav_coeff, trend_wav_coeff, horiz_flux
 
   !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
@@ -83,13 +89,16 @@ module domain_mod
   !is what they are solving for in the code (and changes some of the equations in the paper, more specifically
   !the equation below (18) and the equation below (24))
   !we will solve for theta'_k and Theta'_k
-  real(8), pointer :: mass(:), dmass(:), h_mflux(:)
-  real(8), pointer :: velo(:), dvelo(:)
-  real(8), pointer :: temp(:), dtemp(:), h_tflux(:)
-  real(8), pointer :: wc_u(:), wc_m(:), wc_t(:)
+  real(8), dimension(:), pointer :: mass, dmass, h_mflux
+  real(8), dimension(:), pointer :: temp, dtemp, h_tflux
+  real(8), dimension(:), pointer :: velo, dvelo
+  real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
+  ! For mass-based vertical coordinates
+  real(8), dimension(:), pointer :: adj_temp_up, adj_mass_up, adj_velo_up, v_mflux
 
-  real(8), allocatable :: mean(:,:), mean_press(:), mean_exner(:), mean_spec_vol(:), mean_density(:), mean_temperature(:)
-
+  real(8), dimension(:), allocatable :: mean_press, mean_exner, mean_spec_vol, mean_density, mean_temperature
+  real(8), dimension(:,:), allocatable :: mean
+  
   ! for penalization boundary condition
   type(Float_Field), target :: penal
   real(8), pointer :: chi(:), chiflux(:)

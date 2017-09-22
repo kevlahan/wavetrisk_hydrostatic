@@ -204,6 +204,7 @@ contains
     end do
 
     if (penalize) call extend(penal%data(d), num, 1.0_8)
+   
     call extend(dom%qe, EDGE*num, 0.0_8)
     call extend(dom%vort, TRIAG*num, 0.0_8)
     call extend(dom%divu, num, 0.0_8)
@@ -212,6 +213,12 @@ contains
     call extend(dom%R_F_wgt, num, RF_Wgt(0.0_8))
     call extend(dom%mask_n, num, 0)
     call extend(dom%mask_e, EDGE*num, 0)
+
+    ! For mass-based vertical coordinates
+    call extend(dom%vert_velo,              num, 0.0_8)
+    call extend(dom%adj_vflux,              num, 0.0_8)
+    call extend(dom%integr_horiz_flux, EDGE*num, 0.0_8)
+    call extend(dom%adj_velo,          EDGE*num, 0.0_8)
 
     call apply_interscale_to_patch3(set_WT_wgts, dom, p, c, z_null, 0, 0)
     call apply_interscale_to_patch3(set_RF_wgts, dom, p, c, z_null, 0, 0)

@@ -354,6 +354,12 @@ contains
        call init(grid(d)%qe,           grid(d)%node%length*EDGE)
        call init(grid(d)%divu,         grid(d)%node%length)
        call init(grid(d)%vort,         grid(d)%node%length*TRIAG)
+
+       ! For mass-based vertical coordinates
+       call init(grid(d)%adj_vflux,         grid(d)%node%length)
+       call init(grid(d)%vert_velo,         grid(d)%node%length)
+       call init(grid(d)%adj_velo,          grid(d)%node%length*EDGE)
+       call init(grid(d)%integr_horiz_flux, grid(d)%node%length*EDGE)
     end do
   end subroutine precompute_geometry
 

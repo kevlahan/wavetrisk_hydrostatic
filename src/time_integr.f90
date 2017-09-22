@@ -188,8 +188,8 @@ contains
 
   function wav_coeff_predict(trend)
     ! Predicts wavelet coefficients at next time step using a forward Euler step
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav_coeff_predict
-    type(Float_Field), dimension(:,:), target :: trend
+    type(Float_Field), dimension (S_MASS:S_VELO,1:zlevels), target :: wav_coeff_predict
+    type(Float_Field), dimension (:,:), target :: trend
 
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: sol_euler
 
