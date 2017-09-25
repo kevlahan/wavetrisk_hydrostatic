@@ -185,10 +185,9 @@ contains
     call extend(dom%press, num, 0.0_8)
     call extend(dom%surf_geopot, num, 0.0_8)
     call extend(dom%geopot, num, 0.0_8)
-    call extend(dom%spec_vol, num, 0.0_8)
     call extend(dom%adj_mass, num, 0.0_8)
     call extend(dom%adj_temp, num, 0.0_8)
-    call extend(dom%adj_spec_vol, num, 0.0_8)
+    call extend(dom%adj_geopot, num, 0.0_8)
     call extend(dom%kin_energy, num, 0.0_8)
 
     do k = 1, zlevels

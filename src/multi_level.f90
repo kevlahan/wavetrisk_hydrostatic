@@ -458,7 +458,7 @@ contains
              call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
-          nullify(mass, velo, temp, dvelo, h_mflux, h_tflux)
+          nullify (mass, velo, temp, dvelo, h_mflux, h_tflux)
        end do
     end do
 
@@ -482,7 +482,6 @@ contains
              do j = 1, grid(d)%lev(l)%length
                 call step1 (grid(d), grid(d)%lev(l)%elts(j), k)
              end do
-
              call apply_to_penta_d (post_step1, grid(d), l, k)
 
              ! Add diffusion term to horizontal fluxes of mass only

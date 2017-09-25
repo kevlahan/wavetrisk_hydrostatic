@@ -485,7 +485,8 @@ contains
 
     ! Temperature in layer k
     outv(1) = (sol(S_TEMP,k)%data(dom%id+1)%elts(id+1) + mean(S_TEMP,k))/ &
-         (sol(S_MASS,k)%data(dom%id+1)%elts(id+1)  + mean(S_MASS,k))
+         (sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)) !* &
+         !(lev_press / ref_press_t)**kappa_t ! Convert to actual temperature
 
     ! Sum of total mass over vertical column
     outv(2) = 0.0_8

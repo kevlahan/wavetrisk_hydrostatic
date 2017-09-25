@@ -27,7 +27,7 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   real(8), parameter :: ref_density_t= 100.0_8 !density for the incompressible case in kilogram per metres cubed
   real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
 
-   logical, parameter :: uniform = .false. ! Whether uniform vertical grid in pressure
+   logical, parameter :: uniform = .true. ! Whether uniform vertical grid in pressure
 
   ! Dimensional scaling
   real(8), parameter :: Ldim = sqrt(d2_t)                             ! horizontal length scale
@@ -167,15 +167,17 @@ contains
     end if
   end subroutine initialize_a_b_vert
 
-  subroutine init_sol(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, k, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  subroutine init_sol (dom, i, j, zlev, offs, dims)
+    type (Domain)                  :: dom
+    integer                        :: i, j, k, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+    
     integer :: id, d, idN, idE, idNE
     real(8) :: lon, lat, rgrc, lev_press, pot_temp
 
     d = dom%id+1
+    
     id   = idx(i, j, offs, dims)
     idN  = idx(i, j + 1, offs, dims)
     idE  = idx(i + 1, j, offs, dims)
@@ -196,9 +198,6 @@ contains
     ! Pressure at level zlev
     lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press_t + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
 
-    ! Specific volume at level zlev from ideal gas law
-    dom%spec_vol%elts(id+1) = R_d_t*T_0_t/lev_press
-
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = &
          ((a_vert(zlev)-a_vert(zlev+1))*ref_press_t + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel_t
@@ -206,11 +205,11 @@ contains
     ! Horizontally uniform potential temperature
     pot_temp = T_0_t * (lev_press / ref_press_t)**(-kappa_t)
 
-    ! Mass weighted potential temperature
+    ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
 
      ! Print out layer thicknesses
-    if (.not.wasprinted) then
+    if (.not. wasprinted) then
        if (rank .eq. 0) then
            if(zlev.eq.1) then
              write(6,'(3(A,es11.4))') &
@@ -219,12 +218,11 @@ contains
                   ' press_infty =', press_infty_t
           end if
           
-          write(6,'(A,I2,1x,4(A,es11.4))') &
+          write(6,'(A,I2,1x,3(A,es11.4))') &
                ' zlev = ', zlev, &
                ' press =', lev_press, &
                ' mu =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
-               ' theta =', pot_temp, &
-               ' alpha =', dom%spec_vol%elts(id+1)
+               ' theta =', pot_temp
           wasprinted=.true.
        end if
     end if
@@ -417,7 +415,7 @@ program DCMIP2008c5
      if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
   end if
 
-  viscosity = 1.0_8/(kmax*10.0_8)**2     ! grid scale viscosity
+  viscosity = 1.0_8/(kmax*40.0_8)**2     ! grid scale viscosity
   friction_coeff = 3e-3_8 ! Bottom friction
   if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
 
@@ -467,7 +465,7 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         call write_and_export(iwrite)
-        !call remap_coordinates()
+!        call remap_coordinates()
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
         ierr = writ_checkpoint(DCMIP2008c5_dump)

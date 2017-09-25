@@ -48,6 +48,16 @@ contains
     
     h_mflux(EDGE*id+UP+1) = h_mflux(EDGE*id+UP+1) - viscosity*dom%pedlen%elts(EDGE*id+UP+1)*(mass(idN+1) - mass(id+1)) &
          /dom%len%elts(EDGE*id+UP+1)
+
+    ! Temperature
+    h_tflux(EDGE*id+RT+1) = h_tflux(EDGE*id+RT+1) - viscosity*dom%pedlen%elts(EDGE*id+RT+1)*(temp(idE+1) - temp(id+1)) &
+         /dom%len%elts(EDGE*id+RT+1)
+    
+    h_tflux(EDGE*id+DG+1) = h_tflux(EDGE*id+DG+1) - viscosity*dom%pedlen%elts(EDGE*id+DG+1)*(temp(id+1)  - temp(idNE+1)) &
+         /dom%len%elts(EDGE*id+DG+1)
+    
+    h_tflux(EDGE*id+UP+1) = h_tflux(EDGE*id+UP+1) - viscosity*dom%pedlen%elts(EDGE*id+UP+1)*(temp(idN+1) - temp(id+1)) &
+         /dom%len%elts(EDGE*id+UP+1)
   end subroutine flux_grad_scalar
 
   subroutine diff_mom(dom, i, j, zlev, offs, dims)
