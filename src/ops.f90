@@ -604,18 +604,14 @@ contains
           end if
        end if
 
-       ! Specific volume
-       spec_vol = 1.0_8/(ref_density*full_pot_temp)
-       pert_spec_vol = spec_vol - mean_spec_vol(zlev)
-       
        ! Find geopotential at interfaces using (18) in DYNAMICO
+       ! Note: since mu is associated with the kinematic mass = inert mass, we divide by the constant reference density
        if (zlev .eq. 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
           dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1) 
        else
           dom%adj_geopot%elts(id+1) = dom%geopot%elts(id+1)
        end if
-       dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
-            grav_accel* (full_mass*pert_spec_vol + mass(id+1)*mean_spec_vol(zlev))
+       dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel* mass(id+1)/ref_density
     end if
   end subroutine integrate_pressure_up
 
