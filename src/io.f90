@@ -12,7 +12,7 @@ module io_mod
   real(8) vmin, vmax
   integer next_fid
   integer HR_offs(2,4)!, HR_sub_dom_id(4)
-  integer, parameter :: N_VAR_OUT = 4
+  integer, parameter :: N_VAR_OUT = 5
   real(8) minv(N_VAR_OUT), maxv(N_VAR_OUT)
   type(Float_Field) :: active_level
   data HR_offs /0,0, 1,0, 1,1, 0,1/
@@ -461,42 +461,41 @@ contains
     bary_coord = bac
   end function bary_coord
 
-  subroutine write_primal(dom, p, i, j, k, offs, dims, fid)
-    !write primal grid for k-th vertical level
-    type(Domain) dom
-    integer p
-    integer i, j, k, m
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
-    integer fid
-    integer id
-    integer idW
-    integer idSW
-    integer idS
-    integer d, outl
+  subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)
+    ! Write primal grid for vertical level zlev
+    type(Domain)                 :: dom
+    integer                      :: p, i, j, zlev
+    integer, dimension(N_BDRY+1) :: offs
+    integer, dimension(2,9)      :: dims
+    
+    integer :: fid
+    integer :: id, idW, idSW, idS
+    integer :: d, outl, m
     real(4) :: outv(N_VAR_OUT) = 0
+    real(8), dimension(2) :: vel_latlon
 
     d = dom%id + 1
-
+    
     id   = idx(i,     j,     offs, dims)
     idW  = idx(i - 1, j,     offs, dims)
     idSW = idx(i - 1, j - 1, offs, dims)
     idS  = idx(i,     j - 1, offs, dims)
 
-    ! Temperature in layer k
-    outv(1) = (sol(S_TEMP,k)%data(dom%id+1)%elts(id+1) + mean(S_TEMP,k))/ &
-         (sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)) !* &
-         !(lev_press / ref_press_t)**kappa_t ! Convert to actual temperature
+    ! Temperature in layer zlev
+    outv(1) = (sol(S_TEMP,zlev)%data(d)%elts(id+1) + mean(S_TEMP,zlev))/ &
+         (sol(S_MASS,zlev)%data(d)%elts(id+1) + mean(S_MASS,zlev)) * &
+         (dom%press%elts(id+1)/ref_press)**kappa ! Convert to actual temperature
 
-    ! Sum of total mass over vertical column
-    outv(2) = 0.0_8
-    do m = 1, zlevels
-       outv(2) = outv(2) + sol(S_MASS,m)%data(dom%id+1)%elts(id+1) + mean(S_MASS,m)
-    end do
+    ! Zonal and meridional velocities
+    call zonal_meridional_vel (dom, i, j, offs, dims, zlev, vel_latlon)
+    outv(2) = vel_latlon(1)
+    outv(3) = vel_latlon(2)
+    
+    ! Geopotential height at level zlev
+    outv(4) = dom%geopot%elts(id+1)/grav_accel
 
-    ! Vertical mass in layer k
-    outv(3) = dom%surf_geopot%elts(id+1)
-    outv(4) = dom%surf_press%elts(id+1)
+    ! Surface pressure
+    outv(5) = dom%surf_press%elts(id+1)
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
        outl = nint(active_level%data(dom%id+1)%elts(id+1))
@@ -505,7 +504,7 @@ contains
     end if
 
     if (dom%mask_n%elts(id+1) .gt. 0) then
-       write (fid,'(18(E14.5E2, 1X), 4(E14.5E2, 1X), I3, 1X, I3)') &
+       write (fid,'(18(E14.5E2, 1X), 5(E14.5E2, 1X), I3, 1X, I3)') &
             dom%ccentre%elts(TRIAG*id   +LORT+1), dom%ccentre%elts(TRIAG*id   +UPLT+1), &
             dom%ccentre%elts(TRIAG*idW  +LORT+1), dom%ccentre%elts(TRIAG*idSW +UPLT+1), &
             dom%ccentre%elts(TRIAG*idSW +LORT+1), dom%ccentre%elts(TRIAG*idS  +UPLT+1), &
@@ -514,6 +513,66 @@ contains
        where (maxv .lt. outv) maxv = outv
     end if
   end subroutine write_primal
+
+  subroutine zonal_meridional_vel (dom, i, j, offs, dims, zlev, vel_latlon)
+    ! Finds lat-lon velocity (with components in zonal and meridional directions) given index information of node
+    ! using lapack least squares routine dgels
+    type (Domain)                :: dom
+    integer                      :: i, j, zlev
+    integer, dimension(N_BDRY+1) :: offs
+    integer, dimension(2,9)      :: dims
+    real(8), dimension (3)       :: uvw
+    real(8), dimension (2)       :: vel_latlon
+    
+    integer                     :: d, e, id, idN, idE, idNE
+    type (Coord)                :: co_node, co_east, co_north, co_northeast, e_merid, e_zonal
+    type (Coord), dimension (3) :: dir 
+    real(8)                     :: lon, lat
+
+    ! For least squares solver dgels
+    integer                    :: info
+    real(8), dimension (3,2)   :: A
+    integer, parameter         :: lwork = 2*3*2
+    real(8), dimension (lwork) :: work
+
+    d = dom%id+1
+    
+    id   = idx(i,     j,     offs, dims)
+    idN  = idx(i, j + 1,     offs, dims)
+    idE  = idx(i + 1, j,     offs, dims)
+    idNE = idx(i + 1, j + 1, offs, dims)
+
+    uvw(1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) ! RT velocity
+    uvw(2) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) ! DG velocity
+    uvw(3) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) ! UP velocity
+
+    ! Calculate velocity directions
+    co_node = dom%node%elts(id+1) 
+    co_east      = dom%node%elts(idE+1)
+    co_northeast = dom%node%elts(idNE+1)
+    co_north     = dom%node%elts(idN+1)
+    
+    dir(1) = direction (co_node,      co_east)  ! RT direction
+    dir(2) = direction (co_northeast, co_node)  ! DG direction
+    dir(3) = direction (co_node,      co_north) ! UP direction
+    
+    ! Find longitude and latitude coordinates of node
+    call cart2sph (co_node, lon, lat)
+    
+    e_zonal = Coord (-sin(lon),          cos(lon),           0.0_8)    ! Zonal direction
+    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+
+    ! Least squares overdetermined matrix 
+    do e = 1, 3
+       A(e,1) = inner(dir(e), e_zonal)
+       A(e,2) = inner(dir(e), e_merid)
+    end do
+
+    ! Solve least squares problem to find zonal and meridional velocities
+    call dgels ('N', 3, 2, 1, A, 3, uvw, 3, work, lwork, info)
+
+    vel_latlon = uvw(1:2)
+  end subroutine zonal_meridional_vel
 
   function get_vort(dom, i, j, offs, dims)
     real(8) get_vort(TRIAG)
