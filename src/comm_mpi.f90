@@ -131,32 +131,34 @@ contains
   end subroutine print_load_balance
 
   subroutine write_level_mpi(out_rout, fid, l, zlev, eval_pole)
-    external out_rout
-    integer fid, l, zlev
-    character(5+6) filename
-    integer r
-    logical eval_pole
+    external       :: out_rout
+    integer        :: fid, l, zlev
+    character(5+6) :: filename
+    logical        :: eval_pole
 
-    write(filename, '(A,I6)')  "fort.", fid
+    integer        :: r
+    
+    write (filename, '(A,I6)')  "fort.", fid
+    
     do r = 1, n_process
-       if (r .ne. rank+1) then ! write only if our turn, otherwise only wait at Barrier
-          call MPI_Barrier(MPI_Comm_World, ierror)
+       if (r .ne. rank+1) then ! Write only if our turn, otherwise only wait at Barrier0
+          call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
 
        if (r .eq. 1) then ! first process opens without append to delete old file if existing
-          open(unit=fid, file=filename)
+          open (unit=fid, file=filename)
        else
-          open(unit=fid, file=filename, access='APPEND')
+          open (unit=fid, file=filename, access='APPEND')
        end if
 
-       if (eval_pole) call apply_to_pole(out_rout, l, zlev, fid, .False.)
+       if (eval_pole) call apply_to_pole (out_rout, l, zlev, fid, .true.)
 
-       call apply_onescale__int(out_rout, l, zlev, 0, 0, fid)
+       call apply_onescale__int (out_rout, l, zlev, 0, 0, fid)
 
-       close(fid)
+       close (fid)
 
-       call MPI_Barrier(MPI_Comm_World, ierror)
+       call MPI_Barrier (MPI_Comm_World, ierror)
     end do
   end subroutine write_level_mpi
 

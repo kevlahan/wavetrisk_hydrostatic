@@ -605,7 +605,8 @@ contains
        end if
 
        ! Find geopotential at interfaces using (18) in DYNAMICO
-       ! Note: since mu is associated with the kinematic mass = inert mass, we divide by the constant reference density
+       ! Note: since mu is associated with the kinematic mass = inert mass (not the gravitational mass defined by the buyoancy)
+       ! we divide by the constant reference density. This is the Boussinesq approximation.
        if (zlev .eq. 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
           dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1) 
        else

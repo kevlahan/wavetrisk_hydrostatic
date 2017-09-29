@@ -203,7 +203,7 @@ contains
          ((a_vert(zlev)-a_vert(zlev+1))*ref_press_t + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel_t
     
     ! Horizontally uniform potential temperature
-    pot_temp = T_0_t * (lev_press / ref_press_t)**(-kappa_t)
+    pot_temp = T_0_t * (lev_press/ref_press_t)**(-kappa_t)
 
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
@@ -237,6 +237,7 @@ contains
     ! Zonal latitude-dependent wind
     real(8) :: lon, lat
     real(8) :: u, v
+    
     u = u_0_t*cos(lat)  ! Zonal velocity component
     v = 0.0_8           ! Meridional velocity component
   end subroutine vel_fun
@@ -280,19 +281,30 @@ contains
     close(fid)
   end subroutine read_test_case_parameters
 
-  subroutine write_and_export(k)
-    integer l, k, zlev
-    integer u, i
+  subroutine write_and_export(iwrite)
+    integer :: iwrite
+    integer :: l, k, zlev, d, u, i, p
 
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 6 ! export only one vertical level
-
+    zlev = 8 ! Only export one vertical level
+  
     do l = level_start, level_end
        minv = 1.d63;
        maxv = -1.d63;
-       u = 100000+100*k
+       u = 100000+100*iwrite
+
+       ! Calculate pressure and geopotential at vertical level zlev and scale l
+       do k = 1, zlev
+          do d = 1, size(grid)
+             mass => sol(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+             end do
+          end do
+       end do
 
        call write_level_mpi(write_primal, u+l, l, zlev, .True.)
 
@@ -300,11 +312,11 @@ contains
           minv(i) = -sync_max_d(-minv(i))
           maxv(i) =  sync_max_d( maxv(i))
        end do
-       if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
+       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') &
             "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-       if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
+       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') &
             "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
-       u = 200000+100*k
+       u = 200000+100*iwrite
     end do
 
     call post_levelout()
@@ -398,7 +410,7 @@ program DCMIP2008c5
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
   csq = grav_accel*a_t 
-  VELO_SCALE   = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
+  VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
   wind_stress      = .False.
   penalize         = .False.
@@ -416,6 +428,7 @@ program DCMIP2008c5
   end if
 
   viscosity = 1.0_8/(kmax*40.0_8)**2     ! grid scale viscosity
+  !viscosity = 0.0_8
   friction_coeff = 3e-3_8 ! Bottom friction
   if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
 
