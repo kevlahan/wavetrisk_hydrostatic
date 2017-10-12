@@ -60,8 +60,8 @@ contains
        dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
        dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
 
-       dom%qe%elts(EDGE*idW+RT+1) = 0.5_8*(pv_W + pv_SW)
-       dom%qe%elts(EDGE*idS+UP+1) = 0.5_8*(pv_S + pv_SW)
+      qe(EDGE*idW+RT+1) = 0.5_8*(pv_W + pv_SW)
+      qe(EDGE*idS+UP+1) = 0.5_8*(pv_S + pv_SW)
     end if
 
     if (c .eq. IPLUSJMINUS) then
@@ -101,8 +101,8 @@ contains
 
        pv_S = pv_SW_LORT
 
-       dom%qe%elts(EDGE*id  +RT+1) = 0.5_8*(pv_S + pv_LORT)
-       dom%qe%elts(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
+      qe(EDGE*id  +RT+1) = 0.5_8*(pv_S + pv_LORT)
+      qe(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
     end if
 
     if (c .eq. IMINUSJPLUS) then
@@ -142,8 +142,8 @@ contains
 
        pv_W = pv_SW_UPLT
 
-       dom%qe%elts(EDGE*id  +UP+1) = 0.5_8*(pv_W + pv_UPLT)
-       dom%qe%elts(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
+      qe(EDGE*id  +UP+1) = 0.5_8*(pv_W + pv_UPLT)
+      qe(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
     end if
 
     if (c .eq. IJPLUS) then
@@ -178,8 +178,8 @@ contains
        dom%vort%elts(LORT+TRIAG*id+1) = dom%vort%elts(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
        dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(LORT+TRIAG*id+1)
 
-       dom%qe%elts(EDGE*id+RT+1) = 0.5_8*(pv + pv_S)
-       dom%qe%elts(EDGE*id+UP+1) = 0.5_8*(pv + pv_W)
+      qe(EDGE*id+RT+1) = 0.5_8*(pv + pv_S)
+      qe(EDGE*id+UP+1) = 0.5_8*(pv + pv_W)
     end if
   end subroutine post_step1
 
@@ -348,9 +348,9 @@ contains
       dom%vort%elts(TRIAG*(id+w)+LORT+1) = vort_W/dom%triarea%elts(TRIAG*(id+w)+LORT+1) 
       dom%vort%elts(TRIAG*(id+s)+UPLT+1) = vort_S/dom%triarea%elts(TRIAG*(id+s)+UPLT+1) 
 
-      dom%qe%elts(EDGE*(id+ w)+RT+1) = 0.5_8*(pv_W   +pv_UPLT)
-      dom%qe%elts(EDGE*(id+sw)+DG+1) = 0.5_8*(pv_LORT+pv_UPLT)
-      dom%qe%elts(EDGE*(id+s )+UP+1) = 0.5_8*(pv_LORT+pv_S)
+     qe(EDGE*(id+ w)+RT+1) = 0.5_8*(pv_W   +pv_UPLT)
+     qe(EDGE*(id+sw)+DG+1) = 0.5_8*(pv_LORT+pv_UPLT)
+     qe(EDGE*(id+s )+UP+1) = 0.5_8*(pv_LORT+pv_S)
 
       ! Find horizontal fluxes at specific points
       call cal_flux1(h_mflux, full_mass)
@@ -488,9 +488,9 @@ contains
       dom%vort%elts(TRIAG*id+LORT+1) = dom%vort%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1) 
       dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(TRIAG*id+UPLT+1)/dom%triarea%elts(TRIAG*id+UPLT+1) 
 
-      dom%qe%elts(EDGE*id+RT+1) = 0.5_8*(pv_S    + pv_LORT)
-      dom%qe%elts(EDGE*id+DG+1) = 0.5_8*(pv_UPLT + pv_LORT)
-      dom%qe%elts(EDGE*id+UP+1) = 0.5_8*(pv_UPLT + pv_W)
+      qe(EDGE*id+RT+1) = 0.5_8*(pv_S    + pv_LORT)
+      qe(EDGE*id+DG+1) = 0.5_8*(pv_UPLT + pv_LORT)
+      qe(EDGE*id+UP+1) = 0.5_8*(pv_UPLT + pv_W)
     end subroutine comput
   end subroutine step1
 
@@ -781,7 +781,7 @@ contains
     wgt1 = get_weights(dom, id, 0)
     wgt2 = get_weights(dom, idE, 3)
 
-    dvelo(EDGE*id+RT+1) = dom%qe%elts(EDGE*id+RT+1)*( &
+    dvelo(EDGE*id+RT+1) = qe(EDGE*id+RT+1)*( &
          sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)&
          %elts((/ EDGE*id+DG, EDGE*id+UP, EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP /)+1) * wgt1) + &
          sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)&
@@ -790,7 +790,7 @@ contains
     wgt1 = get_weights(dom, id, 1)
     wgt2 = get_weights(dom, idNE, 4)
 
-    dvelo(EDGE*id+DG+1) = dom%qe%elts(EDGE*id+DG+1)*( &
+    dvelo(EDGE*id+DG+1) = qe(EDGE*id+DG+1)*( &
          sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)%&
          elts((/ EDGE*id+UP, EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP, EDGE*id+RT/)+1) * wgt1) + &
          sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)%&
@@ -799,7 +799,7 @@ contains
     wgt1 = get_weights(dom, id, 2)
     wgt2 = get_weights(dom, idN, 5)
 
-    dvelo(EDGE*id+UP+1) = dom%qe%elts(EDGE*id+UP+1)*( &
+    dvelo(EDGE*id+UP+1) = qe(EDGE*id+UP+1)*( &
          sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)%&
          elts((/ EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP, EDGE*id+RT, EDGE*id+DG /)+1) * wgt1) + &
          sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)%&
@@ -847,76 +847,76 @@ contains
     wgt2 = get_weights(dom, idE, 3)
 
     dvelo(EDGE*id+RT+1) = &
-         h_mflux(EDGE*id+DG+1)*0.5_8*(dom%qe%elts(EDGE*id+DG+1) + &
-         dom%qe%elts(EDGE*id+RT+1))*wgt1(1) + &
-         h_mflux(EDGE*id+UP+1)*0.5_8*(dom%qe%elts(EDGE*id+UP+1) + &
-         dom%qe%elts(EDGE*id+RT+1))*wgt1(2) + &
-         h_mflux(EDGE*idW+RT+1)*0.5_8*(dom%qe%elts(EDGE*idW+RT+1) + &
-         dom%qe%elts(EDGE*id+RT+1))*wgt1(3) + &
-         h_mflux(EDGE*idSW+DG+1)*0.5_8*(dom%qe%elts(EDGE*idSW+DG+1) &
-         + dom%qe%elts(EDGE*id+RT+1))*wgt1(4) + &
-         h_mflux(EDGE*idS+UP+1)*0.5_8*(dom%qe%elts(EDGE*idS+UP+1) + &
-         dom%qe%elts(EDGE*id+RT+1))*wgt1(5) + &
-         h_mflux(DG+EDGE*idS+1)*0.5_8*(dom%qe%elts(DG+EDGE*idS+1) + &
-         dom%qe%elts(EDGE*id+RT+1))*wgt2(1) + &
-         h_mflux(EDGE*idSE+UP+1)*0.5_8*(dom%qe%elts(EDGE*idSE+UP+1) &
-         + dom%qe%elts(EDGE*id+RT+1))*wgt2(2) + &
-         h_mflux(EDGE*idE+RT+1)*0.5_8*(dom%qe%elts(EDGE*idE+RT+1) + &
-         dom%qe%elts(EDGE*id+RT+1))*wgt2(3) + &
-         h_mflux(DG+EDGE*idE+1)*0.5_8*(dom%qe%elts(DG+EDGE*idE+1) + &
-         dom%qe%elts(EDGE*id+RT+1))*wgt2(4) + &
-         h_mflux(EDGE*idE+UP+1)*0.5_8*(dom%qe%elts(EDGE*idE+UP+1) + &
-         dom%qe%elts(EDGE*id+RT+1))*wgt2(5)
+         h_mflux(EDGE*id+DG+1)*0.5_8*(qe(EDGE*id+DG+1) + &
+         qe(EDGE*id+RT+1))*wgt1(1) + &
+         h_mflux(EDGE*id+UP+1)*0.5_8*(qe(EDGE*id+UP+1) + &
+         qe(EDGE*id+RT+1))*wgt1(2) + &
+         h_mflux(EDGE*idW+RT+1)*0.5_8*(qe(EDGE*idW+RT+1) + &
+         qe(EDGE*id+RT+1))*wgt1(3) + &
+         h_mflux(EDGE*idSW+DG+1)*0.5_8*(qe(EDGE*idSW+DG+1) &
+         + qe(EDGE*id+RT+1))*wgt1(4) + &
+         h_mflux(EDGE*idS+UP+1)*0.5_8*(qe(EDGE*idS+UP+1) + &
+         qe(EDGE*id+RT+1))*wgt1(5) + &
+         h_mflux(DG+EDGE*idS+1)*0.5_8*(qe(DG+EDGE*idS+1) + &
+         qe(EDGE*id+RT+1))*wgt2(1) + &
+         h_mflux(EDGE*idSE+UP+1)*0.5_8*(qe(EDGE*idSE+UP+1) &
+         + qe(EDGE*id+RT+1))*wgt2(2) + &
+         h_mflux(EDGE*idE+RT+1)*0.5_8*(qe(EDGE*idE+RT+1) + &
+         qe(EDGE*id+RT+1))*wgt2(3) + &
+         h_mflux(DG+EDGE*idE+1)*0.5_8*(qe(DG+EDGE*idE+1) + &
+         qe(EDGE*id+RT+1))*wgt2(4) + &
+         h_mflux(EDGE*idE+UP+1)*0.5_8*(qe(EDGE*idE+UP+1) + &
+         qe(EDGE*id+RT+1))*wgt2(5)
 
     wgt1 = get_weights(dom, id, 1)
     wgt2 = get_weights(dom, idNE, 4)
 
     dvelo(EDGE*id+DG+1) = &
-         h_mflux(EDGE*id+UP+1)*0.5_8*(dom%qe%elts(EDGE*id+UP+1) + &
-         dom%qe%elts(EDGE*id+DG+1))*wgt1(1) + &
-         h_mflux(EDGE*idW+RT+1)*0.5_8*(dom%qe%elts(EDGE*idW+RT+1) + &
-         dom%qe%elts(EDGE*id+DG+1))*wgt1(2) + &
-         h_mflux(EDGE*idSW+DG+1)*0.5_8*(dom%qe%elts(EDGE*idSW+DG+1) &
-         + dom%qe%elts(EDGE*id+DG+1))*wgt1(3) + &
-         h_mflux(EDGE*idS+UP+1)*0.5_8*(dom%qe%elts(EDGE*idS+UP+1) + &
-         dom%qe%elts(EDGE*id+DG+1))*wgt1(4) + &
-         h_mflux(EDGE*id+RT+1)*0.5_8*(dom%qe%elts(EDGE*id+RT+1) + &
-         dom%qe%elts(EDGE*id+DG+1))*wgt1(5) + &
-         h_mflux(EDGE*idE+UP+1)*0.5_8*(dom%qe%elts(EDGE*idE+UP+1) + &
-         dom%qe%elts(EDGE*id+DG+1))*wgt2(1) + &
-         h_mflux(EDGE*idNE+RT+1)*0.5_8*(dom%qe%elts(EDGE*idNE+RT+1) &
-         + dom%qe%elts(EDGE*id+DG+1))*wgt2(2) + &
-         h_mflux(EDGE*idNE+DG+1)*0.5_8*(dom%qe%elts(EDGE*idNE+DG+1) &
-         + dom%qe%elts(EDGE*id+DG+1))*wgt2(3) + &
-         h_mflux(EDGE*idNE+UP+1)*0.5_8*(dom%qe%elts(EDGE*idNE+UP+1) &
-         + dom%qe%elts(EDGE*id+DG+1))*wgt2(4) + &
-         h_mflux(EDGE*idN+RT+1)*0.5_8*(dom%qe%elts(EDGE*idN+RT+1) + &
-         dom%qe%elts(EDGE*id+DG+1))*wgt2(5)
+         h_mflux(EDGE*id+UP+1)*0.5_8*(qe(EDGE*id+UP+1) + &
+         qe(EDGE*id+DG+1))*wgt1(1) + &
+         h_mflux(EDGE*idW+RT+1)*0.5_8*(qe(EDGE*idW+RT+1) + &
+         qe(EDGE*id+DG+1))*wgt1(2) + &
+         h_mflux(EDGE*idSW+DG+1)*0.5_8*(qe(EDGE*idSW+DG+1) &
+         + qe(EDGE*id+DG+1))*wgt1(3) + &
+         h_mflux(EDGE*idS+UP+1)*0.5_8*(qe(EDGE*idS+UP+1) + &
+         qe(EDGE*id+DG+1))*wgt1(4) + &
+         h_mflux(EDGE*id+RT+1)*0.5_8*(qe(EDGE*id+RT+1) + &
+         qe(EDGE*id+DG+1))*wgt1(5) + &
+         h_mflux(EDGE*idE+UP+1)*0.5_8*(qe(EDGE*idE+UP+1) + &
+         qe(EDGE*id+DG+1))*wgt2(1) + &
+         h_mflux(EDGE*idNE+RT+1)*0.5_8*(qe(EDGE*idNE+RT+1) &
+         + qe(EDGE*id+DG+1))*wgt2(2) + &
+         h_mflux(EDGE*idNE+DG+1)*0.5_8*(qe(EDGE*idNE+DG+1) &
+         + qe(EDGE*id+DG+1))*wgt2(3) + &
+         h_mflux(EDGE*idNE+UP+1)*0.5_8*(qe(EDGE*idNE+UP+1) &
+         + qe(EDGE*id+DG+1))*wgt2(4) + &
+         h_mflux(EDGE*idN+RT+1)*0.5_8*(qe(EDGE*idN+RT+1) + &
+         qe(EDGE*id+DG+1))*wgt2(5)
 
     wgt1 = get_weights(dom, id, 2)
     wgt2 = get_weights(dom, idN, 5)
 
     dvelo(EDGE*id+UP+1) = &
-         h_mflux(EDGE*idW+RT+1)*0.5_8*(dom%qe%elts(EDGE*idW+RT+1) + &
-         dom%qe%elts(EDGE*id+UP+1))*wgt1(1) + &
-         h_mflux(EDGE*idSW+DG+1)*0.5_8*(dom%qe%elts(EDGE*idSW+DG+1) &
-         + dom%qe%elts(EDGE*id+UP+1))*wgt1(2) + &
-         h_mflux(EDGE*idS+UP+1)*0.5_8*(dom%qe%elts(EDGE*idS+UP+1) + &
-         dom%qe%elts(EDGE*id+UP+1))*wgt1(3) + &
-         h_mflux(EDGE*id+RT+1)*0.5_8*(dom%qe%elts(EDGE*id+RT+1) + &
-         dom%qe%elts(EDGE*id+UP+1))*wgt1(4) + &
-         h_mflux(EDGE*id+DG+1)*0.5_8*(dom%qe%elts(EDGE*id+DG+1) + &
-         dom%qe%elts(EDGE*id+UP+1))*wgt1(5) + &
-         h_mflux(EDGE*idN+RT+1)*0.5_8*(dom%qe%elts(EDGE*idN+RT+1) + &
-         dom%qe%elts(EDGE*id+UP+1))*wgt2(1) + &
-         h_mflux(EDGE*idN+DG+1)*0.5_8*(dom%qe%elts(EDGE*idN+DG+1) + &
-         dom%qe%elts(EDGE*id+UP+1))*wgt2(2) + &
-         h_mflux(EDGE*idN+UP+1)*0.5_8*(dom%qe%elts(EDGE*idN+UP+1) + &
-         dom%qe%elts(EDGE*id+UP+1))*wgt2(3) + &
-         h_mflux(EDGE*idNW+RT+1)*0.5_8*(dom%qe%elts(EDGE*idNW+RT+1) &
-         + dom%qe%elts(EDGE*id+UP+1))*wgt2(4) + &
-         h_mflux(EDGE*idW+DG+1)*0.5_8*(dom%qe%elts(EDGE*idW+DG+1) + &
-         dom%qe%elts(EDGE*id+UP+1))*wgt2(5)
+         h_mflux(EDGE*idW+RT+1)*0.5_8*(qe(EDGE*idW+RT+1) + &
+         qe(EDGE*id+UP+1))*wgt1(1) + &
+         h_mflux(EDGE*idSW+DG+1)*0.5_8*(qe(EDGE*idSW+DG+1) &
+         + qe(EDGE*id+UP+1))*wgt1(2) + &
+         h_mflux(EDGE*idS+UP+1)*0.5_8*(qe(EDGE*idS+UP+1) + &
+         qe(EDGE*id+UP+1))*wgt1(3) + &
+         h_mflux(EDGE*id+RT+1)*0.5_8*(qe(EDGE*id+RT+1) + &
+         qe(EDGE*id+UP+1))*wgt1(4) + &
+         h_mflux(EDGE*id+DG+1)*0.5_8*(qe(EDGE*id+DG+1) + &
+         qe(EDGE*id+UP+1))*wgt1(5) + &
+         h_mflux(EDGE*idN+RT+1)*0.5_8*(qe(EDGE*idN+RT+1) + &
+         qe(EDGE*id+UP+1))*wgt2(1) + &
+         h_mflux(EDGE*idN+DG+1)*0.5_8*(qe(EDGE*idN+DG+1) + &
+         qe(EDGE*id+UP+1))*wgt2(2) + &
+         h_mflux(EDGE*idN+UP+1)*0.5_8*(qe(EDGE*idN+UP+1) + &
+         qe(EDGE*id+UP+1))*wgt2(3) + &
+         h_mflux(EDGE*idNW+RT+1)*0.5_8*(qe(EDGE*idNW+RT+1) &
+         + qe(EDGE*id+UP+1))*wgt2(4) + &
+         h_mflux(EDGE*idW+DG+1)*0.5_8*(qe(EDGE*idW+DG+1) + &
+         qe(EDGE*id+UP+1))*wgt2(5)
   end subroutine du_Qperp
 
   subroutine scalar_trend(dom, i, j, zlev, offs, dims)
@@ -1018,7 +1018,7 @@ contains
     idNE = idx(i + 1, j + 1, offs, dims)
 
     ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
-    ! the theta multiplying the exner gradient is the edge-averaged non-mass-weighted potential temperature
+    ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
 
     full_pot_temp(0)         = (temp(id+1)   + mean(S_TEMP,zlev))/(mass(id+1)   + mean(S_MASS,zlev))
     full_pot_temp(NORTH)     = (temp(idN+1)  + mean(S_TEMP,zlev))/(mass(idN+1)  + mean(S_MASS,zlev))

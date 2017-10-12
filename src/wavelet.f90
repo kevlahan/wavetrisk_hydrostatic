@@ -219,18 +219,18 @@ contains
     I_u_inner = u
   end function I_u_inner
 
-  subroutine forward_wavelet_transform(fun, wav)
-    type(Float_Field), dimension(:,:), target :: fun, wav
+  subroutine forward_wavelet_transform(loc_var, wav)
+    type(Float_Field), dimension(:,:), target :: loc_var, wav
     
     integer k, l, d
 
     do l = level_end - 1, level_start - 1, -1
-       call update_array_bdry(fun(S_MASS:S_TEMP,:), l+1)
+       call update_array_bdry(loc_var(S_MASS:S_TEMP,:), l+1)
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
-             mass => fun(S_MASS,k)%data(d)%elts
+             mass => loc_var(S_MASS,k)%data(d)%elts
              wc_m => wav(S_MASS,k)%data(d)%elts
-             temp => fun(S_TEMP,k)%data(d)%elts
+             temp => loc_var(S_TEMP,k)%data(d)%elts
              wc_t => wav(S_TEMP,k)%data(d)%elts
              
              call apply_interscale_d(cpt_scalar_wc, grid(d), l, z_null, 0, 0)
@@ -243,29 +243,29 @@ contains
        
        do k = 1, zlevels
           do d = 1, size(grid)
-             mass => fun(S_MASS,k)%data(d)%elts
+             mass => loc_var(S_MASS,k)%data(d)%elts
              wc_m => wav(S_MASS,k)%data(d)%elts
-             temp => fun(S_TEMP,k)%data(d)%elts
+             temp => loc_var(S_TEMP,k)%data(d)%elts
              wc_t => wav(S_TEMP,k)%data(d)%elts
              call apply_interscale_d(restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
 
-             velo => fun(S_VELO,k)%data(d)%elts
+             velo => loc_var(S_VELO,k)%data(d)%elts
              call apply_interscale_d(restrict_u, grid(d), l, k, 0, 0)
              nullify(mass, temp, velo, wc_m, wc_t)
           end do
        end do
     end do
 
-    fun%bdry_uptodate = .False.
+    loc_var%bdry_uptodate = .False.
     wav(S_MASS:S_TEMP,:)%bdry_uptodate = .False.
 
-    call update_vector_bdry(fun(S_VELO,:), NONE)
+    call update_vector_bdry(loc_var(S_VELO,:), NONE)
     
     do l = level_end - 1, level_start - 1, -1
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
              wc_u => wav(S_VELO,k)%data(d)%elts
-             velo => fun(S_VELO,k)%data(d)%elts
+             velo => loc_var(S_VELO,k)%data(d)%elts
              call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
              nullify(wc_u, velo)

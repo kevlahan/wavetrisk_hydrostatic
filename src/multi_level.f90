@@ -369,13 +369,14 @@ contains
           h_tflux   => horiz_flux(S_TEMP,k)%data(d)%elts
           bernoulli => fun(F_BERN,k)%data(d)%elts
           exner     => fun(F_EXNER,k)%data(d)%elts
+          qe        => fun(F_QE,k)%data(d)%elts
 
-          ! Compute pressure, geopotential, exner (compressible case), specific volume
+          ! Compute pressure, geopotential, Exner (compressible case), specific volume
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
           end do
 
-          ! Compute horizontal fluxes, vorticity, potential vorticity, kinetic energy, Bernoulli, exner (incompressible case)
+          ! Compute horizontal fluxes, potential vorticity (pv), potential vorticity (qe), Bernoulli, Exner (incompressible case)
           do j = 1, grid(d)%lev(level_end)%length
              call step1 (grid(d), grid(d)%lev(level_end)%elts(j), k)
           end do
@@ -388,7 +389,7 @@ contains
              end do
           end if
 
-          nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner)
+          nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, qe)
        end do
     end do
 
@@ -439,7 +440,7 @@ contains
     
     dq%bdry_uptodate         = .False.
     horiz_flux%bdry_uptodate = .False.
-    fun%bdry_uptodate = .False.
+    fun%bdry_uptodate        = .False.
 
     if (level_start .lt. level_end) then
        call update_array_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
@@ -458,12 +459,13 @@ contains
           dvelo   => dq(S_VELO,k)%data(d)%elts
           h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
           h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
+          qe      => fun(F_QE,k)%data(d)%elts
 
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
-          nullify (mass, velo, temp, dvelo, h_mflux, h_tflux)
+          nullify (mass, velo, temp, dvelo, h_mflux, h_tflux, qe)
        end do
     end do
 
@@ -481,6 +483,7 @@ contains
              h_tflux   => horiz_flux(S_TEMP,k)%data(d)%elts
              bernoulli => fun(F_BERN,k)%data(d)%elts
              exner     => fun(F_EXNER,k)%data(d)%elts
+             qe        => fun(F_QE,k)%data(d)%elts
 
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
@@ -500,7 +503,7 @@ contains
              
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
-             nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, exner)
+             nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, exner, qe)
           end do
        end do
 
@@ -562,10 +565,11 @@ contains
              dtemp   => dq(S_TEMP,k)%data(d)%elts
              h_mflux => horiz_flux(S_MASS,k)%data(d)%elts
              h_tflux => horiz_flux(S_TEMP,k)%data(d)%elts
+             qe      => fun(F_QE,k)%data(d)%elts
 
              call cpt_or_restr_du_source (grid(d), l, k)
 
-             nullify (mass, velo, temp, dmass, dvelo, dtemp, h_mflux, h_tflux)
+             nullify (mass, velo, temp, dmass, dvelo, dtemp, h_mflux, h_tflux, qe)
           end do
        end do
        dq(S_VELO,:)%bdry_uptodate = .False.

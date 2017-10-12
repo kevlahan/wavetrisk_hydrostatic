@@ -27,7 +27,7 @@ contains
     allocate (grid(n_domain(rank+1)))
     allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
-    allocate (fun(1:2,1:zlevels), horiz_flux(S_MASS:S_TEMP,1:zlevels))
+    allocate (fun(1:3,1:zlevels), horiz_flux(S_MASS:S_TEMP,1:zlevels))
 
     do k = 1, zlevels
        do v = S_MASS, S_VELO
@@ -40,6 +40,7 @@ contains
        do v = 1, 2
           call init_Float_Field(fun(v,k), AT_NODE)
        end do
+       call init_Float_Field(fun(F_QE,k), AT_EDGE)
     end do
 
     do d = 1, n_domain(rank+1)
@@ -336,6 +337,7 @@ contains
           do v = 1, 2
              call init(fun(v,k)%data(d), grid(d)%node%length)
           end do
+          call init(fun(F_QE,k)%data(d), grid(d)%node%length*EDGE)
        end do
     end do
 
@@ -349,7 +351,6 @@ contains
        call init(grid(d)%adj_mass,     grid(d)%node%length)
        call init(grid(d)%adj_temp,     grid(d)%node%length)
        call init(grid(d)%adj_geopot,   grid(d)%node%length)
-       call init(grid(d)%qe,           grid(d)%node%length*EDGE)
        call init(grid(d)%divu,         grid(d)%node%length)
        call init(grid(d)%vort,         grid(d)%node%length*TRIAG)
 

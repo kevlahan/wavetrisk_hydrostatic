@@ -202,9 +202,9 @@ contains
        do v = 1, 2
           call extend(fun(v,k)%data(d), num, 0.0_8)
        end do
+       call extend(fun(F_QE,k)%data(d), num*EDGE, 0.0_8)
     end do
 
-    call extend(dom%qe, EDGE*num, 0.0_8)
     call extend(dom%vort, TRIAG*num, 0.0_8)
     call extend(dom%divu, num, 0.0_8)
     call extend(dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))

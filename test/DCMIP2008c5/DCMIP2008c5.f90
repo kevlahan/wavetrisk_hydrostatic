@@ -400,7 +400,7 @@ program DCMIP2008c5
   write_init = (resume .eq. NONE)
   iwrite = 0
 
-  uniform = .false.
+  uniform = .true.
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
   
   ! trend = sol ! uniform vertical coordinates
@@ -456,7 +456,7 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        !call remap_vertical_coordinates()
+!        call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle

@@ -251,7 +251,6 @@ contains
        grid(d)%adj_mass%length   = init_state(d)%n_node
        grid(d)%adj_temp%length   = init_state(d)%n_node
        grid(d)%adj_geopot%length   = init_state(d)%n_node
-       grid(d)%qe%length          = init_state(d)%n_edge
        grid(d)%vort%length        = init_state(d)%n_tria
 
        ! For mass-based vertical coordinates
@@ -278,6 +277,7 @@ contains
           do v = 1, 2
              fun(v,k)%data(d)%length = num(AT_NODE)
           end do
+          fun(F_QE,k)%data(d)%length = num(AT_EDGE)
        end do
 
        do i = 1, N_GLO_DOMAIN
@@ -350,7 +350,6 @@ contains
        deallocate(grid(d)%adj_geopot%elts)
        deallocate(grid(d)%vort%elts)
        deallocate(grid(d)%divu%elts)
-       deallocate(grid(d)%qe%elts)
        deallocate(grid(d)%windstress%elts)
        deallocate(grid(d)%coriolis%elts)
        deallocate(grid(d)%triarea%elts)
@@ -393,18 +392,17 @@ contains
           do v = S_MASS, S_TEMP
              deallocate(horiz_flux(v,k)%data(d)%elts)
           end do
+          do v = 1, 3
+             deallocate(fun(v,k)%data(d)%elts) 
+          end do
        end do
     end do
-
 
     ! deallocate solution arrays
     do k = 1, zlevels
        do d = 1, size(grid)
           do v = S_MASS, S_VELO
              deallocate(sol(v,k)%data(d)%elts) 
-          end do
-          do v = 1, 2
-             deallocate(fun(v,k)%data(d)%elts) 
           end do
        end do
     end do
@@ -456,7 +454,7 @@ contains
        do v = S_MASS, S_TEMP
           deallocate(horiz_flux(v,k)%data)
        end do
-       do v = 1, 2
+       do v = 1, 3
           deallocate(fun(v,k)%data)
        end do
     end do

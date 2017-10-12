@@ -51,7 +51,6 @@ module domain_mod
      type(Float_Array) adj_temp !temp in adjacent vertical cell
      type(Float_Array) adj_geopot !specific volume in adjacent vertical cell
      type(Float_Array) divu !divergence of velocity field
-     type(Float_Array) qe !potential vorticity
      type(Float_Array) vort !vorticity
 
      ! For mass-based vertical coordinates
@@ -90,7 +89,7 @@ module domain_mod
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo
-  real(8), dimension(:), pointer :: bernoulli, exner
+  real(8), dimension(:), pointer :: bernoulli, exner, qe
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
   ! For mass-based vertical coordinates
   real(8), dimension(:), pointer :: adj_temp_up, adj_mass_up, adj_velo_up, v_mflux

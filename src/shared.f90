@@ -261,7 +261,7 @@ module shared_mod
 
   ! indices of prognostic variables in sol, trend etc
   integer, parameter :: S_MASS = 1,  S_TEMP = 2, S_VELO = 3
-  integer, parameter :: F_BERN = 1, F_EXNER = 2
+  integer, parameter :: F_BERN = 1, F_EXNER = 2, F_QE = 3
 
   ! number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
   integer, dimension(S_MASS:S_VELO) :: MULT
