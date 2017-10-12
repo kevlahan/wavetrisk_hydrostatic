@@ -126,8 +126,8 @@ contains
     call get_load_balance(load_min, load_avg, load_max)
     rel_imbalance = dble(load_max)/load_avg
 
-    if (rank .eq. 0) write(6,'(A,1x,i9,1x,f10.1,1x,i9)') 'min load, average load, max load:', load_min, load_avg, load_max
-    if (rank .eq. 0) write(6,'(A,1x,f10.2)') 'relative imbalance (1=perfect balance)', rel_imbalance
+    !if (rank .eq. 0) write(6,'(A,1x,i9,1x,f10.1,1x,i9)') 'min load, average load, max load:', load_min, load_avg, load_max
+    !if (rank .eq. 0) write(6,'(A,1x,f10.2)') 'relative imbalance (1=perfect balance)', rel_imbalance
   end subroutine print_load_balance
 
   subroutine write_level_mpi(out_rout, fid, l, zlev, eval_pole)
@@ -1188,7 +1188,6 @@ contains
     call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
 
     cpt_dt_mpi = glo_min
-    if (penalize) cpt_dt_mpi = min(cpt_dt_mpi, 2.0_8/ieta)
 
     ! on error stop without a mess (everyone must call finalize)
     if (glo_min .le. 0) then

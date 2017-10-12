@@ -54,12 +54,6 @@ contains
     chidual = 0
 
     if (maxval(dom%mask_n%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
-       if (penalize) &
-            chidual(LORT+1) = (penal%data(dom%id+1)%elts(id  +1)*dom%areas%elts(id  +1)%part(1) &
-            + penal%data(dom%id+1)%elts(idE +1)*dom%areas%elts(idE +1)%part(3) &
-            + penal%data(dom%id+1)%elts(idNE+1)*dom%areas%elts(idNE+1)%part(5)) &
-            /dom%triarea%elts(TRIAG*id+LORT+1)
-
        if (allocated(active_level%data)) & ! avoid segfault if pre_levelout not used
             leveldual(LORT+1) = maxval(active_level%data(dom%id+1)%elts((/id, idE, idNE/)+1))
 
@@ -68,13 +62,6 @@ contains
     end if
 
     if (maxval(dom%mask_n%elts((/id, idNE, idN/)+1)) .ge. ADJZONE) then
-
-       if (penalize) &
-            chidual(UPLT+1) = (penal%data(dom%id+1)%elts(id  +1)*dom%areas%elts(id  +1)%part(2) &
-            + penal%data(dom%id+1)%elts(idNE+1)*dom%areas%elts(idNE+1)%part(4) &
-            + penal%data(dom%id+1)%elts(idN +1)*dom%areas%elts(idN +1)%part(6)) &
-            /dom%triarea%elts(TRIAG*id+UPLT+1)
-
        if (allocated(active_level%data)) & ! avoid segfault if pre_levelout not used
             leveldual(UPLT+1) = maxval(active_level%data(dom%id+1)%elts((/id, idNE, idN/)+1))
 
@@ -239,13 +226,15 @@ contains
   end function pot_energy
 
   real(8) function energy(dom, i, j, k, offs, dims)
-    type(Domain) dom
-    integer i, j, k, id
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    type(Domain)                   :: dom
+    integer                        :: i, j, k
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
 
     id = idx(i, j, offs, dims)
-    energy = dom%bernoulli%elts(id+1) * sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+    energy = bernoulli(id+1) * sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
   end function energy
 
   real(8) function tri_only_area(dom, i, j, t, offs, dims)
@@ -490,6 +479,9 @@ contains
     call zonal_meridional_vel (dom, i, j, offs, dims, zlev, vel_latlon)
     outv(2) = vel_latlon(1)
     outv(3) = vel_latlon(2)
+    
+    !outv(2) = dom%u_zonal%elts(id+1)
+    !outv(3) = dom%v_merid%elts(id+1)
     
     ! Geopotential height at level zlev
     outv(4) = dom%geopot%elts(id+1)/grav_accel

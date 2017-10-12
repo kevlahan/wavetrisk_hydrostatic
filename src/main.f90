@@ -242,16 +242,15 @@ contains
        grid(d)%mask_e%length      = init_state(d)%n_edge
        grid(d)%level%length       = init_state(d)%n_node
 
-       grid(d)%bernoulli%length   = init_state(d)%n_node
-       grid(d)%exner%length   = init_state(d)%n_node
        grid(d)%surf_press%length   = init_state(d)%n_node
        grid(d)%press%length   = init_state(d)%n_node
        grid(d)%surf_geopot%length   = init_state(d)%n_node
        grid(d)%geopot%length   = init_state(d)%n_node
+       grid(d)%u_zonal%length   = init_state(d)%n_node
+       grid(d)%v_merid%length   = init_state(d)%n_node
        grid(d)%adj_mass%length   = init_state(d)%n_node
        grid(d)%adj_temp%length   = init_state(d)%n_node
        grid(d)%adj_geopot%length   = init_state(d)%n_node
-       grid(d)%kin_energy%length  = init_state(d)%n_node
        grid(d)%qe%length          = init_state(d)%n_edge
        grid(d)%vort%length        = init_state(d)%n_tria
 
@@ -261,8 +260,6 @@ contains
        grid(d)%adj_velo%length          = init_state(d)%n_edge
        grid(d)%integr_horiz_flux%length = init_state(d)%n_edge
        
-       if (penalize) penal%data(d)%length = num(AT_NODE)
-
        do k = 1, zlevels
           do v = S_MASS, S_VELO
              wav_coeff(v,k)%data(d)%length = num(POSIT(v))
@@ -277,6 +274,9 @@ contains
           end do
           do v = S_MASS, S_TEMP
              horiz_flux(v,k)%data(d)%length = num(AT_EDGE)
+          end do
+          do v = 1, 2
+             fun(v,k)%data(d)%length = num(AT_NODE)
           end do
        end do
 
@@ -339,19 +339,18 @@ contains
        deallocate(grid(d)%R_F_wgt%elts)
        deallocate(grid(d)%I_u_wgt%elts)
        deallocate(grid(d)%overl_areas%elts)
-       deallocate(grid(d)%bernoulli%elts)
-       deallocate(grid(d)%exner%elts)
        deallocate(grid(d)%surf_press%elts)
        deallocate(grid(d)%press%elts)
        deallocate(grid(d)%surf_geopot%elts)
        deallocate(grid(d)%geopot%elts)
+       deallocate(grid(d)%u_zonal%elts)
+       deallocate(grid(d)%v_merid%elts)
        deallocate(grid(d)%adj_mass%elts)
        deallocate(grid(d)%adj_temp%elts)
        deallocate(grid(d)%adj_geopot%elts)
        deallocate(grid(d)%vort%elts)
        deallocate(grid(d)%divu%elts)
        deallocate(grid(d)%qe%elts)
-       deallocate(grid(d)%kin_energy%elts)
        deallocate(grid(d)%windstress%elts)
        deallocate(grid(d)%coriolis%elts)
        deallocate(grid(d)%triarea%elts)
@@ -404,12 +403,14 @@ contains
           do v = S_MASS, S_VELO
              deallocate(sol(v,k)%data(d)%elts) 
           end do
+          do v = 1, 2
+             deallocate(fun(v,k)%data(d)%elts) 
+          end do
        end do
     end do
 
     ! deallocate init_grid allocations
     do d = 1, size(grid)
-       if (penalize) deallocate(penal%data(d)%elts)
        deallocate(grid(d)%neigh_pa_over_pole%elts)
 
        do k = AT_NODE, AT_EDGE
@@ -447,19 +448,20 @@ contains
        deallocate(grid(d)%patch%elts) 
     end do
 
-    if (penalize) deallocate(penal%data)
-
     do k = 1, zlevels
-       do v = S_MASS, S_TEMP
-          deallocate(horiz_flux(v,k)%data)
-       end do
        do v = S_MASS, S_VELO
           deallocate(sol(v,k)%data)
           deallocate(trend(v,k)%data)
        end do
+       do v = S_MASS, S_TEMP
+          deallocate(horiz_flux(v,k)%data)
+       end do
+       do v = 1, 2
+          deallocate(fun(v,k)%data)
+       end do
     end do
 
-    deallocate(grid, sol, trend, horiz_flux)
+    deallocate(grid, fun, sol, trend, horiz_flux)
 
     ! init_shared_mod()
     level_start = min_level

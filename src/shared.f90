@@ -16,7 +16,7 @@
 ! length is an integer giving the size of elts).
 !
 ! Type(Float_Array) has components elts(:)%length (where elts is a real array of variable values on each grid element on each sub-domain and
-! and length is an integer giving the size of elts). It is used for physical variables such as coriolis, kin_energy, divu, vort etc.
+! and length is an integer giving the size of elts). It is used for physical variables such as coriolis, divu, vort etc.
 !
 ! Type(Int_Array) has components elts(:)%length (where elts is an integer array of element indices on each sub-domain and
 ! and length is an integer giving the size of elts). It is used for masks, levels and parallel communication variables.
@@ -166,8 +166,8 @@ module shared_mod
   integer, allocatable :: n_domain(:) ! number of subdomains on each processor
 
 
-  ! thickness of boundary overlaps between lozanges
-  integer, parameter :: BDRY_THICKNESS = 3
+  ! thickness of boundary overlaps between lozanges (ghost points)
+  integer, parameter :: BDRY_THICKNESS = 2
 
   integer, parameter :: FROZEN = 32
 
@@ -261,6 +261,7 @@ module shared_mod
 
   ! indices of prognostic variables in sol, trend etc
   integer, parameter :: S_MASS = 1,  S_TEMP = 2, S_VELO = 3
+  integer, parameter :: F_BERN = 1, F_EXNER = 2
 
   ! number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
   integer, dimension(S_MASS:S_VELO) :: MULT
@@ -290,14 +291,13 @@ module shared_mod
 
   ! simulation variables
   real(8) dt_write, time_end, time
-  real(8) viscosity, friction_coeff, omega, radius, grav_accel, cfl_num, kmax
+  real(8) viscosity, omega, radius, grav_accel, cfl_num, kmax
   real(8) ref_density, press_infty, ref_press, kappa, c_p, R_d
   integer istep, resume
-  logical advect_only, wind_stress, bottom_friction, compressible, adapt_trend
+  logical advect_only, wind_stress, compressible, adapt_trend
 
   ! for penalization boundary condition
-  logical penalize, lagrangian_vertical
-  real(8) alpha_m1, ieta
+  logical lagrangian_vertical
 
   real(8) nonunique_pent_locs(10*2**(2*DOMAIN_LEVEL),3)
   real(8) unique_pent_locs(12,3)
@@ -375,19 +375,11 @@ contains
     resume = NONE
     istep = 0
     time = 0.0_8
-    viscosity = 0
-    friction_coeff = 0
-    wind_stress = .False.
-    bottom_friction = .False.
+    viscosity = 0.0_8
     advect_only = .False.
     dynamic_adapt = .False. !this logical is not used
     lagrangian_vertical = .True. ! Lagrangian or mass based vertical coordinates
     optimize_grid = NO_OPTIM
-
-    ! for penalization boundary condition
-    ieta = 1.0_8 / 0.1_8
-    alpha_m1 = sqrt(1.0_8/ieta) - 1.0_8
-    penalize = .False.
 
     initialized = .True.
   end subroutine init_shared_mod

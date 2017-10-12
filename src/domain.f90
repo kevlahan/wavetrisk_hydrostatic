@@ -41,17 +41,16 @@ module domain_mod
      type(Float_Array) coriolis
      type(Float_Array) windstress
 
-     type(Float_Array) bernoulli !Bernoulli function
-     type(Float_Array) exner !Exner pressure
      type(Float_Array) surf_press !surface pressure (compressible) or surface Lagrange multiplier (incompressible)
      type(Float_Array) press !pressure (compressible case) or Lagrange multiplier (incompressible case)
      type(Float_Array) surf_geopot !surface geopotential
      type(Float_Array) geopot !geopotential
+     type(Float_Array) u_zonal ! zonal velocity
+     type(Float_Array) v_merid ! meridional velocity
      type(Float_Array) adj_mass !mass in adjacent vertical cell
      type(Float_Array) adj_temp !temp in adjacent vertical cell
      type(Float_Array) adj_geopot !specific volume in adjacent vertical cell
      type(Float_Array) divu !divergence of velocity field
-     type(Float_Array) kin_energy !kinetic energy
      type(Float_Array) qe !potential vorticity
      type(Float_Array) vort !vorticity
 
@@ -79,7 +78,7 @@ module domain_mod
   end type Float_Field
 
   type(Domain), allocatable, target :: grid(:)
-  type(Float_Field), dimension(:,:), allocatable, target :: sol, trend, wav_coeff, trend_wav_coeff, horiz_flux
+  type(Float_Field), dimension(:,:), allocatable, target :: sol, trend, wav_coeff, trend_wav_coeff, fun, horiz_flux
 
   !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
   !we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
@@ -91,6 +90,7 @@ module domain_mod
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo
+  real(8), dimension(:), pointer :: bernoulli, exner
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
   ! For mass-based vertical coordinates
   real(8), dimension(:), pointer :: adj_temp_up, adj_mass_up, adj_velo_up, v_mflux
@@ -983,8 +983,10 @@ contains
   end function par_side
 
   subroutine extend_Domain(self, num)
-    type(Domain) self
-    integer num, d, k
+    type(Domain) :: self
+    integer      :: num
+    
+    integer :: d, k, v
 
     d = self%id + 1
 

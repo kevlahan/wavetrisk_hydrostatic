@@ -27,7 +27,7 @@ contains
     allocate (grid(n_domain(rank+1)))
     allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
-    allocate (horiz_flux(S_MASS:S_TEMP,1:zlevels))
+    allocate (fun(1:2,1:zlevels), horiz_flux(S_MASS:S_TEMP,1:zlevels))
 
     do k = 1, zlevels
        do v = S_MASS, S_VELO
@@ -37,9 +37,10 @@ contains
        do v = S_MASS, S_TEMP
           call init_Float_Field(horiz_flux(v,k), AT_EDGE)
        end do
+       do v = 1, 2
+          call init_Float_Field(fun(v,k), AT_NODE)
+       end do
     end do
-
-    if (penalize) call init_Float_Field(penal, AT_NODE)
 
     do d = 1, n_domain(rank+1)
        call init_Domain(grid(d))
@@ -77,10 +78,6 @@ contains
 
     call init_connections()
     call init_coordinates()
-
-    do d = 1, n_domain(rank+1)
-       if (penalize) call init(penal%data(d), grid(d)%node%length)
-    end do
   end subroutine init_grid
 
   subroutine init_coordinates()
@@ -336,20 +333,22 @@ contains
           do v = S_MASS, S_TEMP
              call init(horiz_flux(v,k)%data(d), grid(d)%node%length*EDGE)
           end do
+          do v = 1, 2
+             call init(fun(v,k)%data(d), grid(d)%node%length)
+          end do
        end do
     end do
 
     do d = 1, size(grid)
-       call init(grid(d)%bernoulli,    grid(d)%node%length)
-       call init(grid(d)%exner,        grid(d)%node%length)
        call init(grid(d)%surf_press,   grid(d)%node%length)
        call init(grid(d)%press,        grid(d)%node%length)
        call init(grid(d)%surf_geopot,  grid(d)%node%length)
        call init(grid(d)%geopot,       grid(d)%node%length)
+       call init(grid(d)%u_zonal,      grid(d)%node%length)
+       call init(grid(d)%v_merid,      grid(d)%node%length)
        call init(grid(d)%adj_mass,     grid(d)%node%length)
        call init(grid(d)%adj_temp,     grid(d)%node%length)
        call init(grid(d)%adj_geopot,   grid(d)%node%length)
-       call init(grid(d)%kin_energy,   grid(d)%node%length)
        call init(grid(d)%qe,           grid(d)%node%length*EDGE)
        call init(grid(d)%divu,         grid(d)%node%length)
        call init(grid(d)%vort,         grid(d)%node%length*TRIAG)

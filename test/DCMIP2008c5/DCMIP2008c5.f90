@@ -18,16 +18,15 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   real(8), parameter :: lat_c_t      = MATH_PI/6.0_8 !mountain peak latitudinal location in radians
   real(8), parameter :: p_sp_t       = 930.0e2 !South Pole surface pressure in Pascals
   real(8), parameter :: a_t          = 6.371229e6 !mean radius of the Earth in meters
-  real(8), parameter :: ref_press_t  = 100145.6_8 !reference pressure (mean surface pressure) in Pascals
+  real(8), parameter :: ref_press_t  = 1e5_8!100145.6_8 !reference pressure (mean surface pressure) in Pascals
   real(8), parameter :: R_d_t        = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
   real(8), parameter :: c_p_t        = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
   real(8), parameter :: c_v_t        = 717.6_8 ! specfic heat at constant volume c_v = R_d - c_p
   real(8), parameter :: kappa_t      = R_d_t/c_p_t !kappa=R_d/c_p
   real(8), parameter :: N_t          = sqrt(grav_accel_t*grav_accel_t/(c_p_t*T_0_t)) !Brunt-Vaisala buoyancy frequency
   real(8), parameter :: ref_density_t= 100.0_8 !density for the incompressible case in kilogram per metres cubed
-  real(8)            :: press_infty_t !pressure at the top of the model in Pascals, is set later using a's and b's
 
-   logical, parameter :: uniform = .true. ! Whether uniform vertical grid in pressure
+  logical :: uniform  ! Uniform or non-uniform grid in pressure
 
   ! Dimensional scaling
   real(8), parameter :: Ldim = sqrt(d2_t)                             ! horizontal length scale
@@ -42,28 +41,16 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   real(8), parameter :: specvoldim = (R_d_t*Tempdim)/pdim             ! specific volume scale
   real(8), parameter :: geopotdim = acceldim*massdim*specvoldim/Hdim  ! geopotential scale
 
-  real(8) :: csq
-
-  real(8) :: VELO_SCALE
-
-  real(8), parameter :: LAND = 1
-  real(8), parameter :: SEA  = 0
-  character(255) IC_file
-
-  integer :: CP_EVERY 
-
-  real(8) :: Hmin, eta, alpha, dh_min, dh_max, dx_min, dx_max, kmin
-  real(8) :: initotalmass, totalmass, timing, total_time, dh
-
-  logical const_bathymetry, wasprinted
-
-  real(8) max_dh
-
-  integer iwrite, j
-
+  integer         :: CP_EVERY, id, zlev, iwrite, j
+  real(8)         :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
+  real(8)         :: initotalmass, totalmass, timing, total_time, dh
+  real(8)         :: csq, VELO_SCALE, max_dh
+  logical         :: wasprinted
+  character (255) :: IC_file
+  
 contains
   subroutine apply_initial_conditions()
-    integer l, d, p, k
+    integer :: l, d, p, k
 
     wasprinted=.false.
     do l = level_start, level_end
@@ -112,16 +99,20 @@ contains
   subroutine initialize_a_b_vert()
     integer :: k
 
+    ! Allocate vertical grid parameters
+    if (allocated(a_vert)) deallocate(a_vert)
+    if (allocated(b_vert)) deallocate(b_vert)
     allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
-
+    
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = real(k-1)/real(zlevels) * press_infty_t/ref_press_t
+          a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
           b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
     else
        if (zlevels.eq.18) then
-          a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+          a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+!          a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
                0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
                0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
                0.0_8, 0.0_8 /)
@@ -131,14 +122,15 @@ contains
                0.953189_8, 0.985056_8, 1.0_8 /)
           b_vert=b_vert(19:1:-1)
        elseif (zlevels.eq.26) then
-          a_vert=(/0.002194067, 0.004895209, 0.009882418, 0.01805201, 0.02983724, 0.04462334, 0.06160587, &
-               0.07851243, 0.07731271, 0.07590131, 0.07424086, 0.07228744, 0.06998933, 0.06728574, 0.06410509, &
-               0.06036322, 0.05596111, 0.05078225, 0.04468960, 0.03752191, 0.02908949, 0.02084739, 0.01334443, &
-               0.00708499, 0.00252136, 0.0, 0.0 /)
+          a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
+          !a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
+               0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
+               0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
+               0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
           a_vert=a_vert(27:1:-1)
-          b_vert=(/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01505309, 0.03276228, 0.05359622, 0.07810627, &
-               0.1069411, 0.1408637, 0.1807720, 0.2277220, 0.2829562, 0.3479364, 0.4243822, 0.5143168, &
-               0.6201202, 0.7235355, 0.8176768, 0.8962153, 0.9534761, 0.9851122, 1.0 /)
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
+                0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
+                0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
           b_vert=b_vert(27:1:-1)
        elseif (zlevels.eq.49) then
           a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
@@ -174,7 +166,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
     
     integer :: id, d, idN, idE, idNE
-    real(8) :: lon, lat, rgrc, lev_press, pot_temp
+    real(8) :: lon, lat, rgrc, lev_press, pot_temp, p_top, p_bot
 
     d = dom%id+1
     
@@ -183,54 +175,63 @@ contains
     idE  = idx(i + 1, j, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
+    ! Initialize vertical grid
+    call initialize_a_b_vert()
+    
+    ! Set pressure at infinity
+    press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph(dom%node%elts(id+1), lon, lat)
 
     ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
     rgrc = a_t*acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
-    dom%surf_geopot%elts(id+1) = grav_accel_t * h_0_t * exp(-rgrc**2/d2_t)
+    dom%surf_geopot%elts(id+1) = grav_accel * h_0_t * exp(-rgrc**2/d2_t)
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = p_sp_t * exp ( &
-         - a_t*N_t**2*u_0_t/(2.0_8*grav_accel_t**2*kappa_t)*(u_0_t/a_t+2.0_8*omega_t)*(sin(lat)**2-1.0_8) &
-         - N_t**2/(grav_accel_t**2*kappa_t)*dom%surf_geopot%elts(id+1) )
+         - a_t*N_t**2*u_0_t/(2.0_8*grav_accel_t**2*kappa)*(u_0_t/a_t+2.0_8*omega_t)*(sin(lat)**2-1.0_8) &
+         - N_t**2/(grav_accel**2*kappa_t)*dom%surf_geopot%elts(id+1) )
 
     ! Pressure at level zlev
-    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press_t + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = &
-         ((a_vert(zlev)-a_vert(zlev+1))*ref_press_t + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel_t
+         ((a_vert(zlev)-a_vert(zlev+1))*ref_press + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel
     
     ! Horizontally uniform potential temperature
-    pot_temp = T_0_t * (lev_press/ref_press_t)**(-kappa_t)
-
+    pot_temp =  T_0_t * (lev_press/ref_press)**(-kappa)
+    
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
 
-     ! Print out layer thicknesses
-    if (.not. wasprinted) then
-       if (rank .eq. 0) then
-           if(zlev.eq.1) then
-             write(6,'(3(A,es11.4))') &
-                  ' surf geopot =', dom%surf_geopot%elts(id+1), &
-                  ' surf press =', dom%surf_press%elts(id+1), &
-                  ' press_infty =', press_infty_t
-          end if
-          
-          write(6,'(A,I2,1x,3(A,es11.4))') &
-               ' zlev = ', zlev, &
-               ' press =', lev_press, &
-               ' mu =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
-               ' theta =', pot_temp
-          wasprinted=.true.
-       end if
-    end if
-    
     ! Set initial velocity field
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idE+1))
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, dom%node%elts(idNE+1), dom%node%elts(id+1))
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idN+1))
+
+    ! Print out layer thicknesses
+    if (d.eq.7.and.id.eq.110) then
+       if (rank .eq. 0) then
+           if(zlev.eq.1) then
+              write(6,'(4(A,es11.4))') &
+                  ' surf geopot =', dom%surf_geopot%elts(id+1), &
+                  ' surf press =', dom%surf_press%elts(id+1), &
+                  ' press_infty =', press_infty
+          end if
+          
+          write(6,'(A,I2,1x,6(A,es11.4))') &
+               ' zlev = ', zlev, &
+               ' press =', lev_press, &
+               ' mu =', sol(S_MASS,zlev)%data(d)%elts(id+1), &
+               ' Theta =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
+               ' U = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1), &
+               ' V = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1), &
+               ' W = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)
+          wasprinted=.true.
+       end if
+    end if
   end subroutine init_sol
 
   subroutine vel_fun(lon, lat, u, v)
@@ -251,10 +252,6 @@ contains
     read(fid,*) varname, zlevels
     read(fid,*) varname, threshold 
     read(fid,*) varname, optimize_grid 
-    read(fid,*) varname, const_bathymetry 
-    read(fid,*) varname, Hmin 
-    read(fid,*) varname, eta 
-    read(fid,*) varname, alpha 
     read(fid,*) varname, dt_write
     read(fid,*) varname, CP_EVERY
     read(fid,*) varname, time_end
@@ -265,12 +262,8 @@ contains
        write(*,'(A,i3)')     "zlevels          = ", zlevels
        write(*,'(A,es11.4)') "threshold        = ", threshold
        write(*,'(A,i2)')     "optimize_grid    = ", optimize_grid 
-       write(*,'(A,L3)')     "const_bathymetry = ", const_bathymetry
-       write(*,'(A,es11.4)') "Hmin             = ", Hmin
-       write(*,'(A,es11.4)') "eta              = ", eta
-       write(*,'(A,es11.4)') "alpha            = ", alpha
        write(*,'(A,es11.4)') "dt_write         = ", dt_write
-       write(*,'(A,i3)')     "CP_EVERY         = ", CP_EVERY
+       write(*,'(A,i6)')     "CP_EVERY         = ", CP_EVERY
        write(*,'(A,es11.4)') "time_end         = ", time_end 
        write(*,'(A,i6)')     "resume           = ", resume
        write(*,*) ' '
@@ -288,8 +281,8 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 8 ! Only export one vertical level
-  
+    zlev = 6 ! Only export one vertical level
+
     do l = level_start, level_end
        minv = 1.d63;
        maxv = -1.d63;
@@ -300,6 +293,7 @@ contains
           do d = 1, size(grid)
              mass => sol(S_MASS,k)%data(d)%elts
              temp => sol(S_TEMP,k)%data(d)%elts
+             exner     => fun(F_EXNER,k)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
@@ -354,21 +348,21 @@ program DCMIP2008c5
   use DCMIP2008c5_mod
   implicit none
 
-  integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
-  integer, parameter :: len_cmd_archive = 11 + 4 + 4
-  character(len_cmd_files) cmd_files
-  character(len_cmd_archive) cmd_archive
-  character(9+len_cmd_archive) command1
-  character(6+len_cmd_files) command2
-
-  integer j_gauge, k, l, d
-  logical aligned
-  character(8+8+29+14) command
-  integer ierr, num
-  logical write_init
+  integer                      :: ierr, k, l, d
+  integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
+  integer, parameter           :: len_cmd_archive = 11 + 4 + 4
+  character(len_cmd_files)     :: cmd_files
+  character(len_cmd_archive)   :: cmd_archive
+  character(8+8+29+14)         :: command
+  character(9+len_cmd_archive) :: command1
+  character(6+len_cmd_files)   :: command2
+  logical                      :: aligned, write_init
 
   call init_main_mod()
   call read_test_case_parameters("DCMIP2008c5.in")
+  
+  compressible = .True.
+  if (rank.eq.0) write(6,'(A,L1)') "compressible = ", compressible
 
   ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
   omega = omega_t !* Tdim
@@ -380,21 +374,7 @@ program DCMIP2008c5
   kappa = kappa_t
   ref_press = ref_press_t !/ pdim
   ref_density = ref_density_t !not non-dimensionalized at present, NOT USED HERE
-  
-  press_infty_t =  2.1973E+02_8
-
-  ! Initialize vertical grid
-  call initialize_a_b_vert()
-  
-  ! for this testcase, set the pressure at infinity (which is usually close to zero)
-  if (uniform) press_infty_t = a_vert(zlevels+1)*ref_press_t ! note that b_vert at top level is 0, a_vert is small but non-zero
-
-  press_infty = press_infty_t !/ pdim
- 
-  PRINT *, 'massdim = ', massdim
-  PRINT *, 'Tempdim = ', Tempdim
-  PRINT *, 'Tdim    = ', Tdim
-
+      
   ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_VELO,1:zlevels))
   allocate (mean_press(1:zlevels), mean_spec_vol(1:zlevels), mean_exner(1:zlevels))
@@ -412,30 +392,28 @@ program DCMIP2008c5
   csq = grav_accel*a_t 
   VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
-  wind_stress      = .False.
-  penalize         = .False.
-  bottom_friction  = .False.
-  const_bathymetry = .True.
-  compressible     = .True.
-
-  if (rank.eq.0) then
-     write(*,'(A,L1)') "wind_stress      = ", wind_stress
-     write(*,'(A,L1)') "penalize         = ", penalize
-     write(*,'(A,L1)') "bottom friction  = ", bottom_friction
-     write(*,'(A,L1)') "const_bathymetry = ", const_bathymetry
-     write(*,'(A,L1)') "compressible = ", compressible
-     if (rank .eq. 0) write (*,*) 'running without bathymetry and continents'
-  end if
-
   viscosity = 1.0_8/(kmax*40.0_8)**2     ! grid scale viscosity
   !viscosity = 0.0_8
-  friction_coeff = 3e-3_8 ! Bottom friction
-  if (rank .eq. 0) write (*,'(A,es11.4)') 'Viscosity = ',  viscosity
+  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity  = ',  viscosity
+  if (rank .eq. 0) write (6,*) ' '
 
   write_init = (resume .eq. NONE)
   iwrite = 0
-  
+
+  uniform = .false.
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
+  
+  ! trend = sol ! uniform vertical coordinates
+
+  ! uniform = .false.
+  ! call apply_initial_conditions()
+
+  ! uniform = .true.
+  ! call initialize_a_b_vert()
+  ! call remap_vertical_coordinates()
+
+  ! stop
+
   call sum_total_mass(.True.)
 
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
@@ -459,13 +437,14 @@ program DCMIP2008c5
 
      call start_timing()
      call time_step(dt_write, aligned, set_thresholds)
+!     call remap_vertical_coordinates()
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,F9.5,A,F9.5,2(A,ES13.5),A,I9,A,ES11.4)') &
+     if (rank .eq. 0) write(*,'(A,es11.4,A,es11.4,2(A,ES11.4),A,I9,A,ES9.2)') &
           'time [h] = ', time/3600.0_8, &
           ', dt [s] = ', dt, &
           ', min. depth = ', fd, &
@@ -474,11 +453,11 @@ program DCMIP2008c5
           ', cpu = ', timing
 
      call print_load_balance()
-
+     
      if (aligned) then
         iwrite = iwrite + 1
+        !call remap_vertical_coordinates()
         call write_and_export(iwrite)
-!        call remap_coordinates()
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
         ierr = writ_checkpoint(DCMIP2008c5_dump)

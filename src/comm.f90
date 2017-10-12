@@ -1142,10 +1142,7 @@ contains
     subroutine cpt_dt()
       integer k
       real(8) vel, full_mass
-      real(8) phi, csq, dx
-
-      phi = 1.0
-      if (penalize) phi = phi + alpha_m1*penal%data(dom%id+1)%elts(id+1)
+      real(8) csq, dx
 
       full_mass = 0.0_8
       do k = 1, zlevels

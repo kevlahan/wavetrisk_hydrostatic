@@ -23,7 +23,7 @@ contains
     ! if needed in future
   end subroutine init_sphere_mod
 
-  type(Coord) function direction(init, term)
+  type(Coord) function direction (init, term)
     type(Coord) init
     type(Coord) term
     type(Coord) v
@@ -31,6 +31,25 @@ contains
     v = vector(init, term)
     direction = normalize_Coord(v)
   end function direction
+
+  type(Coord) function vec_diff(v1, v2)
+    type(Coord) :: v1, v2
+
+    vec_diff = Coord (v1%x-v2%x, v1%y-v2%y, v1%z-v2%z)
+  end function vec_diff
+
+  type(Coord) function vec_sum(v1, v2)
+    type(Coord) :: v1, v2
+
+    vec_sum = Coord (v1%x+v2%x, v1%y+v2%y, v1%z+v2%z)
+  end function vec_sum
+
+  type(Coord) function vec_scale(alpha, v)
+    real(8) :: alpha
+    type(Coord) :: v
+
+    vec_scale = Coord (alpha*v%x, alpha*v%y, alpha*v%z)
+  end function vec_scale
 
   real(8) function dist(p, q)
     type(Coord) p
@@ -250,26 +269,25 @@ contains
     external    :: vel_fun
     type(Coord) :: ep1, ep2
     
-    type(Coord)           :: co
+    type(Coord)           :: co, e_zonal, e_merid, vel
     real(8)               :: lon, lat, u_zonal, v_merid
-    real(8), dimension(3) :: e_zonal, e_merid, vel
 
     co = mid_pt(ep1, ep2)
 
     ! Find longitude and latitude coordinates of point co
     call cart2sph(co, lon, lat)
 
-    e_merid = (/-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)/) ! Meridional direction
-    e_zonal = (/-sin(lon), cos(lon), 0.0_8/)                       ! Zonal direction
+    e_merid = Coord(-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+    e_zonal = Coord(-sin(lon), cos(lon), 0.0_8)                       ! Zonal direction
 
     ! Function returning zonal and meridional velocities given longitude and latitude
     call vel_fun(lon, lat, u_zonal, v_merid)
 
     ! Velocity vector in Cartesian coordinates
-    vel = u_zonal*e_zonal + v_merid*e_merid
+    vel = vec_sum(vec_scale(u_zonal,e_zonal), vec_scale(v_merid,e_merid))
 
     ! Project velocity vector on direction given by points ep1, ep2
-    proj_vel = inner(direction(ep1, ep2), Coord(vel(1), vel(2), vel(3)))
+    proj_vel = inner(direction(ep1, ep2), vel)
   end function proj_vel
 
   real(8) function proj_vel_eta(vel_fun, ep1, ep2, eta_z)

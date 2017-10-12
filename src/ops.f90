@@ -24,9 +24,8 @@ contains
 
     integer                      :: id, idS, idW, idSW, idN, idE, idNE
     real(8)                      :: pv_SW, pv_W, pv_S, pv_LORT, pv_UPLT, pv_SW_LORT, pv_SW_UPLT, pv
-    real(8), dimension(0:N_BDRY) :: phi, full_mass
+    real(8), dimension(0:N_BDRY) :: full_mass
 
-    phi(0:NORTHEAST) = 1.0
 
     if (c .eq. IJMINUS) then
        id   = idx( 0,  0, offs, dims)
@@ -35,8 +34,6 @@ contains
        idS  = idx( 0, -1, offs, dims)
        idN  = idx( 0,  1, offs, dims)
        idE  = idx( 1,  0, offs, dims)
-
-       if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
 
        full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
 
@@ -74,8 +71,6 @@ contains
        idW  = idx(PATCH_SIZE-1,  0, offs, dims)
        idE  = idx(PATCH_SIZE+1,  0, offs, dims)
        idNE = idx(PATCH_SIZE+1,  1, offs, dims)
-
-       if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,id,idE,idS,idW,idNE/)+1)
 
        full_mass(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
 
@@ -118,8 +113,6 @@ contains
        idN  = idx(0,  PATCH_SIZE+1, offs, dims)
        idNE = idx(1,  PATCH_SIZE+1, offs, dims)
 
-       if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,id,idS,idW,idNE/)+1)
-
        full_mass(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
 
        dom%vort%elts(TRIAG*idSW+UPLT+1) = &
@@ -160,8 +153,6 @@ contains
        idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
        idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
 
-       if (penalize) phi(0:WEST) = phi(0:WEST) + alpha_m1*penal%data(dom%id+1)%elts((/id,idN,idE,idS,idW/)+1)
-
        full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
 
        dom%vort%elts(LORT+TRIAG*id+1) = - &
@@ -201,7 +192,7 @@ contains
     real(8) u_prim_dn, u_dual_dn, u_prim_sw, u_dual_sw, u_prim_lt, u_dual_lt
     real(8) pv_LORT, pv_UPLT, pv_S, pv_W, vort_W, vort_S, vort_LORT, vort_UPLT
     logical S_bdry, W_bdry
-    real(8) phi(0:N_BDRY), full_mass(0:N_BDRY), full_temp(0:N_BDRY)
+    real(8) full_mass(0:N_BDRY), full_temp(0:N_BDRY)
 
     call comp_offs3(dom, p, offs, dims)
 
@@ -337,10 +328,6 @@ contains
     subroutine comp_ijmin()
       real(8) vort_SW
 
-      phi(SOUTHWEST) = 1.0
-
-      if (penalize) phi(SOUTHWEST) = phi(SOUTHWEST) + alpha_m1*penal%data(dom%id+1)%elts(id+sw+1)
-
       full_mass(SOUTHWEST) = mass(id+sw+1) + mean(S_MASS,zlev)
       full_temp(SOUTHWEST) = temp(id+sw+1) + mean(S_TEMP,zlev)
 
@@ -391,8 +378,9 @@ contains
 
     subroutine comput()
       ! Computes physical quantities during upward integration
-      real (8) :: Phi_k
-
+      type (Coord) :: n_e, x_i, vel
+      real (8) :: kinetic_energy, Phi_k
+     
       ! Find the velocity on primal and dual grid edges, which are equal except for the length of the
       ! side they are on
       u_prim_up = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
@@ -401,11 +389,6 @@ contains
       u_dual_dg = velo(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
       u_prim_rt = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
       u_dual_rt = velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
-
-      phi(0:NORTHEAST) = 1.0
-
-      if (penalize) phi(0:NORTHEAST) = phi(0:NORTHEAST) + &
-           alpha_m1*penal%data(dom%id+1)%elts(id+(/0,n,e,s,w,ne/)+1)
 
       full_mass(0:NORTHEAST) = mass(id+(/0,n,e,s,w,ne/)+1) + mean(S_MASS,zlev)
       full_temp(0:NORTHEAST) = temp(id+(/0,n,e,s,w,ne/)+1) + mean(S_TEMP,zlev)
@@ -420,25 +403,56 @@ contains
       u_prim_sw = velo(EDGE*(id+sw)+DG+1)*dom%len%elts(EDGE*(id+sw)+DG+1)
       u_dual_sw = velo(EDGE*(id+sw)+DG+1)*dom%pedlen%elts(EDGE*(id+sw)+DG+1)
       u_prim_lt = velo(EDGE*(id+w)+RT+1)*dom%len%elts(EDGE*(id+w)+RT+1)
-      u_dual_lt = velo(EDGE*(id+W)+RT+1)*dom%pedlen%elts(EDGE*(id+W)+RT+1)
+      u_dual_lt = velo(EDGE*(id+w)+RT+1)*dom%pedlen%elts(EDGE*(id+w)+RT+1)
 
-      dom%kin_energy%elts(id+1) = &
-           (u_prim_up*u_dual_up + u_prim_dg*u_dual_dg + u_prim_rt*u_dual_rt + &
-           u_prim_dn*u_dual_dn + u_prim_sw*u_dual_sw + u_prim_lt*u_dual_lt &
-           )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
+      ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
+      ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
+      
+      ! Sum contributions from all six edge velocities reconstructed at hexagon node x_i
+      ! u_i = 1/2 A_i sum_e (u_e l_e) d_e n_e, where n_e is the normal vector to the hexagon edge e,
+      ! l_e is the length of the hexagon edge (pedlen) and d_e is the length of the triangle edge (len)
 
-      if (phi(0) .ne. 0) phi(0) = 1.0_8/phi(0)
+      x_i = dom%node%elts(id+1)  ! Coordinate of node
+      
+      n_e = direction(x_i, dom%node%elts((id+e)+1))
+      vel = vec_scale(u_dual_rt * dom%len%elts(EDGE*id+RT+1), n_e)
 
-      ! Compute Bernoulli function
-      Phi_k =  0.5_8*(dom%geopot%elts(id+1) + dom%geopot%elts(id+1)) ! Interpolate geopotential from interfaces to level
-      if (compressible) then ! Compressible case
-         dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + Phi_k
-      else ! Incompressible case
-         dom%bernoulli%elts(id+1) = dom%kin_energy%elts(id+1) + Phi_k + dom%press%elts(id+1)/ref_density
+      n_e = direction(dom%node%elts((id+w)+1), x_i)
+      vel = vec_sum(vel, vec_scale(u_dual_lt * dom%len%elts(EDGE*(id+w)+RT+1), n_e))
+      
+      n_e = direction(dom%node%elts((id+ne)+1), x_i)
+      vel = vec_sum(vel, vec_scale(u_dual_dg * dom%len%elts(EDGE*id+DG+1), n_e))
+
+      n_e = direction(x_i, dom%node%elts((id+sw)+1))
+      vel = vec_sum(vel, vec_scale(u_dual_sw * dom%len%elts(EDGE*(id+sw)+DG+1), n_e))
+
+      n_e = direction(x_i, dom%node%elts((id+n)+1))
+      vel = vec_sum(vel, vec_scale(u_dual_up * dom%len%elts(EDGE*id+UP+1), n_e))
+
+      n_e = direction(dom%node%elts((id+s)+1), x_i)
+      vel = vec_sum(vel, vec_scale(u_dual_dn * dom%len%elts(EDGE*(id+s)+UP+1), n_e))
+
+      ! Perot formula (16, 17) of Peixoto (2016)
+      kinetic_energy = inner(vel,vel) * dom%areas%elts(id+1)%hex_inv**2 / 8.0_8
+      
+      ! Formula from TRiSK ... not convergent!
+      ! kinetic_energy = &
+      !      (u_prim_up*u_dual_up + u_prim_dg*u_dual_dg + u_prim_rt*u_dual_rt + &
+      !      u_prim_dn*u_dual_dn + u_prim_sw*u_dual_sw + u_prim_lt*u_dual_lt &
+      !      )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
+
+      ! Interpolate geopotential from interfaces to level
+      Phi_k =  0.5_8*(dom%geopot%elts(id+1) + dom%geopot%elts(id+1))
+
+      ! Bernoulli function
+      if (compressible) then 
+         bernoulli(id+1) = kinetic_energy + Phi_k
+      else 
+         bernoulli(id+1) = kinetic_energy + Phi_k + dom%press%elts(id+1)/ref_density
       end if
 
-      ! Compute Exner function in incompressible case from geopotential
-      if (.not. compressible) dom%exner%elts(id+1) = -Phi_k
+      ! Exner function in incompressible case from geopotential
+      if (.not. compressible) exner(id+1) = -Phi_k
 
       if (viscosity .ne. 0.0_8) dom%divu%elts(id+1) = dom%areas%elts(id+1)%hex_inv * &
            (u_dual_up - u_dual_dg + u_dual_rt - u_dual_dn + u_dual_sw - u_dual_lt)
@@ -480,6 +494,68 @@ contains
     end subroutine comput
   end subroutine step1
 
+  subroutine interp_vel_hex (dom, i, j, zlev, offs, dims)
+    ! Interpolate velocity to hexagon nodes in Cartesian coordinates; uses Perot formula as also used for kinetic energy 
+    type(Domain)                     :: dom
+    integer                          :: i, j, zlev
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+
+    type(Coord) :: n_e, vel, x_i
+    type(Coord) :: e_zonal, e_merid
+    integer     :: id, idN, idE, idNE, idS, idSW, idW
+    real(8)     :: u_dual_up, u_dual_dg, u_dual_rt, u_dual_dn, u_dual_sw, u_dual_lt
+    real(8)     :: lon, lat
+
+    id   = idx(i,     j,     offs, dims)
+    idN  = idx(i, j + 1,     offs, dims)
+    idE  = idx(i + 1, j,     offs, dims)
+    idNE = idx(i + 1, j + 1, offs, dims)
+    idW  = idx(i - 1, j,     offs, dims)
+    idSW = idx(i - 1, j - 1, offs, dims)
+    idS  = idx(i,     j - 1, offs, dims)
+
+    u_dual_up = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
+    u_dual_dg = velo(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_rt = velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
+
+    u_dual_dn = velo(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
+    u_dual_sw = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
+    u_dual_lt = velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
+
+    x_i = dom%node%elts(id+1)
+    
+    n_e = direction(x_i, dom%node%elts(idE+1))
+    vel = vec_scale(u_dual_rt * dom%len%elts(EDGE*id+RT+1), n_e)
+
+    n_e = direction(dom%node%elts(idW+1), x_i)
+    vel = vec_sum(vel, vec_scale(u_dual_lt * dom%len%elts(EDGE*idW+RT+1), n_e))
+    
+    n_e = direction(dom%node%elts(idNE+1), x_i)
+    vel = vec_sum(vel, vec_scale(u_dual_dg * dom%len%elts(EDGE*id+DG+1), n_e))
+    
+    n_e = direction(x_i, dom%node%elts(idSW+1))
+    vel = vec_sum(vel, vec_scale(u_dual_sw * dom%len%elts(EDGE*idSW+DG+1), n_e))
+    
+    n_e = direction(x_i, dom%node%elts(idN+1))
+    vel = vec_sum(vel, vec_scale(u_dual_up * dom%len%elts(EDGE*id+UP+1), n_e))
+    
+    n_e = direction(dom%node%elts(idS+1), x_i)
+    vel = vec_sum(vel, vec_scale(u_dual_dn * dom%len%elts(EDGE*idS+UP+1), n_e))
+
+    ! Perot formula (16, 17) of Peixoto (2016) gives velocity at hexagonal node in Cartesian coordinates
+    vel = vec_scale(0.5_8*dom%areas%elts(id+1)%hex_inv, vel)
+
+    ! Project velocity onto zonal and meridional directions
+    call cart2sph (x_i, lon, lat)
+    
+    e_zonal = Coord (-sin(lon),           cos(lon),           0.0_8)   ! Zonal direction
+    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+
+    dom%u_zonal%elts(id+1) = inner(vel, e_zonal)
+    dom%v_merid%elts(id+1) = inner(vel, e_merid)
+  end subroutine interp_vel_hex
+  
   subroutine vert_integrated_horiz_flux (dom, i, j, zlev, offs, dims)
     ! Integrate horizontal fluxes on the three edges vertically 
     type(Domain)                     :: dom
@@ -571,10 +647,10 @@ contains
        end if
 
        ! Exner function from pressure
-       dom%exner%elts(id+1) = c_p*(dom%press%elts(id+1)/ref_press)**kappa
+       exner(id+1) = c_p*(dom%press%elts(id+1)/ref_press)**kappa
        
        ! Specific volume alpha = kappa*theta*pi/p
-       spec_vol = kappa * full_pot_temp * dom%exner%elts(id+1) / dom%press%elts(id+1)
+       spec_vol = kappa * full_pot_temp * exner(id+1) / dom%press%elts(id+1)
        pert_spec_vol = spec_vol - mean_spec_vol(zlev)
 
        ! Find geopotential at upper interface of current level using (18) in DYNAMICO
@@ -731,61 +807,20 @@ contains
   end subroutine du_Qperp_Enstrophy
 
   subroutine du_source(dom, i, j, zlev, offs, dims)
-    !add additional effects (viscosity, bottom friction, wind stress, coastal boundaries) to dvelo
-    ![Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, idE, idN, idNE
-    real(8), dimension(RT:NODE) :: chi1, phi, hk_phi, kin_energ, u_mag
+    ! Source (non gradient) terms in velocity trend
+    ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id
 
     id = idx(i, j, offs, dims)
 
     call du_Qperp(dom, i, j, zlev, offs, dims)
 
     if (viscosity .ne. 0.0_8) call diff_mom(dom, i, j, zlev, offs, dims)
-
-    idN  = idx(i,     j + 1, offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-
-    if (penalize) then
-       chi1 = penal%data(dom%id+1)%elts((/idN,idNE,idE,id/)+1)
-       phi = 1 + alpha_m1*chi1
-       chi1 = -ieta*chi1
-       chi1(RT:UP) = 0.5_8*(chi1(NODE)+chi1(RT:UP)) ! interpolate p->u
-
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = dvelo(EDGE*id+RT+1:EDGE*id+UP+1) &
-            + velo(EDGE*id+RT+1:EDGE*id+UP+1)*dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)*chi1(RT:UP)
-    else
-       phi = 1.0_8
-    end if
-
-    if (wind_stress .or. bottom_friction) then
-
-       hk_phi = mass((/idN,idNE,idE,id/)+1)
-
-       where (hk_phi .ne. 0) hk_phi = phi/hk_phi
-
-       hk_phi(RT:UP) = 0.5_8*(hk_phi(NODE)+hk_phi(RT:UP)) ! interpolate p->u
-
-       if (wind_stress) then
-          dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = dvelo(EDGE*id+RT+1:EDGE*id+UP+1) &
-               + dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
-               *dom%windstress%elts(EDGE*id+RT+1:EDGE*id+UP+1)*hk_phi(RT:UP)
-       end if
-
-       if (bottom_friction) then
-          kin_energ = dom%kin_energy%elts((/idN,idNE,idE,id/)+1)
-          u_mag(RT:UP) = sqrt(2.0_8*0.5_8*(kin_energ(NODE)+kin_energ(RT:UP))) ! interpolate p->u
-          dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = dvelo(EDGE*id+RT+1:EDGE*id+UP+1) &
-               - dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
-               *friction_coeff*velo(EDGE*id+RT+1:EDGE*id+UP+1)*u_mag(RT:UP)*hk_phi(RT:UP)
-       end if
-    end if
   end subroutine du_source
 
   subroutine du_Qperp(dom, i, j, zlev, offs, dims)
@@ -965,44 +1000,16 @@ contains
          *dom%areas%elts(id+1)%hex_inv
   end function horiz_div_flux
 
-  subroutine du_gradB(dom, i, j, zlev, offs, dims)
-    !add gradient of the Bernoulli function to dvelo [Aechtner thesis page 58]
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-    integer idE
-    integer idN
-    integer idNE
-
-    id   = idx(i,     j,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-
-    dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)))/&
-         dom%len%elts(EDGE*id+RT+1)
-
-    dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - (dom%bernoulli%elts(id+1) - dom%bernoulli%elts(idNE+1)))/&
-         dom%len%elts(EDGE*id+DG+1)
-
-    dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)))/&
-         dom%len%elts(EDGE*id+UP+1)
-  end subroutine du_gradB
-
   subroutine du_gradB_gradExn (dom, i, j, zlev, offs, dims)
-    ! Add gradient of the Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
+    ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
     ! mass and potential temperature trend is zero
     type(Domain)                     :: dom
     integer                          :: i, j, zlev
     integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer :: id, idE, idN, idNE, e
-    real(8) :: full_pot_temp(0:N_BDRY)
+    integer               :: e, id, idE, idN, idNE
+    real(8)               :: full_pot_temp(0:N_BDRY)
     real(8), dimension(3) :: v_star
 
     id   = idx(i,     j,     offs, dims)
@@ -1010,8 +1017,8 @@ contains
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
-    !see DYNAMICO between (23)-(25), geopotential still known from step1_upw
-    !the theta multiplying the exner gradient is the edge-averaged non-mass-weighted potential temperature
+    ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
+    ! the theta multiplying the exner gradient is the edge-averaged non-mass-weighted potential temperature
 
     full_pot_temp(0)         = (temp(id+1)   + mean(S_TEMP,zlev))/(mass(id+1)   + mean(S_MASS,zlev))
     full_pot_temp(NORTH)     = (temp(idN+1)  + mean(S_TEMP,zlev))/(mass(idN+1)  + mean(S_MASS,zlev))
@@ -1019,35 +1026,23 @@ contains
     full_pot_temp(NORTHEAST) = (temp(idNE+1) + mean(S_TEMP,zlev))/(mass(idNE+1) + mean(S_MASS,zlev))
 
     if (compressible) then
-       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - &
-            (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)) &
-            - 0.5_8*(full_pot_temp(0)+full_pot_temp(EAST))* &
-            (dom%exner%elts(idE+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+RT+1)
+       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - (bernoulli(idE+1) - bernoulli(id+1)) &
+            - 0.5_8*(full_pot_temp(0)+full_pot_temp(EAST)) * (exner(idE+1) - exner(id+1)))/dom%len%elts(EDGE*id+RT+1)
 
-       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - &
-            (dom%bernoulli%elts(id+1) - dom%bernoulli%elts(idNE+1)) &
-            - 0.5_8*(full_pot_temp(0)+full_pot_temp(NORTHEAST))* &
-            (dom%exner%elts(id+1) - dom%exner%elts(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
+       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - (bernoulli(id+1) - bernoulli(idNE+1)) &
+            - 0.5_8*(full_pot_temp(0)+full_pot_temp(NORTHEAST)) * (exner(id+1) - exner(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
 
-       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - &
-            (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)) &
-            - 0.5_8*(full_pot_temp(0)+full_pot_temp(NORTH)) * &
-            (dom%exner%elts(idN+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+UP+1)
-    else !incompressible case
-       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - &
-            (dom%bernoulli%elts(idE+1) - dom%bernoulli%elts(id+1)) &
-            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(EAST))* &
-            (dom%exner%elts(idE+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+RT+1)
+       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - (bernoulli(idN+1) - bernoulli(id+1)) &
+            - 0.5_8*(full_pot_temp(0)+full_pot_temp(NORTH)) * (exner(idN+1) - exner(id+1)))/dom%len%elts(EDGE*id+UP+1)
+    else ! Incompressible case
+       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - (bernoulli(idE+1) - bernoulli(id+1)) &
+            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(EAST)) * (exner(idE+1) - exner(id+1)))/dom%len%elts(EDGE*id+RT+1)
 
-       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - &
-            (dom%bernoulli%elts(id+1) - dom%bernoulli%elts(idNE+1)) &
-            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTHEAST))* &
-            (dom%exner%elts(id+1) - dom%exner%elts(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
+       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - (bernoulli(id+1) - bernoulli(idNE+1)) &
+            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTHEAST)) * (exner(id+1) - exner(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
 
-       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - &
-            (dom%bernoulli%elts(idN+1) - dom%bernoulli%elts(id+1)) &
-            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTH)) * &
-            (dom%exner%elts(idN+1) - dom%exner%elts(id+1)))/dom%len%elts(EDGE*id+UP+1)
+       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - (bernoulli(idN+1) - bernoulli(id+1)) &
+            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTH)) * (exner(idN+1) - exner(id+1)))/dom%len%elts(EDGE*id+UP+1)
     end if
 
     ! Add vertical flux gradient term
