@@ -394,7 +394,7 @@ contains
     end do
 
     if (level_start .lt. level_end) call update_array_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
-    if (level_start .lt. level_end) call update_array_bdry__start (fun, level_end) ! <= comm Bernoulli and Exner
+    if (level_start .lt. level_end) call update_array_bdry (fun, level_end) ! <= comm Bernoulli and Exner
 
     ! Compute vertically integrated horizontal mass flux (stored in integr_horiz_flux)
     if (.not. lagrangian_vertical) then
@@ -444,7 +444,6 @@ contains
 
     if (level_start .lt. level_end) then
        call update_array_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
-       call update_array_bdry__finish (fun, level_end) ! <= finish non-blocking communicate Bernoulli and Exner (Jmax)
        call update_array_bdry__start (dq(S_MASS:S_TEMP,:), level_end) ! <= start non-blocking communicate dmass (l+1)
     end if
 

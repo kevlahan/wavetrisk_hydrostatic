@@ -403,17 +403,6 @@ program DCMIP2008c5
   uniform = .true.
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
   
-  ! trend = sol ! uniform vertical coordinates
-
-  ! uniform = .false.
-  ! call apply_initial_conditions()
-
-  ! uniform = .true.
-  ! call initialize_a_b_vert()
-  ! call remap_vertical_coordinates()
-
-  ! stop
-
   call sum_total_mass(.True.)
 
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
@@ -456,7 +445,7 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-!        call remap_vertical_coordinates()
+        call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle

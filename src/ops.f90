@@ -347,11 +347,11 @@ contains
 
       dom%vort%elts(TRIAG*(id+w)+LORT+1) = vort_W/dom%triarea%elts(TRIAG*(id+w)+LORT+1) 
       dom%vort%elts(TRIAG*(id+s)+UPLT+1) = vort_S/dom%triarea%elts(TRIAG*(id+s)+UPLT+1) 
-
-     qe(EDGE*(id+ w)+RT+1) = 0.5_8*(pv_W   +pv_UPLT)
-     qe(EDGE*(id+sw)+DG+1) = 0.5_8*(pv_LORT+pv_UPLT)
-     qe(EDGE*(id+s )+UP+1) = 0.5_8*(pv_LORT+pv_S)
-
+      
+      qe(EDGE*(id+ w)+RT+1) = 0.5_8*(pv_W   +pv_UPLT)
+      qe(EDGE*(id+sw)+DG+1) = 0.5_8*(pv_LORT+pv_UPLT)
+      qe(EDGE*(id+s )+UP+1) = 0.5_8*(pv_LORT+pv_S)
+      
       ! Find horizontal fluxes at specific points
       call cal_flux1(h_mflux, full_mass)
       call cal_flux1(h_tflux, full_temp)
