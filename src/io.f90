@@ -516,7 +516,7 @@ contains
     real(8), dimension (3)       :: uvw
     real(8), dimension (2)       :: vel_latlon
     
-    integer                     :: d, e, id, idN, idE, idNE
+    integer                     :: d, e, id, id_i, id_e, idN, idE, idNE
     type (Coord)                :: co_node, co_east, co_north, co_northeast, e_merid, e_zonal
     type (Coord), dimension (3) :: dir 
     real(8)                     :: lon, lat
@@ -530,19 +530,22 @@ contains
     d = dom%id+1
     
     id   = idx(i,     j,     offs, dims)
-    idN  = idx(i, j + 1,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
+    
+    id_i = id + 1
+    id_e = EDGE*id + 1
+    idN  = idx(i, j + 1,     offs, dims) + 1
+    idE  = idx(i + 1, j,     offs, dims) + 1
+    idNE = idx(i + 1, j + 1, offs, dims) + 1
 
-    uvw(1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) ! RT velocity
-    uvw(2) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) ! DG velocity
-    uvw(3) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) ! UP velocity
+    uvw(1) = sol(S_VELO,zlev)%data(d)%elts(id_e+RT) ! RT velocity
+    uvw(2) = sol(S_VELO,zlev)%data(d)%elts(id_e+DG) ! DG velocity
+    uvw(3) = sol(S_VELO,zlev)%data(d)%elts(id_e+UP) ! UP velocity
 
     ! Calculate velocity directions
-    co_node = dom%node%elts(id+1) 
-    co_east      = dom%node%elts(idE+1)
-    co_northeast = dom%node%elts(idNE+1)
-    co_north     = dom%node%elts(idN+1)
+    co_node      = dom%node%elts(id_i) 
+    co_east      = dom%node%elts(idE)
+    co_northeast = dom%node%elts(idNE)
+    co_north     = dom%node%elts(idN)
     
     dir(1) = direction (co_node,      co_east)  ! RT direction
     dir(2) = direction (co_northeast, co_node)  ! DG direction

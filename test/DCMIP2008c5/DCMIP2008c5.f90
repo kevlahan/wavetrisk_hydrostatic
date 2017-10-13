@@ -55,7 +55,7 @@ contains
     wasprinted=.false.
     do l = level_start, level_end
        do k = 1, zlevels
-          call apply_onescale(init_sol, l, k, 0, 1)
+          call apply_onescale (init_sol, l, k, 0, 1)
           wasprinted=.false.
        end do
     end do
@@ -111,8 +111,8 @@ contains
        end do
     else
        if (zlevels.eq.18) then
-          a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-!          a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+          !a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+               a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
                0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
                0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
                0.0_8, 0.0_8 /)
@@ -122,8 +122,8 @@ contains
                0.953189_8, 0.985056_8, 1.0_8 /)
           b_vert=b_vert(19:1:-1)
        elseif (zlevels.eq.26) then
-          a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
-          !a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
+          !a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
+          a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
                0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
                0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
                0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
@@ -212,25 +212,23 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
     ! Print out layer thicknesses
-    if (d.eq.7.and.id.eq.110) then
-       if (rank .eq. 0) then
-           if(zlev.eq.1) then
-              write(6,'(4(A,es11.4))') &
-                  ' surf geopot =', dom%surf_geopot%elts(id+1), &
-                  ' surf press =', dom%surf_press%elts(id+1), &
-                  ' press_infty =', press_infty
-          end if
-          
-          write(6,'(A,I2,1x,6(A,es11.4))') &
-               ' zlev = ', zlev, &
-               ' press =', lev_press, &
-               ' mu =', sol(S_MASS,zlev)%data(d)%elts(id+1), &
-               ' Theta =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
-               ' U = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1), &
-               ' V = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1), &
-               ' W = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)
-          wasprinted=.true.
+    if (rank.eq.0 .and. .not.wasprinted) then
+       if(zlev.eq.1) then
+          write(6,'(4(A,es11.4))') &
+               ' surf geopot =', dom%surf_geopot%elts(id+1), &
+               ' surf press =', dom%surf_press%elts(id+1), &
+               ' press_infty =', press_infty
        end if
+
+       write(6,'(A,I2,1x,6(A,es11.4))') &
+            ' zlev = ', zlev, &
+            ' press =', lev_press, &
+            ' mu =', sol(S_MASS,zlev)%data(d)%elts(id+1), &
+            ' Theta =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
+            ' U = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1), &
+            ' V = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1), &
+            ' W = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)
+       wasprinted=.true.
     end if
   end subroutine init_sol
 
@@ -389,18 +387,18 @@ program DCMIP2008c5
 
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
-  csq = grav_accel*a_t 
+  csq        = grav_accel*a_t 
   VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
-  viscosity = 1.0_8/(kmax*40.0_8)**2     ! grid scale viscosity
-  !viscosity = 0.0_8
+  !viscosity = 1.0_8/(kmax*40.0_8)**2     ! grid scale viscosity
+  viscosity = 0.0_8
   if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity  = ',  viscosity
   if (rank .eq. 0) write (6,*) ' '
 
   write_init = (resume .eq. NONE)
   iwrite = 0
+  uniform = .false.
 
-  uniform = .true.
   call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
   
   call sum_total_mass(.True.)
