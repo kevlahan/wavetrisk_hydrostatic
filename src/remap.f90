@@ -31,7 +31,7 @@ contains
 
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
-    
+
     do l = level_start, level_end
        ! Find mass, mass-weighted potential temperature and momentum on new vertical grid
        ! including nearest neighbours in N and E directions needed for momentum calculation
@@ -64,8 +64,9 @@ contains
 
     ! Integrate full mass, full mass-weighted potential temperature and full momentum vertically downward from the top
     ! All quantities located at interfaces
-    integrated_mass(1) = 0.0_8
-    integrated_temp(1) = 0.0_8
+    integrated_mass(1)       = 0.0_8
+    integrated_temp(1)       = 0.0_8
+    integrated_momentum(1,:) = 0.0_8
     do kb = 2, zlevels + 1
        k = zlevels-kb+2 ! Actual zlevel
 
@@ -77,7 +78,6 @@ contains
        mu(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idNE))
        mu(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idN))
        mu = mu + mean(S_MASS,k)
-
        ! Integrate momentum at vertical edges
        do e = 1, 3
           integrated_momentum(kb,e) = integrated_momentum(kb-1,e) + sol(S_VELO,k)%data(d)%elts(EDGE*id+e)*mu(e)

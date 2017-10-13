@@ -60,8 +60,8 @@ contains
        dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
        dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
 
-      qe(EDGE*idW+RT+1) = 0.5_8*(pv_W + pv_SW)
-      qe(EDGE*idS+UP+1) = 0.5_8*(pv_S + pv_SW)
+       qe(EDGE*idW+RT+1) = 0.5_8*(pv_W + pv_SW)
+       qe(EDGE*idS+UP+1) = 0.5_8*(pv_S + pv_SW)
     end if
 
     if (c .eq. IPLUSJMINUS) then
@@ -142,8 +142,8 @@ contains
 
        pv_W = pv_SW_UPLT
 
-      qe(EDGE*id  +UP+1) = 0.5_8*(pv_W + pv_UPLT)
-      qe(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
+       qe(EDGE*id  +UP+1) = 0.5_8*(pv_W + pv_UPLT)
+       qe(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
     end if
 
     if (c .eq. IJPLUS) then
@@ -178,8 +178,8 @@ contains
        dom%vort%elts(LORT+TRIAG*id+1) = dom%vort%elts(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
        dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(LORT+TRIAG*id+1)
 
-      qe(EDGE*id+RT+1) = 0.5_8*(pv + pv_S)
-      qe(EDGE*id+UP+1) = 0.5_8*(pv + pv_W)
+       qe(EDGE*id+RT+1) = 0.5_8*(pv + pv_S)
+       qe(EDGE*id+UP+1) = 0.5_8*(pv + pv_W)
     end if
   end subroutine post_step1
 
@@ -457,7 +457,7 @@ contains
       if (viscosity .ne. 0.0_8) dom%divu%elts(id+1) = dom%areas%elts(id+1)%hex_inv * &
            (u_dual_up - u_dual_dg + u_dual_rt - u_dual_dn + u_dual_sw - u_dual_lt)
 
-      dom%vort%elts(LORT+TRIAG*id+1) = - (u_prim_rt + u_prim_dg + velo(EDGE*(id+E)+UP+1)*dom%len%elts(EDGE*(id+E)+UP+1))
+      dom%vort%elts(TRIAG*id+LORT+1) = - (u_prim_rt + u_prim_dg + velo(EDGE*(id+E)+UP+1)*dom%len%elts(EDGE*(id+E)+UP+1))
       dom%vort%elts(TRIAG*id+UPLT+1) =    u_prim_dg + u_prim_up + velo(EDGE*(id+N)+RT+1)*dom%len%elts(EDGE*(id+N)+RT+1) 
 
       vort_W = - ( &
@@ -920,10 +920,10 @@ contains
   end subroutine du_Qperp
 
   subroutine scalar_trend(dom, i, j, zlev, offs, dims)
-    type(Domain) :: dom
-    integer :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
     real(8) :: v_tflux, full_pot_temp, full_pot_temp_up

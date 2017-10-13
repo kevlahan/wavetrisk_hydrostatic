@@ -81,21 +81,6 @@ contains
          time, dt, timing, level_end, n_active, VELO_SCALE
   end subroutine write_and_print_step
 
-  subroutine cpt_max_dh(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) .gt. 0) then
-       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) &
-            max_dh = max(max_dh, abs(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
-    end if
-  end subroutine cpt_max_dh
-
   subroutine initialize_a_b_vert()
     integer :: k
 
@@ -411,20 +396,11 @@ program DCMIP2008c5
 
   total_time = 0_8
   do while (time .lt. time_end)
-     ! Set thresholds dynamically
-     max_dh = 0
-     do l = level_start, level_end
-        do k = 1, zlevels
-           call apply_onescale(cpt_max_dh, l, k, 0, 1) !compute averages here
-        end do
-     end do
-     max_dh = sync_max_d(max_dh)
-     VELO_SCALE = max(VELO_SCALE*0.99, min(VELO_SCALE, grav_accel*max_dh/sqrt(csq)))
      call set_thresholds()
 
      call start_timing()
      call time_step(dt_write, aligned, set_thresholds)
-!     call remap_vertical_coordinates()
+     call remap_vertical_coordinates()
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
@@ -443,7 +419,7 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        call remap_vertical_coordinates()
+!        call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
