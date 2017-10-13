@@ -40,7 +40,7 @@ contains
     do l = level_start, level_end
        ! Find mass, mass-weighted potential temperature and momentum on new vertical grid
        ! including nearest neighbours in N and E directions needed for momentum calculation
-       call apply_onescale (remap_solution, l, z_null, 0, 1)
+       call apply_onescale (remap_scalars, l, z_null, 0, 1)
        call update_array_bdry (sol, l)
        call apply_onescale (remap_velo, l, z_null, 0, 0)
     end do
