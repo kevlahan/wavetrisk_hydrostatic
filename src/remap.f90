@@ -31,19 +31,18 @@ contains
 
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
-    !trend = sol
     
     do l = level_start, level_end
        ! Find mass, mass-weighted potential temperature and momentum on new vertical grid
        ! including nearest neighbours in N and E directions needed for momentum calculation
-       call apply_onescale (remap_scalars, l, z_null, 0, 1)
+       call apply_onescale (remap_solution, l, z_null, 0, 1)
     end do
 
     ! Update boundary values
     call update_array_bdry (sol, NONE)
   end subroutine remap_vertical_coordinates
 
-  subroutine remap_scalars (dom, i, j, zlev, offs, dims)
+  subroutine remap_solution (dom, i, j, zlev, offs, dims)
     type (Domain)                 :: dom
     integer                       :: i, j, zlev
     integer, dimension (N_BDRY+1) :: offs
@@ -141,7 +140,7 @@ contains
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_momentum(zlevels-k+2,e) - new_momentum(zlevels-k+1,e))/mu(e)
        end do
     end do
-  end subroutine remap_scalars
+  end subroutine remap_solution
   
   function Newton_interp (xv, yv, xd)
     ! p-point Newton form polynomial interpolation scheme as in Yang (2001)
