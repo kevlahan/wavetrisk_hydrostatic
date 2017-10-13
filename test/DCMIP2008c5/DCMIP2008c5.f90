@@ -400,14 +400,13 @@ program DCMIP2008c5
 
      call start_timing()
      call time_step(dt_write, aligned, set_thresholds)
-     call remap_vertical_coordinates()
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
 
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,es11.4,A,es11.4,2(A,ES11.4),A,I9,A,ES9.2)') &
+     if (rank .eq. 0) write(*,'(A,es10.4,A,es10.4,2(A,ES10.4),A,I9,A,ES9.2)') &
           'time [h] = ', time/3600.0_8, &
           ', dt [s] = ', dt, &
           ', min. depth = ', fd, &
@@ -419,7 +418,7 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-!        call remap_vertical_coordinates()
+        call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
