@@ -44,8 +44,8 @@ contains
     time_mult = 1.0
   end subroutine init_main_mod
 
-  subroutine initialize(apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
-    external apply_init_cond, set_thresholds, custom_dump, custom_load
+  subroutine initialize(apply_init_cond, apply_surf_geopot, stage, set_thresholds, custom_dump, custom_load)
+    external apply_init_cond, apply_surf_geopot, set_thresholds, custom_dump, custom_load
     character(20+4+4) command
     integer k, d, stage, ierr
 
@@ -140,7 +140,7 @@ contains
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
 
-    !call restart_full(set_thresholds, custom_load)
+    call restart_full (set_thresholds, apply_surf_geopot, custom_load)
   end subroutine initialize
 
   subroutine record_init_state(init_state)
@@ -299,8 +299,8 @@ contains
     end do
   end subroutine reset
 
-  subroutine restart_full(set_thresholds, custom_load)
-    external set_thresholds, custom_load
+  subroutine restart_full(set_thresholds, apply_surf_geopot, custom_load)
+    external set_thresholds, apply_surf_geopot, custom_load
     integer i, d, k, r, l, v
     integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
     integer, parameter :: len_cmd_archive = 11 + 4 + 4
@@ -496,6 +496,9 @@ contains
     if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
 
     call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
+
+    ! Set surface geopotential
+    call apply_surf_geopot()
 
     itime = nint(time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step

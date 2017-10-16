@@ -3,9 +3,9 @@ module comm_mod
   use domain_mod
   implicit none
   integer, dimension(4,4) :: shift_arr
-  integer, allocatable ::  n_active_edges(:), n_active_nodes(:)
-  real(8) dt, fd
-  type(Coord) where_error
+  integer, allocatable    ::  n_active_edges(:), n_active_nodes(:)
+  real(8)                 :: dt, min_mass
+  type(Coord)             :: where_error
   real sync_val
 
 contains
@@ -1140,38 +1140,37 @@ contains
   contains
 
     subroutine cpt_dt()
-      integer k
-      real(8) vel, full_mass
-      real(8) csq, dx
+      integer :: k
+      real(8) :: vel, full_mass, total_mass
+      real(8) :: csq, dx
 
-      full_mass = 0.0_8
+      total_mass = 0.0_8
       do k = 1, zlevels
-         full_mass = full_mass + sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)
+         full_mass = sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)
+         min_mass = min(min_mass, full_mass)
+         if (full_mass .le. 0.0_8) where_error = dom%node%elts(id+1)  ! sqrt will give NaN
+         
+         total_mass = total_mass + full_mass
          if (isnan(sol(S_MASS,k)%data(dom%id+1)%elts(id+1))) then
             write(0,*) "ERROR: a mass element is NaN"
             stop
          endif
       end do
 
-      if (full_mass .le. 0) then ! sqrt will give NaN
-         where_error = dom%node%elts(id+1)
-      end if
-
-      fd = min(fd, full_mass)
-
       dx   = min(dom%len%elts(EDGE*id+e), dom%pedlen%elts(id*EDGE+e))
 
-      csq  = grav_accel*full_mass
+      ! Inertia gravity wave speed
+      csq  = grav_accel*total_mass
 
-      vel = -1.0e16
+      vel = -1.0d16
       do k = 1, zlevels
          vel  = max(vel, abs(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
       end do
       vel = vel + sqrt(csq)
 
-      dt = min(dt, cfl_num*dx/vel)
+      dt = min (dt, cfl_num*dx/vel)
 
-      if (viscosity .ne. 0) dt = min(dt, 1.0_8*dx**2/viscosity)
+      if (viscosity .ne. 0.0_8) dt = min(dt, 1.0_8*dx**2/viscosity)
     end subroutine cpt_dt
   end subroutine min_dt
 

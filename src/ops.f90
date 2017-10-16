@@ -624,8 +624,9 @@ contains
     full_pot_temp = full_temp/full_mass
 
     if (full_mass .lt. 1e-6_8) then
-       print *, 'fatal error: a horizontal layer thickness is being squeezed to zero, namely, at zlev=', zlev
-       write(6,*) 'mean+perturbation=', full_mass
+       write(6,*) 'Fatal error: a horizontal layer thickness is being squeezed to zero!'
+       write(6,'(3(A,i3,1x))') 'zlev = ', zlev, 'd = ', dom%id+1, 'id = ', id
+       write(6,'(A,es11.4)') 'full mass = ', full_mass
        stop
     end if
 

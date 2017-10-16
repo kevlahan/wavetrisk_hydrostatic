@@ -1168,24 +1168,21 @@ contains
   end subroutine comm_patch_conn_mpi
 
   real(8) function cpt_dt_mpi()
-    integer l, ierror
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    real(8) loc_min, glo_min
-    integer i, j
-    integer d, p, n_active_loc(2), n_active_glo(2), n_level_glo
+    integer :: l, ierror
+    integer :: n_active_loc(2), n_active_glo(2), n_level_glo
+    real(8) :: loc_min, glo_min
 
-    dt = 1.0e16_8
-    fd = 1.0e16_8
+    dt             = 1.0d16
+    min_mass       = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0
 
     do l = level_start, level_end
-       call apply_onescale(min_dt, l, z_null, 0, 0)
+       call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
 
     loc_min = dt
-    call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
 
     cpt_dt_mpi = glo_min
 
@@ -1195,13 +1192,13 @@ contains
        call finalize(); stop
     end if
 
-    loc_min = fd
-    call MPI_Allreduce(loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    fd = glo_min
+    loc_min = min_mass
+    call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    min_mass = glo_min
 
-    if (fd .le. 0 .and. .not. advect_only) then
+    if (min_mass .le. 0.0_8 .and. .not. advect_only) then
        ! only rank(s) where error occurs print(s)
-       if (loc_min .le. 0) write(0,*)  "ERROR: Full depth is negative. Coord:", where_error
+       if (loc_min .le. 0.0_8) write(0,*)  "ERROR: Full depth is negative. Coord:", where_error
        ! extra message so we know where we stoped if something really strange went wrong
        ! and last message does not get printed
        if (rank .eq. 0) write(0,*)  "ERROR ABORT" 
@@ -1210,14 +1207,13 @@ contains
 
     n_active_loc = (/sum(n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end))/)
 
-    call MPI_Allreduce(n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
 
     n_active = n_active_glo
 
-    call MPI_Allreduce(level_end, n_level_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (level_end, n_level_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
 
     level_end = n_level_glo
-
   end function cpt_dt_mpi
 
   integer function sync_max(val)

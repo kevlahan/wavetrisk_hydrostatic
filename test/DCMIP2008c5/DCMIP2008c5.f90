@@ -6,51 +6,20 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   use main_mod
   implicit none
 
-  ! all dimensional, subscript _t denotes test case values in contrast to those set in shared.f90
-  real(8), parameter :: grav_accel_t = 9.80616_8 !gravitational acceleration in meters per second squared
-  real(8), parameter :: omega_t      = 7.29211e-5_8 !Earth’s angular velocity in radians per second
-  real(8), parameter :: f0_t         = 2.0_8*omega_t !Coriolis parameter
-  real(8), parameter :: u_0_t        = 20.0_8 !velocity in meters per second
-  real(8), parameter :: T_0_t        = 288.0_8 !temperature in Kelvin
-  real(8), parameter :: d2_t         = (1500.0e+03)**2 !square of half width of Gaussian mountain profile in meters
-  real(8), parameter :: h_0_t        = 2000.0_8 !mountain height in meters
-  real(8), parameter :: lon_c_t      = MATH_PI/2.0_8 !mountain peak longitudinal location in radians
-  real(8), parameter :: lat_c_t      = MATH_PI/6.0_8 !mountain peak latitudinal location in radians
-  real(8), parameter :: p_sp_t       = 930.0e2 !South Pole surface pressure in Pascals
-  real(8), parameter :: a_t          = 6.371229e6 !mean radius of the Earth in meters
-  real(8), parameter :: ref_press_t  = 1e5_8!100145.6_8 !reference pressure (mean surface pressure) in Pascals
-  real(8), parameter :: R_d_t        = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
-  real(8), parameter :: c_p_t        = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
-  real(8), parameter :: c_v_t        = 717.6_8 ! specfic heat at constant volume c_v = R_d - c_p
-  real(8), parameter :: kappa_t      = R_d_t/c_p_t !kappa=R_d/c_p
-  real(8), parameter :: N_t          = sqrt(grav_accel_t*grav_accel_t/(c_p_t*T_0_t)) !Brunt-Vaisala buoyancy frequency
-  real(8), parameter :: ref_density_t= 100.0_8 !density for the incompressible case in kilogram per metres cubed
-
-  logical :: uniform  ! Uniform or non-uniform grid in pressure
-
-  ! Dimensional scaling
-  real(8), parameter :: Ldim = sqrt(d2_t)                             ! horizontal length scale
-  real(8), parameter :: Hdim = h_0_t                                  ! vertical length scale
-  real(8), parameter :: Udim = u_0_t                                  ! velocity scale
-  real(8), parameter :: acceldim = Udim*Udim/Hdim                     ! acceleration scale
-  real(8), parameter :: Tdim = Ldim/Udim                              ! time scale
-  real(8), parameter :: Tempdim = T_0_t                               ! temperature scale (both theta and T from DYNAMICO)
-  real(8), parameter :: pdim = ref_press_t                            ! pressure scale
-  real(8), parameter :: R_ddim = R_d_t                                ! R_d scale
-  real(8), parameter :: massdim = pdim*Hdim/(Tempdim*R_d_t)           ! mass (=rho*dz following DYNAMICO) scale
-  real(8), parameter :: specvoldim = (R_d_t*Tempdim)/pdim             ! specific volume scale
-  real(8), parameter :: geopotdim = acceldim*massdim*specvoldim/Hdim  ! geopotential scale
-
   integer         :: CP_EVERY, id, zlev, iwrite, j
   real(8)         :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
   real(8)         :: initotalmass, totalmass, timing, total_time, dh
   real(8)         :: csq, VELO_SCALE, max_dh
   logical         :: wasprinted
+  logical         :: uniform  ! Uniform or non-uniform grid in pressure
   character (255) :: IC_file
+
+  real(8)         :: c_v, d2, h_0, lat_c, lon_c, N_freq, p_sp, T_0, u_0 ! parameters for initial conditions
+  real(8)         :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
   
 contains
   subroutine apply_initial_conditions()
-    integer :: l, d, p, k
+    integer :: k, l
 
     wasprinted=.false.
     do l = level_start, level_end
@@ -60,6 +29,16 @@ contains
        end do
     end do
   end subroutine apply_initial_conditions
+
+  subroutine  apply_surf_geopot()
+    integer :: k, l
+
+    do l = level_start, level_end
+       do k = 1, zlevels
+          call apply_onescale (init_surfgeopot, l, k, 0, 1)
+       end do
+    end do
+  end subroutine apply_surf_geopot
 
   subroutine sum_total_mass(initialgo)
     integer k
@@ -91,6 +70,7 @@ contains
     
     if (uniform) then
        do k = 1, zlevels+1
+          press_infty = 0.0_8
           a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
           b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
@@ -141,6 +121,8 @@ contains
           write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
           stop
        end if
+       ! Set pressure at infinity
+       press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
     end if
   end subroutine initialize_a_b_vert
 
@@ -162,21 +144,15 @@ contains
 
     ! Initialize vertical grid
     call initialize_a_b_vert()
-    
-    ! Set pressure at infinity
-    press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph(dom%node%elts(id+1), lon, lat)
 
-    ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
-    rgrc = a_t*acos(sin(lat_c_t)*sin(lat)+cos(lat_c_t)*cos(lat)*cos(lon-lon_c_t))
-    dom%surf_geopot%elts(id+1) = grav_accel * h_0_t * exp(-rgrc**2/d2_t)
-
+    ! Surfaced geopotential
+    dom%surf_geopot%elts(id+1) = surf_geopot_fun (lon, lat)
+    
     ! Surface pressure
-    dom%surf_press%elts(id+1) = p_sp_t * exp ( &
-         - a_t*N_t**2*u_0_t/(2.0_8*grav_accel_t**2*kappa)*(u_0_t/a_t+2.0_8*omega_t)*(sin(lat)**2-1.0_8) &
-         - N_t**2/(grav_accel**2*kappa_t)*dom%surf_geopot%elts(id+1) )
+    dom%surf_press%elts(id+1) =  surf_pressure_fun (lon, lat, dom%surf_geopot%elts(id+1))
 
     ! Pressure at level zlev
     lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
@@ -186,7 +162,7 @@ contains
          ((a_vert(zlev)-a_vert(zlev+1))*ref_press + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel
     
     ! Horizontally uniform potential temperature
-    pot_temp =  T_0_t * (lev_press/ref_press)**(-kappa)
+    pot_temp =  T_0 * (lev_press/ref_press)**(-kappa)
     
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
@@ -217,12 +193,52 @@ contains
     end if
   end subroutine init_sol
 
+  subroutine init_surfgeopot (dom, i, j, zlev, offs, dims)
+    ! Initialize surface geopotential after restart
+    type (Domain)                   :: dom
+    integer                         :: i, j, k, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer  :: id
+    real (8) :: lat, lon
+
+    id   = idx(i, j, offs, dims)
+
+    ! Find latitude and longitude from Cartesian coordinates
+    call cart2sph(dom%node%elts(id+1), lon, lat)
+    
+    ! Surfaced geopotential
+    dom%surf_geopot%elts(id+1) = surf_geopot_fun (lon, lat)
+  end subroutine init_surfgeopot
+
+  function surf_geopot_fun (lon, lat)
+    ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
+    real(8) :: surf_geopot_fun
+    real(8) :: lon, lat
+    real(8) :: rgrc
+
+    rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
+    
+    surf_geopot_fun = grav_accel * h_0 * exp(-rgrc**2/d2)
+  end function surf_geopot_fun
+
+  function surf_pressure_fun (lon, lat, surf_geopot)
+    ! Surface pressure
+    real(8) :: surf_pressure_fun
+    real(8) :: lon, lat, surf_geopot
+
+    surf_pressure_fun = p_sp * exp__flush ( &
+         - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+2.0_8*omega)*(sin(lat)**2-1.0_8) &
+         - N_freq**2/(grav_accel**2*kappa)*surf_geopot )
+  end function surf_pressure_fun
+  
   subroutine vel_fun(lon, lat, u, v)
     ! Zonal latitude-dependent wind
     real(8) :: lon, lat
     real(8) :: u, v
     
-    u = u_0_t*cos(lat)  ! Zonal velocity component
+    u = u_0*cos(lat)  ! Zonal velocity component
     v = 0.0_8           ! Meridional velocity component
   end subroutine vel_fun
 
@@ -301,12 +317,6 @@ contains
     !if (rank .eq. 0) call compress_files(k)
   end subroutine write_and_export
 
-  subroutine cart2sph2(cin, cout)
-    type(Coord) cin
-    real(8), intent(out) :: cout(2)
-    call cart2sph(cin, cout(1), cout(2))
-  end subroutine cart2sph2
-
   subroutine DCMIP2008c5_dump(fid)
     integer fid
     write(fid) VELO_SCALE
@@ -341,23 +351,50 @@ program DCMIP2008c5
   character(6+len_cmd_files)   :: command2
   logical                      :: aligned, write_init
 
+  ! Initialize grid etc
   call init_main_mod()
+
+  ! Read test case parameters
   call read_test_case_parameters("DCMIP2008c5.in")
   
-  compressible = .True.
-  if (rank.eq.0) write(6,'(A,L1)') "compressible = ", compressible
+  ! Parameters for the simulation
+  grav_accel  = 9.80616_8 !gravitational acceleration in meters per second squared
+  omega       = 7.29211d-5 !Earth’s angular velocity in radians per second
+  f0          = 2.0_8*omega !Coriolis parameter
+  u_0         = 20.0_8 !velocity in meters per second
+  T_0         = 288.0_8 !temperature in Kelvin
+  d2          = (1500.0d+03)**2 !square of half width of Gaussian mountain profile in meters
+  h_0         = 2000.0_8 !mountain height in meters
+  lon_c       = MATH_PI/2.0_8 !mountain peak longitudinal location in radians
+  lat_c       = MATH_PI/6.0_8 !mountain peak latitudinal location in radians
+  p_sp        = 930.0d2 !South Pole surface pressure in Pascals
+  radius      = 6.371229d6 !mean radius of the Earth in meters
+  ref_press   = 100145.6_8 !reference pressure (mean surface pressure) in Pascals
+  R_d         = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
+  c_p         = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
+  c_v         = 717.6_8 ! specfic heat at constant volume c_v = R_d - c_p
+  kappa       = R_d/c_p !kappa=R_d/c_p
+  N_freq      = sqrt(grav_accel*grav_accel/(c_p*T_0)) !Brunt-Vaisala buoyancy frequency
 
-  ! Shared non-dimensional parameters, these are set AFTER those in shared.f90
-  omega = omega_t !* Tdim
-  grav_accel = grav_accel_t !/ acceldim
-  radius = a_t !/ Ldim
- 
-  R_d = R_d_t !/ R_d_t
-  c_p = c_p_t !/ R_d_t
-  kappa = kappa_t
-  ref_press = ref_press_t !/ pdim
-  ref_density = ref_density_t !not non-dimensionalized at present, NOT USED HERE
-      
+  ! Dimensional scaling
+  Ldim        = sqrt(d2)                         ! horizontal length scale
+  Hdim        = h_0                              ! vertical length scale
+  Udim        = u_0                              ! velocity scale
+  Tdim        = Ldim/Udim                        ! time scale
+  Tempdim     = T_0                              ! temperature scale (both theta and T from DYNAMICO)
+
+  acceldim    = Udim*Udim/Hdim                   ! acceleration scale
+  pdim        = ref_press                        ! pressure scale
+  R_ddim      = R_d                              ! R_d scale
+  massdim     = pdim*Hdim/(Tempdim*R_d)          ! mass (=rho*dz following DYNAMICO) scale
+  specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
+  geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
+
+  compressible = .True. ! Compressible equations
+  uniform      = .False. ! Type of vertical grid
+
+  
+
   ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_VELO,1:zlevels))
   allocate (mean_press(1:zlevels), mean_spec_vol(1:zlevels), mean_exner(1:zlevels))
@@ -372,7 +409,7 @@ program DCMIP2008c5
 
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
-  csq        = grav_accel*a_t 
+  csq        = grav_accel*radius 
   VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
   !viscosity = 1.0_8/(kmax*40.0_8)**2     ! grid scale viscosity
@@ -382,11 +419,11 @@ program DCMIP2008c5
 
   write_init = (resume .eq. NONE)
   iwrite = 0
-  uniform = .false.
 
-  call initialize(apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
+  ! Initialize variables
+  call initialize (apply_initial_conditions, apply_surf_geopot, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
   
-  call sum_total_mass(.True.)
+  call sum_total_mass (.True.)
 
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
   call barrier()
@@ -409,7 +446,7 @@ program DCMIP2008c5
      if (rank .eq. 0) write(*,'(A,es10.4,A,es10.4,2(A,ES10.4),A,I9,A,ES9.2)') &
           'time [h] = ', time/3600.0_8, &
           ', dt [s] = ', dt, &
-          ', min. depth = ', fd, &
+          ', min. mass = ', min_mass, &
           ', VELO_SCALE = ', VELO_SCALE, &
           ', d.o.f. = ', sum(n_active), &
           ', cpu = ', timing
@@ -432,7 +469,7 @@ program DCMIP2008c5
            stop
         end if
 
-        call restart_full(set_thresholds, DCMIP2008c5_load)
+        call restart_full (set_thresholds, apply_surf_geopot, DCMIP2008c5_load)
         call barrier()
      end if
 

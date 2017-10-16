@@ -260,7 +260,7 @@ module shared_mod
   data O2 /2,3, 3,1, 1,2/ 
 
   ! indices of prognostic variables in sol, trend etc
-  integer, parameter :: S_MASS = 1,  S_TEMP = 2, S_VELO = 3
+  integer, parameter :: S_MASS = 1, S_TEMP = 2, S_VELO = 3
   integer, parameter :: F_BERN = 1, F_EXNER = 2, F_QE = 3
 
   ! number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
@@ -366,7 +366,7 @@ contains
     ! default values
     threshold = 0.0_8
     adapt_trend = .true.
-    cfl_num = 0.8_8
+    cfl_num = 1.0_8
     min_level = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level = min_level
     level_start = min_level
