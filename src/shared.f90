@@ -290,17 +290,15 @@ module shared_mod
   integer, parameter :: DAY = 24*60*60
 
   ! simulation variables
-  real(8) dt_write, time_end, time
-  real(8) viscosity, omega, radius, grav_accel, cfl_num, kmax
-  real(8) ref_density, press_infty, ref_press, kappa, c_p, R_d
-  integer istep, resume
-  logical advect_only, wind_stress, compressible, adapt_trend
+  integer :: istep, resume
+  real(8) :: dt_write, time_end, time
+  real(8) :: viscosity, omega, radius, grav_accel, cfl_num, kmax
+  real(8) :: ref_density, press_infty, ref_press, kappa, c_p, R_d
+  logical :: advect_only, compressible, adapt_trend
+  logical :: lagrangian_vertical
 
-  ! for penalization boundary condition
-  logical lagrangian_vertical
-
-  real(8) nonunique_pent_locs(10*2**(2*DOMAIN_LEVEL),3)
-  real(8) unique_pent_locs(12,3)
+  real(8) :: nonunique_pent_locs(10*2**(2*DOMAIN_LEVEL),3)
+  real(8) :: unique_pent_locs(12,3)
 
   real(8), allocatable :: a_vert(:), b_vert(:)
 
@@ -313,13 +311,13 @@ contains
 
     !specify the multiplicity per grid element of each quantity
     MULT(S_MASS) = 1
-    MULT(S_VELO) = EDGE
     MULT(S_TEMP) = 1
+    MULT(S_VELO) = EDGE
 
     !specify the position on the grid of each quantity
     POSIT(S_MASS) = AT_NODE
-    POSIT(S_VELO) = AT_EDGE
     POSIT(S_TEMP) = AT_NODE
+    POSIT(S_VELO) = AT_EDGE
 
     end_pt = reshape((/0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1/), (/2, 2, 3/))
 

@@ -44,8 +44,8 @@ contains
     time_mult = 1.0
   end subroutine init_main_mod
 
-  subroutine initialize(apply_init_cond, apply_surf_geopot, stage, set_thresholds, custom_dump, custom_load)
-    external apply_init_cond, apply_surf_geopot, set_thresholds, custom_dump, custom_load
+  subroutine initialize(apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
+    external apply_init_cond, set_thresholds, custom_dump, custom_load
     character(20+4+4) command
     integer k, d, stage, ierr
 
@@ -137,10 +137,10 @@ contains
        call adapt(wav_coeff)
 
        call write_load_conn(0)
-       ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
+       ierr = dump_adapt_mpi(cp_idx, custom_dump)
     end if
 
-    call restart_full (set_thresholds, apply_surf_geopot, custom_load)
+!    call restart_full (set_thresholds, custom_load)
   end subroutine initialize
 
   subroutine record_init_state(init_state)
@@ -211,9 +211,9 @@ contains
   end subroutine time_step
 
   subroutine reset(init_state)
-    type(Initial_State), allocatable :: init_state(:)
-    integer k, l, d, v, i
-    integer num(AT_NODE:AT_EDGE)
+    type(Initial_State), dimension (:), allocatable :: init_state
+    integer                                         :: k, l, d, v, i
+    integer, dimension (AT_NODE:AT_EDGE)            :: num
 
     do d = 1, size(grid)
        grid(d)%lev(min_level+1:max_level)%length = 0
@@ -234,7 +234,6 @@ contains
        grid(d)%pedlen%length      = init_state(d)%n_edge
        grid(d)%len%length         = init_state(d)%n_edge
        grid(d)%coriolis%length    = init_state(d)%n_tria
-       grid(d)%windstress%length  = init_state(d)%n_edge
        grid(d)%overl_areas%length = init_state(d)%n_node
        grid(d)%I_u_wgt%length     = init_state(d)%n_node
        grid(d)%R_F_wgt%length     = init_state(d)%n_node
@@ -242,15 +241,15 @@ contains
        grid(d)%mask_e%length      = init_state(d)%n_edge
        grid(d)%level%length       = init_state(d)%n_node
 
-       grid(d)%surf_press%length   = init_state(d)%n_node
-       grid(d)%press%length   = init_state(d)%n_node
-       grid(d)%surf_geopot%length   = init_state(d)%n_node
-       grid(d)%geopot%length   = init_state(d)%n_node
-       grid(d)%u_zonal%length   = init_state(d)%n_node
-       grid(d)%v_merid%length   = init_state(d)%n_node
-       grid(d)%adj_mass%length   = init_state(d)%n_node
-       grid(d)%adj_temp%length   = init_state(d)%n_node
-       grid(d)%adj_geopot%length   = init_state(d)%n_node
+       grid(d)%surf_press%length  = init_state(d)%n_node
+       grid(d)%press%length       = init_state(d)%n_node
+       grid(d)%surf_geopot%length = init_state(d)%n_node
+       grid(d)%geopot%length      = init_state(d)%n_node
+       grid(d)%u_zonal%length     = init_state(d)%n_node
+       grid(d)%v_merid%length     = init_state(d)%n_node
+       grid(d)%adj_mass%length    = init_state(d)%n_node
+       grid(d)%adj_temp%length    = init_state(d)%n_node
+       grid(d)%adj_geopot%length  = init_state(d)%n_node
        grid(d)%vort%length        = init_state(d)%n_tria
 
        ! For mass-based vertical coordinates
@@ -299,14 +298,14 @@ contains
     end do
   end subroutine reset
 
-  subroutine restart_full(set_thresholds, apply_surf_geopot, custom_load)
-    external set_thresholds, apply_surf_geopot, custom_load
-    integer i, d, k, r, l, v
+  subroutine restart_full (set_thresholds, custom_load)
+    external           :: set_thresholds, custom_load
+    integer            :: i, d, k, r, l, v
     integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
     integer, parameter :: len_cmd_archive = 11 + 4 + 4
-    character(len_cmd_files) cmd_files
-    character(len_cmd_archive) cmd_archive
-    character(8+len_cmd_archive+15+len_cmd_files+34+len_cmd_archive+1+len_cmd_files+4) command
+    character(len_cmd_files) :: cmd_files
+    character(len_cmd_archive) :: cmd_archive
+    character(8+len_cmd_archive+15+len_cmd_files+34+len_cmd_archive+1+len_cmd_files+4) :: command
 
     ! deallocate init_RK_mem allocations
     do k = 1, zlevels
@@ -350,7 +349,6 @@ contains
        deallocate(grid(d)%adj_geopot%elts)
        deallocate(grid(d)%vort%elts)
        deallocate(grid(d)%divu%elts)
-       deallocate(grid(d)%windstress%elts)
        deallocate(grid(d)%coriolis%elts)
        deallocate(grid(d)%triarea%elts)
        deallocate(grid(d)%len%elts)
@@ -459,48 +457,45 @@ contains
        end do
     end do
 
-    deallocate(grid, fun, sol, trend, horiz_flux)
+    deallocate (grid, fun, sol, trend, horiz_flux)
 
     ! init_shared_mod()
     level_start = min_level
     level_end = level_start
 
     call distribute_grid(cp_idx)
-    deallocate(n_active_edges, n_active_nodes)
+    deallocate (n_active_edges, n_active_nodes)
 
-    call init_grid()
-    call init_comm()
-    call comm_communication_mpi()
-    call init_geometry()
+    call init_grid ()
+    call init_comm ()
+    call comm_communication_mpi ()
+    call init_geometry ()
 
-    if (optimize_grid .eq. XU_GRID) call smooth_Xu(1.0e6_8*eps())
-    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid()
+    if (optimize_grid .eq. XU_GRID) call smooth_Xu (1.0e6_8*eps())
+    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid ()
 
-    call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call precompute_geometry()
+    call comm_nodes3_mpi (get_coord, set_coord, NONE)
+    call precompute_geometry ()
 
-    allocate(node_level_start(size(grid)), edge_level_start(size(grid)))
+    allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
     if (rank .eq. 0) write(*,*) 'Make level J_min =', min_level, '...'
-    call init_wavelets()
-    call init_masks()
-    call add_second_level()
+    call init_wavelets ()
+    call init_masks ()
+    call add_second_level ()
 
-    call apply_onescale2(set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale(mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
+    call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
+    call apply_interscale (mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
-    call record_init_state(ini_st)
+    call record_init_state (ini_st)
 
-    call init_RK_mem()
+    call init_RK_mem ()
 
     if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
 
-    call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
+    call load_adapt_mpi (cp_idx, custom_load)
 
-    ! Set surface geopotential
-    call apply_surf_geopot()
-
-    itime = nint(time*time_mult, 8)
+    itime = nint (time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
 
     ! do not overwrite existing checkpoint archive
@@ -513,25 +508,41 @@ contains
 
     if (rank .eq. 0) call system(command)
     
-    call adapt(wav_coeff)
+    call adapt (wav_coeff)
 
     ! Interpolate onto adapted grid
-    call inverse_wavelet_transform(wav_coeff, sol, level_start-1)
-
-    ! Calculate initial trend
-    call trend_ml(sol, trend)
+    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     
     ! Calculate trend wavelets
-    if (adapt_trend) call forward_wavelet_transform(trend, trend_wav_coeff)
+    if (adapt_trend) then
+       call trend_ml (sol, trend)
+       call forward_wavelet_transform (trend, trend_wav_coeff)
+    end if
   end subroutine restart_full
 
-  integer function writ_checkpoint(custom_dump)
-    external custom_dump, custom_load
-    character(38+4+22+4+6) command
+  subroutine read_sol(custom_load)
+    external :: custom_load
+    integer :: k, d, v
+    
+    if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
+
+    itime = nint (time*time_mult, 8)
+    resume = cp_idx ! to disable alignment for next step
+
+    call load_adapt_mpi (cp_idx, custom_load)
+       
+    call inverse_wavelet_transform (wav_coeff, sol)
+  end subroutine read_sol
+
+  integer function write_checkpoint(custom_dump)
+    external :: custom_dump, custom_load
+
+    character(38+4+22+4+6) :: command
+    
     cp_idx = cp_idx + 1
-    call write_load_conn(cp_idx)
-    writ_checkpoint = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
-  end function writ_checkpoint
+    call write_load_conn (cp_idx)
+    write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
+  end function write_checkpoint
 
   subroutine compress_files(iwrite)
     integer :: iwrite

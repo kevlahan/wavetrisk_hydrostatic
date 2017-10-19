@@ -60,35 +60,5 @@ contains
          /dom%len%elts(EDGE*id+UP+1)
   end subroutine flux_grad_scalar
 
-  subroutine diff_mom(dom, i, j, zlev, offs, dims)
-    ! Diffuse momentum
-    type(Domain) :: dom
-    integer :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    
-    integer :: id, idS, idN, idW, idE,idNE
-    
-    id = idx(i, j, offs, dims)
-    idS = idx(i, j - 1, offs, dims)
-    idW = idx(i - 1, j, offs, dims)
-    idN = idx(i, j + 1, offs, dims)
-    idE = idx(i + 1, j, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-
-    dvelo(id*EDGE+RT+1) = dvelo(id*EDGE+RT+1) + viscosity*( &
-         (dom%divu%elts(idE+1) - dom%divu%elts(id+1)) + &
-         (dom%vort%elts(id*TRIAG+LORT+1) - dom%vort%elts(idS*TRIAG+UPLT+1)) &
-         /dom%pedlen%elts(id*EDGE+RT+1)*dom%len%elts(id*EDGE+RT+1))
-    
-    dvelo(id*EDGE+DG+1) = dvelo(id*EDGE+DG+1) + viscosity*( &
-         (dom%divu%elts(id+1) - dom%divu%elts(idNE+1)) + &
-         (dom%vort%elts(id*TRIAG+LORT+1) - dom%vort%elts(id*TRIAG+UPLT+1)) &
-         /dom%pedlen%elts(id*EDGE+DG+1)*dom%len%elts(id*EDGE+DG+1))
-    
-    dvelo(id*EDGE+UP+1) = dvelo(id*EDGE+UP+1) + viscosity*( &
-         (dom%divu%elts(idN+1) - dom%divu%elts(id+1)) + &
-         (dom%vort%elts(idW*TRIAG+LORT+1) - dom%vort%elts(id*TRIAG+UPLT+1)) &
-         /dom%pedlen%elts(id*EDGE+UP+1)*dom%len%elts(id*EDGE+UP+1))
-  end subroutine diff_mom
+ 
 end module viscous_mod

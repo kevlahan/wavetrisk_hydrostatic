@@ -1,7 +1,6 @@
 Module ops_mod
   use domain_mod
   use arch_mod
-  use viscous_mod
   implicit none
 
   real(8) :: totaldmass, totalabsdmass, totaldtemp, totalabsdtemp
@@ -60,8 +59,8 @@ contains
        dom%vort%elts(TRIAG*idSW+LORT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
        dom%vort%elts(TRIAG*idSW+UPLT+1) = dom%vort%elts(LORT+TRIAG*idSW+1)
 
-       qe(EDGE*idW+RT+1) = 0.5_8*(pv_W + pv_SW)
-       qe(EDGE*idS+UP+1) = 0.5_8*(pv_S + pv_SW)
+       qe(EDGE*idW+RT+1) = node2edge(pv_W, pv_SW)
+       qe(EDGE*idS+UP+1) = node2edge(pv_S, pv_SW)
     end if
 
     if (c .eq. IPLUSJMINUS) then
@@ -101,8 +100,8 @@ contains
 
        pv_S = pv_SW_LORT
 
-      qe(EDGE*id  +RT+1) = 0.5_8*(pv_S + pv_LORT)
-      qe(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
+      qe(EDGE*id  +RT+1) = node2edge(pv_S, pv_LORT)
+      qe(EDGE*idSW+DG+1) = node2edge(pv_SW_LORT, pv_SW_UPLT)
     end if
 
     if (c .eq. IMINUSJPLUS) then
@@ -142,8 +141,8 @@ contains
 
        pv_W = pv_SW_UPLT
 
-       qe(EDGE*id  +UP+1) = 0.5_8*(pv_W + pv_UPLT)
-       qe(EDGE*idSW+DG+1) = 0.5_8*(pv_SW_LORT + pv_SW_UPLT)
+       qe(EDGE*id  +UP+1) = node2edge(pv_W, pv_UPLT)
+       qe(EDGE*idSW+DG+1) = node2edge(pv_SW_LORT, pv_SW_UPLT)
     end if
 
     if (c .eq. IJPLUS) then
@@ -178,8 +177,8 @@ contains
        dom%vort%elts(LORT+TRIAG*id+1) = dom%vort%elts(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
        dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(LORT+TRIAG*id+1)
 
-       qe(EDGE*id+RT+1) = 0.5_8*(pv + pv_S)
-       qe(EDGE*id+UP+1) = 0.5_8*(pv + pv_W)
+       qe(EDGE*id+RT+1) = node2edge(pv, pv_S)
+       qe(EDGE*id+UP+1) = node2edge(pv, pv_W)
     end if
   end subroutine post_step1
 
@@ -348,9 +347,9 @@ contains
       dom%vort%elts(TRIAG*(id+w)+LORT+1) = vort_W/dom%triarea%elts(TRIAG*(id+w)+LORT+1) 
       dom%vort%elts(TRIAG*(id+s)+UPLT+1) = vort_S/dom%triarea%elts(TRIAG*(id+s)+UPLT+1) 
       
-      qe(EDGE*(id+ w)+RT+1) = 0.5_8*(pv_W   +pv_UPLT)
-      qe(EDGE*(id+sw)+DG+1) = 0.5_8*(pv_LORT+pv_UPLT)
-      qe(EDGE*(id+s )+UP+1) = 0.5_8*(pv_LORT+pv_S)
+      qe(EDGE*(id+ w)+RT+1) = node2edge(pv_W   ,pv_UPLT)
+      qe(EDGE*(id+sw)+DG+1) = node2edge(pv_LORT,pv_UPLT)
+      qe(EDGE*(id+s )+UP+1) = node2edge(pv_LORT,pv_S)
       
       ! Find horizontal fluxes at specific points
       call cal_flux1(h_mflux, full_mass)
@@ -361,9 +360,9 @@ contains
       real(8), dimension(:), pointer :: h_flux
       real(8), dimension(0:N_BDRY) :: full_scalar
 
-      h_flux(EDGE*(id+s )+UP+1) = 0.5_8*u_dual_dn*(full_scalar(SOUTH) + full_scalar(0))
-      h_flux(EDGE*(id+sw)+DG+1) = 0.5_8*u_dual_sw*(full_scalar(0)     + full_scalar(SOUTHWEST))
-      h_flux(EDGE*(id+w )+RT+1) = 0.5_8*u_dual_lt*(full_scalar(WEST)  + full_scalar(0))
+      h_flux(EDGE*(id+s )+UP+1) = u_dual_dn * node2edge(full_scalar(SOUTH),full_scalar(0))
+      h_flux(EDGE*(id+sw)+DG+1) = u_dual_sw * node2edge(full_scalar(0)    ,full_scalar(SOUTHWEST))
+      h_flux(EDGE*(id+w )+RT+1) = u_dual_lt * node2edge(full_scalar(WEST) ,full_scalar(0))
     end subroutine cal_flux1
 
     subroutine cal_flux2(h_flux, full_scalar)
@@ -371,16 +370,24 @@ contains
       real(8), dimension(0:N_BDRY) :: full_scalar
 
       ! Find the horizontal mass flux as the velocity multiplied by the mass there
-      h_flux(EDGE*id+UP+1) = 0.5_8*u_dual_up*(full_scalar(0)         + full_scalar(NORTH))
-      h_flux(EDGE*id+DG+1) = 0.5_8*u_dual_dg*(full_scalar(NORTHEAST) + full_scalar(0))
-      h_flux(EDGE*id+RT+1) = 0.5_8*u_dual_rt*(full_scalar(0)         + full_scalar(EAST))
+      h_flux(EDGE*id+UP+1) = u_dual_up * node2edge(full_scalar(0)        , full_scalar(NORTH))
+      h_flux(EDGE*id+DG+1) = u_dual_dg * node2edge(full_scalar(NORTHEAST), full_scalar(0))
+      h_flux(EDGE*id+RT+1) = u_dual_rt * node2edge(full_scalar(0)        , full_scalar(EAST))
     end subroutine cal_flux2
 
     subroutine comput()
       ! Computes physical quantities during upward integration
-      type (Coord) :: n_e, x_i, vel
+      integer :: idE, idN, idNE, idS, idSW, idW
+      type (Coord) :: x_e, x_i, vel
       real (8) :: kinetic_energy, Phi_k
-     
+
+      idE  = id+e
+      idN  = id+n
+      idNE = id+ne
+      idS  = id+s
+      idSW = id+sw
+      idW  = id+w
+      
       ! Find the velocity on primal and dual grid edges, which are equal except for the length of the
       ! side they are on
       u_prim_up = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
@@ -398,12 +405,12 @@ contains
       call cal_flux2(h_tflux, full_temp)
 
       ! Find additional primal and dual velocities: down, southwest (counter-diagonal), left
-      u_prim_dn = velo(EDGE*(id+s)+UP+1)*dom%len%elts(EDGE*(id+s)+UP+1)
-      u_dual_dn = velo(EDGE*(id+s)+UP+1)*dom%pedlen%elts(EDGE*(id+s)+UP+1)
-      u_prim_sw = velo(EDGE*(id+sw)+DG+1)*dom%len%elts(EDGE*(id+sw)+DG+1)
-      u_dual_sw = velo(EDGE*(id+sw)+DG+1)*dom%pedlen%elts(EDGE*(id+sw)+DG+1)
-      u_prim_lt = velo(EDGE*(id+w)+RT+1)*dom%len%elts(EDGE*(id+w)+RT+1)
-      u_dual_lt = velo(EDGE*(id+w)+RT+1)*dom%pedlen%elts(EDGE*(id+w)+RT+1)
+      u_prim_dn = velo(EDGE*idS+UP+1)*dom%len%elts(EDGE*idS+UP+1)
+      u_dual_dn = velo(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
+      u_prim_sw = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
+      u_dual_sw = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
+      u_prim_lt = velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1)
+      u_dual_lt = velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
 
       ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
       ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
@@ -414,26 +421,28 @@ contains
 
       x_i = dom%node%elts(id+1)  ! Coordinate of node
       
-      n_e = direction(x_i, dom%node%elts((id+e)+1))
-      vel = vec_scale(u_dual_rt * dom%len%elts(EDGE*id+RT+1), n_e)
-
-      n_e = direction(dom%node%elts((id+w)+1), x_i)
-      vel = vec_sum(vel, vec_scale(u_dual_lt * dom%len%elts(EDGE*(id+w)+RT+1), n_e))
+      ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
+      x_e = mid_pt(x_i, dom%node%elts(idE+1))
+      vel = vec_scale(u_dual_rt, vector(x_i,x_e))
       
-      n_e = direction(dom%node%elts((id+ne)+1), x_i)
-      vel = vec_sum(vel, vec_scale(u_dual_dg * dom%len%elts(EDGE*id+DG+1), n_e))
+      x_e = mid_pt(x_i, dom%node%elts(idW+1))
+      vel = vec_sum(vel, vec_scale(u_dual_lt, vector(x_e,x_i)))
+      
+      x_e = mid_pt(x_i, dom%node%elts(idNE+1))
+      vel = vec_sum(vel, vec_scale(u_dual_dg, vector(x_e,x_i)))
+      
+      x_e = mid_pt(x_i, dom%node%elts(idSW+1))
+      vel = vec_sum(vel, vec_scale(u_dual_sw, vector(x_i,x_e)))
+      
+      x_e = mid_pt(x_i, dom%node%elts(idN+1))
+      vel = vec_sum(vel, vec_scale(u_dual_up, vector(x_i,x_e)))
+      
+      x_e = mid_pt(x_i, dom%node%elts(idS+1))
+      vel = vec_sum(vel, vec_scale(u_dual_dn, vector(x_e,x_i)))
 
-      n_e = direction(x_i, dom%node%elts((id+sw)+1))
-      vel = vec_sum(vel, vec_scale(u_dual_sw * dom%len%elts(EDGE*(id+sw)+DG+1), n_e))
+      vel = vec_scale(dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
 
-      n_e = direction(x_i, dom%node%elts((id+n)+1))
-      vel = vec_sum(vel, vec_scale(u_dual_up * dom%len%elts(EDGE*id+UP+1), n_e))
-
-      n_e = direction(dom%node%elts((id+s)+1), x_i)
-      vel = vec_sum(vel, vec_scale(u_dual_dn * dom%len%elts(EDGE*(id+s)+UP+1), n_e))
-
-      ! Perot formula (16, 17) of Peixoto (2016)
-      kinetic_energy = inner(vel,vel) * dom%areas%elts(id+1)%hex_inv**2 / 8.0_8
+      kinetic_energy = 0.5_8 * inner(vel,vel) 
       
       ! Formula from TRiSK ... not convergent!
       ! kinetic_energy = &
@@ -442,7 +451,7 @@ contains
       !      )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
 
       ! Interpolate geopotential from interfaces to level
-      Phi_k =  0.5_8*(dom%geopot%elts(id+1) + dom%geopot%elts(id+1))
+      Phi_k =  node2edge(dom%geopot%elts(id+1), dom%geopot%elts(id+1))
 
       ! Bernoulli function
       if (compressible) then 
@@ -453,9 +462,6 @@ contains
 
       ! Exner function in incompressible case from geopotential
       if (.not. compressible) exner(id+1) = -Phi_k
-
-      if (viscosity .ne. 0.0_8) dom%divu%elts(id+1) = dom%areas%elts(id+1)%hex_inv * &
-           (u_dual_up - u_dual_dg + u_dual_rt - u_dual_dn + u_dual_sw - u_dual_lt)
 
       dom%vort%elts(TRIAG*id+LORT+1) = - (u_prim_rt + u_prim_dg + velo(EDGE*(id+E)+UP+1)*dom%len%elts(EDGE*(id+E)+UP+1))
       dom%vort%elts(TRIAG*id+UPLT+1) =    u_prim_dg + u_prim_up + velo(EDGE*(id+N)+RT+1)*dom%len%elts(EDGE*(id+N)+RT+1) 
@@ -488,20 +494,20 @@ contains
       dom%vort%elts(TRIAG*id+LORT+1) = dom%vort%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1) 
       dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(TRIAG*id+UPLT+1)/dom%triarea%elts(TRIAG*id+UPLT+1) 
 
-      qe(EDGE*id+RT+1) = 0.5_8*(pv_S    + pv_LORT)
-      qe(EDGE*id+DG+1) = 0.5_8*(pv_UPLT + pv_LORT)
-      qe(EDGE*id+UP+1) = 0.5_8*(pv_UPLT + pv_W)
+      qe(EDGE*id+RT+1) = node2edge(pv_S    , pv_LORT)
+      qe(EDGE*id+DG+1) = node2edge(pv_UPLT , pv_LORT)
+      qe(EDGE*id+UP+1) = node2edge(pv_UPLT , pv_W)
     end subroutine comput
   end subroutine step1
 
   subroutine interp_vel_hex (dom, i, j, zlev, offs, dims)
     ! Interpolate velocity to hexagon nodes in Cartesian coordinates; uses Perot formula as also used for kinetic energy 
-    type(Domain)                     :: dom
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    type(Coord) :: n_e, vel, x_i
+    type(Coord) :: vel, x_e, x_i
     type(Coord) :: e_zonal, e_merid
     integer     :: id, idN, idE, idNE, idS, idSW, idW
     real(8)     :: u_dual_up, u_dual_dg, u_dual_rt, u_dual_dn, u_dual_sw, u_dual_lt
@@ -524,27 +530,27 @@ contains
     u_dual_lt = velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
 
     x_i = dom%node%elts(id+1)
-    
-    n_e = direction(x_i, dom%node%elts(idE+1))
-    vel = vec_scale(u_dual_rt * dom%len%elts(EDGE*id+RT+1), n_e)
 
-    n_e = direction(dom%node%elts(idW+1), x_i)
-    vel = vec_sum(vel, vec_scale(u_dual_lt * dom%len%elts(EDGE*idW+RT+1), n_e))
-    
-    n_e = direction(dom%node%elts(idNE+1), x_i)
-    vel = vec_sum(vel, vec_scale(u_dual_dg * dom%len%elts(EDGE*id+DG+1), n_e))
-    
-    n_e = direction(x_i, dom%node%elts(idSW+1))
-    vel = vec_sum(vel, vec_scale(u_dual_sw * dom%len%elts(EDGE*idSW+DG+1), n_e))
-    
-    n_e = direction(x_i, dom%node%elts(idN+1))
-    vel = vec_sum(vel, vec_scale(u_dual_up * dom%len%elts(EDGE*id+UP+1), n_e))
-    
-    n_e = direction(dom%node%elts(idS+1), x_i)
-    vel = vec_sum(vel, vec_scale(u_dual_dn * dom%len%elts(EDGE*idS+UP+1), n_e))
+    ! Perot formula (15) of Peixoto (2016) gives velocity at hexagonal node in Cartesian coordinates
+    x_e = mid_pt(x_i, dom%node%elts(idE+1))
+    vel = vec_scale(u_dual_rt, vector(x_i,x_e))
 
-    ! Perot formula (16, 17) of Peixoto (2016) gives velocity at hexagonal node in Cartesian coordinates
-    vel = vec_scale(0.5_8*dom%areas%elts(id+1)%hex_inv, vel)
+    x_e = mid_pt(x_i, dom%node%elts(idW+1))
+    vel = vec_sum(vel, vec_scale(u_dual_lt, vector(x_e,x_i)))
+    
+    x_e = mid_pt(x_i, dom%node%elts(idNE+1))
+    vel = vec_sum(vel, vec_scale(u_dual_dg, vector(x_e,x_i)))
+    
+    x_e = mid_pt(x_i, dom%node%elts(idSW+1))
+    vel = vec_sum(vel, vec_scale(u_dual_sw, vector(x_i,x_e)))
+    
+    x_e = mid_pt(x_i, dom%node%elts(idN+1))
+    vel = vec_sum(vel, vec_scale(u_dual_up, vector(x_i,x_e)))
+    
+    x_e = mid_pt(x_i, dom%node%elts(idS+1))
+    vel = vec_sum(vel, vec_scale(u_dual_dn, vector(x_e,x_i)))
+
+    vel = vec_scale(dom%areas%elts(id+1)%hex_inv, vel)
 
     ! Project velocity onto zonal and meridional directions
     call cart2sph (x_i, lon, lat)
@@ -596,18 +602,67 @@ contains
     id   = idx(i, j, offs, dims)
 
     if (zlev.eq.1) then 
-       v_mflux(id+1) = 0.0_8                   - dmass(id+1) + horiz_div_flux(h_mflux, dom, i, j, offs, dims, id) ! Flux is zero at surface
+       v_mflux(id+1) = 0.0_8                   - dmass(id+1) + div(h_mflux, dom, i, j, offs, dims, id) ! Flux is zero at surface
     elseif (zlev.eq.zlevels) then ! Flux is zero at upper interface of top level
        v_mflux(id+1) = 0.0_8
     else
-       v_mflux(id+1) = dom%adj_mass%elts(id+1) - dmass(id+1) + horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
+       v_mflux(id+1) = dom%adj_mass%elts(id+1) - dmass(id+1) + div(h_mflux, dom, i, j, offs, dims, id)
     end if
 
     ! Save current vertical mass flux for lower interface of next vertical level (use adj_mass)
     dom%adj_mass%elts(id+1) = v_mflux(id+1)
   end subroutine compute_vert_flux
+
+  subroutine integrate_pressure_down (dom, i, j, zlev, offs, dims)
+    ! Pressure is computed during downward integration from zlev=zlevels to zlev=1
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id
+    real(8) :: full_mass, full_temp
+
+    id = idx(i, j, offs, dims)
+
+    full_mass = mass(id+1) + mean(S_MASS,zlev)
+    full_temp = temp(id+1) + mean(S_TEMP,zlev)
+
+    if (full_mass .lt. 1d-6) then
+       write(6,*) 'Fatal error: a horizontal layer thickness is being squeezed to zero!'
+       write(6,'(3(A,i3,1x))') 'zlev = ', zlev, 'd = ', dom%id+1, 'id = ', id
+       write(6,'(A,es11.4)') 'full mass = ', full_mass
+       stop
+    end if
+
+    if (compressible) then !compressible case
+       ! Integrate the pressure from top zlev down to bottom zlev; press_infty is user-set
+       if (zlev .eq. zlevels) then
+          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_mass
+       else ! Interpolate mass to lower interface
+          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*node2edge(dom%adj_mass%elts(id+1), full_mass)
+       end if
+
+       ! Surface pressure is set (even at t=0) from downward numerical integration
+       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_mass
+    else ! Incompressible case
+       ! Integrate the pressure from top zlev down to bottom zlev; press_infty is user-set
+       if (zlev .eq. zlevels) then !top zlev, it is an exception
+          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_temp
+       else !other layers equal to half of previous layer and half of current layer
+          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*node2edge(dom%adj_temp%elts(id+1), full_temp)
+       end if
+
+       !surface pressure is set (even at t=0) from downward numerical integration
+       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_temp
+    end if
+
+    ! Quantities for vertical integration in next zlev down
+    dom%adj_mass%elts(id+1) = full_mass
+    dom%adj_temp%elts(id+1) = full_temp
+  end subroutine integrate_pressure_down
   
-  subroutine integrate_pressure_up(dom, i, j, zlev, offs, dims)
+  subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
     ! Integrate pressure (compressible case)/Lagrange multiplier (incompressible case) and geopotential up from surface to top layer
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -623,18 +678,11 @@ contains
     full_temp     = temp(id+1) + mean(S_TEMP,zlev)
     full_pot_temp = full_temp/full_mass
 
-    if (full_mass .lt. 1e-6_8) then
-       write(6,*) 'Fatal error: a horizontal layer thickness is being squeezed to zero!'
-       write(6,'(3(A,i3,1x))') 'zlev = ', zlev, 'd = ', dom%id+1, 'id = ', id
-       write(6,'(A,es11.4)') 'full mass = ', full_mass
-       stop
-    end if
-
     if (compressible) then ! Compressible case
        if (zlev .eq. 1) then
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_mass
        else ! Interpolate mass=rho*dz to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(full_mass + dom%adj_mass%elts(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*node2edge(full_mass, dom%adj_mass%elts(id+1))
        end if
        dom%adj_mass%elts(id+1) = full_mass ! Save current mass for pressurce calculation at next vertical level
 
@@ -667,7 +715,7 @@ contains
        if (zlev .eq. 1) then 
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_temp
        else ! Interpolate to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - 0.5_8*grav_accel*(dom%adj_temp%elts(id+1) + full_temp)
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*node2edge(dom%adj_temp%elts(id+1), full_temp)
        end if
        dom%adj_mass%elts(id+1) = full_mass
 
@@ -692,48 +740,6 @@ contains
        dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel* mass(id+1)/ref_density
     end if
   end subroutine integrate_pressure_up
-
-  subroutine integrate_pressure_down(dom, i, j, zlev, offs, dims)
-    ! Pressure is computed during downward integration from zlev=zlevels to zlev=1
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: id
-    real(8) :: full_mass, full_temp
-
-    id   = idx(i, j, offs, dims)
-
-    full_mass = mass(id+1) + mean(S_MASS,zlev)
-    full_temp = temp(id+1) + mean(S_TEMP,zlev)
-
-    if (compressible) then !compressible case
-       !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
-       if (zlev .eq. zlevels) then
-          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_mass
-       else ! Interpolate mass to lower interface
-          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(dom%adj_mass%elts(id+1) + full_mass)
-       end if
-
-       !surface pressure is set (even at t=0) from downward numerical integration
-       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_mass
-    else !incompressible case
-       !integrate (or, rather, interpolate) the pressure from top zlev down to bottom zlev; press_infty is user-set
-       if (zlev .eq. zlevels) then !top zlev, it is an exception
-          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_temp
-       else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*(dom%adj_temp%elts(id+1) + full_temp)
-       end if
-
-       !surface pressure is set (even at t=0) from downward numerical integration
-       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_temp
-    end if
-
-    !quantities for vertical integration in next zlev
-    dom%adj_mass%elts(id+1) = full_mass
-    dom%adj_temp%elts(id+1) = full_temp
-  end subroutine integrate_pressure_down
 
   function get_weights(dom, id, offs)
     !find weights for Qperp computation [Aechtner thesis page 44]
@@ -807,21 +813,15 @@ contains
          elts((/ EDGE*idN+RT, EDGE*idN+DG, EDGE*idN+UP, EDGE*idNW+RT, EDGE*idW+DG /)+1) * wgt2))
   end subroutine du_Qperp_Enstrophy
 
-  subroutine du_source(dom, i, j, zlev, offs, dims)
+  subroutine du_source (dom, i, j, zlev, offs, dims)
     ! Source (non gradient) terms in velocity trend
     ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain),                   intent(in) :: dom
+    integer,                        intent(in) :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in) :: offs
+    integer, dimension(2,N_BDRY+1), intent(in) :: dims
     
-    integer :: id
-
-    id = idx(i, j, offs, dims)
-
-    call du_Qperp(dom, i, j, zlev, offs, dims)
-
-    if (viscosity .ne. 0.0_8) call diff_mom(dom, i, j, zlev, offs, dims)
+    call du_Qperp (dom, i, j, zlev, offs, dims)
   end subroutine du_source
 
   subroutine du_Qperp(dom, i, j, zlev, offs, dims)
@@ -932,16 +932,16 @@ contains
     id   = idx(i, j, offs, dims)
 
     if (lagrangian_vertical) then
-       dmass(id+1) = horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
-       dtemp(id+1) = horiz_div_flux(h_tflux, dom, i, j, offs, dims, id) 
+       dmass(id+1) = div(h_mflux, dom, i, j, offs, dims, id)
+       dtemp(id+1) = div(h_tflux, dom, i, j, offs, dims, id) 
     else ! Mass-based vertical coordinates
        
        ! Compute mass trend (mu_t) at level zlev from total mass trend M_t
        ! (our definition of a_vert, b_vert reversed compared with Dynamico paper)
-       dmass(id+1) = (b_vert(zlev+1)-b_vert(zlev)) * horiz_div_flux(h_mflux, dom, i, j, offs, dims, id)
+       dmass(id+1) = (b_vert(zlev+1)-b_vert(zlev)) * div(h_mflux, dom, i, j, offs, dims, id)
 
        ! Compute horizontal divergence of horizontal temperature flux
-       dtemp(id+1) = horiz_div_flux(h_tflux, dom, i, j, offs, dims, id)
+       dtemp(id+1) = div(h_tflux, dom, i, j, offs, dims, id)
 
        ! Compute vertical mass flux v_mflux at upper interface of level zlev
        call compute_vert_flux (dom, i, j, zlev, offs, dims)
@@ -956,7 +956,7 @@ contains
           full_pot_temp_up = (adj_temp_up(id+1) + mean(S_TEMP,zlev))/(adj_mass_up(id+1) + mean(S_MASS,zlev))
 
           ! Vertical flux of potential temperature at upper interface
-          v_tflux = 0.5_8*(full_pot_temp + full_pot_temp_up) * v_mflux(id+1)
+          v_tflux = node2edge(full_pot_temp, full_pot_temp_up) * v_mflux(id+1)
 
           dtemp(id+1) = dtemp(id+1) + v_tflux
           
@@ -969,7 +969,7 @@ contains
           full_pot_temp_up = (adj_temp_up(id+1) + mean(S_TEMP,zlev))/(adj_mass_up(id+1) + mean(S_MASS,zlev))
           
           ! Vertical flux of potential temperature at upper interface
-          v_tflux = 0.5_8*(full_pot_temp + full_pot_temp_up) * v_mflux(id+1)
+          v_tflux = node2edge(full_pot_temp, full_pot_temp_up) * v_mflux(id+1)
 
           dtemp(id+1) = dtemp(id+1) + (v_tflux - dom%adj_vflux%elts(id+1))
           
@@ -980,26 +980,129 @@ contains
     end if
   end subroutine scalar_trend
 
-  function horiz_div_flux(h_flux, dom, i, j, offs, dims, id)
-    ! Computes negative of divergence of horizontal flux h_flux over hexagons -delta_i(U)
-    real(8)                        :: horiz_div_flux
-    real(8), dimension(:), pointer :: h_flux
-    type(Domain)                   :: dom
-    integer                        :: i, j
+  subroutine temp_diffuse_trend (dom, i, j, zlev, offs, dims)
+     type(Domain)                  :: dom
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idS, idW, idSW
+    integer :: id
+
+    dtemp(id+1) = viscosity * div(h_tflux, dom, i, j, offs, dims, id)
+  end subroutine temp_diffuse_trend
+
+   subroutine momentum_diffuse_trend (dom, i, j, zlev, offs, dims)
+     ! Diffuse momentum
+     type(Domain),                   intent(in) :: dom
+    integer,                        intent(in) :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in) :: offs
+    integer, dimension(2,N_BDRY+1), intent(in) :: dims
+    
+    integer :: id, idW, idS
+    real(8), dimension(3) :: grad_div
+    
+    id = idx(i, j, offs, dims)
+    idS = idx(i, j - 1, offs, dims)
+    idW = idx(i - 1, j, offs, dims)
+
+    grad_div = grad (divu, dom, i, j, offs, dims, id)
+    
+    dvelo(id*EDGE+RT+1) = viscosity * ( grad_div(1) + &
+         (vort(id*TRIAG+LORT+1) - vort(idS*TRIAG+UPLT+1))*dom%len%elts(id*EDGE+RT+1)/dom%pedlen%elts(id*EDGE+RT+1) )
+    
+    dvelo(id*EDGE+DG+1) =  viscosity * ( grad_div(2) + &
+         (vort(id*TRIAG+LORT+1) - vort(id*TRIAG+UPLT+1))*dom%len%elts(id*EDGE+DG+1)/dom%pedlen%elts(id*EDGE+DG+1) )
+    
+    dvelo(id*EDGE+UP+1) = viscosity * (grad_div(3) + &
+         (vort(idW*TRIAG+LORT+1) - vort(id*TRIAG+UPLT+1))*dom%len%elts(id*EDGE+UP+1)/dom%pedlen%elts(id*EDGE+UP+1) )
+  end subroutine momentum_diffuse_trend
+
+  subroutine grad_Temp(dom, i, j, zlev, offs, dims)
+    ! Gradient of temperature for diffusion of temperature
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev, id
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer               :: e
+    real(8), dimension(3) :: gradT
+
+    gradT = grad(temp, dom, i, j, offs, dims, id)
+
+    do e = 1, 3
+       h_tflux(EDGE*id+e) = dom%pedlen%elts(EDGE*id+e)/dom%len%elts(EDGE*id+e) * gradT(e) 
+    end do
+  end subroutine grad_Temp
+
+  function grad (scalar, dom, i, j, offs, dims, id)
+    ! Gradient of a scalar at nodes, d_e in DYNAMICO notation
+    ! output is at edges
+    real(8), dimension(3)          :: grad
+    real(8), dimension(:), pointer :: scalar
+    type(Domain)                   :: dom
+    integer                        :: i, j, id
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: idE, idN, idNE
+
+    idE  = idx(i + 1, j,     offs, dims)
+    idN  = idx(i,     j + 1, offs, dims)
+    idNE = idx(i + 1, j + 1, offs, dims)
+
+    grad(RT+1) = scalar(idE+1) - scalar(id+1)
+    grad(DG+1) = scalar(id+1)  - scalar(idNE+1)
+    grad(UP+1) = scalar(idN+1) - scalar(id+1)
+  end function grad
+
+  function div (hflux, dom, i, j, offs, dims, id)
+    ! Divergence at nodes given horizontal fluxes at edges
+    real(8)                         :: div
+    real(8), dimension(:), pointer  :: hflux
+    type(Domain)                    :: dom
+    integer                         :: i, j, id
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: idW, idS, idSW
 
     idS  = idx(i,     j - 1, offs, dims)
     idW  = idx(i - 1, j,     offs, dims)
     idSW = idx(i - 1, j - 1, offs, dims)
+    
+    div = -(hflux(EDGE*id+UP+1)   - hflux(EDGE*id+DG+1) + &
+            hflux(EDGE*id+RT+1)   - hflux(EDGE*idS+UP+1) + &
+            hflux(EDGE*idSW+DG+1) - hflux(EDGE*idW+RT+1)) &
+         * dom%areas%elts(id+1)%hex_inv
+  end function div
 
-    horiz_div_flux = -(h_flux(EDGE*id+UP+1)   - h_flux(EDGE*id+DG+1) + &
-         h_flux(EDGE*id+RT+1)   - h_flux(EDGE*idS+UP+1) + &
-         h_flux(EDGE*idSW+DG+1) - h_flux(EDGE*idW+RT+1)) &
-         *dom%areas%elts(id+1)%hex_inv
-  end function horiz_div_flux
+  subroutine vorticity (dom, i, j, zlev, offs, dims)
+    type(Domain)                    :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: id, idN
+
+    id  = idx(i, j, offs, dims)
+    idN = idx(i, j+1, offs, dims)
+
+    vort(TRIAG*id+LORT+1) = - &
+         (velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1) - &
+          velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1) - &
+          velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id+UP+1))
+
+    vort(TRIAG*id+LORT+1) = vort(TRIAG*id+LORT+1) / dom%triarea%elts(TRIAG*id+LORT+1)
+    vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
+  end subroutine vorticity
+
+  function node2edge (e1, e2)
+    ! Centred average interpolation from nodes to edges
+    real(8) :: node2edge
+    real(8) :: e1, e2
+    
+    node2edge = 0.5_8 * (e1 + e2)
+  end function node2edge
 
   subroutine du_gradB_gradExn (dom, i, j, zlev, offs, dims)
     ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
@@ -1011,7 +1114,7 @@ contains
 
     integer               :: e, id, idE, idN, idNE
     real(8)               :: full_pot_temp(0:N_BDRY)
-    real(8), dimension(3) :: v_star
+    real(8), dimension(3) :: gradB, gradE, v_star
 
     id   = idx(i,     j,     offs, dims)
     idE  = idx(i + 1, j,     offs, dims)
@@ -1026,24 +1129,27 @@ contains
     full_pot_temp(EAST)      = (temp(idE+1)  + mean(S_TEMP,zlev))/(mass(idE+1)  + mean(S_MASS,zlev))
     full_pot_temp(NORTHEAST) = (temp(idNE+1) + mean(S_TEMP,zlev))/(mass(idNE+1) + mean(S_MASS,zlev))
 
+    gradB = grad (bernoulli, dom, i, j, offs, dims, id)
+    gradE = grad (exner,     dom, i, j, offs, dims, id)
+    
     if (compressible) then
-       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - (bernoulli(idE+1) - bernoulli(id+1)) &
-            - 0.5_8*(full_pot_temp(0)+full_pot_temp(EAST)) * (exner(idE+1) - exner(id+1)))/dom%len%elts(EDGE*id+RT+1)
+       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - gradB(1) &
+            - node2edge(full_pot_temp(0),full_pot_temp(EAST))*gradE(1))/dom%len%elts(EDGE*id+RT+1)
 
-       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - (bernoulli(id+1) - bernoulli(idNE+1)) &
-            - 0.5_8*(full_pot_temp(0)+full_pot_temp(NORTHEAST)) * (exner(id+1) - exner(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
+       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - gradB(2) &
+            - node2edge(full_pot_temp(0),full_pot_temp(NORTHEAST)) * gradE(2))/dom%len%elts(EDGE*id+DG+1)
 
-       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - (bernoulli(idN+1) - bernoulli(id+1)) &
-            - 0.5_8*(full_pot_temp(0)+full_pot_temp(NORTH)) * (exner(idN+1) - exner(id+1)))/dom%len%elts(EDGE*id+UP+1)
+       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - gradB(3) &
+            - node2edge(full_pot_temp(0), full_pot_temp(NORTH)) * gradE(3))/dom%len%elts(EDGE*id+UP+1)
     else ! Incompressible case
-       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - (bernoulli(idE+1) - bernoulli(id+1)) &
-            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(EAST)) * (exner(idE+1) - exner(id+1)))/dom%len%elts(EDGE*id+RT+1)
+       dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - gradB(1) &
+            - node2edge(1.0_8-full_pot_temp(0),1.0_8-full_pot_temp(EAST)) * gradE(1))/dom%len%elts(EDGE*id+RT+1)
 
-       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - (bernoulli(id+1) - bernoulli(idNE+1)) &
-            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTHEAST)) * (exner(id+1) - exner(idNE+1)))/dom%len%elts(EDGE*id+DG+1)
+       dvelo(EDGE*id+DG+1) = (dvelo(EDGE*id+DG+1) - gradB(2) &
+            - node2edge(1.0_8-full_pot_temp(0),1.0_8-full_pot_temp(NORTHEAST)) * gradE(2))/dom%len%elts(EDGE*id+DG+1)
 
-       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - (bernoulli(idN+1) - bernoulli(id+1)) &
-            - 0.5_8*(2.0_8-full_pot_temp(0)-full_pot_temp(NORTH)) * (exner(idN+1) - exner(id+1)))/dom%len%elts(EDGE*id+UP+1)
+       dvelo(EDGE*id+UP+1) = (dvelo(EDGE*id+UP+1) - gradB(3) &
+            - node2edge(1.0_8-full_pot_temp(0),1.0_8-full_pot_temp(NORTH)) * gradE(3))/dom%len%elts(EDGE*id+UP+1)
     end if
 
     ! Add vertical flux gradient term
@@ -1051,20 +1157,20 @@ contains
 
        ! Assume free slip boundary conditions at top and bottom of vertical layers (i.e. velocity at top interface and surface equals
        ! velocity at adjacent full level)
-       
+
        if (zlev.eq.1) then ! surface
           ! Horizontal velocities at edges interpolated at upper interface
           do e = 1, 3
-             v_star(e) = 0.5_8*(velo(EDGE*id+e) + adj_velo_up(EDGE*id+e))
+             v_star(e) = node2edge(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
           end do
           
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idE+1))  * &
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
                (v_star(RT+1) - velo(EDGE*id+RT+1))
           
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idNE+1)) * &
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
                (v_star(DG+1) - velo(EDGE*id+DG+1))
           
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idN+1))  * &
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
                (v_star(UP+1) - velo(EDGE*id+UP+1))
 
           ! Save horizontal velocities (needed for lower interface at next vertical level)
@@ -1072,27 +1178,27 @@ contains
              dom%adj_velo%elts(EDGE*id+e) = v_star(e)
           end do
        elseif (zlev.eq.zlevels) then ! top level
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idE+1))  * &
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
                (velo(EDGE*id+RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
 
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idNE+1)) * &
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
                (velo(EDGE*id+DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
           
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idN+1))  * &
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
                (velo(EDGE*id+UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
        else
           ! Horizontal velocities at edges interpolated at upper interface
           do e = 1, 3
-             v_star(e) = 0.5_8*(velo(EDGE*id+e) + adj_velo_up(EDGE*id+e))
+             v_star(e) = node2edge(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
           end do
           
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idE+1)) * &
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1)) * &
                (v_star(RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
 
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idNE+1)) * &
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
                (v_star(DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
           
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + 0.5_8*(dom%vert_velo%elts(id+1) + dom%vert_velo%elts(idN+1)) * &
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1)) * &
                (v_star(UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
 
           ! Save horizontal velocities interpolated at upper interface (needed for lower interface at next vertical level)
@@ -1119,9 +1225,9 @@ contains
     velo = v_mflux(id+1)/(mass(id+1) + mean(S_MASS,zlev))
     
     if (zlev.eq.1) then ! No vertical flux through lower interface of bottom level
-       dom%vert_velo%elts(id+1) = 0.5_8 * velo
+       dom%vert_velo%elts(id+1) = node2edge(velo, 0.0_8)
     else
-       dom%vert_velo%elts(id+1) = 0.5_8 * (velo + dom%adj_vflux%elts(id+1))
+       dom%vert_velo%elts(id+1) = node2edge(velo, dom%adj_vflux%elts(id+1))
     end if
     
     ! Save current vertical velocity at upper interface for lower interface of next vertical level (use adj_vflux)

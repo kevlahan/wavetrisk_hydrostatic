@@ -1,4 +1,4 @@
-!TO DO: swap out kinetic energy (wind.f90 DYNAMICO)
+!TO DO: 
 ! add coriolis correction to timestep calculation
 ! fix ARK method
 
@@ -7,6 +7,7 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   implicit none
 
   integer         :: CP_EVERY, id, zlev, iwrite, j
+  integer, allocatable :: n_patch_old(:), n_node_old(:)
   real(8)         :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
   real(8)         :: initotalmass, totalmass, timing, total_time, dh
   real(8)         :: csq, VELO_SCALE, max_dh
@@ -30,15 +31,15 @@ contains
     end do
   end subroutine apply_initial_conditions
 
-  subroutine  apply_surf_geopot()
-    integer :: k, l
-
-    do l = level_start, level_end
-       do k = 1, zlevels
-          call apply_onescale (init_surfgeopot, l, k, 0, 1)
+  subroutine set_surf_geopot()
+    integer ::  d, p
+    
+    do d = 1, size(grid)
+       do p = n_patch_old(d)+1, grid(d)%patch%length
+          call apply_onescale_to_patch(set_surfgeopot, grid(d), p-1, z_null, 0, 1)
        end do
     end do
-  end subroutine apply_surf_geopot
+  end subroutine set_surf_geopot
 
   subroutine sum_total_mass(initialgo)
     integer k
@@ -81,22 +82,18 @@ contains
                0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
                0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
                0.0_8, 0.0_8 /)
-          a_vert=a_vert(19:1:-1) ! DCMIP order is opposite ours
           b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
                0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
                0.953189_8, 0.985056_8, 1.0_8 /)
-          b_vert=b_vert(19:1:-1)
        elseif (zlevels.eq.26) then
           !a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
           a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
                0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
                0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
                0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
-          a_vert=a_vert(27:1:-1)
           b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
                 0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
                 0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
-          b_vert=b_vert(27:1:-1)
        elseif (zlevels.eq.49) then
           a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
                0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
@@ -107,7 +104,6 @@ contains
                0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
                0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
                0.0_8, 0.0_8 /)
-          a_vert=a_vert(50:1:-1)
           b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
                0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
                0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
@@ -116,11 +112,17 @@ contains
                0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
                0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
                0.9851122_8, 1.0_8/)
-          b_vert=b_vert(50:1:-1)
        else
           write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
           stop
        end if
+
+       ! DCMIP order is opposite to ours
+       if (.not. uniform) then
+          a_vert = a_vert(zlevels+1:1:-1)
+          b_vert = b_vert(zlevels+1:1:-1)
+       end if
+       
        ! Set pressure at infinity
        press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
     end if
@@ -132,8 +134,9 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
     
-    integer :: id, d, idN, idE, idNE
-    real(8) :: lon, lat, rgrc, lev_press, pot_temp, p_top, p_bot
+    type(Coord) :: x_i, x_E, x_N, x_NE
+    integer     :: id, d, idN, idE, idNE
+    real(8)     :: rgrc, lev_press, pot_temp, p_top, p_bot
 
     d = dom%id+1
     
@@ -142,17 +145,16 @@ contains
     idE  = idx(i + 1, j, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
+    x_i  = dom%node%elts(id+1)
+    x_E  = dom%node%elts(idE+1)
+    x_N  = dom%node%elts(idN+1)
+    x_NE = dom%node%elts(idNE+1)
+
     ! Initialize vertical grid
     call initialize_a_b_vert()
 
-    ! Find latitude and longitude from Cartesian coordinates
-    call cart2sph(dom%node%elts(id+1), lon, lat)
-
-    ! Surfaced geopotential
-    dom%surf_geopot%elts(id+1) = surf_geopot_fun (lon, lat)
-    
     ! Surface pressure
-    dom%surf_press%elts(id+1) =  surf_pressure_fun (lon, lat, dom%surf_geopot%elts(id+1))
+    dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
 
     ! Pressure at level zlev
     lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
@@ -168,9 +170,9 @@ contains
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
 
     ! Set initial velocity field
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idE+1))
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, dom%node%elts(idNE+1), dom%node%elts(id+1))
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, dom%node%elts(id+1),   dom%node%elts(idN+1))
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, x_i,  x_E)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
 
     ! Print out layer thicknesses
     if (rank.eq.0 .and. .not.wasprinted) then
@@ -193,44 +195,52 @@ contains
     end if
   end subroutine init_sol
 
-  subroutine init_surfgeopot (dom, i, j, zlev, offs, dims)
+  subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
     ! Initialize surface geopotential after restart
     type (Domain)                   :: dom
     integer                         :: i, j, k, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer  :: id
-    real (8) :: lat, lon
+    type (Coord) :: x_i
+    integer      :: id
+    real (8)     :: lat, lon
 
     id   = idx(i, j, offs, dims)
+    x_i  = dom%node%elts(id+1)
 
-    ! Find latitude and longitude from Cartesian coordinates
-    call cart2sph(dom%node%elts(id+1), lon, lat)
-    
     ! Surfaced geopotential
-    dom%surf_geopot%elts(id+1) = surf_geopot_fun (lon, lat)
-  end subroutine init_surfgeopot
+    dom%surf_geopot%elts(id+1) = surf_geopot_fun(x_i)
+  end subroutine set_surfgeopot
 
-  function surf_geopot_fun (lon, lat)
+  function surf_geopot_fun (x_i)
     ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
-    real(8) :: surf_geopot_fun
-    real(8) :: lon, lat
-    real(8) :: rgrc
+    type(Coord) :: x_i
+    real(8)     :: surf_geopot_fun
+    
+    real(8) :: lon, lat, rgrc
+    
+    ! Find latitude and longitude from Cartesian coordinates
+    call cart2sph(x_i, lon, lat)
 
     rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
     
     surf_geopot_fun = grav_accel * h_0 * exp(-rgrc**2/d2)
   end function surf_geopot_fun
 
-  function surf_pressure_fun (lon, lat, surf_geopot)
+  function surf_pressure_fun (x_i)
     ! Surface pressure
-    real(8) :: surf_pressure_fun
+    type(Coord) :: x_i
+    real(8)     :: surf_pressure_fun
+    
     real(8) :: lon, lat, surf_geopot
 
+    ! Find latitude and longitude from Cartesian coordinates
+    call cart2sph(x_i, lon, lat)
+    
     surf_pressure_fun = p_sp * exp__flush ( &
          - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+2.0_8*omega)*(sin(lat)**2-1.0_8) &
-         - N_freq**2/(grav_accel**2*kappa)*surf_geopot )
+         - N_freq**2/(grav_accel**2*kappa)*surf_geopot_fun (x_i) )
   end function surf_pressure_fun
   
   subroutine vel_fun(lon, lat, u, v)
@@ -239,7 +249,7 @@ contains
     real(8) :: u, v
     
     u = u_0*cos(lat)  ! Zonal velocity component
-    v = 0.0_8           ! Meridional velocity component
+    v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
   subroutine read_test_case_parameters(filename)
@@ -280,26 +290,38 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 6 ! Only export one vertical level
+    zlev = 1 ! Only export one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
        maxv = -1.d63;
        u = 100000+100*iwrite
 
+       call update_array_bdry (sol, l)
+       
        ! Calculate pressure and geopotential at vertical level zlev and scale l
        do k = 1, zlev
           do d = 1, size(grid)
-             mass => sol(S_MASS,k)%data(d)%elts
-             temp => sol(S_TEMP,k)%data(d)%elts
-             exner     => fun(F_EXNER,k)%data(d)%elts
+             mass  => sol(S_MASS,k)%data(d)%elts
+             temp  => sol(S_TEMP,k)%data(d)%elts
+             exner => fun(F_EXNER,k)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
+             nullify (mass, temp, exner)
           end do
        end do
 
-       call write_level_mpi(write_primal, u+l, l, zlev, .True.)
+       ! Calculate zonal and meridional velocities
+       do d = 1, size(grid)
+          velo => sol(S_VELO,zlev)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), zlev, 0, 0)
+          end do
+          nullify (velo)
+       end do
+
+       Call write_level_mpi(write_primal, u+l, l, zlev, .True.)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
@@ -354,6 +376,11 @@ program DCMIP2008c5
   ! Initialize grid etc
   call init_main_mod()
 
+  ! Nullify all pointers initially
+  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t)
+  nullify (bernoulli, exner, qe)
+  nullify (adj_temp_up, adj_mass_up, adj_velo_up, v_mflux)
+
   ! Read test case parameters
   call read_test_case_parameters("DCMIP2008c5.in")
   
@@ -393,8 +420,6 @@ program DCMIP2008c5
   compressible = .True. ! Compressible equations
   uniform      = .False. ! Type of vertical grid
 
-  
-
   ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_VELO,1:zlevels))
   allocate (mean_press(1:zlevels), mean_spec_vol(1:zlevels), mean_exner(1:zlevels))
@@ -421,7 +446,10 @@ program DCMIP2008c5
   iwrite = 0
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, apply_surf_geopot, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
+  call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
+
+  allocate(n_patch_old(size(grid)), n_node_old(size(grid)))
+  n_patch_old = 2;  call set_surf_geopot ()
   
   call sum_total_mass (.True.)
 
@@ -429,27 +457,33 @@ program DCMIP2008c5
   call barrier()
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
-  if (write_init) call write_and_export(iwrite)
+  if (write_init) call write_and_export (iwrite)
 
-  total_time = 0_8
+  total_time = 0.0_8
   do while (time .lt. time_end)
      call set_thresholds()
 
      call start_timing()
-     call time_step(dt_write, aligned, set_thresholds)
+     call update_array_bdry (sol, NONE)
+
+     n_patch_old = grid(:)%patch%length
+     n_node_old = grid(:)%node%length
+     call time_step (dt_write, aligned, set_thresholds)
+     call set_surf_geopot()
+
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
-
+     
      call write_and_print_step()
 
      if (rank .eq. 0) write(*,'(A,es10.4,A,es10.4,2(A,ES10.4),A,I9,A,ES9.2)') &
-          'time [h] = ', time/3600.0_8, &
-          ', dt [s] = ', dt, &
-          ', min. mass = ', min_mass, &
-          ', VELO_SCALE = ', VELO_SCALE, &
-          ', d.o.f. = ', sum(n_active), &
-          ', cpu = ', timing
+          ' time [h] = ', time/3600.0_8, &
+          ' dt [s] = ', dt, &
+          ' min. mass = ', min_mass, &
+          ' VELO_SCALE = ', VELO_SCALE, &
+          ' d.o.f. = ', sum(n_active), &
+          ' cpu = ', timing
 
      call print_load_balance()
      
@@ -459,7 +493,7 @@ program DCMIP2008c5
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
-        ierr = writ_checkpoint(DCMIP2008c5_dump)
+        ierr = write_checkpoint (DCMIP2008c5_dump)
 
         ! let all cpus exit gracefully if NaN has been produced
         ierr = sync_max(ierr)
@@ -469,7 +503,12 @@ program DCMIP2008c5
            stop
         end if
 
-        call restart_full (set_thresholds, apply_surf_geopot, DCMIP2008c5_load)
+        call restart_full (set_thresholds, DCMIP2008c5_load)
+
+        deallocate(n_patch_old); allocate(n_patch_old(size(grid)))
+        deallocate(n_node_old);  allocate(n_node_old(size(grid)))
+        n_patch_old = 2; call set_surf_geopot()
+
         call barrier()
      end if
 

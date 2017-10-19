@@ -39,19 +39,18 @@ module domain_mod
      type(Float_Array) triarea
 
      type(Float_Array) coriolis
-     type(Float_Array) windstress
 
-     type(Float_Array) surf_press !surface pressure (compressible) or surface Lagrange multiplier (incompressible)
-     type(Float_Array) press !pressure (compressible case) or Lagrange multiplier (incompressible case)
-     type(Float_Array) surf_geopot !surface geopotential
-     type(Float_Array) geopot !geopotential
-     type(Float_Array) u_zonal ! zonal velocity
-     type(Float_Array) v_merid ! meridional velocity
-     type(Float_Array) adj_mass !mass in adjacent vertical cell
-     type(Float_Array) adj_temp !temp in adjacent vertical cell
-     type(Float_Array) adj_geopot !specific volume in adjacent vertical cell
-     type(Float_Array) divu !divergence of velocity field
-     type(Float_Array) vort !vorticity
+     type(Float_Array) surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
+     type(Float_Array) press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)
+     type(Float_Array) surf_geopot ! surface geopotential
+     type(Float_Array) geopot      ! geopotential
+     type(Float_Array) u_zonal     ! zonal velocity
+     type(Float_Array) v_merid     ! meridional velocity
+     type(Float_Array) adj_mass    ! mass in adjacent vertical cell
+     type(Float_Array) adj_temp    ! temp in adjacent vertical cell
+     type(Float_Array) adj_geopot  ! specific volume in adjacent vertical cell
+     type(Float_Array) divu        ! divergence of velocity field
+     type(Float_Array) vort        ! vorticity
 
      ! For mass-based vertical coordinates
      type(Float_Array) adj_vflux ! adjacent vertical flux (at nodes)
@@ -89,7 +88,7 @@ module domain_mod
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo
-  real(8), dimension(:), pointer :: bernoulli, exner, qe
+  real(8), dimension(:), pointer :: bernoulli, exner, qe, vort, divu
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
   ! For mass-based vertical coordinates
   real(8), dimension(:), pointer :: adj_temp_up, adj_mass_up, adj_velo_up, v_mflux
@@ -993,8 +992,8 @@ contains
 
     do k = 1, zlevels
        call extend(sol(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
+       call extend(sol(S_TEMP,k)%data(d), num, 0.0_8)
        call extend(sol(S_VELO,k)%data(d), EDGE*num, 0.0_8)
-       call extend(sol(S_TEMP,k)%data(d), num, 1.0_8)
     end do
   end subroutine extend_Domain
 

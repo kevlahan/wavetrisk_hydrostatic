@@ -277,8 +277,8 @@ contains
     ! Find longitude and latitude coordinates of point co
     call cart2sph(co, lon, lat)
 
-    e_merid = Coord(-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
-    e_zonal = Coord(-sin(lon), cos(lon), 0.0_8)                       ! Zonal direction
+    e_zonal = Coord (-sin(lon),           cos(lon),           0.0_8)   ! Zonal direction
+    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
     ! Function returning zonal and meridional velocities given longitude and latitude
     call vel_fun(lon, lat, u_zonal, v_merid)

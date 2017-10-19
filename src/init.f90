@@ -301,12 +301,12 @@ contains
           call init_Coord(grid(d)%midpt%elts(i), 0.0_8, 0.0_8, 0.0_8)
        end do
 
-       call init(grid(d)%areas,      grid(d)%node%length)
-       call init(grid(d)%pedlen,     grid(d)%node%length*EDGE)
-       call init(grid(d)%len,        grid(d)%node%length*EDGE)
-       call init(grid(d)%triarea,    grid(d)%node%length*TRIAG)
-       call init(grid(d)%coriolis,   grid(d)%node%length*TRIAG)
-       call init(grid(d)%windstress, grid(d)%node%length*EDGE)
+       call init(grid(d)%areas,       grid(d)%node%length)
+       call init(grid(d)%pedlen,      grid(d)%node%length*EDGE)
+       call init(grid(d)%len,         grid(d)%node%length*EDGE)
+       call init(grid(d)%triarea,     grid(d)%node%length*TRIAG)
+       call init(grid(d)%coriolis,    grid(d)%node%length*TRIAG)
+       call init(grid(d)%surf_geopot, grid(d)%node%length)
     end do
   end subroutine init_geometry
 
@@ -344,7 +344,6 @@ contains
     do d = 1, size(grid)
        call init(grid(d)%surf_press,   grid(d)%node%length)
        call init(grid(d)%press,        grid(d)%node%length)
-       call init(grid(d)%surf_geopot,  grid(d)%node%length)
        call init(grid(d)%geopot,       grid(d)%node%length)
        call init(grid(d)%u_zonal,      grid(d)%node%length)
        call init(grid(d)%v_merid,      grid(d)%node%length)
