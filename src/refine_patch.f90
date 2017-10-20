@@ -188,25 +188,26 @@ contains
     call extend(dom%adj_mass,    num, 0.0_8)
     call extend(dom%adj_temp,    num, 0.0_8)
     call extend(dom%adj_geopot,  num, 0.0_8)
+    call extend(dom%exner,       num, 0.0_8)
+    call extend(dom%bernoulli,   num, 0.0_8)
+    
+    call extend(dom%qe,     EDGE*num, 0.0_8)
+    call extend(dom%vort,  TRIAG*num, 0.0_8)
 
     do k = 1, zlevels
        do v = S_MASS, S_TEMP
           call extend(trend(v,k)%data(d), num, 0.0_8)
-          call extend(horiz_flux(v,k)%data(d), num*EDGE, 0.0_8)
           call extend(wav_coeff(v,k)%data(d), num, 0.0_8)
           call extend(trend_wav_coeff(v,k)%data(d), num, 0.0_8)
        end do
        call extend(trend(S_VELO,k)%data(d), num*EDGE, 0.0_8)
        call extend(wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
        call extend(trend_wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
-       do v = 1, 2
-          call extend(fun(v,k)%data(d), num, 0.0_8)
-       end do
-       call extend(fun(F_QE,k)%data(d), num*EDGE, 0.0_8)
     end do
-
-    call extend(dom%vort, TRIAG*num, 0.0_8)
-    call extend(dom%divu, num, 0.0_8)
+     do v = S_MASS, S_TEMP
+        call extend(horiz_flux(v)%data(d), num*EDGE, 0.0_8)
+     end do
+    
     call extend(dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))
     call extend(dom%I_u_wgt, EDGE*num, Iu_Wgt(0.0_8))
     call extend(dom%R_F_wgt, num, RF_Wgt(0.0_8))

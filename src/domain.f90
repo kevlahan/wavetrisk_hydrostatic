@@ -49,8 +49,10 @@ module domain_mod
      type(Float_Array) adj_mass    ! mass in adjacent vertical cell
      type(Float_Array) adj_temp    ! temp in adjacent vertical cell
      type(Float_Array) adj_geopot  ! specific volume in adjacent vertical cell
-     type(Float_Array) divu        ! divergence of velocity field
      type(Float_Array) vort        ! vorticity
+     type(Float_Array) exner       ! Exner function
+     type(Float_Array) bernoulli   ! Bernoulli function
+     type(Float_Array) qe          ! 
 
      ! For mass-based vertical coordinates
      type(Float_Array) adj_vflux ! adjacent vertical flux (at nodes)
@@ -76,7 +78,8 @@ module domain_mod
   end type Float_Field
 
   type(Domain), allocatable, target :: grid(:)
-  type(Float_Field), dimension(:,:), allocatable, target :: sol, trend, wav_coeff, trend_wav_coeff, fun, horiz_flux
+  type(Float_Field), dimension(:,:), allocatable, target :: sol, trend, wav_coeff, trend_wav_coeff
+  type(Float_Field), dimension(:), allocatable, target :: horiz_flux
 
   !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
   !we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
@@ -88,7 +91,7 @@ module domain_mod
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo
-  real(8), dimension(:), pointer :: bernoulli, exner, qe, vort, divu
+  real(8), dimension(:), pointer :: bernoulli, exner, qe, vort
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
   ! For mass-based vertical coordinates
   real(8), dimension(:), pointer :: adj_temp_up, adj_mass_up, adj_velo_up, v_mflux

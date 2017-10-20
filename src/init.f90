@@ -27,20 +27,17 @@ contains
     allocate (grid(n_domain(rank+1)))
     allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
-    allocate (fun(1:3,1:zlevels), horiz_flux(S_MASS:S_TEMP,1:zlevels))
+    allocate (horiz_flux(S_MASS:S_TEMP))
 
     do k = 1, zlevels
        do v = S_MASS, S_VELO
           call init_Float_Field(sol(v,k), POSIT(v))
           call init_Float_Field(trend(v,k), POSIT(v))
        end do
-       do v = S_MASS, S_TEMP
-          call init_Float_Field(horiz_flux(v,k), AT_EDGE)
-       end do
-       do v = 1, 2
-          call init_Float_Field(fun(v,k), AT_NODE)
-       end do
-       call init_Float_Field(fun(F_QE,k), AT_EDGE)
+    end do
+
+    do v = S_MASS, S_TEMP
+       call init_Float_Field(horiz_flux(v), AT_EDGE)
     end do
 
     do d = 1, n_domain(rank+1)
@@ -331,16 +328,15 @@ contains
           call init(trend(S_MASS,k)%data(d),   grid(d)%node%length)
           call init(trend(S_VELO,k)%data(d),   grid(d)%node%length*EDGE); trend(S_VELO,k)%data(d)%elts = 0
           call init(trend(S_TEMP,k)%data(d),   grid(d)%node%length)
-          do v = S_MASS, S_TEMP
-             call init(horiz_flux(v,k)%data(d), grid(d)%node%length*EDGE)
-          end do
-          do v = 1, 2
-             call init(fun(v,k)%data(d), grid(d)%node%length)
-          end do
-          call init(fun(F_QE,k)%data(d), grid(d)%node%length*EDGE)
        end do
     end do
 
+    do d = 1, size(grid)
+       do v = S_MASS, S_TEMP
+          call init(horiz_flux(v)%data(d), grid(d)%node%length*EDGE)
+       end do
+    end do
+    
     do d = 1, size(grid)
        call init(grid(d)%surf_press,   grid(d)%node%length)
        call init(grid(d)%press,        grid(d)%node%length)
@@ -350,8 +346,10 @@ contains
        call init(grid(d)%adj_mass,     grid(d)%node%length)
        call init(grid(d)%adj_temp,     grid(d)%node%length)
        call init(grid(d)%adj_geopot,   grid(d)%node%length)
-       call init(grid(d)%divu,         grid(d)%node%length)
+       call init(grid(d)%exner,        grid(d)%node%length)
+       call init(grid(d)%bernoulli,    grid(d)%node%length)
        call init(grid(d)%vort,         grid(d)%node%length*TRIAG)
+       call init(grid(d)%qe,           grid(d)%node%length*EDGE)
 
        ! For mass-based vertical coordinates
        call init(grid(d)%adj_vflux,         grid(d)%node%length)

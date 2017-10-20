@@ -190,6 +190,8 @@ contains
 
     dt = idt/time_mult
 
+    if (istep.eq.0) call trend_ml(sol, trend) ! We don't have trend at first time step
+
     call RK45_opt(trend)
 
     ! Set thresholds dynamically based on new solution
@@ -203,9 +205,9 @@ contains
           call adapt(wav_coeff)
        end if
        call inverse_wavelet_transform(wav_coeff, sol)
-       call trend_ml(sol, trend)
     end if
-
+    call trend_ml(sol, trend) ! Trend for next time step
+    
     itime = itime + idt
     time  = itime/time_mult
   end subroutine time_step
@@ -250,7 +252,10 @@ contains
        grid(d)%adj_mass%length    = init_state(d)%n_node
        grid(d)%adj_temp%length    = init_state(d)%n_node
        grid(d)%adj_geopot%length  = init_state(d)%n_node
+       grid(d)%bernoulli%length   = init_state(d)%n_node
+       grid(d)%exner%length       = init_state(d)%n_node
        grid(d)%vort%length        = init_state(d)%n_tria
+       grid(d)%qe%length          =  init_state(d)%n_edge
 
        ! For mass-based vertical coordinates
        grid(d)%adj_vflux%length         = init_state(d)%n_node
@@ -270,13 +275,10 @@ contains
              q3(v,k)%data(d)%length = num(POSIT(v))
              q4(v,k)%data(d)%length = num(POSIT(v))
           end do
-          do v = S_MASS, S_TEMP
-             horiz_flux(v,k)%data(d)%length = num(AT_EDGE)
-          end do
-          do v = 1, 2
-             fun(v,k)%data(d)%length = num(AT_NODE)
-          end do
-          fun(F_QE,k)%data(d)%length = num(AT_EDGE)
+       end do
+
+       do v = S_MASS, S_TEMP
+          horiz_flux(v)%data(d)%length = num(AT_EDGE)
        end do
 
        do i = 1, N_GLO_DOMAIN
@@ -348,7 +350,9 @@ contains
        deallocate(grid(d)%adj_temp%elts)
        deallocate(grid(d)%adj_geopot%elts)
        deallocate(grid(d)%vort%elts)
-       deallocate(grid(d)%divu%elts)
+       deallocate(grid(d)%qe%elts)
+       deallocate(grid(d)%exner%elts)
+       deallocate(grid(d)%bernoulli%elts)
        deallocate(grid(d)%coriolis%elts)
        deallocate(grid(d)%triarea%elts)
        deallocate(grid(d)%len%elts)
@@ -387,12 +391,12 @@ contains
           do v = S_MASS, S_VELO
              deallocate(trend(v,k)%data(d)%elts)
           end do
-          do v = S_MASS, S_TEMP
-             deallocate(horiz_flux(v,k)%data(d)%elts)
-          end do
-          do v = 1, 3
-             deallocate(fun(v,k)%data(d)%elts) 
-          end do
+       end do
+    end do
+
+    do d = 1, size(grid)
+       do v = S_MASS, S_TEMP
+          deallocate(horiz_flux(v)%data(d)%elts)
        end do
     end do
 
@@ -449,15 +453,13 @@ contains
           deallocate(sol(v,k)%data)
           deallocate(trend(v,k)%data)
        end do
-       do v = S_MASS, S_TEMP
-          deallocate(horiz_flux(v,k)%data)
-       end do
-       do v = 1, 3
-          deallocate(fun(v,k)%data)
-       end do
     end do
 
-    deallocate (grid, fun, sol, trend, horiz_flux)
+    do v = S_MASS, S_TEMP
+       deallocate(horiz_flux(v)%data)
+    end do
+
+    deallocate (grid, sol, trend, horiz_flux)
 
     ! init_shared_mod()
     level_start = min_level

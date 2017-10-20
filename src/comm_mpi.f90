@@ -1196,7 +1196,7 @@ contains
     call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
     min_mass = glo_min
 
-    if (min_mass .le. 0.0_8 .and. .not. advect_only) then
+    if (min_mass .le. 0.0_8) then
        ! only rank(s) where error occurs print(s)
        if (loc_min .le. 0.0_8) write(0,*)  "ERROR: Full depth is negative. Coord:", where_error
        ! extra message so we know where we stoped if something really strange went wrong

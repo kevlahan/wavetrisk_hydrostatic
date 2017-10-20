@@ -963,42 +963,6 @@ contains
     close(fid)
   end subroutine read_setup
 
-  subroutine get_div_and_rot(dom, i, j, offs, dims, n_val, outval)
-    type(Domain) dom
-    integer i, j, n_val
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    real(8), intent(out) :: outval(n_val)
-    integer id, idS, idW, idSW
-
-    id   = idx(i,     j,     offs, dims)
-    idW  = idx(i - 1, j,     offs, dims)
-    idS  = idx(i,     j - 1, offs, dims)
-    idSW = idx(i - 1, j - 1, offs, dims)
-
-    outval(1) = dom%divu%elts(id+1) 
-
-    outval(2) = 0.5 * (&
-         (dom%vort%elts(idW*TRIAG+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1))&
-         *dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
-         (dom%vort%elts(TRIAG*id+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
-         *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
-         (dom%vort%elts(TRIAG*idS+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
-         *dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
-         (dom%vort%elts(TRIAG*idS+UPLT+1)+dom%vort%elts(TRIAG*idSW+LORT+1)) &
-         *dom%len%elts(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)+ &
-         (dom%vort%elts(TRIAG*idSW+UPLT+1)+dom%vort%elts(TRIAG*idSW+LORT+1)) &
-         *dom%len%elts(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)+ &
-         (dom%vort%elts(TRIAG*idSW+UPLT+1)+dom%vort%elts(TRIAG*idW+LORT+1)) &
-         *dom%len%elts(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1))/ &
-         (dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
-         dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
-         dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
-         dom%len%elts(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)+ &
-         dom%len%elts(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)+ &
-         dom%len%elts(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1))
-  end subroutine get_div_and_rot
-
   subroutine proj_xz_plane(cin, cout)
     type(Coord) cin
     real(8), intent(out) :: cout(2)

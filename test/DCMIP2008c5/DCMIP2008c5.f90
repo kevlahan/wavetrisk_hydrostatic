@@ -302,9 +302,10 @@ contains
        ! Calculate pressure and geopotential at vertical level zlev and scale l
        do k = 1, zlev
           do d = 1, size(grid)
-             mass  => sol(S_MASS,k)%data(d)%elts
-             temp  => sol(S_TEMP,k)%data(d)%elts
-             exner => fun(F_EXNER,k)%data(d)%elts
+             mass      => sol(S_MASS,k)%data(d)%elts
+             temp      => sol(S_TEMP,k)%data(d)%elts
+             bernoulli => grid(d)%bernoulli%elts
+             exner     => grid(d)%exner%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
@@ -470,6 +471,8 @@ program DCMIP2008c5
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
      call set_surf_geopot()
+
+     !call euler (sol, trend)
 
      call stop_timing()
      timing = get_timing()

@@ -274,16 +274,16 @@ module shared_mod
 
   ! basic grid parameters
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
-  integer min_level, max_level ! minimum and maximum grid refinement levels in pseudo-horizontal directions
-  integer zlevels ! number of levels in vertical direction
-  integer level_start, level_end 
+  integer :: min_level, max_level ! minimum and maximum grid refinement levels in pseudo-horizontal directions
+  integer :: zlevels ! number of levels in vertical direction
+  integer :: level_start, level_end 
 
-  real(8) threshold ! threshold level on wavelet coefficients for grid adaptation
+  real(8) :: threshold ! threshold level on wavelet coefficients for grid adaptation
 
-  integer n_active(AT_NODE:AT_EDGE) ! number of active points at grid locations (node and edge)
+  integer :: n_active(AT_NODE:AT_EDGE) ! number of active points at grid locations (node and edge)
 
-  logical dynamic_adapt
-  integer optimize_grid
+  logical :: adapt_trend, compressible
+  integer :: optimize_grid
 
   ! basic constants
   real(8), parameter :: MATH_PI = 3.14159265359_8
@@ -294,7 +294,6 @@ module shared_mod
   real(8) :: dt_write, time_end, time
   real(8) :: viscosity, omega, radius, grav_accel, cfl_num, kmax
   real(8) :: ref_density, press_infty, ref_press, kappa, c_p, R_d
-  logical :: advect_only, compressible, adapt_trend
   logical :: lagrangian_vertical
 
   real(8) :: nonunique_pent_locs(10*2**(2*DOMAIN_LEVEL),3)
@@ -374,8 +373,6 @@ contains
     istep = 0
     time = 0.0_8
     viscosity = 0.0_8
-    advect_only = .False.
-    dynamic_adapt = .False. !this logical is not used
     lagrangian_vertical = .True. ! Lagrangian or mass based vertical coordinates
     optimize_grid = NO_OPTIM
 

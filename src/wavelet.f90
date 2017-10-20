@@ -314,7 +314,6 @@ contains
        
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
-             if (advect_only) cycle
              velo => sca(S_VELO,k)%data(d)%elts
              wc_u => wav(S_VELO,k)%data(d)%elts
              if (present(l_start0)) then
@@ -345,7 +344,6 @@ contains
 
        do k = 1, zlevels
           do d = 1, n_domain(rank+1)
-             if (advect_only) cycle
              velo => sca(S_VELO,k)%data(d)%elts
              wc_u => wav(S_VELO,k)%data(d)%elts
              call apply_interscale_d(IWT_interpolate_u_inner, grid(d), l, z_null, 0, 0)

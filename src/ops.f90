@@ -73,13 +73,13 @@ contains
 
        full_mass(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
 
-       dom%vort%elts(LORT+TRIAG*idSW+1) = - &
+       dom%vort%elts(TRIAG*idSW+LORT+1) = - &
             ((velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) + &
             velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)) - &
             velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1))
 
        pv_SW_LORT = (dom%coriolis%elts(LORT+TRIAG*idSW+1) + &
-            dom%vort%elts(LORT+TRIAG*idSW+1))/( &
+            dom%vort%elts(TRIAG*idSW+LORT+1))/( &
             full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
             full_mass(SOUTH)*dom%areas%elts(idS +1)%part(3) + &
             full_mass(0)*sum(dom%areas%elts(id+1)%part(5:6)))
@@ -154,7 +154,7 @@ contains
 
        full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
 
-       dom%vort%elts(LORT+TRIAG*id+1) = - &
+       dom%vort%elts(TRIAG*id+LORT+1) = - &
             (velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1) - &
             velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1) - &
             velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id+UP+1))
@@ -174,7 +174,7 @@ contains
             + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
             + full_mass(0)*dom%areas%elts(id+1)%part(6))
 
-       dom%vort%elts(LORT+TRIAG*id+1) = dom%vort%elts(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
+       dom%vort%elts(TRIAG*id+LORT+1) = dom%vort%elts(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
        dom%vort%elts(TRIAG*id+UPLT+1) = dom%vort%elts(LORT+TRIAG*id+1)
 
        qe(EDGE*id+RT+1) = node2edge(pv, pv_S)
@@ -360,9 +360,9 @@ contains
       real(8), dimension(:), pointer :: h_flux
       real(8), dimension(0:N_BDRY) :: full_scalar
 
-      h_flux(EDGE*(id+s )+UP+1) = u_dual_dn * node2edge(full_scalar(SOUTH),full_scalar(0))
-      h_flux(EDGE*(id+sw)+DG+1) = u_dual_sw * node2edge(full_scalar(0)    ,full_scalar(SOUTHWEST))
       h_flux(EDGE*(id+w )+RT+1) = u_dual_lt * node2edge(full_scalar(WEST) ,full_scalar(0))
+      h_flux(EDGE*(id+sw)+DG+1) = u_dual_sw * node2edge(full_scalar(0)    ,full_scalar(SOUTHWEST))
+      h_flux(EDGE*(id+s )+UP+1) = u_dual_dn * node2edge(full_scalar(SOUTH),full_scalar(0))
     end subroutine cal_flux1
 
     subroutine cal_flux2(h_flux, full_scalar)
@@ -370,9 +370,9 @@ contains
       real(8), dimension(0:N_BDRY) :: full_scalar
 
       ! Find the horizontal mass flux as the velocity multiplied by the mass there
-      h_flux(EDGE*id+UP+1) = u_dual_up * node2edge(full_scalar(0)        , full_scalar(NORTH))
-      h_flux(EDGE*id+DG+1) = u_dual_dg * node2edge(full_scalar(NORTHEAST), full_scalar(0))
       h_flux(EDGE*id+RT+1) = u_dual_rt * node2edge(full_scalar(0)        , full_scalar(EAST))
+      h_flux(EDGE*id+DG+1) = u_dual_dg * node2edge(full_scalar(NORTHEAST), full_scalar(0))
+      h_flux(EDGE*id+UP+1) = u_dual_up * node2edge(full_scalar(0)        , full_scalar(NORTH))
     end subroutine cal_flux2
 
     subroutine comput()
@@ -451,7 +451,7 @@ contains
       !      )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
 
       ! Interpolate geopotential from interfaces to level
-      Phi_k =  node2edge(dom%geopot%elts(id+1), dom%geopot%elts(id+1))
+      Phi_k =  node2edge(dom%geopot%elts(id+1), dom%adj_geopot%elts(id+1))
 
       ! Bernoulli function
       if (compressible) then 
@@ -577,16 +577,16 @@ contains
     dom%integr_horiz_flux%elts(EDGE*id+DG+1) = 0.0_8
     dom%integr_horiz_flux%elts(EDGE*id+RT+1) = 0.0_8
     
-    do k = 1, zlevels
-       dom%integr_horiz_flux%elts(EDGE*id+UP+1) = dom%integr_horiz_flux%elts(EDGE*id+UP+1) + &
-            horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+UP+1)
+    ! do k = 1, zlevels
+    !    dom%integr_horiz_flux%elts(EDGE*id+UP+1) = dom%integr_horiz_flux%elts(EDGE*id+UP+1) + &
+    !         horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+UP+1)
        
-       dom%integr_horiz_flux%elts(EDGE*id+DG+1) = dom%integr_horiz_flux%elts(EDGE*id+DG+1) + &
-            horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+DG+1)
+    !    dom%integr_horiz_flux%elts(EDGE*id+DG+1) = dom%integr_horiz_flux%elts(EDGE*id+DG+1) + &
+    !         horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+DG+1)
        
-       dom%integr_horiz_flux%elts(EDGE*id+RT+1) = dom%integr_horiz_flux%elts(EDGE*id+RT+1) + &
-            horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+RT+1)
-    end do
+    !    dom%integr_horiz_flux%elts(EDGE*id+RT+1) = dom%integr_horiz_flux%elts(EDGE*id+RT+1) + &
+    !         horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+RT+1)
+    ! end do
   end subroutine vert_integrated_horiz_flux
 
   subroutine compute_vert_flux (dom, i, j, zlev, offs, dims)
@@ -756,7 +756,7 @@ contains
     get_weights = (/wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5)/)
   end function get_weights
 
-  subroutine du_Qperp_Enstrophy(dom, i, j, zlev, offs, dims)
+  subroutine du_Qperp_Enstrophy (dom, i, j, zlev, offs, dims)
     !compute enstrophy-conserving Qperp and store it in dvelo [Aechtner thesis page 44]
     type(Domain) dom
     integer i
@@ -789,27 +789,27 @@ contains
     wgt2 = get_weights(dom, idE, 3)
 
     dvelo(EDGE*id+RT+1) = qe(EDGE*id+RT+1)*( &
-         sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)&
+         sum(horiz_flux(S_MASS)%data(dom%id+1)&
          %elts((/ EDGE*id+DG, EDGE*id+UP, EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP /)+1) * wgt1) + &
-         sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)&
+         sum(horiz_flux(S_MASS)%data(dom%id+1)&
          %elts((/ EDGE*idS+DG, EDGE*idSE+UP, EDGE*idE+RT, EDGE*idE+DG, EDGE*idE+UP /)+1) * wgt2))
 
     wgt1 = get_weights(dom, id, 1)
     wgt2 = get_weights(dom, idNE, 4)
 
     dvelo(EDGE*id+DG+1) = qe(EDGE*id+DG+1)*( &
-         sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)%&
+         sum(horiz_flux(S_MASS)%data(dom%id+1)%&
          elts((/ EDGE*id+UP, EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP, EDGE*id+RT/)+1) * wgt1) + &
-         sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)%&
+         sum(horiz_flux(S_MASS)%data(dom%id+1)%&
          elts((/ EDGE*idE+UP, EDGE*idNE+RT, DG+EDGE*idNE, EDGE*idNE+UP, EDGE*idN+RT/)+1) * wgt2))
 
     wgt1 = get_weights(dom, id, 2)
     wgt2 = get_weights(dom, idN, 5)
 
     dvelo(EDGE*id+UP+1) = qe(EDGE*id+UP+1)*( &
-         sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)%&
+         sum(horiz_flux(S_MASS)%data(dom%id+1)%&
          elts((/ EDGE*idW+RT, EDGE*idSW+DG, EDGE*idS+UP, EDGE*id+RT, EDGE*id+DG /)+1) * wgt1) + &
-         sum(horiz_flux(S_MASS,zlev)%data(dom%id+1)%&
+         sum(horiz_flux(S_MASS)%data(dom%id+1)%&
          elts((/ EDGE*idN+RT, EDGE*idN+DG, EDGE*idN+UP, EDGE*idNW+RT, EDGE*idW+DG /)+1) * wgt2))
   end subroutine du_Qperp_Enstrophy
 
@@ -988,64 +988,66 @@ contains
 
     integer :: id
 
-    dtemp(id+1) = viscosity * div(h_tflux, dom, i, j, offs, dims, id)
+    dtemp(id+1) = viscosity * div (h_tflux, dom, i, j, offs, dims, id)
   end subroutine temp_diffuse_trend
 
-   subroutine momentum_diffuse_trend (dom, i, j, zlev, offs, dims)
-     ! Diffuse momentum
-     type(Domain),                   intent(in) :: dom
-    integer,                        intent(in) :: i, j, zlev
-    integer, dimension(N_BDRY+1),   intent(in) :: offs
-    integer, dimension(2,N_BDRY+1), intent(in) :: dims
+  subroutine momentum_diffuse_trend (dom, i, j, zlev, offs, dims)
+    ! Diffuse momentum
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: id, idW, idS
     real(8), dimension(3) :: grad_div
     
-    id = idx(i, j, offs, dims)
-    idS = idx(i, j - 1, offs, dims)
-    idW = idx(i - 1, j, offs, dims)
+    id  = idx(i,     j,     offs, dims)
+    idS = idx(i,     j - 1, offs, dims)
+    idW = idx(i - 1, j,     offs, dims)
 
-    grad_div = grad (divu, dom, i, j, offs, dims, id)
+    grad_div = grad (velo, dom, i, j, offs, dims)
     
     dvelo(id*EDGE+RT+1) = viscosity * ( grad_div(1) + &
          (vort(id*TRIAG+LORT+1) - vort(idS*TRIAG+UPLT+1))*dom%len%elts(id*EDGE+RT+1)/dom%pedlen%elts(id*EDGE+RT+1) )
     
-    dvelo(id*EDGE+DG+1) =  viscosity * ( grad_div(2) + &
+    dvelo(id*EDGE+DG+1) = viscosity * ( grad_div(2) + &
          (vort(id*TRIAG+LORT+1) - vort(id*TRIAG+UPLT+1))*dom%len%elts(id*EDGE+DG+1)/dom%pedlen%elts(id*EDGE+DG+1) )
     
-    dvelo(id*EDGE+UP+1) = viscosity * (grad_div(3) + &
+    dvelo(id*EDGE+UP+1) = viscosity * ( grad_div(3) + &
          (vort(idW*TRIAG+LORT+1) - vort(id*TRIAG+UPLT+1))*dom%len%elts(id*EDGE+UP+1)/dom%pedlen%elts(id*EDGE+UP+1) )
   end subroutine momentum_diffuse_trend
 
-  subroutine grad_Temp(dom, i, j, zlev, offs, dims)
+  subroutine grad_Temp (dom, i, j, zlev, offs, dims)
     ! Gradient of temperature for diffusion of temperature
     type(Domain)                   :: dom
-    integer                        :: i, j, zlev, id
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer               :: e
+    integer               :: id, e
     real(8), dimension(3) :: gradT
 
-    gradT = grad(temp, dom, i, j, offs, dims, id)
+    gradT = grad (temp, dom, i, j, offs, dims)
 
+    id   = idx(i, j, offs, dims)
     do e = 1, 3
        h_tflux(EDGE*id+e) = dom%pedlen%elts(EDGE*id+e)/dom%len%elts(EDGE*id+e) * gradT(e) 
     end do
   end subroutine grad_Temp
 
-  function grad (scalar, dom, i, j, offs, dims, id)
+  function grad (scalar, dom, i, j, offs, dims)
     ! Gradient of a scalar at nodes, d_e in DYNAMICO notation
     ! output is at edges
     real(8), dimension(3)          :: grad
     real(8), dimension(:), pointer :: scalar
     type(Domain)                   :: dom
-    integer                        :: i, j, id
+    integer                        :: i, j
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: idE, idN, idNE
+    integer :: id, idE, idN, idNE
 
+    id   = idx(i,     j,     offs, dims)
     idE  = idx(i + 1, j,     offs, dims)
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
@@ -1082,18 +1084,28 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer :: id, idN
+    integer               :: id, idE, idN
+    real(8)               :: u_prim_dg, u_prim_rt, u_prim_rtN, u_prim_up, u_prim_upE
+    real(8), dimension(2) :: circ
 
-    id  = idx(i, j, offs, dims)
-    idN = idx(i, j+1, offs, dims)
+    id  = idx(i,   j,   offs, dims)
+    idN = idx(i,   j+1, offs, dims)
+    idE = idx(i+1, j,   offs, dims)
 
-    vort(TRIAG*id+LORT+1) = - &
-         (velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1) - &
-          velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1) - &
-          velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id+UP+1))
+    u_prim_up = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
+    u_prim_dg = velo(EDGE*id+DG+1)*dom%len%elts(EDGE*id+DG+1)
+    u_prim_rt = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
 
-    vort(TRIAG*id+LORT+1) = vort(TRIAG*id+LORT+1) / dom%triarea%elts(TRIAG*id+LORT+1)
-    vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
+    u_prim_upE = velo(EDGE*idE+UP+1)*dom%len%elts(EDGE*idE+UP+1)
+    u_prim_rtN = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1)
+
+    ! Circulations
+    circ(LORT+1) = - (u_prim_rt + u_prim_dg + u_prim_upE)
+    circ(UPLT+1) =    u_prim_dg + u_prim_up + u_prim_rtN
+
+    ! Vortcitities
+    vort(TRIAG*id+LORT+1) = circ(LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1) 
+    vort(TRIAG*id+UPLT+1) = circ(UPLT+1)/dom%triarea%elts(TRIAG*id+UPLT+1) 
   end subroutine vorticity
 
   function node2edge (e1, e2)
@@ -1129,8 +1141,8 @@ contains
     full_pot_temp(EAST)      = (temp(idE+1)  + mean(S_TEMP,zlev))/(mass(idE+1)  + mean(S_MASS,zlev))
     full_pot_temp(NORTHEAST) = (temp(idNE+1) + mean(S_TEMP,zlev))/(mass(idNE+1) + mean(S_MASS,zlev))
 
-    gradB = grad (bernoulli, dom, i, j, offs, dims, id)
-    gradE = grad (exner,     dom, i, j, offs, dims, id)
+    gradB = grad (bernoulli, dom, i, j, offs, dims)
+    gradE = grad (exner,     dom, i, j, offs, dims)
     
     if (compressible) then
        dvelo(EDGE*id+RT+1) = (dvelo(EDGE*id+RT+1) - gradB(1) &
@@ -1279,7 +1291,7 @@ contains
     offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
   end subroutine comp_offs3
 
-  subroutine sum_dmassdtemp(dom, i, j, zlev, offs, dims)
+  subroutine sum_dmassdtemp (dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
