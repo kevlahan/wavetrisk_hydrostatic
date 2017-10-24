@@ -1,6 +1,7 @@
 module multi_level_mod
   use comm_mod
   use ops_mod
+  use viscous_mod
   use wavelet_mod
   use refine_patch_mod
   use comm_mpi_mod
@@ -95,10 +96,10 @@ contains
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
           if (p_chd .eq. 0) then
-             call apply_onescale_to_patch(du_source, dom, p_par, z_null, 0, 0)
+             call apply_onescale_to_patch (du_source, dom, p_par, z_null, 0, 0)
           end if
        end do
-       call apply_interscale_to_patch(du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
+       call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
     end do
   end subroutine cpt_or_restr_du_source
 
@@ -118,7 +119,7 @@ contains
     idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
 
     if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. ADJZONE) then
-       call du_source(dom, i_par, j_par, zlev, offs_par, dims_par)
+       call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
     end if
 
     if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
@@ -126,7 +127,7 @@ contains
     end if
 
     if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) then
-       dvelo(DG+EDGE*id_par+1) = dvelo(DG+EDGE*idNE_chd+1) + dvelo(DG+EDGE*id_chd+1)
+       dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
     end if
 
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
@@ -134,65 +135,14 @@ contains
     end if
   end subroutine du_source_cpt_restr
 
-   subroutine cpt_or_restr_du_momentum (dom, l)
-    type(Domain) :: dom
-    integer      :: l
-    
-    integer :: c, j, p_par, p_chd
-
-    do j = 1, dom%lev(l)%length
-       p_par = dom%lev(l)%elts(j)
-       do c = 1, N_CHDRN
-          p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .eq. 0) then
-             call apply_onescale_to_patch(momentum_diffuse_trend, dom, p_par, z_null, 0, 0)
-          end if
-       end do
-       call apply_interscale_to_patch(du_momentum_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
-    end do
-  end subroutine cpt_or_restr_du_momentum
-
-   subroutine du_momentum_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    type(Domain)                     :: dom
-    integer                          :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
-    
-    integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
-
-    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
-
-    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
-    idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-
-    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. ADJZONE) then
-       call momentum_diffuse_trend(dom, i_par, j_par, zlev, offs_par, dims_par)
-    end if
-
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
-       dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
-    end if
-
-    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) then
-       dvelo(DG+EDGE*id_par+1) = dvelo(DG+EDGE*idNE_chd+1) + dvelo(DG+EDGE*id_chd+1)
-    end if
-
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
-       dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
-    end if
-  end subroutine du_momentum_cpt_restr
-
   subroutine trend_ml(q, dq)
     ! Compute trends of prognostic variables
-    integer d
-    integer j
-    integer k, l
-    integer p
-    type(Float_Field), target :: q(S_MASS:S_VELO,1:zlevels), dq(S_MASS:S_VELO,1:zlevels), vert_flux(1:zlevels)
-    type(Float_Field), target :: pot_temp
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
 
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: vert_flux
+    type(Float_Field),                                     target :: pot_temp
+    integer                                                       :: d, j, k, l, p
+    
     call update_array_bdry (q, NONE)
 
     !if (.not. lagrangian_vertical) vert_flux = q(S_MASS,:) ! Set correct size of vertical flux (will be over-written)
@@ -203,7 +153,7 @@ contains
           mass => q(S_MASS,k)%data(d)%elts
           temp => q(S_TEMP,k)%data(d)%elts
 
-          do p = 3, grid(d)%patch%length
+          do p = 2, grid(d)%patch%length
              call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
           end do
 
@@ -230,11 +180,17 @@ contains
              call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
           end do
 
-          ! Compute horizontal fluxes, potential vorticity (pv), potential vorticity (qe), Bernoulli, Exner (incompressible case)
+          ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case)
           do j = 1, grid(d)%lev(level_end)%length
              call step1 (grid(d), grid(d)%lev(level_end)%elts(j), k)
           end do
           call apply_to_penta_d (post_step1, grid(d), level_end, k)
+
+         if (diffusion)  then
+            do j = 1, grid(d)%lev(level_end)%length
+               call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
+            end do
+         end if
 
           nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, qe)
        end do
@@ -250,11 +206,10 @@ contains
     !    end do
     ! end if
 
-       ! Compute scalar trends
+       ! Compute scalar trends at finest level
        do d = 1, size(grid)
           mass   => q(S_MASS,k)%data(d)%elts
           temp   => q(S_TEMP,k)%data(d)%elts
-          velo   => q(S_VELO,k)%data(d)%elts
           dmass   => dq(S_MASS,k)%data(d)%elts
           dtemp   => dq(S_TEMP,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
@@ -281,12 +236,10 @@ contains
           h_tflux => horiz_flux(S_TEMP)%data(d)%elts
           
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (scalar_trend,      grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
-             call apply_onescale_to_patch (du_source,         grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
-             call apply_onescale_to_patch (du_gradB_gradExn,  grid(d), grid(d)%lev(level_end)%elts(j),   k,    0, 0)
+             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
           
-          nullify (mass, temp, velo, dmass, dtemp, dvelo, h_mflux, h_tflux, bernoulli, exner)
+          nullify (mass, temp, dmass, dtemp, dvelo, h_mflux, h_tflux, bernoulli, exner)
           ! if (.not. lagrangian_vertical) nullify (mass, temp, v_mflux, adj_mass_up, adj_temp_up)
        end do
        
@@ -297,9 +250,25 @@ contains
           call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), level_end) ! <= start non-blocking communicate dmass (l+1)
        end if
        
+       ! Velocity trend, source part
+       do d = 1, size(grid)
+          velo    =>  q(S_VELO,k)%data(d)%elts
+          dvelo   => dq(S_VELO,k)%data(d)%elts
+          h_mflux => horiz_flux(S_MASS)%data(d)%elts
+          qe      => grid(d)%qe%elts
+          divu    =>  grid(d)%divu%elts
+          vort    =>  grid(d)%vort%elts
+
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
+          end do
+
+          nullify (velo, dvelo, h_mflux, qe, divu, vort)
+       end do
+       
        ! Calculate trend on coarser scales, from fine to coarse
        do l = level_end-1, level_start, -1
-          call update_array_bdry__finish (dq(S_MASS:S_TEMP,:), l+1) ! <= finish non-blocking communicate dmass (l+1)
+          call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
           do d = 1, size(grid)
              mass      =>  q(S_MASS,k)%data(d)%elts
              velo      =>  q(S_VELO,k)%data(d)%elts
@@ -310,23 +279,42 @@ contains
              h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
              bernoulli => grid(d)%bernoulli%elts
              exner     => grid(d)%exner%elts
+             qe        => grid(d)%qe%elts
 
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
-             
+
              do j = 1, grid(d)%lev(l)%length
                 call step1 (grid(d), grid(d)%lev(l)%elts(j), k)
              end do
              call apply_to_penta_d (post_step1, grid(d), l, k)
 
+             if (diffusion) then
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+                end do
+             end if
+             
              call cpt_or_restr_Bernoulli_Exner (grid(d), l)
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
              nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, exner, qe)
           end do
           
-          call update_vector_bdry (horiz_flux, l)
+          if (diffusion) then
+             call update_vector_bdry__start(horiz_flux, l) 
+             do d = 1, size(grid)
+                velo => q(S_VELO,k)%data(d)%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                end do
+                nullify (velo)
+             end do
+             call update_vector_bdry__finish(horiz_flux, l)
+          else
+             call update_vector_bdry (horiz_flux, l)
+          end if
 
        ! ! Compute vertically integrated horizontal mass flux
        ! if (.not. lagrangian_vertical) then
@@ -339,17 +327,12 @@ contains
        
           ! Compute scalar trends at level l
           do d = 1, size(grid)
-             mass      => q(S_MASS,k)%data(d)%elts
-             velo      => q(S_VELO,k)%data(d)%elts
-             temp      => q(S_TEMP,k)%data(d)%elts
-             dmass     => dq(S_MASS,k)%data(d)%elts
-             dtemp     => dq(S_TEMP,k)%data(d)%elts
-             dvelo     => dq(S_TEMP,k)%data(d)%elts
-             qe        => grid(d)%qe%elts
-             bernoulli => grid(d)%bernoulli%elts
-             exner     => grid(d)%exner%elts
+             dmass   => dq(S_MASS,k)%data(d)%elts
+             dtemp   => dq(S_TEMP,k)%data(d)%elts
+             h_mflux => horiz_flux(S_MASS)%data(d)%elts
+             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
              ! if (lagrangian_vertical) then
-                h_mflux => horiz_flux(S_MASS)%data(d)%elts
+             !   h_mflux => horiz_flux(S_MASS)%data(d)%elts
              ! else
              !    mass => q(S_MASS,k)%data(d)%elts
              !    temp => q(S_TEMP,k)%data(d)%elts
@@ -362,113 +345,47 @@ contains
              !    h_mflux => grid(d)%integr_horiz_flux%elts ! Use vertically integrated horizontal fluxes
              !    v_mflux => vert_flux(k)%data(d)%elts ! We save vertical mass flux at all levels at scale l in vert_flux
              ! end if
-             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
 
-             call cpt_or_restr_du_source (grid(d), l)
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-                call apply_onescale_to_patch (du_gradB_gradExn, grid(d), grid(d)%lev(l)%elts(j), k,  0, 0)
              end do
 
-             nullify (mass, temp, velo, dmass, dtemp, dvelo, h_mflux, h_tflux, qe, bernoulli, exner)
-             if (.not. lagrangian_vertical) nullify (mass, temp, v_mflux, adj_mass_up, adj_temp_up)
+             nullify (dmass, dtemp, h_mflux, h_tflux)
+             !if (.not. lagrangian_vertical) nullify (mass, temp, v_mflux, adj_mass_up, adj_temp_up)
           end do
 
-          dq(:,k)%bdry_uptodate = .False.
+          dq(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
           if (l .gt. level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l)  ! <= start non-blocking communicate dmass (l+1)
+
+          ! Velocity trend, source part
+          do d = 1, size(grid)
+             velo    => q(S_VELO,k)%data(d)%elts
+             dvelo   => dq(S_VELO,k)%data(d)%elts
+             h_mflux => horiz_flux(S_MASS)%data(d)%elts
+             qe      => grid(d)%qe%elts
+             divu    => grid(d)%bernoulli%elts
+             vort    => grid(d)%vort%elts
+
+             call cpt_or_restr_du_source (grid(d), l)
+             nullify (velo, dvelo, h_mflux, qe, divu, vort)
+          end do
+          dq(S_VELO,k)%bdry_uptodate = .False.
+       end do
+
+       ! Evaluate complete velocity trend by adding gradient terms on entire grid at vertical level k
+       do d = 1, size(grid)
+          mass      =>  q(S_MASS,k)%data(d)%elts
+          temp      =>  q(S_TEMP,k)%data(d)%elts
+          dvelo     => dq(S_VELO,k)%data(d)%elts
+          bernoulli => grid(d)%bernoulli%elts
+          exner     => grid(d)%exner%elts
+          do p = 2, grid(d)%patch%length
+             call apply_onescale_to_patch (du_gradB_gradExn, grid(d), p-1, k, 0, 0)
+          end do
+          nullify (mass, temp, dvelo, bernoulli, exner)
        end do
     end do
   end subroutine trend_ml
-
-  subroutine trend_diffuse (q, dq)
-    ! Trend of diffusion of mass-weighted temperature and momentum
-    type(Float_Field), target :: q(S_MASS:S_VELO,1:zlevels), dq(S_MASS:S_VELO,1:zlevels)
-    integer                   :: d, j, k, l
-
-    call update_array_bdry (q, NONE)
-
-    ! Calculate trend on finest scale
-
-    ! Compute each vertical level starting from surface
-    ! they are independent for diffusion calculations
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          temp    => q(S_TEMP,k)%data(d)%elts
-          velo    => q(S_VELO,k)%data(d)%elts
-          h_tflux => horiz_flux(S_TEMP)%data(d)%elts
-          vort    => grid(d)%vort%elts
-          
-          do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (grad_Temp, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
-             call apply_onescale_to_patch (vorticity, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
-          end do
-          
-          nullify (velo, temp, h_tflux, vort)
-       end do
-
-       if (level_start .lt. level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
-    
-       ! Compute scalar trends
-       do d = 1, size(grid)
-          velo    => q(S_VELO,k)%data(d)%elts
-          dtemp   => dq(S_TEMP,k)%data(d)%elts
-          dvelo   => dq(S_VELO,k)%data(d)%elts
-          h_tflux => horiz_flux(S_TEMP)%data(d)%elts
-          vort    => grid(d)%vort%elts
-          
-          do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (temp_diffuse_trend,     grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
-             call apply_onescale_to_patch (momentum_diffuse_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
-          end do
-          
-          nullify (dtemp, dvelo, h_tflux, velo, vort)
-       end do
-
-       dq%bdry_uptodate = .False.
-
-       if (level_start .lt. level_end) then
-          call update_vector_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
-          call update_vector_bdry__start (dq(S_TEMP,:), level_end) ! <= start non-blocking communicate dmass (l+1)
-       end if
-
-       ! Calculate trend on coarser scales, from fine to coarse
-       do l = level_end-1, level_start, -1
-          call update_array_bdry__finish (dq(S_MASS:S_TEMP,:), l+1) ! <= finish non-blocking communicate dmass (l+1)
-          do d = 1, size(grid)
-             temp    => q(S_TEMP,k)%data(d)%elts
-             velo    => q(S_VELO,k)%data(d)%elts
-             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
-             
-             call cpt_or_restr_flux (grid(d), l) 
-             
-             nullify (temp, velo, h_mflux, h_tflux)
-          end do
-
-          call update_vector_bdry (horiz_flux, l)
-       
-          ! Compute trends
-          do d = 1, size(grid)
-             dtemp   => dq(S_TEMP,k)%data(d)%elts
-             dvelo   => dq(S_VELO,k)%data(d)%elts
-             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
-             velo    => q(S_VELO,k)%data(d)%elts
-             vort    => grid(d)%vort%elts
-
-             call cpt_or_restr_du_momentum (grid(d), l)
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (temp_diffuse_trend, grid(d), grid(d)%lev(l)%elts(j),    z_null, 0, 1)
-             end do
-             
-             nullify (dtemp, dvelo, h_tflux, vort, velo)
-          end do
-       
-          dq(S_TEMP,:)%bdry_uptodate = .False.
-          
-          if (l .gt. level_start) call update_vector_bdry__start (dq(S_TEMP,:), l)  ! <= start non-blocking communicate dmass (l+1)
-       end do
-    end do
-    dq(S_VELO,:)%bdry_uptodate = .False.
-  end subroutine trend_diffuse
 
   subroutine cpt_or_restr_Bernoulli_Exner (dom, l)
     type(Domain) :: dom
@@ -547,7 +464,8 @@ contains
     if (i_chd .ge. PATCH_SIZE .or. j_chd .ge. PATCH_SIZE) return
 
     if (associated(h_mflux)) call flux_restr(dmass, h_mflux)
-    if (associated(h_mflux)) call flux_restr(dtemp, h_tflux)
+    if (associated(h_tflux)) call flux_restr(dtemp, h_tflux)
+    if (associated(h_uflux)) call flux_restr(dvelo, h_uflux)
   contains
     subroutine flux_restr (dscalar, h_flux)
       real(8), dimension(:), pointer :: dscalar, h_flux

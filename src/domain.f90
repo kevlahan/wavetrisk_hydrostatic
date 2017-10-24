@@ -52,6 +52,7 @@ module domain_mod
      type(Float_Array) vort        ! vorticity
      type(Float_Array) exner       ! Exner function
      type(Float_Array) bernoulli   ! Bernoulli function
+     type(Float_Array) divu        ! divergence of velocity
      type(Float_Array) qe          ! 
 
      ! For mass-based vertical coordinates
@@ -90,8 +91,8 @@ module domain_mod
   !we will solve for theta'_k and Theta'_k
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
-  real(8), dimension(:), pointer :: velo, dvelo
-  real(8), dimension(:), pointer :: bernoulli, exner, qe, vort
+  real(8), dimension(:), pointer :: velo, dvelo, h_uflux
+  real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
   ! For mass-based vertical coordinates
   real(8), dimension(:), pointer :: adj_temp_up, adj_mass_up, adj_velo_up, v_mflux

@@ -348,6 +348,7 @@ contains
        call init(grid(d)%adj_geopot,   grid(d)%node%length)
        call init(grid(d)%exner,        grid(d)%node%length)
        call init(grid(d)%bernoulli,    grid(d)%node%length)
+       call init(grid(d)%divu,         grid(d)%node%length)
        call init(grid(d)%vort,         grid(d)%node%length*TRIAG)
        call init(grid(d)%qe,           grid(d)%node%length*EDGE)
 

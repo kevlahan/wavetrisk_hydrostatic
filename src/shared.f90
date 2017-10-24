@@ -237,7 +237,7 @@ module shared_mod
   integer, parameter :: VMPP = 14
   integer, parameter :: VPMM = 15
 
-  ! first diagonal neighbours of hexagon points ??
+  ! first diagonal neighbours of hexagon points 
   integer, parameter :: MP = 16
   integer, parameter :: PP = 17
   integer, parameter :: PM = 18
@@ -282,7 +282,6 @@ module shared_mod
 
   integer :: n_active(AT_NODE:AT_EDGE) ! number of active points at grid locations (node and edge)
 
-  logical :: adapt_trend, compressible
   integer :: optimize_grid
 
   ! basic constants
@@ -294,12 +293,13 @@ module shared_mod
   real(8) :: dt_write, time_end, time
   real(8) :: viscosity, omega, radius, grav_accel, cfl_num, kmax
   real(8) :: ref_density, press_infty, ref_press, kappa, c_p, R_d
-  logical :: lagrangian_vertical
 
-  real(8) :: nonunique_pent_locs(10*2**(2*DOMAIN_LEVEL),3)
-  real(8) :: unique_pent_locs(12,3)
+  real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
+  real(8), dimension (12,3)                     :: unique_pent_locs
 
-  real(8), allocatable :: a_vert(:), b_vert(:)
+  real(8), dimension (:), allocatable :: a_vert, b_vert
+
+  logical :: adapt_trend, compressible, diffusion, lagrangian_vertical 
 
 contains
 
@@ -348,35 +348,36 @@ contains
     bfly_no2 = reshape((/-3, -2, 1, -2, 3, 2, -1, 2, 1, 3, -3, -1, -1, -3, 3, &
          1, 2, -1, 2, 3, -2, 1, -2, -3/), (/2, 4, 3/))
 
-    ! earth parameters (used in src folder, can not be in test case file, all dimensional)
-    ! these parameters are never used, since values are reset in test case file, but are needed for compilation
-    omega = 7.292e-05_8
-    grav_accel = 9.80616_8
-    radius = 6371220.0_8
-    ref_density = 1.0_8 !JEMF
-    press_infty = 0.0_8
-    R_d = 1.0_8
-    c_p = 1.0_8
-    kappa = R_d/c_p
-    ref_press = 0.0_8
-
-    ! default values
-    threshold = 0.0_8
-    adapt_trend = .true.
-    cfl_num = 1.0_8
-    min_level = DOMAIN_LEVEL+PATCH_LEVEL+1
-    max_level = min_level
-    level_start = min_level
-    level_end = level_start
-
-    resume = NONE
-    istep = 0
-    time = 0.0_8
-    viscosity = 0.0_8
-    lagrangian_vertical = .True. ! Lagrangian or mass based vertical coordinates
+    ! Default values
+    adapt_trend         = .true.
+    diffusion           = .false.
+    initialized         = .true.
+    lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates
+    
+    resume        = NONE
+    istep         = 0
+    time          = 0.0_8
     optimize_grid = NO_OPTIM
+    threshold     = 0.0_8
+    cfl_num       = 1.0_8
+    min_level     = DOMAIN_LEVEL+PATCH_LEVEL+1
+    max_level     = min_level
+    level_start   = min_level
+    level_end     = level_start
+    
+    ! Physical parameters
+    ! these parameters are typically reset in test case file, but are needed for compilation
+    omega       = 7.292d-05
+    grav_accel  = 9.80616_8
+    radius      = 6371220.0_8
+    ref_density = 1.0_8
+    press_infty = 0.0_8
+    R_d         = 1.0_8
+    c_p         = 1.0_8
+    kappa       = R_d/c_p
+    ref_press   = 0.0_8
+    viscosity   = 0.0_8
 
-    initialized = .True.
   end subroutine init_shared_mod
 
   real(8) function eps()

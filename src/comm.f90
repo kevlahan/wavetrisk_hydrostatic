@@ -1110,68 +1110,59 @@ contains
     dom%areas%elts(abs(id) + 1)%hex_inv = val(7)
   end subroutine set_areas
 
-  subroutine min_dt(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
-    integer id
-    integer e, l
+  subroutine min_dt (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: d, e, id, k, l
+    real(8) :: csq, dx, full_mass, total_mass, vel, wave_speed
 
     id = idx(i, j, offs, dims)
-    l = dom%level%elts(id+1)
+    d = dom%id + 1
+    l  = dom%level%elts(id+1)
 
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
-       do e = 1, EDGE
-          call cpt_dt()
+
+       ! Find total mass for this node
+       total_mass = 0.0_8
+       do k = 1, zlevels
+          full_mass = sol(S_MASS,k)%data(d)%elts(id+1) + mean(S_MASS,k)
+          min_mass = min (min_mass, full_mass)
+          if (full_mass .le. 0.0_8) where_error = dom%node%elts(id+1)  ! sqrt will give NaN
+          
+          total_mass = total_mass + full_mass
+          if (isnan(sol(S_MASS,k)%data(d)%elts(id+1))) then
+             write(0,*) "ERROR: a mass element is NaN"
+             stop
+          end if
        end do
+       
+       ! Inertia gravity wave speed
+       wave_speed  = sqrt(grav_accel*total_mass)
+
+       do e = 1, 3
+          if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
+             n_active_edges(l) = n_active_edges(l) + 1
+
+             dx = dom%len%elts(EDGE*id+e)
+
+             ! Maximum velocity over all vertical levels
+             vel = 0.0_8
+             do k = 1, zlevels
+                vel  = max(vel, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
+             end do
+             
+             if (dx.ne.0.0_8) then
+                dt = min (dt, cfl_num*dx/vel, cfl_num*dx/wave_speed)
+                if (diffusion) dt = min (dt, 1.0_8*dx**2/viscosity)
+             end if
+          end if
+       end do
+       
     end if
-
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
-          call cpt_dt()
-          n_active_edges(l) = n_active_edges(l) + 1
-       end if
-    end do
-
-  contains
-
-    subroutine cpt_dt()
-      integer :: k
-      real(8) :: vel, full_mass, total_mass
-      real(8) :: csq, dx
-
-      total_mass = 0.0_8
-      do k = 1, zlevels
-         full_mass = sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)
-         min_mass = min(min_mass, full_mass)
-         if (full_mass .le. 0.0_8) where_error = dom%node%elts(id+1)  ! sqrt will give NaN
-         
-         total_mass = total_mass + full_mass
-         if (isnan(sol(S_MASS,k)%data(dom%id+1)%elts(id+1))) then
-            write(0,*) "ERROR: a mass element is NaN"
-            stop
-         endif
-      end do
-
-      dx   = min(dom%len%elts(EDGE*id+e), dom%pedlen%elts(id*EDGE+e))
-
-      ! Inertia gravity wave speed
-      csq  = grav_accel*total_mass
-
-      vel = -1.0d16
-      do k = 1, zlevels
-         vel  = max(vel, abs(sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
-      end do
-      vel = vel + sqrt(csq)
-
-      dt = min (dt, cfl_num*dx/vel)
-
-      if (viscosity .ne. 0.0_8) dt = min(dt, 1.0_8*dx**2/viscosity)
-    end subroutine cpt_dt
   end subroutine min_dt
 
   integer function domain_load(dom)

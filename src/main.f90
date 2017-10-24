@@ -190,8 +190,6 @@ contains
 
     dt = idt/time_mult
 
-    if (istep.eq.0) call trend_ml(sol, trend) ! We don't have trend at first time step
-
     call RK45_opt(trend)
 
     ! Set thresholds dynamically based on new solution
@@ -206,7 +204,6 @@ contains
        end if
        call inverse_wavelet_transform(wav_coeff, sol)
     end if
-    call trend_ml(sol, trend) ! Trend for next time step
     
     itime = itime + idt
     time  = itime/time_mult
@@ -253,6 +250,7 @@ contains
        grid(d)%adj_temp%length    = init_state(d)%n_node
        grid(d)%adj_geopot%length  = init_state(d)%n_node
        grid(d)%bernoulli%length   = init_state(d)%n_node
+       grid(d)%divu%length        = init_state(d)%n_node
        grid(d)%exner%length       = init_state(d)%n_node
        grid(d)%vort%length        = init_state(d)%n_tria
        grid(d)%qe%length          =  init_state(d)%n_edge
@@ -353,6 +351,7 @@ contains
        deallocate(grid(d)%qe%elts)
        deallocate(grid(d)%exner%elts)
        deallocate(grid(d)%bernoulli%elts)
+       deallocate(grid(d)%divu%elts)
        deallocate(grid(d)%coriolis%elts)
        deallocate(grid(d)%triarea%elts)
        deallocate(grid(d)%len%elts)

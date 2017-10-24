@@ -290,14 +290,15 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 1 ! Only export one vertical level
+    zlev = 7 ! Only export one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
        maxv = -1.d63;
        u = 100000+100*iwrite
 
-       call update_array_bdry (sol, l)
+       !call update_array_bdry (sol, l)
+       call update_bdry (sol(S_VELO,zlev), l)
        
        ! Calculate pressure and geopotential at vertical level zlev and scale l
        do k = 1, zlev
@@ -375,7 +376,7 @@ program DCMIP2008c5
   logical                      :: aligned, write_init
 
   ! Initialize grid etc
-  call init_main_mod()
+  call init_main_mod ()
 
   ! Nullify all pointers initially
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t)
@@ -389,9 +390,9 @@ program DCMIP2008c5
   grav_accel  = 9.80616_8 !gravitational acceleration in meters per second squared
   omega       = 7.29211d-5 !Earth’s angular velocity in radians per second
   f0          = 2.0_8*omega !Coriolis parameter
-  u_0         = 20.0_8 !velocity in meters per second
+  u_0         = 2.0d1 !velocity in meters per second
   T_0         = 288.0_8 !temperature in Kelvin
-  d2          = (1500.0d+03)**2 !square of half width of Gaussian mountain profile in meters
+  d2          = (1500.0d3)**2 !square of half width of Gaussian mountain profile in meters
   h_0         = 2000.0_8 !mountain height in meters
   lon_c       = MATH_PI/2.0_8 !mountain peak longitudinal location in radians
   lat_c       = MATH_PI/6.0_8 !mountain peak latitudinal location in radians
@@ -418,8 +419,11 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
-  compressible = .True. ! Compressible equations
-  uniform      = .False. ! Type of vertical grid
+  diffusion    = .true.  ! Add diffusion
+  compressible = .true.  ! Compressible equations
+  uniform      = .false. ! Type of vertical grid
+
+  cfl_num      = 1.0_8   ! cfl number
 
   ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_VELO,1:zlevels))
@@ -432,14 +436,13 @@ program DCMIP2008c5
 
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
   dx_max = 2.0_8*MATH_PI * radius
-
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
   csq        = grav_accel*radius 
   VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
-  !viscosity = 1.0_8/(kmax*40.0_8)**2     ! grid scale viscosity
-  viscosity = 0.0_8
+  viscosity = 2.0d1/(kmax*40.0_8)**2     ! grid scale viscosity
+
   if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity  = ',  viscosity
   if (rank .eq. 0) write (6,*) ' '
 
@@ -472,8 +475,6 @@ program DCMIP2008c5
      call time_step (dt_write, aligned, set_thresholds)
      call set_surf_geopot()
 
-     !call euler (sol, trend)
-
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
@@ -492,7 +493,7 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        call remap_vertical_coordinates()
+        !call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle

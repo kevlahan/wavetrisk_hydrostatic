@@ -162,6 +162,7 @@ contains
 
     call manage_RK_mem()
 
+    call trend_ml(sol, trend)
     call RK_sub_step1(sol, trend, alpha(1,1), dt*beta(1,1), q1)
     call WT_after_step(q1, wav_coeff)
 
@@ -185,14 +186,13 @@ contains
     if (adapt_trend) call trend_ml(sol, trend)
   end subroutine RK45_opt
 
-  subroutine diffuse_step (trend)
+  subroutine euler (trend)
     ! An Euler step to diffuse solution
     type(Float_Field), dimension(:,:), target :: trend
     
-    call trend_diffuse(sol, trend)
     call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
-  end subroutine diffuse_step
-  
+  end subroutine euler
+
   function wav_coeff_predict (trend)
     ! Predicts wavelet coefficients at next time step using a forward Euler step
     type(Float_Field), dimension (S_MASS:S_VELO,1:zlevels), target :: wav_coeff_predict

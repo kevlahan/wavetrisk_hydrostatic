@@ -190,6 +190,7 @@ contains
     call extend(dom%adj_geopot,  num, 0.0_8)
     call extend(dom%exner,       num, 0.0_8)
     call extend(dom%bernoulli,   num, 0.0_8)
+    call extend(dom%divu,        num, 0.0_8)
     
     call extend(dom%qe,     EDGE*num, 0.0_8)
     call extend(dom%vort,  TRIAG*num, 0.0_8)
