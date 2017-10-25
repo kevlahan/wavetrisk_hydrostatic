@@ -1117,7 +1117,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: csq, dx, full_mass, total_mass, vel, wave_speed
+    real(8) :: csq, dx, full_mass, total_mass, vel, visc, wave_speed
 
     id = idx(i, j, offs, dims)
     d  = dom%id + 1
@@ -1143,6 +1143,8 @@ contains
        ! Inertia gravity wave speed
        wave_speed = sqrt(grav_accel*total_mass)
 
+       visc = max(viscosity_mass, viscosity_temp, viscosity_rotu, viscosity_divu)
+
        do e = 1, 3
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
@@ -1157,7 +1159,7 @@ contains
              
              if (dx.ne.0.0_8) then
                 dt = min (dt, cfl_num*dx/vel, cfl_num*dx/wave_speed)
-                if (diffusion) dt = min (dt, 1.0_8*dx**2/max(viscosity_temp, viscosity_velo))
+                if (diffusion) dt = min (dt, 1.0_8*dx**2/visc)
              end if
           end if
        end do

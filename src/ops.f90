@@ -839,7 +839,7 @@ contains
     integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
+    integer :: e, id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
     real(8) :: wgt1(5), wgt2(5)
 
     idNW = idx(i - 1, j + 1, offs, dims)
@@ -926,6 +926,10 @@ contains
          + qe(EDGE*id+UP+1))*wgt2(4) + &
          h_mflux(EDGE*idW+DG+1)*0.5_8*(qe(EDGE*idW+DG+1) + &
          qe(EDGE*id+UP+1))*wgt2(5)
+
+    do e = 1, 3
+       dvelo(EDGE*id+e) =  dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e)
+    end do
   end subroutine du_Qperp
 
   subroutine scalar_trend (dom, i, j, zlev, offs, dims)
@@ -1005,9 +1009,9 @@ contains
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
-    grad_e(RT+1) = (scalar(idE+1) - scalar(id+1))/dom%len%elts(EDGE*id+RT+1)
+    grad_e(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1)
     grad_e(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1)
-    grad_e(UP+1) = (scalar(idN+1) - scalar(id+1))/dom%len%elts(EDGE*id+UP+1)
+    grad_e(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1)
   end function grad_e
 
   function gradv_e (scalar, dom, i, j, offs, dims)
@@ -1101,7 +1105,7 @@ contains
     gradE = grad_e (exner,     dom, i, j, offs, dims)
 
     do e = 1, 3
-       dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
+       dvelo(EDGE*id+e) = dvelo(EDGE*id+e) - gradB(e) - theta_e(e) * gradE(e)
     end do
        
     ! Add vertical flux gradient term
@@ -1182,14 +1186,14 @@ contains
   end subroutine cal_divu
 
   subroutine flux_grad_scalar (dom, i, j, zlev, offs, dims)
-    ! Diffuse scalars
+    ! Add diffusive term to fluxes
     type(Domain) :: dom
     integer :: i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
     integer               :: e, id, idE, idN, idNE
-    real(8), dimension(3) :: gradT
+    real(8), dimension(3) :: gradM, gradT
 
     id   = idx(i,     j,     offs, dims)
     idE  = idx(i + 1, j,     offs, dims)
@@ -1197,9 +1201,11 @@ contains
     idNE = idx(i + 1, j + 1, offs, dims)
 
     ! Gradient of temperature at edges
+    gradM = grad_e (mass, dom, i, j, offs, dims)
     gradT = grad_e (temp, dom, i, j, offs, dims)
     
     do e = 1, 3
+       h_mflux(EDGE*id+e) = h_mflux(EDGE*id+e) - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradM(e)
        h_tflux(EDGE*id+e) = h_tflux(EDGE*id+e) - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
     end do
   end subroutine flux_grad_scalar
@@ -1218,7 +1224,7 @@ contains
     rot_rot  = gradv_e (vort, dom, i, j, offs, dims)
 
     do e = 1, 3
-       dvelo(id*EDGE+e) = dvelo(id*EDGE+e) + viscosity_velo * (grad_div(e) - rot_rot(e))
+       dvelo(id*EDGE+e) = dvelo(id*EDGE+e) + (viscosity_rot*grad_div(e) - viscosity_div*rot_rot(e))
     end do
   end subroutine diffuse_momentum
 

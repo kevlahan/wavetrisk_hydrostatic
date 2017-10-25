@@ -441,8 +441,10 @@ program DCMIP2008c5
   csq        = grav_accel*radius 
   VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
-  viscosity_temp = 0.0_8     ! grid scale viscosity
-  viscosity_velo = 2.0e1_8/(kmax*40.0_8)**2     ! grid scale viscosity
+  viscosity_mass = 2.0d1/(kmax*40.0_8)**2     ! viscosity for mass equation
+  viscosity_temp = 2.0d1/(kmax*40.0_8)**2     ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 2.0d1/(kmax*40.0_8)**2     ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 2.0d1/(kmax*40.0_8)**2     ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_temp    = ',  viscosity_temp
   if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_velo    = ',  viscosity_velo
