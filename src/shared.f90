@@ -291,7 +291,7 @@ module shared_mod
   ! simulation variables
   integer :: istep, resume
   real(8) :: dt_write, time_end, time
-  real(8) :: viscosity, omega, radius, grav_accel, cfl_num, kmax
+  real(8) ::  viscosity_temp, viscosity_velo, omega, radius, grav_accel, cfl_num, kmax
   real(8) :: ref_density, press_infty, ref_press, kappa, c_p, R_d
 
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
@@ -376,7 +376,8 @@ contains
     c_p         = 1.0_8
     kappa       = R_d/c_p
     ref_press   = 0.0_8
-    viscosity   = 0.0_8
+    viscosity_temp   = 0.0_8
+    viscosity_velo   = 0.0_8
 
   end subroutine init_shared_mod
 

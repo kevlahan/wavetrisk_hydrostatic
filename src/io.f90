@@ -945,24 +945,6 @@ contains
     integer fid
   end subroutine default_load
      
-  subroutine read_setup(filename)
-    character(*) filename
-    integer :: fid
-    character(255) varname
-    integer r
-
-    fid = get_fid()
-    open(unit=fid, file=filename, action='READ')
-    read(fid,*) varname, max_level
-    read(fid,*) varname, viscosity
-    read(fid,*) varname, threshold
-    read(fid,*) varname, time_end
-    read(fid,*) varname, dt_write
-    read(fid,*) varname, resume
-    read(fid,*) varname, optimize_grid
-    close(fid)
-  end subroutine read_setup
-
   subroutine proj_xz_plane(cin, cout)
     type(Coord) cin
     real(8), intent(out) :: cout(2)

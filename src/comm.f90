@@ -1120,7 +1120,7 @@ contains
     real(8) :: csq, dx, full_mass, total_mass, vel, wave_speed
 
     id = idx(i, j, offs, dims)
-    d = dom%id + 1
+    d  = dom%id + 1
     l  = dom%level%elts(id+1)
 
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
@@ -1141,13 +1141,13 @@ contains
        end do
        
        ! Inertia gravity wave speed
-       wave_speed  = sqrt(grav_accel*total_mass)
+       wave_speed = sqrt(grav_accel*total_mass)
 
        do e = 1, 3
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
 
-             dx = dom%len%elts(EDGE*id+e)
+             dx = min(dom%len%elts(EDGE*id+e), dom%pedlen%elts(EDGE*id+e))
 
              ! Maximum velocity over all vertical levels
              vel = 0.0_8
@@ -1157,11 +1157,10 @@ contains
              
              if (dx.ne.0.0_8) then
                 dt = min (dt, cfl_num*dx/vel, cfl_num*dx/wave_speed)
-                if (diffusion) dt = min (dt, 1.0_8*dx**2/viscosity)
+                if (diffusion) dt = min (dt, 1.0_8*dx**2/max(viscosity_temp, viscosity_velo))
              end if
           end if
        end do
-       
     end if
   end subroutine min_dt
 

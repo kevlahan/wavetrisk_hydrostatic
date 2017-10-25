@@ -1,7 +1,6 @@
 module multi_level_mod
   use comm_mod
   use ops_mod
-  use viscous_mod
   use wavelet_mod
   use refine_patch_mod
   use comm_mpi_mod
@@ -153,7 +152,7 @@ contains
           mass => q(S_MASS,k)%data(d)%elts
           temp => q(S_TEMP,k)%data(d)%elts
 
-          do p = 2, grid(d)%patch%length
+          do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
           end do
 
@@ -208,14 +207,8 @@ contains
 
        ! Compute scalar trends at finest level
        do d = 1, size(grid)
-          mass   => q(S_MASS,k)%data(d)%elts
-          temp   => q(S_TEMP,k)%data(d)%elts
           dmass   => dq(S_MASS,k)%data(d)%elts
           dtemp   => dq(S_TEMP,k)%data(d)%elts
-          dvelo   => dq(S_VELO,k)%data(d)%elts
-          qe        => grid(d)%qe%elts
-          bernoulli => grid(d)%bernoulli%elts
-          exner     => grid(d)%exner%elts
           ! if (lagrangian_vertical) then
           h_mflux => horiz_flux(S_MASS)%data(d)%elts
           ! else
@@ -239,7 +232,7 @@ contains
              call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
           
-          nullify (mass, temp, dmass, dtemp, dvelo, h_mflux, h_tflux, bernoulli, exner)
+          nullify (dmass, dtemp, h_mflux, h_tflux)
           ! if (.not. lagrangian_vertical) nullify (mass, temp, v_mflux, adj_mass_up, adj_temp_up)
        end do
        
@@ -379,7 +372,7 @@ contains
           dvelo     => dq(S_VELO,k)%data(d)%elts
           bernoulli => grid(d)%bernoulli%elts
           exner     => grid(d)%exner%elts
-          do p = 2, grid(d)%patch%length
+          do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (du_gradB_gradExn, grid(d), p-1, k, 0, 0)
           end do
           nullify (mass, temp, dvelo, bernoulli, exner)

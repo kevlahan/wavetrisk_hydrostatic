@@ -441,9 +441,11 @@ program DCMIP2008c5
   csq        = grav_accel*radius 
   VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
-  viscosity = 2.0d1/(kmax*40.0_8)**2     ! grid scale viscosity
+  viscosity_temp = 0.0_8     ! grid scale viscosity
+  viscosity_velo = 2.0e1_8/(kmax*40.0_8)**2     ! grid scale viscosity
 
-  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity  = ',  viscosity
+  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_temp    = ',  viscosity_temp
+  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_velo    = ',  viscosity_velo
   if (rank .eq. 0) write (6,*) ' '
 
   write_init = (resume .eq. NONE)
@@ -493,7 +495,7 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        !call remap_vertical_coordinates()
+        call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
