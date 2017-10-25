@@ -832,7 +832,7 @@ contains
     if (diffusion) call diffuse_momentum (dom, i, j, z_null, offs, dims)
   end subroutine du_source
 
-  subroutine du_Qperp(dom, i, j, zlev, offs, dims)
+  subroutine du_Qperp (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving Qperp and add it to dvelo [Aechtner thesis page 44]
     type(Domain)                     :: dom
     integer                          :: i, j, zlev
@@ -1015,7 +1015,7 @@ contains
   end function grad_e
 
   function gradv_e (scalar, dom, i, j, offs, dims)
-    ! Gradient of scalar given at triangle circumcentres x_v
+    ! Gradient of scalar given at triangle circumcentres x_v used in calculating curl(curl(u))
     ! output is at edges x_e
     real(8), dimension(3)          :: gradv_e
     real(8), dimension(:), pointer :: scalar
@@ -1104,6 +1104,7 @@ contains
     gradB = grad_e (bernoulli, dom, i, j, offs, dims)
     gradE = grad_e (exner,     dom, i, j, offs, dims)
 
+    ! Update velocity trend
     do e = 1, 3
        dvelo(EDGE*id+e) = dvelo(EDGE*id+e) - gradB(e) - theta_e(e) * gradE(e)
     end do
@@ -1205,26 +1206,26 @@ contains
     gradT = grad_e (temp, dom, i, j, offs, dims)
     
     do e = 1, 3
-       h_mflux(EDGE*id+e) = h_mflux(EDGE*id+e) - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradM(e)
+       h_mflux(EDGE*id+e) = h_mflux(EDGE*id+e) - viscosity_mass * dom%pedlen%elts(EDGE*id+e) * gradM(e)
        h_tflux(EDGE*id+e) = h_tflux(EDGE*id+e) - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
     end do
   end subroutine flux_grad_scalar
 
   subroutine diffuse_momentum (dom, i, j, zlev, offs, dims)
-    ! Calculate grad(divu) + grad(vort) to diffuse momentum
+    ! Calculate grad(divu) - rot(vort) to diffuse momentum
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: e, id, idS, idN, idW, idE, idNE
-    real(8), dimension(3) :: grad_div, rot_rot
+    real(8), dimension(3) :: grad_divu, rot_rotu
 
-    grad_div = grad_e  (divu, dom, i, j, offs, dims)
-    rot_rot  = gradv_e (vort, dom, i, j, offs, dims)
+    grad_divu = grad_e  (divu, dom, i, j, offs, dims)
+    rot_rotu  = gradv_e (vort, dom, i, j, offs, dims)
 
     do e = 1, 3
-       dvelo(id*EDGE+e) = dvelo(id*EDGE+e) + (viscosity_rot*grad_div(e) - viscosity_div*rot_rot(e))
+       dvelo(id*EDGE+e) = dvelo(id*EDGE+e) + (viscosity_divu*grad_divu(e) - viscosity_rotu*rot_rotu(e))
     end do
   end subroutine diffuse_momentum
 

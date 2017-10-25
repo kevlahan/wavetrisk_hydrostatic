@@ -1143,7 +1143,7 @@ contains
        ! Inertia gravity wave speed
        wave_speed = sqrt(grav_accel*total_mass)
 
-       visc = max(viscosity_mass, viscosity_temp, viscosity_rotu, viscosity_divu)
+       visc = max (viscosity_mass, viscosity_temp, viscosity_rotu, viscosity_divu)
 
        do e = 1, 3
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
@@ -1159,7 +1159,7 @@ contains
              
              if (dx.ne.0.0_8) then
                 dt = min (dt, cfl_num*dx/vel, cfl_num*dx/wave_speed)
-                if (diffusion) dt = min (dt, 1.0_8*dx**2/visc)
+                if (diffusion) dt = min (dt, 1.0d1*dx**2/visc)
              end if
           end if
        end do

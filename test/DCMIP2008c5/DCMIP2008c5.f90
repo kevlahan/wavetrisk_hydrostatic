@@ -441,13 +441,16 @@ program DCMIP2008c5
   csq        = grav_accel*radius 
   VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
-  viscosity_mass = 2.0d1/(kmax*40.0_8)**2     ! viscosity for mass equation
-  viscosity_temp = 2.0d1/(kmax*40.0_8)**2     ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 2.0d1/(kmax*40.0_8)**2     ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 2.0d1/(kmax*40.0_8)**2     ! viscosity for divergent part of momentum equation
+  ! Dissipation
+  viscosity_mass = 1d-2/kmax**2 ! viscosity for mass equation
+  viscosity_temp = 1d-2/kmax**2 ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 1d-2/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = viscosity_divu ! viscosity for divergent part of momentum equation
 
+  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_mass    = ',  viscosity_mass
   if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_temp    = ',  viscosity_temp
-  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_velo    = ',  viscosity_velo
+  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_divu    = ',  viscosity_divu
+  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_rotu    = ',  viscosity_rotu
   if (rank .eq. 0) write (6,*) ' '
 
   write_init = (resume .eq. NONE)

@@ -84,56 +84,6 @@ contains
     call apply_to_penta(area_post_comm, NONE, z_null)
   end subroutine post_refine
 
-  subroutine cpt_or_restr_du_source (dom, l)
-    type(Domain) :: dom
-    integer      :: l
-    
-    integer :: c, j, p_par, p_chd
-
-    do j = 1, dom%lev(l)%length
-       p_par = dom%lev(l)%elts(j)
-       do c = 1, N_CHDRN
-          p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .eq. 0) then
-             call apply_onescale_to_patch (du_source, dom, p_par, z_null, 0, 0)
-          end if
-       end do
-       call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
-    end do
-  end subroutine cpt_or_restr_du_source
-
-  subroutine du_source_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    type(Domain)                     :: dom
-    integer                          :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
-    
-    integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
-
-    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
-
-    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
-    idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-
-    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. ADJZONE) then
-       call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
-    end if
-
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
-       dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
-    end if
-
-    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) then
-       dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
-    end if
-
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
-       dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
-    end if
-  end subroutine du_source_cpt_restr
-
   subroutine trend_ml(q, dq)
     ! Compute trends of prognostic variables
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
@@ -266,8 +216,6 @@ contains
              mass      =>  q(S_MASS,k)%data(d)%elts
              velo      =>  q(S_VELO,k)%data(d)%elts
              temp      =>  q(S_TEMP,k)%data(d)%elts
-             dmass     => dq(S_MASS,k)%data(d)%elts
-             dtemp     => dq(S_TEMP,k)%data(d)%elts
              h_mflux   => horiz_flux(S_MASS)%data(d)%elts
              h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
              bernoulli => grid(d)%bernoulli%elts
@@ -292,7 +240,7 @@ contains
              call cpt_or_restr_Bernoulli_Exner (grid(d), l)
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
-             nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, exner, qe)
+             nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, qe)
           end do
           
           if (diffusion) then
@@ -419,6 +367,56 @@ contains
        exner (id_par+1)    = exner(id_chd+1)
     end if
   end subroutine Bernoulli_Exner_cpt_restr
+
+   subroutine cpt_or_restr_du_source (dom, l)
+    type(Domain) :: dom
+    integer      :: l
+    
+    integer :: c, j, p_par, p_chd
+
+    do j = 1, dom%lev(l)%length
+       p_par = dom%lev(l)%elts(j)
+       do c = 1, N_CHDRN
+          p_chd = dom%patch%elts(p_par+1)%children(c)
+          if (p_chd .eq. 0) then
+             call apply_onescale_to_patch (du_source, dom, p_par, z_null, 0, 0)
+          end if
+       end do
+       call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
+    end do
+  end subroutine cpt_or_restr_du_source
+
+  subroutine du_source_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    type(Domain)                     :: dom
+    integer                          :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
+    
+    integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
+
+    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
+
+    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
+    idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
+    idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
+    idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
+
+    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. ADJZONE) then
+       call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
+    end if
+
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
+       dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
+    end if
+
+    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) then
+       dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
+    end if
+
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
+       dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
+    end if
+  end subroutine du_source_cpt_restr
 
   subroutine cpt_or_restr_flux (dom, l)
     type(Domain) :: dom
