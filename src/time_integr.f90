@@ -15,7 +15,6 @@ contains
 
   subroutine init_time_integr_mod()
     logical :: initialized = .False.
-    integer v, d
 
     if (initialized) return ! initialize only once
 
@@ -23,16 +22,17 @@ contains
     call init_ops_mod()
     call init_multi_level_mod()
 
-    dt = 30.
     initialized = .True.
   end subroutine init_time_integr_mod
 
-  subroutine RK_sub_step4(sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
-    real(8) :: alpha(4), dt(2)
+  subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
+    real(8), dimension(2) :: dt
+    real(8), dimension(4) :: alpha
     type(Float_Field), dimension(:,:) :: sol1, sol2, sol3, sol4
     type(Float_Field), dimension(:,:) :: trend1, trend2
     type(Float_Field), dimension(:,:), intent(inout) :: dest
-    integer k, v, s, t, d, start
+    
+    integer :: k, v, s, t, d, start
 
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -58,7 +58,8 @@ contains
     type(Float_Field), dimension(:,:) :: sols
     type(Float_Field), dimension(:,:) :: trends
     type(Float_Field), dimension(:,:), intent(inout) :: dest
-    integer k, v, s, t, d, start
+    
+    integer :: k, v, s, t, d, start
 
     do k = 1, zlevels
        do d = 1, size(grid)

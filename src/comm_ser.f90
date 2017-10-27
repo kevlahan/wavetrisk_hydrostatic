@@ -192,7 +192,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     integer                        :: d, i, ierror, j, l, p
 
-    if (adapt_dt) dt = 1.0e16_8
+    dt = dt_init
     min_mass       = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0

@@ -44,7 +44,7 @@ contains
     time_mult = 1.0
   end subroutine init_main_mod
 
-  subroutine initialize(apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
+  subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
     external apply_init_cond, set_thresholds, custom_dump, custom_load
     character(20+4+4) command
     integer k, d, stage, ierr

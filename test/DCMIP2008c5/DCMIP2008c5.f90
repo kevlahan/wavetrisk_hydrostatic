@@ -282,6 +282,7 @@ contains
 
   subroutine write_and_export(iwrite)
     integer :: iwrite
+    
     integer :: l, k, zlev, d, u, i, p
 
     call trend_ml(sol, trend)
@@ -419,9 +420,9 @@ program DCMIP2008c5
   compressible = .true.  ! Compressible equations
   uniform      = .false. ! Type of vertical grid
 
-  if (.not. adapt_dt) dt = 238.0_8 ! Fixed time step
+  dt_init = 238.0_8 ! Initial time step (overwritten if dt_adapt is true)
 
-  cfl_num      = 0.8_8   ! cfl number
+  cfl_num = 0.8_8   ! cfl number
 
   ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_VELO,1:zlevels))
