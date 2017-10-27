@@ -416,7 +416,7 @@ program DCMIP2008c5
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
   ! Set logical switches
-  adapt_dt     = .false. ! Adapt time step
+  adapt_dt     = .true. ! Adapt time step
   diffusion    = .true.  ! Add diffusion
   compressible = .true.  ! Compressible equations
   remap        = .true. ! Remap vertical coordinates
@@ -440,10 +440,10 @@ program DCMIP2008c5
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
   ! Dissipation
-  viscosity_mass = 2.0e-3/kmax**2 ! viscosity for mass equation
-  viscosity_temp = 2.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 2.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 2.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_mass = 4.0e-3/kmax**2 ! viscosity for mass equation
+  viscosity_temp = 4.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ',  viscosity_mass
@@ -465,10 +465,10 @@ program DCMIP2008c5
   call barrier()
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
+  write_init = (resume .eq. NONE)
   if (write_init) call write_and_export (iwrite)
 
-  dt_init    = 238.0_8 ! Initial time step (overwritten if dt_adapt is true)
-  write_init = (resume .eq. NONE)
+  dt_init    = 238.0_8 ! Initial time step (not used if dt_adapt is true)
   iwrite     = 0
   total_time = 0.0_8
   do while (time .lt. time_end)
