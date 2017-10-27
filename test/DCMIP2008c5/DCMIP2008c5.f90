@@ -423,7 +423,7 @@ program DCMIP2008c5
   compressible = .true.  ! Compressible equations
   uniform      = .false. ! Type of vertical grid
 
-  cfl_num      = 1.0_8   ! cfl number
+  cfl_num      = 0.8_8   ! cfl number
 
   ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_VELO,1:zlevels))
@@ -442,16 +442,18 @@ program DCMIP2008c5
   VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
 
   ! Dissipation
-  viscosity_mass = 1d-2/kmax**2 ! viscosity for mass equation
-  viscosity_temp = 1d-2/kmax**2 ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 1d-2/kmax**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = viscosity_divu ! viscosity for divergent part of momentum equation
+  viscosity_mass = 4.0e-3/kmax**2 ! viscosity for mass equation
+  viscosity_temp = 4.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
 
-  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_mass    = ',  viscosity_mass
-  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_temp    = ',  viscosity_temp
-  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_divu    = ',  viscosity_divu
-  if (rank .eq. 0) write (6,'(A,es11.4)') 'Viscosity_rotu    = ',  viscosity_rotu
-  if (rank .eq. 0) write (6,*) ' '
+  if (rank .eq. 0) then
+     write(6,*)  'Viscosity_mass    = ',  viscosity_mass
+     write(6,*) 'Viscosity_temp    = ',  viscosity_temp
+     write(6,*) 'Viscosity_divu    = ',  viscosity_divu
+     write(6,*) 'Viscosity_rotu    = ',  viscosity_rotu
+     write(6,*) ' '
+  end if
 
   write_init = (resume .eq. NONE)
   iwrite = 0
@@ -480,7 +482,9 @@ program DCMIP2008c5
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
+     !call remap_vertical_coordinates()
      call set_surf_geopot()
+     
 
      call stop_timing()
      timing = get_timing()
@@ -500,7 +504,7 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        call remap_vertical_coordinates()
+        !call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle

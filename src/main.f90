@@ -253,7 +253,7 @@ contains
        grid(d)%divu%length        = init_state(d)%n_node
        grid(d)%exner%length       = init_state(d)%n_node
        grid(d)%vort%length        = init_state(d)%n_tria
-       grid(d)%qe%length          =  init_state(d)%n_edge
+       grid(d)%qe%length          = init_state(d)%n_edge
 
        ! For mass-based vertical coordinates
        grid(d)%adj_vflux%length         = init_state(d)%n_node

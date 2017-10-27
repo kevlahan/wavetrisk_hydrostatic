@@ -1117,8 +1117,10 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: csq, dx, full_mass, total_mass, vel, visc, wave_speed
+    real(8) :: A_i, A_v, C_visc, csq, d_e, full_mass, l_e, total_mass, v_e, visc, wave_speed
 
+    C_visc = 0.1_8
+    
     id = idx(i, j, offs, dims)
     d  = dom%id + 1
     l  = dom%level%elts(id+1)
@@ -1145,21 +1147,29 @@ contains
 
        visc = max (viscosity_mass, viscosity_temp, viscosity_rotu, viscosity_divu)
 
-       do e = 1, 3
+       do e = 1, EDGE
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
 
-             dx = min(dom%len%elts(EDGE*id+e), dom%pedlen%elts(EDGE*id+e))
+             d_e = dom%len%elts(EDGE*id+e)
+             l_e = dom%pedlen%elts(EDGE*id+e)
+             A_i = 1.0_8/dom%areas%elts(id+1)%hex_inv ! Hexagon area
+             A_v = max (dom%triarea%elts(TRIAG*id+LORT+1),dom%triarea%elts(TRIAG*id+UPLT+1)) ! Triangle areas
 
              ! Maximum velocity over all vertical levels
-             vel = 0.0_8
+             v_e = 0.0_8
              do k = 1, zlevels
-                vel  = max(vel, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
+                v_e  = max(v_e, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
              end do
              
-             if (dx.ne.0.0_8) then
-                dt = min (dt, cfl_num*dx/vel, cfl_num*dx/wave_speed)
-                if (diffusion) dt = min (dt, 1.0d1*dx**2/visc)
+             if (d_e.ne.0.0_8) then
+                dt = min (dt, cfl_num*d_e/v_e, cfl_num*d_e/wave_speed)
+
+                if (diffusion) dt = min (dt, &
+                     C_visc*A_i/viscosity_divu, &
+                     C_visc*A_v/viscosity_rotu, &
+                     C_visc*A_i/viscosity_temp, &
+                     C_visc*A_i/viscosity_mass)
              end if
           end if
        end do

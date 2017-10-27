@@ -151,7 +151,7 @@ contains
        mu(UP+1) = 0.5_8*(sol_old(S_MASS,k)%data(d)%elts(id_i)+sol_old(S_MASS,k)%data(d)%elts(idN))
        mu = mu + mean(S_MASS,k)
        ! Integrate momentum at vertical edges
-       do e = 1, 3
+       do e = 1, EDGE
           integrated_momentum(kb,e) = integrated_momentum(kb-1,e) + sol(S_VELO,k)%data(d)%elts(EDGE*id+e)*mu(e)
        end do
     end do
@@ -191,7 +191,7 @@ contains
        end if
    
        ! Interpolate mass, integrated temperature and momentum at top interfaces of new vertical grid
-       do e = 1, 3
+       do e = 1, EDGE
           new_momentum(kb,e) = Newton_interp(pressure(stencil), integrated_momentum(stencil,e), layer_pressure)
        end do
     end do
@@ -203,7 +203,7 @@ contains
        mu(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idNE))
        mu(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idN))
        mu = mu + mean(S_MASS,k)
-       do e = 1, 3
+       do e = 1, EDGE
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_momentum(zlevels-k+2,e) - new_momentum(zlevels-k+1,e))/mu(e)
        end do
     end do

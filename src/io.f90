@@ -526,7 +526,7 @@ contains
 
     d = dom%id+1
     
-    id   = idx(i,     j,     offs, dims)
+    id = idx(i, j, offs, dims)
     
     id_i = id + 1
     id_e = EDGE*id + 1
@@ -555,7 +555,7 @@ contains
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
     ! Least squares overdetermined matrix 
-    do e = 1, 3
+    do e = 1, EDGE
        A(e,1) = inner(dir(e), e_zonal)
        A(e,2) = inner(dir(e), e_merid)
     end do

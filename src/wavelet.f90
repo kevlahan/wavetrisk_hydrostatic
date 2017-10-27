@@ -9,6 +9,7 @@ module wavelet_mod
 contains
   subroutine init_wavelet_mod()
     logical :: initialized = .False.
+    
     if (initialized) return ! initialize only once
     call init_shared_mod()
     call init_domain_mod()
@@ -18,20 +19,16 @@ contains
   end subroutine init_wavelet_mod
 
   subroutine IWT_interp_vel_penta(dom, p, c, offs, dims, z_null)
-    type(Domain) dom
-    integer p
-    integer c
-    integer z_null
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
-    integer p_chd
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,9) :: dims_chd
-    integer id_chd
-    integer idN_chd
-    real(8) v
-    integer idE_chd
-    real(8), dimension(2) :: u
+    type(Domain)                   :: dom
+    integer                        :: p, c, z_null
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer                        :: id_chd,  idE_chd, idN_chd, p_chd
+    integer, dimension(N_BDRY+1)   :: offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_chd
+    real(8)                        :: v
+    real(8), dimension(2)          :: u
 
     p_chd = dom%patch%elts(p+1)%children(c-4)
 
@@ -78,22 +75,13 @@ contains
 
   end subroutine IWT_interp_vel_penta
 
-  subroutine IWT_interpolate_u_inner(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_chd
-    integer idN_chd
-    integer idE_chd
-    integer idNE_chd
+  subroutine IWT_interpolate_u_inner (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
+    integer               :: id_chd, idN_chd, idE_chd, idNE_chd
     real(8), dimension(6) :: u_inner
 
     id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
@@ -114,14 +102,12 @@ contains
     velo(EDGE*idNE_chd+UP+1) = u_inner(6) + wc_u(EDGE*idNE_chd+UP+1)
   end subroutine IWT_interpolate_u_inner
 
-  function coords_to_rowd(midpt, dirvec, x, y)
+  function coords_to_rowd (midpt, dirvec, x, y)
     real(8), dimension(6) :: coords_to_rowd
-    type(Coord) midpt
-    type(Coord) dirvec
-    type(Coord) x
-    type(Coord) y
-    real(8) u
-    real(8) v
+    type(Coord)           :: dirvec, x, y
+
+    type(Coord)           :: midpt
+    real(8)               :: u, v
     real(8), dimension(2) :: xy
 
     call normalize2(coord2local(dirvec, x, y), u, v)
@@ -129,59 +115,32 @@ contains
     coords_to_rowd = (/u, u*xy(1), u*xy(2), v, v*xy(1), v*xy(2)/)
   end function coords_to_rowd
 
-  function I_u_inner(dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, &
-       offs_chd, dims_chd, idE_UP, idE_DG, idNE_RT, idN_RT, idN_DG, idNE_UP)
-    real(8), dimension(6) :: I_u_inner
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer i_chd
-    integer j_chd
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer idE_UP
-    integer idE_DG
-    integer idNE_RT
-    integer idN_RT
-    integer idN_DG
-    integer idNE_UP
+  function I_u_inner (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, &
+       idE_UP, idE_DG, idNE_RT, idN_RT, idN_DG, idNE_UP)
+    real(8), dimension(6)          :: I_u_inner
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, idE_UP, idE_DG, idNE_RT, idN_RT, idN_DG,  idNE_UP
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    integer               :: id, id_par, id1_par, id2_par, k, idN, idUP, idDG, idRT, idE, idNE, idN2E, id2NE, idN2, idE2
+    real(8), dimension(2) :: curl_u
     real(8), dimension(6) :: u
-    integer id_par
-    real(8), dimension(2) :: omega
-    integer k
-    integer id1_par
-    integer id2_par
-    integer id
-    integer idN
-    integer idUP
-    integer idDG
-    integer idRT
-    integer idE
-    integer idNE
-    integer idN2E
-    integer id2NE
-    integer idN2
-    integer idE2
-
-    u = 0.0_8
+   
     id_par = idx(i_par, j_par, offs_par, dims_par)
-    omega = 0.0_8
 
-    do k = 1, 2
+    curl_u = 0.0_8
+    do k = 1, TRIAG
        id1_par = idx(i_par - k + 2, j_par,         offs_par, dims_par)
        id2_par = idx(i_par,         j_par + k - 1, offs_par, dims_par)
-       omega(k) = &
-            1.0_8/dom%triarea%elts(TRIAG*id_par+k)*(velo(DG+EDGE*id_par+1)*dom%len%elts(DG+EDGE*id_par+1) &
-            + &
-            velo(EDGE*id1_par+UP+1)*dom%len%elts(EDGE*id1_par+UP+1) &
-            + &
-            velo(EDGE*id2_par+RT+1)*dom%len%elts(EDGE*id2_par+RT+1))
+       curl_u(k) = (velo(DG+EDGE*id_par+1)*dom%len%elts(DG+EDGE*id_par+1) &
+                  + velo(EDGE*id1_par+UP+1)*dom%len%elts(EDGE*id1_par+UP+1) &
+                  + velo(EDGE*id2_par+RT+1)*dom%len%elts(EDGE*id2_par+RT+1)) &
+                  / dom%triarea%elts(TRIAG*id_par+k)
     end do
 
-    id = idx(i_chd, j_chd, offs_chd, dims_chd)
-    idN  = idx(i_chd, j_chd + 1, offs_chd, dims_chd)
+    id    = idx(i_chd, j_chd, offs_chd, dims_chd)
+    idN   = idx(i_chd, j_chd + 1, offs_chd, dims_chd)
     idUP  = EDGE*id + UP
     idDG  = EDGE*id + DG
     idRT  = EDGE*id + RT
@@ -192,34 +151,36 @@ contains
     idN2  = idx(i_chd,     j_chd + 2, offs_chd, dims_chd)
     idE2  = idx(i_chd + 2, j_chd,     offs_chd, dims_chd)
 
-    u(1) = (dom%triarea%elts(LORT+TRIAG*id+1)*omega(1) - &
+    u = 0.0_8
+    
+    u(1) = (dom%triarea%elts(LORT+TRIAG*id+1)*curl_u(1) - &
          velo(idRT+1)*dom%len%elts(idRT+1) - &
          velo(idDG+1)*dom%len%elts(idDG+1))/dom%len%elts(idE_UP+1)
 
-    u(2) = (dom%triarea%elts(LORT+TRIAG*idE+1)*omega(1) - &
+    u(2) = (dom%triarea%elts(LORT+TRIAG*idE+1)*curl_u(1) - &
          velo(EDGE*idE+RT+1)*dom%len%elts(EDGE*idE+RT+1) - &
          velo(EDGE*idE2+UP+1)*dom%len%elts(EDGE*idE2+UP+1))/dom%len%elts(idE_DG+1)
 
-    u(3) = (dom%triarea%elts(LORT+TRIAG*idNE+1)*omega(1) - &
+    u(3) = (dom%triarea%elts(LORT+TRIAG*idNE+1)*curl_u(1) - &
          velo(DG+EDGE*idNE+1)*dom%len%elts(DG+EDGE*idNE+1) - &
          velo(EDGE*idN2E+UP+1)*dom%len%elts(EDGE*idN2E+UP+1))/dom%len%elts(idNE_RT+1)
 
-    u(4) = (dom%triarea%elts(TRIAG*id+UPLT+1)*omega(2) - &
+    u(4) = (dom%triarea%elts(TRIAG*id+UPLT+1)*curl_u(2) - &
          velo(idUP+1)*dom%len%elts(idUP+1) - &
          velo(idDG+1)*dom%len%elts(idDG+1))/dom%len%elts(idN_RT+1)
 
-    u(5) = (dom%triarea%elts(TRIAG*idN+UPLT+1)*omega(2) - &
+    u(5) = (dom%triarea%elts(TRIAG*idN+UPLT+1)*curl_u(2) - &
          velo(EDGE*idN+UP+1)*dom%len%elts(EDGE*idN+UP+1) - &
          velo(EDGE*idN2+RT+1)*dom%len%elts(EDGE*idN2+RT+1))/dom%len%elts(idN_DG+1)
 
-    u(6) = (dom%triarea%elts(TRIAG*idNE+UPLT+1)*omega(2) - &
+    u(6) = (dom%triarea%elts(TRIAG*idNE+UPLT+1)*curl_u(2) - &
          velo(DG+EDGE*idNE+1)*dom%len%elts(DG+EDGE*idNE+1) - &
          velo(EDGE*id2NE+RT+1)*dom%len%elts(EDGE*id2NE+RT+1))/dom%len%elts(idNE_UP+1)
 
     I_u_inner = u
   end function I_u_inner
 
-  subroutine forward_wavelet_transform(loc_var, wav)
+  subroutine forward_wavelet_transform (loc_var, wav)
     type(Float_Field), dimension(:,:), target :: loc_var, wav
     
     integer :: k, l, d
@@ -398,31 +359,27 @@ contains
          hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims) + 1)/))
   end function interp_outer_u
 
-  subroutine cpt_vel_wc_penta(dom, p, c, offs, dims, zlev)
-    type(Domain) dom
-    integer p
-    integer c
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
-    integer p_chd
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,9) :: dims_chd
-    integer id_chd
-    integer idN_chd
-    real(8) v
-    integer idE_chd
-    real(8), dimension(2) :: u
+  subroutine cpt_vel_wc_penta (dom, p, c, offs, dims, zlev)
+    type(Domain)                   :: dom
+    integer                        :: p, c, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer                        :: id_chd, idE_chd, idN_chd, p_chd
+    integer, dimension(N_BDRY+1)   :: offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_chd
+    real(8)                        :: v
+    real(8), dimension(2)          :: u
 
     p_chd = dom%patch%elts(p+1)%children(c-4)
 
     if (p_chd .eq. 0) return
 
-    call get_offs_Domain(dom, p_chd, offs_chd, dims_chd)
+    call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
 
     if (c .eq. IMINUSJPLUS) then
-       id_chd = idx(0, LAST - 1, offs_chd, dims_chd)
-       idN_chd = idx(0, LAST, offs_chd, dims_chd)
+       id_chd  = idx(0, LAST-1, offs_chd, dims_chd)
+       idN_chd = idx(0, LAST,   offs_chd, dims_chd)
 
        v = -(Iu_Base_Wgt(8) + dble(dom%I_u_wgt%elts(idN_chd+1)%enc(8)))*( &
             velo(idx(0, PATCH_SIZE, offs, dims)*EDGE + UP + 1) &
@@ -467,16 +424,12 @@ contains
   end subroutine cpt_vel_wc_penta
 
   function vel_interp_penta_corr (dom, offs, dims, offs_chd, dims_chd)
-    real(8), dimension(2) :: vel_interp_penta_corr
-    type(Domain) dom
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,9) :: dims_chd
-    integer i
-    integer j
-    integer i_chd
-    integer j_chd
+    real(8), dimension(2)          :: vel_interp_penta_corr
+    type(Domain)                   :: dom
+    integer, dimension(N_BDRY+1)   :: offs, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims, dims_chd
+    
+    integer :: i, j, i_chd, j_chd
 
     i = 0
     j = 0
@@ -502,14 +455,10 @@ contains
          hex_sides(:,hex_s_offs(RT+1) + 2 + 1), offs, dims) + 1)))/)
   end function vel_interp_penta_corr
 
-  real(8) function I_p(dom, var, id, id1, id2, id3, id4)
-    type(Domain) dom
-    real(8), pointer :: var(:)
-    integer id
-    integer id1
-    integer id2
-    integer id3
-    integer id4
+  real(8) function I_p (dom, var, id, id1, id2, id3, id4)
+    type(Domain)                   :: dom
+    real(8), dimension(:), pointer :: var
+    integer                        :: id, id1, id2, id3, id4
 
     I_p = (dom%overl_areas%elts(id+1)%a(1)*var(id1+1) + &
          dom%overl_areas%elts(id+1)%a(2)*var(id2+1) + &
@@ -517,27 +466,23 @@ contains
          dom%overl_areas%elts(id+1)%a(4)*var(id4+1))*dom%areas%elts(id+1)%hex_inv
   end function I_p
 
-  subroutine basic_F_restr_wgt(dom, i_par, j_par, e, offs_par, dims_par, i0, j0, &
-       offs, dims, typ)
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer e
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer i0, j0
-    integer i, j
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer, dimension(2) :: typ
-    integer, dimension(3,16) :: ije
-    integer, dimension(2) :: ij_nbp_mp
-    integer, dimension(2) :: ij_nbp_pp
-    integer, dimension(2) :: ij_nbp_pm
-    integer, dimension(2) :: ij_nbp_mm
-    integer k, id_enc(4)
-    integer, dimension(3) :: ije_lcsd
-    real(8), dimension(6) :: wgt
+  subroutine basic_F_restr_wgt (dom, i_par, j_par, e, offs_par, dims_par, i0, j0, offs, dims, typ)
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, e, i0, j0
+    integer, dimension(N_BDRY+1)   :: offs_par
+    integer, dimension(2,N_BDRY+1) :: dims_par
+    integer, dimension(2)          :: typ
+    
+    integer                        :: i, j, k
+
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer, dimension(3,16)       :: ije
+
+    integer, dimension(2)          :: ij_nbp_mp, ij_nbp_pp, ij_nbp_pm, ij_nbp_mm
+    integer, dimension(3)          :: ije_lcsd
+    integer, dimension(4)          :: id_enc
+    real(8), dimension(6)          :: wgt
 
     if (e .eq. UP) then
        id_enc = (/idx(i0-2,j0, offs, dims), idx(i0-2,j0+1, offs, dims), &
@@ -643,23 +588,20 @@ contains
 
   contains
 
-    function interp_F_wgts(e, k1, ije_lcsd, endpt_o, ije, stencil)
-      real(8), dimension(6) :: interp_F_wgts
-      integer e
-      integer k1
-      integer, dimension(3) :: ije_lcsd
-      type(Coord) endpt_o
+    function interp_F_wgts (e, k1, ije_lcsd, endpt_o, ije, stencil)
+      real(8), dimension(6)    :: interp_F_wgts
+      integer                  :: e, k1
       integer, dimension(3,16) :: ije
-      integer, dimension(9) :: stencil
-      integer id_tri
-      type(Coord) x
-      type(Coord) y
+      integer, dimension(9)    :: stencil
+      type(Coord)              :: endpt_o
+      
+      integer                 :: id_tri, info
+      integer, dimension(3)   :: ije_lcsd
+      integer, dimension(6)   :: ipiv
       real(8), dimension(6,6) :: G
-      type(Coord) endpt
-      real(8), dimension(6) :: b
-      integer, dimension(6) :: ipiv
-      integer info
-
+      real(8), dimension(6)   :: b
+      type(Coord)             :: endpt, x, y
+      
       id_tri = tri_idx(ije_lcsd(1), ije_lcsd(2), adj_tri(:,-k1+2,ije_lcsd(3) + 1), offs, dims)
 
       call local_coord(dom%ccentre%elts(id_tri+1), &
@@ -682,13 +624,12 @@ contains
       return
     end function interp_F_wgts
 
-    function coords_to_row_perp(coords, x, y)
-      real(8), dimension(6) :: coords_to_row_perp
+    function coords_to_row_perp (coords, x, y)
+      real(8), dimension(6)     :: coords_to_row_perp
       type(Coord), dimension(2) :: coords
-      type(Coord) x
-      type(Coord) y
-      type(Coord) midpt
-      type(Coord) dirvec
+      type(Coord)               :: x, y
+      
+      type(Coord) :: dirvec, midpt
 
       midpt = mid_pt(coords(1), coords(2))
 
@@ -697,18 +638,14 @@ contains
       coords_to_row_perp = coords_to_rowd(midpt, dirvec, x, y)*dist(coords(1), coords(2))
     end function coords_to_row_perp
 
-    function coords_to_row(ije0, x, y)
+    function coords_to_row (ije0, x, y)
       real(8), dimension(6) :: coords_to_row
       integer, dimension(3) :: ije0
-      type(Coord) x
-      type(Coord) y
-      integer i
-      integer j
-      integer e
-      type(Coord) endpt1
-      type(Coord) endpt2
-      real(8) pedlen
-      type(Coord) midpt
+      type(Coord)           :: x, y
+      
+      integer     :: i, j, e
+      type(Coord) :: endpt1, endpt2, midpt
+      real(8)     :: pedlen
 
       i = ije0(1)
       j = ije0(2)
@@ -729,25 +666,14 @@ contains
   end subroutine basic_F_restr_wgt
 
   subroutine cpt_velo_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    !compute wavelet coefficients of velocity
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_chd
-    integer idN_chd
-    integer idE_chd
-    integer idNE_chd
-    integer e
-    integer id1
-    integer id2
-    real(8) u
+    ! Compute wavelet coefficients of velocity
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer               :: e, id1, id2, id_chd, idN_chd, idE_chd, idNE_chd
+    real(8)               :: u
     real(8), dimension(6) :: u_inner
 
     id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
@@ -788,9 +714,7 @@ contains
   end subroutine cpt_velo_wc
 
   subroutine init_wavelets()
-    integer :: d
-    integer :: num
-    integer :: i, k, v
+    integer :: d, i, k, num, v
 
     do k = 1, zlevels
        do v = S_MASS, S_VELO
@@ -825,28 +749,19 @@ contains
     end do
   end subroutine init_wavelets
 
-  subroutine get_overl_areas(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, offs_chd, dims_chd, e, area, typ)
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer e
-    real(8), dimension(8) :: area
-    integer, dimension(2) :: typ
-    integer i
-    type(Coord), dimension(6) :: hex
+  subroutine get_overl_areas (dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, offs_chd, dims_chd, e, area, typ)
+    type(Domain)                   :: dom
+    integer                        :: e, i_par, j_par, i_chd, j_chd
+    integer, dimension(2)          :: typ
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    real(8), dimension(8)          :: area
+    
+    type(Coord), dimension(6)   :: hex
     type(Coord), dimension(3,2) :: tri
-    type(Coord) pt
-    type(Coord) inters_pt0
-    logical does_inters0
-    type(Coord) inters_pt1
-    logical does_inters1
-    logical troubles
+    type(Coord)                 :: inters_pt0, inters_pt1, pt
+    integer                     :: i
+    logical                     :: does_inters0, does_inters1, troubles
 
     area = 0.0_8
     typ = 0
@@ -916,27 +831,24 @@ contains
     return
   end subroutine get_overl_areas
 
-  subroutine normalize2(q, u, v)
+  subroutine normalize2 (q, u, v)
     real(8), dimension(2) :: q
-    real(8) nrm
-    real(8) u
-    real(8) v
+    real(8)               :: nrm, u, v
+
     nrm = sqrt(q(1)**2 + q(2)**2)
     u = q(1)/nrm
     v = q(2)/nrm
   end subroutine normalize2
 
-  subroutine IWT_inject_h_and_undo_update__fast(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    type(Domain) :: dom
-    integer :: i_par, j_par, i_chd, j_chd
-    integer :: zlev
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
+  subroutine IWT_inject_h_and_undo_update__fast (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
     integer :: id_par, id_chd
    
-    ! locally filled, IWT reproduces previous value
+    ! Locally filled, IWT reproduces previous value
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
@@ -948,7 +860,7 @@ contains
     temp(id_chd+1) = inject(temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine IWT_inject_h_and_undo_update__fast
 
-  subroutine IWT_inject_h_and_undo_update(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine IWT_inject_h_and_undo_update (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -966,16 +878,16 @@ contains
   end subroutine IWT_inject_h_and_undo_update
 
   function inject (scalar, wav, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    real(8) :: inject
-    real(8) :: scalar
-    type(Domain) :: dom
-    integer :: id_par, i_chd, j_chd
+    real(8)                        :: scalar
     real(8), dimension(:), pointer :: wav
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
+    type(Domain)                   :: dom
+    integer                        :: id_par, i_chd, j_chd
+    integer, dimension(N_BDRY+1)   :: offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_chd
 
     integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
-  
+    real(8) :: inject
+    
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
     idN2E = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
@@ -1004,27 +916,14 @@ contains
          wav(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end function inject
 
-  subroutine cpt_scalar_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    !compute wavelet coefficients for mass and potential temperature
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_chd
-    integer idN_chd
-    integer idE_chd
-    integer idNE_chd
-    integer id2N_chd
-    integer id2E_chd
-    integer id2S_chd
-    integer id2W_chd
-    integer id2NE_chd
+  subroutine cpt_scalar_wc (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Compute wavelet coefficients for mass and potential temperature
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
 
     id_chd    = idx(i_chd,     j_chd,     offs_chd, dims_chd)
     idN_chd   = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
@@ -1050,30 +949,16 @@ contains
        wc_m(idE_chd+1) = mass(idE_chd+1) - I_p(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
        wc_t(idE_chd+1) = temp(idE_chd+1) - I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
     end if
-
   end subroutine cpt_scalar_wc
 
-  subroutine IWT_interp_wc_scalar(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    !inverse transform for mass and potential temperature: interpolate and add wavelet coefficent
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,9) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,9) :: dims_chd
-    integer id_chd
-    integer idN_chd
-    integer idE_chd
-    integer idNE_chd
-    integer id2N_chd
-    integer id2E_chd
-    integer id2S_chd
-    integer id2W_chd
-    integer id2NE_chd
+  subroutine IWT_interp_wc_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Inverse transform for mass and potential temperature: interpolate and add wavelet coefficent
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     if (dom%mask_n%elts(id_chd+1) .eq. FROZEN) return ! FROZEN mask -> do not overide with wrong value
@@ -1098,13 +983,10 @@ contains
     temp(idE_chd+1)  = I_p(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd) + wc_t(idE_chd+1)
   end subroutine IWT_interp_wc_scalar
 
-  subroutine local_coord(midpt, endpt1, endpt2, x, y)
-    type(Coord) midpt
-    type(Coord) endpt1
-    type(Coord) endpt2
-    type(Coord) x
-    type(Coord) y0
-    type(Coord) y
+  subroutine local_coord (midpt, endpt1, endpt2, x, y)
+    type(Coord) :: midpt, endpt1, endpt2, x, y
+
+    type(Coord) :: y0
 
     x = direction(endpt1, endpt2)
     y0 = cross(x, midpt)
@@ -1112,25 +994,19 @@ contains
     return
   end subroutine local_coord
 
-  type(Iu_Wgt) function outer_velo_weights(dom, p, i0, j0, e0, offs, dims)
-    type(Domain) dom
-    integer p
-    integer i0
-    integer j0
-    integer e0
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    type(Coord) x
-    type(Coord) y
-    real(8), dimension(9) :: weights
-    integer k
-    integer id
-    real(8), dimension(6,6) :: G
-    real(8), dimension(6) :: b
-    integer, dimension(6) :: ipiv
-    integer info
+  type(Iu_Wgt) function outer_velo_weights (dom, p, i0, j0, e0, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: p, i0, j0, e0
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    call local_coord(dom%midpt%elts(idx(i0, j0, offs, dims)*EDGE + e0 + 1), &
+    type(Coord)             :: x, y
+    integer                 :: k, id, info
+    real(8), dimension(9)   :: weights
+    real(8), dimension(6)   :: b, ipiv
+    real(8), dimension(6,6) :: G
+
+    call local_coord (dom%midpt%elts(idx(i0, j0, offs, dims)*EDGE + e0 + 1), &
          dom%node%elts(idx(i0 + end_pt(1,1,e0+1), j0 + end_pt(2,1,e0+1), &
          offs, dims) + 1), dom%node%elts(idx(i0 + end_pt(1,2,e0+1), j0 + &
          end_pt(2,2,e0+1), offs, dims) + 1), x, y)
@@ -1191,19 +1067,15 @@ contains
 
   contains
 
-    function coords_to_row(i00, j00, n_offs1, n_offs2, e00)
+    function coords_to_row (i00, j00, n_offs1, n_offs2, e00)
       real(8), dimension(6) :: coords_to_row
-      integer i00
-      integer j00
+      integer               :: e00, i00, j00
       integer, dimension(2) :: n_offs1
       integer, dimension(3) :: n_offs2
-      integer e00
-      integer i
-      integer j
-      integer e
-      type(Coord) endpt1
-      type(Coord) endpt2
-
+      
+      type(Coord) :: endpt1, endpt2
+      integer     :: i, j, e
+      
       i = i00 + n_offs1(1) + n_offs2(1)
       j = j00 + n_offs1(2) + n_offs2(2)
 
@@ -1212,14 +1084,12 @@ contains
       endpt1 = get_coord(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), e00)
       endpt2 = get_coord(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), e00)
 
-      coords_to_row = coords_to_rowd(mid_pt(endpt1, endpt2), vector(endpt1, &
-           endpt2), x, y)
+      coords_to_row = coords_to_rowd(mid_pt(endpt1, endpt2), vector(endpt1, endpt2), x, y)
     end function coords_to_row
 
-    type(Coord) function get_coord(i, j, e)
-      integer i
-      integer j
-      integer e
+    function get_coord (i, j, e)
+      type(Coord) ::  get_coord
+      integer     :: i, j, e
 
       if (i .eq. -1) then
          if (j .eq. -1 .and. is_penta(dom, p, IJMINUS - 1)) then
@@ -1267,14 +1137,12 @@ contains
 
   function coord2local(c, x, y)
     real(8), dimension(2) :: coord2local
-    type(Coord) c
-    type(Coord) x
-    type(Coord) y
+    type(Coord)           :: c, x, y
 
     coord2local = (/inner(c, x), inner(c, y)/)
   end function coord2local
 
-  subroutine IWT_interpolate_u_outer_add_wc(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine IWT_interpolate_u_outer_add_wc (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -1323,25 +1191,16 @@ contains
     end do
   end subroutine IWT_interpolate_u_outer
 
-  subroutine set_RF_wgts(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    type(Domain) dom
-    integer p_chd
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_chd
-    integer idN_chd
-    integer idE_chd
-    integer idNE_chd
-    real(8), dimension(8) :: area
+  subroutine set_RF_wgts (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd,  p_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    integer               :: id_chd, idN_chd, idE_chd, idNE_chd
     integer, dimension(2) :: typ
-
+    real(8), dimension(8) :: area
+    
     id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
     idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
     idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
@@ -1361,7 +1220,7 @@ contains
     call set_coarse_overlay()
   end subroutine set_RF_wgts
 
-  subroutine set_coarse_overlay()
+  subroutine set_coarse_overlay ()
     ! Set overlay quantities on coarsest level
     integer :: d, p
 
@@ -1371,36 +1230,27 @@ contains
     end do
   end subroutine set_coarse_overlay
 
- subroutine zero_overlay(dom, i, j, zlev, offs, dims)
+ subroutine zero_overlay (dom, i, j, zlev, offs, dims)
     ! Sets overlay values to zero
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id
 
-    id   = idx(i,     j,     offs, dims)
+    id = idx(i, j, offs, dims)
     dom%overl_areas%elts(id+1)%a     = 0.0_8
     dom%overl_areas%elts(id+1)%split = 0.0_8
   end subroutine zero_overlay
 
-  subroutine set_WT_wgts(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    type(Domain) dom
-    integer p_chd
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_chd
-    integer idN_chd
-    integer idE_chd
+  subroutine set_WT_wgts (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    type(Domain)                   :: dom
+    integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_chd, idN_chd, idE_chd
 
     id_chd  = idx(i_chd,     j_chd,     offs_chd, dims_chd)
     idN_chd = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
@@ -1437,33 +1287,15 @@ contains
          velo(EDGE*id_par+UP+1) = 0.5_8*(velo(EDGE*id_chd+UP+1) + velo(EDGE*idN_chd+UP+1))
   end subroutine restrict_u
 
-  subroutine check_m(dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, &
-       offs_chd, dims_chd)
-    !check_m is an unused subroutine
-    type(Domain) dom
-    integer i_par
-    integer j_par
-    integer i_chd
-    integer j_chd
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer id_chd
-    integer id_par
-    integer idE
-    integer idNE
-    integer idN2E
-    integer id2NE
-    integer idN
-    integer idW
-    integer idNW
-    integer idS2W
-    integer idSW
-    integer idS
-    integer id2SW
-    integer idSE
-    real(8) ratio
+  subroutine check_m (dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par,  offs_chd, dims_chd)
+    ! Check_m is an unused subroutine
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_chd, id_par, idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
+    real(8) :: ratio
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     id_par = idx(i_par, j_par, offs_par, dims_par)
@@ -1516,13 +1348,13 @@ contains
   end subroutine restrict_scalar
 
   function restrict_s (scalar, wc, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    real(8) :: restrict_s
-    real(8) :: scalar
+    real(8)                        :: restrict_s
+    real(8)                        :: scalar
     real(8), dimension(:), pointer :: wc
-    type(Domain) :: dom
-    integer ::  id_par, i_chd, j_chd
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
+    type(Domain)                   :: dom
+    integer                        :: id_par, i_chd, j_chd
+    integer, dimension(N_BDRY+1)   :: offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_chd
     
     integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE, d
    

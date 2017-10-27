@@ -256,12 +256,11 @@ module shared_mod
   integer, dimension(2,4,3) :: bfly_no2
 
   ! used in grid smoothing routine
-  integer :: O2(2,3)
+  integer, dimension(2,3) :: O2 
   data O2 /2,3, 3,1, 1,2/ 
 
   ! indices of prognostic variables in sol, trend etc
   integer, parameter :: S_MASS = 1, S_TEMP = 2, S_VELO = 3
-  integer, parameter :: F_BERN = 1, F_EXNER = 2, F_QE = 3
 
   ! number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
   integer, dimension(S_MASS:S_VELO) :: MULT
@@ -380,7 +379,6 @@ contains
     viscosity_temp   = 0.0_8
     viscosity_divu   = 0.0_8
     viscosity_rotu   = 0.0_8
-
   end subroutine init_shared_mod
 
   real(8) function eps()
@@ -388,8 +386,9 @@ contains
   end function eps
 
   integer function max_nodes_per_level(lev, entity)
-    integer lev
+    integer           :: lev
     integer, optional :: entity
+    
     max_nodes_per_level = 10*4**lev
     if (present(entity)) then 
        max_nodes_per_level = max_nodes_per_level*entity
@@ -400,6 +399,7 @@ contains
 
   real(8) function exp__flush(x)
     real(8) :: x
+    
     if (x .gt. -100.0_8) then
        exp__flush = exp(x)
     else

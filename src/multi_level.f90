@@ -123,6 +123,8 @@ contains
           bernoulli => grid(d)%bernoulli%elts
           exner     => grid(d)%exner%elts
           qe        => grid(d)%qe%elts
+          divu      => grid(d)%divu%elts
+          vort      => grid(d)%vort%elts
 
           ! Compute pressure, geopotential, Exner (compressible case), specific volume
           do j = 1, grid(d)%lev(level_end)%length
@@ -141,7 +143,7 @@ contains
             end do
          end if
 
-          nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, qe)
+          nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, qe, divu, vort)
        end do
 
        if (level_start .lt. level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
@@ -199,8 +201,8 @@ contains
           dvelo   => dq(S_VELO,k)%data(d)%elts
           h_mflux => horiz_flux(S_MASS)%data(d)%elts
           qe      => grid(d)%qe%elts
-          divu    =>  grid(d)%divu%elts
-          vort    =>  grid(d)%vort%elts
+          divu    => grid(d)%divu%elts
+          vort    => grid(d)%vort%elts
 
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
@@ -247,10 +249,11 @@ contains
              call update_vector_bdry__start(horiz_flux, l) 
              do d = 1, size(grid)
                 velo => q(S_VELO,k)%data(d)%elts
+                divu =>  grid(d)%divu%elts
                 do j = 1, grid(d)%lev(l)%length
                    call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
                 end do
-                nullify (velo)
+                nullify (velo, divu)
              end do
              call update_vector_bdry__finish(horiz_flux, l)
           else
