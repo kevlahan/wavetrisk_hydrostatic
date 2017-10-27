@@ -768,22 +768,13 @@ contains
 
   subroutine du_Qperp_Enstrophy (dom, i, j, zlev, offs, dims)
     !compute enstrophy-conserving Qperp and store it in dvelo [Aechtner thesis page 44]
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer idNW
-    integer idN
-    integer idNE
-    integer idW
-    integer id
-    integer idE
-    integer idSW
-    integer idS
-    integer idSE
-    real(8) wgt1(5), wgt2(5)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
+    real(8), dimension(5) :: wgt1, wgt2
 
     idNW = idx(i - 1, j + 1, offs, dims)
     idN  = idx(i,     j + 1, offs, dims)
@@ -795,7 +786,7 @@ contains
     idS  = idx(i,     j - 1, offs, dims)
     idSE = idx(i + 1, j - 1, offs, dims)
 
-    wgt1 = get_weights(dom, id, 0)
+    wgt1 = get_weights(dom, id,  0)
     wgt2 = get_weights(dom, idE, 3)
 
     dvelo(EDGE*id+RT+1) = qe(EDGE*id+RT+1)*( &
@@ -813,7 +804,7 @@ contains
          sum(horiz_flux(S_MASS)%data(dom%id+1)%&
          elts((/ EDGE*idE+UP, EDGE*idNE+RT, DG+EDGE*idNE, EDGE*idNE+UP, EDGE*idN+RT/)+1) * wgt2))
 
-    wgt1 = get_weights(dom, id, 2)
+    wgt1 = get_weights(dom, id,  2)
     wgt2 = get_weights(dom, idN, 5)
 
     dvelo(EDGE*id+UP+1) = qe(EDGE*id+UP+1)*( &
@@ -837,13 +828,13 @@ contains
 
   subroutine du_Qperp (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving Qperp and add it to dvelo [Aechtner thesis page 44]
-    type(Domain)                     :: dom
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
-    real(8) :: wgt1(5), wgt2(5)
+    integer               :: e, id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
+    real(8), dimension(5) :: wgt1, wgt2
 
     idNW = idx(i - 1, j + 1, offs, dims)
     idN  = idx(i,     j + 1, offs, dims)
@@ -931,7 +922,7 @@ contains
          qe(EDGE*id+UP+1))*wgt2(5)
 
     do e = 1, EDGE
-       dvelo(EDGE*id+e) =  dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e)
+       dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e)
     end do
   end subroutine du_Qperp
 

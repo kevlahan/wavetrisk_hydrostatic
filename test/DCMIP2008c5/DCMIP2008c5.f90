@@ -10,7 +10,6 @@ module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
   integer, allocatable :: n_patch_old(:), n_node_old(:)
   real(8)         :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
   real(8)         :: initotalmass, totalmass, timing, total_time, dh
-  real(8)         :: csq, VELO_SCALE, max_dh
   logical         :: wasprinted
   logical         :: uniform  ! Uniform or non-uniform grid in pressure
   character (255) :: IC_file
@@ -58,7 +57,7 @@ contains
     real(4) timing
     timing = get_timing()
     if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
-         time, dt, timing, level_end, n_active, VELO_SCALE
+         time, dt, timing, level_end, n_active
   end subroutine write_and_print_step
 
   subroutine initialize_a_b_vert()
@@ -343,19 +342,17 @@ contains
 
   subroutine DCMIP2008c5_dump(fid)
     integer fid
-    write(fid) VELO_SCALE
     write(fid) iwrite
   end subroutine DCMIP2008c5_dump
 
   subroutine DCMIP2008c5_load(fid)
     integer fid
-    read(fid) VELO_SCALE
     read(fid) iwrite
   end subroutine DCMIP2008c5_load
 
   subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = VELO_SCALE * sqrt(csq)/grav_accel * threshold**(1.5_8)
-    tol_velo = VELO_SCALE                        * threshold**(1.5_8)
+    tol_mass = threshold**(1.5_8)
+    tol_velo = threshold**(1.5_8)
     tol_temp = tol_mass
   end subroutine set_thresholds
 end module DCMIP2008c5_mod
@@ -438,9 +435,6 @@ program DCMIP2008c5
   dx_max = 2.0_8*MATH_PI * radius
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
-  csq        = grav_accel*radius 
-  VELO_SCALE = grav_accel*dh/sqrt(csq)  ! Characteristic velocity based on initial perturbation !JEMF must set dh
-
   ! Dissipation
   viscosity_mass = 4.0e-3/kmax**2 ! viscosity for mass equation
   viscosity_temp = 4.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
@@ -448,7 +442,7 @@ program DCMIP2008c5
   viscosity_rotu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
-     write(6,*)  'Viscosity_mass    = ',  viscosity_mass
+     write(6,*) 'Viscosity_mass    = ',  viscosity_mass
      write(6,*) 'Viscosity_temp    = ',  viscosity_temp
      write(6,*) 'Viscosity_divu    = ',  viscosity_divu
      write(6,*) 'Viscosity_rotu    = ',  viscosity_rotu
@@ -492,11 +486,10 @@ program DCMIP2008c5
      
      call write_and_print_step()
 
-     if (rank .eq. 0) write(*,'(A,es10.4,A,es10.4,2(A,ES10.4),A,I9,A,ES9.2)') &
+     if (rank .eq. 0) write(*,'(3(A,ES10.4),A,I9,A,ES9.2)') &
           ' time [h] = ', time/3600.0_8, &
           ' dt [s] = ', dt, &
           ' min. mass = ', min_mass, &
-          ' VELO_SCALE = ', VELO_SCALE, &
           ' d.o.f. = ', sum(n_active), &
           ' cpu = ', timing
 

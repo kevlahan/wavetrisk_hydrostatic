@@ -521,19 +521,13 @@ contains
   end subroutine set_penta
 
   subroutine assign_coord(dom, p, ne, se, sw, nw)
-    type(Domain) dom
-    integer p
-    type(Coord) ne
-    type(Coord) se
-    type(Coord) sw
-    type(Coord) nw
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer l
-    integer pc_incr
-    integer pf_offs
-    integer j
-    integer i
+    type(Domain) :: dom
+    integer      :: p
+    type(Coord)  :: ne, se, sw, nw
+
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer                        :: i, j, l, pc_incr, pf_offs
 
     call get_offs_Domain(dom, p, offs, dims)
 
@@ -576,14 +570,14 @@ contains
     end do
   end subroutine assign_coord
 
-  subroutine cpt_areas(dom, p, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer p
-    integer i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer idNW, idN, idNE, idW, id, idE, idSW, idS, idSE
-    type(Areas) area
+  subroutine cpt_areas (dom, p, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: idNW, idN, idNE, idW, id, idE, idSW, idS, idSE
+    type(Areas) :: area
 
     idNW = idx(i - 1, j + 1, offs, dims)
     idN  = idx(i,     j + 1, offs, dims)
@@ -624,10 +618,9 @@ contains
     dom%areas%elts(id+1) = area
   end subroutine cpt_areas
 
-  integer function sub_dom_id(i, j, s, rot)
-    integer i, j
-    integer s
-    integer rot
+  integer function sub_dom_id (i, j, s, rot)
+    integer :: i, j, s, rot
+    
     integer, dimension(2) :: ij
 
     ij = (/i, j/)
@@ -639,13 +632,13 @@ contains
     sub_dom_id = ij(2)*N_SUB_DOM_PER_DIM + ij(1)
   end function sub_dom_id
 
-  subroutine ccentre(dom, p, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer p
-    integer i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, idN, idE, idNE, idS, idW
+  subroutine ccentre (dom, p, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id, idN, idE, idNE, idS, idW
 
     id   = idx(i, j, offs, dims)
     idN  = idx(i,     j + 1, offs, dims)
@@ -658,14 +651,13 @@ contains
     dom%ccentre%elts(TRIAG*id+UPLT+1) = circumcentre(dom%node%elts(id+1), dom%node%elts(idN+1),  dom%node%elts(idNE+1))
   end subroutine ccentre
 
-  subroutine cpt_triarea(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, idN, idE, idNE
+  subroutine cpt_triarea (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id, idN, idE, idNE
 
     id   = idx(i,   j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
@@ -678,12 +670,13 @@ contains
          + dom%areas%elts(idN+1)%part(6)
   end subroutine cpt_triarea
 
-  subroutine coriolis(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, idN, idE, idNE
+  subroutine coriolis (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, idN, idE, idNE
 
     id   = idx(i,   j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
@@ -699,42 +692,28 @@ contains
          (dom%areas%elts(id+1)%part(2) + dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idN+1)%part(6))
   end subroutine coriolis
 
-  subroutine set_dom_neigh(d, s, ngb_loz, i, j, s1, rot)
-    integer d
-    integer s
-    integer ngb_loz
-    integer i
-    integer j
-    integer s1
-    integer rot
+  subroutine set_dom_neigh (d, s, ngb_loz, i, j, s1, rot)
+    integer :: d, s, ngb_loz, i, j, s1, rot
 
     call set_neigh_Domain(grid(d+1), s, ngb_loz + sub_dom_id(i, j, s1 - 1, rot), rot)
   end subroutine set_dom_neigh
 
-  subroutine set_level(dom, p, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer p
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  subroutine set_level (dom, p, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     dom%level%elts(idx(i,j,offs,dims)+1) = dom%patch%elts(p+1)%level
   end subroutine set_level
 
-  subroutine midpt(dom, p, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer p
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-    integer idN
-    integer idE
-    integer idNE
+  subroutine midpt (dom, p, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id, idN, idE, idNE
 
     id   = idx(i,     j,     offs, dims)
     idN  = idx(i,     j + 1, offs, dims)
