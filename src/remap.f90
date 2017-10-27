@@ -69,7 +69,7 @@ contains
        
        integrated_temp(kb) = integrated_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i) + mean(S_TEMP,k)
 
-       if (dom%pedlen%elts(EDGE*id+e) .ne. 0.0_8) then
+       if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
           ! Interpolate mass to edges
           mass_e(RT+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE))
           mass_e(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE))
@@ -124,9 +124,12 @@ contains
    
        ! Interpolate mass, integrated temperature and momentum at top interfaces of new vertical grid
        new_temp(kb) = Newton_interp(pressure(stencil), integrated_temp(stencil), layer_pressure)
-       do e = 1, EDGE
-          new_flux(kb,e) = Newton_interp(pressure(stencil), integrated_flux(stencil,e), layer_pressure)
-       end do
+       
+       if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
+          do e = 1, EDGE
+             new_flux(kb,e) = Newton_interp(pressure(stencil), integrated_flux(stencil,e), layer_pressure)
+          end do
+       end if
     end do
 
     ! Variables on new vertical grid
@@ -137,6 +140,7 @@ contains
        ! Remapped mass from new surface pressure and definition of vertical grid
        sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel &
             - mean(S_MASS,k)
+       
        if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
           ! Remapped masses at adjacent nodes needed to interpolate mass at edges
           mass_idE  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_E)/grav_accel  - mean(S_MASS,k)
