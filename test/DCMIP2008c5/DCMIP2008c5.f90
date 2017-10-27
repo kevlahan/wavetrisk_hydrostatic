@@ -369,7 +369,7 @@ program DCMIP2008c5
   character(8+8+29+14)         :: command
   character(9+len_cmd_archive) :: command1
   character(6+len_cmd_files)   :: command2
-  logical                      :: aligned, write_init
+  logical                      :: aligned, remap, write_init
 
   ! Initialize grid etc
   call init_main_mod ()
@@ -415,14 +415,15 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
+  ! Set logical switches
   adapt_dt     = .false. ! Adapt time step
   diffusion    = .true.  ! Add diffusion
   compressible = .true.  ! Compressible equations
+  remap        = .true. ! Remap vertical coordinates
   uniform      = .false. ! Type of vertical grid
 
-  dt_init = 238.0_8 ! Initial time step (overwritten if dt_adapt is true)
-
-  cfl_num = 0.8_8   ! cfl number
+  ! cfl number
+  cfl_num = 0.8_8   
 
   ! Set (non-dimensional) mean values of variables
   allocate (mean(S_MASS:S_VELO,1:zlevels))
@@ -433,7 +434,8 @@ program DCMIP2008c5
   mean = 0.0_8
   mean_press = 0.0_8; mean_spec_vol = 0.0_8; mean_exner = 0.0_8; mean_density = 0.0_8; mean_temperature = 0.0_8
 
-  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) ! Average minimum grid size
+  ! Average minimum grid size and maximum wavenumber
+  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) 
   dx_max = 2.0_8*MATH_PI * radius
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
@@ -451,9 +453,6 @@ program DCMIP2008c5
      write(6,'(A,es10.4)') ' '
   end if
 
-  write_init = (resume .eq. NONE)
-  iwrite = 0
-
   ! Initialize variables
   call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
 
@@ -468,6 +467,9 @@ program DCMIP2008c5
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   if (write_init) call write_and_export (iwrite)
 
+  dt_init    = 238.0_8 ! Initial time step (overwritten if dt_adapt is true)
+  write_init = (resume .eq. NONE)
+  iwrite     = 0
   total_time = 0.0_8
   do while (time .lt. time_end)
      call set_thresholds()
@@ -478,10 +480,7 @@ program DCMIP2008c5
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
-     !call remap_vertical_coordinates()
      call set_surf_geopot()
-     
-
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
@@ -499,10 +498,10 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        call remap_vertical_coordinates()
+        if (remap) call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
-        if (modulo(iwrite,CP_EVERY) .ne. 0) cycle
+        if (modulo(iwrite,CP_EVERY) .ne. 0) cycle 
         ierr = write_checkpoint (DCMIP2008c5_dump)
 
         ! let all cpus exit gracefully if NaN has been produced
