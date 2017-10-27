@@ -31,9 +31,9 @@ contains
     integer j_chd
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,9) :: dims_par
+    integer, dimension(2,N_BDRY+1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,9) :: dims_chd
+    integer, dimension(2,N_BDRY+1) :: dims_chd
     integer id
     integer idN, idS
     integer idE, idW
@@ -95,7 +95,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
     integer idS
     integer idW
@@ -133,7 +133,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
     integer idS
     integer idW
@@ -269,9 +269,9 @@ contains
     integer j_chd
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,9) :: dims_par
+    integer, dimension(2,N_BDRY+1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,9) :: dims_chd
+    integer, dimension(2,N_BDRY+1) :: dims_chd
     integer id_par
     integer id
 
@@ -289,7 +289,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer mask
     integer id
     integer e
@@ -556,9 +556,9 @@ contains
     integer j_chd
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,9) :: dims_par
+    integer, dimension(2,N_BDRY+1) :: dims_par
     integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,9) :: dims_chd
+    integer, dimension(2,N_BDRY+1) :: dims_chd
     integer id
     integer idN, idE
     integer idS, idW
@@ -676,7 +676,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
     integer idW
     integer idS
@@ -704,7 +704,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
     integer idE
     integer idN

@@ -452,15 +452,15 @@ contains
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)
     ! Write primal grid for vertical level zlev
-    type(Domain)                 :: dom
-    integer                      :: p, i, j, zlev
-    integer, dimension(N_BDRY+1) :: offs
-    integer, dimension(2,9)      :: dims
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: fid
     integer :: id, idW, idSW, idS
     integer :: d, outl, m
-    real(4) :: outv(N_VAR_OUT) = 0
+    real(4), dimension(N_VAR_OUT) :: outv = 0
     real(8), dimension(2) :: vel_latlon
 
     d = dom%id + 1
@@ -509,7 +509,7 @@ contains
     type (Domain)                :: dom
     integer                      :: i, j, zlev
     integer, dimension(N_BDRY+1) :: offs
-    integer, dimension(2,9)      :: dims
+    integer, dimension(2,N_BDRY+1)      :: dims
     real(8), dimension (3)       :: uvw
     real(8), dimension (2)       :: vel_latlon
     
@@ -571,7 +571,7 @@ contains
     type(Domain) dom
     integer i, j
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
     integer idN, idE, idS, idW
 

@@ -7,7 +7,7 @@ module domain_mod
   use arch_mod
   implicit none
 
-  integer, dimension(2,9) :: sides_dims
+  integer, dimension(2,N_BDRY+1) :: sides_dims
   integer, dimension(2,4) :: chd_offs
 
   ! objects same on all zlevels
@@ -364,7 +364,7 @@ contains
     integer p_par
     integer l_cur
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
 
     do c = SOUTHEAST, NORTHWEST, 2
 
@@ -409,7 +409,7 @@ contains
     integer p_par
     integer l_cur
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
 
     do d = 1, size(grid)
        call apply_to_pole_d(routine, grid(d), l, zlev, ival, to_all)
@@ -427,7 +427,7 @@ contains
     integer p_par
     integer l_cur
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
 
     do c = NORTHEAST, NORTHWEST
        if (.not. dom%penta(c)) cycle
@@ -461,7 +461,7 @@ contains
     integer p_par
     integer l_cur
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
 
     do d = 1, size(grid)
        call apply_to_penta_d(routine, grid(d), l, zlev)

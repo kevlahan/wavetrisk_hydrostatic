@@ -1167,12 +1167,14 @@ contains
     end do
   end subroutine comm_patch_conn_mpi
 
-  real(8) function cpt_dt_mpi()
-    integer :: l, ierror
-    integer :: n_active_loc(2), n_active_glo(2), n_level_glo
-    real(8) :: loc_min, glo_min
+  function cpt_dt_mpi()
+    real(8) :: cpt_dt_mpi
+    
+    integer               :: l, ierror, n_level_glo
+    integer, dimension(2) :: n_active_loc, n_active_glo
+    real(8)               :: loc_min, glo_min
 
-    dt             = 1.0d16
+    if (adapt_dt) dt = 1.0d16
     min_mass       = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0

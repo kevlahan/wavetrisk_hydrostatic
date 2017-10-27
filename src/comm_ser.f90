@@ -185,26 +185,21 @@ contains
     integer l
   end subroutine update_array_bdry__finish
 
-  real(8) function cpt_dt_mpi()
-    integer l, ierror
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer i, j
-    integer d, p
+  function cpt_dt_mpi()
+    real(8) :: cpt_dt_mpi
 
-    dt = 1.0e16_8
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer                        :: d, i, ierror, j, l, p
+
+    if (adapt_dt) dt = 1.0e16_8
+    min_mass       = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0
     do l = level_start, level_end
        call apply_onescale(min_dt, l, z_null, 0, 0)
     end do
-    !   TODO FIXME
-    !   do while (n_active_nodes(level_end) .eq. 0 .and. &
-    !             n_active_edges(level_end) .eq. 0 )
-    !       level_end = level_end - 1
-    !   end do
-    n_active = (/sum(n_active_nodes), sum(n_active_edges)/)
-
+    n_active = (/ sum(n_active_nodes), sum(n_active_edges) /)
     cpt_dt_mpi = dt
   end function cpt_dt_mpi
 

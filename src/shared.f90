@@ -284,7 +284,7 @@ module shared_mod
   integer :: optimize_grid
 
   ! basic constants
-  real(8), parameter :: MATH_PI = 3.14159265359_8
+  real(8), parameter :: MATH_PI = acos(-1.0_8) 
   integer, parameter :: DAY = 24*60*60
 
   ! simulation variables
@@ -298,7 +298,7 @@ module shared_mod
 
   real(8), dimension (:), allocatable :: a_vert, b_vert
 
-  logical :: adapt_trend, compressible, diffusion, lagrangian_vertical 
+  logical :: adapt_dt, adapt_trend, compressible, diffusion, lagrangian_vertical 
 
 contains
 
@@ -348,6 +348,7 @@ contains
          1, 2, -1, 2, 3, -2, 1, -2, -3/), (/2, 4, 3/))
 
     ! Default values
+    adapt_dt            = .true.
     adapt_trend         = .true.
     diffusion           = .false.
     initialized         = .true.

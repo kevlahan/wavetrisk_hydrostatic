@@ -24,7 +24,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     type(Coord) s
     type(Coord) p_i
     integer n
@@ -180,7 +180,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
 
     id = idx(i, j, offs, dims)
@@ -196,7 +196,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id, idS, idW
     real(8) error(3)
 

@@ -156,7 +156,7 @@ contains
     type(Domain) dom
     integer p
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     type(Coord) pt3
     integer id_mm
     integer id_0m1

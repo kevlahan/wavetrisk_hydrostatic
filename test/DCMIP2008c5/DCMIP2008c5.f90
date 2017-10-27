@@ -1,21 +1,19 @@
-!TO DO: 
-! add coriolis correction to timestep calculation
-! fix ARK method
-
-module DCMIP2008c5_mod ! DCMIP2008 test case 5 parameters
+module DCMIP2008c5_mod
+  ! DCMIP2008 test case 5 parameters
   use main_mod
+  use remap_mod
   implicit none
 
-  integer         :: CP_EVERY, id, zlev, iwrite, j
+  integer              :: CP_EVERY, id, zlev, iwrite, j
   integer, allocatable :: n_patch_old(:), n_node_old(:)
-  real(8)         :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
-  real(8)         :: initotalmass, totalmass, timing, total_time, dh
-  logical         :: wasprinted
-  logical         :: uniform  ! Uniform or non-uniform grid in pressure
-  character (255) :: IC_file
+  real(8)              :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
+  real(8)              :: initotalmass, totalmass, timing, total_time, dh
+  logical              :: wasprinted
+  logical              :: uniform  ! Uniform or non-uniform grid in pressure
+  character (255)      :: IC_file
 
-  real(8)         :: c_v, d2, h_0, lat_c, lon_c, N_freq, p_sp, T_0, u_0 ! parameters for initial conditions
-  real(8)         :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
+  real(8)              :: c_v, d2, h_0, lat_c, lon_c, N_freq, p_sp, T_0, u_0 ! parameters for initial conditions
+  real(8)              :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
   
 contains
   subroutine apply_initial_conditions()
@@ -268,11 +266,11 @@ contains
     if (rank.eq.0) then
        write(*,'(A,i3)')     "max_level        = ", max_level
        write(*,'(A,i3)')     "zlevels          = ", zlevels
-       write(*,'(A,es11.4)') "threshold        = ", threshold
+       write(*,'(A,es10.4)') "threshold        = ", threshold
        write(*,'(A,i2)')     "optimize_grid    = ", optimize_grid 
-       write(*,'(A,es11.4)') "dt_write         = ", dt_write
+       write(*,'(A,es10.4)') "dt_write         = ", dt_write
        write(*,'(A,i6)')     "CP_EVERY         = ", CP_EVERY
-       write(*,'(A,es11.4)') "time_end         = ", time_end 
+       write(*,'(A,es10.4)') "time_end         = ", time_end 
        write(*,'(A,i6)')     "resume           = ", resume
        write(*,*) ' '
     end if
@@ -416,9 +414,12 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
+  adapt_dt     = .false. ! Adapt time step
   diffusion    = .true.  ! Add diffusion
   compressible = .true.  ! Compressible equations
   uniform      = .false. ! Type of vertical grid
+
+  if (.not. adapt_dt) dt = 238.0_8 ! Fixed time step
 
   cfl_num      = 0.8_8   ! cfl number
 
@@ -436,17 +437,17 @@ program DCMIP2008c5
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
   ! Dissipation
-  viscosity_mass = 4.0e-3/kmax**2 ! viscosity for mass equation
-  viscosity_temp = 4.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_mass = 2.0e-3/kmax**2 ! viscosity for mass equation
+  viscosity_temp = 2.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 2.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 2.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
-     write(6,*) 'Viscosity_mass    = ',  viscosity_mass
-     write(6,*) 'Viscosity_temp    = ',  viscosity_temp
-     write(6,*) 'Viscosity_divu    = ',  viscosity_divu
-     write(6,*) 'Viscosity_rotu    = ',  viscosity_rotu
-     write(6,*) ' '
+     write(6,'(A,es10.4)') 'Viscosity_mass   = ',  viscosity_mass
+     write(6,'(A,es10.4)') 'Viscosity_temp   = ',  viscosity_temp
+     write(6,'(A,es10.4)') 'Viscosity_divu   = ',  viscosity_divu
+     write(6,'(A,es10.4)') 'Viscosity_rotu   = ',  viscosity_rotu
+     write(6,'(A,es10.4)') ' '
   end if
 
   write_init = (resume .eq. NONE)
@@ -497,7 +498,7 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        !call remap_vertical_coordinates()
+        call remap_vertical_coordinates()
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle

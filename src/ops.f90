@@ -16,10 +16,10 @@ contains
   end subroutine init_ops_mod
 
   subroutine post_step1 (dom, p, c, offs, dims, zlev)
-    type(Domain)                 :: dom
-    integer                      :: p, c, zlev
-    integer, dimension(N_BDRY+1) :: offs
-    integer, dimension(2,9)      :: dims
+    type(Domain)                   :: dom
+    integer                        :: p, c, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     integer                      :: id, idS, idW, idSW, idN, idE, idNE
     real(8)                      :: pv_SW, pv_W, pv_S, pv_LORT, pv_UPLT, pv_SW_LORT, pv_SW_UPLT, pv

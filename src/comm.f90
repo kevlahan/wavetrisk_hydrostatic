@@ -856,7 +856,7 @@ contains
     integer c
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
 
     if (c .eq. IPLUSJMINUS) then
@@ -1151,25 +1151,27 @@ contains
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
 
-             d_e = dom%len%elts(EDGE*id+e)
-             l_e = dom%pedlen%elts(EDGE*id+e)
-             A_i = 1.0_8/dom%areas%elts(id+1)%hex_inv ! Hexagon area
-             A_v = max (dom%triarea%elts(TRIAG*id+LORT+1),dom%triarea%elts(TRIAG*id+UPLT+1)) ! Triangle areas
+             if (adapt_dt) then
+                d_e = dom%len%elts(EDGE*id+e)
+                l_e = dom%pedlen%elts(EDGE*id+e)
+                A_i = 1.0_8/dom%areas%elts(id+1)%hex_inv ! Hexagon area
+                A_v = max (dom%triarea%elts(TRIAG*id+LORT+1),dom%triarea%elts(TRIAG*id+UPLT+1)) ! Triangle areas
 
-             ! Maximum velocity over all vertical levels
-             v_e = 0.0_8
-             do k = 1, zlevels
-                v_e  = max(v_e, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
-             end do
-             
-             if (d_e.ne.0.0_8) then
-                dt = min (dt, cfl_num*d_e/v_e, cfl_num*d_e/wave_speed)
+                ! Maximum velocity over all vertical levels
+                v_e = 0.0_8
+                do k = 1, zlevels
+                   v_e  = max(v_e, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
+                end do
 
-                if (diffusion) dt = min (dt, &
-                     C_visc*A_i/viscosity_divu, &
-                     C_visc*A_v/viscosity_rotu, &
-                     C_visc*A_i/viscosity_temp, &
-                     C_visc*A_i/viscosity_mass)
+                if (d_e.ne.0.0_8) then
+                   dt = min (dt, cfl_num*d_e/v_e, cfl_num*d_e/wave_speed)
+
+                   if (diffusion) dt = min (dt, &
+                        C_visc*A_i/viscosity_divu, &
+                        C_visc*A_v/viscosity_rotu, &
+                        C_visc*A_i/viscosity_temp, &
+                        C_visc*A_i/viscosity_mass)
+                end if
              end if
           end if
        end do

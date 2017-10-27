@@ -25,7 +25,7 @@ contains
     integer j
     integer zlev
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
     integer e, k
 
@@ -238,7 +238,7 @@ contains
     integer st
     integer en
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,9) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
     integer j0
     integer j
     integer i0

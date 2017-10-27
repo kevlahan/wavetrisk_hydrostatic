@@ -4,11 +4,11 @@ module remap_mod
   use arch_mod
   use comm_mpi_mod
   implicit none
-  logical :: wasprinted1
-  integer :: p
-  integer, dimension (:), allocatable :: stencil
-  integer, dimension(6) :: cnt
-  real(8) :: val
+
+  integer                                        :: p
+  integer, dimension (:), allocatable            :: stencil
+  integer, dimension(6)                          :: cnt
+  real(8)                                        :: val
   type(Float_Field), dimension(:,:), allocatable :: sol_old
 contains
   subroutine remap_vertical_coordinates()
@@ -41,7 +41,7 @@ contains
        ! Find mass, mass-weighted potential temperature and momentum on new vertical grid
        ! including nearest neighbours in N and E directions needed for momentum calculation
        call apply_onescale (remap_scalars, l, z_null, 0, 1)
-       call apply_onescale (remap_velo, l, z_null, 0, 0)
+       call apply_onescale (remap_velo,    l, z_null, 0, 0)
     end do
 
     ! Update boundary values
@@ -51,10 +51,10 @@ contains
   end subroutine remap_vertical_coordinates
 
   subroutine remap_scalars (dom, i, j, zlev, offs, dims)
-    type (Domain)                 :: dom
-    integer                       :: i, j, zlev
-    integer, dimension (N_BDRY+1) :: offs
-    integer, dimension (2,9)      :: dims
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, e, id, id_i, k, kb, kc, kk, m
     real(8)                        :: layer_pressure, p_surf, diff, dmin, vel_old
@@ -66,11 +66,11 @@ contains
 
     ! Integrate full mass, full mass-weighted potential temperature and full momentum vertically downward from the top
     ! All quantities located at interfaces
-    integrated_mass(1) = 0.0_8
+    !integrated_mass(1) = 0.0_8
     integrated_temp(1) = 0.0_8
     do kb = 2, zlevels + 1
        k = zlevels-kb+2 ! Actual zlevel
-       integrated_mass(kb) = integrated_mass(kb-1) + sol(S_MASS,k)%data(d)%elts(id_i) + mean(S_MASS,k)
+       !integrated_mass(kb) = integrated_mass(kb-1) + sol(S_MASS,k)%data(d)%elts(id_i) + mean(S_MASS,k)
        integrated_temp(kb) = integrated_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i) + mean(S_TEMP,k)
      end do
 
@@ -109,28 +109,30 @@ contains
        end if
    
        ! Interpolate mass, integrated temperature and momentum at top interfaces of new vertical grid
-       new_mass(kb) = Newton_interp(pressure(stencil), integrated_mass(stencil), layer_pressure)
+       !new_mass(kb) = Newton_interp(pressure(stencil), integrated_mass(stencil), layer_pressure)
        new_temp(kb) = Newton_interp(pressure(stencil), integrated_temp(stencil), layer_pressure)
     end do
 
     ! Cell values on new vertical grid from integrated values at interfaces calculated bottom to top
     do k = 1, zlevels
-       sol(S_MASS,k)%data(d)%elts(id_i) = (new_mass(zlevels-k+2) - new_mass(zlevels-k+1)) - mean(S_MASS,k)
+       !sol(S_MASS,k)%data(d)%elts(id_i) = (new_mass(zlevels-k+2) - new_mass(zlevels-k+1)) - mean(S_MASS,k)
+       sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel &
+            - mean(S_MASS,k)
        sol(S_TEMP,k)%data(d)%elts(id_i) = (new_temp(zlevels-k+2) - new_temp(zlevels-k+1)) - mean(S_TEMP,k)
     end do
   end subroutine remap_scalars
 
-   subroutine remap_velo (dom, i, j, zlev, offs, dims)
-    type (Domain)                 :: dom
-    integer                       :: i, j, zlev
-    integer, dimension (N_BDRY+1) :: offs
-    integer, dimension (2,9)      :: dims
+  subroutine remap_velo (dom, i, j, zlev, offs, dims)
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                        :: d, e, id, id_i, idN, idE, idNE, k, kb, kc, kk, m
-    real(8)                        :: layer_pressure, p_surf, diff, dmin, vel_old
-    real(8), dimension (zlevels+1) ::  pressure
-    real(8), dimension (3)           :: mu
-    real(8), dimension (zlevels+1,3) :: integrated_momentum, new_momentum
+    integer                          :: d, e, id, id_i, idN, idE, idNE, k, kb, kc, kk, m
+    real(8)                          :: layer_pressure, p_surf, diff, dmin, vel_old
+    real(8), dimension (3)           :: mass_e, mass_flux 
+    real(8), dimension (zlevels+1)   :: pressure
+    real(8), dimension (zlevels+1,3) :: integrated_flux, new_flux
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
@@ -142,17 +144,18 @@ contains
 
     ! Integrate full mass, full mass-weighted potential temperature and full momentum vertically downward from the top
     ! All quantities located at interfaces
-    integrated_momentum(1,:) = 0.0_8
+    integrated_flux(1,:) = 0.0_8
     do kb = 2, zlevels + 1
        k = zlevels-kb+2 ! Actual zlevel
-       ! Interpolate mass to edges
-       mu(RT+1) = 0.5_8*(sol_old(S_MASS,k)%data(d)%elts(id_i)+sol_old(S_MASS,k)%data(d)%elts(idE))
-       mu(DG+1) = 0.5_8*(sol_old(S_MASS,k)%data(d)%elts(id_i)+sol_old(S_MASS,k)%data(d)%elts(idNE))
-       mu(UP+1) = 0.5_8*(sol_old(S_MASS,k)%data(d)%elts(id_i)+sol_old(S_MASS,k)%data(d)%elts(idN))
-       mu = mu + mean(S_MASS,k)
-       ! Integrate momentum at vertical edges
+       ! Interpolate old (non remapped) mass to edges
+       mass_e(RT+1) = 0.5_8*(sol_old(S_MASS,k)%data(d)%elts(id_i)+sol_old(S_MASS,k)%data(d)%elts(idE))
+       mass_e(DG+1) = 0.5_8*(sol_old(S_MASS,k)%data(d)%elts(id_i)+sol_old(S_MASS,k)%data(d)%elts(idNE))
+       mass_e(UP+1) = 0.5_8*(sol_old(S_MASS,k)%data(d)%elts(id_i)+sol_old(S_MASS,k)%data(d)%elts(idN))
+       mass_e = mass_e + mean(S_MASS,k)
+       ! Integrate old mass flux
        do e = 1, EDGE
-          integrated_momentum(kb,e) = integrated_momentum(kb-1,e) + sol(S_VELO,k)%data(d)%elts(EDGE*id+e)*mu(e)
+          mass_flux(e) = mass_e(e)*sol(S_VELO,k)%data(d)%elts(EDGE*id+e)*dom%pedlen%elts(EDGE*id+e)
+          integrated_flux(kb,e) = integrated_flux(kb-1,e) + mass_flux(e) 
        end do
     end do
 
@@ -192,19 +195,22 @@ contains
    
        ! Interpolate mass, integrated temperature and momentum at top interfaces of new vertical grid
        do e = 1, EDGE
-          new_momentum(kb,e) = Newton_interp(pressure(stencil), integrated_momentum(stencil,e), layer_pressure)
+          new_flux(kb,e) = Newton_interp(pressure(stencil), integrated_flux(stencil,e), layer_pressure)
        end do
     end do
 
     ! Cell values on new vertical grid from integrated values at interfaces calculated bottom to top
     do k = 1, zlevels
-       ! Interpolate new masses to edges
-       mu(RT+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idE))
-       mu(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idNE))
-       mu(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idN))
-       mu = mu + mean(S_MASS,k)
+       ! Interpolate new (remapped) masses to edges
+       mass_e(RT+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idE))
+       mass_e(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idNE))
+       mass_e(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(idN))
+       mass_e = mass_e + mean(S_MASS,k)
+
+       ! Find velocity from mass flux
        do e = 1, EDGE
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_momentum(zlevels-k+2,e) - new_momentum(zlevels-k+1,e))/mu(e)
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(zlevels-k+2,e) - new_flux(zlevels-k+1,e)) &
+               / (mass_e(e)*dom%pedlen%elts(EDGE*id+e))
        end do
     end do
   end subroutine remap_velo
