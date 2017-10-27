@@ -440,10 +440,10 @@ program DCMIP2008c5
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
   ! Dissipation
-  viscosity_mass = 4.0e-3/kmax**2 ! viscosity for mass equation
-  viscosity_temp = 4.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 4.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_mass = 2.0e-3/kmax**2 ! viscosity for mass equation
+  viscosity_temp = 2.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 2.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 2.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ',  viscosity_mass
@@ -477,10 +477,10 @@ program DCMIP2008c5
      call start_timing()
      call update_array_bdry (sol, NONE)
 
-     n_patch_old = grid(:)%patch%length
-     n_node_old = grid(:)%node%length
+     !n_patch_old = grid(:)%patch%length
+     !n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
-     call set_surf_geopot()
+     !call set_surf_geopot()
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
