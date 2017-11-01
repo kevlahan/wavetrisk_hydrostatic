@@ -32,7 +32,7 @@ contains
 
     ! Find mass, mass-weighted potential temperature at nodes and velocities at edges on new vertical grid
     do l = level_start, level_end
-       call apply_onescale (remap_variables, l, z_null, 0, 1)
+       call apply_onescale (remap_variables, l, z_null, 0, 0)
     end do
 
     ! Update boundary values of remapped variables
@@ -47,7 +47,7 @@ contains
 
     integer                          :: d, e, id, id_i, idE, idN, idNE, k, kb, kc, kk, m
     real(8)                          :: layer_pressure, p_surf, p_surf_E, p_surf_N, p_surf_NE, diff, dmin, vel_old
-    real(8)                          :: mass_idE, mass_idN, mass_idNE, mass_flux
+    real(8)                          :: mass_idE, mass_idN, mass_idNE, mass_flux, err
     real(8), dimension (3)           :: mass_e
     real(8), dimension (zlevels+1)   :: integrated_temp, new_temp, pressure
     real(8), dimension (zlevels+1,3) :: integrated_flux, new_flux
@@ -69,17 +69,20 @@ contains
        
        integrated_temp(kb) = integrated_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i) + mean(S_TEMP,k)
 
-       if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
-          ! Interpolate mass to edges
-          mass_e(RT+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE))
-          mass_e(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE))
-          mass_e(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idN))
-          mass_e = mass_e + mean(S_MASS,k)
-          do e = 1, EDGE
-             mass_flux = mass_e(e)*sol(S_VELO,k)%data(d)%elts(EDGE*id+e)*dom%pedlen%elts(EDGE*id+e)
-             integrated_flux(kb,e) = integrated_flux(kb-1,e) + mass_flux
-          end do
-       end if
+       ! Interpolate mass to edges
+       mass_e(RT+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE))
+       mass_e(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE))
+       mass_e(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idN))
+       mass_e = mass_e + mean(S_MASS,k)
+       ! Mass fluxes
+       do e = 1, EDGE
+          if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
+             mass_flux = mass_e(e) * sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * dom%pedlen%elts(EDGE*id+e)
+          else
+             mass_flux = 0.0_8
+          end if
+          integrated_flux(kb,e) = integrated_flux(kb-1,e) + mass_flux
+       end do
     end do
 
     ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
@@ -104,7 +107,7 @@ contains
        layer_pressure = a_vert(k)*ref_press + b_vert(k)*p_surf
 
        ! Find index of pressure on old vertical grid closest to layer_pressure on new grid
-       dmin = 1e16_8
+       dmin = 1d16
        do kk = 1, zlevels+1
           diff = abs(pressure(kk)-layer_pressure)
           if (diff.lt.dmin) then
@@ -122,43 +125,43 @@ contains
           stencil = (/ (m, m = kc-(p-1)/2, kc+(p-1)/2) /)
        end if
    
-       ! Interpolate mass, integrated temperature and momentum at top interfaces of new vertical grid
+       ! Interpolate integrated temperature and integrated mass flux at top interfaces of new vertical grid
        new_temp(kb) = Newton_interp(pressure(stencil), integrated_temp(stencil), layer_pressure)
        
-       if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
-          do e = 1, EDGE
-             new_flux(kb,e) = Newton_interp(pressure(stencil), integrated_flux(stencil,e), layer_pressure)
-          end do
-       end if
+       do e = 1, EDGE
+          new_flux(kb,e) = Newton_interp(pressure(stencil), integrated_flux(stencil,e), layer_pressure)
+       end do
     end do
 
     ! Variables on new vertical grid
     do k = 1, zlevels
+       kb = zlevels-k+1
        ! Remapped mass-weighted potential temperature from integrated value interpolated to new grid
-       sol(S_TEMP,k)%data(d)%elts(id_i) = (new_temp(zlevels-k+2) - new_temp(zlevels-k+1)) - mean(S_TEMP,k)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = (new_temp(kb+1) - new_temp(kb)) - mean(S_TEMP,k)
 
        ! Remapped mass from new surface pressure and definition of vertical grid
        sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel &
             - mean(S_MASS,k)
        
-       if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
-          ! Remapped masses at adjacent nodes needed to interpolate mass at edges
-          mass_idE  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_E)/grav_accel  - mean(S_MASS,k)
-          mass_idNE = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_NE)/grav_accel - mean(S_MASS,k)
-          mass_idN  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_N)/grav_accel  - mean(S_MASS,k)
-          
-          ! Interpolate remapped masses to edges
-          mass_e(RT+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + mass_idE)
-          mass_e(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + mass_idNE)
-          mass_e(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + mass_idN)
-          mass_e = mass_e + mean(S_MASS,k)
-          
-          ! Find velocity on new grid from mass flux
-          do e = 1, EDGE
-             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(zlevels-k+2,e) - new_flux(zlevels-k+1,e)) &
-                  / (mass_e(e)*dom%pedlen%elts(EDGE*id+e))
-          end do
-       end if
+       ! Remapped masses at adjacent nodes needed to interpolate mass at edges
+       mass_idE  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_E)/grav_accel  - mean(S_MASS,k)
+       mass_idNE = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_NE)/grav_accel - mean(S_MASS,k)
+       mass_idN  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_N)/grav_accel  - mean(S_MASS,k)
+       
+       ! Interpolate remapped masses to edges
+       mass_e(RT+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + mass_idE)
+       mass_e(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + mass_idNE)
+       mass_e(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + mass_idN)
+       mass_e = mass_e + mean(S_MASS,k)
+       
+       ! Find velocity on new grid from mass flux
+       do e = 1, EDGE
+          if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
+             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) / (mass_e(e)*dom%pedlen%elts(EDGE*id+e))
+          else
+             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = 0.0_8
+          end if
+       end do
     end do
   end subroutine remap_variables
   

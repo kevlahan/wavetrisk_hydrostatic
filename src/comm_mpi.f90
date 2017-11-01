@@ -1174,7 +1174,11 @@ contains
     integer, dimension(2) :: n_active_loc, n_active_glo
     real(8)               :: loc_min, glo_min
 
-    dt = dt_init
+    if (adapt_dt) then
+       dt = 1d16
+    else
+       dt = dt_init
+    end if
     min_mass       = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0

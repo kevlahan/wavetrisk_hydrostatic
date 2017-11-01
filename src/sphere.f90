@@ -160,7 +160,7 @@ contains
     t = tan(0.5_8*s)*tan(-0.5_8*ab + 0.5_8*s)*tan(-0.5_8*ac + &
          0.5_8*s)*tan(-0.5_8*bc + 0.5_8*s)
 
-    if (t .lt. 1.0e-64_8) then
+    if (t .lt. 1.0d-64) then
        triarea = 0.0_8
        return
     end if

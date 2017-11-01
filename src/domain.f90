@@ -100,10 +100,6 @@ module domain_mod
   real(8), dimension(:), allocatable :: mean_press, mean_exner, mean_spec_vol, mean_density, mean_temperature
   real(8), dimension(:,:), allocatable :: mean
   
-  ! for penalization boundary condition
-  type(Float_Field), target :: penal
-  real(8), pointer :: chi(:), chiflux(:)
-
 contains
 
   subroutine init_Float_Field(self, pos)

@@ -298,7 +298,7 @@ module shared_mod
 
   real(8), dimension (:), allocatable :: a_vert, b_vert
 
-  logical :: adapt_dt, adapt_trend, compressible, diffusion, lagrangian_vertical 
+  logical :: adapt_dt, adapt_trend, compressible, diffuse_scalars, diffuse_momentum, lagrangian_vertical 
 
 contains
 
@@ -350,7 +350,8 @@ contains
     ! Default values
     adapt_dt            = .true.
     adapt_trend         = .true.
-    diffusion           = .false.
+    diffuse_scalars     = .false.
+    diffuse_momentum    = .false.
     initialized         = .true.
     lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates
     
@@ -383,7 +384,7 @@ contains
   end subroutine init_shared_mod
 
   real(8) function eps()
-    eps = radius*1e-13_8
+    eps = radius*1d-13
   end function eps
 
   integer function max_nodes_per_level(lev, entity)

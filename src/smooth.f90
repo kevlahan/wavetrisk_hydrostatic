@@ -169,7 +169,7 @@ contains
     end do
 
     if (any(does_inters) .or. any(troubles)) then
-       dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + 1.0e7_8*eps()
+       dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + 1.0d7*eps()
        dom%node%elts(id_cnr(1)+1) = project_on_sphere(dom%node%elts(id_cnr(1)+1))
     end if
   end subroutine check_triag

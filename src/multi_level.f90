@@ -110,7 +110,9 @@ contains
        end do
     end do
 
-    ! Calculate trend on finest scale
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Calculate trend on finest scale !
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
@@ -137,7 +139,7 @@ contains
           end do
           call apply_to_penta_d (post_step1, grid(d), level_end, k)
 
-         if (diffusion)  then
+         if (diffuse_scalars)  then
             do j = 1, grid(d)%lev(level_end)%length
                call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
             end do
@@ -210,19 +212,25 @@ contains
 
           nullify (velo, dvelo, h_mflux, qe, divu, vort)
        end do
-       
-       ! Calculate trend on coarser scales, from fine to coarse
+
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! Calculate trend on coarser scales, from fine to coarse !
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do l = level_end-1, level_start, -1
           call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
           do d = 1, size(grid)
              mass      =>  q(S_MASS,k)%data(d)%elts
              velo      =>  q(S_VELO,k)%data(d)%elts
              temp      =>  q(S_TEMP,k)%data(d)%elts
+             dmass     =>  dq(S_MASS,k)%data(d)%elts
+             dtemp     =>  dq(S_TEMP,k)%data(d)%elts
              h_mflux   => horiz_flux(S_MASS)%data(d)%elts
              h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
              bernoulli => grid(d)%bernoulli%elts
              exner     => grid(d)%exner%elts
              qe        => grid(d)%qe%elts
+             divu      => grid(d)%divu%elts
+             vort      => grid(d)%vort%elts
 
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
@@ -233,29 +241,31 @@ contains
              end do
              call apply_to_penta_d (post_step1, grid(d), l, k)
 
-             if (diffusion) then
+             if (diffuse_scalars) then
                 do j = 1, grid(d)%lev(l)%length
                    call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
                 end do
              end if
-             
+
              call cpt_or_restr_Bernoulli_Exner (grid(d), l)
+
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
-             nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, qe)
+             nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, exner, qe, divu, vort)
           end do
-          
-          if (diffusion) then
+
+          ! Divergence of velocity for momentum diffusion
+          if (diffuse_momentum) then
              call update_vector_bdry__start(horiz_flux, l) 
              do d = 1, size(grid)
                 velo => q(S_VELO,k)%data(d)%elts
-                divu =>  grid(d)%divu%elts
+                divu => grid(d)%divu%elts
                 do j = 1, grid(d)%lev(l)%length
                    call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
                 end do
                 nullify (velo, divu)
              end do
-             call update_vector_bdry__finish(horiz_flux, l)
+             call update_vector_bdry__finish (horiz_flux, l)
           else
              call update_vector_bdry (horiz_flux, l)
           end if
@@ -316,7 +326,9 @@ contains
           dq(S_VELO,k)%bdry_uptodate = .False.
        end do
 
-       ! Evaluate complete velocity trend by adding gradient terms on entire grid at vertical level k
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! Evaluate complete velocity trend by adding gradient terms on entire grid at vertical level k !
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do d = 1, size(grid)
           mass      =>  q(S_MASS,k)%data(d)%elts
           temp      =>  q(S_TEMP,k)%data(d)%elts
@@ -328,6 +340,7 @@ contains
           end do
           nullify (mass, temp, dvelo, bernoulli, exner)
        end do
+       
     end do
   end subroutine trend_ml
 
@@ -347,7 +360,7 @@ contains
        end do
        do c = 1, N_CHDRN
           if (restrict(c)) then
-             call apply_interscale_to_patch3(Bernoulli_Exner_cpt_restr, dom, p_par, c, z_null, 0, 1)
+             call apply_interscale_to_patch3 (Bernoulli_Exner_cpt_restr, dom, p_par, c, z_null, 0, 1)
           end if
        end do
     end do
@@ -367,7 +380,7 @@ contains
 
     if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) then
        bernoulli(id_par+1) = bernoulli(id_chd+1)
-       exner (id_par+1)    = exner(id_chd+1)
+       exner(id_par+1)     = exner(id_chd+1)
     end if
   end subroutine Bernoulli_Exner_cpt_restr
 
@@ -437,7 +450,7 @@ contains
        end do
        do c = 1, N_CHDRN
           if (restrict(c)) then
-             call apply_interscale_to_patch3(flux_cpt_restr, dom, p_par, c, z_null, 0, 1)
+             call apply_interscale_to_patch3 (flux_cpt_restr, dom, p_par, c, z_null, 0, 1)
           end if
        end do
     end do
@@ -451,15 +464,15 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
     integer :: id_par, id_chd
+    real(8), dimension (4) :: sm_flux_m, sm_flux_t
    
     id_chd   = idx(i_chd, j_chd, offs_chd, dims_chd)
     id_par   = idx(i_par, j_par, offs_par, dims_par)
-   
+
     if (i_chd .ge. PATCH_SIZE .or. j_chd .ge. PATCH_SIZE) return
 
-    if (associated(h_mflux)) call flux_restr(dmass, h_mflux)
-    if (associated(h_tflux)) call flux_restr(dtemp, h_tflux)
-    if (associated(h_uflux)) call flux_restr(dvelo, h_uflux)
+    call flux_restr (dmass, h_mflux)
+    call flux_restr (dtemp, h_tflux)
   contains
     subroutine flux_restr (dscalar, h_flux)
       real(8), dimension(:), pointer :: dscalar, h_flux

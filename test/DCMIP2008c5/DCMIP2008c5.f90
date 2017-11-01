@@ -222,7 +222,7 @@ contains
 
     rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
     
-    surf_geopot_fun = grav_accel * h_0 * exp(-rgrc**2/d2)
+    surf_geopot_fun = grav_accel * h_0 * exp__flush(-rgrc**2/d2)
   end function surf_geopot_fun
 
   function surf_pressure_fun (x_i)
@@ -288,7 +288,7 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout()
 
-    zlev = 7 ! Only export one vertical level
+    zlev = 1 ! Only export one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
@@ -381,25 +381,39 @@ program DCMIP2008c5
 
   ! Read test case parameters
   call read_test_case_parameters("DCMIP2008c5.in")
+
+  ! Average minimum grid size and maximum wavenumber
+  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) 
+  dx_max = 2.0_8*MATH_PI * radius
+  kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
+
+  ! Set (non-dimensional) mean values of variables
+  allocate (mean(S_MASS:S_VELO,1:zlevels))
+  allocate (mean_press(1:zlevels), mean_spec_vol(1:zlevels), mean_exner(1:zlevels))
+  allocate (mean_density(1:zlevels), mean_temperature(1:zlevels))
+
+  ! Put both mean and perturbations into perturbation term
+  mean = 0.0_8
+  mean_press = 0.0_8; mean_spec_vol = 0.0_8; mean_exner = 0.0_8; mean_density = 0.0_8; mean_temperature = 0.0_8
   
   ! Parameters for the simulation
-  grav_accel  = 9.80616_8 !gravitational acceleration in meters per second squared
-  omega       = 7.29211d-5 !Earth’s angular velocity in radians per second
-  f0          = 2.0_8*omega !Coriolis parameter
-  u_0         = 2.0d1 !velocity in meters per second
-  T_0         = 288.0_8 !temperature in Kelvin
-  d2          = (1500.0d3)**2 !square of half width of Gaussian mountain profile in meters
-  h_0         = 2000.0_8 !mountain height in meters
-  lon_c       = MATH_PI/2.0_8 !mountain peak longitudinal location in radians
-  lat_c       = MATH_PI/6.0_8 !mountain peak latitudinal location in radians
-  p_sp        = 930.0d2 !South Pole surface pressure in Pascals
-  radius      = 6.371229d6 !mean radius of the Earth in meters
-  ref_press   = 100145.6_8 !reference pressure (mean surface pressure) in Pascals
-  R_d         = 287.04_8 !ideal gas constant for dry air in joules per kilogram Kelvin
-  c_p         = 1004.64_8 !specific heat at constant pressure in joules per kilogram Kelvin
-  c_v         = 717.6_8 ! specfic heat at constant volume c_v = R_d - c_p
-  kappa       = R_d/c_p !kappa=R_d/c_p
-  N_freq      = sqrt(grav_accel*grav_accel/(c_p*T_0)) !Brunt-Vaisala buoyancy frequency
+  grav_accel  = 9.80616_8     ! gravitational acceleration in meters per second squared
+  omega       = 7.29211d-5    ! Earth’s angular velocity in radians per second
+  f0          = 2.0_8*omega   ! Coriolis parameter
+  u_0         = 20.0_8        ! velocity in meters per second
+  T_0         = 288.0_8       ! temperature in Kelvin
+  d2          = 1500d3**2     ! square of half width of Gaussian mountain profile in meters
+  h_0         = 2000.0_8      ! mountain height in meters
+  lon_c       = MATH_PI/2.0_8 ! mountain peak longitudinal location in radians
+  lat_c       = MATH_PI/6.0_8 ! mountain peak latitudinal location in radians
+  p_sp        = 930.0d2       ! South Pole surface pressure in Pascals
+  radius      = 6.371229d6    ! mean radius of the Earth in meters
+  ref_press   = 100145.6_8    ! reference pressure (mean surface pressure) in Pascals
+  R_d         = 287.04_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
+  c_p         = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
+  c_v         = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
+  kappa       = 2.0_8/7.0_8   ! kappa=R_d/c_p
+  N_freq      = sqrt(grav_accel**2/(c_p*T_0)) !Brunt-Vaisala buoyancy frequency
 
   ! Dimensional scaling
   Ldim        = sqrt(d2)                         ! horizontal length scale
@@ -415,35 +429,12 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
-  ! Set logical switches
-  adapt_dt     = .true. ! Adapt time step
-  diffusion    = .true.  ! Add diffusion
-  compressible = .true.  ! Compressible equations
-  remap        = .true. ! Remap vertical coordinates
-  uniform      = .false. ! Type of vertical grid
+  cfl_num     = 1.0d0                            ! cfl number
 
-  ! cfl number
-  cfl_num = 0.8_8   
-
-  ! Set (non-dimensional) mean values of variables
-  allocate (mean(S_MASS:S_VELO,1:zlevels))
-  allocate (mean_press(1:zlevels), mean_spec_vol(1:zlevels), mean_exner(1:zlevels))
-  allocate (mean_density(1:zlevels), mean_temperature(1:zlevels))
-
-  ! Put both mean and perturbations into perturbation term
-  mean = 0.0_8
-  mean_press = 0.0_8; mean_spec_vol = 0.0_8; mean_exner = 0.0_8; mean_density = 0.0_8; mean_temperature = 0.0_8
-
-  ! Average minimum grid size and maximum wavenumber
-  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) 
-  dx_max = 2.0_8*MATH_PI * radius
-  kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
-
-  ! Dissipation
-  viscosity_mass = 2.0e-3/kmax**2 ! viscosity for mass equation
-  viscosity_temp = 2.0e-3/kmax**2 ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 2.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 2.0e-3/kmax**2 ! viscosity for divergent part of momentum equation
+  viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
+  viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 5.0e-4/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_rotu = viscosity_divu                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ',  viscosity_mass
@@ -453,10 +444,18 @@ program DCMIP2008c5
      write(6,'(A,es10.4)') ' '
   end if
 
+  ! Set logical switches
+  adapt_dt         = .true.  ! Adapt time step
+  diffuse_scalars  = .false.  ! Diffuse scalars
+  diffuse_momentum = .false.  ! Diffuse momentum
+  compressible     = .true.  ! Compressible equations
+  remap            = .false.  ! Remap vertical coordinates
+  uniform          = .false. ! Type of vertical grid
+
   ! Initialize variables
   call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
 
-  allocate(n_patch_old(size(grid)), n_node_old(size(grid)))
+  allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2;  call set_surf_geopot ()
   
   call sum_total_mass (.True.)
@@ -468,7 +467,7 @@ program DCMIP2008c5
   write_init = (resume .eq. NONE)
   if (write_init) call write_and_export (iwrite)
 
-  dt_init    = 238.0_8 ! Initial time step (not used if dt_adapt is true)
+  dt_init    = 238.0_8 ! Initial time step (not used if adapt_dt is true)
   iwrite     = 0
   total_time = 0.0_8
   do while (time .lt. time_end)
@@ -477,10 +476,10 @@ program DCMIP2008c5
      call start_timing()
      call update_array_bdry (sol, NONE)
 
-     !n_patch_old = grid(:)%patch%length
-     !n_node_old = grid(:)%node%length
+     n_patch_old = grid(:)%patch%length
+     n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
-     !call set_surf_geopot()
+     call set_surf_geopot()
      call stop_timing()
      timing = get_timing()
      total_time = total_time + timing
@@ -514,9 +513,9 @@ program DCMIP2008c5
 
         call restart_full (set_thresholds, DCMIP2008c5_load)
 
-        deallocate(n_patch_old); allocate(n_patch_old(size(grid)))
-        deallocate(n_node_old);  allocate(n_node_old(size(grid)))
-        n_patch_old = 2; call set_surf_geopot()
+        ! deallocate(n_patch_old); allocate(n_patch_old(size(grid)))
+        ! deallocate(n_node_old);  allocate(n_node_old(size(grid)))
+        ! n_patch_old = 2; call set_surf_geopot()
 
         call barrier()
      end if

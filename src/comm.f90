@@ -1119,7 +1119,7 @@ contains
     integer :: d, e, id, k, l
     real(8) :: A_i, A_v, C_visc, csq, d_e, full_mass, l_e, total_mass, v_e, visc, wave_speed
 
-    C_visc = 1.0_8
+    C_visc = 0.1_8
     
     id = idx(i, j, offs, dims)
     d  = dom%id + 1
@@ -1166,11 +1166,12 @@ contains
                 if (d_e.ne.0.0_8) then
                    dt = min (dt, cfl_num*d_e/v_e, cfl_num*d_e/wave_speed)
 
-                   if (diffusion) dt = min (dt, &
-                        C_visc*A_i/viscosity_divu, &
-                        C_visc*A_v/viscosity_rotu, &
+                   if (diffuse_scalars) dt = min (dt, &
                         C_visc*A_i/viscosity_temp, &
                         C_visc*A_i/viscosity_mass)
+                    if (diffuse_momentum) dt = min (dt, &
+                        C_visc*A_i/viscosity_divu, &
+                        C_visc*A_v/viscosity_rotu)
                 end if
              end if
           end if
