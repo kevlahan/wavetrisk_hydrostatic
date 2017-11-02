@@ -14,7 +14,7 @@ module DCMIP2008c5_mod
 
   real(8)              :: c_v, d2, h_0, lat_c, lon_c, N_freq, p_sp, T_0, u_0 ! parameters for initial conditions
   real(8)              :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
-  
+  real(8)              :: max_mass, max_temp, max_velo, mass_scale, temp_scale, velo_scale
 contains
   subroutine apply_initial_conditions()
     integer :: k, l
@@ -172,24 +172,24 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
 
     ! Print out layer thicknesses
-    if (rank.eq.0 .and. .not.wasprinted) then
-       if(zlev.eq.1) then
-          write(6,'(4(A,es11.4))') &
-               ' surf geopot =', dom%surf_geopot%elts(id+1), &
-               ' surf press =', dom%surf_press%elts(id+1), &
-               ' press_infty =', press_infty
-       end if
+    ! if (rank.eq.0 .and. .not.wasprinted) then
+    !    if(zlev.eq.1) then
+    !       write(6,'(4(A,es11.4))') &
+    !            ' surf geopot =', dom%surf_geopot%elts(id+1), &
+    !            ' surf press =', dom%surf_press%elts(id+1), &
+    !            ' press_infty =', press_infty
+    !    end if
 
-       write(6,'(A,I2,1x,6(A,es11.4))') &
-            ' zlev = ', zlev, &
-            ' press =', lev_press, &
-            ' mu =', sol(S_MASS,zlev)%data(d)%elts(id+1), &
-            ' Theta =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
-            ' U = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1), &
-            ' V = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1), &
-            ' W = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)
-       wasprinted=.true.
-    end if
+    !    write(6,'(A,I2,1x,6(A,es11.4))') &
+    !         ' zlev = ', zlev, &
+    !         ' press =', lev_press, &
+    !         ' mu =', sol(S_MASS,zlev)%data(d)%elts(id+1), &
+    !         ' Theta =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
+    !         ' U = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1), &
+    !         ' V = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1), &
+    !         ' W = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)
+    !    wasprinted=.true.
+    ! end if
   end subroutine init_sol
 
   subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
@@ -348,12 +348,83 @@ contains
     integer fid
     read(fid) iwrite
   end subroutine DCMIP2008c5_load
+  
+  subroutine set_thresholds (itype)
+    integer, optional :: itype
+    
+    integer :: l, k
 
-  subroutine set_thresholds() ! inertia-gravity wave
-    tol_mass = threshold**(1.5_8)
-    tol_velo = threshold**(1.5_8)
-    tol_temp = tol_mass
-  end subroutine set_thresholds
+    ! Set thresholds dynamically
+    if (adapt_trend) call trend_ml (sol, trend)
+
+    max_mass = 0.0_8
+    max_temp = 0.0_8
+    max_velo = 0.0_8
+    do l = level_start, level_end
+       do k = 1, zlevels
+          if (adapt_trend.and.istep.ne.0) then
+             call apply_onescale (cpt_max_trend, l, k, 0, 0)
+          else
+             call apply_onescale (cpt_max_vars,  l, k, 0, 0)
+          end if
+       end do
+    end do
+    mass_scale = sync_max_d (max_mass)
+    temp_scale = sync_max_d (max_temp)
+    velo_scale = sync_max_d (max_velo)
+
+    if (istep.ne.0) then
+       tol_mass = mass_scale * threshold
+       tol_temp = temp_scale * threshold
+       tol_velo = velo_scale * threshold
+    else
+       tol_mass = mass_scale * threshold**1.5
+       tol_temp = temp_scale * threshold**1.5
+       tol_velo = velo_scale * threshold**1.5
+    end if
+   end subroutine set_thresholds
+
+  subroutine cpt_max_trend (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, e
+
+    id = idx(i, j, offs, dims)
+
+    ! Maximum trends
+    if (dom%mask_n%elts(id+1) .gt. 0) then
+       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) then
+          max_mass = max(max_mass, abs(trend(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
+          max_temp = max(max_temp, abs(trend(S_TEMP,zlev)%data(dom%id+1)%elts(id+1)))
+          do e = 1, EDGE
+             max_velo  = max(max_velo, abs(trend(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e)))
+          end do
+       end if
+    endif
+  end subroutine cpt_max_trend
+
+  subroutine cpt_max_vars(dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id, e
+
+    id = idx(i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+       max_mass = max(max_mass, abs(sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
+       max_temp = max(max_temp, abs(sol(S_TEMP,zlev)%data(dom%id+1)%elts(id+1)))
+       do e = 1, EDGE
+          max_velo  = max(max_velo, abs(sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e)))
+       end do
+    end if
+  end subroutine cpt_max_vars
+
 end module DCMIP2008c5_mod
 
 program DCMIP2008c5
@@ -431,9 +502,9 @@ program DCMIP2008c5
 
   cfl_num     = 1.0d0                            ! cfl number
 
-  viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
+  viscosity_mass = 5.0e-3/kmax**2                ! viscosity for mass equation
   viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 5.0e-4/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_divu = 5.0e-3/kmax**2                ! viscosity for divergent part of momentum equation
   viscosity_rotu = viscosity_divu                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
@@ -445,6 +516,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
+  adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse_scalars  = .false.  ! Diffuse scalars
   diffuse_momentum = .false.  ! Diffuse momentum
@@ -471,11 +543,8 @@ program DCMIP2008c5
   iwrite     = 0
   total_time = 0.0_8
   do while (time .lt. time_end)
-     call set_thresholds()
-
      call start_timing()
      call update_array_bdry (sol, NONE)
-
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)

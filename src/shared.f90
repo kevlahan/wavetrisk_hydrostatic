@@ -349,7 +349,7 @@ contains
 
     ! Default values
     adapt_dt            = .true.
-    adapt_trend         = .true.
+    adapt_trend         = .false.
     diffuse_scalars     = .false.
     diffuse_momentum    = .false.
     initialized         = .true.

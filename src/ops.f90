@@ -673,7 +673,7 @@ contains
 
     if (full_mass .lt. 1d-6) then
        write(6,*) 'Fatal error: a horizontal layer thickness is being squeezed to zero!'
-       write(6,'(3(A,i3,1x))') 'zlev = ', zlev, 'd = ', dom%id+1, 'id = ', id
+       write(6,'(3(A,i6,1x))') 'zlev = ', zlev, 'd = ', dom%id+1, 'id = ', id
        write(6,'(A,es11.4)') 'full mass = ', full_mass
        stop
     end if

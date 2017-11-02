@@ -45,9 +45,10 @@ contains
   end subroutine init_main_mod
 
   subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
-    external apply_init_cond, set_thresholds, custom_dump, custom_load
-    character(20+4+4) command
-    integer k, d, stage, ierr
+    external :: apply_init_cond, set_thresholds, custom_dump, custom_load
+    
+    character(20+4+4) :: command
+    integer           :: k, d, stage, ierr
 
     if (min_level .gt. max_level) then
        if (rank .eq. 0) write(*,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
@@ -95,19 +96,19 @@ contains
     else
        call apply_init_cond()
        call set_thresholds()
-       call forward_wavelet_transform(sol, wav_coeff)
+       call forward_wavelet_transform (sol, wav_coeff)
 
        do while(level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
-          
-          call adapt(wav_coeff)
+
+          call adapt (wav_coeff)
 
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
 
           call apply_init_cond()
-          call forward_wavelet_transform(sol, wav_coeff)
+          call forward_wavelet_transform (sol, wav_coeff)
           
           !--Check whether there are any active nodes at this scale
           n_active = 0.0_8
@@ -126,6 +127,7 @@ contains
           end do
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
+          if (rank .eq. 0) write(*,'(A,i2,A,i8)') 'Level = ', level_end,' d.o.f. = ', sum(n_active)
 
           if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) exit !--No active nodes at this scale
        end do
@@ -133,8 +135,7 @@ contains
        cp_idx = 0
        
        call set_thresholds()
-
-       call adapt(wav_coeff)
+       call adapt (wav_coeff)
 
        call write_load_conn(0)
        ierr = dump_adapt_mpi(cp_idx, custom_dump)
@@ -166,12 +167,13 @@ contains
     end do
   end subroutine record_init_state
 
-  subroutine time_step(align_time, aligned, set_thresholds)
-    real(8) align_time
+  subroutine time_step (align_time, aligned, set_thresholds)
+    real(8)              :: align_time
     logical, intent(out) :: aligned
-    integer(8)  idt, ialign
-    external :: set_thresholds
+    external             :: set_thresholds
 
+    integer(8)           :: idt, ialign
+    
     dt = cpt_dt_mpi()
     istep = istep+1
 
@@ -507,7 +509,7 @@ contains
 
     call barrier() ! do not delete files before everyone has read them
 
-    if (rank .eq. 0) call system(command)
+    if (rank .eq. 0) call system (command)
     
     call adapt (wav_coeff)
 
