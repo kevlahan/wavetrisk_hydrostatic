@@ -1,4 +1,0 @@
-max_level	7
-threshold	0.01
-time_end	1036800 ! 12 days
-dt_write	86400	! 24 h
