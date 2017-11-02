@@ -904,10 +904,6 @@ contains
          + qe(EDGE*id+UP+1))*wgt2(4) + &
          h_mflux(EDGE*idW+DG+1)*0.5_8*(qe(EDGE*idW+DG+1) + &
          qe(EDGE*id+UP+1))*wgt2(5)
-
-    do e = 1, EDGE
-       dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e)
-    end do
   end subroutine du_Qperp
 
   subroutine scalar_trend (dom, i, j, zlev, offs, dims)
@@ -1093,7 +1089,7 @@ contains
 
     ! Update velocity trend
     do e = 1, EDGE
-       dvelo(EDGE*id+e) = dvelo(EDGE*id+e) - gradB(e) - theta_e(e) * gradE(e)
+       dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
     end do
        
     ! Add vertical flux gradient term
