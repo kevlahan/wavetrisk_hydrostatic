@@ -321,10 +321,8 @@ contains
           end do
           nullify(wc_m, wc_t, wc_u)
        end do
-    end do
     
-    do l = level_end-1, level_start, -1
-       do k = 1, zlevels
+       do l = level_end-1, level_start, -1
           do d = 1, size(grid)
              wc_m => wav(S_MASS,k)%data(d)%elts
              wc_t => wav(S_TEMP,k)%data(d)%elts
@@ -334,11 +332,16 @@ contains
              end do
              nullify(wc_m, wc_t, wc_u)
           end do
+         
        end do
+    end do
+
+    do l = level_end-1, level_start, -1
        call apply_interscale(mask_active_nodes, l, z_null,  0, 1)
        call apply_interscale(mask_active_edges, l, z_null, -1, 1)
        call comm_masks_mpi(l)
     end do
+   
   end subroutine mask_active
 
   subroutine mask_tol(dom, i, j, zlev, offs, dims)

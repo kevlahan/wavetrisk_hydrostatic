@@ -103,7 +103,14 @@ contains
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
 
-          call adapt (wav_coeff)
+          if (adapt_trend) then
+             call trend_ml (sol, trend)
+             call forward_wavelet_transform (trend, trend_wav_coeff)
+             call adapt (trend_wav_coeff)
+          else
+             call adapt (wav_coeff)
+          end if
+          !call adapt (wav_coeff)
 
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
 
@@ -127,7 +134,6 @@ contains
           end do
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
-          if (rank .eq. 0) write(*,'(A,i2,A,i8)') 'Level = ', level_end,' d.o.f. = ', sum(n_active)
 
           if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) exit !--No active nodes at this scale
        end do
@@ -135,12 +141,20 @@ contains
        cp_idx = 0
        
        call set_thresholds()
-       call adapt (wav_coeff)
+       
+       if (adapt_trend) then
+          call trend_ml (sol, trend)
+          call forward_wavelet_transform (trend, trend_wav_coeff)
+          call adapt (trend_wav_coeff)
+       else
+          call adapt (wav_coeff)
+       end if
+       !call adapt (wav_coeff)
 
        call write_load_conn(0)
        ierr = dump_adapt_mpi(cp_idx, custom_dump)
     end if
-
+    
 !    call restart_full (set_thresholds, custom_load)
   end subroutine initialize
 
@@ -192,13 +206,12 @@ contains
 
     dt = idt/time_mult
 
-    call RK45_opt(trend)
-
-    ! Set thresholds dynamically based on new solution
-    call set_thresholds()
+    call RK45_opt ()
 
     if (min_level .lt. max_level) then ! Adaptive simulation
+       call set_thresholds()
        if (adapt_trend) then
+          call trend_ml(sol, trend)
           call forward_wavelet_transform(trend, trend_wav_coeff)
           call adapt(trend_wav_coeff)
        else

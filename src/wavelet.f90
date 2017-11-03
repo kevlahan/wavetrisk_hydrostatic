@@ -878,6 +878,7 @@ contains
   end subroutine IWT_inject_h_and_undo_update
 
   function inject (scalar, wav, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    real(8)                        :: inject
     real(8)                        :: scalar
     real(8), dimension(:), pointer :: wav
     type(Domain)                   :: dom
@@ -886,7 +887,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims_chd
 
     integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
-    real(8) :: inject
+
     
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)

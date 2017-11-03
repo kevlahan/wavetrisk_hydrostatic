@@ -1238,10 +1238,12 @@ contains
     sync_max_d = val_glo
   end function sync_max_d
 
-  real(8) function sum_real(val)
-    real(8) val_glo
-    real(8) val
+  function sum_real(val)
+    real(8) :: sum_real
+    real(8) :: val
 
+    real(8) :: val_glo
+    
     call MPI_Allreduce(val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierror)
     sum_real = val_glo
   end function sum_real

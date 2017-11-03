@@ -730,7 +730,7 @@ contains
        dom%adj_mass%elts(id+1) = full_mass ! Save current mass for pressurce calculation at next vertical level
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          if (abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty) .gt. 1e-10_8) then
+          if (abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty)/press_infty .gt. 1e-10_8) then
              write(6,*) 'warning: upward integration of pressure not resulting in zero at top interface'
              write(6,*) 'observed pressure - pressure_infty =', abs((dom%press%elts(id+1) &
                   - 0.5_8*grav_accel*full_mass) - press_infty)
