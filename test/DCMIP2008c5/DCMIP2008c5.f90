@@ -378,21 +378,14 @@ contains
     ! velo_scale = sqrt(sum_real(norm_velo))
 
     if (istep.gt.0) then
-       tol_mass = 0.5_8*(tol_mass + mass_scale * threshold)
-       tol_temp = 0.5_8*(tol_temp + temp_scale * threshold)
-       tol_velo = 0.5_8*(tol_velo + velo_scale * threshold)
+       tol_mass = (0.95*tol_mass + 0.05*mass_scale * threshold)
+       tol_temp = (0.95*tol_temp + 0.05*temp_scale * threshold)
+       tol_velo = (0.95*tol_velo + 0.05*velo_scale * threshold)
+    else
+       tol_mass = mass_scale * threshold/1e2
+       tol_temp = temp_scale * threshold/1e2
+       tol_velo = velo_scale * threshold/1e2
     end if
-
-    tol_mass = 1.0E-04
-    tol_temp = 5.0E-02
-    tol_velo = 1.0E-04
-
-    !  if (istep.eq.0) then
-    !    tol_mass = tol_mass/2.0e1
-    !    tol_temp = tol_mass/2.0e1
-    !    tol_velo = tol_mass/2.0e1
-    ! end if
-       
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
@@ -556,11 +549,11 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
-  cfl_num     = 0.8d0                            ! cfl number
+  cfl_num     = 1.0d0                            ! cfl number
 
-  viscosity_mass = 4*5.0e-4/kmax**2                ! viscosity for mass equation
+  viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
   viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 4*5.0e-4/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_divu = 5.0e-4/kmax**2                ! viscosity for divergent part of momentum equation
   viscosity_rotu = viscosity_divu                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
@@ -575,7 +568,7 @@ program DCMIP2008c5
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse_scalars  = .true.  ! Diffuse scalars
-  diffuse_momentum = .false.  ! Diffuse momentum
+  diffuse_momentum = .true.  ! Diffuse momentum
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid

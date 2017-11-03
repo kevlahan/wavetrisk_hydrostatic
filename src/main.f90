@@ -155,7 +155,7 @@ contains
        ierr = dump_adapt_mpi(cp_idx, custom_dump)
     end if
     
-!    call restart_full (set_thresholds, custom_load)
+   call restart_full (set_thresholds, custom_load)
   end subroutine initialize
 
   subroutine record_init_state(init_state)
@@ -524,16 +524,17 @@ contains
 
     if (rank .eq. 0) call system (command)
     
-    call adapt (wav_coeff)
-
-    ! Interpolate onto adapted grid
-    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-    
-    ! Calculate trend wavelets
     if (adapt_trend) then
-       call trend_ml (sol, trend)
-       call forward_wavelet_transform (trend, trend_wav_coeff)
+       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+       call trend_ml(sol, trend)
+       call forward_wavelet_transform(trend, trend_wav_coeff)
+       call adapt(trend_wav_coeff)
+       call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    else
+       call adapt(wav_coeff)
+       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     end if
+    
   end subroutine restart_full
 
   subroutine read_sol(custom_load)

@@ -455,8 +455,8 @@ contains
 
       kinetic_energy = 0.5_8 * inner(vel,vel)
 
-      ! Formula from TRiSK ... not convergent!
-      ! vel = &
+      ! ! Formula from TRiSK ... not convergent!
+      ! kinetic_energy = &
       !      (u_prim_up*u_dual_up + u_prim_dg*u_dual_dg + u_prim_rt*u_dual_rt + &
       !      u_prim_s*u_dual_s + u_prim_sw*u_dual_sw + u_prim_w*u_dual_w &
       !      )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
