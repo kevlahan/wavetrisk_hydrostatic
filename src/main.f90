@@ -152,7 +152,7 @@ contains
        !call adapt (wav_coeff)
 
        call write_load_conn(0)
-       ierr = dump_adapt_mpi(cp_idx, custom_dump)
+       ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
     
    call restart_full (set_thresholds, custom_load)
@@ -508,8 +508,7 @@ contains
     call init_RK_mem ()
 
     if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
-
-    call load_adapt_mpi (cp_idx, custom_load)
+    call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
 
     itime = nint (time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
@@ -546,19 +545,20 @@ contains
     itime = nint (time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
 
-    call load_adapt_mpi (cp_idx, custom_load)
+    call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
        
     call inverse_wavelet_transform (wav_coeff, sol)
   end subroutine read_sol
 
-  integer function write_checkpoint(custom_dump)
+  function write_checkpoint(custom_dump)
+    integer :: write_checkpoint
     external :: custom_dump, custom_load
 
     character(38+4+22+4+6) :: command
     
     cp_idx = cp_idx + 1
     call write_load_conn (cp_idx)
-    write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
+    write_checkpoint = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
   end function write_checkpoint
 
   subroutine compress_files(iwrite)

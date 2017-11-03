@@ -1,7 +1,7 @@
 TEST_CASE = DCMIP2008c5
 # options: ser mpi mpi-lb
 ARCH = mpi-lb
-PARAM = param_J5
+PARAM = param_J4
 GEOM = sphere
 ARRAYS = dyn_array
 
