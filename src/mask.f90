@@ -282,17 +282,13 @@ contains
 
   end subroutine inj_p_adjzone
 
-  subroutine set_masks(dom, p, i, j, zlev, offs, dims, mask)
-    type(Domain) dom
-    integer p
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
+  subroutine set_masks (dom, p, i, j, zlev, offs, dims, mask)
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer mask
-    integer id
-    integer e
+
+    integer :: e, id, mask
 
     id = idx(i, j, offs, dims)
 
@@ -302,14 +298,75 @@ contains
     do e = 1, EDGE
        dom%mask_e%elts(EDGE*id+e) = mask
     end do
-
   end subroutine set_masks
 
-  subroutine mask_active(wav)
+  subroutine mask_adjacent (wav)
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
+    
     integer :: d, j, k, l
 
-    call update_array_bdry1(wav, level_start, level_end)
+    call update_array_bdry1 (wav, level_start, level_end)
+    
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          wc_m => wav(S_MASS,k)%data(d)%elts
+          wc_t => wav(S_TEMP,k)%data(d)%elts
+          wc_u => wav(S_VELO,k)%data(d)%elts
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (mask_adj, grid(d), grid(d)%lev(level_end)%elts(j), k, -1, 2)
+          end do
+          nullify(wc_m, wc_t, wc_u)
+       end do
+    
+       do l = level_end-1, level_start, -1
+          do d = 1, size(grid)
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (mask_adj, grid(d), grid(d)%lev(l)%elts(j), k, -1, 2)
+             end do
+             nullify(wc_m, wc_t, wc_u)
+          end do
+         
+       end do
+    end do
+  end subroutine mask_adjacent
+
+  subroutine mask_adj (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer id
+    integer e
+    integer mask_mass, mask_temp, mask_velo
+
+    id = idx(i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) .eq. FROZEN) return
+
+    call set_adj_mask(dom%mask_n%elts(id+1), wc_m(id+1), tol_mass)
+    call set_adj_mask(dom%mask_n%elts(id+1), wc_t(id+1), tol_temp)
+    do e = 1, EDGE
+       call set_adj_mask(dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), tol_velo)
+    end do
+  end subroutine mask_adj
+
+  subroutine set_adj_mask (mask, wc, tol)
+    ! add adjacent zone points to mask
+    integer, intent(inout) :: mask
+    real(8), intent(in)    :: wc, tol
+
+    if (mask .gt. ADJZONE) mask = ADJZONE
+  end subroutine set_adj_mask
+  
+  subroutine mask_active (wav)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
+    
+    integer :: d, j, k, l
+
+    call update_array_bdry1 (wav, level_start, level_end)
     
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -341,16 +398,13 @@ contains
        call apply_interscale(mask_active_edges, l, z_null, -1, 1)
        call comm_masks_mpi(l)
     end do
-   
   end subroutine mask_active
-
-  subroutine mask_tol(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  
+  subroutine mask_tol (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
     integer id
     integer e
     integer mask_mass, mask_temp, mask_velo
@@ -366,17 +420,12 @@ contains
     end do
   end subroutine mask_tol
 
-  subroutine set_active_mask(mask, wc, tol)
+  subroutine set_active_mask (mask, wc, tol)
     ! add active points to mask
     integer, intent(inout) :: mask
     real(8), intent(in)    :: wc, tol
 
-    if (abs(wc) .ge. tol) then
-       mask = TOLRNZ
-    else
-       if (mask .gt. ADJZONE) mask = ADJZONE
-    end if
-
+    if (abs(wc) .ge. tol) mask = TOLRNZ
   end subroutine set_active_mask
 
   subroutine mask_restrict_flux(dom, i_par, j_par, zlev, offs_par, dims_par)

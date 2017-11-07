@@ -29,19 +29,19 @@ module main_mod
 
 contains
 
-  subroutine init_main_mod()
-    call init_arch_mod()
-    call init_domain_mod()
-    call init_comm_mod()
-    call init_comm_mpi_mod()
-    call init_init_mod()
-    call init_refine_patch_mod()
-    call init_time_integr_mod()
-    call init_io_mod()
-    call init_wavelet_mod()
-    call init_mask_mod()
-    call init_adapt_mod()
-    time_mult = 1.0
+  subroutine init_main_mod
+    call init_arch_mod
+    call init_domain_mod
+    call init_comm_mod
+    call init_comm_mpi_mod
+    call init_init_mod
+    call init_refine_patch_mod
+    call init_time_integr_mod
+    call init_io_mod
+    call init_wavelet_mod
+    call init_mask_mod
+    call init_adapt_mod
+    time_mult = 1.0_8
   end subroutine init_main_mod
 
   subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
@@ -60,13 +60,13 @@ contains
        cp_idx = resume
        write(command, '(A,I4.4,A)')  "tar -xzf checkpoint_" , cp_idx , ".tgz"
        if (rank .eq. 0) call system(command)
-       call barrier() ! make sure all files are extracted before everyone starts reading them
+       call barrier ! make sure all files are extracted before everyone starts reading them
     end if
 
-    call distribute_grid(resume)
-    call init_grid()
-    call init_comm_mpi()
-    call init_geometry()
+    call distribute_grid (resume)
+    call init_grid
+    call init_comm_mpi
+    call init_geometry
 
     if (optimize_grid .eq. XU_GRID) call smooth_Xu(1.0e6_8*eps())
     if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid()
@@ -89,73 +89,83 @@ contains
     if (time_end .gt. 0.0_8) time_mult = huge(itime)/2/time_end
     if (stage .eq. 0) return
 
-    call init_RK_mem()
+    call init_RK_mem
 
     if (resume .ge. 0) then
        if (rank .eq. 0) write(*,*) 'Resuming from checkpoint', resume
     else
-       call apply_init_cond()
-       call set_thresholds()
+       call apply_init_cond
        call forward_wavelet_transform (sol, wav_coeff)
+       if (adapt_trend) then
+          call trend_ml (sol, trend)
+          call forward_wavelet_transform (trend, trend_wav_coeff)
+       end if
+       call set_thresholds
+       tol_mass = tol_mass/2.0_8
+       tol_temp = tol_temp/2.0_8
+       tol_velo = tol_velo/2.0_8
 
-       do while(level_end .lt. max_level)
+       do while (level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
 
+          ! Add level
           if (adapt_trend) then
-             call trend_ml (sol, trend)
-             call forward_wavelet_transform (trend, trend_wav_coeff)
              call adapt (trend_wav_coeff)
           else
              call adapt (wav_coeff)
           end if
-          !call adapt (wav_coeff)
 
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
 
-          call apply_init_cond()
-          call forward_wavelet_transform (sol, wav_coeff)
+          call apply_init_cond
           
+          if (adapt_trend) then
+             call trend_ml (sol, trend)
+             call forward_wavelet_transform (trend, trend_wav_coeff)
+          end if
+          call set_thresholds
+          call forward_wavelet_transform (sol, wav_coeff)
+                    
           !--Check whether there are any active nodes at this scale
-          n_active = 0.0_8
+          n_active = 0
           do k = 1, zlevels
              n_active = n_active + (/ &
-                  sum((/(count(( &
-                  abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_mass) &
+                  sum((/(count( &
+                  abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) .gt. tol_mass &
                   .or. &
-                  abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d) : grid(d)%node%length)) .gt. tol_temp), &
+                  abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) .gt. tol_temp ), &
                   d = 1, n_domain(rank+1)) /)), &
                   
-                  sum((/(count( &
-                  abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d): grid(d)%midpt%length)) .gt. tol_velo), &
+                  sum((/(count(abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d):grid(d)%midpt%length)) .gt. tol_velo), &
                   d = 1, n_domain(rank+1)) /)) &
                   /)
           end do
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
+          if (rank.eq.0) write(6,'(A,i2,1x,2(A,i8,1x))') &
+               'Level = ', level_end, 'number of active nodes = ',n_active(AT_NODE), 'number of active edges = ', n_active(AT_EDGE)
 
           if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) exit !--No active nodes at this scale
        end do
 
        cp_idx = 0
        
-       call set_thresholds()
-       
        if (adapt_trend) then
           call trend_ml (sol, trend)
+          call set_thresholds
           call forward_wavelet_transform (trend, trend_wav_coeff)
           call adapt (trend_wav_coeff)
        else
+          call set_thresholds
           call adapt (wav_coeff)
        end if
-       !call adapt (wav_coeff)
 
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
-    
-   call restart_full (set_thresholds, custom_load)
+    call restart_full (set_thresholds, custom_load)
   end subroutine initialize
 
   subroutine record_init_state(init_state)
@@ -206,18 +216,21 @@ contains
 
     dt = idt/time_mult
 
-    call RK45_opt ()
+    call RK45_opt 
 
     if (min_level .lt. max_level) then ! Adaptive simulation
-       call set_thresholds()
        if (adapt_trend) then
-          call trend_ml(sol, trend)
-          call forward_wavelet_transform(trend, trend_wav_coeff)
-          call adapt(trend_wav_coeff)
+          call trend_ml (sol, trend)
+          call set_thresholds
+          call forward_wavelet_transform (trend, trend_wav_coeff)
+          call adapt (trend_wav_coeff)
        else
-          call adapt(wav_coeff)
+          call set_thresholds
+          call adapt (wav_coeff)
        end if
-       call inverse_wavelet_transform(wav_coeff, sol)
+       if (level_end .gt. level_start) then ! currently several levels exist
+          call inverse_wavelet_transform (wav_coeff, sol, level_start)
+       end if
     end if
     
     itime = itime + idt
@@ -475,37 +488,37 @@ contains
 
     deallocate (grid, sol, trend, horiz_flux)
 
-    ! init_shared_mod()
+    ! init_shared_mod
     level_start = min_level
     level_end = level_start
 
     call distribute_grid(cp_idx)
     deallocate (n_active_edges, n_active_nodes)
 
-    call init_grid ()
-    call init_comm ()
-    call comm_communication_mpi ()
-    call init_geometry ()
+    call init_grid 
+    call init_comm 
+    call comm_communication_mpi 
+    call init_geometry 
 
     if (optimize_grid .eq. XU_GRID) call smooth_Xu (1.0e6_8*eps())
-    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid ()
+    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid 
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call precompute_geometry ()
+    call precompute_geometry 
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
     if (rank .eq. 0) write(*,*) 'Make level J_min =', min_level, '...'
-    call init_wavelets ()
-    call init_masks ()
-    call add_second_level ()
+    call init_wavelets 
+    call init_masks 
+    call add_second_level 
 
     call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
     call apply_interscale (mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
     call record_init_state (ini_st)
 
-    call init_RK_mem ()
+    call init_RK_mem 
 
     if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
     call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
@@ -519,21 +532,19 @@ contains
     write(command, '(A,A,A,A,A,A,A,A,A)') "if [ -e ", cmd_archive, " ]; then rm -f ", cmd_files, &
          "; else tar c -z -f ", cmd_archive, " ", cmd_files, "; fi" !JEMF
 
-    call barrier() ! do not delete files before everyone has read them
+    call barrier ! do not delete files before everyone has read them
 
     if (rank .eq. 0) call system (command)
-    
+
     if (adapt_trend) then
        call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-       call trend_ml(sol, trend)
-       call forward_wavelet_transform(trend, trend_wav_coeff)
-       call adapt(trend_wav_coeff)
-       call inverse_wavelet_transform (wav_coeff, sol, level_start)
+       call trend_ml (sol, trend)
+       call forward_wavelet_transform (trend, trend_wav_coeff)
+       call adapt (trend_wav_coeff)
     else
-       call adapt(wav_coeff)
-       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+       call adapt (wav_coeff)
     end if
-    
+    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
   end subroutine restart_full
 
   subroutine read_sol(custom_load)

@@ -844,14 +844,16 @@ contains
     integer fid
   end subroutine default_load
 
-  integer function dump_adapt_mpi(node_out_rout, edge_out_rout, id, custom_dump)
-    ! one file per domain
-    external node_out_rout, edge_out_rout, custom_dump
-    integer id, fid_no, l, fid_grid!, fid_ed
-    character(5+4+1+5) filename_no, filename_ed, fname_gr
-    integer d, j, k, v, i
-    logical child_required(N_CHDRN)
-    integer p_par, p_chd, c, p_lev
+  function dump_adapt_mpi (node_out_rout, edge_out_rout, id, custom_dump)
+    ! One file per domain
+    integer  :: dump_adapt_mpi
+    external :: node_out_rout, edge_out_rout, custom_dump
+    integer  :: id
+    
+    character(5+4+1+5) :: filename_no, filename_ed, fname_gr
+    integer            :: fid_no, l, fid_grid, fid_ed, d, j, k, v, i
+    logical            :: child_required(N_CHDRN)
+    integer            :: p_par, p_chd, c, p_lev
 
     dump_adapt_mpi = 0
     fid_no   = id+1000000

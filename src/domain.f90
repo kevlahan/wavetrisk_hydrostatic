@@ -768,10 +768,12 @@ contains
     end do
   end subroutine apply_onescale__int
 
-  integer function add_bdry_patch_Domain(self, side)
-    type(Domain) self
-    integer side
-    integer p
+  function add_bdry_patch_Domain(self, side)
+    integer      :: add_bdry_patch_Domain
+    type(Domain) :: self
+    integer      :: side
+    
+    integer :: p
 
     p = self%bdry_patch%length
 
@@ -1039,10 +1041,11 @@ contains
     self%pole_master = .False.
   end subroutine init_Domain
 
-  integer function add_patch_Domain(self, level)
-    type(Domain) self
-    integer level
-    integer p
+  function add_patch_Domain(self, level)
+    integer      :: add_patch_Domain
+    type(Domain) :: self
+    
+    integer :: level, p
 
     p = self%patch%length
 

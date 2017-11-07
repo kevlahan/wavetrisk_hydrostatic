@@ -17,7 +17,7 @@ module DCMIP2008c5_mod
   real(8)              :: norm_mass, norm_temp, norm_velo, mass_scale, temp_scale, velo_scale
   real(8)              :: l2_mass, l2_temp, l2_velo
 contains
-  subroutine apply_initial_conditions()
+  subroutine apply_initial_conditions
     integer :: k, l
 
     wasprinted=.false.
@@ -29,7 +29,7 @@ contains
     end do
   end subroutine apply_initial_conditions
 
-  subroutine set_surf_geopot()
+  subroutine set_surf_geopot
     integer ::  d, p
     
     do d = 1, size(grid)
@@ -52,14 +52,14 @@ contains
     end if
   end subroutine sum_total_mass
 
-  subroutine write_and_print_step()
+  subroutine write_and_print_step
     real(4) timing
     timing = get_timing()
     if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
          time, dt, timing, level_end, n_active
   end subroutine write_and_print_step
 
-  subroutine initialize_a_b_vert()
+  subroutine initialize_a_b_vert
     integer :: k
 
     ! Allocate vertical grid parameters
@@ -149,7 +149,7 @@ contains
     x_NE = dom%node%elts(idNE+1)
 
     ! Initialize vertical grid
-    call initialize_a_b_vert()
+    call initialize_a_b_vert
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
@@ -287,7 +287,7 @@ contains
     integer :: l, k, zlev, d, u, i, p
 
     call trend_ml(sol, trend)
-    call pre_levelout()
+    call pre_levelout
 
     zlev = 1 ! Only export one vertical level
 
@@ -335,7 +335,7 @@ contains
        u = 200000+100*iwrite
     end do
 
-    call post_levelout()
+    call post_levelout
     call barrier
     !if (rank .eq. 0) call compress_files(k)
   end subroutine write_and_export
@@ -355,13 +355,14 @@ contains
     
     integer :: l, k
 
-    ! Set thresholds dynamically
+    ! Set thresholds dynamically (trend or sol must be known)
     norm_mass = 0.0_8
     norm_temp = 0.0_8
     norm_velo = 0.0_8
     do k = 1, zlevels
        do l = level_start, level_end
-          if (adapt_trend.and.istep.ne.0) then
+          ! if (adapt_trend.and.istep.ne.0) then
+           if (adapt_trend) then
              call apply_onescale (linf_trend, l, k, 0, 1)
           else
              call apply_onescale (linf_vars,  l, k, 0, 1)
@@ -373,18 +374,14 @@ contains
     temp_scale = sync_max_d(norm_temp)
     velo_scale = sync_max_d(norm_velo)
     
-    ! mass_scale = sqrt(sum_real(norm_mass))
-    ! temp_scale = sqrt(sum_real(norm_temp))
-    ! velo_scale = sqrt(sum_real(norm_velo))
-
-    if (istep.gt.0) then
+    if (istep.lt.2) then
+        tol_mass = mass_scale * threshold
+        tol_temp = temp_scale * threshold
+        tol_velo = velo_scale * threshold
+     else
        tol_mass = (0.95*tol_mass + 0.05*mass_scale * threshold)
        tol_temp = (0.95*tol_temp + 0.05*temp_scale * threshold)
        tol_velo = (0.95*tol_velo + 0.05*velo_scale * threshold)
-    else
-       tol_mass = mass_scale * threshold/1e2
-       tol_temp = temp_scale * threshold/1e2
-       tol_velo = velo_scale * threshold/1e2
     end if
   end subroutine set_thresholds
 
@@ -492,7 +489,7 @@ program DCMIP2008c5
   logical                      :: aligned, remap, write_init
 
   ! Initialize grid etc
-  call init_main_mod ()
+  call init_main_mod 
 
   ! Nullify all pointers initially
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t)
@@ -577,12 +574,12 @@ program DCMIP2008c5
   call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
 
   allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
-  n_patch_old = 2;  call set_surf_geopot ()
+  n_patch_old = 2;  call set_surf_geopot 
   
   call sum_total_mass (.True.)
 
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
-  call barrier()
+  call barrier
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   write_init = (resume .eq. NONE)
@@ -592,17 +589,17 @@ program DCMIP2008c5
   iwrite     = 0
   total_time = 0.0_8
   do while (time .lt. time_end)
-     call start_timing()
+     call start_timing
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
-     call set_surf_geopot()
-     call stop_timing()
+     call set_surf_geopot
+     call stop_timing
      timing = get_timing()
      total_time = total_time + timing
      
-     call write_and_print_step()
+     call write_and_print_step
 
      if (rank .eq. 0) write(*,'(6(A,ES10.4),A,I9,A,ES9.2)') &
           ' time [h] = ', time/3600.0_8, &
@@ -614,11 +611,11 @@ program DCMIP2008c5
           '  dof = ', sum(n_active), &
           ' cpu = ', timing
 
-     call print_load_balance()
+     call print_load_balance
      
      if (aligned) then
         iwrite = iwrite + 1
-        if (remap) call remap_vertical_coordinates()
+        if (remap) call remap_vertical_coordinates
         call write_and_export(iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle 
@@ -628,7 +625,7 @@ program DCMIP2008c5
         ierr = sync_max(ierr)
         if (ierr .eq. 1) then ! NaN
            write(0,*) "NaN when writing checkpoint"
-           call finalize()
+           call finalize
            stop
         end if
 
@@ -636,9 +633,9 @@ program DCMIP2008c5
 
         ! deallocate(n_patch_old); allocate(n_patch_old(size(grid)))
         ! deallocate(n_node_old);  allocate(n_node_old(size(grid)))
-        ! n_patch_old = 2; call set_surf_geopot()
+        ! n_patch_old = 2; call set_surf_geopot
 
-        call barrier()
+        call barrier
      end if
 
      call sum_total_mass(.False.)
@@ -650,5 +647,5 @@ program DCMIP2008c5
      close(8450)
   end if
 
-  call finalize()
+  call finalize
 end program DCMIP2008c5

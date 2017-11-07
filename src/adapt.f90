@@ -19,39 +19,46 @@ contains
     initialized = .True.
   end subroutine init_adapt_mod
 
-  subroutine compress(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
+  subroutine compress (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer id
-    integer e, k
+    
+    integer :: e, id, k, v
 
     id = idx(i, j, offs, dims)
+    
     if (dom%mask_n%elts(id+1) .lt. ADJZONE) then
-       wav_coeff(S_MASS,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
-       wav_coeff(S_TEMP,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+       do v = S_MASS, S_TEMP
+          wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+          if (adapt_trend) trend_wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+       end do
     end if
+    
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
+       if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) then
+          wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
+          if (adapt_trend) trend_wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
+       end if
     end do
   end subroutine compress
 
-  subroutine adapt(wav)
-    type(Float_Field), dimension(:,:) :: wav
-    integer k, l, d
+  subroutine adapt (wav)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
+    
+    integer :: k, l, d
 
     do l = level_start+1, level_end
-       call apply_onescale__int(set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
+       call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
-    call mask_active(wav)
-    call comm_masks_mpi(NONE)
+    call mask_adjacent (wav)
+    call mask_active (wav)
+    call comm_masks_mpi (NONE)
 
     do l = level_start, level_end
-       call apply_onescale(mask_adj_space2, l, z_null, 0, 1)
+       call apply_onescale (mask_adj_space2, l, z_null, 0, 1)
     end do
 
     call comm_masks_mpi(NONE)
@@ -60,7 +67,7 @@ contains
     ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
     ! => patch needed (contains flux for corrective part of R_F)
     do l = level_start, min(level_end, max_level-1)
-       call apply_onescale(mask_restrict_flux, l, z_null, 0, 0)
+       call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
     end do
 
     call comm_masks_mpi(NONE)
@@ -68,8 +75,8 @@ contains
     if (refine()) call post_refine()
     call complete_masks()
 
-    do l = level_start+1, level_end
-       do k = 1, zlevels
+    do k = 1, zlevels
+       do l = level_start+1, level_end
           call apply_onescale(compress, l, k, 0, 1)
        end do
     end do

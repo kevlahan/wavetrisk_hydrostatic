@@ -98,10 +98,10 @@ contains
   end subroutine RK_sub_step2
 
   subroutine init_RK_mem()
-    integer d, k, v
+    integer :: d, k, v
 
-    allocate (q1(S_MASS:S_VELO, 1:zlevels), q2(S_MASS:S_VELO, 1:zlevels), q3(S_MASS:S_VELO, 1:zlevels), &
-         q4(S_MASS:S_VELO, 1:zlevels), dq1(S_MASS:S_VELO, 1:zlevels))
+    allocate (q1(S_MASS:S_VELO,1:zlevels), q2(S_MASS:S_VELO,1:zlevels), q3(S_MASS:S_VELO,1:zlevels), &
+         q4(S_MASS:S_VELO,1:zlevels), dq1(S_MASS:S_VELO,1:zlevels))
 
     do k = 1, zlevels
        do v = S_MASS, S_VELO
@@ -162,7 +162,7 @@ contains
 
     call manage_RK_mem()
 
-    call trend_ml (sol, trend)
+    call trend_ml (sol, trend) 
     call RK_sub_step1(sol, trend, alpha(1,1), dt*beta(1,1), q1)
     call WT_after_step(q1, wav_coeff)
 
@@ -206,10 +206,11 @@ contains
      call forward_wavelet_transform(sol_euler, wav_coeff_predict)
   end function wav_coeff_predict
 
-  subroutine WT_after_step(q, wav, l_start0)
+  subroutine WT_after_step (q, wav, l_start0)
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, wav
-    integer, optional :: l_start0
-    integer l, ll, d, k, l_start
+    integer, optional                                             :: l_start0
+    
+    integer :: l, ll, d, k, l_start
 
     !  everything needed in terms of forward and backward wavelet transform
     !         after one time step (e.g. RK sub-step)
@@ -217,53 +218,53 @@ contains
     !            to conserve mass
     !         B) interpolate values for next step
     
-    do k = 1, zlevels
-       if (present(l_start0)) then
-          l_start = l_start0
-          if (max_level .gt. min_level) then
+    if (present(l_start0)) then
+       l_start = l_start0
+       if (max_level .gt. min_level) then
+          do k = 1, zlevels
              do d = 1, size(grid)
                 velo => sol(S_VELO,k)%data(d)%elts
                 call apply_interscale_d(restrict_u, grid(d), level_start-1, k, 0, 0)
+                nullify (velo)
              end do
-          end if
-       else
-          l_start = level_start
+          end do
        end if
-    end do
+    else
+       l_start = level_start
+    end if
 
     call update_array_bdry(q, NONE)
 
-    do l = l_start, level_end-1
-       do k = 1, zlevels
+    do k = 1, zlevels
+       do l = l_start, level_end-1
           do d = 1, size(grid)
-             wc_u => wav(S_VELO,k)%data(d)%elts
-             wc_m => wav(S_MASS,k)%data(d)%elts
-             wc_t => wav(S_TEMP,k)%data(d)%elts
-
-             velo => q(S_VELO,k)%data(d)%elts
              mass => q(S_MASS,k)%data(d)%elts
              temp => q(S_TEMP,k)%data(d)%elts
-
-             call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
-             call apply_interscale_d(cpt_scalar_wc, grid(d), l, z_null, 0, 0)
-             call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
+             velo => q(S_VELO,k)%data(d)%elts
+             
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
+             
+             call apply_interscale_d (cpt_velo_wc, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d (cpt_scalar_wc, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d (cpt_vel_wc_penta, grid(d), l, z_null)
+             nullify (mass, temp, velo, wc_m, wc_t, wc_u)
           end do
+          wav(:,k)%bdry_uptodate = .False.
        end do
-       wav%bdry_uptodate = .False.
-    end do
 
-    do l = level_start+1, level_end
-       do k = 1, zlevels
+       do l = level_start+1, level_end
           do d = 1, size(grid)
              do ll = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch(compress, grid(d), grid(d)%lev(l)%elts(ll), k, 0, 1)
+                call apply_onescale_to_patch (compress, grid(d), grid(d)%lev(l)%elts(ll), k, 0, 1)
              end do
           end do
+          wav(:,k)%bdry_uptodate = .False.
        end do
-       wav%bdry_uptodate = .False.
     end do
 
-    call inverse_wavelet_transform(wav, q)
+    call inverse_wavelet_transform (wav, q)
   end subroutine WT_after_step
 
 end module time_integr_mod

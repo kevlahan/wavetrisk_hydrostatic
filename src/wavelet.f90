@@ -180,141 +180,130 @@ contains
     I_u_inner = u
   end function I_u_inner
 
-  subroutine forward_wavelet_transform (loc_var, wav)
-    type(Float_Field), dimension(:,:), target :: loc_var, wav
+  subroutine forward_wavelet_transform (scaling, wavelet)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
     
     integer :: k, l, d
 
-    do l = level_end - 1, level_start - 1, -1
-       call update_array_bdry(loc_var(S_MASS:S_TEMP,:), l+1)
-       do k = 1, zlevels
+    do k = 1, zlevels
+       do l = level_end - 1, level_start - 1, -1
+          call update_vector_bdry (scaling(S_MASS:S_TEMP,k), l+1)
+          
           do d = 1, n_domain(rank+1)
-             mass => loc_var(S_MASS,k)%data(d)%elts
-             wc_m => wav(S_MASS,k)%data(d)%elts
-             temp => loc_var(S_TEMP,k)%data(d)%elts
-             wc_t => wav(S_TEMP,k)%data(d)%elts
-             
-             call apply_interscale_d(cpt_scalar_wc, grid(d), l, z_null, 0, 0)
-             
+             mass => scaling(S_MASS,k)%data(d)%elts
+             temp => scaling(S_TEMP,k)%data(d)%elts
+             wc_m => wavelet(S_MASS,k)%data(d)%elts
+             wc_t => wavelet(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (cpt_scalar_wc, grid(d), l, z_null, 0, 0)
              nullify (wc_m, wc_t, mass, temp)
           end do
-       end do
 
-       call update_array_bdry(wav(S_MASS:S_TEMP,:), l+1)
-       
-       do k = 1, zlevels
+          call update_vector_bdry (wavelet(S_MASS:S_TEMP,k), l+1)
+
           do d = 1, size(grid)
-             mass => loc_var(S_MASS,k)%data(d)%elts
-             wc_m => wav(S_MASS,k)%data(d)%elts
-             temp => loc_var(S_TEMP,k)%data(d)%elts
-             wc_t => wav(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d(restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
-
-             velo => loc_var(S_VELO,k)%data(d)%elts
-             call apply_interscale_d(restrict_u, grid(d), l, k, 0, 0)
+             mass => scaling(S_MASS,k)%data(d)%elts
+             temp => scaling(S_TEMP,k)%data(d)%elts
+             wc_m => wavelet(S_MASS,k)%data(d)%elts
+             wc_t => wavelet(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
+             
+             velo => scaling(S_VELO,k)%data(d)%elts
+             call apply_interscale_d (restrict_u, grid(d), l, k, 0, 0)
              nullify (mass, temp, velo, wc_m, wc_t)
           end do
        end do
-    end do
 
-    loc_var%bdry_uptodate = .False.
-    wav(S_MASS:S_TEMP,:)%bdry_uptodate = .False.
+       scaling(:,k)%bdry_uptodate = .False.
+       wavelet(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
 
-    call update_vector_bdry(loc_var(S_VELO,:), NONE)
+       call update_bdry (scaling(S_VELO,k), NONE)
     
-    do l = level_end - 1, level_start - 1, -1
-       do k = 1, zlevels
+       do l = level_end - 1, level_start - 1, -1
           do d = 1, n_domain(rank+1)
-             wc_u => wav(S_VELO,k)%data(d)%elts
-             velo => loc_var(S_VELO,k)%data(d)%elts
-             call apply_interscale_d(cpt_velo_wc, grid(d), l, z_null, 0, 0)
-             call apply_to_penta_d(cpt_vel_wc_penta, grid(d), l, z_null)
+             wc_u => wavelet(S_VELO,k)%data(d)%elts
+             velo => scaling(S_VELO,k)%data(d)%elts
+             call apply_interscale_d (cpt_velo_wc, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d (cpt_vel_wc_penta, grid(d), l, z_null)
              nullify (wc_u, velo)
           end do
        end do
+       wavelet(S_VELO,k)%bdry_uptodate = .False.
     end do
-    wav(S_VELO,:)%bdry_uptodate = .False.
   end subroutine forward_wavelet_transform
 
-  subroutine inverse_wavelet_transform (wav, sca, l_start0)
-    type(Float_Field), dimension(:,:), target :: sca, wav
-    integer, optional                         :: l_start0
+  subroutine inverse_wavelet_transform (wavelet, scaling, l_start0)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
+    integer, optional                                             :: l_start0
     
     integer :: l, d, k, v, l_start
-
+    
     if (present(l_start0)) then
        l_start = l_start0
     else
        l_start = level_start
     end if
 
-    call update_array_bdry1(wav, level_start, level_end)
-    call update_array_bdry1(sca, l_start,     level_end)
+    call update_array_bdry1 (wavelet, level_start, level_end)
+    call update_array_bdry1 (scaling, l_start,     level_end)
 
-    sca%bdry_uptodate = .False.
+    scaling%bdry_uptodate = .False.
 
-    do l = l_start, level_end-1
-       do k = 1, zlevels
+    do k = 1, zlevels
+       do l = l_start, level_end-1
           do d = 1, n_domain(rank+1)
-             mass => sca(S_MASS,k)%data(d)%elts
-             temp => sca(S_TEMP,k)%data(d)%elts
-             wc_m => wav(S_MASS,k)%data(d)%elts
-             wc_t => wav(S_TEMP,k)%data(d)%elts
+             mass => scaling(S_MASS,k)%data(d)%elts
+             temp => scaling(S_TEMP,k)%data(d)%elts
+             wc_m => wavelet(S_MASS,k)%data(d)%elts
+             wc_t => wavelet(S_TEMP,k)%data(d)%elts
              if (present(l_start0)) then
-                call apply_interscale_d2(IWT_inject_h_and_undo_update, grid(d), l, z_null, 0, 1) ! needs wc
+                call apply_interscale_d2 (IWT_inject_h_and_undo_update,       grid(d), l, z_null, 0, 1) ! needs wc
              else
-                call apply_interscale_d2(IWT_inject_h_and_undo_update__fast, grid(d), l, z_null, 0, 1) ! needs wc
+                call apply_interscale_d2 (IWT_inject_h_and_undo_update__fast, grid(d), l, z_null, 0, 1) ! needs wc
              end if
              nullify (mass, temp, wc_m, wc_t)
           end do
-       end do
 
-       if (l .gt. l_start) call update_vector_bdry__finish(sca(S_VELO,:), l) ! for next outer velocity
+          if (l .gt. l_start) call update_bdry__finish (scaling(S_VELO,k), l) ! for next outer velocity
        
-       call update_array_bdry__start(sca(S_MASS:S_TEMP,:), l+1)
+          call update_vector_bdry__start (scaling(S_MASS:S_TEMP,k), l+1)
        
-       do k = 1, zlevels
           do d = 1, n_domain(rank+1)
-             velo => sca(S_VELO,k)%data(d)%elts
-             wc_u => wav(S_VELO,k)%data(d)%elts
+             velo => scaling(S_VELO,k)%data(d)%elts
+             wc_u => wavelet(S_VELO,k)%data(d)%elts
              if (present(l_start0)) then
-                call apply_interscale_d2(IWT_interpolate_u_outer_add_wc, grid(d), l, z_null, 0, 1) ! needs val
+                call apply_interscale_d2 (IWT_interpolate_u_outer_add_wc, grid(d), l, z_null, 0, 1) ! needs val
              else
-                call apply_interscale_d2(IWT_interpolate_u_outer, grid(d), l, z_null, 0, 1) ! needs val
+                call apply_interscale_d2 (IWT_interpolate_u_outer, grid(d), l, z_null, 0, 1) ! needs val
              end if
-             call apply_to_penta_d(IWT_interp_vel_penta, grid(d), l, z_null)
-          end do
-          nullify (velo, wc_u)
-       end do
-
-       call update_array_bdry__finish(sca(S_MASS:S_TEMP,:), l+1)
-       call update_vector_bdry__start(sca(S_VELO,:), l+1)
-
-       do k = 1, zlevels
-          do d = 1, n_domain(rank+1)
-             mass => sca(S_MASS,k)%data(d)%elts
-             temp => sca(S_TEMP,k)%data(d)%elts
-             wc_m => wav(S_MASS,k)%data(d)%elts
-             wc_t => wav(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d(IWT_interp_wc_scalar, grid(d), l, z_null, 0, 0)
-             nullify (mass, temp, wc_m, wc_t)
-          end do
-       end do
-       
-       call update_vector_bdry__finish(sca(S_VELO,:), l+1)
-
-       do k = 1, zlevels
-          do d = 1, n_domain(rank+1)
-             velo => sca(S_VELO,k)%data(d)%elts
-             wc_u => wav(S_VELO,k)%data(d)%elts
-             call apply_interscale_d(IWT_interpolate_u_inner, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d (IWT_interp_vel_penta, grid(d), l, z_null)
              nullify (velo, wc_u)
           end do
+
+          call update_vector_bdry__finish (scaling(S_MASS:S_TEMP,k), l+1)
+          call update_bdry__start (scaling(S_VELO,k), l+1)
+
+          do d = 1, n_domain(rank+1)
+             mass => scaling(S_MASS,k)%data(d)%elts
+             temp => scaling(S_TEMP,k)%data(d)%elts
+             wc_m => wavelet(S_MASS,k)%data(d)%elts
+             wc_t => wavelet(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (IWT_interp_wc_scalar, grid(d), l, z_null, 0, 0)
+             nullify (mass, temp, wc_m, wc_t)
+          end do
+       
+          call update_bdry__finish(scaling(S_VELO,k), l+1)
+
+          do d = 1, n_domain(rank+1)
+             velo => scaling(S_VELO,k)%data(d)%elts
+             wc_u => wavelet(S_VELO,k)%data(d)%elts
+             call apply_interscale_d (IWT_interpolate_u_inner, grid(d), l, z_null, 0, 0)
+             nullify (velo, wc_u)
+          end do
+          
+          if (l .lt. level_end-1) call update_bdry__start (scaling(S_VELO,k), l+1) ! for next outer velocity
+       
+          scaling(:,k)%bdry_uptodate = .False.
        end do
-       
-       if (l .lt. level_end-1) call update_vector_bdry__start(sca(S_VELO,:), l+1) ! for next outer velocity
-       
-       sca%bdry_uptodate = .False.
     end do
   end subroutine inverse_wavelet_transform
 
@@ -887,7 +876,6 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims_chd
 
     integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
-
     
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)

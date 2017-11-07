@@ -420,7 +420,7 @@ contains
 
   subroutine update_bdry(field, l)
     type(Float_Field) :: field
-    integer l
+    integer           :: l
 
     call update_bdry__start (field, l)
     call update_bdry__finish(field, l)
@@ -659,12 +659,13 @@ contains
     call cp_bdry_inside_vector(field)
   end subroutine update_vector_bdry__start1
 
-  subroutine update_array_bdry__start1(field, l_start, l_end)
+  subroutine update_array_bdry__start1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
     type(Float_Field) :: field(:,:)
-    integer l_start, l_end
-    integer r_dest, r_src, d_src, d_dest, dest, id, i, k, r
-    integer multipl, lev, pos
+    integer           ::  l_start, l_end
+    
+    integer :: r_dest, r_src, d_src, d_dest, dest, id, i, k, r
+    integer :: multipl, lev, pos
 
     integer :: i1, i2
     integer, dimension(2) :: sz

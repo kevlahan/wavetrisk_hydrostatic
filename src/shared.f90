@@ -279,7 +279,7 @@ module shared_mod
 
   real(8) :: threshold ! threshold level on wavelet coefficients for grid adaptation
 
-  integer :: n_active(AT_NODE:AT_EDGE) ! number of active points at grid locations (node and edge)
+  integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
 
   integer :: optimize_grid
 
