@@ -111,6 +111,7 @@ contains
           edge_level_start = grid(:)%midpt%length+1
 
           ! Add level
+          call set_thresholds
           if (adapt_trend) then
              call adapt (trend_wav_coeff)
           else
@@ -125,7 +126,6 @@ contains
              call trend_ml (sol, trend)
              call forward_wavelet_transform (trend, trend_wav_coeff)
           end if
-          call set_thresholds
           call forward_wavelet_transform (sol, wav_coeff)
                     
           !--Check whether there are any active nodes at this scale
@@ -536,12 +536,14 @@ contains
 
     if (rank .eq. 0) call system (command)
 
+    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     if (adapt_trend) then
-       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
        call trend_ml (sol, trend)
+       call set_thresholds
        call forward_wavelet_transform (trend, trend_wav_coeff)
        call adapt (trend_wav_coeff)
     else
+       call set_thresholds
        call adapt (wav_coeff)
     end if
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)

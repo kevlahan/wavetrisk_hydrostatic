@@ -562,7 +562,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .true.  ! Adapt on trend or on variables
+  adapt_trend      = .false.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse_scalars  = .true.  ! Diffuse scalars
   diffuse_momentum = .true.  ! Diffuse momentum

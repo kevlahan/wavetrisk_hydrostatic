@@ -236,7 +236,7 @@ contains
     integer, optional                                             :: l_start0
     
     integer :: l, d, k, v, l_start
-    
+
     if (present(l_start0)) then
        l_start = l_start0
     else
@@ -245,7 +245,7 @@ contains
 
     call update_array_bdry1 (wavelet, level_start, level_end)
     call update_array_bdry1 (scaling, l_start,     level_end)
-
+    
     scaling%bdry_uptodate = .False.
 
     do k = 1, zlevels
@@ -857,9 +857,11 @@ contains
 
     integer :: id_par, id_chd
 
+    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
+
     id_par = idx(i_par, j_par, offs_par, dims_par)
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-
+    
     if (dom%mask_n%elts(id_chd+1) .eq. FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
     mass(id_chd+1) = inject(mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
