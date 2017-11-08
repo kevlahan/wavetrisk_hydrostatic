@@ -256,9 +256,9 @@ contains
              wc_m => wavelet(S_MASS,k)%data(d)%elts
              wc_t => wavelet(S_TEMP,k)%data(d)%elts
              if (present(l_start0)) then
-                call apply_interscale_d2 (IWT_inject_h_and_undo_update,       grid(d), l, z_null, 0, 1) ! needs wc
+                call apply_interscale_d2 (IWT_inject_scalar_and_undo_update,       grid(d), l, z_null, 0, 1) ! needs wc
              else
-                call apply_interscale_d2 (IWT_inject_h_and_undo_update__fast, grid(d), l, z_null, 0, 1) ! needs wc
+                call apply_interscale_d2 (IWT_inject_scalar_and_undo_update__fast, grid(d), l, z_null, 0, 1) ! needs wc
              end if
              nullify (mass, temp, wc_m, wc_t)
           end do
@@ -829,7 +829,7 @@ contains
     v = q(2)/nrm
   end subroutine normalize2
 
-  subroutine IWT_inject_h_and_undo_update__fast (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine IWT_inject_scalar_and_undo_update__fast (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -847,9 +847,9 @@ contains
 
     mass(id_chd+1) = inject(mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     temp(id_chd+1) = inject(temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-  end subroutine IWT_inject_h_and_undo_update__fast
+  end subroutine IWT_inject_scalar_and_undo_update__fast
 
-  subroutine IWT_inject_h_and_undo_update (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine IWT_inject_scalar_and_undo_update (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -866,7 +866,7 @@ contains
 
     mass(id_chd+1) = inject(mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     temp(id_chd+1) = inject(temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-  end subroutine IWT_inject_h_and_undo_update
+  end subroutine IWT_inject_scalar_and_undo_update
 
   function inject (scalar, wav, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     real(8)                        :: inject

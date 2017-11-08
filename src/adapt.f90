@@ -19,33 +19,8 @@ contains
     initialized = .True.
   end subroutine init_adapt_mod
 
-  subroutine compress (dom, i, j, zlev, offs, dims)
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: e, id, k, v
-
-    id = idx(i, j, offs, dims)
-    
-    if (dom%mask_n%elts(id+1) .lt. ADJZONE) then
-       do v = S_MASS, S_TEMP
-          wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
-          if (adapt_trend) trend_wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
-       end do
-    end if
-    
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) then
-          wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
-          if (adapt_trend) trend_wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
-       end if
-    end do
-  end subroutine compress
-
-  subroutine adapt (wav)
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
+  subroutine adapt (wavelet)
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wavelet
     
     integer :: k, l, d
 
@@ -53,8 +28,8 @@ contains
        call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
-    call mask_adjacent (wav)
-    call mask_active (wav)
+    call mask_adjacent (wavelet)
+    call mask_active (wavelet)
     call comm_masks_mpi (NONE)
 
     do l = level_start, level_end
@@ -81,8 +56,34 @@ contains
        end do
     end do
 
-    wav%bdry_uptodate = .False.
+    wav_coeff%bdry_uptodate = .False.
+    if (adapt_trend) trend_wav_coeff%bdry_uptodate = .False.
   end subroutine adapt
+
+  subroutine compress (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: e, id, k, v
+
+    id = idx(i, j, offs, dims)
+    
+    if (dom%mask_n%elts(id+1) .lt. ADJZONE) then
+       do v = S_MASS, S_TEMP
+          wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+          if (adapt_trend) trend_wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+       end do
+    end if
+    
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) then
+          wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
+          if (adapt_trend) trend_wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
+       end if
+    end do
+  end subroutine compress
 
   logical function refine()
     integer did_refine
@@ -125,12 +126,13 @@ contains
     return
   end function refine
 
-  subroutine patch_count_active(dom, p)
-    type(Domain) dom
-    integer p
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer j, i, id, e
+  subroutine patch_count_active (dom, p)
+    type(Domain) :: dom
+    integer      :: p
+
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer                        :: j, i, id, e
 
     ! TODO set FILLED_AND_FROZEN in `remove_inside_patches` to save work here
     if (dom%patch%elts(p+1)%active .eq. FILLED_AND_FROZEN) return
@@ -149,11 +151,12 @@ contains
     end do
   end subroutine patch_count_active
 
-  function get_child_and_neigh_patches(dom, p_par, c)
-    integer get_child_and_neigh_patches(4)
-    type(Domain) dom
-    integer p_par, c
-    integer n
+  function get_child_and_neigh_patches (dom, p_par, c)
+    integer, dimension(4) :: get_child_and_neigh_patches
+    type(Domain)          :: dom
+    integer               :: p_par, c
+    
+    integer :: n
 
     get_child_and_neigh_patches = 0
     get_child_and_neigh_patches(1) = dom%patch%elts(p_par+1)%children(c)
@@ -169,11 +172,13 @@ contains
     endif
   end function get_child_and_neigh_patches
 
-  real(8) function check_children_fillup(dom, p_par)
-    type(Domain) dom
-    integer p_par, p_chd, c, i
-    integer cn(4)
-    integer active
+  function check_children_fillup (dom, p_par)
+    real(8)      :: check_children_fillup
+    type(Domain) :: dom
+    integer      :: p_par
+    
+    integer               :: active, p_chd, c, i
+    integer, dimension(4) :: cn
 
     ! do not fill up children + remove if any child or neighbour patch is missing
     if (product(dom%patch%elts(p_par+1)%neigh)*product(dom%patch%elts(p_par+1)%children) .eq. 0) then
@@ -194,12 +199,14 @@ contains
   end function check_children_fillup
 
 
-  logical function remove_inside_patches()
+  function remove_inside_patches()
     ! removes patches that are not required because they are far enough away from the locally finest level
-    integer d, k, p, l, c, c1
-    real(8) children_fullness
-    integer chdrn(4)
-    logical changes
+    logical :: remove_inside_patches
+    
+    integer               :: d, k, p, l, c, c1
+    integer, dimension(4) :: chdrn
+    real(8)               :: children_fullness
+    logical               :: changes
 
     changes = .false.
     do d = 1, size(grid)
@@ -225,7 +232,7 @@ contains
              do c = 1, N_CHDRN
                 chdrn = get_child_and_neigh_patches(grid(d), p, c)
                 do c1 = 1, N_CHDRN
-                   call apply_onescale_to_patch__int(set_masks, grid(d), chdrn(c1), z_null, 0, 0, FROZEN)
+                   call apply_onescale_to_patch__int (set_masks, grid(d), chdrn(c1), z_null, 0, 0, FROZEN)
                 end do
              end do
              grid(d)%patch%elts(p+1)%active = NONE
@@ -238,21 +245,15 @@ contains
     remove_inside_patches = changes
   end function remove_inside_patches
 
-  logical function check_child_required(dom, p, c)
-    type(Domain) dom
-    integer p
-    integer c
-    integer st
-    integer en
-    integer, dimension(N_BDRY + 1) :: offs
+  function check_child_required (dom, p, c)
+    logical :: check_child_required
+    type(Domain) :: dom
+    integer      :: p, c
+
+    integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer j0
-    integer j
-    integer i0
-    integer i
-    integer id
-    logical required
-    integer e
+    integer :: e, j0, j, i0, i, id, st, en
+    logical :: required
 
     st = -BDRY_THICKNESS
     en =  BDRY_THICKNESS
@@ -266,8 +267,7 @@ contains
           id = idx(i, j, offs, dims)
           required = dom%mask_n%elts(id+1) .ge. ADJSPACE
           do e = 1, EDGE
-             required = required .or. dom%mask_e%elts(EDGE*id+e) .ge. &
-                  RESTRCT
+             required = required .or. dom%mask_e%elts(EDGE*id+e) .ge. RESTRCT
           end do
           if (required) then
              check_child_required = .True.
@@ -277,5 +277,4 @@ contains
     end do
     check_child_required = .False.
   end function check_child_required
-
 end module adapt_mod
