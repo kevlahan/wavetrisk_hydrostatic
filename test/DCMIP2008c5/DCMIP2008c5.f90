@@ -374,9 +374,9 @@ contains
     temp_scale = sync_max_d(norm_temp)
     velo_scale = sync_max_d(norm_velo)
     
-    if (istep.lt.2) then
-        tol_mass = mass_scale * threshold
-        tol_temp = temp_scale * threshold
+    if (istep.eq.0) then
+        tol_mass = mass_scale * threshold 
+        tol_temp = temp_scale * threshold 
         tol_velo = velo_scale * threshold
      else
        tol_mass = (0.95*tol_mass + 0.05*mass_scale * threshold)

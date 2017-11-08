@@ -857,8 +857,6 @@ contains
 
     integer :: id_par, id_chd
 
-    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
-
     id_par = idx(i_par, j_par, offs_par, dims_par)
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     
@@ -868,16 +866,16 @@ contains
     temp(id_chd+1) = inject(temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine IWT_inject_scalar_and_undo_update
 
-  function inject (scalar, wav, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+  function inject (scalar, wavelet, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     real(8)                        :: inject
     real(8)                        :: scalar
-    real(8), dimension(:), pointer :: wav
+    real(8), dimension(:), pointer :: wavelet
     type(Domain)                   :: dom
     integer                        :: id_par, i_chd, j_chd
     integer, dimension(N_BDRY+1)   :: offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_chd
 
-    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
+    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE, upper
     
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
@@ -892,19 +890,34 @@ contains
     id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
     idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
 
-    inject = scalar - &
-         (wav(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wav(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wav(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wav(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wav(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wav(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wav(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wav(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wav(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wav(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wav(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wav(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
+    if (id2NE+1 .le.  ubound(wavelet,dim=1)) then
+       inject = scalar - &
+            (wavelet(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+            wavelet(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+            wavelet(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+            wavelet(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+            wavelet(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+            wavelet(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+            wavelet(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+            wavelet(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+            wavelet(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+            wavelet(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+            wavelet(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+            wavelet(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
+    else
+       inject = scalar - &
+            (wavelet(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+            wavelet(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+            wavelet(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+            wavelet(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+            wavelet(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+            wavelet(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+            wavelet(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+            wavelet(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+            wavelet(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+            wavelet(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+            wavelet(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
+    end if
   end function inject
 
   subroutine cpt_scalar_wc (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -1338,10 +1351,10 @@ contains
     temp(id_par+1) = restrict_s(temp(id_chd+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine restrict_scalar
 
-  function restrict_s (scalar, wc, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+  function restrict_s (scalar, wavelet, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     real(8)                        :: restrict_s
     real(8)                        :: scalar
-    real(8), dimension(:), pointer :: wc
+    real(8), dimension(:), pointer :: wavelet
     type(Domain)                   :: dom
     integer                        :: id_par, i_chd, j_chd
     integer, dimension(N_BDRY+1)   :: offs_chd
@@ -1363,18 +1376,18 @@ contains
     idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
     
     restrict_s = scalar + &
-         (wc(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wc(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wc(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wc(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wc(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wc(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wc(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wc(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wc(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wc(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wc(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wc(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+         (wavelet(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+         wavelet(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+         wavelet(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wavelet(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+         wavelet(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+         wavelet(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+         wavelet(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+         wavelet(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wavelet(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+         wavelet(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+         wavelet(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wavelet(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
          dom%areas%elts(id_par+1)%hex_inv
   end function restrict_s
 end module wavelet_mod
