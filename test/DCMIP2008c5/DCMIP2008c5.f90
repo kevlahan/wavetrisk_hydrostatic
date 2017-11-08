@@ -361,8 +361,7 @@ contains
     norm_velo = 0.0_8
     do k = 1, zlevels
        do l = level_start, level_end
-          ! if (adapt_trend.and.istep.ne.0) then
-           if (adapt_trend) then
+          if (adapt_trend) then
              call apply_onescale (linf_trend, l, k, 0, 1)
           else
              call apply_onescale (linf_vars,  l, k, 0, 1)
@@ -548,9 +547,9 @@ program DCMIP2008c5
 
   cfl_num     = 1.0d0                            ! cfl number
 
-  viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
+  viscosity_mass = 2.0e-3/kmax**2                ! viscosity for mass equation
   viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 5.0e-4/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_divu = 2.0e-4/kmax**2                ! viscosity for divergent part of momentum equation
   viscosity_rotu = viscosity_divu                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
@@ -562,7 +561,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .false.  ! Adapt on trend or on variables
+  adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse_scalars  = .true.  ! Diffuse scalars
   diffuse_momentum = .true.  ! Diffuse momentum

@@ -246,9 +246,9 @@ contains
              wc_t => wav(S_TEMP,k)%data(d)%elts
              wc_u => wav(S_VELO,k)%data(d)%elts
              
-             call apply_interscale_d (cpt_velo_wc, grid(d), l, z_null, 0, 0)
-             call apply_interscale_d (cpt_scalar_wc, grid(d), l, z_null, 0, 0)
-             call apply_to_penta_d (cpt_vel_wc_penta, grid(d), l, z_null)
+             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
              nullify (mass, temp, velo, wc_m, wc_t, wc_u)
           end do
           wav(:,k)%bdry_uptodate = .False.

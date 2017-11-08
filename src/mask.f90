@@ -227,28 +227,14 @@ contains
     end do
   end subroutine init_masks
 
-  subroutine inj_node_adjzone(dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Add parent to adjacent zone if child is in adjacent zone
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: id, id_par
-
-    id_par = idx(i_par, j_par, offs_par, dims_par) ! id of parent
-    id     = idx(i_chd, j_chd, offs_chd, dims_chd) ! id of child
-
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) call set_at_least(dom%mask_n%elts(id_par+1), ADJZONE)
-  end subroutine inj_node_adjzone
-
+ 
   subroutine set_masks (dom, p, i, j, zlev, offs, dims, mask)
     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
+    integer                        :: p, i, j, zlev, mask
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id, mask
+    integer :: e, id
 
     id = idx(i, j, offs, dims)
 
@@ -386,7 +372,23 @@ contains
     if (abs(wc) .ge. tol) mask = TOLRNZ
   end subroutine set_active_mask
 
+   subroutine inject_node_adjzone (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Add parent to adjacent zone if child is in adjacent zone for inverse wavelet transform
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_chd, id_par
+
+    id_par = idx(i_par, j_par, offs_par, dims_par) ! id of parent
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd) ! id of child
+
+    if (dom%mask_n%elts(id_chd+1) .ge. ADJZONE) call set_at_least(dom%mask_n%elts(id_par+1), ADJZONE)
+  end subroutine inject_node_adjzone
+
   subroutine mask_restrict_flux (dom, i_par, j_par, zlev, offs_par, dims_par)
+    ! Add edges required for flux restriction
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, zlev
     integer, dimension(N_BDRY+1)   :: offs_par
@@ -534,21 +536,25 @@ contains
     end if
   end subroutine mask_adj_scale
 
-  subroutine set_at_least(mask, typ)
+  subroutine set_at_least (mask, typ)
     integer :: mask, typ
 
     if (mask .lt. typ) mask = typ
   end subroutine set_at_least
 
   subroutine mask_e_consist2 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Make parent edges active if neighouring child edges are active
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer :: id, id_par, idN, idE, idS, idW, idNE, idSW, idNW, idSE
+    integer :: id_chd, id_par, idN, idE, idS, idW, idNE, idSW, idNW, idSE
 
-    id   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx(i_par, j_par, offs_par, dims_par)
+
+    ! Eight nearest neighbours of child node
     idN  = idx(i_chd,     j_chd + 2, offs_chd, dims_chd)
     idE  = idx(i_chd + 2, j_chd,     offs_chd, dims_chd)
     idNE = idx(i_chd + 2, j_chd + 2, offs_chd, dims_chd)
@@ -558,59 +564,58 @@ contains
     idNW = idx(i_chd - 2, j_chd + 2, offs_chd, dims_chd)
     idSE = idx(i_chd + 2, j_chd - 2, offs_chd, dims_chd)
 
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    ! Check if edges of child nodes are in adjacent zone
+    if ( dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id_chd+DG+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+DG+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNE+UP+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idW+RT+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNW+RT+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idSW+DG+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idW+DG+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idSW+UP+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idW+UP+1)    .ge. ADJZONE) then
 
-    if ( dom%mask_e%elts(EDGE*id+RT+1)   .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*id+DG+1)   .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idN+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idE+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idNE+UP+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idW+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idNW+RT+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idSW+DG+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idW+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idSW+UP+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idW+UP+1)  .ge. ADJZONE) then
-
-       call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*id_par+UP+1), ADJZONE)
     end if
 
-    if ( dom%mask_e%elts(EDGE*idW+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*id+RT+1)   .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idNE+RT+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idS+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idW+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idE+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idN+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idS+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*id+UP+1)   .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idE+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idNE+UP+1) .ge. ADJZONE) then
+    if ( dom%mask_e%elts(EDGE*idW+RT+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNE+RT+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+DG+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idW+DG+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+DG+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+DG+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+UP+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNE+UP+1)   .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_e%elts(EDGE*id_par+DG+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*id_par+DG+1), ADJZONE)
     end if
 
-    if ( dom%mask_e%elts(EDGE*idSW+RT+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idS+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idN+RT+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idNE+RT+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idSW+DG+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idS+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*id+DG+1)   .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idE+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idS+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idSE+UP+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*id+UP+1)   .ge. ADJZONE .or. &
-         dom%mask_e%elts(EDGE*idE+UP+1)  .ge. ADJZONE) then
+    if ( dom%mask_e%elts(EDGE*idSW+RT+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+RT+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idN+RT+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idNE+RT+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idSW+DG+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+DG+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id_chd+DG+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+DG+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idS+UP+1)    .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idSE+UP+1)   .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE .or. &
+         dom%mask_e%elts(EDGE*idE+UP+1)    .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_e%elts(EDGE*id_par+RT+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*id_par+RT+1), ADJZONE)
     end if
   end subroutine mask_e_consist2
 
   subroutine mask_active_nodes (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Mask active nodal data (e.g. mass and potential temperature)
+    ! Make parent active if any child is active, also make child active if any child neighbours are active
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -619,8 +624,8 @@ contains
     integer :: id_par, id_chd, idN, idE, idNE, idSW, idS, idW
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
-    id_chd = idx(i_chd,     j_chd,     offs_chd, dims_chd)
     idN    = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
     idE    = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE   = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
@@ -635,12 +640,13 @@ contains
          dom%mask_n%elts(idSW+1) .eq. TOLRNZ .or. &
          dom%mask_n%elts(idS+1)  .eq. TOLRNZ) then
 
-       call set_at_least(dom%mask_n%elts(id_par+1), TOLRNZ)
-       call set_at_least(dom%mask_n%elts(id_chd+1), TOLRNZ)
+       call set_at_least (dom%mask_n%elts(id_par+1), TOLRNZ)
+       call set_at_least (dom%mask_n%elts(id_chd+1), TOLRNZ)
     end if
   end subroutine mask_active_nodes
 
-  subroutine mask_n_if_all_e(dom, i, j, zlev, offs, dims)
+  subroutine mask_n_if_all_e (dom, i, j, zlev, offs, dims)
+    ! Add node to adjacent zone if all neighbouring edges are active
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -660,11 +666,12 @@ contains
          dom%mask_e%elts(EDGE*idSW+DG+1) .ge. ADJZONE .and. &
          dom%mask_e%elts(EDGE*idW+RT+1)  .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_n%elts(id+1), ADJZONE)
+       call set_at_least (dom%mask_n%elts(id+1), ADJZONE)
     end if
   end subroutine mask_n_if_all_e
 
-  subroutine mask_e_if_both_n(dom, i, j, zlev, offs, dims)
+  subroutine mask_e_if_both_n (dom, i, j, zlev, offs, dims)
+    ! Add edge to adjacent zone if both neighbouring nodes are active
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -680,52 +687,51 @@ contains
     if ( dom%mask_n%elts(id+1)  .ge. ADJZONE .and. &
          dom%mask_n%elts(idE+1) .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_e%elts(EDGE*id+RT+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), ADJZONE)
     end if
 
     if ( dom%mask_n%elts(idNE+1) .ge. ADJZONE .and. &
          dom%mask_n%elts(id+1)   .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_e%elts(EDGE*id+DG+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1), ADJZONE)
     end if
 
     if ( dom%mask_n%elts(id+1)  .ge. ADJZONE .and. &
          dom%mask_n%elts(idN+1) .ge. ADJZONE) then
 
-       call set_at_least(dom%mask_e%elts(EDGE*id+UP+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), ADJZONE)
     end if
   end subroutine mask_e_if_both_n
 
   subroutine complete_masks()
     integer :: l
 
-    call apply_onescale(mask_adj_space, level_end, z_null, 0, 1)
+    call apply_onescale (mask_adj_space, level_end, z_null, 0, 1)
 
     do l = level_end-1, level_start, -1
-       call apply_interscale(mask_adj_scale, l, z_null, 0, 1)
-       call apply_onescale(mask_e_if_both_n, l+1, z_null, 0, 0)
+       call apply_interscale (mask_adj_scale, l, z_null, 0, 1)
+       call apply_onescale (mask_e_if_both_n, l+1, z_null, 0, 0)
     end do
 
-    call comm_masks_mpi(NONE)
+    call comm_masks_mpi (NONE)
 
     do l = level_end-1, level_start+1, -1
-       call apply_interscale(mask_e_consist, l, z_null, 0, 1)
-       call comm_masks_mpi(l+1)
+       call apply_interscale (mask_e_consist, l, z_null, 0, 1)
+       call comm_masks_mpi (l+1)
        call apply_interscale(mask_e_consist2, l, z_null, 0, 0)
-       call comm_masks_mpi(l)
+       call comm_masks_mpi (l)
     end do
 
     if (level_start .lt. level_end) then
-       call apply_interscale(mask_e_consist, level_start, z_null, 0, 1)
-       call comm_masks_mpi(level_start+1)
+       call apply_interscale (mask_e_consist, level_start, z_null, 0, 1)
+       call comm_masks_mpi (level_start+1)
     end if
 
     do l = level_end-1, level_start+1, -1
-       call apply_onescale(mask_n_if_all_e, l+1, z_null, 0, 1)
-       call apply_interscale(inj_node_adjzone, l,   z_null, 0, 1)
+       call apply_onescale (mask_n_if_all_e, l+1, z_null, 0, 1)
+       call apply_interscale (inject_node_adjzone, l,   z_null, 0, 1)
     end do
 
-    if (level_start+1 .le. level_end) call apply_onescale(mask_n_if_all_e, level_start+1, z_null, 0, 1)
+    if (level_start+1 .le. level_end) call apply_onescale (mask_n_if_all_e, level_start+1, z_null, 0, 1)
   end subroutine complete_masks
-
 end module mask_mod
