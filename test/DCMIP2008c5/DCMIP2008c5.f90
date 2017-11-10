@@ -378,9 +378,9 @@ contains
         tol_temp = temp_scale * threshold 
         tol_velo = velo_scale * threshold
      else
-       tol_mass = (0.95*tol_mass + 0.05*mass_scale * threshold)
-       tol_temp = (0.95*tol_temp + 0.05*temp_scale * threshold)
-       tol_velo = (0.95*tol_velo + 0.05*velo_scale * threshold)
+       tol_mass = (0.99*tol_mass + 0.01*mass_scale * threshold)
+       tol_temp = (0.99*tol_temp + 0.01*temp_scale * threshold)
+       tol_velo = (0.99*tol_velo + 0.01*velo_scale * threshold)
     end if
   end subroutine set_thresholds
 
@@ -563,8 +563,8 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse_scalars  = .false.  ! Diffuse scalars
-  diffuse_momentum = .false.  ! Diffuse momentum
+  diffuse_scalars  = .true.  ! Diffuse scalars
+  diffuse_momentum = .true.  ! Diffuse momentum
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
@@ -589,12 +589,7 @@ program DCMIP2008c5
   total_time = 0.0_8
   do while (time .lt. time_end)
      call start_timing
-     !call update_array_bdry (sol, NONE)
-     ! do k = 1, zlevels
-     !    do v = S_MASS, S_VELO
-     !       call update_bdry (sol(v,k), NONE)
-     !    end do
-     ! end do
+     call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
