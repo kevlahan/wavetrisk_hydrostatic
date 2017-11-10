@@ -477,7 +477,7 @@ program DCMIP2008c5
   use DCMIP2008c5_mod
   implicit none
 
-  integer                      :: ierr, k, l, d
+  integer                      :: ierr, k, l, d, v
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
   character(len_cmd_files)     :: cmd_files
@@ -563,8 +563,8 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse_scalars  = .true.  ! Diffuse scalars
-  diffuse_momentum = .true.  ! Diffuse momentum
+  diffuse_scalars  = .false.  ! Diffuse scalars
+  diffuse_momentum = .false.  ! Diffuse momentum
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
@@ -589,7 +589,12 @@ program DCMIP2008c5
   total_time = 0.0_8
   do while (time .lt. time_end)
      call start_timing
-     call update_array_bdry (sol, NONE)
+     !call update_array_bdry (sol, NONE)
+     ! do k = 1, zlevels
+     !    do v = S_MASS, S_VELO
+     !       call update_bdry (sol(v,k), NONE)
+     !    end do
+     ! end do
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)

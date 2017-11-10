@@ -224,7 +224,7 @@ contains
           do k = 1, zlevels
              do d = 1, size(grid)
                 velo => sol(S_VELO,k)%data(d)%elts
-                call apply_interscale_d(restrict_u, grid(d), level_start-1, k, 0, 0)
+                call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
                 nullify (velo)
              end do
           end do

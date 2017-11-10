@@ -653,7 +653,7 @@ contains
   end subroutine IWT_prolong_scalar
 
   function prolong (scalar, wavelet, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    ! Prolongation by undoing lifting
+    ! Prolongation at fine points existing at coarse scale by undoing lifting
     real(8)                        :: prolong
     real(8)                        :: scalar
     real(8), dimension(:), pointer :: wavelet
@@ -662,7 +662,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_chd
 
-    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE, upper
+    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
     
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
@@ -763,8 +763,7 @@ contains
     id2W_chd  = idx(i_chd - 2, j_chd,     offs_chd, dims_chd)
     id2NE_chd = idx(i_chd + 2, j_chd + 2, offs_chd, dims_chd)
 
-    ! Interpolate scalars and add wavelets
-    
+    ! Interpolate scalars and add wavelets to reconstruct values at fine scale
     mass(idNE_chd+1) = Interp_node (dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) + wc_m(idNE_chd+1)
     mass(idN_chd+1)  = Interp_node (dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)  + wc_m(idN_chd+1)
     mass(idE_chd+1)  = Interp_node (dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  + wc_m(idE_chd+1)

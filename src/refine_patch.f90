@@ -44,23 +44,13 @@ contains
     call refine_patch2(dom, p, c0)
   end subroutine refine_patch
 
-  subroutine refine_patch1(dom, p, c0)
-    type(Domain) dom
-    integer p, c0
-    integer s
-    integer lev
-    integer c
-    integer p_chd
-    integer k
-    integer j
-    integer j_chd
-    integer j_par
-    integer i
-    integer i_chd
-    integer i_par
-    integer id_par
-    integer num, d
+  subroutine refine_patch1 (dom, p, c0)
+    type(Domain) :: dom
+    integer      :: p, c0
+    
+    integer                   :: c, d, i, i_chd, i_par, id_par, j, j_chd, j_par, k, lev, num, p_chd, s
     type(Coord), dimension(6) :: tmp
+    
     !  Main difficulty: in order to precompute geometry, weights etc
     !         nodes outside the patch are needed that might not be part of the grid yet
     !         Better compute them temporarily that adding additional patches
@@ -86,28 +76,14 @@ contains
     call extend(dom%level, num, dom%patch%elts(p_chd+1)%level)
   end subroutine refine_patch1
 
-  subroutine refine_patch2(dom, p, c0)
-    type(Domain) dom
-    integer p, c0
-    integer s
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer lev
-    integer c
-    integer p_chd
-    integer k
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer j
-    integer j_chd
-    integer j_par
-    integer i
-    integer i_chd
-    integer i_par
-    integer id_par
-    integer num, d
-    integer v
-    type(Coord), dimension(6) :: tmp
+  subroutine refine_patch2 (dom, p, c0)
+    type(Domain) :: dom
+    integer      :: p, c0
+    
+    type(Coord), dimension(6)      :: tmp
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    integer                        ::  c, d, i, id_par, i_chd, i_par, j, j_chd, j_par, k, lev, num, p_chd, s, v
 
     call get_offs_Domain(dom, p, offs_par, dims_par)
 
@@ -287,15 +263,13 @@ contains
     end do
   end subroutine connect_pole
 
-  subroutine connect_children(dom, p_par)
-    type(Domain) dom
-    integer p_par
+  subroutine connect_children (dom, p_par)
+    type(Domain) :: dom
+    integer      :: p_par
+
     integer, dimension(N_CHDRN) :: children
-    integer c
-    integer p_chd
-    integer s
-    integer n_chd
-    integer n_tmp
+    integer                     :: c, n_chd, n_tmp, p_chd, s
+
     ! children of patch `p_par` are connected to neighbours on same level if they exist
     !        and temporary boundaries are removed
     !        considers the case that not all four children are present

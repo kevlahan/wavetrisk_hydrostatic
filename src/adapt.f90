@@ -36,7 +36,7 @@ contains
        call apply_onescale (mask_adj_space2, l, z_null, 0, 1)
     end do
 
-    call comm_masks_mpi(NONE)
+    call comm_masks_mpi (NONE)
 
     ! needed if bdry is only 2 layers for scenario:
     ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
@@ -45,14 +45,14 @@ contains
        call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
     end do
 
-    call comm_masks_mpi(NONE)
+    call comm_masks_mpi (NONE)
 
     if (refine()) call post_refine()
     call complete_masks()
 
     do k = 1, zlevels
        do l = level_start+1, level_end
-          call apply_onescale(compress, l, k, 0, 1)
+          call apply_onescale (compress, l, k, 0, 1)
        end do
     end do
 
