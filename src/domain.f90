@@ -414,14 +414,10 @@ contains
 
   subroutine apply_to_penta_d(routine, dom, l, zlev)
     external routine
-    type(Domain) dom
-    integer l
-    integer zlev
-    integer d
-    integer c
-    integer p
-    integer p_par
-    integer l_cur
+    type(Domain) :: dom
+    integer      :: l, zlev
+
+    integer                        :: c, d, l_cur, p, p_par
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -447,15 +443,11 @@ contains
     end do
   end subroutine apply_to_penta_d
 
-  subroutine apply_to_penta(routine, l, zlev)
-    external routine
-    integer l
-    integer zlev
-    integer d
-    integer c
-    integer p
-    integer p_par
-    integer l_cur
+  subroutine apply_to_penta (routine, l, zlev)
+    external :: routine
+    integer  :: l, zlev
+    
+    integer                        :: c, d, l_cur, p, p_par
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -464,22 +456,20 @@ contains
     end do
   end subroutine apply_to_penta
 
-  integer function tri_idx(i, j, tri, offs, dims)
-    integer i
-    integer j
-    integer, dimension(3) :: tri
+  integer function tri_idx (i, j, tri, offs, dims)
+    integer                        :: i, j
+    integer, dimension(3)          :: tri
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
 
     tri_idx = TRIAG * idx(i + tri(1), j + tri(2), offs, dims) + tri(3)
   end function tri_idx
 
-  integer function nidx(i, j, s, offs, dims)
-    integer i
-    integer j
-    integer s
+  function nidx (i, j, s, offs, dims)
+    integer                        :: nidx
+    integer                        :: i, j, s
     integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    integer, dimension(2,N_BDRY+1) :: dims
 
     nidx = offs(s+1) + j*dims(1,s+1) + i
   end function nidx
