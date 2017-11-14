@@ -55,7 +55,7 @@ contains
             + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
             + full_mass(0)*dom%areas%elts(id+1)%part(6))
 
-       vort(TRIAG*idSW+LORT+1) = vort(TRIAG*idSW+LORT1)/dom%triarea%elts(TRIAG*idSW+LORT+1)
+       vort(TRIAG*idSW+LORT+1) = vort(TRIAG*idSW+LORT+1)/dom%triarea%elts(TRIAG*idSW+LORT+1)
        vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        qe(EDGE*idW+RT+1) = node2edge(pv_W, pv_SW)
@@ -80,19 +80,19 @@ contains
        pv_SW_LORT = (dom%coriolis%elts(LORT+TRIAG*idSW+1) + &
             vort(TRIAG*idSW+LORT+1))/( &
             full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
-            full_mass(SOUTH)*dom%areas%elts(idS +1)%part(3) + &
+            full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) + &
             full_mass(0)*sum(dom%areas%elts(id+1)%part(5:6)))
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + vort(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1))/ &
-            (full_mass(0)*dom%areas%elts(id  +1)%part(1) &
-            + full_mass(EAST)*dom%areas%elts(idE +1)%part(3) &
+            (full_mass(0)*dom%areas%elts(id+1)%part(1) &
+            + full_mass(EAST)*dom%areas%elts(idE+1)%part(3) &
             + full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
 
        pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + &
             vort(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1))/ &
             (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) &
-            + full_mass(0)*dom%areas%elts(id  +1)%part(4) &
-            + full_mass(WEST)*dom%areas%elts(idW +1)%part(6))
+            + full_mass(0)*dom%areas%elts(id+1)%part(4) &
+            + full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
 
        vort(TRIAG*idSW+LORT+1) = vort(TRIAG*idSW+LORT+1)/dom%triarea%elts(TRIAG*idSW+LORT+1)
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
