@@ -55,8 +55,8 @@ contains
             + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
             + full_mass(0)*dom%areas%elts(id+1)%part(6))
 
-       vort(TRIAG*idSW+LORT+1) = vort(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
-       vort(TRIAG*idSW+UPLT+1) = vort(LORT+TRIAG*idSW+1)
+       vort(TRIAG*idSW+LORT+1) = vort(TRIAG*idSW+LORT1)/dom%triarea%elts(TRIAG*idSW+LORT+1)
+       vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        qe(EDGE*idW+RT+1) = node2edge(pv_W, pv_SW)
        qe(EDGE*idS+UP+1) = node2edge(pv_S, pv_SW)
@@ -94,8 +94,8 @@ contains
             + full_mass(0)*dom%areas%elts(id  +1)%part(4) &
             + full_mass(WEST)*dom%areas%elts(idW +1)%part(6))
 
-       vort(TRIAG*idSW+LORT+1) = vort(LORT+TRIAG*idSW+1)/dom%triarea%elts(LORT+TRIAG*idSW+1)
-       vort(TRIAG*idS +UPLT+1) = vort(LORT+TRIAG*idSW+1)
+       vort(TRIAG*idSW+LORT+1) = vort(TRIAG*idSW+LORT+1)/dom%triarea%elts(TRIAG*idSW+LORT+1)
+       vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_S = pv_SW_LORT
 
@@ -173,8 +173,8 @@ contains
             + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
             + full_mass(0)*dom%areas%elts(id+1)%part(6))
 
-       vort(TRIAG*id+LORT+1) = vort(LORT+TRIAG*id+1)/dom%triarea%elts(LORT+TRIAG*id+1)
-       vort(TRIAG*id+UPLT+1) = vort(LORT+TRIAG*id+1)
+       vort(TRIAG*id+LORT+1) = vort(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1)
+       vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
 
        qe(EDGE*id+RT+1) = node2edge(pv, pv_S)
        qe(EDGE*id+UP+1) = node2edge(pv, pv_W)
@@ -328,34 +328,43 @@ contains
   contains
     subroutine comp_ijmin()
       real(8) :: vort_SW
+      integer :: idS, idSW, idW
 
-      full_mass(SOUTHWEST) = mass(id+sw+1) + mean(S_MASS,zlev)
-      full_temp(SOUTHWEST) = temp(id+sw+1) + mean(S_TEMP,zlev)
+      idS  = id+S
+      idSW = id+SW
+      idW  = id+W
 
-      vort_SW = - (velo(EDGE*(id+sw)+RT+1)*dom%len%elts(EDGE*(id+sw)+RT+1) + u_prim_sw + u_prim_s)
+      full_mass(SOUTHWEST) = mass(idSW+1) + mean(S_MASS,zlev)
+      full_temp(SOUTHWEST) = temp(idSW+1) + mean(S_TEMP,zlev)
 
-      pv_LORT = (dom%coriolis%elts(TRIAG*(id+sw)+LORT+1) + vort_SW)/( &
-           full_mass(SOUTHWEST)*dom%areas%elts(id+sw+1)%part(1) + &
-           full_mass(SOUTH)*dom%areas%elts(id+s +1)%part(3) + &
-           full_mass(0)*dom%areas%elts(id   +1)%part(5))
+      vort_SW = - (velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) + u_prim_sw + u_prim_s)
 
-      vort_SW = u_prim_w + u_prim_sw + velo(EDGE*(id+sw)+UP+1)*dom%len%elts(EDGE*(id+sw)+UP+1) 
+      pv_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + vort_SW)/( &
+           full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
+           full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) + &
+           full_mass(0)*dom%areas%elts(id+1)%part(5))
 
-      pv_UPLT = (dom%coriolis%elts(TRIAG*(id+sw)+UPLT+1) + vort_SW)/( &
-           full_mass(SOUTHWEST)*dom%areas%elts(id+sw+1)%part(2) + &
+      vort_SW = u_prim_w + u_prim_sw + velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1) 
+
+      pv_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + vort_SW)/( &
+           full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) + &
            full_mass(0)*dom%areas%elts(id+1)%part(4) + &
-           full_mass(WEST)*dom%areas%elts(id+w +1)%part(6))
+           full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
 
-      vort(TRIAG*(id+w)+LORT+1) = vort_W/dom%triarea%elts(TRIAG*(id+w)+LORT+1) 
-      vort(TRIAG*(id+s)+UPLT+1) = vort_S/dom%triarea%elts(TRIAG*(id+s)+UPLT+1) 
-      
-      qe(EDGE*(id+w )+RT+1) = node2edge(pv_W   ,pv_UPLT)
-      qe(EDGE*(id+sw)+DG+1) = node2edge(pv_LORT,pv_UPLT)
-      qe(EDGE*(id+s )+UP+1) = node2edge(pv_LORT,pv_S)
-      
-      ! Find horizontal fluxes at specific points
-      call cal_flux1 (h_mflux, full_mass)
-      call cal_flux1 (h_tflux, full_temp)
+      vort(TRIAG*idW+LORT+1) = vort_W/dom%triarea%elts(TRIAG*idW+LORT+1) 
+      vort(TRIAG*idS+UPLT+1) = vort_S/dom%triarea%elts(TRIAG*idS+UPLT+1) 
+
+      qe(EDGE*idW+RT+1)  = node2edge(pv_W   ,pv_UPLT)
+      qe(EDGE*idSW+DG+1) = node2edge(pv_LORT,pv_UPLT)
+      qe(EDGE*idS+UP+1)  = node2edge(pv_LORT,pv_S)
+
+      h_mflux(EDGE*idW+RT+1)  = u_dual_w  * node2edge(full_mass(WEST) , full_mass(0))
+      h_mflux(EDGE*idSW+DG+1) = u_dual_sw * node2edge(full_mass(0)    , full_mass(SOUTHWEST))
+      h_mflux(EDGE*idS+UP+1)  = u_dual_s  * node2edge(full_mass(SOUTH), full_mass(0))
+
+      h_tflux(EDGE*idW+RT+1)  = u_dual_w  * node2edge(full_temp(WEST) , full_temp(0))
+      h_tflux(EDGE*idSW+DG+1) = u_dual_sw * node2edge(full_temp(0)    , full_temp(SOUTHWEST))
+      h_tflux(EDGE*idS+UP+1)  = u_dual_s  * node2edge(full_temp(SOUTH), full_temp(0))
     end subroutine comp_ijmin
 
     subroutine comput()
@@ -370,6 +379,9 @@ contains
       idS  = id+s
       idSW = id+sw
       idW  = id+w
+
+      full_mass(0:NORTHEAST) = mass(id+(/0,n,e,s,w,ne/)+1) + mean(S_MASS,zlev)
+      full_temp(0:NORTHEAST) = temp(id+(/0,n,e,s,w,ne/)+1) + mean(S_TEMP,zlev)
       
       ! Find the velocity on primal and dual grid edges, which are equal except for the length of the
       ! side they are on
@@ -393,14 +405,7 @@ contains
       else
          u_dual_dg = 0.0_8
       end if
-
-      full_mass(0:NORTHEAST) = mass(id+(/0,n,e,s,w,ne/)+1) + mean(S_MASS,zlev)
-      full_temp(0:NORTHEAST) = temp(id+(/0,n,e,s,w,ne/)+1) + mean(S_TEMP,zlev)
-
-      ! Find horizontalfluxes at specific points
-      call cal_flux2 (h_mflux, full_mass)
-      call cal_flux2 (h_tflux, full_temp)
-
+    
       ! Find additional primal and dual velocities: down, southwest (counter-diagonal), left
       u_prim_w = velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1)
       if (dom%pedlen%elts(EDGE*idW+RT+1).ne.0.0_8) then
@@ -422,6 +427,15 @@ contains
       else
          u_dual_sw = 0.0_8
       end if
+
+      ! Calculate mass and temperature fluxes
+      h_mflux(EDGE*id+RT+1) = u_dual_rt * node2edge(full_mass(0)        , full_mass(EAST))
+      h_mflux(EDGE*id+DG+1) = u_dual_dg * node2edge(full_mass(NORTHEAST), full_mass(0))
+      h_mflux(EDGE*id+UP+1) = u_dual_up * node2edge(full_mass(0)        , full_mass(NORTH))
+
+      h_tflux(EDGE*id+RT+1) = u_dual_rt * node2edge(full_temp(0)        , full_temp(EAST))
+      h_tflux(EDGE*id+DG+1) = u_dual_dg * node2edge(full_temp(NORTHEAST), full_temp(0))
+      h_tflux(EDGE*id+UP+1) = u_dual_up * node2edge(full_temp(0)        , full_temp(NORTH))
       
       ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
       ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
@@ -477,28 +491,28 @@ contains
       vort(TRIAG*id+LORT+1) = - (u_prim_rt + u_prim_dg + velo(EDGE*idE+UP+1)*dom%len%elts(EDGE*idE+UP+1))
       vort(TRIAG*id+UPLT+1) =    u_prim_dg + u_prim_up + velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1) 
 
-      vort_W = - (u_prim_w  + velo(EDGE*(id+W)+DG+1)*dom%len%elts(EDGE*(id+W)+DG+1) + u_prim_up)
-      vort_S =    u_prim_rt + velo(EDGE*(id+S)+DG+1)*dom%len%elts(EDGE*(id+S)+DG+1) + u_prim_s
+      vort_W = - (u_prim_w  + velo(EDGE*idW+DG+1)*dom%len%elts(EDGE*idW+DG+1) + u_prim_up)
+      vort_S =    u_prim_rt + velo(EDGE*idS+DG+1)*dom%len%elts(EDGE*idS+DG+1) + u_prim_s
 
       pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + vort(TRIAG*id+LORT+1))/( &
-           full_mass(0)*dom%areas%elts(id   +1)%part(1) + &
-           full_mass(EAST)*dom%areas%elts(id+E +1)%part(3) + &
-           full_mass(NORTHEAST)*dom%areas%elts(id+NE+1)%part(5))
+           full_mass(0)*dom%areas%elts(id+1)%part(1) + &
+           full_mass(EAST)*dom%areas%elts(idE+1)%part(3) + &
+           full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
 
       pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + vort(TRIAG*id+UPLT+1))/( &
-           full_mass(0)*dom%areas%elts(id   +1)%part(2) + &
-           full_mass(NORTHEAST)*dom%areas%elts(id+NE+1)%part(4) + &
-           full_mass(NORTH)*dom%areas%elts(id+N +1)%part(6))
+           full_mass(0)*dom%areas%elts(id+1)%part(2) + &
+           full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(4) + &
+           full_mass(NORTH)*dom%areas%elts(idN+1)%part(6))
 
-      pv_W = (dom%coriolis%elts(TRIAG*(id+W)+LORT+1) + vort_W)/( &
-           full_mass(WEST)*dom%areas%elts(id+W+1)%part(1) + &
-           full_mass(0)*dom%areas%elts(id  +1)%part(3) + &
-           full_mass(NORTH)*dom%areas%elts(id+N+1)%part(5))
+      pv_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + vort_W)/( &
+           full_mass(WEST)*dom%areas%elts(idW+1)%part(1) + &
+           full_mass(0)*dom%areas%elts(id+1)%part(3) + &
+           full_mass(NORTH)*dom%areas%elts(idN+1)%part(5))
 
-      pv_S = (dom%coriolis%elts(TRIAG*(id+S)+UPLT+1) + vort_S)/( &
-           full_mass(SOUTH)*dom%areas%elts(id+S+1)%part(2) + &
-           full_mass(EAST)*dom%areas%elts(id+E+1)%part(4) + &
-           full_mass(0)*dom%areas%elts(id  +1)%part(6))
+      pv_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + vort_S)/( &
+           full_mass(SOUTH)*dom%areas%elts(idS+1)%part(2) + &
+           full_mass(EAST)*dom%areas%elts(idE+1)%part(4) + &
+           full_mass(0)*dom%areas%elts(id+1)%part(6))
 
       vort(TRIAG*id+LORT+1) = vort(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1) 
       vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+UPLT+1)/dom%triarea%elts(TRIAG*id+UPLT+1) 
@@ -507,25 +521,6 @@ contains
       qe(EDGE*id+DG+1) = node2edge(pv_UPLT, pv_LORT)
       qe(EDGE*id+UP+1) = node2edge(pv_UPLT, pv_W)
     end subroutine comput
-
-    subroutine cal_flux1(h_flux, full_scalar)
-      real(8), dimension(:), pointer :: h_flux
-      real(8), dimension(0:N_BDRY) :: full_scalar
-
-      h_flux(EDGE*(id+w )+RT+1) = u_dual_w * node2edge(full_scalar(WEST) ,full_scalar(0))
-      h_flux(EDGE*(id+sw)+DG+1) = u_dual_sw * node2edge(full_scalar(0)    ,full_scalar(SOUTHWEST))
-      h_flux(EDGE*(id+s )+UP+1) = u_dual_s * node2edge(full_scalar(SOUTH),full_scalar(0))
-    end subroutine cal_flux1
-
-    subroutine cal_flux2(h_flux, full_scalar)
-      real(8), dimension(:), pointer :: h_flux
-      real(8), dimension(0:N_BDRY) :: full_scalar
-
-      ! Find the horizontal mass flux as the velocity multiplied by the mass there
-      h_flux(EDGE*id+RT+1) = u_dual_rt * node2edge(full_scalar(0)        , full_scalar(EAST))
-      h_flux(EDGE*id+DG+1) = u_dual_dg * node2edge(full_scalar(NORTHEAST), full_scalar(0))
-      h_flux(EDGE*id+UP+1) = u_dual_up * node2edge(full_scalar(0)        , full_scalar(NORTH))
-    end subroutine cal_flux2
   end subroutine step1
 
   subroutine interp_vel_hex (dom, i, j, zlev, offs, dims)

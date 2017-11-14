@@ -571,10 +571,10 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse_scalars  = .false.  ! Diffuse scalars
-  diffuse_momentum = .false.  ! Diffuse momentum
+  diffuse_scalars  = .false. ! Diffuse scalars
+  diffuse_momentum = .false. ! Diffuse momentum
   compressible     = .true.  ! Compressible equations
-  remap            = .false.  ! Remap vertical coordinates
+  remap            = .false. ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
 
   if (viscosity_mass.eq.0.0_8 .and. viscosity_temp.eq.0.0_8) diffuse_scalars  = .false.
