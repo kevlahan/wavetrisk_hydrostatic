@@ -340,6 +340,7 @@ contains
        if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') &
             "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
        u = 200000+100*iwrite
+       call write_level_mpi (write_dual, u+l, l, zlev, .False.)
     end do
 
     call post_levelout
@@ -552,9 +553,9 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
-  cfl_num     = 1000.0d0                            ! cfl number
+  cfl_num     = 1.0d0                            ! cfl number
 
-  viscosity_mass = 0.0e-5/kmax**2                ! viscosity for mass equation
+  viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
   viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = 5.0d-4/kmax**2                ! viscosity for divergent part of momentum equation
   viscosity_rotu = 5.0d-4/kmax**2!viscosity_divu                ! viscosity for divergent part of momentum equation
@@ -571,7 +572,7 @@ program DCMIP2008c5
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse_scalars  = .false.  ! Diffuse scalars
-  diffuse_momentum = .true.  ! Diffuse momentum
+  diffuse_momentum = .false.  ! Diffuse momentum
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
@@ -601,9 +602,8 @@ program DCMIP2008c5
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
-     !call time_step (dt_write, aligned, set_thresholds)
-
-     call time_step_diffuse (dt_write, aligned)
+     call time_step (dt_write, aligned, set_thresholds)
+     !call time_step_diffuse (dt_write, aligned)
      call set_surf_geopot
      call stop_timing
      timing = get_timing()
