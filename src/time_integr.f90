@@ -127,7 +127,7 @@ contains
   end subroutine init_RK_mem
 
   subroutine manage_RK_mem()
-    integer d, k, v, n_new
+    integer :: d, k, v, n_new
 
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -149,7 +149,6 @@ contains
     !see A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011
     real(8), dimension(5,5) :: alpha
     real(8), dimension(5,5) :: beta
-    integer d, v
 
     alpha = reshape((/1.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.444370494067_8, 0.555629505933_8, 0.0_8, 0.0_8, 0.0_8,  &
          0.620101851385_8, 0.0_8, 0.379898148615_8, 0.0_8, 0.0_8, 0.178079954108_8, 0.0_8, 0.0_8, 0.821920045892_8, 0.0_8,  &
@@ -184,11 +183,14 @@ contains
     call WT_after_step(sol, wav_coeff, level_start-1)
   end subroutine RK45_opt
 
-  subroutine euler ()
+  subroutine euler 
     ! An Euler step to diffuse solution
-    call trend_ml (sol, trend)
+
+    integer :: d, k, v, start
+
+    call trend_diffuse (sol, trend)
     call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
-    call WT_after_step(sol, wav_coeff, level_start-1)
+    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine euler
 
   function wav_coeff_predict (trend)

@@ -474,10 +474,6 @@ contains
       ! Exner function in incompressible case from geopotential
       if (.not. compressible) exner(id+1) = -Phi_k
 
-      if (diffuse_momentum) then
-         divu(id+1) = (u_dual_up - u_dual_s + u_dual_rt - u_dual_w  + u_dual_sw - u_dual_dg) * dom%areas%elts(id+1)%hex_inv
-      end if
-
       vort(TRIAG*id+LORT+1) = - (u_prim_rt + u_prim_dg + velo(EDGE*idE+UP+1)*dom%len%elts(EDGE*idE+UP+1))
       vort(TRIAG*id+UPLT+1) =    u_prim_dg + u_prim_up + velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1) 
 
@@ -807,8 +803,18 @@ contains
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
     
     call du_Qperp (dom, i, j, z_null, offs, dims)
-    if (diffuse_momentum) call Laplacian_u (dom, i, j, z_null, offs, dims)
   end subroutine du_source
+
+   subroutine du_source_diffuse (dom, i, j, zlev, offs, dims)
+    ! Source (non gradient) terms in velocity trend
+    ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
+    type(Domain),                   intent(in) :: dom
+    integer,                        intent(in) :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in) :: offs
+    integer, dimension(2,N_BDRY+1), intent(in) :: dims
+    
+    call Laplacian_u (dom, i, j, z_null, offs, dims)
+  end subroutine du_source_diffuse
 
   subroutine du_Qperp (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving Qperp and add it to dvelo [Aechtner thesis page 44]
@@ -990,11 +996,11 @@ contains
     if (dom%pedlen%elts(EDGE*id+UP+1).ne.0.0_8) gradi_e(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1)
   end function gradi_e
 
-  function gradv_e (scalar, dom, i, j, offs, dims)
-    ! Gradient of scalar given at triangle circumcentres x_v used in calculating curl(curl(u))
+  function curlv_e (curlu, dom, i, j, offs, dims)
+    ! Curl of vorticity given at triangle circumcentres x_v used in calculating curl(curl(u))
     ! output is at edges x_e
-    real(8), dimension(3)          :: gradv_e
-    real(8), dimension(:), pointer :: scalar
+    real(8), dimension(3)          :: curlv_e
+    real(8), dimension(:), pointer :: curlu
     type(Domain)                   :: dom
     integer                        :: i, j
     integer, dimension(N_BDRY+1)   :: offs
@@ -1006,17 +1012,17 @@ contains
     idS  = idx(i,     j - 1, offs, dims)
     idW  = idx(i - 1, j,     offs, dims)
 
-    gradv_e = 0.0_8
+    curlv_e = 0.0_8
     if (dom%pedlen%elts(EDGE*id+RT+1).ne.0.0_8) then
-       gradv_e(RT+1) = (scalar(id*TRIAG+LORT+1) -scalar(idS*TRIAG+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
+       curlv_e(RT+1) =   (curlu(id*TRIAG+LORT+1) -curlu(idS*TRIAG+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
     end if
     if (dom%pedlen%elts(EDGE*id+DG+1).ne.0.0_8) then
-       gradv_e(DG+1) = (scalar(id*TRIAG+LORT+1) -scalar(id*TRIAG+UPLT+1)) /dom%pedlen%elts(EDGE*id+DG+1)
+       curlv_e(DG+1) = - (curlu(id*TRIAG+UPLT+1) -curlu(id*TRIAG+LORT+1)) /dom%pedlen%elts(EDGE*id+DG+1)
     end if
     if (dom%pedlen%elts(EDGE*id+UP+1).ne.0.0_8) then
-       gradv_e(UP+1) = (scalar(idW*TRIAG+LORT+1)-scalar(id*TRIAG+UPLT+1)) /dom%pedlen%elts(EDGE*id+UP+1)
+       curlv_e(UP+1) =   (curlu(idW*TRIAG+LORT+1)-curlu(id*TRIAG+UPLT+1)) /dom%pedlen%elts(EDGE*id+UP+1)
     end if
-  end function gradv_e
+  end function curlv_e
 
   function div (hflux, dom, i, j, offs, dims)
     ! Divergence at nodes x_i given horizontal fluxes at edges x_e
@@ -1202,6 +1208,37 @@ contains
     divu(id+1) =  (u_dual_RT-u_dual_W + u_dual_SW-u_dual_DG + u_dual_UP-u_dual_S) * dom%areas%elts(id+1)%hex_inv
   end subroutine cal_divu
 
+  subroutine cal_vort (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, idE, idN
+    real(8) :: u_prim_rt, u_prim_dg, u_prim_up, u_prim_upE, u_prim_rtN
+
+    id   = idx(i,   j,   offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+
+    u_prim_rt  = velo(EDGE*id+RT +1)*dom%len%elts(EDGE*id+RT+1)
+    u_prim_dg  = velo(EDGE*id+DG +1)*dom%len%elts(EDGE*id+DG+1)
+    u_prim_up  = velo(EDGE*id+UP +1)*dom%len%elts(EDGE*id+UP+1)
+    u_prim_upE = velo(EDGE*idE+UP+1)*dom%len%elts(EDGE*idE+UP+1)
+    u_prim_rtN = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1)
+    
+    if (dom%triarea%elts(TRIAG*id+UPLT+1).eq.0.0_8) then
+       vort(TRIAG*id+LORT+1) = - (u_prim_rt + u_prim_dg + u_prim_upE)/dom%triarea%elts(TRIAG*id+LORT+1)
+       vort(TRIAG*id+UPLT+1) =  vort(TRIAG*id+LORT+1)
+    elseif (dom%triarea%elts(TRIAG*id+LORT+1).eq.0.0_8) then
+       vort(TRIAG*id+UPLT+1) = (u_prim_dg + u_prim_up + u_prim_rtN)/dom%triarea%elts(TRIAG*id+UPLT+1)
+       vort(TRIAG*id+LORT+1) = vort(TRIAG*id+UPLT+1)
+    else
+       vort(TRIAG*id+LORT+1) = - (u_prim_rt + u_prim_dg + u_prim_upE)/dom%triarea%elts(TRIAG*id+LORT+1) 
+       vort(TRIAG*id+UPLT+1) =   (u_prim_dg + u_prim_up + u_prim_rtN)/dom%triarea%elts(TRIAG*id+UPLT+1)
+    end if
+  end subroutine cal_vort
+
   subroutine flux_grad_scalar (dom, i, j, zlev, offs, dims)
     ! Add diffusive term to fluxes
     type(Domain) :: dom
@@ -1223,27 +1260,31 @@ contains
     
     do e = 1, EDGE
        if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
-          h_mflux(EDGE*id+e) = h_mflux(EDGE*id+e) - viscosity_mass * dom%pedlen%elts(EDGE*id+e) * gradM(e)
-          h_tflux(EDGE*id+e) = h_tflux(EDGE*id+e) - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
+          h_mflux(EDGE*id+e) = - viscosity_mass * dom%pedlen%elts(EDGE*id+e) * gradM(e)
+          h_tflux(EDGE*id+e) = - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
+       else
+          h_mflux(EDGE*id+e) = 0.0_8
+          h_tflux(EDGE*id+e) = 0.0_8
        end if
     end do
   end subroutine flux_grad_scalar
 
   subroutine Laplacian_u (dom, i, j, zlev, offs, dims)
-    ! Calculate grad(divu) - grad(vort) to diffuse momentum
+    ! Calculate grad(divu) - curl(vort) to diffuse momentum
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id, idS, idN, idW, idE, idNE
+    integer               :: e, id
     real(8), dimension(3) :: grad_divu, grad_rotu
 
     grad_divu = gradi_e (divu, dom, i, j, offs, dims)
-    grad_rotu = gradv_e (vort, dom, i, j, offs, dims)
+    grad_rotu = curlv_e (vort, dom, i, j, offs, dims)
 
+    id = idx(i, j, offs, dims)
     do e = 1, EDGE
-       dvelo(id*EDGE+e) = dvelo(id*EDGE+e) + viscosity_divu * grad_divu(e) - viscosity_rotu * grad_rotu(e)
+       dvelo(id*EDGE+e) = viscosity_divu * grad_divu(e) - viscosity_rotu * grad_rotu(e)
     end do
   end subroutine Laplacian_u
 
@@ -1257,7 +1298,7 @@ contains
     integer :: id
     real (8) :: velo
     
-    id   = idx(i, j, offs, dims)
+    id = idx(i, j, offs, dims)
 
     ! Non-mass weighted vertical velocity at upper interface
     velo = v_mflux(id+1)/(mass(id+1) + mean(S_MASS,zlev))

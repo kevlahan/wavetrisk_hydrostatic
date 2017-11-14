@@ -237,6 +237,35 @@ contains
     time  = itime/time_mult
   end subroutine time_step
 
+  subroutine time_step_diffuse (align_time, aligned)
+    real(8)              :: align_time
+    logical, intent(out) :: aligned
+    
+    integer(8)           :: idt, ialign
+    
+    dt = cpt_dt_mpi()
+    
+    ! Match certain times exactly
+    idt    = nint(dt*time_mult, 8)
+    ialign = nint(align_time*time_mult, 8)
+
+    if (ialign .gt. 0 .and. cp_idx .ne. resume) then
+       aligned = (modulo(itime+idt,ialign) .lt. modulo(itime,ialign))
+    else
+       resume = NONE ! Set unequal cp_idx => only first step after resume is protected from alignment
+       aligned = .False.
+    end if
+
+    if (aligned) idt = ialign - modulo(itime,ialign)
+
+    dt = idt/time_mult
+
+    call euler
+    
+    itime = itime + idt
+    time  = itime/time_mult
+  end subroutine time_step_diffuse
+
   subroutine reset(init_state)
     type(Initial_State), dimension (:), allocatable :: init_state
     integer                                         :: k, l, d, v, i

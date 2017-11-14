@@ -1117,9 +1117,9 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: A_i, A_v, C_visc, csq, d_e, full_mass, l_e, total_mass, v_e, visc, wave_speed
+    real(8) :: A_i, A_v, C_visc, csq, d_e, full_mass, l_e, total_mass, v_e, wave_speed
 
-    C_visc = 0.1_8
+    C_visc = 0.3_8
     
     id = idx(i, j, offs, dims)
     d  = dom%id + 1
@@ -1145,8 +1145,6 @@ contains
        ! Inertia gravity wave speed
        wave_speed = sqrt(grav_accel*total_mass)
 
-       visc = max (viscosity_mass, viscosity_temp, viscosity_rotu, viscosity_divu)
-
        do e = 1, EDGE
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
@@ -1164,14 +1162,10 @@ contains
                 end do
 
                 if (d_e.ne.0.0_8) then
-                   dt = min (dt, cfl_num*d_e/v_e, cfl_num*d_e/wave_speed)
-
-                   if (diffuse_scalars) dt = min (dt, &
-                        C_visc*A_i/viscosity_temp, &
-                        C_visc*A_i/viscosity_mass)
-                    if (diffuse_momentum) dt = min (dt, &
-                        C_visc*A_i/viscosity_divu, &
-                        C_visc*A_v/viscosity_rotu)
+                   dt = min(dt,  cfl_num*d_e/wave_speed)
+                   if (v_e.ne.0.0_8) dt = min (dt, cfl_num*d_e/v_e)
+                   if (diffuse_scalars)  dt = min (dt, C_visc*A_i/max(viscosity_mass, viscosity_temp))
+                   if (diffuse_momentum) dt = min (dt, C_visc*A_i/max(viscosity_divu, viscosity_rotu))
                 end if
              end if
           end if

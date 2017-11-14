@@ -32,11 +32,18 @@ contains
   subroutine set_surf_geopot
     integer ::  d, p
     
-    do d = 1, size(grid)
-       do p = n_patch_old(d)+1, grid(d)%patch%length
-          call apply_onescale_to_patch(set_surfgeopot, grid(d), p-1, z_null, 0, 1)
+    ! do d = 1, size(grid)
+    !    do p = n_patch_old(d)+1, grid(d)%patch%length
+    !       call apply_onescale_to_patch(set_surfgeopot, grid(d), p-1, z_null, 0, 1)
+    !    end do
+    ! end do
+
+     do d = 1, size(grid)
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (set_surfgeopot, grid(d), p-1, z_null, 0, 1)
+          end do
+          nullify (mass, temp, dvelo, bernoulli, exner)
        end do
-    end do
   end subroutine set_surf_geopot
 
   subroutine sum_total_mass(initialgo)
@@ -378,9 +385,9 @@ contains
         tol_temp = temp_scale * threshold 
         tol_velo = velo_scale * threshold
      else
-       tol_mass = (0.99*tol_mass + 0.01*mass_scale * threshold)
-       tol_temp = (0.99*tol_temp + 0.01*temp_scale * threshold)
-       tol_velo = (0.99*tol_velo + 0.01*velo_scale * threshold)
+        tol_mass = (0.99*tol_mass + 0.01*mass_scale * threshold)
+        tol_temp = (0.99*tol_temp + 0.01*temp_scale * threshold)
+        tol_velo = (0.99*tol_velo + 0.01*velo_scale * threshold)
     end if
   end subroutine set_thresholds
 
@@ -545,12 +552,12 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
-  cfl_num     = 1.0d0                            ! cfl number
+  cfl_num     = 1000.0d0                            ! cfl number
 
-  viscosity_mass = 2.0e-3/kmax**2                ! viscosity for mass equation
+  viscosity_mass = 0.0e-5/kmax**2                ! viscosity for mass equation
   viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 2.0e-4/kmax**2                ! viscosity for divergent part of momentum equation
-  viscosity_rotu = viscosity_divu                ! viscosity for divergent part of momentum equation
+  viscosity_divu = 5.0d-4/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 5.0d-4/kmax**2!viscosity_divu                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ',  viscosity_mass
@@ -563,11 +570,14 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse_scalars  = .true.  ! Diffuse scalars
+  diffuse_scalars  = .false.  ! Diffuse scalars
   diffuse_momentum = .true.  ! Diffuse momentum
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
+
+  if (viscosity_mass.eq.0.0_8 .and. viscosity_temp.eq.0.0_8) diffuse_scalars  = .false.
+  if (viscosity_divu.eq.0.0_8 .and. viscosity_rotu.eq.0.0_8) diffuse_momentum = .false.
 
   ! Initialize variables
   call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
@@ -581,8 +591,7 @@ program DCMIP2008c5
   call barrier
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
-  write_init = (resume .eq. NONE)
-  if (write_init) call write_and_export (iwrite)
+  call write_and_export (iwrite)
 
   dt_init    = 238.0_8 ! Initial time step (not used if adapt_dt is true)
   iwrite     = 0
@@ -592,7 +601,9 @@ program DCMIP2008c5
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
-     call time_step (dt_write, aligned, set_thresholds)
+     !call time_step (dt_write, aligned, set_thresholds)
+
+     call time_step_diffuse (dt_write, aligned)
      call set_surf_geopot
      call stop_timing
      timing = get_timing()

@@ -567,13 +567,14 @@ contains
   end subroutine zonal_meridional_vel
 
   function get_vort(dom, i, j, offs, dims)
-    real(8) get_vort(TRIAG)
-    type(Domain) dom
-    integer i, j
+    ! Averages vorticity to get smooth field for visualization
+    real(8), dimension(TRIAG)      :: get_vort
+    type(Domain)                   :: dom
+    integer                        :: i, j
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer id
-    integer idN, idE, idS, idW
+
+    integer :: id, idN, idE, idS, idW
 
     id  = idx(i,     j,     offs, dims)
     idE = idx(i + 1, j,     offs, dims)
@@ -582,13 +583,13 @@ contains
     idS = idx(i,     j - 1, offs, dims)
 
     get_vort(UPLT+1) = ( &
-         0.5*(dom%vort%elts(TRIAG*idW+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
+         0.5_8*(dom%vort%elts(TRIAG*idW+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
          *dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
          
-         0.5*(dom%vort%elts(TRIAG*id+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
+         0.5_8*(dom%vort%elts(TRIAG*id+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
          *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(id*EDGE+DG+1)+ &
          
-         0.5*(dom%vort%elts(TRIAG*idN+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
+         0.5_8*(dom%vort%elts(TRIAG*idN+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
          *dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1)) &
          
          / (dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
@@ -596,13 +597,13 @@ contains
          dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1))
 
     get_vort(LORT+1) = ( &
-         0.5*(dom%vort%elts(TRIAG*idS+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
+         0.5_8*(dom%vort%elts(TRIAG*idS+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
          
-         0.5*(dom%vort%elts(TRIAG*id+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
+         0.5_8*(dom%vort%elts(TRIAG*id+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(id*EDGE+DG+1)+ &
          
-         0.5*(dom%vort%elts(TRIAG*idE+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
+         0.5_8*(dom%vort%elts(TRIAG*idE+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1)) &
          
          / (dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
