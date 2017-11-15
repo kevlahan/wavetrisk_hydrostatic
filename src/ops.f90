@@ -15,187 +15,6 @@ contains
     initialized = .True.
   end subroutine init_ops_mod
 
-  subroutine post_step1 (dom, p, c, offs, dims, zlev)
-    type(Domain)                   :: dom
-    integer                        :: p, c, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                      :: id, idS, idW, idSW, idN, idE, idNE
-    real(8)                      :: pv_LORT_W, pv_UPLT_S, pv_LORT, pv_UPLT, pv_LORT_SW, pv_UPLT_SW, pv
-    real(8)                      :: circ_LORT, circ_LORT_SW, circ_UPLT_SW, circ_LORT_W, circ_UPLT, circ_UPLT_S
-    real(8)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW
-    real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
-    real(8), dimension(0:N_BDRY) :: full_mass
-
-    if (c .eq. IJMINUS) then
-       id   = idx( 0,  0, offs, dims)
-       idSW = idx(-1, -1, offs, dims)
-       idW  = idx(-1,  0, offs, dims)
-       idS  = idx( 0, -1, offs, dims)
-       idN  = idx( 0,  1, offs, dims)
-       idE  = idx( 1,  0, offs, dims)
-
-       full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
-
-       u_prim_RT_W  = velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1)
-       u_prim_DG_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) ! Is this really RT edge (no edge lablel)!
-       u_prim_UP_S  = velo(EDGE*idS+UP+1)*dom%len%elts(EDGE*idS+UP+1)
-
-       circ_LORT_SW = u_prim_UP_S - u_prim_RT_W + u_prim_RT_SW
-       circ_LORT_W  = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
-       circ_UPLT_S  = vort(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1)
-
-       pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+1) + circ_LORT_SW)/ &
-            (full_mass(WEST)*dom%areas%elts(idW+1)%part(6) &
-            + full_mass(0)*sum(dom%areas%elts(id+1)%part(4:5)) &
-            + full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3))
-
-       pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-            (full_mass(WEST)*dom%areas%elts(idW+1)%part(1) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(3) &
-            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(5))
-
-       pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-            (full_mass(SOUTH)*dom%areas%elts(idS+1)%part(2) &
-            + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(6))
-
-       vort(TRIAG*idSW+LORT+1) = circ_LORT_SW/dom%triarea%elts(TRIAG*idSW+LORT+1)
-       vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
-
-       pv_UPLT_SW = pv_LORT_SW
-       
-       qe(EDGE*idW+RT+1) = node2edge(pv_LORT_W, pv_UPLT_SW)
-       qe(EDGE*idS+UP+1) = node2edge(pv_UPLT_S, pv_LORT_SW)
-    end if
-
-    if (c .eq. IPLUSJMINUS) then
-       id   = idx(PATCH_SIZE,    0, offs, dims)
-       idSW = idx(PATCH_SIZE-1, -1, offs, dims)
-       idS  = idx(PATCH_SIZE,   -1, offs, dims)
-       idW  = idx(PATCH_SIZE-1,  0, offs, dims)
-       idE  = idx(PATCH_SIZE+1,  0, offs, dims)
-       idNE = idx(PATCH_SIZE+1,  1, offs, dims)
-
-       full_mass(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
-
-       u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
-       u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
-       u_prim_RT    = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
-       
-       circ_LORT_SW = - u_prim_RT + u_prim_RT_SW + u_prim_DG_SW 
-       circ_LORT    = vort(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1)
-       circ_UPLT_SW = vort(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1)
-
-       pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-             (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
-             full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) + &
-             full_mass(0)*sum(dom%areas%elts(id+1)%part(5:6)))
-
-       pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/ &
-            (full_mass(0)*dom%areas%elts(id+1)%part(1) &
-            + full_mass(EAST)*dom%areas%elts(idE+1)%part(3) &
-            + full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
-
-       pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(4) &
-            + full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
-
-       vort(TRIAG*idSW+LORT+1) = circ_LORT_SW/dom%triarea%elts(TRIAG*idSW+LORT+1)
-       vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
-
-       pv_UPLT_S = pv_LORT_SW
-
-       qe(EDGE*id  +RT+1) = node2edge(pv_UPLT_S,  pv_LORT)
-       qe(EDGE*idSW+DG+1) = node2edge(pv_LORT_SW, pv_UPLT_SW)
-    end if
-
-    if (c .eq. IMINUSJPLUS) then
-       id   = idx(0,  PATCH_SIZE,   offs, dims)
-       idSW = idx(-1, PATCH_SIZE-1, offs, dims)
-       idW  = idx(-1, PATCH_SIZE,   offs, dims)
-       idS  = idx(0,  PATCH_SIZE-1, offs, dims)
-       idN  = idx(0,  PATCH_SIZE+1, offs, dims)
-       idNE = idx(1,  PATCH_SIZE+1, offs, dims)
-
-       full_mass(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
-
-       u_prim_UP    = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
-       u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
-       u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
-       
-       circ_UPLT_SW = u_prim_UP - u_prim_DG_SW - u_prim_UP_SW
-       circ_UPLT    = vort(TRIAG*id+UPLT+1)*dom%triarea%elts(TRIAG*id+UPLT+1)
-       circ_LORT_SW = vort(TRIAG*idSW+LORT+1)*dom%triarea%elts(TRIAG*idSW+LORT+1)
-
-       pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            (full_mass(SOUTHWEST)*dom%areas%elts(idSW  +1)%part(2) &
-            + full_mass(0)*sum(dom%areas%elts(id+1)%part(3:4)) &
-            + full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
-
-       pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/ &
-            (full_mass(0)*dom%areas%elts(id+1)%part(2) &
-            + full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(4) &
-            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(6))
-
-       pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-            (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) &
-            + full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(5))
-
-       vort(TRIAG*idSW+UPLT+1) = circ_UPLT_SW/dom%triarea%elts(TRIAG*idSW+UPLT+1)  
-       vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
-
-       pv_LORT_W = pv_UPLT_SW
-
-       qe(EDGE*id  +UP+1) = node2edge(pv_LORT_W,  pv_UPLT)
-       qe(EDGE*idSW+DG+1) = node2edge(pv_LORT_SW, pv_UPLT_SW)
-    end if
-
-    if (c .eq. IJPLUS) then
-       id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
-       idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
-       idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
-       idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
-       idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
-
-       full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
-       
-       u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1)
-       u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1)
-       u_prim_UP   = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
-       
-       circ_LORT   = u_prim_RT - u_prim_RT_N - u_prim_UP
-       circ_LORT_W = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
-       circ_UPLT_S = vort(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1)
-
-       pv_LORT = (dom%coriolis%elts(TRIAG*id+1) + circ_LORT)/ &          
-            (full_mass(EAST)*dom%areas%elts(idE+1)%part(3) + &
-            full_mass(0)*sum(dom%areas%elts(id+1)%part(1:2)) + &
-            full_mass(NORTH)*dom%areas%elts(idN+1)%part(6))
-
-       pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-            (full_mass(WEST)*dom%areas%elts(idW+1)%part(1) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(3) &
-            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(5))
-
-       pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-            (full_mass(SOUTH)*dom%areas%elts(idS+1)%part(2) &
-            + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(6))
-
-       vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1)
-       vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
-
-       pv_UPLT = pv_LORT
-       
-       qe(EDGE*id+RT+1) = node2edge(pv_LORT, pv_UPLT_S)
-       qe(EDGE*id+UP+1) = node2edge(pv_UPLT, pv_LORT_W)
-    end if
-  end subroutine post_step1
-
   subroutine step1 (dom, p, zlev)
     type(Domain) :: dom
     integer      :: p, zlev
@@ -545,6 +364,188 @@ contains
       qe(EDGE*id+UP+1) = node2edge(pv_UPLT,   pv_LORT_W)
     end subroutine comput
   end subroutine step1
+
+  subroutine post_step1 (dom, p, c, offs, dims, zlev)
+    ! Correct values for vorticity and qe at pentagon points
+    type(Domain)                   :: dom
+    integer                        :: p, c, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                      :: id, idS, idW, idSW, idN, idE, idNE
+    real(8)                      :: pv_LORT_W, pv_UPLT_S, pv_LORT, pv_UPLT, pv_LORT_SW, pv_UPLT_SW, pv
+    real(8)                      :: circ_LORT, circ_LORT_SW, circ_UPLT_SW, circ_LORT_W, circ_UPLT, circ_UPLT_S
+    real(8)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW
+    real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
+    real(8), dimension(0:N_BDRY) :: full_mass
+
+    if (c .eq. IJMINUS) then
+       id   = idx( 0,  0, offs, dims)
+       idSW = idx(-1, -1, offs, dims)
+       idW  = idx(-1,  0, offs, dims)
+       idS  = idx( 0, -1, offs, dims)
+       idN  = idx( 0,  1, offs, dims)
+       idE  = idx( 1,  0, offs, dims)
+
+       full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
+
+       u_prim_RT_W  = velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1)
+       u_prim_DG_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) ! Is this really RT edge (no edge lablel)!
+       u_prim_UP_S  = velo(EDGE*idS+UP+1)*dom%len%elts(EDGE*idS+UP+1)
+
+       circ_LORT_SW = u_prim_UP_S - u_prim_RT_W + u_prim_RT_SW
+       circ_LORT_W  = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
+       circ_UPLT_S  = vort(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1)
+
+       pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+1) + circ_LORT_SW)/ &
+            (full_mass(WEST)*dom%areas%elts(idW+1)%part(6) &
+            + full_mass(0)*sum(dom%areas%elts(id+1)%part(4:5)) &
+            + full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3))
+
+       pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
+            (full_mass(WEST)*dom%areas%elts(idW+1)%part(1) &
+            + full_mass(0)*dom%areas%elts(id+1)%part(3) &
+            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(5))
+
+       pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
+            (full_mass(SOUTH)*dom%areas%elts(idS+1)%part(2) &
+            + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
+            + full_mass(0)*dom%areas%elts(id+1)%part(6))
+
+       vort(TRIAG*idSW+LORT+1) = circ_LORT_SW/dom%triarea%elts(TRIAG*idSW+LORT+1)
+       vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
+
+       pv_UPLT_SW = pv_LORT_SW
+       
+       qe(EDGE*idW+RT+1) = node2edge(pv_LORT_W, pv_UPLT_SW)
+       qe(EDGE*idS+UP+1) = node2edge(pv_UPLT_S, pv_LORT_SW)
+    end if
+
+    if (c .eq. IPLUSJMINUS) then
+       id   = idx(PATCH_SIZE,    0, offs, dims)
+       idSW = idx(PATCH_SIZE-1, -1, offs, dims)
+       idS  = idx(PATCH_SIZE,   -1, offs, dims)
+       idW  = idx(PATCH_SIZE-1,  0, offs, dims)
+       idE  = idx(PATCH_SIZE+1,  0, offs, dims)
+       idNE = idx(PATCH_SIZE+1,  1, offs, dims)
+
+       full_mass(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
+
+       u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
+       u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
+       u_prim_RT    = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
+       
+       circ_LORT_SW = - u_prim_RT + u_prim_RT_SW + u_prim_DG_SW 
+       circ_LORT    = vort(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1)
+       circ_UPLT_SW = vort(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1)
+
+       pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
+             (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
+             full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) + &
+             full_mass(0)*sum(dom%areas%elts(id+1)%part(5:6)))
+
+       pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/ &
+            (full_mass(0)*dom%areas%elts(id+1)%part(1) &
+            + full_mass(EAST)*dom%areas%elts(idE+1)%part(3) &
+            + full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
+
+       pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
+            (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) &
+            + full_mass(0)*dom%areas%elts(id+1)%part(4) &
+            + full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
+
+       vort(TRIAG*idSW+LORT+1) = circ_LORT_SW/dom%triarea%elts(TRIAG*idSW+LORT+1)
+       vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
+
+       pv_UPLT_S = pv_LORT_SW
+
+       qe(EDGE*id  +RT+1) = node2edge(pv_UPLT_S,  pv_LORT)
+       qe(EDGE*idSW+DG+1) = node2edge(pv_LORT_SW, pv_UPLT_SW)
+    end if
+
+    if (c .eq. IMINUSJPLUS) then
+       id   = idx(0,  PATCH_SIZE,   offs, dims)
+       idSW = idx(-1, PATCH_SIZE-1, offs, dims)
+       idW  = idx(-1, PATCH_SIZE,   offs, dims)
+       idS  = idx(0,  PATCH_SIZE-1, offs, dims)
+       idN  = idx(0,  PATCH_SIZE+1, offs, dims)
+       idNE = idx(1,  PATCH_SIZE+1, offs, dims)
+
+       full_mass(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
+
+       u_prim_UP    = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
+       u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
+       u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
+       
+       circ_UPLT_SW = u_prim_UP - u_prim_DG_SW - u_prim_UP_SW
+       circ_UPLT    = vort(TRIAG*id+UPLT+1)*dom%triarea%elts(TRIAG*id+UPLT+1)
+       circ_LORT_SW = vort(TRIAG*idSW+LORT+1)*dom%triarea%elts(TRIAG*idSW+LORT+1)
+
+       pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
+            (full_mass(SOUTHWEST)*dom%areas%elts(idSW  +1)%part(2) &
+            + full_mass(0)*sum(dom%areas%elts(id+1)%part(3:4)) &
+            + full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
+
+       pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/ &
+            (full_mass(0)*dom%areas%elts(id+1)%part(2) &
+            + full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(4) &
+            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(6))
+
+       pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
+            (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) &
+            + full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) &
+            + full_mass(0)*dom%areas%elts(id+1)%part(5))
+
+       vort(TRIAG*idSW+UPLT+1) = circ_UPLT_SW/dom%triarea%elts(TRIAG*idSW+UPLT+1)  
+       vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
+
+       pv_LORT_W = pv_UPLT_SW
+
+       qe(EDGE*id  +UP+1) = node2edge(pv_LORT_W,  pv_UPLT)
+       qe(EDGE*idSW+DG+1) = node2edge(pv_LORT_SW, pv_UPLT_SW)
+    end if
+
+    if (c .eq. IJPLUS) then
+       id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
+       idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
+       idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
+       idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
+       idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
+
+       full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
+       
+       u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1)
+       u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*id+DG+1)
+       u_prim_UP   = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
+       
+       circ_LORT   = u_prim_RT - u_prim_RT_N - u_prim_UP
+       circ_LORT_W = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
+       circ_UPLT_S = vort(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1)
+
+       pv_LORT = (dom%coriolis%elts(TRIAG*id+1) + circ_LORT)/ &          
+            (full_mass(EAST)*dom%areas%elts(idE+1)%part(3) + &
+            full_mass(0)*sum(dom%areas%elts(id+1)%part(1:2)) + &
+            full_mass(NORTH)*dom%areas%elts(idN+1)%part(6))
+
+       pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
+            (full_mass(WEST)*dom%areas%elts(idW+1)%part(1) &
+            + full_mass(0)*dom%areas%elts(id+1)%part(3) &
+            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(5))
+
+       pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
+            (full_mass(SOUTH)*dom%areas%elts(idS+1)%part(2) &
+            + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
+            + full_mass(0)*dom%areas%elts(id+1)%part(6))
+
+       vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1)
+       vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
+
+       pv_UPLT = pv_LORT
+       
+       qe(EDGE*id+RT+1) = node2edge(pv_LORT, pv_UPLT_S)
+       qe(EDGE*id+UP+1) = node2edge(pv_UPLT, pv_LORT_W)
+    end if
+  end subroutine post_step1
 
   subroutine interp_vel_hex (dom, i, j, zlev, offs, dims)
     ! Interpolate velocity to hexagon nodes in Cartesian coordinates; uses Perot formula as also used for kinetic energy 
