@@ -370,20 +370,17 @@ contains
           dvelo   => dq(S_VELO,k)%data(d)%elts
           divu    => grid(d)%divu%elts
           vort    => grid(d)%vort%elts
-          qe    => grid(d)%vort%elts
 
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
              call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
           end do
-
-          call apply_to_penta_d (post_step1, grid(d), level_end, k)
           
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (du_source_diffuse, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
-          nullify (velo, dvelo, divu, vort, mass, qe)
+          nullify (velo, dvelo, divu, vort, mass)
        end do
 
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

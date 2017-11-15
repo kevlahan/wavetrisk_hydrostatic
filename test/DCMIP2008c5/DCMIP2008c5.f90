@@ -329,7 +329,7 @@ contains
           nullify (velo)
        end do
 
-       Call write_level_mpi(write_primal, u+l, l, zlev, .True.)
+       Call write_level_mpi (write_primal, u+l, l, zlev, .True.)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
@@ -555,10 +555,10 @@ program DCMIP2008c5
 
   cfl_num     = 1.0d0                            ! cfl number
 
-  viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
+  viscosity_mass = 5.0e-3/kmax**2                ! viscosity for mass equation
   viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 5.0d-4/kmax**2                ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 5.0d-4/kmax**2!viscosity_divu                ! viscosity for divergent part of momentum equation
+  viscosity_divu = 5.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 0.0d-4/kmax**2!viscosity_divu                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ',  viscosity_mass
@@ -571,8 +571,8 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse_scalars  = .false. ! Diffuse scalars
-  diffuse_momentum = .false. ! Diffuse momentum
+  diffuse_scalars  = .true. ! Diffuse scalars
+  diffuse_momentum = .true. ! Diffuse momentum
   compressible     = .true.  ! Compressible equations
   remap            = .false. ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
@@ -603,7 +603,7 @@ program DCMIP2008c5
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
-     !call time_step_diffuse (dt_write, aligned)
+     call time_step_diffuse
      call set_surf_geopot
      call stop_timing
      timing = get_timing()
@@ -626,7 +626,7 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         if (remap) call remap_vertical_coordinates
-        call write_and_export(iwrite)
+        call write_and_export (iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle 
         ierr = write_checkpoint (DCMIP2008c5_dump)
