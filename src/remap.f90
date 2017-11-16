@@ -3,6 +3,7 @@ module remap_mod
   use domain_mod
   use arch_mod
   use comm_mpi_mod
+  use ops_mod
   implicit none
 
   integer                             :: p
@@ -69,9 +70,9 @@ contains
        k = zlevels-kb+2 ! Actual zlevel
        
        ! Interpolate mass on current vertical grid to edges 
-       mass_e(RT+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE))
-       mass_e(DG+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE))
-       mass_e(UP+1) = 0.5_8*(sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idN))
+       mass_e(RT+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idE))
+       mass_e(DG+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idNE))
+       mass_e(UP+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idN))
        mass_e = mass_e + mean(S_MASS,k)
        ! Mass fluxes
        do e = 1, EDGE
@@ -141,9 +142,9 @@ contains
        mass_idN  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_N)/grav_accel  - mean(S_MASS,k)
        
        ! Interpolate remapped masses to edges
-       mass_e(RT+1) = 0.5_8*(mass_id + mass_idE)
-       mass_e(DG+1) = 0.5_8*(mass_id + mass_idNE)
-       mass_e(UP+1) = 0.5_8*(mass_id + mass_idN)
+       mass_e(RT+1) = interp(mass_id, mass_idE)
+       mass_e(DG+1) = interp(mass_id, mass_idNE)
+       mass_e(UP+1) = interp(mass_id, mass_idN)
        mass_e = mass_e + mean(S_MASS,k)
        
        ! Find velocity on new grid from mass flux
