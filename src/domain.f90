@@ -12,21 +12,21 @@ module domain_mod
 
   ! objects same on all zlevels
   type Domain 
-     type(Patch_Array) patch
-     type(Bdry_Patch_Array) bdry_patch
-     type(Coord_Array) node
+     type(Patch_Array) :: patch
+     type(Bdry_Patch_Array) :: bdry_patch
+     type(Coord_Array) :: node
      type(Int_Array), allocatable :: lev(:)
      type(Int_Array), dimension(N_GLO_DOMAIN) :: send_conn
-     type(Int_Array) send_pa_all
+     type(Int_Array) :: send_pa_all
      type(Int_Array), dimension(N_GLO_DOMAIN) :: recv_pa
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: unpk
      type(Int_Array), allocatable :: src_patch(:,:)
      logical, dimension(N_BDRY) :: penta
-     integer id
+     integer :: id
      integer, dimension(N_BDRY) :: neigh
      integer, dimension(2) :: neigh_over_pole
-     type(Int_Array) neigh_pa_over_pole
+     type(Int_Array) :: neigh_pa_over_pole
      integer, dimension(N_BDRY) :: neigh_rot
 
      type(Coord_Array) ccentre

@@ -562,7 +562,7 @@ contains
     vel_latlon = uvw(1:2)
   end subroutine zonal_meridional_vel
 
-  function get_vort(dom, i, j, offs, dims)
+  function get_vort (dom, i, j, offs, dims)
     ! Averages vorticity to get smooth field for visualization
     real(8), dimension(TRIAG)      :: get_vort
     type(Domain)                   :: dom
@@ -572,39 +572,39 @@ contains
 
     integer :: id, idN, idE, idS, idW
 
-    id  = idx(i,     j,     offs, dims)
-    idE = idx(i + 1, j,     offs, dims)
-    idN = idx(i,     j + 1, offs, dims)
-    idW = idx(i - 1, j,     offs, dims)
-    idS = idx(i,     j - 1, offs, dims)
+    id  = idx(i,   j,   offs, dims)
+    idE = idx(i+1, j,   offs, dims)
+    idN = idx(i,   j+1, offs, dims)
+    idW = idx(i-1, j,   offs, dims)
+    idS = idx(i,   j-1, offs, dims)
 
     get_vort(UPLT+1) = ( &
-         0.5_8*(dom%vort%elts(TRIAG*idW+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
+         interp(dom%vort%elts(TRIAG*idW+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
          *dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
          
-         0.5_8*(dom%vort%elts(TRIAG*id+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
+         interp(dom%vort%elts(TRIAG*id+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
          *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(id*EDGE+DG+1)+ &
          
-         0.5_8*(dom%vort%elts(TRIAG*idN+LORT+1)+dom%vort%elts(TRIAG*id+UPLT+1)) &
+        interp(dom%vort%elts(TRIAG*idN+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
          *dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1)) &
          
          / (dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
-         dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
-         dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1))
+            dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
+            dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1))
 
     get_vort(LORT+1) = ( &
-         0.5_8*(dom%vort%elts(TRIAG*idS+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
+         interp(dom%vort%elts(TRIAG*idS+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
          
-         0.5_8*(dom%vort%elts(TRIAG*id+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
+        interp(dom%vort%elts(TRIAG*id+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(id*EDGE+DG+1)+ &
          
-         0.5_8*(dom%vort%elts(TRIAG*idE+UPLT+1)+dom%vort%elts(TRIAG*id+LORT+1)) &
+         interp(dom%vort%elts(TRIAG*idE+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1)) &
          
          / (dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
-         dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
-         dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1))
+            dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
+            dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1))
   end function get_vort
 
   subroutine write_u_wc(dom, p, i, j, offs, dims, fid)

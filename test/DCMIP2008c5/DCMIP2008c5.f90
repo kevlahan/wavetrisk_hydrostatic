@@ -558,7 +558,7 @@ program DCMIP2008c5
   viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
   viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = 5.0d-4/kmax**2                ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 0.0d-4/kmax**2!viscosity_divu                ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ',  viscosity_mass
@@ -573,7 +573,7 @@ program DCMIP2008c5
   adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
-  remap            = .false. ! Remap vertical coordinates
+  remap            = .true. ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
 
   ! Initialize variables

@@ -330,30 +330,41 @@ contains
        do d = 1, size(grid)
           mass      => q(S_MASS,k)%data(d)%elts
           temp      => q(S_TEMP,k)%data(d)%elts
+          velo  =>  q(S_VELO,k)%data(d)%elts
+          dvelo => dq(S_VELO,k)%data(d)%elts
           h_mflux   => horiz_flux(S_MASS)%data(d)%elts
           h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
+          divu  => grid(d)%divu%elts
+          vort  => grid(d)%vort%elts
 
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
           end do
+          call apply_to_penta_d (post_vort, grid(d), level_end, k)
           
           nullify (mass, temp, h_mflux, h_tflux)
        end do
 
        if (level_start .lt. level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
 
-       ! Compute scalar trends at finest level
+       ! Compute trends at finest level
        do d = 1, size(grid)
           dmass   => dq(S_MASS,k)%data(d)%elts
           dtemp   => dq(S_TEMP,k)%data(d)%elts
+          dvelo   => dq(S_VELO,k)%data(d)%elts
           h_mflux => horiz_flux(S_MASS)%data(d)%elts
           h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+          divu  => grid(d)%divu%elts
+          vort  => grid(d)%vort%elts
           
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (scalar_trend,      grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (du_source_diffuse, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
           
-          nullify (dmass, dtemp, h_mflux, h_tflux)
+          nullify (dmass, dtemp, dvelo, h_mflux, h_tflux, divu, vort)
        end do
 
        dq(:,k)%bdry_uptodate    = .False.
@@ -362,26 +373,6 @@ contains
           call update_vector_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
           call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), level_end) ! <= start non-blocking communicate dmass (l+1)
        end if
-
-       ! Velocity trend, source part
-       do d = 1, size(grid)
-          mass    =>  q(S_MASS,k)%data(d)%elts
-          velo    =>  q(S_VELO,k)%data(d)%elts
-          dvelo   => dq(S_VELO,k)%data(d)%elts
-          divu    => grid(d)%divu%elts
-          vort    => grid(d)%vort%elts
-
-          do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
-             !call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
-          end do
-          
-          do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (du_source_diffuse, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
-          end do
-
-          nullify (velo, dvelo, divu, vort, mass)
-       end do
 
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        ! Calculate trend on coarser scales, from fine to coarse !
@@ -392,18 +383,26 @@ contains
           do d = 1, size(grid)
              mass      =>  q(S_MASS,k)%data(d)%elts
              temp      =>  q(S_TEMP,k)%data(d)%elts
+             velo      =>  q(S_VELO,k)%data(d)%elts
              dmass     => dq(S_MASS,k)%data(d)%elts
              dtemp     => dq(S_TEMP,k)%data(d)%elts
+             dvelo     => dq(S_VELO,k)%data(d)%elts
              h_mflux   => horiz_flux(S_MASS)%data(d)%elts
              h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
+             divu  => grid(d)%divu%elts
+             vort  => grid(d)%vort%elts
              
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+                call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
              end do
+             call apply_to_penta_d (post_vort, grid(d), l, k)
 
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
+             call cpt_or_restr_du_source_diffuse (grid(d), l)
 
-             nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
+             nullify (mass, temp, velo, dmass, dtemp, dvelo, h_mflux, h_tflux, vort, divu)
           end do
 
           call update_vector_bdry (horiz_flux, l)
@@ -424,23 +423,6 @@ contains
 
           dq(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
           if (l .gt. level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l)  ! <= start non-blocking communicate dmass (l+1)
-
-          ! Velocity trend, source part
-          do d = 1, size(grid)
-             velo    => q(S_VELO,k)%data(d)%elts
-             dvelo   => dq(S_VELO,k)%data(d)%elts
-             h_mflux => horiz_flux(S_MASS)%data(d)%elts
-             divu    => grid(d)%bernoulli%elts
-             vort    => grid(d)%vort%elts
-
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-                !call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
-             end do
-              
-             call cpt_or_restr_du_source_diffuse (grid(d), l)
-             nullify (velo, dvelo, h_mflux, divu, vort)
-          end do
           dq(S_VELO,k)%bdry_uptodate = .False.
        end do
     end do
@@ -536,7 +518,7 @@ contains
     end if
   end subroutine du_source_cpt_restr
 
-   subroutine cpt_or_restr_du_source_diffuse (dom, l)
+  subroutine cpt_or_restr_du_source_diffuse (dom, l)
     type(Domain) :: dom
     integer      :: l
     

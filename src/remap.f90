@@ -34,9 +34,9 @@ contains
     ! Find mass, mass-weighted potential temperature at nodes and velocities at edges on new vertical grid
     do l = level_start, level_end
        ! Remap velocity first to use only values of mass on current grid to find old momentum
-       call apply_onescale (remap_velocity, l, z_null, 0, 0)
+       call apply_onescale (remap_velocity, l, z_null, -1, 0)
        ! Remap mass and mass-weighted temperature
-       call apply_onescale (remap_scalars, l, z_null, 0, 1)
+       call apply_onescale (remap_scalars,  l, z_null,  0, 1)
     end do
      ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
@@ -136,10 +136,10 @@ contains
        kb = zlevels-k+1
 
        ! Remapped masses needed to interpolate mass at edges
-       mass_id   = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel    - mean(S_MASS,k)
-       mass_idE  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_E)/grav_accel  - mean(S_MASS,k)
+       mass_id   = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)   /grav_accel - mean(S_MASS,k)
+       mass_idE  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_E) /grav_accel - mean(S_MASS,k)
        mass_idNE = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_NE)/grav_accel - mean(S_MASS,k)
-       mass_idN  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_N)/grav_accel  - mean(S_MASS,k)
+       mass_idN  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_N) /grav_accel - mean(S_MASS,k)
        
        ! Interpolate remapped masses to edges
        mass_e(RT+1) = interp(mass_id, mass_idE)

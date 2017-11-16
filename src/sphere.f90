@@ -32,17 +32,19 @@ contains
     direction = normalize_Coord(v)
   end function direction
 
-  type(Coord) function vec_diff(v1, v2)
+  function vec_plus (v1, v2)
+    type(Coord) :: vec_plus
     type(Coord) :: v1, v2
 
-    vec_diff = Coord (v1%x-v2%x, v1%y-v2%y, v1%z-v2%z)
-  end function vec_diff
+    vec_plus = Coord (v1%x+v2%x, v1%y+v2%y, v1%z+v2%z)
+  end function vec_plus
 
-  type(Coord) function vec_sum(v1, v2)
+  function vec_minus (v1, v2)
+    type(Coord) :: vec_minus
     type(Coord) :: v1, v2
 
-    vec_sum = Coord (v1%x+v2%x, v1%y+v2%y, v1%z+v2%z)
-  end function vec_sum
+    vec_minus = Coord (v1%x-v2%x, v1%y-v2%y, v1%z-v2%z)
+  end function vec_minus
 
   type(Coord) function vec_scale(alpha, v)
     real(8) :: alpha
@@ -127,16 +129,16 @@ contains
     does_inters = .True.
   end subroutine arc_inters
 
-  type(Coord) function vector(init, term)
-    type(Coord) init
-    type(Coord) term
+  function vector (init, term)
+    type(Coord) :: vector
+    type(Coord) :: init, term
 
     vector = Coord(term%x - init%x, term%y - init%y, term%z - init%z)
   end function vector
 
-  real(8) function inner(u, v)
-    type(Coord) u
-    type(Coord) v
+  function inner (u, v)
+    real(8)     :: inner
+    type(Coord) :: u, v
 
     inner = u%x*v%x + u%y*v%y + u%z*v%z
   end function inner
@@ -284,7 +286,7 @@ contains
     call vel_fun(lon, lat, u_zonal, v_merid)
 
     ! Velocity vector in Cartesian coordinates
-    vel = vec_sum(vec_scale(u_zonal,e_zonal), vec_scale(v_merid,e_merid))
+    vel = vec_plus(vec_scale(u_zonal,e_zonal), vec_scale(v_merid,e_merid))
 
     ! Project velocity vector on direction given by points ep1, ep2
     proj_vel = inner(direction(ep1, ep2), vel)
