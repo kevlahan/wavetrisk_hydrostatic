@@ -298,7 +298,7 @@ module shared_mod
 
   real(8), dimension (:), allocatable :: a_vert, b_vert
 
-  logical :: adapt_dt, adapt_trend, compressible, diffuse_scalars, diffuse_momentum, lagrangian_vertical 
+  logical :: adapt_dt, adapt_trend, compressible, diffuse, lagrangian_vertical 
 
 contains
 
@@ -350,8 +350,7 @@ contains
     ! Default values
     adapt_dt            = .true.
     adapt_trend         = .false.
-    diffuse_scalars     = .false.
-    diffuse_momentum    = .false.
+    diffuse             = .false.
     initialized         = .true.
     lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates
     

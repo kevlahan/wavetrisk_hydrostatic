@@ -1117,13 +1117,15 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: A_i, A_v, C_visc, csq, d_e, full_mass, l_e, total_mass, v_e, wave_speed
+    real(8) :: A_i, A_v, C_visc, csq, d_e, full_mass, l_e, total_mass, v_e, visc, wave_speed
 
     C_visc = 0.3_8
     
     id = idx(i, j, offs, dims)
     d  = dom%id + 1
     l  = dom%level%elts(id+1)
+
+    if (diffuse) visc = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
@@ -1164,8 +1166,7 @@ contains
                 if (d_e.ne.0.0_8) then
                    dt = min(dt,  cfl_num*d_e/wave_speed)
                    if (v_e.ne.0.0_8) dt = min (dt, cfl_num*d_e/v_e)
-                   if (diffuse_scalars)  dt = min (dt, C_visc*A_i/max(viscosity_mass, viscosity_temp))
-                   if (diffuse_momentum) dt = min (dt, C_visc*A_i/max(viscosity_divu, viscosity_rotu))
+                   if (diffuse)  dt = min (dt, C_visc*A_i/visc)
                 end if
              end if
           end if

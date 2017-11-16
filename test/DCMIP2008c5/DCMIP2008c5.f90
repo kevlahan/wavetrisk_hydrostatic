@@ -571,14 +571,10 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse_scalars  = .true. ! Diffuse scalars
-  diffuse_momentum = .true. ! Diffuse momentum
+  diffuse          = .true. ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
   remap            = .false. ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
-
-  if (viscosity_mass.eq.0.0_8 .and. viscosity_temp.eq.0.0_8) diffuse_scalars  = .false.
-  if (viscosity_divu.eq.0.0_8 .and. viscosity_rotu.eq.0.0_8) diffuse_momentum = .false.
 
   ! Initialize variables
   call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
@@ -603,7 +599,7 @@ program DCMIP2008c5
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
      call time_step (dt_write, aligned, set_thresholds)
-     call time_step_diffuse
+     if (diffuse) call time_step_diffuse
      call set_surf_geopot
      call stop_timing
      timing = get_timing()
