@@ -128,10 +128,10 @@ program trisk2vtk
            vertices = tmp_vertices
            deallocate(tmp_vertices)
 
-           allocate(tmp_outv(1:n_cells,1:4))
+           allocate(tmp_outv(1:n_cells,1:nvar_out))
            tmp_outv(1:size(outv,1),:) = outv
            deallocate(outv)
-           allocate(outv(1:n_cells,1:4))
+           allocate(outv(1:n_cells,1:nvar_out))
            outv = tmp_outv
            deallocate(tmp_outv)
 
