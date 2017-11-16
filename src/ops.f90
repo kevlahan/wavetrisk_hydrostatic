@@ -797,22 +797,7 @@ contains
        dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel* mass(id+1)/ref_density
     end if
   end subroutine integrate_pressure_up
-
-  function get_weights(dom, id, offs)
-    !find weights for Qperp computation [Aechtner thesis page 44]
-    type(Domain) dom
-    real(8) get_weights(5)
-    real(8) wgt(5)
-    integer id, offs, i
-
-    wgt(1) = dom%areas%elts(id+1)%part(1+offs)
-    do i = 2, 5
-       wgt(i) = wgt(i-1) + dom%areas%elts(id+1)%part(modulo(i+offs-1,6)+1)
-    end do
-    wgt = 0.5_8 - wgt*dom%areas%elts(id+1)%hex_inv
-    get_weights = (/wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5)/)
-  end function get_weights
-
+  
   subroutine du_source (dom, i, j, zlev, offs, dims)
     ! Source (non gradient) terms in velocity trend
     ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
@@ -821,7 +806,17 @@ contains
     integer, dimension(N_BDRY+1),   intent(in) :: offs
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
 
-    call du_Qperp (dom, i, j, z_null, offs, dims)
+    integer                :: e, id
+    real(8), dimension (3) :: Qperp_e
+       
+    id = idx(i, j, offs, dims)
+
+    ! Calculate Q_perp
+    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
+
+    do e = 1, EDGE 
+       dvelo(EDGE*id+e) = - Qperp_e(e)
+    end do
   end subroutine du_source
 
   subroutine du_source_diffuse (dom, i, j, zlev, offs, dims)
@@ -854,45 +849,47 @@ contains
     end do
   end subroutine Laplacian_u
 
-  subroutine du_Qperp (dom, i, j, zlev, offs, dims)
+  function Qperp (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving Qperp and add it to dvelo [Aechtner thesis page 44]
+    real(8), dimension(3)          :: Qperp
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer               :: e, id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
+    integer               :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
     real(8), dimension(5) :: wgt1, wgt2
 
-    idNW = idx(i - 1, j + 1, offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-    idW  = idx(i - 1, j,     offs, dims)
-    id   = idx(i,     j,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idSW = idx(i - 1, j - 1, offs, dims)
-    idS  = idx(i,     j - 1, offs, dims)
-    idSE = idx(i + 1, j - 1, offs, dims)
+    id   = idx(i, j, offs, dims)
+    
+    idNW = idx(i-1, j+1, offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idSE = idx(i+1, j-1, offs, dims)
 
     wgt1 = get_weights(dom, id,  0)
     wgt2 = get_weights(dom, idE, 3)
 
-    dvelo(EDGE*id+RT+1) = &
+    Qperp(RT+1) = &
          h_mflux(EDGE*id+DG+1)   * interp(qe(EDGE*id+DG+1),   qe(EDGE*id+RT+1))*wgt1(1) + &
          h_mflux(EDGE*id+UP+1)   * interp(qe(EDGE*id+UP+1),   qe(EDGE*id+RT+1))*wgt1(2) + &
          h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1),  qe(EDGE*id+RT+1))*wgt1(3) + &
          h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+RT+1))*wgt1(4) + &
          h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+RT+1))*wgt1(5) + &
-         h_mflux(DG+EDGE*idS+1)  * interp(qe(DG+EDGE*idS+1),  qe(EDGE*id+RT+1))*wgt2(1) + &
+         h_mflux(EDGE*idS+DG+1)  * interp(qe(EDGE*idS+DG+1),  qe(EDGE*id+RT+1))*wgt2(1) + &
          h_mflux(EDGE*idSE+UP+1) * interp(qe(EDGE*idSE+UP+1), qe(EDGE*id+RT+1))*wgt2(2) + &
          h_mflux(EDGE*idE+RT+1)  * interp(qe(EDGE*idE+RT+1),  qe(EDGE*id+RT+1))*wgt2(3) + &
-         h_mflux(DG+EDGE*idE+1)  * interp(qe(DG+EDGE*idE+1),  qe(EDGE*id+RT+1))*wgt2(4) + &
+         h_mflux(EDGE*idE+DG+1)  * interp(qe(EDGE*idE+DG+1),  qe(EDGE*id+RT+1))*wgt2(4) + &
          h_mflux(EDGE*idE+UP+1)  * interp(qe(EDGE*idE+UP+1),  qe(EDGE*id+RT+1))*wgt2(5)
 
     wgt1 = get_weights(dom, id,   1)
     wgt2 = get_weights(dom, idNE, 4)
 
-    dvelo(EDGE*id+DG+1) = &
+   Qperp(DG+1) = &
          h_mflux(EDGE*id+UP+1)   * interp(qe(EDGE*id+UP+1),   qe(EDGE*id+DG+1))*wgt1(1) + &
          h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1),  qe(EDGE*id+DG+1))*wgt1(2) + &
          h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+DG+1))*wgt1(3) + &
@@ -907,7 +904,7 @@ contains
     wgt1 = get_weights(dom, id,  2)
     wgt2 = get_weights(dom, idN, 5)
 
-    dvelo(EDGE*id+UP+1) = &
+    Qperp(UP+1) = &
          h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1),  qe(EDGE*id+UP+1))*wgt1(1) + &
          h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+UP+1))*wgt1(2) + &
          h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
@@ -918,7 +915,23 @@ contains
          h_mflux(EDGE*idN+UP+1)  * interp(qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3) + &
          h_mflux(EDGE*idNW+RT+1) * interp(qe(EDGE*idNW+RT+1), qe(EDGE*id+UP+1))*wgt2(4) + &
          h_mflux(EDGE*idW+DG+1)  * interp(qe(EDGE*idW+DG+1),  qe(EDGE*id+UP+1))*wgt2(5)
-  end subroutine du_Qperp
+  end function Qperp
+
+  function get_weights(dom, id, offs)
+    ! Weights for Qperp computation [Aechtner thesis page 44]
+    type(Domain) :: dom
+    integer      :: id, offs
+    
+    integer               :: i
+    real(8), dimension(5) :: get_weights, wgt
+
+    wgt(1) = dom%areas%elts(id+1)%part(1+offs)
+    do i = 2, 5
+       wgt(i) = wgt(i-1) + dom%areas%elts(id+1)%part(modulo(i+offs-1,6)+1)
+    end do
+    wgt = 0.5_8 - wgt*dom%areas%elts(id+1)%hex_inv
+    get_weights = (/wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5)/)
+  end function get_weights
 
   subroutine scalar_trend (dom, i, j, zlev, offs, dims)
     type(Domain)                   :: dom
@@ -1057,7 +1070,7 @@ contains
   end function div
 
   function interp (e1, e2)
-    ! Centred average interpolation
+    ! Centred average interpolation of quantities e1 and e2
     real(8) :: interp
     real(8) :: e1, e2
 
