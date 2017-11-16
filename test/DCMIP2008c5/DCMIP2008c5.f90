@@ -244,7 +244,7 @@ contains
     call cart2sph(x_i, lon, lat)
     
     surf_pressure_fun = p_sp * exp__flush ( &
-         - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+2.0_8*omega)*(sin(lat)**2-1.0_8) &
+         - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+f0)*(sin(lat)**2-1.0_8) &
          - N_freq**2/(grav_accel**2*kappa)*surf_geopot_fun (x_i) )
   end function surf_pressure_fun
   
@@ -296,7 +296,7 @@ contains
     call trend_ml(sol, trend)
     call pre_levelout
 
-    zlev = 1 ! Only export one vertical level
+    zlev = 6 ! Only export one vertical level
 
     do l = level_start, level_end
        minv = 1.d63;
@@ -555,9 +555,9 @@ program DCMIP2008c5
 
   cfl_num     = 1.0d0                            ! cfl number
 
-  viscosity_mass = 5.0e-3/kmax**2                ! viscosity for mass equation
+  viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
   viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 5.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_divu = 5.0d-4/kmax**2                ! viscosity for divergent part of momentum equation
   viscosity_rotu = 0.0d-4/kmax**2!viscosity_divu                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
@@ -571,7 +571,7 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse          = .true. ! Diffuse scalars
+  diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
   remap            = .false. ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid

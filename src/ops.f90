@@ -34,7 +34,7 @@ contains
     S_bdry = (dom%patch%elts(p+1)%neigh(SOUTH) .lt. 0)
     if (S_bdry) S_bdry = (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(SOUTH)+1)%side .gt. 0)
 
-    W_bdry = (dom%patch%elts(p+1)%neigh(WEST) .lt. 0)
+    W_bdry = (dom%patch%elts(p+1)%neigh(WEST)  .lt. 0)
     if (W_bdry) W_bdry = (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(WEST)+1)%side .gt. 0)
 
     id = offs(0)
@@ -190,17 +190,17 @@ contains
       vort(TRIAG*idW+LORT+1) = circ_LORT_W/dom%triarea%elts(TRIAG*idW+LORT+1) 
       vort(TRIAG*idS+UPLT+1) = circ_UPLT_S/dom%triarea%elts(TRIAG*idS+UPLT+1) 
 
-      qe(EDGE*idW+RT+1)  = node2edge(pv_LORT_W , pv_UPLT_SW)
-      qe(EDGE*idSW+DG+1) = node2edge(pv_LORT_SW, pv_UPLT_SW)
-      qe(EDGE*idS+UP+1)  = node2edge(pv_LORT_SW, pv_UPLT_S)
+      qe(EDGE*idW+RT+1)  = interp(pv_LORT_W , pv_UPLT_SW)
+      qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
+      qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
-      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * node2edge(full_mass(WEST) , full_mass(0))
-      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * node2edge(full_mass(0)    , full_mass(SOUTHWEST))
-      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * node2edge(full_mass(SOUTH), full_mass(0))
+      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(full_mass(WEST) , full_mass(0))
+      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(full_mass(0)    , full_mass(SOUTHWEST))
+      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(full_mass(SOUTH), full_mass(0))
 
-      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * node2edge(full_temp(WEST) , full_temp(0))
-      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * node2edge(full_temp(0)    , full_temp(SOUTHWEST))
-      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * node2edge(full_temp(SOUTH), full_temp(0))
+      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(full_temp(WEST) , full_temp(0))
+      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(full_temp(0)    , full_temp(SOUTHWEST))
+      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(full_temp(SOUTH), full_temp(0))
     end subroutine comp_ijmin
 
     subroutine comput
@@ -271,13 +271,13 @@ contains
       u_prim_DG_S = velo(EDGE*idS+DG+1)*dom%len%elts(EDGE*idS+DG+1)
 
       ! Calculate mass and temperature fluxes
-      h_mflux(EDGE*id+RT+1) = u_dual_RT * node2edge(full_mass(0)        , full_mass(EAST))
-      h_mflux(EDGE*id+DG+1) = u_dual_DG * node2edge(full_mass(NORTHEAST), full_mass(0))
-      h_mflux(EDGE*id+UP+1) = u_dual_UP * node2edge(full_mass(0)        , full_mass(NORTH))
+      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(full_mass(0)        , full_mass(EAST))
+      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(full_mass(NORTHEAST), full_mass(0))
+      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(full_mass(0)        , full_mass(NORTH))
 
-      h_tflux(EDGE*id+RT+1) = u_dual_RT * node2edge(full_temp(0)        , full_temp(EAST))
-      h_tflux(EDGE*id+DG+1) = u_dual_DG * node2edge(full_temp(NORTHEAST), full_temp(0))
-      h_tflux(EDGE*id+UP+1) = u_dual_UP * node2edge(full_temp(0)        , full_temp(NORTH))
+      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(full_temp(0)        , full_temp(EAST))
+      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(full_temp(NORTHEAST), full_temp(0))
+      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(full_temp(0)        , full_temp(NORTH))
 
       ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
       ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
@@ -318,7 +318,7 @@ contains
       !      )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
 
       ! Interpolate geopotential from interfaces to level
-      Phi_k = node2edge(dom%geopot%elts(id+1), dom%adj_geopot%elts(id+1))
+      Phi_k = interp(dom%geopot%elts(id+1), dom%adj_geopot%elts(id+1))
 
       ! Bernoulli function
       if (compressible) then 
@@ -359,9 +359,9 @@ contains
       vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1) 
       vort(TRIAG*id+UPLT+1) = circ_UPLT/dom%triarea%elts(TRIAG*id+UPLT+1) 
 
-      qe(EDGE*id+RT+1) = node2edge(pv_UPLT_S, pv_LORT)
-      qe(EDGE*id+DG+1) = node2edge(pv_UPLT,   pv_LORT)
-      qe(EDGE*id+UP+1) = node2edge(pv_UPLT,   pv_LORT_W)
+      qe(EDGE*id+RT+1) = interp(pv_UPLT_S, pv_LORT)
+      qe(EDGE*id+DG+1) = interp(pv_UPLT,   pv_LORT)
+      qe(EDGE*id+UP+1) = interp(pv_UPLT,   pv_LORT_W)
     end subroutine comput
   end subroutine step1
 
@@ -417,8 +417,8 @@ contains
 
        pv_UPLT_SW = pv_LORT_SW
        
-       qe(EDGE*idW+RT+1) = node2edge(pv_LORT_W, pv_UPLT_SW)
-       qe(EDGE*idS+UP+1) = node2edge(pv_UPLT_S, pv_LORT_SW)
+       qe(EDGE*idW+RT+1) = interp(pv_LORT_W, pv_UPLT_SW)
+       qe(EDGE*idS+UP+1) = interp(pv_UPLT_S, pv_LORT_SW)
     end if
 
     if (c .eq. IPLUSJMINUS) then
@@ -459,8 +459,8 @@ contains
 
        pv_UPLT_S = pv_LORT_SW
 
-       qe(EDGE*id  +RT+1) = node2edge(pv_UPLT_S,  pv_LORT)
-       qe(EDGE*idSW+DG+1) = node2edge(pv_LORT_SW, pv_UPLT_SW)
+       qe(EDGE*id  +RT+1) = interp(pv_UPLT_S,  pv_LORT)
+       qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
     if (c .eq. IMINUSJPLUS) then
@@ -501,8 +501,8 @@ contains
 
        pv_LORT_W = pv_UPLT_SW
 
-       qe(EDGE*id  +UP+1) = node2edge(pv_LORT_W,  pv_UPLT)
-       qe(EDGE*idSW+DG+1) = node2edge(pv_LORT_SW, pv_UPLT_SW)
+       qe(EDGE*id  +UP+1) = interp(pv_LORT_W,  pv_UPLT)
+       qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
     if (c .eq. IJPLUS) then
@@ -542,8 +542,8 @@ contains
 
        pv_UPLT = pv_LORT
        
-       qe(EDGE*id+RT+1) = node2edge(pv_LORT, pv_UPLT_S)
-       qe(EDGE*id+UP+1) = node2edge(pv_UPLT, pv_LORT_W)
+       qe(EDGE*id+RT+1) = interp(pv_LORT, pv_UPLT_S)
+       qe(EDGE*id+UP+1) = interp(pv_UPLT, pv_LORT_W)
     end if
   end subroutine post_step1
 
@@ -698,7 +698,7 @@ contains
        if (zlev .eq. zlevels) then
           dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_mass
        else ! Interpolate mass to lower interface
-          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*node2edge(dom%adj_mass%elts(id+1), full_mass)
+          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*interp(dom%adj_mass%elts(id+1), full_mass)
        end if
 
        ! Surface pressure is set (even at t=0) from downward numerical integration
@@ -708,7 +708,7 @@ contains
        if (zlev .eq. zlevels) then !top zlev, it is an exception
           dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_temp
        else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*node2edge(dom%adj_temp%elts(id+1), full_temp)
+          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*interp(dom%adj_temp%elts(id+1), full_temp)
        end if
 
        !surface pressure is set (even at t=0) from downward numerical integration
@@ -740,7 +740,7 @@ contains
        if (zlev .eq. 1) then
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_mass
        else ! Interpolate mass=rho*dz to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*node2edge(full_mass, dom%adj_mass%elts(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(full_mass, dom%adj_mass%elts(id+1))
        end if
        dom%adj_mass%elts(id+1) = full_mass ! Save current mass for pressurce calculation at next vertical level
 
@@ -772,7 +772,7 @@ contains
        if (zlev .eq. 1) then 
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_temp
        else ! Interpolate to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*node2edge(dom%adj_temp%elts(id+1), full_temp)
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(dom%adj_temp%elts(id+1), full_temp)
        end if
        dom%adj_mass%elts(id+1) = full_mass
 
@@ -878,76 +878,46 @@ contains
     wgt2 = get_weights(dom, idE, 3)
 
     dvelo(EDGE*id+RT+1) = &
-         h_mflux(EDGE*id+DG+1)*0.5_8*(qe(EDGE*id+DG+1) + &
-         qe(EDGE*id+RT+1))*wgt1(1) + &
-         h_mflux(EDGE*id+UP+1)*0.5_8*(qe(EDGE*id+UP+1) + &
-         qe(EDGE*id+RT+1))*wgt1(2) + &
-         h_mflux(EDGE*idW+RT+1)*0.5_8*(qe(EDGE*idW+RT+1) + &
-         qe(EDGE*id+RT+1))*wgt1(3) + &
-         h_mflux(EDGE*idSW+DG+1)*0.5_8*(qe(EDGE*idSW+DG+1) &
-         + qe(EDGE*id+RT+1))*wgt1(4) + &
-         h_mflux(EDGE*idS+UP+1)*0.5_8*(qe(EDGE*idS+UP+1) + &
-         qe(EDGE*id+RT+1))*wgt1(5) + &
-         h_mflux(DG+EDGE*idS+1)*0.5_8*(qe(DG+EDGE*idS+1) + &
-         qe(EDGE*id+RT+1))*wgt2(1) + &
-         h_mflux(EDGE*idSE+UP+1)*0.5_8*(qe(EDGE*idSE+UP+1) &
-         + qe(EDGE*id+RT+1))*wgt2(2) + &
-         h_mflux(EDGE*idE+RT+1)*0.5_8*(qe(EDGE*idE+RT+1) + &
-         qe(EDGE*id+RT+1))*wgt2(3) + &
-         h_mflux(DG+EDGE*idE+1)*0.5_8*(qe(DG+EDGE*idE+1) + &
-         qe(EDGE*id+RT+1))*wgt2(4) + &
-         h_mflux(EDGE*idE+UP+1)*0.5_8*(qe(EDGE*idE+UP+1) + &
-         qe(EDGE*id+RT+1))*wgt2(5)
+         h_mflux(EDGE*id+DG+1)   * interp(qe(EDGE*id+DG+1),   qe(EDGE*id+RT+1))*wgt1(1) + &
+         h_mflux(EDGE*id+UP+1)   * interp(qe(EDGE*id+UP+1),   qe(EDGE*id+RT+1))*wgt1(2) + &
+         h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1),  qe(EDGE*id+RT+1))*wgt1(3) + &
+         h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+RT+1))*wgt1(4) + &
+         h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+RT+1))*wgt1(5) + &
+         h_mflux(DG+EDGE*idS+1)  * interp(qe(DG+EDGE*idS+1),  qe(EDGE*id+RT+1))*wgt2(1) + &
+         h_mflux(EDGE*idSE+UP+1) * interp(qe(EDGE*idSE+UP+1), qe(EDGE*id+RT+1))*wgt2(2) + &
+         h_mflux(EDGE*idE+RT+1)  * interp(qe(EDGE*idE+RT+1),  qe(EDGE*id+RT+1))*wgt2(3) + &
+         h_mflux(DG+EDGE*idE+1)  * interp(qe(DG+EDGE*idE+1),  qe(EDGE*id+RT+1))*wgt2(4) + &
+         h_mflux(EDGE*idE+UP+1)  * interp(qe(EDGE*idE+UP+1),  qe(EDGE*id+RT+1))*wgt2(5)
 
-    wgt1 = get_weights(dom, id, 1)
+    wgt1 = get_weights(dom, id,   1)
     wgt2 = get_weights(dom, idNE, 4)
 
     dvelo(EDGE*id+DG+1) = &
-         h_mflux(EDGE*id+UP+1)*0.5_8*(qe(EDGE*id+UP+1) + &
-         qe(EDGE*id+DG+1))*wgt1(1) + &
-         h_mflux(EDGE*idW+RT+1)*0.5_8*(qe(EDGE*idW+RT+1) + &
-         qe(EDGE*id+DG+1))*wgt1(2) + &
-         h_mflux(EDGE*idSW+DG+1)*0.5_8*(qe(EDGE*idSW+DG+1) &
-         + qe(EDGE*id+DG+1))*wgt1(3) + &
-         h_mflux(EDGE*idS+UP+1)*0.5_8*(qe(EDGE*idS+UP+1) + &
-         qe(EDGE*id+DG+1))*wgt1(4) + &
-         h_mflux(EDGE*id+RT+1)*0.5_8*(qe(EDGE*id+RT+1) + &
-         qe(EDGE*id+DG+1))*wgt1(5) + &
-         h_mflux(EDGE*idE+UP+1)*0.5_8*(qe(EDGE*idE+UP+1) + &
-         qe(EDGE*id+DG+1))*wgt2(1) + &
-         h_mflux(EDGE*idNE+RT+1)*0.5_8*(qe(EDGE*idNE+RT+1) &
-         + qe(EDGE*id+DG+1))*wgt2(2) + &
-         h_mflux(EDGE*idNE+DG+1)*0.5_8*(qe(EDGE*idNE+DG+1) &
-         + qe(EDGE*id+DG+1))*wgt2(3) + &
-         h_mflux(EDGE*idNE+UP+1)*0.5_8*(qe(EDGE*idNE+UP+1) &
-         + qe(EDGE*id+DG+1))*wgt2(4) + &
-         h_mflux(EDGE*idN+RT+1)*0.5_8*(qe(EDGE*idN+RT+1) + &
-         qe(EDGE*id+DG+1))*wgt2(5)
+         h_mflux(EDGE*id+UP+1)   * interp(qe(EDGE*id+UP+1),   qe(EDGE*id+DG+1))*wgt1(1) + &
+         h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1),  qe(EDGE*id+DG+1))*wgt1(2) + &
+         h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+DG+1))*wgt1(3) + &
+         h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+DG+1))*wgt1(4) + &
+         h_mflux(EDGE*id+RT+1)   * interp(qe(EDGE*id+RT+1),   qe(EDGE*id+DG+1))*wgt1(5) + &
+         h_mflux(EDGE*idE+UP+1)  * interp(qe(EDGE*idE+UP+1),  qe(EDGE*id+DG+1))*wgt2(1) + &
+         h_mflux(EDGE*idNE+RT+1) * interp(qe(EDGE*idNE+RT+1), qe(EDGE*id+DG+1))*wgt2(2) + &
+         h_mflux(EDGE*idNE+DG+1) * interp(qe(EDGE*idNE+DG+1), qe(EDGE*id+DG+1))*wgt2(3) + &
+         h_mflux(EDGE*idNE+UP+1) * interp(qe(EDGE*idNE+UP+1), qe(EDGE*id+DG+1))*wgt2(4) + &
+         h_mflux(EDGE*idN+RT+1)  * interp(qe(EDGE*idN+RT+1),  qe(EDGE*id+DG+1))*wgt2(5)
 
-    wgt1 = get_weights(dom, id, 2)
+    wgt1 = get_weights(dom, id,  2)
     wgt2 = get_weights(dom, idN, 5)
 
     dvelo(EDGE*id+UP+1) = &
-         h_mflux(EDGE*idW+RT+1)*0.5_8*(qe(EDGE*idW+RT+1) + &
-         qe(EDGE*id+UP+1))*wgt1(1) + &
-         h_mflux(EDGE*idSW+DG+1)*0.5_8*(qe(EDGE*idSW+DG+1) &
-         + qe(EDGE*id+UP+1))*wgt1(2) + &
-         h_mflux(EDGE*idS+UP+1)*0.5_8*(qe(EDGE*idS+UP+1) + &
-         qe(EDGE*id+UP+1))*wgt1(3) + &
-         h_mflux(EDGE*id+RT+1)*0.5_8*(qe(EDGE*id+RT+1) + &
-         qe(EDGE*id+UP+1))*wgt1(4) + &
-         h_mflux(EDGE*id+DG+1)*0.5_8*(qe(EDGE*id+DG+1) + &
-         qe(EDGE*id+UP+1))*wgt1(5) + &
-         h_mflux(EDGE*idN+RT+1)*0.5_8*(qe(EDGE*idN+RT+1) + &
-         qe(EDGE*id+UP+1))*wgt2(1) + &
-         h_mflux(EDGE*idN+DG+1)*0.5_8*(qe(EDGE*idN+DG+1) + &
-         qe(EDGE*id+UP+1))*wgt2(2) + &
-         h_mflux(EDGE*idN+UP+1)*0.5_8*(qe(EDGE*idN+UP+1) + &
-         qe(EDGE*id+UP+1))*wgt2(3) + &
-         h_mflux(EDGE*idNW+RT+1)*0.5_8*(qe(EDGE*idNW+RT+1) &
-         + qe(EDGE*id+UP+1))*wgt2(4) + &
-         h_mflux(EDGE*idW+DG+1)*0.5_8*(qe(EDGE*idW+DG+1) + &
-         qe(EDGE*id+UP+1))*wgt2(5)
+         h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1),  qe(EDGE*id+UP+1))*wgt1(1) + &
+         h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+UP+1))*wgt1(2) + &
+         h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
+         h_mflux(EDGE*id+RT+1)   * interp(qe(EDGE*id+RT+1),   qe(EDGE*id+UP+1))*wgt1(4) + &
+         h_mflux(EDGE*id+DG+1)   * interp(qe(EDGE*id+DG+1),   qe(EDGE*id+UP+1))*wgt1(5) + &
+         h_mflux(EDGE*idN+RT+1)  * interp(qe(EDGE*idN+RT+1),  qe(EDGE*id+UP+1))*wgt2(1) + &
+         h_mflux(EDGE*idN+DG+1)  * interp(qe(EDGE*idN+DG+1),  qe(EDGE*id+UP+1))*wgt2(2) + &
+         h_mflux(EDGE*idN+UP+1)  * interp(qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3) + &
+         h_mflux(EDGE*idNW+RT+1) * interp(qe(EDGE*idNW+RT+1), qe(EDGE*id+UP+1))*wgt2(4) + &
+         h_mflux(EDGE*idW+DG+1)  * interp(qe(EDGE*idW+DG+1),  qe(EDGE*id+UP+1))*wgt2(5)
   end subroutine du_Qperp
 
   subroutine scalar_trend (dom, i, j, zlev, offs, dims)
@@ -986,7 +956,7 @@ contains
           full_pot_temp_up = (adj_temp_up(id+1) + mean(S_TEMP,zlev))/(adj_mass_up(id+1) + mean(S_MASS,zlev))
 
           ! Vertical flux of potential temperature at upper interface
-          v_tflux = node2edge(full_pot_temp, full_pot_temp_up) * v_mflux(id+1)
+          v_tflux = interp(full_pot_temp, full_pot_temp_up) * v_mflux(id+1)
 
           dtemp(id+1) = dtemp(id+1) + v_tflux
 
@@ -999,7 +969,7 @@ contains
           full_pot_temp_up = (adj_temp_up(id+1) + mean(S_TEMP,zlev))/(adj_mass_up(id+1) + mean(S_MASS,zlev))
 
           ! Vertical flux of potential temperature at upper interface
-          v_tflux = node2edge(full_pot_temp, full_pot_temp_up) * v_mflux(id+1)
+          v_tflux = interp(full_pot_temp, full_pot_temp_up) * v_mflux(id+1)
 
           dtemp(id+1) = dtemp(id+1) + (v_tflux - dom%adj_vflux%elts(id+1))
 
@@ -1086,13 +1056,13 @@ contains
          + hflux(EDGE*id+UP+1)-hflux(EDGE*idS+UP+1)) * dom%areas%elts(id+1)%hex_inv
   end function div
 
-  function node2edge (e1, e2)
-    ! Centred average interpolation from nodes to edges
-    real(8) :: node2edge
+  function interp (e1, e2)
+    ! Centred average interpolation
+    real(8) :: interp
     real(8) :: e1, e2
 
-    node2edge = 0.5_8 * (e1 + e2)
-  end function node2edge
+    interp = 0.5_8 * (e1 + e2)
+  end function interp
 
   subroutine du_gradB_gradExn (dom, i, j, zlev, offs, dims)
     ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
@@ -1120,13 +1090,13 @@ contains
 
     ! Interpolate potential temperature to edges
     if (compressible) then
-       theta_e(1) = node2edge(full_theta(0), full_theta(EAST))
-       theta_e(2) = node2edge(full_theta(0), full_theta(NORTHEAST))
-       theta_e(3) = node2edge(full_theta(0), full_theta(NORTH))
+       theta_e(1) = interp(full_theta(0), full_theta(EAST))
+       theta_e(2) = interp(full_theta(0), full_theta(NORTHEAST))
+       theta_e(3) = interp(full_theta(0), full_theta(NORTH))
     else
-       theta_e(1) = node2edge(1.0_8-full_theta(0),1.0_8-full_theta(EAST))
-       theta_e(2) = node2edge(1.0_8-full_theta(0),1.0_8-full_theta(NORTHEAST)) 
-       theta_e(3) = node2edge(1.0_8-full_theta(0),1.0_8-full_theta(NORTH)) 
+       theta_e(1) = interp(1.0_8-full_theta(0),1.0_8-full_theta(EAST))
+       theta_e(2) = interp(1.0_8-full_theta(0),1.0_8-full_theta(NORTHEAST)) 
+       theta_e(3) = interp(1.0_8-full_theta(0),1.0_8-full_theta(NORTH)) 
     end if
 
     ! Calculate gradients
@@ -1147,16 +1117,16 @@ contains
        if (zlev.eq.1) then ! surface
           ! Horizontal velocities at edges interpolated at upper interface
           do e = 1, EDGE
-             v_star(e) = node2edge(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
+             v_star(e) = interp(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
           end do
 
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
                (v_star(RT+1) - velo(EDGE*id+RT+1))
 
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
                (v_star(DG+1) - velo(EDGE*id+DG+1))
 
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
                (v_star(UP+1) - velo(EDGE*id+UP+1))
 
           ! Save horizontal velocities (needed for lower interface at next vertical level)
@@ -1164,27 +1134,27 @@ contains
              dom%adj_velo%elts(EDGE*id+e) = v_star(e)
           end do
        elseif (zlev.eq.zlevels) then ! top level
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
                (velo(EDGE*id+RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
 
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
                (velo(EDGE*id+DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
 
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
                (velo(EDGE*id+UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
        else
           ! Horizontal velocities at edges interpolated at upper interface
           do e = 1, EDGE
-             v_star(e) = node2edge(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
+             v_star(e) = interp(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
           end do
 
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1)) * &
+          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1)) * &
                (v_star(RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
 
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
+          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
                (v_star(DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
 
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + node2edge(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1)) * &
+          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1)) * &
                (v_star(UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
 
           ! Save horizontal velocities interpolated at upper interface (needed for lower interface at next vertical level)
@@ -1325,9 +1295,9 @@ contains
     velo = v_mflux(id+1)/(mass(id+1) + mean(S_MASS,zlev))
 
     if (zlev.eq.1) then ! No vertical flux through lower interface of bottom level
-       dom%vert_velo%elts(id+1) = node2edge(velo, 0.0_8)
+       dom%vert_velo%elts(id+1) = interp(velo, 0.0_8)
     else
-       dom%vert_velo%elts(id+1) = node2edge(velo, dom%adj_vflux%elts(id+1))
+       dom%vert_velo%elts(id+1) = interp(velo, dom%adj_vflux%elts(id+1))
     end if
 
     ! Save current vertical velocity at upper interface for lower interface of next vertical level (use adj_vflux)
