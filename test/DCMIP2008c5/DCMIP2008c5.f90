@@ -4,18 +4,17 @@ module DCMIP2008c5_mod
   use remap_mod
   implicit none
 
-  integer              :: CP_EVERY, id, zlev, iwrite, j
-  integer, allocatable :: n_patch_old(:), n_node_old(:)
-  real(8)              :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
-  real(8)              :: initotalmass, totalmass, timing, total_time, dh
-  logical              :: wasprinted
-  logical              :: uniform  ! Uniform or non-uniform grid in pressure
-  character (255)      :: IC_file
+  integer                            :: CP_EVERY, id, zlev, iwrite, j
+  integer, dimension(:), allocatable :: n_patch_old, n_node_old
+  real(8)                            :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
+  real(8)                            :: initotalmass, totalmass, timing, total_time, dh
+  logical                            :: wasprinted, uniform
+  character (255)                    :: IC_file
 
-  real(8)              :: c_v, d2, h_0, lat_c, lon_c, N_freq, p_sp, T_0, u_0 ! parameters for initial conditions
-  real(8)              :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
-  real(8)              :: norm_mass, norm_temp, norm_velo, mass_scale, temp_scale, velo_scale
-  real(8)              :: l2_mass, l2_temp, l2_velo
+  real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, p_sp, T_0, u_0
+  real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
+  real(8)                            :: norm_mass, norm_temp, norm_velo, mass_scale, temp_scale, velo_scale
+  real(8)                            :: l2_mass, l2_temp, l2_velo
 contains
   subroutine apply_initial_conditions
     integer :: k, l
@@ -23,7 +22,7 @@ contains
     wasprinted=.false.
     do l = level_start, level_end
        do k = 1, zlevels
-          call apply_onescale (init_sol, l, k, 0, 1)
+          call apply_onescale (init_sol, l, k, -1, 1)
           wasprinted=.false.
        end do
     end do
@@ -175,9 +174,7 @@ contains
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
 
     ! Set initial velocity field
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, x_i,  x_E)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
+    call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
 
     ! Print out layer thicknesses
     ! if (rank.eq.0 .and. .not.wasprinted) then
@@ -248,10 +245,9 @@ contains
          - N_freq**2/(grav_accel**2*kappa)*surf_geopot_fun (x_i) )
   end function surf_pressure_fun
   
-  subroutine vel_fun(lon, lat, u, v)
+  subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
-    real(8) :: lon, lat
-    real(8) :: u, v
+    real(8) :: lon, lat, u, v
     
     u = u_0*cos(lat)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
@@ -293,7 +289,8 @@ contains
     
     integer :: l, k, zlev, d, u, i, p
 
-    call trend_ml(sol, trend)
+    call update_array_bdry (sol, NONE)
+
     call pre_levelout
 
     zlev = 6 ! Only export one vertical level
@@ -303,9 +300,6 @@ contains
        maxv = -1.d63;
        u = 100000+100*iwrite
 
-       !call update_array_bdry (sol, l)
-       call update_bdry (sol(S_VELO,zlev), l)
-       
        ! Calculate pressure and geopotential at vertical level zlev and scale l
        do k = 1, zlev
           do d = 1, size(grid)
@@ -320,13 +314,16 @@ contains
           end do
        end do
 
-       ! Calculate zonal and meridional velocities
+       ! Calculate zonal and meridional velocities and vorticity for vertical level zlev
        do d = 1, size(grid)
           velo => sol(S_VELO,zlev)%data(d)%elts
+          vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), zlev, 0, 0)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), zlev,    0, 0)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
-          nullify (velo)
+          call apply_to_penta_d (post_vort, grid(d), l, zlev)
+          nullify (velo, vort)
        end do
 
        Call write_level_mpi (write_primal, u+l, l, zlev, .True.)
@@ -349,12 +346,12 @@ contains
   end subroutine write_and_export
 
   subroutine DCMIP2008c5_dump(fid)
-    integer fid
+    integer :: fid
     write(fid) iwrite
   end subroutine DCMIP2008c5_dump
 
   subroutine DCMIP2008c5_load(fid)
-    integer fid
+    integer :: fid
     read(fid) iwrite
   end subroutine DCMIP2008c5_load
   
@@ -485,9 +482,10 @@ program DCMIP2008c5
   use DCMIP2008c5_mod
   implicit none
 
-  integer                      :: ierr, k, l, d, v
+  integer                      :: d, ierr, k, l, v
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
+  real(8)                      :: Area_min, total_mass, visc, wave_speed
   character(len_cmd_files)     :: cmd_files
   character(len_cmd_archive)   :: cmd_archive
   character(8+8+29+14)         :: command
@@ -507,7 +505,8 @@ program DCMIP2008c5
   call read_test_case_parameters("DCMIP2008c5.in")
 
   ! Average minimum grid size and maximum wavenumber
-  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)) 
+  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
+  Area_min = sqrt(3.0_8)/2.0_8*dx_min**2
   dx_max = 2.0_8*MATH_PI * radius
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
@@ -554,17 +553,18 @@ program DCMIP2008c5
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
   cfl_num     = 1.0d0                            ! cfl number
+  n_diffuse   = 1                                ! Diffuse every n_diffuse time steps
 
-  viscosity_mass = 5.0e-4/kmax**2                ! viscosity for mass equation
-  viscosity_temp = viscosity_mass                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 5.0d-4/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_mass = 1.0d-3/kmax**2                ! viscosity for mass equation
+  viscosity_temp = 1.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
   viscosity_rotu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
-     write(6,'(A,es10.4)') 'Viscosity_mass   = ',  viscosity_mass
-     write(6,'(A,es10.4)') 'Viscosity_temp   = ',  viscosity_temp
-     write(6,'(A,es10.4)') 'Viscosity_divu   = ',  viscosity_divu
-     write(6,'(A,es10.4)') 'Viscosity_rotu   = ',  viscosity_rotu
+     write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
+     write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
+     write(6,'(A,es10.4)') 'Viscosity_divu   = ', viscosity_divu
+     write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
      write(6,'(A,es10.4)') ' '
   end if
 
@@ -598,8 +598,11 @@ program DCMIP2008c5
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
+
      call time_step (dt_write, aligned, set_thresholds)
-     if (diffuse) call time_step_diffuse
+
+     if (diffuse .and. mod(istep,n_diffuse).eq.0) call time_step_diffuse
+
      call set_surf_geopot
      call stop_timing
      timing = get_timing()

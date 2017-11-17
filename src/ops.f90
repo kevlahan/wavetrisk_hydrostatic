@@ -597,21 +597,21 @@ contains
     integer     :: id, idN, idE, idNE, idS, idSW, idW
     real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
 
-    id   = idx(i,     j,     offs, dims)
-    idN  = idx(i, j + 1,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-    idW  = idx(i - 1, j,     offs, dims)
-    idSW = idx(i - 1, j - 1, offs, dims)
-    idS  = idx(i,     j - 1, offs, dims)
+    id   = idx(i,   j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
     
     ! Find the velocity on primal and dual grid edges, which are equal except for the length of the
     ! side they are on
-    u_dual_RT = velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
-    u_dual_UP = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
-    u_dual_DG = velo(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
-    u_dual_RT_W = velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
-    u_dual_UP_S = velo(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
+    u_dual_RT    = velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
+    u_dual_UP    = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
+    u_dual_DG    = velo(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_RT_W  = velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
+    u_dual_UP_S  = velo(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
     u_dual_DG_SW = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
 
     x_i = dom%node%elts(id+1)
@@ -1355,7 +1355,7 @@ contains
     integer idW
     integer idSW
 
-    id   = idx(i,     j,     offs, dims)
+    id = idx(i, j, offs, dims)
 
     totaldmass = totaldmass + dmass(id+1)/dom%areas%elts(id+1)%hex_inv
     totalabsdmass = totalabsdmass + abs(dmass(id+1)/dom%areas%elts(id+1)%hex_inv)
@@ -1363,4 +1363,32 @@ contains
     totaldtemp = totaldtemp + dtemp(id+1)/dom%areas%elts(id+1)%hex_inv
     totalabsdtemp = totalabsdtemp + abs(dtemp(id+1)/dom%areas%elts(id+1)%hex_inv)
   end subroutine sum_dmassdtemp
+
+   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
+    ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+    external                        :: vel_fun
+
+    integer      :: d, id, idE, idN, idNE
+    type (Coord) :: x_i, x_E, x_N, x_NE
+
+    d = dom%id+1
+    
+    id   = idx(i,   j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+
+    x_i  = dom%node%elts(id+1)
+    x_E  = dom%node%elts(idE+1)
+    x_N  = dom%node%elts(idN+1)
+    x_NE = dom%node%elts(idNE+1)
+    
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, x_i,  x_E)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
+  end subroutine vel2uvw
 end module ops_mod

@@ -50,7 +50,7 @@ contains
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
     
-    relvort = get_vort (dom, i, j, offs, dims) !! FIXME: NEED TO CALCULATE VORTICITY AT DESIRED VERTICAL LEVELS
+    relvort = get_vort (dom, i, j, offs, dims) 
 
     if (maxval(dom%mask_n%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
        ! avoid segfault if pre_levelout not used
@@ -687,7 +687,7 @@ contains
     
     integer :: d, e, id, fid
 
-    d = dom%id+1
+    d  = dom%id+1
     id = idx(i, j, offs, dims)
     
     read(fid) sol(S_MASS,zlev)%data(d)%elts(id+1) ! for pole
@@ -1093,11 +1093,13 @@ contains
     c_out%z =  c_in%z
   end subroutine zrotate
 
-  recursive subroutine coord_from_file(d_glo, l, fid, offs, dims, ij0)
-    integer, intent(in) :: d_glo, l, fid, ij0(2)
-    integer, intent(in) :: offs(N_BDRY+1)
-    integer, intent(in) :: dims(2,N_BDRY+1)
-    integer d_loc, k, ij(2)
+  recursive subroutine coord_from_file (d_glo, l, fid, offs, dims, ij0)
+    integer,                        intent(in) :: d_glo, l, fid
+    integer, dimension(2),          intent(in) :: ij0
+    integer, dimension(N_BDRY+1),   intent(in) :: offs
+    integer, dimension(2,N_BDRY+1), intent(in) :: dims
+    
+    integer :: d_loc, k, ij(2)
     type(Coord) node, node_r
 
     d_loc = loc_id(d_glo+1)
@@ -1118,12 +1120,11 @@ contains
     end do
   end subroutine coord_from_file
 
-  subroutine pre_levelout()
-    integer max_output_level
-    integer d, l, num
+  subroutine pre_levelout
+    integer :: d, l, max_output_level, num
 
     ! FIXME cleaner would be to use init_io routine
-    call init_Float_Field(active_level, AT_NODE)
+    call init_Float_Field (active_level, AT_NODE)
 
     do d = 1, size(grid)
        num = grid(d)%node%length

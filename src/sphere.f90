@@ -244,13 +244,13 @@ contains
     self%z = z
   end subroutine init_Coord
 
-  subroutine init_Areas(self, centre, corners, midpts)
-    type(Areas) self
-    type(Coord) centre
-    type(Coord), dimension(6) :: corners
-    type(Coord), dimension(6) :: midpts
-    integer i
-    real(8) area
+  subroutine init_Areas (self, centre, corners, midpts)
+    type(Areas)               :: self
+    type(Coord)               :: centre
+    type(Coord), dimension(6) :: corners, midpts
+    
+    integer :: i
+    real(8) :: area
 
     do i = 1, 6
        self%part(i) = triarea(centre, corners(i), midpts(i)) &
@@ -265,9 +265,10 @@ contains
     end if
   end subroutine init_Areas
 
-  real(8) function proj_vel (vel_fun, ep1, ep2)
+  function proj_vel (vel_fun, ep1, ep2)
     ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
     ! given a function for zonal u and meridional v velocities as a function of longitude and latitude
+    real(8) :: proj_vel
     external    :: vel_fun
     type(Coord) :: ep1, ep2
     

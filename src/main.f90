@@ -237,7 +237,8 @@ contains
     time  = itime/time_mult
   end subroutine time_step
 
-  subroutine time_step_diffuse 
+  subroutine time_step_diffuse
+    ! Euler time step to diffuse solution
     call euler
   end subroutine time_step_diffuse
 
@@ -524,11 +525,7 @@ contains
 
     call init_RK_mem 
 
-    if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
-    call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
-
-    itime = nint (time*time_mult, 8)
-    resume = cp_idx ! to disable alignment for next step
+    call read_sol(custom_load)
 
     ! do not overwrite existing checkpoint archive
     write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
