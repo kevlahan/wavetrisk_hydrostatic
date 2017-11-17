@@ -528,9 +528,9 @@ contains
 
     if (c .eq. IJMINUS) then
        id   = idx( 0,  0, offs, dims)
+       idS  = idx( 0, -1, offs, dims)
        idSW = idx(-1, -1, offs, dims)
        idW  = idx(-1,  0, offs, dims)
-       idS  = idx( 0, -1, offs, dims)
 
        u_prim_RT_W  = velo(EDGE*idW+RT+1) *dom%len%elts(EDGE*idW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) ! Is this really RT edge (no edge lablel)!
@@ -544,6 +544,7 @@ contains
 
     if (c .eq. IPLUSJMINUS) then
        id   = idx(PATCH_SIZE,    0, offs, dims)
+       idS  = idx(PATCH_SIZE,   -1, offs, dims)
        idSW = idx(PATCH_SIZE-1, -1, offs, dims)
 
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
@@ -559,6 +560,7 @@ contains
     if (c .eq. IMINUSJPLUS) then
        id   = idx(0,  PATCH_SIZE,   offs, dims)
        idSW = idx(-1, PATCH_SIZE-1, offs, dims)
+       idW  = idx(-1, PATCH_SIZE,   offs, dims)
 
        u_prim_UP    = velo(EDGE*id+UP+1)  *dom%len%elts(EDGE*id+UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)

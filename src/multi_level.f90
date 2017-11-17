@@ -339,8 +339,8 @@ contains
 
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
-             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
+             call apply_onescale_to_patch (cal_divu,         grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,         grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_end, k)
           
@@ -394,8 +394,8 @@ contains
             
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
-                call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+                call apply_onescale_to_patch (cal_divu,         grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+                call apply_onescale_to_patch (cal_vort,         grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
              end do
              call apply_to_penta_d (post_vort, grid(d), l, k)
 
