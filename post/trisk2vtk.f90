@@ -250,7 +250,7 @@ program trisk2vtk
         end do
         write(iunit) lf
 
-        write(iunit) 'SCALARS surface_pressure float'//lf
+        write(iunit) 'SCALARS mass float'//lf
         write(iunit) 'LOOKUP_TABLE default'//lf
         do icell = 1, n_cells
            write (iunit) outv(icell,5)

@@ -478,8 +478,7 @@ contains
     ! Geopotential height at level zlev
     outv(4) = dom%geopot%elts(id+1)/grav_accel
 
-    ! Surface pressure
-    !outv(5) = dom%surf_press%elts(id+1)
+    ! Mass
     outv(5) = sol(S_MASS,zlev)%data(d)%elts(id+1)
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
