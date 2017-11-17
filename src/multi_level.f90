@@ -327,15 +327,15 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
+       ! Compute scalar fluxes and div, vort
        do d = 1, size(grid)
-          mass      => q(S_MASS,k)%data(d)%elts
-          temp      => q(S_TEMP,k)%data(d)%elts
-          velo  =>  q(S_VELO,k)%data(d)%elts
-          dvelo => dq(S_VELO,k)%data(d)%elts
-          h_mflux   => horiz_flux(S_MASS)%data(d)%elts
-          h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
-          divu  => grid(d)%divu%elts
-          vort  => grid(d)%vort%elts
+          mass    => q(S_MASS,k)%data(d)%elts
+          temp    => q(S_TEMP,k)%data(d)%elts
+          velo    => q(S_VELO,k)%data(d)%elts
+          h_mflux => horiz_flux(S_MASS)%data(d)%elts
+          h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+          divu    => grid(d)%divu%elts
+          vort    => grid(d)%vort%elts
 
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
@@ -344,7 +344,7 @@ contains
           end do
           call apply_to_penta_d (post_vort, grid(d), level_end, k)
           
-          nullify (mass, temp, h_mflux, h_tflux)
+          nullify (mass, temp, velo, h_mflux, h_tflux, divu, vort)
        end do
 
        if (level_start .lt. level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
@@ -380,18 +380,18 @@ contains
        do l = level_end-1, level_start, -1
           call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
 
+          ! Compute (or restrict) scalar fluxes and compute div and vort at scale l
           do d = 1, size(grid)
-             mass      =>  q(S_MASS,k)%data(d)%elts
-             temp      =>  q(S_TEMP,k)%data(d)%elts
-             velo      =>  q(S_VELO,k)%data(d)%elts
-             dmass     => dq(S_MASS,k)%data(d)%elts
-             dtemp     => dq(S_TEMP,k)%data(d)%elts
-             dvelo     => dq(S_VELO,k)%data(d)%elts
-             h_mflux   => horiz_flux(S_MASS)%data(d)%elts
-             h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
-             divu  => grid(d)%divu%elts
-             vort  => grid(d)%vort%elts
-             
+             mass    =>  q(S_MASS,k)%data(d)%elts
+             temp    =>  q(S_TEMP,k)%data(d)%elts
+             velo    =>  q(S_VELO,k)%data(d)%elts
+             dmass   => dq(S_MASS,k)%data(d)%elts
+             dtemp   => dq(S_TEMP,k)%data(d)%elts
+             h_mflux => horiz_flux(S_MASS)%data(d)%elts
+             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+             divu    => grid(d)%divu%elts
+             vort    => grid(d)%vort%elts
+            
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (flux_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
                 call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
@@ -400,25 +400,28 @@ contains
              call apply_to_penta_d (post_vort, grid(d), l, k)
 
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
-             call cpt_or_restr_du_source_diffuse (grid(d), l)
 
-             nullify (mass, temp, velo, dmass, dtemp, dvelo, h_mflux, h_tflux, vort, divu)
+             nullify (mass, temp, velo, dmass, dtemp, h_mflux, h_tflux, divu, vort)
           end do
 
           call update_vector_bdry (horiz_flux, l)
 
-          ! Compute scalar trends at level l
+          ! Compute trends at level l
           do d = 1, size(grid)
              dmass   => dq(S_MASS,k)%data(d)%elts
              dtemp   => dq(S_TEMP,k)%data(d)%elts
+             dvelo   => dq(S_VELO,k)%data(d)%elts
              h_mflux => horiz_flux(S_MASS)%data(d)%elts
              h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+             divu    => grid(d)%divu%elts
+             vort    => grid(d)%vort%elts
           
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
-
-             nullify (dmass, dtemp, h_mflux, h_tflux)
+             call cpt_or_restr_du_source_diffuse (grid(d), l)
+             
+             nullify (dmass, dtemp, dvelo, h_mflux, h_tflux, divu, vort)
           end do
 
           dq(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
@@ -532,7 +535,7 @@ contains
              call apply_onescale_to_patch (du_source_diffuse, dom, p_par, z_null, 0, 0)
           end if
        end do
-       call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
+       call apply_interscale_to_patch (du_source_diffuse_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
     end do
   end subroutine cpt_or_restr_du_source_diffuse
 
