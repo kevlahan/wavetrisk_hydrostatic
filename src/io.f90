@@ -44,18 +44,18 @@ contains
     real(8), dimension(TRIAG) :: relvort
 
     d = dom%id + 1
-    
+
     id   = idx(i,     j,     offs, dims)
     idE  = idx(i + 1, j,     offs, dims)
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
-    
+
     relvort = get_vort (dom, i, j, offs, dims) 
 
     if (maxval(dom%mask_n%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
        ! avoid segfault if pre_levelout not used
        if (allocated(active_level%data)) leveldual(LORT+1) = maxval(active_level%data(d)%elts((/id, idE, idNE/)+1))
-       
+
        write (fid,'(9(E14.5E2,1X), E14.5E2, 1X, I3)') dom%node%elts((/id, idE, idNE/)+1), relvort(LORT+1), leveldual(LORT+1)
     end if
 
@@ -120,13 +120,14 @@ contains
          get_timing()
   end subroutine write_step
 
-  real(8) function integrate_hex(fun, l, k)
-    external fun
-    integer l, k
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer d, ll, p, i, j, c, id
-    real(8) s, fun
+  real(8) function integrate_hex (fun, l, k)
+    external :: fun
+    integer  :: l, k
+    
+    integer                        :: d, ll, p, i, j, c, id
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8) :: s, fun
 
     s = 0.0_8
     do d = 1, size(grid)
@@ -151,7 +152,7 @@ contains
                 return
              end if
           end do
-          call get_offs_Domain(grid(d), p, offs, dims)
+          call get_offs_Domain (grid(d), p, offs, dims)
           if (c .eq. NORTHWEST) then
              s = s + fun(grid(d), 0, PATCH_SIZE, k, offs, dims)/ &
                   grid(d)%areas%elts(idx(0,PATCH_SIZE,offs,dims)+1)%hex_inv
@@ -166,18 +167,19 @@ contains
   end function integrate_hex
 
   real(8) function integrate_tri(fun, k)
-    external fun
-    integer k
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer d, ll, p, i, j, t, id
-    real(8) s, fun
+    external :: fun
+    integer  :: k
+    
+    integer                        :: d, ll, p, i, j, t, id
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8)                        :: s, fun
 
     s = 0.0_8
     do d = 1, size(grid)
        do ll = 1, grid(d)%lev(level_start)%length
           p = grid(d)%lev(level_start)%elts(ll)
-          call get_offs_Domain(grid(d), p, offs, dims)
+          call get_offs_Domain (grid(d), p, offs, dims)
           do j = 1, PATCH_SIZE
              do i = 1, PATCH_SIZE
                 id = idx(i-1, j-1, offs, dims)
@@ -189,89 +191,105 @@ contains
           end do
        end do
     end do
-    integrate_tri =  sum_real(s)
+    integrate_tri = sum_real(s)
   end function integrate_tri
 
-  real(8) function only_area(dom, i, j, offs, dims)
-    type(Domain) dom
-    integer i, j, id
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  function only_area (dom, i, j, offs, dims)
+    real(8)                        :: only_area
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     only_area = 1.0_8
   end function only_area
 
-  real(8) function mass_pert(dom, i, j, k, offs, dims)
-    type(Domain) dom
-    integer i, j, k, id
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-
-    id = idx(i, j, offs, dims)
-    mass_pert = sol(S_MASS,k)%data(dom%id+1)%elts(id+1) + mean(S_MASS,k)
-  end function mass_pert
-
-  real(8) function pot_energy(dom, i, j, k, offs, dims)
-    type(Domain) dom
-    integer i, j, k, id
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-
-    id = idx(i, j, offs, dims)
-    pot_energy = sol(S_MASS,k)%data(dom%id+1)%elts(id+1)**2
-  end function pot_energy
-
-  real(8) function energy(dom, i, j, k, offs, dims)
+  function mass_pert (dom, i, j, zlev, offs, dims)
+    real(8)                        :: mass_pert
     type(Domain)                   :: dom
-    integer                        :: i, j, k
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
 
     id = idx(i, j, offs, dims)
-    energy = bernoulli(id+1) * sol(S_MASS,k)%data(dom%id+1)%elts(id+1)
+    mass_pert = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) + mean(S_MASS,zlev)
+  end function mass_pert
+
+  function pot_energy (dom, i, j, zlev, offs, dims)
+    real(8)                        :: pot_energy
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx(i, j, offs, dims)
+    pot_energy = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)**2
+  end function pot_energy
+
+  function energy (dom, i, j, zlev, offs, dims)
+    real(8)                        :: energy
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+
+    d = dom%id+1
+    id = idx(i, j, offs, dims)
+    energy = bernoulli(id+1) * sol(S_MASS,zlev)%data(d)%elts(id+1)
   end function energy
 
-  real(8) function tri_only_area(dom, i, j, t, offs, dims)
-    type(Domain) dom
-    integer i, j, t, id_tri
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  function tri_only_area (dom, i, j, t, offs, dims)
+    real(8)                        :: tri_only_area
+    type(Domain)                   :: dom
+    integer                        :: i, j, t
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     tri_only_area = 1.0_8
   end function tri_only_area
 
-  real(8) function only_coriolis(dom, i, j, t, offs, dims)
-    type(Domain) dom
-    integer i, j, t, id_tri
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  function only_coriolis (dom, i, j, t, offs, dims)
+    real(8)                        :: only_coriolis
+    type(Domain)                   :: dom
+    integer                        :: i, j, t
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    id_tri = idx(i, j, offs, dims)*TRIAG+t+1
-    only_coriolis = (dom%coriolis%elts(id_tri)/dom%triarea%elts(id_tri))**2
+    integer :: id
+
+    id = idx(i, j, offs, dims)
+    only_coriolis = (dom%coriolis%elts(TRIAG*id+t+1)/dom%triarea%elts(TRIAG*id+t+1))**2
   end function only_coriolis
 
-  subroutine export_2d(proj, values, n_val, fid, l, Nx, Ny, valrange, default_val)
-    external proj
-    type(Float_Field) values(n_val)
-    integer Nx(2), Ny(2), l, n_val, fid
-    real(8) valrange(2), default_val(n_val)
-    integer d, k, i, j, v, p, c, p_par, l_cur
-    integer id, idN, idE, idNE
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    real(8) :: val, valN, valE, valNE
-    real(8), dimension(2) :: cC, cN, cE, cNE
-    character(5) :: fidv
-    character(130) :: command
+  subroutine export_2d (proj, values, n_val, fid, l, Nx, Ny, valrange, default_val)
+    external                            :: proj
+    type(Float_Field), dimension(n_val) :: values
+    integer, dimension(2)               :: Nx, Ny
+    integer                             :: l, n_val, fid
+    real(8), dimension(2)               :: valrange
+    real(8), dimension(n_val)           :: default_val
+    
+    integer                        :: d, k, i, j, v, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    character(5)                   :: fidv
+    character(130)                 :: command
 
     dx_export = valrange(1)/(Nx(2)-Nx(1)+1)
     dy_export = valrange(2)/(Ny(2)-Ny(1)+1)
     kx_export = 1./dx_export
     ky_export = 1./dy_export
 
-    allocate(field2d(Nx(1):Nx(2),Ny(1):Ny(2),n_val))
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2),n_val))
 
     do v = 1, n_val
        field2d(:,:,v) = default_val(v)
@@ -452,15 +470,13 @@ contains
     integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: fid
-    integer :: id, idW, idSW, idS
-    integer :: d, outl, m
-    real(4), dimension(N_VAR_OUT) :: outv = 0
-    real(8), dimension(2) :: vel_latlon
+
+    integer                       :: d, fid, id, idW, idSW, idS, outl
+    real(4), dimension(N_VAR_OUT) :: outv
+    real(8), dimension(2)         :: vel_latlon
 
     d = dom%id + 1
-    
+
     id   = idx(i,     j,     offs, dims)
     idW  = idx(i - 1, j,     offs, dims)
     idSW = idx(i - 1, j - 1, offs, dims)
@@ -507,7 +523,7 @@ contains
     integer, dimension(2,N_BDRY+1)      :: dims
     real(8), dimension (3)       :: uvw
     real(8), dimension (2)       :: vel_latlon
-    
+
     integer                     :: d, e, id, id_i, id_e, idN, idE, idNE
     type (Coord)                :: co_node, co_east, co_north, co_northeast, e_merid, e_zonal
     type (Coord), dimension (3) :: dir 
@@ -520,9 +536,9 @@ contains
     real(8), dimension (lwork) :: work
 
     d = dom%id+1
-    
+
     id = idx(i, j, offs, dims)
-    
+
     id_i = id + 1
     id_e = EDGE*id + 1
     idN  = idx(i, j + 1,     offs, dims) + 1
@@ -538,14 +554,14 @@ contains
     co_east      = dom%node%elts(idE)
     co_northeast = dom%node%elts(idNE)
     co_north     = dom%node%elts(idN)
-    
+
     dir(1) = direction (co_node,      co_east)  ! RT direction
     dir(2) = direction (co_northeast, co_node)  ! DG direction
     dir(3) = direction (co_node,      co_north) ! UP direction
-    
+
     ! Find longitude and latitude coordinates of node
     call cart2sph (co_node, lon, lat)
-    
+
     e_zonal = Coord (-sin(lon),          cos(lon),           0.0_8)    ! Zonal direction
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
@@ -584,26 +600,26 @@ contains
          interp(dom%vort%elts(TRIAG*id+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
          *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(id*EDGE+DG+1)+ &
          
-        interp(dom%vort%elts(TRIAG*idN+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
+         interp(dom%vort%elts(TRIAG*idN+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
          *dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1)) &
          
          / (dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
-            dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
-            dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1))
+         dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
+         dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1))
 
     get_vort(LORT+1) = ( &
          interp(dom%vort%elts(TRIAG*idS+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
          
-        interp(dom%vort%elts(TRIAG*id+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
+         interp(dom%vort%elts(TRIAG*id+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(id*EDGE+DG+1)+ &
          
          interp(dom%vort%elts(TRIAG*idE+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
          *dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1)) &
          
          / (dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
-            dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
-            dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1))
+         dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
+         dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1))
   end function get_vort
 
   subroutine write_u_wc(dom, p, i, j, offs, dims, fid)
@@ -669,183 +685,76 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, fid
+    integer :: d, e, id, fid, v
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
-    
-    write(fid) sol(S_MASS,zlev)%data(d)%elts(id+1) ! for pole
-    write(fid) sol(S_TEMP,zlev)%data(d)%elts(id+1) ! for pole
+
+    do v = S_MASS, S_TEMP
+       write(fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
+    end do
   end subroutine write_scalar
-  
+
   subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: d, e, id, fid
+
+    integer :: d, e, id, fid, v
 
     d  = dom%id+1
     id = idx(i, j, offs, dims)
-    
-    read(fid) sol(S_MASS,zlev)%data(d)%elts(id+1) ! for pole
-    read(fid) sol(S_TEMP,zlev)%data(d)%elts(id+1) ! for pole
+
+    do v = S_MASS, S_TEMP
+       read(fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
+    end do
   end subroutine read_scalar
 
-  subroutine read_mt_wc_and_mask(dom, p, i, j, offs, dims, fid)
+  subroutine read_mt_wc_and_mask (dom, p, i, j, offs, dims, fid)
     !read in wavelet coefficients of mass and potential temperature (not mask though??)
-    type(Domain) dom
-    integer p, i
-    integer j, k
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer fid
-    integer id
+    type(Domain)                   :: dom
+    integer                        :: fid, p, i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, k, v
 
     id = idx(i, j, offs, dims)
+
     do k = 1, zlevels
-       read(fid,*) wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1)
-       read(fid,*) wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1)
        write(0,*) 'reading k', k, 'id', id
+       do v = S_MASS, S_TEMP
+          read(fid,*) wav_coeff(v,k)%data(dom%id+1)%elts(id+1)
+       end do
     end do
   end subroutine read_mt_wc_and_mask
 
-  subroutine write_mt_wc(dom, p, i, j, offs, dims, fid)
-    !write wavelet coefficients of mass and potential temperature
-    type(Domain) dom
-    integer p, i
-    integer j, k
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer fid
-    integer id
+  subroutine write_mt_wc (dom, p, i, j, offs, dims, fid)
+    ! Write wavelet coefficients of mass and potential temperature
+    type(Domain)                   :: dom
+    integer                        :: fid, p, i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, k, v
 
     id = idx(i, j, offs, dims)
+
     do k = 1, zlevels
-       write(fid,*) wav_coeff(S_MASS,k)%data(dom%id+1)%elts(id+1)
-       write(fid,*) wav_coeff(S_TEMP,k)%data(dom%id+1)%elts(id+1)
        write(0,*) 'writing k', k, 'id', id
+       do v = S_MASS, S_TEMP
+          write (fid,*) wav_coeff(v,k)%data(dom%id+1)%elts(id+1)
+       end do
     end do
   end subroutine write_mt_wc
-
- subroutine load_adapt_mpi(node_in_rout, edge_in_rout, id, custom_load)
-    ! one file per domain
-    external node_in_rout, edge_in_rout, custom_load
-    integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid !ASCII, fid_ed 
-    integer :: id, k, l
-    character(5+4+1+5) filename_no, filename_ed, fname_gr
-    integer d, j, v, i
-    logical child_required(N_CHDRN)
-    integer p_par, p_chd, c, old_n_patch
-
-    do d = 1, size(grid)
-       fid_no(d)   = id*1000 + 1000000 + d
-       fid_grid(d) = id*1000 + 3000000 + d
-
-       write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
-       write(fname_gr,    '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
-
-       open(unit=fid_no(d),   file=filename_no, form="UNFORMATTED", action='READ')
-       open(unit=fid_grid(d), file=fname_gr,    form="UNFORMATTED", action='READ')
-
-       read(fid_no(d)) istep
-       read(fid_no(d)) time
-
-       call custom_load(fid_no(d))
-
-       do k = 1, zlevels
-          call apply_to_pole_d(read_scalar, grid(d), min_level-1, k, fid_no(d), .True.)
-       end do
-
-       do k = 1, zlevels
-          do v = S_MASS, S_VELO
-             read(fid_no(d)) ( sol(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
-                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
-          end do
-       end do
-
-       do k = 1, zlevels
-          do i = MULT(S_VELO) * grid(d)%patch%elts(1+1)%elts_start+1, &
-               MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
-
-             if (sol(S_VELO,k)%data(d)%elts(i) .ne. sol(S_VELO,k)%data(d)%elts(i)) then
-                write(0,*) d, i, 'Attempt reading in NaN scal -> corrupted checkpoint', id
-                stop
-             end if
-          end do
-       end do
-    end do
-
-    l = 1
-    do while(level_end .gt. l) ! new level was added -> proceed to it
-       l = level_end 
-       if (rank .eq. 0) write(*,*) 'loading level', l
-
-       do d = 1, size(grid)
-          old_n_patch = grid(d)%patch%length
-          do j = 1, grid(d)%lev(l)%length
-             p_par = grid(d)%lev(l)%elts(j)
-
-             do k = 1, zlevels
-                do v = S_MASS, S_VELO
-                   read(fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), &
-                        i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
-                end do
-             end do
-
-             do k = 1, zlevels
-                do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                     MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
-                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) .ne. wav_coeff(S_VELO,k)%data(d)%elts(i)) then
-                      write(0,*) d, i, 'Attempt reading in NaN wav -> corrupted checkpoint', id
-                      stop
-                   end if
-                end do
-             end do
-
-             read(fid_grid(d)) child_required
-             do c = 1, N_CHDRN
-                if (child_required(c)) then
-                   call refine_patch1(grid(d), p_par, c-1)
-                end if
-             end do
-          end do
-
-          do p_par = 2, old_n_patch
-             do c = 1, N_CHDRN
-                p_chd = grid(d)%patch%elts(p_par)%children(c)
-                if (p_chd+1 .gt. old_n_patch) then
-                   call refine_patch2(grid(d), p_par - 1, c - 1)
-                end if
-             end do
-          end do
-       end do
-       call post_refine()
-    end do
-
-    do d = 1, size(grid)
-       close(fid_no(d)); close(fid_grid(d))
-    end do
-
-    wav_coeff%bdry_uptodate = .False.
-  end subroutine load_adapt_mpi
-
-  subroutine default_dump(fid)
-    integer fid
-  end subroutine default_dump
-
-  subroutine default_load(fid)
-    integer fid
-  end subroutine default_load
 
   function dump_adapt_mpi (node_out_rout, edge_out_rout, id, custom_dump)
     ! One file per domain
     integer  :: dump_adapt_mpi
     external :: node_out_rout, edge_out_rout, custom_dump
     integer  :: id
-    
+
     character(5+4+1+5) :: filename_no, filename_ed, fname_gr
     integer            :: fid_no, l, fid_grid, fid_ed, d, j, k, v, i
     logical            :: child_required(N_CHDRN)
@@ -860,10 +769,11 @@ contains
     do k = 1, zlevels
        do d = 1, size(grid)
           mass => sol(S_MASS,k)%data(d)%elts
-          wc_m => wav_coeff(S_MASS,k)%data(d)%elts
           temp => sol(S_TEMP,k)%data(d)%elts
+          wc_m => wav_coeff(S_MASS,k)%data(d)%elts
           wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-          call apply_interscale_d(restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+          call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+          nullify (mass, temp, wc_m, wc_t)
        end do
     end do
 
@@ -877,13 +787,11 @@ contains
        write(fid_no) istep
        write(fid_no) time
 
-       call custom_dump(fid_no)
+       call custom_dump (fid_no)
 
        do k = 1, zlevels
-          call apply_to_pole_d(write_scalar, grid(d), min_level-1, k, fid_no, .True.)
-       end do
+          call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no, .True.)
 
-       do k = 1, zlevels
           do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
                MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
 
@@ -894,9 +802,7 @@ contains
                 return
              end if
           end do
-       end do
 
-       do k = 1, zlevels
           do v = S_MASS, S_VELO
              write(fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
@@ -926,9 +832,7 @@ contains
                       return
                    end if
                 end do
-             end do
 
-             do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    write(fid_no) (wav_coeff(v,k)%data(d)%elts(i),  &
                         i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
@@ -960,7 +864,112 @@ contains
        close(fid_no); close(fid_grid)
     end do
   end function dump_adapt_mpi
-     
+
+  subroutine load_adapt_mpi (node_in_rout, edge_in_rout, id, custom_load)
+    ! One file per domain
+    external                             :: node_in_rout, edge_in_rout, custom_load
+    integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid !ASCII, fid_ed 
+    integer                              :: id
+
+    character(5+4+1+5)          :: filename_no, filename_ed, fname_gr
+    integer                     :: c, d, i, j, k, l, v, old_n_patch, p_par, p_chd
+    logical, dimension(N_CHDRN) :: child_required
+
+    do d = 1, size(grid)
+       fid_no(d)   = id*1000 + 1000000 + d
+       fid_grid(d) = id*1000 + 3000000 + d
+
+       write (filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
+       write (fname_gr,    '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
+
+       open (unit=fid_no(d),   file=filename_no, form="UNFORMATTED", action='READ')
+       open (unit=fid_grid(d), file=fname_gr,    form="UNFORMATTED", action='READ')
+
+       read (fid_no(d)) istep
+       read (fid_no(d)) time
+
+       call custom_load (fid_no(d))
+
+       do k = 1, zlevels
+          call apply_to_pole_d (read_scalar, grid(d), min_level-1, k, fid_no(d), .True.)
+
+          do v = S_MASS, S_VELO
+             read (fid_no(d)) (sol(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
+                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
+          end do
+
+          do i = MULT(S_VELO) * grid(d)%patch%elts(1+1)%elts_start+1, &
+               MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
+
+             if (sol(S_VELO,k)%data(d)%elts(i) .ne. sol(S_VELO,k)%data(d)%elts(i)) then
+                write (0,*) d, i, 'Attempt reading in NaN scal -> corrupted checkpoint', id
+                stop
+             end if
+          end do
+       end do
+    end do
+
+    l = 1
+    do while (level_end .gt. l) ! new level was added -> proceed to it
+       l = level_end 
+       if (rank .eq. 0) write (6,*) 'loading level', l
+
+       do d = 1, size(grid)
+          old_n_patch = grid(d)%patch%length
+          do j = 1, grid(d)%lev(l)%length
+             p_par = grid(d)%lev(l)%elts(j)
+
+             do k = 1, zlevels
+                do v = S_MASS, S_VELO
+                   read (fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), &
+                        i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
+                end do
+
+                do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                     MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
+                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) .ne. wav_coeff(S_VELO,k)%data(d)%elts(i)) then
+                      write (0,*) d, i, 'Attempt reading in NaN wav -> corrupted checkpoint', id
+                      stop
+                   end if
+                end do
+             end do
+
+             read (fid_grid(d)) child_required
+             do c = 1, N_CHDRN
+                if (child_required(c)) then
+                   call refine_patch1 (grid(d), p_par, c-1)
+                end if
+             end do
+          end do
+
+          do p_par = 2, old_n_patch
+             do c = 1, N_CHDRN
+                p_chd = grid(d)%patch%elts(p_par)%children(c)
+                if (p_chd+1 .gt. old_n_patch) then
+                   call refine_patch2 (grid(d), p_par - 1, c - 1)
+                end if
+             end do
+          end do
+       end do
+       call post_refine
+    end do
+
+    do d = 1, size(grid)
+       close(fid_no(d)); close(fid_grid(d))
+    end do
+
+    wav_coeff%bdry_uptodate = .False.
+  end subroutine load_adapt_mpi
+
+  subroutine default_dump(fid)
+    integer fid
+  end subroutine default_dump
+
+  subroutine default_load(fid)
+    integer fid
+  end subroutine default_load
+
   subroutine proj_xz_plane(cin, cout)
     type(Coord) cin
     real(8), intent(out) :: cout(2)
@@ -1097,7 +1106,7 @@ contains
     integer, dimension(2),          intent(in) :: ij0
     integer, dimension(N_BDRY+1),   intent(in) :: offs
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
-    
+
     integer :: d_loc, k, ij(2)
     type(Coord) node, node_r
 
