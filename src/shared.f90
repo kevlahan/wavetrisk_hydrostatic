@@ -6,6 +6,7 @@
 !
 ! The icosahedron is divided into a network of ten regular lozange grids (with the exception of the poles), each lozange is then divided
 ! into N_SUB_DOM = 2**(2*DOMAIN_LEVEL) regular sub-domains with the number of sub-domains on each processor given by n_domain(rank+1)).
+! Therefore the maximum number of processors than can be used is 10*2**(2*DOMAIN_LEVEL).
 !
 ! There are two special nodes called POLEs. One connects the five lozange vertices at the top of the network and the other connects the 
 ! five lozange grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and South poles.
