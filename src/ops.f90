@@ -757,7 +757,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: full_mass, full_temp, full_pot_temp, spec_vol, pert_spec_vol
+    real(8) :: err, full_mass, full_temp, full_pot_temp, spec_vol, pert_spec_vol
 
     id = idx(i, j, offs, dims)
 
@@ -774,10 +774,10 @@ contains
        dom%adj_mass%elts(id+1) = full_mass ! Save current mass for pressurce calculation at next vertical level
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          if (abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty)/press_infty .gt. 1e-10_8) then
+          err = abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty)/dom%surf_press%elts(id+1)
+          if (err .gt. 1e-10_8) then
              write(6,*) 'warning: upward integration of pressure not resulting in zero at top interface'
-             write(6,*) 'observed pressure - pressure_infty =', abs((dom%press%elts(id+1) &
-                  - 0.5_8*grav_accel*full_mass) - press_infty)
+             write(6,*) '(observed pressure - pressure_infty)/P_Surface =', err
              stop
           end if
        end if
