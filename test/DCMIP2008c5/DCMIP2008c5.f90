@@ -348,11 +348,13 @@ contains
   subroutine DCMIP2008c5_dump(fid)
     integer :: fid
     write(fid) iwrite
+    write(fid) tol_mass, tol_temp, tol_velo
   end subroutine DCMIP2008c5_dump
 
   subroutine DCMIP2008c5_load(fid)
     integer :: fid
     read(fid) iwrite
+    read(fid) tol_mass, tol_temp, tol_velo
   end subroutine DCMIP2008c5_load
   
   subroutine set_thresholds (itype)
@@ -364,8 +366,6 @@ contains
     norm_mass = 0.0_8
     norm_temp = 0.0_8
     norm_velo = 0.0_8
-    call trend_ml(sol,trend)
-    
     do l = level_start, level_end
        if (adapt_trend) then
           call apply_onescale (linf_trend, l, z_null, 0, 0)
