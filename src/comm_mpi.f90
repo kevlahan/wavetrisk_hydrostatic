@@ -1249,6 +1249,16 @@ contains
     sum_real = val_glo
   end function sum_real
 
+  function sum_int(val)
+    integer :: sum_int
+    integer :: val
+
+    integer :: val_glo
+    
+    call MPI_Allreduce(val, val_glo, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    sum_int = val_glo
+  end function sum_int
+
   subroutine start_timing()
     times(1) = MPI_Wtime()  
   end subroutine start_timing
