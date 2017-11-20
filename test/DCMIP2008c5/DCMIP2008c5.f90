@@ -4,7 +4,7 @@ module DCMIP2008c5_mod
   use remap_mod
   implicit none
 
-  integer                            :: CP_EVERY, id, zlev, iwrite, j
+  integer                            :: CP_EVERY, id, zlev, iwrite, j, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
   real(8)                            :: initotalmass, totalmass, timing, total_time, dh
@@ -364,20 +364,26 @@ contains
     norm_mass = 0.0_8
     norm_temp = 0.0_8
     norm_velo = 0.0_8
-    do k = 1, zlevels
-       do l = level_start, level_end
-          if (adapt_trend) then
-             call apply_onescale (linf_trend, l, k, 0, 0)
-          else
-             call apply_onescale (linf_vars,  l, k, 0, 0)
-          end if
-       end do
+    call trend_ml(sol,trend)
+    
+    do l = level_start, level_end
+       if (adapt_trend) then
+          call apply_onescale (linf_trend, l, z_null, 0, 0)
+       else
+          call apply_onescale (linf_vars,  l, z_null, 0, 0)
+       end if
     end do
     
     mass_scale = sync_max_d(norm_mass)
     temp_scale = sync_max_d(norm_temp)
     velo_scale = sync_max_d(norm_velo)
     
+    ! rms scaling
+    ! N_node = sum_int(N_node)
+    ! mass_scale = sqrt(sum_real(norm_mass)/real(N_node))
+    ! temp_scale = sqrt(sum_real(norm_temp)/real(N_node))
+    ! velo_scale = sqrt(sum_real(norm_velo)/real(3*N_node))
+        
     if (istep.eq.0) then
         tol_mass = mass_scale * threshold 
         tol_temp = temp_scale * threshold 
@@ -395,20 +401,20 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, e
+    integer :: id, e, k
 
     id = idx(i, j, offs, dims)
 
     ! Maximum trends
-    if (dom%mask_n%elts(id+1) .gt. 0) then
-       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) then
-          norm_mass = max(norm_mass, abs(trend(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
-          norm_temp = max(norm_temp, abs(trend(S_TEMP,zlev)%data(dom%id+1)%elts(id+1)))
+    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+       do k = 1, zlevels
+          norm_mass = max(norm_mass, abs(trend(S_MASS,k)%data(dom%id+1)%elts(id+1)))
+          norm_temp = max(norm_temp, abs(trend(S_TEMP,k)%data(dom%id+1)%elts(id+1)))
           do e = 1, EDGE
-             norm_velo  = max(norm_velo, abs(trend(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e)))
+             norm_velo  = max(norm_velo, abs(trend(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
           end do
-       end if
-    endif
+       end do
+    end if
   end subroutine linf_trend
 
   subroutine linf_vars (dom, i, j, zlev, offs, dims)
@@ -417,16 +423,18 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: d, id, e
+    integer :: d, id, e, k
 
-    id = idx(i, j, offs, dims)
     d = dom%id+1
+    id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
-       norm_mass = max(norm_mass, abs(sol(S_MASS,zlev)%data(d)%elts(id+1)))
-       norm_temp = max(norm_temp, abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)))
-       do e = 1, EDGE
-          norm_velo  = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       do k = 1, zlevels
+          norm_mass = max(norm_mass, abs(sol(S_MASS,k)%data(d)%elts(id+1)))
+          norm_temp = max(norm_temp, abs(sol(S_TEMP,k)%data(d)%elts(id+1)))
+          do e = 1, EDGE
+             norm_velo  = max(norm_velo, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
+          end do
        end do
     end if
   end subroutine linf_vars
@@ -437,41 +445,45 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, e
+    integer :: d, e, id, k
 
+    d = dom%id+1
     id = idx(i, j, offs, dims)
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) .gt. 0) then
-       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) then
-          norm_mass = norm_mass + trend(S_MASS,zlev)%data(dom%id+1)%elts(id+1)**2
-          norm_temp = norm_temp + trend(S_TEMP,zlev)%data(dom%id+1)%elts(id+1)**2
+    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+       N_node = N_node + 1
+       do k = 1, zlevels
+          norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
+          norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
           do e = 1, EDGE
-             norm_velo  = norm_velo+ trend(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e)**2
+             norm_velo  = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
           end do
-       end if
+       end do
     endif
   end subroutine l2_trend
 
-   subroutine l2_vars (dom, i, j, zlev, offs, dims)
+  subroutine l2_vars (dom, i, j, zlev, offs, dims)
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, e
+    integer :: d, e, id, k
 
+    d = dom%id+1
     id = idx(i, j, offs, dims)
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) .gt. 0) then
-       if (dom%level%elts(id+1) .eq. level_end .or. dom%mask_n%elts(id+1) .eq. ADJZONE) then
-          norm_mass = norm_mass + sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)**2
-          norm_temp = norm_temp + sol(S_TEMP,zlev)%data(dom%id+1)%elts(id+1)**2
+    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+       N_node = N_node + 1
+       do k = 1, zlevels
+          norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
+          norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
           do e = 1, EDGE
-             norm_velo  = norm_velo + sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e)**2
+             norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
           end do
-       end if
+       end do
     endif
   end subroutine l2_vars
 
