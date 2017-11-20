@@ -1157,17 +1157,12 @@ contains
                 A_i = 1.0_8/dom%areas%elts(id+1)%hex_inv ! Hexagon area
                 A_v = max (dom%triarea%elts(TRIAG*id+LORT+1),dom%triarea%elts(TRIAG*id+UPLT+1)) ! Triangle areas
 
-                ! Maximum velocity over all vertical levels
-                v_e = 0.0_8
+                dt = min(dt,  cfl_num*d_e/wave_speed)
                 do k = 1, zlevels
-                   v_e  = max(v_e, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
+                   v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
+                   if (v_e.ne.0.0_8) dt =  min(dt, cfl_num*d_e/v_e)
                 end do
-
-                if (d_e.ne.0.0_8) then
-                   dt = min(dt,  cfl_num*d_e/wave_speed)
-                   if (v_e.ne.0.0_8) dt = min (dt, cfl_num*d_e/v_e)
-                   if (diffuse) dt = min (dt, C_visc*min(A_i,A_v)/visc)
-                end if
+                if (diffuse) dt = min (dt, C_visc*min(A_i,A_v)/visc)
              end if
           end if
        end do

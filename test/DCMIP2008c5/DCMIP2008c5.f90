@@ -154,9 +154,6 @@ contains
     x_N  = dom%node%elts(idN+1)
     x_NE = dom%node%elts(idNE+1)
 
-    ! Initialize vertical grid
-    call initialize_a_b_vert
-
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
 
@@ -515,6 +512,8 @@ program DCMIP2008c5
 
   ! Read test case parameters
   call read_test_case_parameters("DCMIP2008c5.in")
+
+  call initialize_a_b_vert
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
