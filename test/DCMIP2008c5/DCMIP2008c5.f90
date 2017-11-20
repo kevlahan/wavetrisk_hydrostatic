@@ -344,12 +344,14 @@ contains
 
   subroutine DCMIP2008c5_dump(fid)
     integer :: fid
+    write(fid) itime
     write(fid) iwrite
     write(fid) tol_mass, tol_temp, tol_velo
   end subroutine DCMIP2008c5_dump
 
   subroutine DCMIP2008c5_load(fid)
     integer :: fid
+    read(fid) itime
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
   end subroutine DCMIP2008c5_load
