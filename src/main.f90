@@ -216,7 +216,7 @@ contains
 
     call RK45_opt 
 
-    call adapt_grid
+    if (min_level .lt. max_level) call adapt_grid (set_thresholds)
     
     itime = itime + idt
     time  = itime/time_mult

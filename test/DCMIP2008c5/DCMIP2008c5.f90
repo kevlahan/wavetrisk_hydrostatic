@@ -639,7 +639,7 @@ program DCMIP2008c5
         iwrite = iwrite + 1
         if (remap) then
            call remap_vertical_coordinates
-           call adapt_grid
+           call adapt_grid (set_thresholds)
         end if
         call write_and_export (iwrite)
 

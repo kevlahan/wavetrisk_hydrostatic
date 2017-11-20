@@ -3,7 +3,7 @@ module adapt_mod
   use refine_patch_mod
   use multi_level_mod
   implicit none
-  logical max_level_exceeded
+  logical :: max_level_exceeded
   ! fillup patch to remove lower level if at least FILLUP_THRESHOLD*100% of nodes are active
   real(8), parameter :: FILLUP_THRESHOLD = 0.9 
   integer, parameter :: DOF_PER_PATCH = PATCH_SIZE*PATCH_SIZE*(EDGE+1)
@@ -19,7 +19,10 @@ contains
     initialized = .True.
   end subroutine init_adapt_mod
 
-  subroutine adapt_grid
+  subroutine adapt_grid (set_thresholds)
+    external :: set_thresholds
+    
+    call set_thresholds
     if (adapt_trend) then
        call trend_ml (sol, trend)
        call forward_wavelet_transform (trend, trend_wav_coeff)
@@ -27,9 +30,7 @@ contains
     else
        call adapt (wav_coeff)
     end if
-    if (level_end .gt. level_start) then ! currently several levels exist
-       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-    end if
+    if (level_end .gt. level_start) call inverse_wavelet_transform (wav_coeff, sol, level_start)
   end subroutine adapt_grid
 
   subroutine adapt (wavelet)
