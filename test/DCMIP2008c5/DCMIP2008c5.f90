@@ -552,7 +552,7 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
-  cfl_num     = 1.0d0                            ! cfl number
+  cfl_num     = 0.8d0                            ! cfl number
   n_diffuse   = 1                                ! Diffuse every n_diffuse time steps
 
   viscosity_mass = 1.0d-3/kmax**2                ! viscosity for mass equation
@@ -573,7 +573,7 @@ program DCMIP2008c5
   adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
-  remap            = .true. ! Remap vertical coordinates
+  remap            = .true.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
 
   ! Initialize variables
@@ -610,13 +610,14 @@ program DCMIP2008c5
      
      call write_and_print_step
 
-     if (rank .eq. 0) write(*,'(6(A,ES10.4),A,I9,A,ES9.2)') &
+     if (rank .eq. 0) write(*,'(6(A,ES10.4),A,I2,A,I9,A,ES9.2)') &
           ' time [h] = ', time/3600.0_8, &
           ' dt [s] = ', dt, &
           ' min mass = ', min_mass, &
           '  mass tol = ', tol_mass, &
           ' temp tol = ', tol_temp, &
           ' velo tol = ', tol_velo, &
+          ' Jmax  =', level_end, &
           '  dof = ', sum(n_active), &
           ' cpu = ', timing
 
