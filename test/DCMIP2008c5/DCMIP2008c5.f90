@@ -581,7 +581,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .true.  ! Adapt on trend or on variables
+  adapt_trend      = .false.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
@@ -637,7 +637,10 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        if (remap) call remap_vertical_coordinates
+        if (remap) then
+           call remap_vertical_coordinates
+           call adapt_grid
+        end if
         call write_and_export (iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle 

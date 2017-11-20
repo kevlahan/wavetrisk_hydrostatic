@@ -111,7 +111,6 @@ contains
           edge_level_start = grid(:)%midpt%length+1
 
           ! Add level
-          call set_thresholds
           if (adapt_trend) then
              call adapt (trend_wav_coeff)
           else
@@ -154,14 +153,13 @@ contains
        
        if (adapt_trend) then
           call trend_ml (sol, trend)
-          call set_thresholds
           call forward_wavelet_transform (trend, trend_wav_coeff)
           call adapt (trend_wav_coeff)
        else
-          call set_thresholds
           call adapt (wav_coeff)
        end if
-
+       call apply_init_cond
+       
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
@@ -218,20 +216,7 @@ contains
 
     call RK45_opt 
 
-    if (min_level .lt. max_level) then ! Adaptive simulation
-       if (adapt_trend) then
-          call trend_ml (sol, trend)
-          call set_thresholds
-          call forward_wavelet_transform (trend, trend_wav_coeff)
-          call adapt (trend_wav_coeff)
-       else
-          call set_thresholds
-          call adapt (wav_coeff)
-       end if
-       if (level_end .gt. level_start) then ! currently several levels exist
-          call inverse_wavelet_transform (wav_coeff, sol, level_start)
-       end if
-    end if
+    call adapt_grid
     
     itime = itime + idt
     time  = itime/time_mult
@@ -536,18 +521,17 @@ contains
     call barrier ! do not delete files before everyone has read them
 
     if (rank .eq. 0) call system (command)
-
-    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+  
     if (adapt_trend) then
+       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
        call trend_ml (sol, trend)
-       call set_thresholds
        call forward_wavelet_transform (trend, trend_wav_coeff)
        call adapt (trend_wav_coeff)
+       call inverse_wavelet_transform (wav_coeff, sol, level_start)
     else
-       call set_thresholds
        call adapt (wav_coeff)
+       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     end if
-    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
   end subroutine restart_full
 
   subroutine read_sol(custom_load)

@@ -19,6 +19,19 @@ contains
     initialized = .True.
   end subroutine init_adapt_mod
 
+  subroutine adapt_grid
+    if (adapt_trend) then
+       call trend_ml (sol, trend)
+       call forward_wavelet_transform (trend, trend_wav_coeff)
+       call adapt (trend_wav_coeff)
+    else
+       call adapt (wav_coeff)
+    end if
+    if (level_end .gt. level_start) then ! currently several levels exist
+       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+    end if
+  end subroutine adapt_grid
+
   subroutine adapt (wavelet)
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wavelet
     
