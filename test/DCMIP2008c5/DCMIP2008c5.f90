@@ -566,7 +566,8 @@ program DCMIP2008c5
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
 
   cfl_num     = 0.8d0                            ! cfl number
-  n_diffuse   = 1                                ! Diffuse every n_diffuse time steps
+  n_diffuse   = 1                                ! Diffusion step interval
+  n_remap     = 10                               ! Vertical remap interval
 
   viscosity_mass = 1.0d-3/kmax**2                ! viscosity for mass equation
   viscosity_temp = 1.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
@@ -615,6 +616,11 @@ program DCMIP2008c5
      call time_step (dt_write, aligned, set_thresholds)
 
      if (diffuse .and. mod(istep,n_diffuse).eq.0) call time_step_diffuse
+     if (remap .and. mod(istep, n_remap).eq.0) then
+        if (rank.eq.0) write(6,*) 'Remap vertical coordinates'
+        call remap_vertical_coordinates
+        call adapt_grid (set_thresholds)
+     end if
 
      call set_surf_geopot
      call stop_timing

@@ -289,7 +289,7 @@ module shared_mod
   integer, parameter :: DAY = 24*60*60
 
   ! simulation variables
-  integer :: istep, n_diffuse, resume
+  integer :: istep, n_diffuse, n_remap, resume
   real(8) :: dt_init, dt_write, time_end, time
   real(8) :: viscosity_mass, viscosity_temp, viscosity_rotu,  viscosity_divu, omega, radius, grav_accel, cfl_num, kmax
   real(8) :: ref_density, press_infty, ref_press, kappa, c_p, R_d
@@ -358,6 +358,7 @@ contains
     resume        = NONE
     istep         = 0
     n_diffuse     = 1
+    n_remap       = 10
     time          = 0.0_8
     optimize_grid = NO_OPTIM
     threshold     = 0.0_8
