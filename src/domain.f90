@@ -97,9 +97,6 @@ module domain_mod
   ! For mass-based vertical coordinates
   real(8), dimension(:), pointer :: adj_temp_up, adj_mass_up, adj_velo_up, v_mflux
 
-  real(8), dimension(:), allocatable :: mean_press, mean_exner, mean_spec_vol, mean_density, mean_temperature
-  real(8), dimension(:,:), allocatable :: mean
-  
 contains
 
   subroutine init_Float_Field(self, pos)

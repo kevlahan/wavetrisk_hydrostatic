@@ -13,9 +13,6 @@ contains
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! interpolate on the full (not the perturbation) quantities
     ! Conserves mass, heat and momentum flux
-    
-    ! Assumes mean velocity is zero
-    
     integer            :: l
     integer, parameter :: p_default = 7 ! p must be odd
 
@@ -73,7 +70,6 @@ contains
        mass_e(RT+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idE))
        mass_e(DG+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idNE))
        mass_e(UP+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idN))
-       mass_e = mass_e + mean(S_MASS,k)
        ! Mass fluxes
        do e = 1, EDGE
           if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
@@ -93,10 +89,10 @@ contains
     p_surf_N    = press_infty
     do kb = 2, zlevels + 1
        k = zlevels-kb+2
-       pressure(kb) = pressure(kb-1) + grav_accel * (sol(S_MASS,k)%data(d)%elts(id_i) + mean(S_MASS,k))
-       p_surf_E  = p_surf_E  + grav_accel * (sol(S_MASS,k)%data(d)%elts(idE)  + mean(S_MASS,k))
-       p_surf_NE = p_surf_NE + grav_accel * (sol(S_MASS,k)%data(d)%elts(idNE) + mean(S_MASS,k))
-       p_surf_N  = p_surf_N  + grav_accel * (sol(S_MASS,k)%data(d)%elts(idN)  + mean(S_MASS,k))
+       pressure(kb) = pressure(kb-1) + grav_accel*sol(S_MASS,k)%data(d)%elts(id_i)
+       p_surf_E  = p_surf_E  + grav_accel * sol(S_MASS,k)%data(d)%elts(idE) 
+       p_surf_NE = p_surf_NE + grav_accel * sol(S_MASS,k)%data(d)%elts(idNE)
+       p_surf_N  = p_surf_N  + grav_accel * sol(S_MASS,k)%data(d)%elts(idN) 
     end do
     p_surf = pressure(zlevels+1)
     
@@ -136,16 +132,15 @@ contains
        kb = zlevels-k+1
 
        ! Remapped masses needed to interpolate mass at edges
-       mass_id   = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)   /grav_accel - mean(S_MASS,k)
-       mass_idE  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_E) /grav_accel - mean(S_MASS,k)
-       mass_idNE = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_NE)/grav_accel - mean(S_MASS,k)
-       mass_idN  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_N) /grav_accel - mean(S_MASS,k)
+       mass_id   = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)   /grav_accel
+       mass_idE  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_E) /grav_accel
+       mass_idNE = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_NE)/grav_accel
+       mass_idN  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_N) /grav_accel
        
        ! Interpolate remapped masses to edges
        mass_e(RT+1) = interp(mass_id, mass_idE)
        mass_e(DG+1) = interp(mass_id, mass_idNE)
        mass_e(UP+1) = interp(mass_id, mass_idN)
-       mass_e = mass_e + mean(S_MASS,k)
        
        ! Find velocity on new grid from mass flux
        do e = 1, EDGE
@@ -178,7 +173,7 @@ contains
     do kb = 2, zlevels + 1
        k = zlevels-kb+2 ! Actual zlevel
        
-       integrated_temp(kb) = integrated_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i) + mean(S_TEMP,k)
+       integrated_temp(kb) = integrated_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i)
     end do
 
     ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
@@ -186,7 +181,7 @@ contains
     pressure(1) = press_infty
     do kb = 2, zlevels + 1
        k = zlevels-kb+2
-       pressure(kb) = pressure(kb-1) + grav_accel * (sol(S_MASS,k)%data(d)%elts(id_i) + mean(S_MASS,k))
+       pressure(kb) = pressure(kb-1) + grav_accel * sol(S_MASS,k)%data(d)%elts(id_i)
     end do
     p_surf = pressure(zlevels+1)
     
@@ -223,11 +218,10 @@ contains
     do k = 1, zlevels
        kb = zlevels-k+1
        ! Remapped mass-weighted potential temperature from integrated value interpolated to new grid
-       sol(S_TEMP,k)%data(d)%elts(id_i) = (new_temp(kb+1) - new_temp(kb)) - mean(S_TEMP,k)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = (new_temp(kb+1) - new_temp(kb))
 
        ! Remapped mass from new surface pressure and definition of vertical grid
-       sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel &
-            - mean(S_MASS,k)
+       sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel
     end do
   end subroutine remap_scalars
   

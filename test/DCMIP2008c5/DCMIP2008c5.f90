@@ -388,9 +388,9 @@ contains
         tol_temp = temp_scale * threshold 
         tol_velo = velo_scale * threshold
      else
-        tol_mass = (0.99*tol_mass + 0.01*mass_scale * threshold)
-        tol_temp = (0.99*tol_temp + 0.01*temp_scale * threshold)
-        tol_velo = (0.99*tol_velo + 0.01*velo_scale * threshold)
+        tol_mass = (0.9*tol_mass + 0.1*mass_scale * threshold)
+        tol_temp = (0.9*tol_temp + 0.1*temp_scale * threshold)
+        tol_velo = (0.9*tol_velo + 0.1*velo_scale * threshold)
     end if
   end subroutine set_thresholds
 
@@ -523,15 +523,6 @@ program DCMIP2008c5
   dx_max = 2.0_8*MATH_PI * radius
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
-  ! Set (non-dimensional) mean values of variables
-  allocate (mean(S_MASS:S_VELO,1:zlevels))
-  allocate (mean_press(1:zlevels), mean_spec_vol(1:zlevels), mean_exner(1:zlevels))
-  allocate (mean_density(1:zlevels), mean_temperature(1:zlevels))
-
-  ! Put both mean and perturbations into perturbation term
-  mean = 0.0_8
-  mean_press = 0.0_8; mean_spec_vol = 0.0_8; mean_exner = 0.0_8; mean_density = 0.0_8; mean_temperature = 0.0_8
-  
   ! Parameters for the simulation
   grav_accel  = 9.80616_8     ! gravitational acceleration in meters per second squared
   omega       = 7.29211d-5    ! Earth’s angular velocity in radians per second
@@ -567,7 +558,7 @@ program DCMIP2008c5
 
   cfl_num     = 0.8d0                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
-  n_remap     = 10                               ! Vertical remap interval
+  n_remap     = 20                               ! Vertical remap interval
 
   viscosity_mass = 1.0d-3/kmax**2                ! viscosity for mass equation
   viscosity_temp = 1.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
@@ -605,7 +596,7 @@ program DCMIP2008c5
   call write_and_export (iwrite)
 
   dt_init    = 238.0_8 ! Initial time step (not used if adapt_dt is true)
-  iwrite     = 0
+  if(resume.le.0) iwrite = 0
   total_time = 0.0_8
   do while (time .lt. time_end)
      call start_timing
@@ -616,8 +607,9 @@ program DCMIP2008c5
      call time_step (dt_write, aligned, set_thresholds)
 
      if (diffuse .and. mod(istep,n_diffuse).eq.0) call time_step_diffuse
+
      if (remap .and. mod(istep, n_remap).eq.0) then
-        if (rank.eq.0) write(6,*) 'Remap vertical coordinates'
+        if (rank.eq.0) write(6,*) 'Remapping vertical coordinates'
         call remap_vertical_coordinates
         call adapt_grid (set_thresholds)
      end if
@@ -636,7 +628,7 @@ program DCMIP2008c5
           '  mass tol = ', tol_mass, &
           ' temp tol = ', tol_temp, &
           ' velo tol = ', tol_velo, &
-          ' Jmax  =', level_end, &
+          ' Jmax =', level_end, &
           '  dof = ', sum(n_active), &
           ' cpu = ', timing
 
@@ -648,6 +640,7 @@ program DCMIP2008c5
            call remap_vertical_coordinates
            call adapt_grid (set_thresholds)
         end if
+        if (rank.eq.0) write(6,*) 'Saving fields'
         call write_and_export (iwrite)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle 

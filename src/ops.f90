@@ -19,17 +19,17 @@ contains
     type(Domain) :: dom
     integer      :: p, zlev
 
-    integer :: i, j, id, offs(0:N_BDRY), dims(2,N_BDRY)
-    integer :: n, e, s, w, ne, sw
+    integer :: i, j, id,  n, e, s, w, ne, sw
+    integer, dimension(0:N_BDRY) :: offs
+    integer, dimension(2,N_BDRY) :: dims
 
     real(8) :: u_prim_up, u_dual_up, u_prim_dg, u_dual_dg, u_prim_RT, u_dual_rt
     real(8) :: u_prim_UP_S, u_dual_UP_S, u_prim_DG_SW, u_dual_DG_SW, u_prim_RT_W, u_dual_RT_W
     real(8) :: circ_LORT_W, circ_UPLT_S, circ_LORT, circ_UPLT, pv_LORT, pv_UPLT, pv_UPLT_S, pv_LORT_W,  pv_LORT_SW, pv_UPLT_SW
-    real(8), dimension(0:N_BDRY) :: full_mass, full_temp
 
     logical :: S_bdry, W_bdry
 
-    call comp_offs3(dom, p, offs, dims)
+    call comp_offs3 (dom, p, offs, dims)
 
     S_bdry = (dom%patch%elts(p+1)%neigh(SOUTH) .lt. 0)
     if (S_bdry) S_bdry = (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(SOUTH)+1)%side .gt. 0)
@@ -168,9 +168,6 @@ contains
       idSW = id+SW
       idW  = id+W
 
-      full_mass(SOUTHWEST) = mass(idSW+1) + mean(S_MASS,zlev)
-      full_temp(SOUTHWEST) = temp(idSW+1) + mean(S_TEMP,zlev)
-
       u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
       u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
 
@@ -178,14 +175,14 @@ contains
       circ_UPLT_SW = -(u_prim_RT_W + u_prim_DG_SW + u_prim_UP_SW)
 
       pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/( &
-           full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
-           full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) + &
-           full_mass(0)*dom%areas%elts(id+1)%part(5))
+           mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
+           mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
+           mass(id+1)*dom%areas%elts(id+1)%part(5))
 
       pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/( &
-           full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) + &
-           full_mass(0)*dom%areas%elts(id+1)%part(4) + &
-           full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
+           mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) + &
+           mass(id+1)*dom%areas%elts(id+1)%part(4) + &
+           mass(idW+1)*dom%areas%elts(idW+1)%part(6))
 
       vort(TRIAG*idW+LORT+1) = circ_LORT_W/dom%triarea%elts(TRIAG*idW+LORT+1) 
       vort(TRIAG*idS+UPLT+1) = circ_UPLT_S/dom%triarea%elts(TRIAG*idS+UPLT+1) 
@@ -194,13 +191,13 @@ contains
       qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
       qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
-      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(full_mass(WEST) , full_mass(0))
-      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(full_mass(0)    , full_mass(SOUTHWEST))
-      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(full_mass(SOUTH), full_mass(0))
+      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(idW+1), mass(id+1))
+      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1),  mass(idSW+1))
+      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(idS+1), mass(id+1))
 
-      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(full_temp(WEST) , full_temp(0))
-      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(full_temp(0)    , full_temp(SOUTHWEST))
-      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(full_temp(SOUTH), full_temp(0))
+      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(idW+1), temp(id+1))
+      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1),  temp(idSW+1))
+      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(idS+1), temp(id+1))
     end subroutine comp_ijmin
 
     subroutine comput
@@ -216,9 +213,6 @@ contains
       idS  = id+S
       idSW = id+SW
       idW  = id+W
-
-      full_mass(0:NORTHEAST) = mass(id+(/0,n,e,s,w,ne/)+1) + mean(S_MASS,zlev)
-      full_temp(0:NORTHEAST) = temp(id+(/0,n,e,s,w,ne/)+1) + mean(S_TEMP,zlev)
 
       ! Find the velocity on primal and dual grids
       u_prim_RT    = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
@@ -239,13 +233,13 @@ contains
       u_prim_DG_S  = velo(EDGE*idS+DG+1)*dom%len%elts(EDGE*idS+DG+1)
 
       ! Calculate mass and temperature fluxes
-      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(full_mass(0)        , full_mass(EAST))
-      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(full_mass(NORTHEAST), full_mass(0))
-      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(full_mass(0)        , full_mass(NORTH))
+      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1))
+      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1))
+      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1))
 
-      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(full_temp(0)        , full_temp(EAST))
-      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(full_temp(NORTHEAST), full_temp(0))
-      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(full_temp(0)        , full_temp(NORTH))
+      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1))
+      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1))
+      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1))
 
       ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
       ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
@@ -305,24 +299,24 @@ contains
       circ_UPLT_S = -(u_prim_RT    + u_prim_DG_S + u_prim_UP_S)
 
       pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/( &
-           full_mass(0)*dom%areas%elts(id+1)%part(1) + &
-           full_mass(EAST)*dom%areas%elts(idE+1)%part(3) + &
-           full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
+           mass(id+1)*dom%areas%elts(id+1)%part(1) + &
+           mass(idE+1)*dom%areas%elts(idE+1)%part(3) + &
+           mass(idNE+1)*dom%areas%elts(idNE+1)%part(5))
 
       pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/( &
-           full_mass(0)*dom%areas%elts(id+1)%part(2) + &
-           full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(4) + &
-           full_mass(NORTH)*dom%areas%elts(idN+1)%part(6))
+           mass(id+1)*dom%areas%elts(id+1)%part(2) + &
+           mass(idNE+1)*dom%areas%elts(idNE+1)%part(4) + &
+           mass(idN+1)*dom%areas%elts(idN+1)%part(6))
 
       pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/( &
-           full_mass(WEST)*dom%areas%elts(idW+1)%part(1) + &
-           full_mass(0)*dom%areas%elts(id+1)%part(3) + &
-           full_mass(NORTH)*dom%areas%elts(idN+1)%part(5))
+           mass(idW+1)*dom%areas%elts(idW+1)%part(1) + &
+           mass(id+1)*dom%areas%elts(id+1)%part(3) + &
+           mass(idN+1)*dom%areas%elts(idN+1)%part(5))
 
       pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/( &
-           full_mass(SOUTH)*dom%areas%elts(idS+1)%part(2) + &
-           full_mass(EAST)*dom%areas%elts(idE+1)%part(4) + &
-           full_mass(0)*dom%areas%elts(id+1)%part(6))
+           mass(idS+1)*dom%areas%elts(idS+1)%part(2) + &
+           mass(idE+1)*dom%areas%elts(idE+1)%part(4) + &
+           mass(id+1)*dom%areas%elts(id+1)%part(6))
 
       vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1) 
       vort(TRIAG*id+UPLT+1) = circ_UPLT/dom%triarea%elts(TRIAG*id+UPLT+1) 
@@ -345,7 +339,6 @@ contains
     real(8)                      :: circ_LORT, circ_LORT_SW, circ_UPLT_SW, circ_LORT_W, circ_UPLT, circ_UPLT_S
     real(8)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW
     real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
-    real(8), dimension(0:N_BDRY) :: full_mass
 
     if (c .eq. IJMINUS) then
        id   = idx( 0,  0, offs, dims)
@@ -354,8 +347,6 @@ contains
        idS  = idx( 0, -1, offs, dims)
        idN  = idx( 0,  1, offs, dims)
        idE  = idx( 1,  0, offs, dims)
-
-       full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
 
        u_prim_RT_W  = velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) ! Is this really RT edge (no edge lablel)!
@@ -369,19 +360,19 @@ contains
        vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+1) + circ_LORT_SW)/ &
-            (full_mass(WEST)*dom%areas%elts(idW+1)%part(6) &
-            + full_mass(0)*sum(dom%areas%elts(id+1)%part(4:5)) &
-            + full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3))
+            (mass(idW+1)*dom%areas%elts(idW+1)%part(6) &
+            + mass(id+1)*sum(dom%areas%elts(id+1)%part(4:5)) &
+            + mass(idS+1)*dom%areas%elts(idS+1)%part(3))
 
        pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-            (full_mass(WEST)*dom%areas%elts(idW+1)%part(1) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(3) &
-            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(5))
+            (mass(idW+1)*dom%areas%elts(idW+1)%part(1) &
+            + mass(id+1)*dom%areas%elts(id+1)%part(3) &
+            + mass(idN+1)*dom%areas%elts(idN+1)%part(5))
 
        pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-            (full_mass(SOUTH)*dom%areas%elts(idS+1)%part(2) &
-            + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(6))
+            (mass(idS+1)*dom%areas%elts(idS+1)%part(2) &
+            + mass(idE+1)*dom%areas%elts(idE+1)%part(4) &
+            + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
        pv_UPLT_SW = pv_LORT_SW
        
@@ -397,8 +388,6 @@ contains
        idE  = idx(PATCH_SIZE+1,  0, offs, dims)
        idNE = idx(PATCH_SIZE+1,  1, offs, dims)
 
-       full_mass(0:NORTHEAST) = mass((/id,id,idE,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
-
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
        u_prim_RT    = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
@@ -411,19 +400,19 @@ contains
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-             (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) + &
-             full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) + &
-             full_mass(0)*sum(dom%areas%elts(id+1)%part(5:6)))
+             (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
+             mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
+             mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/ &
-            (full_mass(0)*dom%areas%elts(id+1)%part(1) &
-            + full_mass(EAST)*dom%areas%elts(idE+1)%part(3) &
-            + full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(5))
+            (mass(id+1)*dom%areas%elts(id+1)%part(1) &
+            + mass(idE+1)*dom%areas%elts(idE+1)%part(3) &
+            + mass(idNE+1)*dom%areas%elts(idNE+1)%part(5))
 
        pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(2) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(4) &
-            + full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
+            (mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) &
+            + mass(id+1)*dom%areas%elts(id+1)%part(4) &
+            + mass(idW+1)*dom%areas%elts(idW+1)%part(6))
 
        pv_UPLT_S = pv_LORT_SW
 
@@ -439,8 +428,6 @@ contains
        idN  = idx(0,  PATCH_SIZE+1, offs, dims)
        idNE = idx(1,  PATCH_SIZE+1, offs, dims)
 
-       full_mass(0:NORTHEAST) = mass((/id,idN,id,idS,idW,idNE/)+1) + mean(S_MASS,zlev)
-
        u_prim_UP    = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
        u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
@@ -453,19 +440,19 @@ contains
        vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
 
        pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            (full_mass(SOUTHWEST)*dom%areas%elts(idSW  +1)%part(2) &
-            + full_mass(0)*sum(dom%areas%elts(id+1)%part(3:4)) &
-            + full_mass(WEST)*dom%areas%elts(idW+1)%part(6))
+            (mass(idSW+1)*dom%areas%elts(idSW  +1)%part(2) &
+            + mass(id+1)*sum(dom%areas%elts(id+1)%part(3:4)) &
+            + mass(idW+1)*dom%areas%elts(idW+1)%part(6))
 
        pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/ &
-            (full_mass(0)*dom%areas%elts(id+1)%part(2) &
-            + full_mass(NORTHEAST)*dom%areas%elts(idNE+1)%part(4) &
-            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(6))
+            (mass(id+1)*dom%areas%elts(id+1)%part(2) &
+            + mass(idNE+1)*dom%areas%elts(idNE+1)%part(4) &
+            + mass(idN+1)*dom%areas%elts(idN+1)%part(6))
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-            (full_mass(SOUTHWEST)*dom%areas%elts(idSW+1)%part(1) &
-            + full_mass(SOUTH)*dom%areas%elts(idS+1)%part(3) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(5))
+            (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) &
+            + mass(idS+1)*dom%areas%elts(idS+1)%part(3) &
+            + mass(id+1)*dom%areas%elts(id+1)%part(5))
 
        pv_LORT_W = pv_UPLT_SW
 
@@ -480,8 +467,6 @@ contains
        idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
        idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
 
-       full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean(S_MASS,zlev)
-       
        u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+DG+1)
        u_prim_UP   = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
@@ -494,19 +479,19 @@ contains
        vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+1) + circ_LORT)/ &          
-            (full_mass(EAST)*dom%areas%elts(idE+1)%part(3) + &
-            full_mass(0)*sum(dom%areas%elts(id+1)%part(1:2)) + &
-            full_mass(NORTH)*dom%areas%elts(idN+1)%part(6))
+            (mass(idE+1)*dom%areas%elts(idE+1)%part(3) + &
+            mass(id+1)*sum(dom%areas%elts(id+1)%part(1:2)) + &
+            mass(idN+1)*dom%areas%elts(idN+1)%part(6))
 
        pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-            (full_mass(WEST)*dom%areas%elts(idW+1)%part(1) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(3) &
-            + full_mass(NORTH)*dom%areas%elts(idN+1)%part(5))
+            (mass(idW+1)*dom%areas%elts(idW+1)%part(1) &
+            + mass(id+1)*dom%areas%elts(id+1)%part(3) &
+            + mass(idN+1)*dom%areas%elts(idN+1)%part(5))
 
        pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-            (full_mass(SOUTH)*dom%areas%elts(idS+1)%part(2) &
-            + full_mass(EAST)*dom%areas%elts(idE+1)%part(4) &
-            + full_mass(0)*dom%areas%elts(id+1)%part(6))
+            (mass(idS+1)*dom%areas%elts(idS+1)%part(2) &
+            + mass(idE+1)*dom%areas%elts(idE+1)%part(4) &
+            + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
        pv_UPLT = pv_LORT
        
@@ -707,46 +692,43 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
-    real(8) :: full_mass, full_temp
+    integer :: d, id
 
+    d = dom%id+1
     id = idx(i, j, offs, dims)
 
-    full_mass = mass(id+1) + mean(S_MASS,zlev)
-    full_temp = temp(id+1) + mean(S_TEMP,zlev)
-
-    if (full_mass .lt. 1d-6) then
+    if (mass(id+1) .lt. 1d-6) then
        write(6,*) 'Fatal error: a horizontal layer thickness is being squeezed to zero!'
-       write(6,'(3(A,i6,1x))') 'zlev = ', zlev, 'd = ', dom%id+1, 'id = ', id
-       write(6,'(A,es11.4)') 'full mass = ', full_mass
+       write(6,'(3(A,i6,1x))') 'zlev = ', zlev, 'd = ', d, 'id = ', id
+       write(6,'(A,es11.4)') 'mass = ', mass(id+1)
        stop
     end if
 
     if (compressible) then !compressible case
        ! Integrate the pressure from top zlev down to bottom zlev; press_infty is user-set
        if (zlev .eq. zlevels) then
-          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_mass
+          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*mass(id+1)
        else ! Interpolate mass to lower interface
-          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*interp(dom%adj_mass%elts(id+1), full_mass)
+          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*interp(dom%adj_mass%elts(id+1), mass(id+1))
        end if
 
        ! Surface pressure is set (even at t=0) from downward numerical integration
-       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_mass
+       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*mass(id+1)
     else ! Incompressible case
        ! Integrate the pressure from top zlev down to bottom zlev; press_infty is user-set
        if (zlev .eq. zlevels) then !top zlev, it is an exception
-          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*full_temp
+          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*temp(id+1)
        else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*interp(dom%adj_temp%elts(id+1), full_temp)
+          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*interp(dom%adj_temp%elts(id+1), temp(id+1))
        end if
 
-       !surface pressure is set (even at t=0) from downward numerical integration
-       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*full_temp
+       ! Surface pressure is set (even at t=0) from downward numerical integration
+       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*temp(id+1)
     end if
 
     ! Quantities for vertical integration in next zlev down
-    dom%adj_mass%elts(id+1) = full_mass
-    dom%adj_temp%elts(id+1) = full_temp
+    dom%adj_mass%elts(id+1) = mass(id+1)
+    dom%adj_temp%elts(id+1) = temp(id+1)
   end subroutine integrate_pressure_down
 
   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
@@ -757,26 +739,22 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: err, full_mass, full_temp, full_pot_temp, spec_vol, pert_spec_vol
+    real(8) :: err, spec_vol
 
     id = idx(i, j, offs, dims)
 
-    full_mass     = mass(id+1) + mean(S_MASS,zlev)
-    full_temp     = temp(id+1) + mean(S_TEMP,zlev)
-    full_pot_temp = full_temp/full_mass
-
     if (compressible) then ! Compressible case
        if (zlev .eq. 1) then
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_mass
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
        else ! Interpolate mass=rho*dz to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(full_mass, dom%adj_mass%elts(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(mass(id+1), dom%adj_mass%elts(id+1))
        end if
-       dom%adj_mass%elts(id+1) = full_mass ! Save current mass for pressurce calculation at next vertical level
+       dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressurce calculation at next vertical level
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          err = abs((dom%press%elts(id+1) - 0.5_8*grav_accel*full_mass) - press_infty)/dom%surf_press%elts(id+1)
+          err = abs((dom%press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)) - press_infty)/dom%surf_press%elts(id+1)
           if (err .gt. 1e-10_8) then
-             write(6,*) 'warning: upward integration of pressure not resulting in zero at top interface'
+             write(6,*) 'Warning: upward integration of pressure not resulting in zero at top interface'
              write(6,*) '(observed pressure - pressure_infty)/P_Surface =', err
              stop
           end if
@@ -786,8 +764,7 @@ contains
        exner(id+1) = c_p*(dom%press%elts(id+1)/ref_press)**kappa
 
        ! Specific volume alpha = kappa*theta*pi/p
-       spec_vol = kappa * full_pot_temp * exner(id+1) / dom%press%elts(id+1)
-       pert_spec_vol = spec_vol - mean_spec_vol(zlev)
+       spec_vol = kappa * temp(id+1)/mass(id+1) * exner(id+1) / dom%press%elts(id+1)
 
        ! Find geopotential at upper interface of current level using (18) in DYNAMICO
        if (zlev .eq. 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
@@ -795,22 +772,21 @@ contains
        else
           dom%adj_geopot%elts(id+1) = dom%geopot%elts(id+1)
        end if
-       dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
-            grav_accel * (full_mass*pert_spec_vol + mass(id+1)*mean_spec_vol(zlev))
+       dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel*mass(id+1)*spec_vol
     else ! Incompressible case
        if (zlev .eq. 1) then 
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*full_temp
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*temp(id+1)
        else ! Interpolate to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(dom%adj_temp%elts(id+1), full_temp)
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(dom%adj_mass%elts(id+1), temp(id+1))
        end if
-       dom%adj_mass%elts(id+1) = full_mass
+       dom%adj_mass%elts(id+1) = temp(id+1)
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*full_temp - press_infty).gt. 1e-10_8) then
+          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1) - press_infty).gt. 1e-10_8) then
              print *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
-             write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id+1)-0.5_8*grav_accel*full_temp
+             write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1)
              write(6,'(A,es15.8)') "Press_infty = ", press_infty
-             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id+1)-0.5_8*grav_accel*full_temp - press_infty
+             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1) - press_infty
              stop
           end if
        end if
@@ -978,7 +954,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: v_tflux, full_pot_temp, full_pot_temp_up
+    real(8) :: v_tflux, theta, theta_up
 
     id = idx(i, j, offs, dims)
 
@@ -998,16 +974,16 @@ contains
        call compute_vert_flux (dom, i, j, zlev, offs, dims)
 
        ! Find non mass-weighted potential temperature at current level
-       full_pot_temp = (temp(id+1) + mean(S_TEMP,zlev))/(mass(id+1) + mean(S_MASS,zlev))
+       theta = temp(id+1)/mass(id+1)
 
        ! Add vertical divergence of vertical potential temperature flux to
        ! trend of mass-weighted potential temperature
        if (zlev.eq.1) then  ! Vertical flux is zero at surface
           ! Potential temperature at next level up
-          full_pot_temp_up = (adj_temp_up(id+1) + mean(S_TEMP,zlev))/(adj_mass_up(id+1) + mean(S_MASS,zlev))
+          theta_up = adj_temp_up(id+1)/adj_mass_up(id+1)
 
           ! Vertical flux of potential temperature at upper interface
-          v_tflux = interp(full_pot_temp, full_pot_temp_up) * v_mflux(id+1)
+          v_tflux = interp(theta, theta_up) * v_mflux(id+1)
 
           dtemp(id+1) = dtemp(id+1) + v_tflux
 
@@ -1017,10 +993,10 @@ contains
 
        else
           ! Potential temperature at next level up
-          full_pot_temp_up = (adj_temp_up(id+1) + mean(S_TEMP,zlev))/(adj_mass_up(id+1) + mean(S_MASS,zlev))
+          theta_up = adj_temp_up(id+1)/adj_mass_up(id+1)
 
           ! Vertical flux of potential temperature at upper interface
-          v_tflux = interp(full_pot_temp, full_pot_temp_up) * v_mflux(id+1)
+          v_tflux = interp(theta, theta_up) * v_mflux(id+1)
 
           dtemp(id+1) = dtemp(id+1) + (v_tflux - dom%adj_vflux%elts(id+1))
 
@@ -1110,9 +1086,9 @@ contains
     integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer               :: e, id, idE, idN, idNE
-    real(8)               :: full_theta(0:N_BDRY)
-    real(8), dimension(3) :: gradB, gradE, v_star, theta_e
+    integer                      :: e, id, idE, idN, idNE
+    real(8), dimension(0:N_BDRY) :: theta
+    real(8), dimension(3)        :: gradB, gradE, v_star, theta_e
 
     id   = idx(i,   j,   offs, dims)
     idE  = idx(i+1, j,   offs, dims)
@@ -1121,20 +1097,20 @@ contains
 
     ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
     ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-    full_theta(0)         = (temp(id+1)   + mean(S_TEMP,zlev))/(mass(id+1)   + mean(S_MASS,zlev))
-    full_theta(NORTH)     = (temp(idN+1)  + mean(S_TEMP,zlev))/(mass(idN+1)  + mean(S_MASS,zlev))
-    full_theta(EAST)      = (temp(idE+1)  + mean(S_TEMP,zlev))/(mass(idE+1)  + mean(S_MASS,zlev))
-    full_theta(NORTHEAST) = (temp(idNE+1) + mean(S_TEMP,zlev))/(mass(idNE+1) + mean(S_MASS,zlev))
+    theta(0)         = temp(id+1)/mass(id+1)
+    theta(NORTH)     = temp(idN+1)/mass(idN+1)
+    theta(EAST)      = temp(idE+1)/mass(idE+1)
+    theta(NORTHEAST) = temp(idNE+1)/mass(idNE+1)
 
     ! Interpolate potential temperature to edges
     if (compressible) then
-       theta_e(1) = interp(full_theta(0), full_theta(EAST))
-       theta_e(2) = interp(full_theta(0), full_theta(NORTHEAST))
-       theta_e(3) = interp(full_theta(0), full_theta(NORTH))
+       theta_e(1) = interp(theta(0), theta(EAST))
+       theta_e(2) = interp(theta(0), theta(NORTHEAST))
+       theta_e(3) = interp(theta(0), theta(NORTH))
     else
-       theta_e(1) = interp(1.0_8-full_theta(0),1.0_8-full_theta(EAST))
-       theta_e(2) = interp(1.0_8-full_theta(0),1.0_8-full_theta(NORTHEAST)) 
-       theta_e(3) = interp(1.0_8-full_theta(0),1.0_8-full_theta(NORTH)) 
+       theta_e(1) = interp(1.0_8-theta(0), 1.0_8-theta(EAST))
+       theta_e(2) = interp(1.0_8-theta(0), 1.0_8-theta(NORTHEAST)) 
+       theta_e(3) = interp(1.0_8-theta(0), 1.0_8-theta(NORTH)) 
     end if
 
     ! Calculate gradients
@@ -1288,7 +1264,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! Non-mass weighted vertical velocity at upper interface
-    velo = v_mflux(id+1)/(mass(id+1) + mean(S_MASS,zlev))
+    velo = v_mflux(id+1)/mass(id+1)
 
     if (zlev.eq.1) then ! No vertical flux through lower interface of bottom level
        dom%vert_velo%elts(id+1) = interp(velo, 0.0_8)

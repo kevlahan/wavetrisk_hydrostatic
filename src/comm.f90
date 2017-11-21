@@ -1117,7 +1117,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: A_i, A_v, C_visc, csq, d_e, full_mass, l_e, total_mass, v_e, visc, wave_speed
+    real(8) :: A_i, A_v, C_visc, csq, d_e, l_e, total_mass, v_e, visc, wave_speed
 
     C_visc = 0.3_8
     
@@ -1133,11 +1133,10 @@ contains
        ! Find total mass for this node
        total_mass = 0.0_8
        do k = 1, zlevels
-          full_mass = sol(S_MASS,k)%data(d)%elts(id+1) + mean(S_MASS,k)
-          min_mass = min (min_mass, full_mass)
-          if (full_mass .le. 0.0_8) where_error = dom%node%elts(id+1)  ! sqrt will give NaN
+          min_mass = min (min_mass, sol(S_MASS,k)%data(d)%elts(id+1))
+          if (sol(S_MASS,k)%data(d)%elts(id+1) .le. 0.0_8) where_error = dom%node%elts(id+1)  ! sqrt will give NaN
           
-          total_mass = total_mass + full_mass
+          total_mass = total_mass + sol(S_MASS,k)%data(d)%elts(id+1)
           if (isnan(sol(S_MASS,k)%data(d)%elts(id+1))) then
              write(0,*) "ERROR: a mass element is NaN"
              stop

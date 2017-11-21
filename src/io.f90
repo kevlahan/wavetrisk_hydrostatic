@@ -214,7 +214,7 @@ contains
     integer :: id
 
     id = idx(i, j, offs, dims)
-    mass_pert = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1) + mean(S_MASS,zlev)
+    mass_pert = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
   end function mass_pert
 
   function pot_energy (dom, i, j, zlev, offs, dims)
@@ -483,9 +483,7 @@ contains
     idS  = idx(i,     j - 1, offs, dims)
 
     ! Temperature in layer zlev
-    outv(1) = (sol(S_TEMP,zlev)%data(d)%elts(id+1) + mean(S_TEMP,zlev)) / &
-         (sol(S_MASS,zlev)%data(d)%elts(id+1) + mean(S_MASS,zlev)) * &
-         (dom%press%elts(id+1)/ref_press)**kappa ! Convert to actual temperature
+    outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/sol(S_MASS,zlev)%data(d)%elts(id+1)*(dom%press%elts(id+1)/ref_press)**kappa
 
     ! Zonal and meridional velocities
     outv(2) = dom%u_zonal%elts(id+1)
