@@ -777,9 +777,9 @@ contains
        if (zlev .eq. 1) then 
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*temp(id+1)
        else ! Interpolate to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(dom%adj_mass%elts(id+1), temp(id+1))
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(dom%adj_temp%elts(id+1), temp(id+1))
        end if
-       dom%adj_mass%elts(id+1) = temp(id+1)
+       dom%adj_temp%elts(id+1) = temp(id+1)
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
           if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1) - press_infty).gt. 1e-10_8) then
