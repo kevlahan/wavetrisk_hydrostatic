@@ -7,7 +7,7 @@ module DCMIP2008c5_mod
   integer                            :: CP_EVERY, id, zlev, iwrite, j, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
-  real(8)                            :: initotalmass, totalmass, timing, total_time, dh
+  real(8)                            :: initotalmass, totalmass, timing, total_cpu_time, dh
   logical                            :: wasprinted, uniform
   character (255)                    :: IC_file
 
@@ -292,18 +292,30 @@ contains
 
     zlev = 6 ! Only export one vertical level
 
+    ! First integrate pressure down across all grid points in order to compute surface pressure
+    do k = zlevels, 1, -1
+       do d = 1, size(grid)
+          mass => sol(S_MASS,k)%data(d)%elts
+          temp => sol(S_TEMP,k)%data(d)%elts
+
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
+          end do
+
+          nullify (mass, temp)
+       end do
+    end do
+
     do l = level_start, level_end
-       minv = 1.d63;
-       maxv = -1.d63;
+       minv = 1.0d63; maxv = -1.0d63
        u = 100000+100*iwrite
 
-       ! Calculate pressure and geopotential at vertical level zlev and scale l
+       ! Calculate pressure, exner and geopotential at vertical level zlev and scale l
        do k = 1, zlev
           do d = 1, size(grid)
-             mass      => sol(S_MASS,k)%data(d)%elts
-             temp      => sol(S_TEMP,k)%data(d)%elts
-             bernoulli => grid(d)%bernoulli%elts
-             exner     => grid(d)%exner%elts
+             mass  => sol(S_MASS,k)%data(d)%elts
+             temp  => sol(S_TEMP,k)%data(d)%elts
+             exner => grid(d)%exner%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
@@ -329,10 +341,8 @@ contains
           minv(i) = -sync_max_d(-minv(i))
           maxv(i) =  sync_max_d( maxv(i))
        end do
-       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') &
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') &
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
        u = 200000+100*iwrite
        call write_level_mpi (write_dual, u+l, l, zlev, .False.)
     end do
@@ -595,9 +605,9 @@ program DCMIP2008c5
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite)
 
-  dt_init    = 238.0_8 ! Initial time step (not used if adapt_dt is true)
+  dt_init = 238.0_8 ! Time step (not used if adapt_dt is true)
   if(resume.le.0) iwrite = 0
-  total_time = 0.0_8
+  total_cpu_time = 0.0_8
   do while (time .lt. time_end)
      call start_timing
      call update_array_bdry (sol, NONE)
@@ -617,7 +627,7 @@ program DCMIP2008c5
      call set_surf_geopot
      call stop_timing
      timing = get_timing()
-     total_time = total_time + timing
+     total_cpu_time = total_cpu_time + timing
      
      call write_and_print_step
 
@@ -636,10 +646,9 @@ program DCMIP2008c5
      
      if (aligned) then
         iwrite = iwrite + 1
-        if (remap) then
-           call remap_vertical_coordinates
-           call adapt_grid (set_thresholds)
-        end if
+        ! Remap to original vertical coordinates before saving data or checkpoint
+        call remap_vertical_coordinates
+        call adapt_grid (set_thresholds)
         if (rank.eq.0) write(6,*) 'Saving fields'
         call write_and_export (iwrite)
 
@@ -667,7 +676,7 @@ program DCMIP2008c5
   end do
 
   if (rank .eq. 0) then
-     write(6,'(A,ES11.4)') 'Total cpu time = ', total_time
+     write(6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
      close(1011)
      close(8450)
   end if
