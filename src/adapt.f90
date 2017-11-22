@@ -22,12 +22,13 @@ contains
   subroutine adapt_grid (set_thresholds)
     external :: set_thresholds
     
-    call set_thresholds
     if (adapt_trend) then
        call trend_ml (sol, trend)
+       call set_thresholds
        call forward_wavelet_transform (trend, trend_wav_coeff)
        call adapt (trend_wav_coeff)
     else
+       call set_thresholds
        call adapt (wav_coeff)
     end if
     if (level_end .gt. level_start) call inverse_wavelet_transform (wav_coeff, sol, level_start)

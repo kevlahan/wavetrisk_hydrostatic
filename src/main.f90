@@ -101,9 +101,9 @@ contains
           call forward_wavelet_transform (trend, trend_wav_coeff)
        end if
        call set_thresholds
-       tol_mass = tol_mass/2.0_8
-       tol_temp = tol_temp/2.0_8
-       tol_velo = tol_velo/2.0_8
+       tol_mass = tol_mass/4.0_8
+       tol_temp = tol_temp/4.0_8
+       tol_velo = tol_velo/4.0_8
 
        do while (level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
@@ -196,7 +196,6 @@ contains
 
     integer(8)           :: idt, ialign
     
-    dt = cpt_dt_mpi()
     istep = istep+1
 
     ! Match certain times exactly
@@ -217,7 +216,8 @@ contains
     call RK45_opt 
 
     if (min_level .lt. max_level) call adapt_grid (set_thresholds)
-    
+    dt = cpt_dt_mpi()
+
     itime = itime + idt
     time  = itime/time_mult
   end subroutine time_step
@@ -521,17 +521,18 @@ contains
     call barrier ! do not delete files before everyone has read them
 
     if (rank .eq. 0) call system (command)
-  
+
+    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+    if (adapt_trend) call trend_ml (sol, trend)
+    call set_thresholds
+
     if (adapt_trend) then
-       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-       call trend_ml (sol, trend)
-       call forward_wavelet_transform (trend, trend_wav_coeff)
        call adapt (trend_wav_coeff)
-       call inverse_wavelet_transform (wav_coeff, sol, level_start)
     else
        call adapt (wav_coeff)
-       call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     end if
+    call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    dt = cpt_dt_mpi()
   end subroutine restart_full
 
   subroutine read_sol(custom_load)
