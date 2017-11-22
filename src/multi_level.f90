@@ -462,8 +462,8 @@ contains
 
     integer :: id_par, id_chd
 
-    id_chd   = idx(i_chd, j_chd, offs_chd, dims_chd)
-    id_par   = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx(i_par, j_par, offs_par, dims_par)
 
     if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) then
        bernoulli(id_par+1) = bernoulli(id_chd+1)
@@ -575,8 +575,8 @@ contains
     type(Domain) :: dom
     integer      :: l
 
-    integer :: j, p_par, c, p_chd
-    logical :: restrict(N_CHDRN)
+    integer                     :: j, p_par, c, p_chd
+    logical, dimension(N_CHDRN) :: restrict
 
     do j = 1, dom%lev(l)%length
        p_par = dom%lev(l)%elts(j)
@@ -600,8 +600,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer :: id_par, id_chd
-    real(8), dimension (4) :: sm_flux_m, sm_flux_t
+    integer               :: id_par, id_chd
+    real(8), dimension(4) :: sm_flux_m, sm_flux_t
    
     id_chd   = idx(i_chd, j_chd, offs_chd, dims_chd)
     id_par   = idx(i_par, j_par, offs_par, dims_par)
@@ -614,7 +614,7 @@ contains
     subroutine flux_restr (dscalar, h_flux)
       real(8), dimension(:), pointer :: dscalar, h_flux
       
-      real(8), dimension (4) :: sm_flux
+      real(8), dimension(4) :: sm_flux
 
       if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) .ge. RESTRCT) then
          sm_flux = interp_flux(h_flux, dom, i_chd, j_chd, offs_chd, dims_chd)
@@ -645,9 +645,8 @@ contains
 
       type(Domain)           :: dom
       integer                :: e
+      real(8)                :: p_flux, c_flux
       real(8), dimension(4)  :: sm_flux
-      
-      real(8) :: p_flux, c_flux
 
       if (e .eq. RT) then
          p_flux = part_coarse_flux(dscalar, flux, dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
@@ -709,7 +708,7 @@ contains
       integer, dimension(2,N_BDRY+1) :: dims
       
       integer, dimension(2)  :: ij_mp, ij_pp, ij_pm, ij_mm
-      integer, dimension(20) :: id(20)
+      integer, dimension(20) :: id
 
       id(UMZ+1) = ed_idx(i, j, hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims)
       id(UPZ+1) = ed_idx(i, j, hex_sides(:,hex_s_offs(e+1) + 4 + 1), offs, dims)
@@ -751,7 +750,7 @@ contains
       real(4)                :: wgt
       integer, dimension(20) :: id
 
-      call get_indices(dom, i+1, j, RT, offs, dims, id)
+      call get_indices (dom, i+1, j, RT, offs, dims, id)
 
       interp_flux(1) = - sum(flux(id((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j-2, offs, dims)+1)%enc) &
            - sum((flux(id((/VPM,WMMM,UMZ/)+1)+1) -flux(id((/UPZ,VPMM,WMM/)+1)+1)) * &
@@ -784,7 +783,7 @@ contains
       real(8), dimension(4)  :: ol_area
       integer, dimension(20) :: id
 
-      call get_indices(dom, i, j, e, offs, dims, id)
+      call get_indices (dom, i, j, e, offs, dims, id)
       
       area = dom%overl_areas%elts(idx(i, j, offs, dims) + 1)%a(1:2)
       ol_area(1:2) = dom%overl_areas%elts(idx(i, j, offs, dims) + 1)%split
