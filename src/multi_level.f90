@@ -487,9 +487,9 @@ contains
 
     call update_array_bdry (q, NONE)
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Calculate trend on finest scale !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
@@ -540,9 +540,9 @@ contains
           call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), level_end) ! <= start non-blocking communicate dmass (l+1)
        end if
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        ! Calculate trend on coarser scales, from fine to coarse !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do l = level_end-1, level_start, -1
           call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
 
@@ -647,9 +647,7 @@ contains
        p_par = dom%lev(l)%elts(j)
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .eq. 0) then
-             call apply_onescale_to_patch (du_source, dom, p_par, z_null, 0, 0)
-          end if
+          if (p_chd .eq. 0) call apply_onescale_to_patch (du_source, dom, p_par, z_null, 0, 0)
        end do
        call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
     end do
@@ -712,6 +710,7 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
 
     integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
+    real (8) :: u_prim_RT, u_prim_RT_E, u_prim_DG, u_prim_DG_NE, u_prim_UP, u_prim_UP_N
 
     id_par   = idx(i_par,     j_par,     offs_par, dims_par)
 
@@ -724,17 +723,22 @@ contains
        call du_source_diffuse (dom, i_par, j_par, zlev, offs_par, dims_par)
     end if
 
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
-       dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
-    end if
+    ! Restriction is on edge integrated velocity
+    u_prim_RT    = dvelo(EDGE*id_chd+RT+1)*dom%len%elts(EDGE*id_chd+RT+1)
+    u_prim_RT_E  = dvelo(EDGE*idE_chd+RT+1)*dom%len%elts(EDGE*idE_chd+RT+1)
+    u_prim_DG    = dvelo(EDGE*id_chd+DG+1)*dom%len%elts(EDGE*id_chd+DG+1)
+    u_prim_DG_NE = dvelo(EDGE*idNE_chd+DG+1)*dom%len%elts(EDGE*idNE_chd+DG+1)
+    u_prim_UP    = dvelo(EDGE*id_chd+UP+1)*dom%len%elts(EDGE*id_chd+UP+1)
+    u_prim_UP_N  = dvelo(EDGE*idN_chd+UP+1)*dom%len%elts(EDGE*idN_chd+UP+1)
+    
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) &
+         dvelo(EDGE*id_par+RT+1) = (u_prim_RT + u_prim_RT_E)/dom%len%elts(EDGE*id_par+RT+1)
 
-    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) then
-       dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
-    end if
+    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) &
+         dvelo(EDGE*id_par+DG+1) = (u_prim_DG + u_prim_DG_NE)/dom%len%elts(EDGE*id_par+DG+1)
 
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
-       dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
-    end if
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) &
+         dvelo(EDGE*id_par+UP+1) = (u_prim_UP + u_prim_UP_N)/dom%len%elts(EDGE*id_par+UP+1)
   end subroutine du_source_diffuse_cpt_restr
 
   subroutine cpt_or_restr_flux (dom, l)
