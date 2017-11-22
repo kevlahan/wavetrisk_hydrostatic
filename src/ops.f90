@@ -804,7 +804,7 @@ contains
   end subroutine integrate_pressure_up
   
   subroutine du_source (dom, i, j, zlev, offs, dims)
-    ! Source (non gradient) terms in velocity trend
+    ! Edge integrated source (non gradient) terms in velocity trend
     ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
     type(Domain),                   intent(in) :: dom
     integer,                        intent(in) :: i, j, zlev
@@ -864,7 +864,7 @@ contains
   end function Laplacian_u
 
   function Qperp (dom, i, j, zlev, offs, dims)
-    ! Compute energy-conserving Qperp and add it to dvelo [Aechtner thesis page 44]
+    ! Compute energy-conserving edge integrated Qperp and add it to dvelo [Aechtner thesis page 44]
     real(8), dimension(3)          :: Qperp
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1117,7 +1117,7 @@ contains
     gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
     gradE = gradi_e (exner,     dom, i, j, offs, dims)
 
-    ! Update velocity trend
+    ! Update velocity trend (source dvelo calculated was edge integrated)
     do e = 1, EDGE
        dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
     end do

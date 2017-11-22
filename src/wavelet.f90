@@ -1169,8 +1169,8 @@ contains
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    mass(id_par+1) = restrict_s(mass(id_chd+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    temp(id_par+1) = restrict_s(temp(id_chd+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    mass(id_par+1) = restrict_s (mass(id_chd+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    temp(id_par+1) = restrict_s (temp(id_chd+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine restrict_scalar
 
   function restrict_s (scalar, wavelet, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)

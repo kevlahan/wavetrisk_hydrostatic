@@ -387,12 +387,6 @@ contains
     temp_scale = sync_max_d(norm_temp)
     velo_scale = sync_max_d(norm_velo)
     
-    ! rms scaling
-    ! N_node = sum_int(N_node)
-    ! mass_scale = sqrt(sum_real(norm_mass)/real(N_node))
-    ! temp_scale = sqrt(sum_real(norm_temp)/real(N_node))
-    ! velo_scale = sqrt(sum_real(norm_velo)/real(3*N_node))
-        
     if (istep.eq.0) then
         tol_mass = mass_scale * threshold 
         tol_temp = temp_scale * threshold 
@@ -584,11 +578,11 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .false.  ! Adapt on trend or on variables
+  adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
-  remap            = .true.  ! Remap vertical coordinates
+  remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
 
   ! Initialize variables
