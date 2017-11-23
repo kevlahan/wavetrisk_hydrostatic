@@ -233,7 +233,11 @@ contains
        mass_e(UP+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idN))
        ! Mass fluxes
        do e = 1, EDGE
-          mass_flux = mass_e(e) * sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+          if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
+             mass_flux = mass_e(e) * sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * dom%pedlen%elts(EDGE*id+e)
+          else
+             mass_flux = 0.0_8
+          end if
           integrated_flux(kb,e) = integrated_flux(kb-1,e) + mass_flux
        end do
     end do
@@ -301,7 +305,11 @@ contains
 
        ! Find velocity on new grid from mass flux
        do e = 1, EDGE
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) / mass_e(e)
+          if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
+             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) / (mass_e(e)*dom%pedlen%elts(EDGE*id+e))
+          else
+             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = 0.0_8
+          end if
        end do
     end do
   end subroutine remap_velocity
@@ -374,6 +382,7 @@ contains
 
        ! Remapped mass from new surface pressure and definition of vertical grid
        sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel
+
     end do
   end subroutine remap_scalars
 
