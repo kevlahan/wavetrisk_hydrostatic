@@ -4,6 +4,7 @@ module remap_mod
   use arch_mod
   use comm_mpi_mod
   use ops_mod
+  use wavelet_mod
   implicit none
 
   integer                             :: order
