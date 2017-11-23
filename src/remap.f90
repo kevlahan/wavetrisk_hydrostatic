@@ -32,42 +32,45 @@ contains
     ! Remap variables on finest scale !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
-    ! Remap velocity first to use only values of mass on current grid to find old momentum
-    do d = 1, size(grid)
-       do j = 1, grid(d)%lev(level_end)%length
-          call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
+    do l = level_start, level_end
+       ! Remap velocity first to use only values of mass on current grid to find old momentum
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+          end do
        end do
-    end do
-    ! Remap mass and mass-weighted temperature
-    do d = 1, size(grid)
-       do j = 1, grid(d)%lev(level_end)%length
-          call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+
+       ! Remap mass and mass-weighted temperature
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
        end do
     end do
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Remap at coarser scales !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    do l = level_end-1, level_start, -1
-       do d = 1, size(grid)
-          call cpt_or_restr_velo (grid(d), l)
-       end do
+    ! do l = level_end-1, level_start, -1
+    !    do d = 1, size(grid)
+    !       call cpt_or_restr_velo (grid(d), l)
+    !    end do
 
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-       end do
+    !    do d = 1, size(grid)
+    !       do j = 1, grid(d)%lev(l)%length
+    !          call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+    !       end do
+    !    end do
 
-       do d = 1, size(grid)
-          do k = 1, zlevels
-             mass => sol(S_MASS,k)%data(d)%elts
-             temp => sol(S_TEMP,k)%data(d)%elts
-             call cpt_or_restr_scalar (grid(d), l)
-             nullify (mass, temp)
-          end do
-       end do
-    end do
+    !    do d = 1, size(grid)
+    !       do k = 1, zlevels
+    !          mass => sol(S_MASS,k)%data(d)%elts
+    !          temp => sol(S_TEMP,k)%data(d)%elts
+    !          call cpt_or_restr_scalar (grid(d), l)
+    !          nullify (mass, temp)
+    !       end do
+    !    end do
+    ! end do
 
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
@@ -159,15 +162,38 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer :: id_par, id_chd
+    integer :: id_par
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     id_par = idx(i_par, j_par, offs_par, dims_par)
-
+    
     if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) then
-       mass(id_par+1) = mass(id_chd+1)
-       temp(id_par+1) = temp(id_chd+1)
+       mass(id_par+1) = scalar_restr (mass)
+       temp(id_par+1) = scalar_restr (temp)
     end if
+  contains
+    function scalar_restr (scalar)
+      ! Mass conserving restriction
+      real(8)                        :: scalar_restr
+      real(8), dimension(:)          :: scalar
+     
+      integer :: id_chd, idE_chd, idNE_chd, idN_chd, idW_chd, idSW_chd, idS_chd
+
+      id_chd   = idx(i_chd,   j_chd,   offs_chd, dims_chd)
+      idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+      idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+      idN_chd  = idx(i_chd,   j_chd,   offs_chd, dims_chd)
+      idW_chd  = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
+      idSW_chd = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
+      idS_chd  = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
+
+      scalar_restr = (scalar(id_chd+1)/dom%areas%elts(id_chd+1)%hex_inv + 0.5_8 * ( &
+           scalar(idE_chd+1) /dom%areas%elts(idE_chd+1)%hex_inv  + &
+           scalar(idNE_chd+1)/dom%areas%elts(idNE_chd+1)%hex_inv + &
+           scalar(idN_chd+1) /dom%areas%elts(idN_chd+1)%hex_inv  + &
+           scalar(idW_chd+1) /dom%areas%elts(idW_chd+1)%hex_inv  + &
+           scalar(idSW_chd+1)/dom%areas%elts(idSW_chd+1)%hex_inv + &
+           scalar(idS_chd+1) /dom%areas%elts(idS_chd+1)%hex_inv)) * dom%areas%elts(id_par+1)%hex_inv
+    end function scalar_restr
   end subroutine scalar_cpt_restr
 
   subroutine remap_velocity (dom, i, j, zlev, offs, dims)
@@ -203,11 +229,7 @@ contains
        mass_e(UP+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idN))
        ! Mass fluxes
        do e = 1, EDGE
-          if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
-             mass_flux = mass_e(e) * sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * dom%pedlen%elts(EDGE*id+e)
-          else
-             mass_flux = 0.0_8
-          end if
+          mass_flux = mass_e(e) * sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
           integrated_flux(kb,e) = integrated_flux(kb-1,e) + mass_flux
        end do
     end do
@@ -275,11 +297,7 @@ contains
 
        ! Find velocity on new grid from mass flux
        do e = 1, EDGE
-          if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
-             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) / (mass_e(e)*dom%pedlen%elts(EDGE*id+e))
-          else
-             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = 0.0_8
-          end if
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) / mass_e(e)
        end do
     end do
   end subroutine remap_velocity
@@ -348,7 +366,7 @@ contains
     do k = 1, zlevels
        kb = zlevels-k+1
        ! Remapped mass-weighted potential temperature from integrated value interpolated to new grid
-       sol(S_TEMP,k)%data(d)%elts(id_i) = (new_temp(kb+1) - new_temp(kb))
+       sol(S_TEMP,k)%data(d)%elts(id_i) = new_temp(kb+1) - new_temp(kb)
 
        ! Remapped mass from new surface pressure and definition of vertical grid
        sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel

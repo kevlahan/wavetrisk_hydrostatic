@@ -580,7 +580,7 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse          = .true.  ! Diffuse scalars
+  diffuse          = .false.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
