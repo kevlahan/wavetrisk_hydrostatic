@@ -49,6 +49,9 @@ contains
        end do
     end do
 
+    ! Ensure boundary values are up to date
+    call update_array_bdry (sol, NONE)
+    
     call forward_wavelet_transform (sol, wav_coeff)
     call inverse_wavelet_transform (wav_coeff, sol)
 
@@ -75,9 +78,6 @@ contains
     !       end do
     !    end do
     ! end do
-
-    ! Ensure boundary values are up to date
-    call update_array_bdry (sol, NONE)
   end subroutine remap_vertical_coordinates
 
   subroutine cpt_or_restr_velo (dom, l)
