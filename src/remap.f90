@@ -36,7 +36,7 @@ contains
        ! Remap velocity first to use only values of mass on current grid to find old momentum
        do d = 1, size(grid)
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+             call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
           end do
        end do
 
@@ -47,6 +47,9 @@ contains
           end do
        end do
     end do
+
+    call forward_wavelet_transform (sol, wav_coeff)
+    call inverse_wavelet_transform (wav_coeff, sol)
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Remap at coarser scales !

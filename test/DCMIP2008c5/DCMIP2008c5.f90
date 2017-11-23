@@ -562,7 +562,7 @@ program DCMIP2008c5
 
   cfl_num     = 0.8d0                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
-  n_remap     = 20                               ! Vertical remap interval
+  n_remap     = 5                               ! Vertical remap interval
 
   viscosity_mass = 1.0d-3/kmax**2                ! viscosity for mass equation
   viscosity_temp = 1.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
@@ -580,9 +580,9 @@ program DCMIP2008c5
   ! Set logical switches
   adapt_trend      = .true.  ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
-  diffuse          = .false.  ! Diffuse scalars
+  diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
-  remap            = .false.  ! Remap vertical coordinates
+  remap            = .true.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
 
   ! Initialize variables
@@ -641,8 +641,8 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         ! Remap to original vertical coordinates before saving data or checkpoint
-        call remap_vertical_coordinates
-        call adapt_grid (set_thresholds)
+        !call remap_vertical_coordinates
+        !call adapt_grid (set_thresholds)
         if (rank.eq.0) write(6,*) 'Saving fields'
         call write_and_export (iwrite)
 
