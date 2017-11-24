@@ -562,7 +562,7 @@ program DCMIP2008c5
 
   cfl_num     = 0.8d0                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
-  n_remap     = 5                                ! Vertical remap interval
+  n_remap     = 1                                ! Vertical remap interval
   
   dt_init     = 500.0_8                          ! Time step (not used if adapt_dt is true)
 
@@ -580,11 +580,11 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .true.  ! Adapt on trend or on variables
-  adapt_dt         = .false.  ! Adapt time step
+  adapt_trend      = .false. ! Adapt on trend or on variables
+  adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
-  remap            = .true.  ! Remap vertical coordinates
+  remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
 
   ! Initialize variables
@@ -610,13 +610,12 @@ program DCMIP2008c5
      n_node_old = grid(:)%node%length
 
      call time_step (dt_write, aligned, set_thresholds)
-
      if (diffuse .and. mod(istep,n_diffuse).eq.0) call time_step_diffuse
 
      if (remap .and. mod(istep, n_remap).eq.0) then
         if (rank.eq.0) write(6,*) 'Remapping vertical coordinates'
-        call remap_vertical_coordinates
-        call adapt_grid (set_thresholds)
+       call remap_vertical_coordinates
+       call adapt_grid (set_thresholds)
      end if
 
      call set_surf_geopot

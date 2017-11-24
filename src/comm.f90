@@ -1119,7 +1119,7 @@ contains
     integer :: d, e, id, k, l
     real(8) :: A_i, A_v, C_visc, csq, d_e, l_e, total_mass, v_e, visc, wave_speed
 
-    C_visc = 0.3_8
+    C_visc = 0.1_8
     
     id = idx(i, j, offs, dims)
     d  = dom%id + 1

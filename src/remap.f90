@@ -5,6 +5,7 @@ module remap_mod
   use comm_mpi_mod
   use ops_mod
   use wavelet_mod
+  use time_integr_mod
   implicit none
 
   integer                             :: order
@@ -33,27 +34,14 @@ contains
     ! Remap variables on finest scale !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
+    ! Remap velocity first to use only values of mass on current grid to find old momentum
     do l = level_start, level_end
        ! Remap velocity first to use only values of mass on current grid to find old momentum
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-          end do
-       end do
-
+       call apply_onescale (remap_velocity, l, z_null, 0, 0)
        ! Remap mass and mass-weighted temperature
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-       end do
+       call apply_onescale (remap_scalars,  l, z_null, 0, 1)
     end do
-
-    ! Ensure boundary values are up to date
-    call update_array_bdry (sol, NONE)
-    
-    call forward_wavelet_transform (sol, wav_coeff)
-    call inverse_wavelet_transform (wav_coeff, sol)
+    call WT_after_step (sol, wav_coeff, level_start-1)
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Remap at coarser scales !
@@ -61,6 +49,11 @@ contains
     ! do l = level_end-1, level_start, -1
     !    do d = 1, size(grid)
     !       call cpt_or_restr_velo (grid(d), l)
+    !    end do
+    !    do d = 1, size(grid)
+    !       do j = 1, grid(d)%lev(l)%length
+    !          call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+    !       end do
     !    end do
 
     !    do d = 1, size(grid)
@@ -76,8 +69,11 @@ contains
     !          call cpt_or_restr_scalar (grid(d), l)
     !          nullify (mass, temp)
     !       end do
-    !    end do
+    !     end do
     ! end do
+
+     ! Ensure boundary values are up to date
+   ! call update_array_bdry (sol, NONE)
   end subroutine remap_vertical_coordinates
 
   subroutine cpt_or_restr_velo (dom, l)
@@ -90,9 +86,9 @@ contains
        p_par = dom%lev(l)%elts(j)
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .eq. 0) call apply_onescale_to_patch (remap_velocity, dom, p_par, z_null, 0, 0)
+          if (p_chd .eq. 0) call apply_onescale_to_patch (remap_velocity, dom, p_par, z_null, -1, 0)
        end do
-       call apply_interscale_to_patch (velo_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
+       call apply_interscale_to_patch (velo_cpt_restr, dom, dom%lev(l)%elts(j), z_null, -1, 0)
     end do
   end subroutine cpt_or_restr_velo
 
@@ -152,9 +148,7 @@ contains
           if (p_chd .gt. 0) restrict(c) = .True.
        end do
        do c = 1, N_CHDRN
-          if (restrict(c)) then
-             call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, c, z_null, 0, 1)
-          end if
+          if (restrict(c)) call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, c, z_null, 0, 1)
        end do
     end do
   end subroutine cpt_or_restr_scalar
@@ -208,7 +202,7 @@ contains
 
     integer                          :: d, e, id, id_i, idE, idN, idNE, k, kb, kc, kk, m
     real(8)                          :: layer_pressure, p_surf, p_surf_E, p_surf_N, p_surf_NE, diff, dmin, vel_old
-    real(8)                          :: mass_id, mass_idE, mass_idN, mass_idNE, mass_flux
+    real(8)                          :: mass_id, mass_idE, mass_idN, mass_idNE
     real(8), dimension (3)           :: mass_e
     real(8), dimension (zlevels+1)   :: pressure
     real(8), dimension (zlevels+1,3) :: integrated_flux, new_flux
@@ -233,12 +227,7 @@ contains
        mass_e(UP+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idN))
        ! Mass fluxes
        do e = 1, EDGE
-          if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
-             mass_flux = mass_e(e) * sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * dom%pedlen%elts(EDGE*id+e)
-          else
-             mass_flux = 0.0_8
-          end if
-          integrated_flux(kb,e) = integrated_flux(kb-1,e) + mass_flux
+          integrated_flux(kb,e) = integrated_flux(kb-1,e) + mass_e(e) * sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
        end do
     end do
 
@@ -305,11 +294,7 @@ contains
 
        ! Find velocity on new grid from mass flux
        do e = 1, EDGE
-          if (dom%pedlen%elts(EDGE*id+e).ne.0.0_8) then
-             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) / (mass_e(e)*dom%pedlen%elts(EDGE*id+e))
-          else
-             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = 0.0_8
-          end if
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) / mass_e(e)
        end do
     end do
   end subroutine remap_velocity
@@ -322,7 +307,7 @@ contains
 
     integer                          :: d, e, id, id_i, k, kb, kc, kk, m
     real(8)                          :: layer_pressure, p_surf, diff, dmin, vel_old
-    real(8), dimension (zlevels+1)   :: integrated_temp, new_temp, pressure
+    real(8), dimension (zlevels+1)   :: integrated_mass, new_mass, integrated_temp, new_temp, pressure
 
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
@@ -330,9 +315,11 @@ contains
 
     ! Integrate full full mass-weighted potential temperature vertically downward from the top
     ! All quantities located at interfaces
-    integrated_temp(1)   = 0.0_8
+    !integrated_mass(1) = 0.0_8
+    integrated_temp(1) = 0.0_8
     do kb = 2, zlevels + 1
        k = zlevels-kb+2 ! Actual zlevel
+       !integrated_mass(kb) = integrated_mass(kb-1) + sol(S_MASS,k)%data(d)%elts(id_i)
        integrated_temp(kb) = integrated_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i)
     end do
 
@@ -371,6 +358,7 @@ contains
        end if
 
        ! Interpolate integrated temperature and integrated mass flux at top interfaces of new vertical grid
+       !new_mass(kb) = Newton_interp(pressure(stencil), integrated_mass(stencil), layer_pressure)
        new_temp(kb) = Newton_interp(pressure(stencil), integrated_temp(stencil), layer_pressure)
     end do
 
@@ -378,11 +366,11 @@ contains
     do k = 1, zlevels
        kb = zlevels-k+1
        ! Remapped mass-weighted potential temperature from integrated value interpolated to new grid
-       sol(S_TEMP,k)%data(d)%elts(id_i) = new_temp(kb+1) - new_temp(kb)
+       sol(S_MASS,k)%data(d)%elts(id_i) = new_mass(kb+1) - new_mass(kb)
+!       sol(S_TEMP,k)%data(d)%elts(id_i) = new_temp(kb+1) - new_temp(kb)
 
        ! Remapped mass from new surface pressure and definition of vertical grid
        sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel
-
     end do
   end subroutine remap_scalars
 
