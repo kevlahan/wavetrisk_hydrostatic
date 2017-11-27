@@ -544,7 +544,7 @@ program DCMIP2008c5
   c_p         = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
   c_v         = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
   kappa       = 2.0_8/7.0_8   ! kappa=R_d/c_p
-  N_freq      = sqrt(grav_accel**2/(c_p*T_0)) !Brunt-Vaisala buoyancy frequency
+  N_freq      = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
 
   ! Dimensional scaling
   Ldim        = sqrt(d2)                         ! horizontal length scale
@@ -601,6 +601,8 @@ program DCMIP2008c5
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite)
 
+  open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
+  
   if(resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
   do while (time .lt. time_end)
@@ -610,7 +612,7 @@ program DCMIP2008c5
      n_node_old = grid(:)%node%length
 
      call time_step (dt_write, aligned, set_thresholds)
-     if (diffuse .and. mod(istep,n_diffuse).eq.0) call time_step_diffuse
+     !if (diffuse .and. mod(istep,n_diffuse).eq.0) call time_step_diffuse
 
      if (remap .and. mod(istep, n_remap).eq.0) then
         if (rank.eq.0) write(6,*) 'Remapping vertical coordinates'
@@ -624,17 +626,22 @@ program DCMIP2008c5
      total_cpu_time = total_cpu_time + timing
      
      call write_and_print_step
+     
+     if (rank .eq. 0) then
+        write(*,'(6(A,ES10.4),A,I2,A,I9,A,ES9.2)') &
+             ' time [h] = ', time/3600.0_8, &
+             ' dt [s] = ', dt, &
+             ' min mass = ', min_mass, &
+             '  mass tol = ', tol_mass, &
+             ' temp tol = ', tol_temp, &
+             ' velo tol = ', tol_velo, &
+             ' Jmax =', level_end, &
+             '  dof = ', sum(n_active), &
+             ' cpu = ', timing
 
-     if (rank .eq. 0) write(*,'(6(A,ES10.4),A,I2,A,I9,A,ES9.2)') &
-          ' time [h] = ', time/3600.0_8, &
-          ' dt [s] = ', dt, &
-          ' min mass = ', min_mass, &
-          '  mass tol = ', tol_mass, &
-          ' temp tol = ', tol_temp, &
-          ' velo tol = ', tol_velo, &
-          ' Jmax =', level_end, &
-          '  dof = ', sum(n_active), &
-          ' cpu = ', timing
+        write(12,'(6(ES14.8,1x),I2,1X,I9,1X,ES14.8)')  &
+             time/3600.0_8, dt, min_mass, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing
+     end if
 
      call print_load_balance
      
@@ -652,7 +659,7 @@ program DCMIP2008c5
         ! let all cpus exit gracefully if NaN has been produced
         ierr = sync_max(ierr)
         if (ierr .eq. 1) then ! NaN
-           write(0,*) "NaN when writing checkpoint"
+           write (0,*) "NaN when writing checkpoint"
            call finalize
            stop
         end if
@@ -671,6 +678,7 @@ program DCMIP2008c5
 
   if (rank .eq. 0) then
      write(6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
+     close(12)
      close(1011)
      close(8450)
   end if

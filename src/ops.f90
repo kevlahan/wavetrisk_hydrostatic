@@ -812,15 +812,26 @@ contains
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
 
     integer                :: e, id
-    real(8), dimension (3) :: Qperp_e
-       
+    real(8), dimension (3) :: Laplacian, Qperp_e
+
+    id = idx(i, j, offs, dims)
+    
     ! Calculate Q_perp
     Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
-    
-    id = idx(i, j, offs, dims)
+
     do e = 1, EDGE 
        dvelo(EDGE*id+e) = - Qperp_e(e)
     end do
+
+    if (diffuse) then
+       ! Calculate Laplacian of velocity
+       Laplacian  = Laplacian_u (dom, i, j, z_null, offs, dims)
+       
+       id = idx(i, j, offs, dims)
+       do e = 1, EDGE 
+          dvelo(EDGE*id+e) =  dvelo(EDGE*id+e) + Laplacian(e) * dom%len%elts(EDGE*id+e) ! Need to use edge integrated Laplacian for velocity restriction
+       end do
+    end if
   end subroutine du_source
 
   subroutine du_source_diffuse (dom, i, j, zlev, offs, dims)
@@ -1226,8 +1237,33 @@ contains
     vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N)/dom%triarea%elts(TRIAG*id+UPLT+1)
   end subroutine cal_vort
 
-  subroutine flux_grad_scalar (dom, i, j, zlev, offs, dims)
+ subroutine flux_add_grad_scalar (dom, i, j, zlev, offs, dims)
     ! Add diffusive term to fluxes
+    type(Domain) :: dom
+    integer :: i, j, zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+
+    integer               :: e, id, idE, idN, idNE
+    real(8), dimension(3) :: gradM, gradT
+
+    id   = idx(i,     j,     offs, dims)
+    idE  = idx(i + 1, j,     offs, dims)
+    idN  = idx(i,     j + 1, offs, dims)
+    idNE = idx(i + 1, j + 1, offs, dims)
+
+    ! Gradient of mass and temperature at edges
+    gradM = gradi_e (mass, dom, i, j, offs, dims)
+    gradT = gradi_e (temp, dom, i, j, offs, dims)
+
+    do e = 1, EDGE
+       h_mflux(EDGE*id+e) = h_mflux(EDGE*id+e) - viscosity_mass * dom%pedlen%elts(EDGE*id+e) * gradM(e)
+       h_tflux(EDGE*id+e) = h_tflux(EDGE*id+e) - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
+    end do
+  end subroutine flux_add_grad_scalar
+  
+  subroutine flux_grad_scalar (dom, i, j, zlev, offs, dims)
+    ! Diffusive term
     type(Domain) :: dom
     integer :: i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs

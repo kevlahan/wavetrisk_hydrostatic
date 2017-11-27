@@ -115,8 +115,8 @@ contains
     do k = 1, zlevels
        do d = 1, size(grid)
           mass      => q(S_MASS,k)%data(d)%elts
-          velo      => q(S_VELO,k)%data(d)%elts
           temp      => q(S_TEMP,k)%data(d)%elts
+          velo      => q(S_VELO,k)%data(d)%elts
           h_mflux   => horiz_flux(S_MASS)%data(d)%elts
           h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
           bernoulli => grid(d)%bernoulli%elts
@@ -135,6 +135,15 @@ contains
           end do
           call apply_to_penta_d (post_step1, grid(d), level_end, k)
 
+          if (diffuse) then
+             divu => grid(d)%divu%elts
+             do j = 1, grid(d)%lev(level_end)%length
+                call apply_onescale_to_patch (flux_add_grad_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
+                call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
+             end do
+             nullify (divu)
+          end if
+          
           nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, vort, qe)
        end do
 
@@ -146,12 +155,17 @@ contains
           dtemp   => dq(S_TEMP,k)%data(d)%elts
           h_mflux => horiz_flux(S_MASS)%data(d)%elts
           h_tflux => horiz_flux(S_TEMP)%data(d)%elts
-
+          if (diffuse) then
+             divu => grid(d)%divu%elts
+             vort => grid(d)%vort%elts
+          end if
+       
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
 
           nullify (dmass, dtemp, h_mflux, h_tflux)
+          if (diffuse) nullify (divu, vort)
        end do
 
        dq(:,k)%bdry_uptodate    = .False.
@@ -167,12 +181,17 @@ contains
           dvelo   => dq(S_VELO,k)%data(d)%elts
           h_mflux => horiz_flux(S_MASS)%data(d)%elts
           qe      => grid(d)%qe%elts
-
+          if (diffuse) then
+             divu => grid(d)%divu%elts
+             vort => grid(d)%vort%elts
+          end if
+          
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
           nullify (velo, dvelo, h_mflux, qe)
+          if (diffuse) nullify (divu, vort)
        end do
 
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -203,6 +222,15 @@ contains
              call apply_to_penta_d (post_step1, grid(d), l, k)
 
              call cpt_or_restr_Bernoulli_Exner (grid(d), l)
+
+             if (diffuse) then
+                divu => grid(d)%divu%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (flux_add_grad_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+                   call apply_onescale_to_patch (cal_divu,             grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+                end do
+                nullify (divu)
+             end if
 
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
@@ -235,11 +263,14 @@ contains
              dvelo   => dq(S_VELO,k)%data(d)%elts
              h_mflux => horiz_flux(S_MASS)%data(d)%elts
              qe      => grid(d)%qe%elts
-             divu    => grid(d)%bernoulli%elts
-             vort    => grid(d)%vort%elts
+             if (diffuse) then
+                divu => grid(d)%divu%elts
+                vort => grid(d)%vort%elts
+             end if
 
              call cpt_or_restr_du_source (grid(d), l)
-             nullify (velo, dvelo, h_mflux, qe, divu, vort)
+             nullify (velo, dvelo, h_mflux, qe)
+             if (diffuse) nullify (divu, vort)
           end do
           dq(S_VELO,k)%bdry_uptodate = .False.
        end do

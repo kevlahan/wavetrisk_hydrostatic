@@ -62,8 +62,8 @@ contains
 
     call comm_masks_mpi (NONE)
 
-    if (refine()) call post_refine()
-    call complete_masks()
+    if (refine()) call post_refine
+    call complete_masks
 
     do k = 1, zlevels
        do l = level_start+1, level_end
