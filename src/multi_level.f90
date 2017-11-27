@@ -88,7 +88,6 @@ contains
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
 
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: vert_flux
     integer                                                       :: d, j, k, l, p
 
     call update_array_bdry (q, NONE)
