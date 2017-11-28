@@ -28,41 +28,22 @@ contains
     end do
   end subroutine set_masks
 
-   subroutine mask_adjacent (wavelet)
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wavelet
-    
+   subroutine mask_adjacent
     integer :: d, j, k, l, v
 
-    !call update_array_bdry1 (wavelet, level_start, level_end)
-
-    do k = 1, zlevels
-       do v = S_MASS, S_VELO
-          call update_bdry1 (wavelet(v,k), level_start, level_end)          
-       end do
-    end do
-    
     do k = 1, zlevels
        do d = 1, size(grid)
-          wc_m => wavelet(S_MASS,k)%data(d)%elts
-          wc_t => wavelet(S_TEMP,k)%data(d)%elts
-          wc_u => wavelet(S_VELO,k)%data(d)%elts
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (mask_adj, grid(d), grid(d)%lev(level_end)%elts(j), k, -1, 2)
           end do
-          nullify (wc_m, wc_t, wc_u)
        end do
     
        do l = level_end-1, level_start, -1
           do d = 1, size(grid)
-             wc_m => wavelet(S_MASS,k)%data(d)%elts
-             wc_t => wavelet(S_TEMP,k)%data(d)%elts
-             wc_u => wavelet(S_VELO,k)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (mask_adj, grid(d), grid(d)%lev(l)%elts(j), k, -1, 2)
              end do
-             nullify (wc_m, wc_t, wc_u)
           end do
-         
        end do
     end do
   end subroutine mask_adjacent
@@ -79,17 +60,17 @@ contains
 
     if (dom%mask_n%elts(id+1) .eq. FROZEN) return
 
-    call set_adj_mask (dom%mask_n%elts(id+1), wc_m(id+1), tol_mass)
-    call set_adj_mask (dom%mask_n%elts(id+1), wc_t(id+1), tol_temp)
+    call set_adj_mask (dom%mask_n%elts(id+1), tol_mass)
+    call set_adj_mask (dom%mask_n%elts(id+1), tol_temp)
     do e = 1, EDGE
-       call set_adj_mask (dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), tol_velo)
+       call set_adj_mask (dom%mask_e%elts(EDGE*id+e), tol_velo)
     end do
   end subroutine mask_adj
 
-  subroutine set_adj_mask (mask, wc, tol)
+  subroutine set_adj_mask (mask,tol) 
     ! Add adjacent and higher points to mask
     integer, intent(inout) :: mask
-    real(8), intent(in)    :: wc, tol
+    real(8), intent(in)    :: tol
 
     if (mask .gt. ADJZONE) mask = ADJZONE
   end subroutine set_adj_mask

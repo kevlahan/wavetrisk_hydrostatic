@@ -376,25 +376,21 @@ contains
     norm_temp = 0.0_8
     norm_velo = 0.0_8
     do l = level_start, level_end
-       if (adapt_trend) then
-          call apply_onescale (linf_trend, l, z_null, 0, 0)
-       else
-          call apply_onescale (linf_vars,  l, z_null, 0, 0)
-       end if
+       call apply_onescale (linf_vars,  l, z_null, 0, 0)
     end do
     
     mass_scale = sync_max_d(norm_mass)
     temp_scale = sync_max_d(norm_temp)
     velo_scale = sync_max_d(norm_velo)
-    
-    if (istep.eq.0) then
-        tol_mass = mass_scale * threshold 
-        tol_temp = temp_scale * threshold 
-        tol_velo = velo_scale * threshold
-     else
-        tol_mass = (0.9*tol_mass + 0.1*mass_scale * threshold)
-        tol_temp = (0.9*tol_temp + 0.1*temp_scale * threshold)
-        tol_velo = (0.9*tol_velo + 0.1*velo_scale * threshold)
+
+    if (itype.eq.0) then ! Adapt on trend wavelets
+       tol_mass = threshold * mass_scale/dt
+       tol_temp = threshold * temp_scale/dt
+       tol_velo = threshold * velo_scale/dt
+    else ! Adapt on variables wavelets
+       tol_mass = threshold * mass_scale
+       tol_temp = threshold * temp_scale
+       tol_velo = threshold * velo_scale
     end if
   end subroutine set_thresholds
 
@@ -580,7 +576,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .false. ! Adapt on trend or on variables
+  adapt_trend      = .true. ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
@@ -612,7 +608,6 @@ program DCMIP2008c5
      n_node_old = grid(:)%node%length
 
      call time_step (dt_write, aligned, set_thresholds)
-     !if (diffuse .and. mod(istep,n_diffuse).eq.0) call time_step_diffuse
 
      if (remap .and. mod(istep, n_remap).eq.0) then
         if (rank.eq.0) write(6,*) 'Remapping vertical coordinates'
@@ -649,7 +644,6 @@ program DCMIP2008c5
         iwrite = iwrite + 1
         ! Remap to original vertical coordinates before saving data or checkpoint
         !call remap_vertical_coordinates
-        !call adapt_grid (set_thresholds)
         if (rank.eq.0) write(6,*) 'Saving fields'
         call write_and_export (iwrite)
 

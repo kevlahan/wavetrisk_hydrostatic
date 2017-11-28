@@ -100,10 +100,6 @@ contains
           call trend_ml (sol, trend)
           call forward_wavelet_transform (trend, trend_wav_coeff)
        end if
-       call set_thresholds
-       tol_mass = tol_mass/4.0_8
-       tol_temp = tol_temp/4.0_8
-       tol_velo = tol_velo/4.0_8
 
        do while (level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
@@ -111,11 +107,7 @@ contains
           edge_level_start = grid(:)%midpt%length+1
 
           ! Add level
-          if (adapt_trend) then
-             call adapt (trend_wav_coeff)
-          else
-             call adapt (wav_coeff)
-          end if
+          call adapt (set_thresholds)
 
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
 
@@ -154,10 +146,8 @@ contains
        if (adapt_trend) then
           call trend_ml (sol, trend)
           call forward_wavelet_transform (trend, trend_wav_coeff)
-          call adapt (trend_wav_coeff)
-       else
-          call adapt (wav_coeff)
        end if
+       call adapt (set_thresholds)
        call apply_init_cond
        
        call write_load_conn(0)
@@ -216,8 +206,8 @@ contains
     call RK45_opt 
 
     if (min_level .lt. max_level) call adapt_grid (set_thresholds)
-    dt = cpt_dt_mpi()
-
+    dt = cpt_dt_mpi() ! Set new time step and count active nodes
+    
     itime = itime + idt
     time  = itime/time_mult
   end subroutine time_step
@@ -524,13 +514,7 @@ contains
 
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     if (adapt_trend) call trend_ml (sol, trend)
-    call set_thresholds
-
-    if (adapt_trend) then
-       call adapt (trend_wav_coeff)
-    else
-       call adapt (wav_coeff)
-    end if
+    call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol, level_start)
     dt = cpt_dt_mpi()
   end subroutine restart_full

@@ -24,27 +24,37 @@ contains
     
     if (adapt_trend) then
        call trend_ml (sol, trend)
-       call set_thresholds
        call forward_wavelet_transform (trend, trend_wav_coeff)
-       call adapt (trend_wav_coeff)
+       call adapt (set_thresholds)
     else
-       call set_thresholds
-       call adapt (wav_coeff)
+       call adapt (set_thresholds)
     end if
     if (level_end .gt. level_start) call inverse_wavelet_transform (wav_coeff, sol, level_start)
   end subroutine adapt_grid
 
-  subroutine adapt (wavelet)
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wavelet
-    
+  subroutine adapt (set_thresholds)
+    external :: set_thresholds
     integer :: k, l, d
 
     do l = level_start+1, level_end
        call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
-    call mask_adjacent (wavelet)
-    call mask_active (wavelet)
+    call mask_adjacent
+    if (istep.eq.0 .and. adapt_trend) then ! Initialization for trend adaptation: adapt on both variables and trend
+       dt = cpt_dt_mpi()
+       call set_thresholds(0)
+       call mask_active (trend_wav_coeff)
+       call set_thresholds(1)
+       call mask_active (wav_coeff)
+    elseif (adapt_trend) then
+       call set_thresholds(0)
+       call mask_active (trend_wav_coeff)
+    else
+       call set_thresholds(1)
+       call mask_active (wav_coeff)
+    end if
+    
     call comm_masks_mpi (NONE)
 
     do l = level_start, level_end
