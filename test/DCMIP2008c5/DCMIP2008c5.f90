@@ -384,9 +384,9 @@ contains
     velo_scale = sync_max_d(norm_velo)
 
     if (itype.eq.0) then ! Adapt on trend wavelets
-       tol_mass = threshold * mass_scale/dt
-       tol_temp = threshold * temp_scale/dt
-       tol_velo = threshold * velo_scale/dt
+       tol_mass = threshold * mass_scale/dt_init
+       tol_temp = threshold * temp_scale/dt_init
+       tol_velo = threshold * velo_scale/dt_init
     else ! Adapt on variables wavelets
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
@@ -612,7 +612,6 @@ program DCMIP2008c5
      if (remap .and. mod(istep, n_remap).eq.0) then
         if (rank.eq.0) write(6,*) 'Remapping vertical coordinates'
        call remap_vertical_coordinates
-       call adapt_grid (set_thresholds)
      end if
 
      call set_surf_geopot

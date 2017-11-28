@@ -42,7 +42,7 @@ contains
 
     call mask_adjacent
     if (istep.eq.0 .and. adapt_trend) then ! Initialization for trend adaptation: adapt on both variables and trend
-       dt = cpt_dt_mpi()
+       dt_init = cpt_dt_mpi()
        call set_thresholds(0)
        call mask_active (trend_wav_coeff)
        call set_thresholds(1)
