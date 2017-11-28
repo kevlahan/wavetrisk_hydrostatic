@@ -6,7 +6,7 @@ module DCMIP2008c5_mod
 
   integer                            :: CP_EVERY, id, zlev, iwrite, j, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
-  real(8)                            :: Hmin, dh_min, dh_max, dx_min, dx_max, kmin
+  real(8)                            :: Hmin, dh_min, dh_max, kmin
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time, dh
   logical                            :: wasprinted, uniform
   character (255)                    :: IC_file

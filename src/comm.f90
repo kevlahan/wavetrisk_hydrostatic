@@ -1151,17 +1151,12 @@ contains
              n_active_edges(l) = n_active_edges(l) + 1
 
              if (adapt_dt) then
-                d_e = dom%len%elts(EDGE*id+e)
-                l_e = dom%pedlen%elts(EDGE*id+e)
-                A_i = 1.0_8/dom%areas%elts(id+1)%hex_inv ! Hexagon area
-                A_v = max (dom%triarea%elts(TRIAG*id+LORT+1),dom%triarea%elts(TRIAG*id+UPLT+1)) ! Triangle areas
-
-                dt = min(dt,  cfl_num*d_e/wave_speed)
+                dt = min(dt,  cfl_num*dx_min/wave_speed)
                 do k = 1, zlevels
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
-                   if (v_e.ne.0.0_8) dt =  min(dt, cfl_num*d_e/v_e)
+                   if (v_e.ne.0.0_8) dt =  min(dt, cfl_num*dx_min/v_e)
                 end do
-                if (diffuse) dt = min (dt, C_visc*min(A_i,A_v)/visc)
+                if (diffuse) dt = min (dt, C_visc*dx_min**2/visc)
              end if
           end if
        end do
