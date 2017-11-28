@@ -105,8 +105,7 @@ contains
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
-
-          ! Add level
+          
           call adapt (set_thresholds)
 
           if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
@@ -148,7 +147,6 @@ contains
           call forward_wavelet_transform (trend, trend_wav_coeff)
        end if
        call adapt (set_thresholds)
-       call apply_init_cond
        
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)

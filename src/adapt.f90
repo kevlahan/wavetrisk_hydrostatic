@@ -41,19 +41,22 @@ contains
     end do
 
     call mask_adjacent
-    if (istep.eq.0 .and. adapt_trend) then ! Initialization for trend adaptation: adapt on both variables and trend
+    if (adapt_trend) then ! Initialization for trend adaptation: adapt on both variables and trend
        dt_init = cpt_dt_mpi()
        call set_thresholds(0)
        call mask_active (trend_wav_coeff)
        call set_thresholds(1)
        call mask_active (wav_coeff)
-    elseif (adapt_trend) then
-       call set_thresholds(0)
-       call mask_active (trend_wav_coeff)
     else
        call set_thresholds(1)
        call mask_active (wav_coeff)
     end if
+
+    do l = level_end-1, level_start, -1
+       call apply_interscale (mask_active_nodes, l, z_null,  0, 1)
+       call apply_interscale (mask_active_edges, l, z_null, -1, 1)
+       call comm_masks_mpi (l)
+    end do
     
     call comm_masks_mpi (NONE)
 
