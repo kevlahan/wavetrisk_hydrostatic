@@ -41,12 +41,13 @@ contains
     end do
 
     call mask_adjacent
-    if (adapt_trend) then ! Initialization for trend adaptation: adapt on both variables and trend
-       dt_init = cpt_dt_mpi()
+    if (adapt_trend) then 
        call set_thresholds(0)
        call mask_active (trend_wav_coeff)
-       call set_thresholds(1)
-       call mask_active (wav_coeff)
+       if (istep.eq.0) then ! Also adapt on variables when initializing
+          call set_thresholds(1)
+          call mask_active (wav_coeff)
+       end if
     else
        call set_thresholds(1)
        call mask_active (wav_coeff)

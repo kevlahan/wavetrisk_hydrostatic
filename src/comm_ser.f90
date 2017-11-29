@@ -198,7 +198,6 @@ contains
        dt = dt_init
     end if
 
-    min_mass       = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0
     do l = level_start, level_end

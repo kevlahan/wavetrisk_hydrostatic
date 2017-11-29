@@ -24,8 +24,8 @@ module main_mod
   type(Initial_State), allocatable :: ini_st(:)
   integer, allocatable :: node_level_start(:), edge_level_start(:)
 
-  integer(8) itime
-  real(8) time_mult
+  integer(8) :: itime
+  real(8)    :: dt_new, time_mult
 
 contains
 
@@ -101,6 +101,7 @@ contains
           call forward_wavelet_transform (trend, trend_wav_coeff)
        end if
 
+       dt_init = cpt_dt_mpi()
        do while (level_end .lt. max_level)
           if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
@@ -112,11 +113,12 @@ contains
 
           call apply_init_cond
           
+          call forward_wavelet_transform (sol, wav_coeff)
+
           if (adapt_trend) then
              call trend_ml (sol, trend)
              call forward_wavelet_transform (trend, trend_wav_coeff)
           end if
-          call forward_wavelet_transform (sol, wav_coeff)
                     
           !--Check whether there are any active nodes at this scale
           n_active = 0
@@ -147,6 +149,7 @@ contains
           call forward_wavelet_transform (trend, trend_wav_coeff)
        end if
        call adapt (set_thresholds)
+       call apply_init_cond
        
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
@@ -185,26 +188,24 @@ contains
     integer(8)           :: idt, ialign
     
     istep = istep+1
+    dt = dt_new
 
     ! Match certain times exactly
     idt    = nint(dt*time_mult, 8)
     ialign = nint(align_time*time_mult, 8)
-
-    if (ialign .gt. 0 .and. cp_idx .ne. resume) then
+    if (ialign.gt.0 .and. cp_idx.ne.resume) then
        aligned = (modulo(itime+idt,ialign) .lt. modulo(itime,ialign))
     else
        resume = NONE ! Set unequal cp_idx => only first step after resume is protected from alignment
        aligned = .False.
     end if
-
     if (aligned) idt = ialign - modulo(itime,ialign)
-
-    dt = idt/time_mult
+    dt = idt/time_mult ! Modify time step
 
     call RK45_opt 
 
     if (min_level .lt. max_level) call adapt_grid (set_thresholds)
-    dt = cpt_dt_mpi() ! Set new time step and count active nodes
+    dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
     
     itime = itime + idt
     time  = itime/time_mult
@@ -514,7 +515,7 @@ contains
     if (adapt_trend) call trend_ml (sol, trend)
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol, level_start)
-    dt = cpt_dt_mpi()
+    dt_new = cpt_dt_mpi()
   end subroutine restart_full
 
   subroutine read_sol(custom_load)

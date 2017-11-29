@@ -13,7 +13,8 @@ module DCMIP2008c5_mod
 
   real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, p_sp, T_0, u_0
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
-  real(8)                            :: norm_mass, norm_temp, norm_velo, mass_scale, temp_scale, velo_scale
+  real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
+  real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo
 contains
   subroutine apply_initial_conditions
@@ -372,25 +373,38 @@ contains
     integer :: l, k
 
     ! Set thresholds dynamically (trend or sol must be known)
-    norm_mass = 0.0_8
-    norm_temp = 0.0_8
-    norm_velo = 0.0_8
-    do l = level_start, level_end
-       call apply_onescale (linf_vars,  l, z_null, 0, 0)
-    end do
-    
-    mass_scale = sync_max_d(norm_mass)
-    temp_scale = sync_max_d(norm_temp)
-    velo_scale = sync_max_d(norm_velo)
-
-    if (itype.eq.0) then ! Adapt on trend wavelets
-       tol_mass = threshold * mass_scale/dt_init
-       tol_temp = threshold * temp_scale/dt_init
-       tol_velo = threshold * velo_scale/dt_init
-    else ! Adapt on variables wavelets
+    if (adapt_trend) then
+       norm_mass_trend = 0.0_8
+       norm_temp_trend = 0.0_8
+       norm_velo_trend = 0.0_8
+       do l = level_start, level_end
+          call apply_onescale (linf_trend, l, z_null, 0, 0)
+       end do
+       
+       mass_scale = sync_max_d(norm_mass_trend)
+       temp_scale = sync_max_d(norm_temp_trend)
+       velo_scale = sync_max_d(norm_velo_trend)
+    else
+       norm_mass = 0.0_8
+       norm_temp = 0.0_8
+       norm_velo = 0.0_8
+       do l = level_start, level_end
+          call apply_onescale (linf_vars, l, z_null, 0, 0)
+       end do
+       
+       mass_scale = sync_max_d(norm_mass)
+       temp_scale = sync_max_d(norm_temp)
+       velo_scale = sync_max_d(norm_velo)
+    end if
+       
+    if (itype.eq.0 .or. istep.ne.0) then
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
+    elseif (istep.eq.0) then
+       tol_mass = threshold * dt_init*mass_scale
+       tol_temp = threshold * dt_init*temp_scale
+       tol_velo = threshold * dt_init*velo_scale
     end if
   end subroutine set_thresholds
 
@@ -407,10 +421,10 @@ contains
     ! Maximum trends
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        do k = 1, zlevels
-          norm_mass = max(norm_mass, abs(trend(S_MASS,k)%data(dom%id+1)%elts(id+1)))
-          norm_temp = max(norm_temp, abs(trend(S_TEMP,k)%data(dom%id+1)%elts(id+1)))
+          norm_mass_trend = max(norm_mass_trend, abs(trend(S_MASS,k)%data(dom%id+1)%elts(id+1)))
+          norm_temp_trend = max(norm_temp_trend, abs(trend(S_TEMP,k)%data(dom%id+1)%elts(id+1)))
           do e = 1, EDGE
-             norm_velo  = max(norm_velo, abs(trend(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
+             norm_velo_trend  = max(norm_velo_trend, abs(trend(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
           end do
        end do
     end if
@@ -453,10 +467,10 @@ contains
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
-          norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
-          norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
+          norm_mass_trend = norm_mass_trend + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
+          norm_temp_trend = norm_temp_trend + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
           do e = 1, EDGE
-             norm_velo  = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+             norm_velo_trend  = norm_velo_trend + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
           end do
        end do
     endif
@@ -546,7 +560,7 @@ program DCMIP2008c5
   Ldim        = sqrt(d2)                         ! horizontal length scale
   Hdim        = h_0                              ! vertical length scale
   Udim        = u_0                              ! velocity scale
-  Tdim        = Ldim/Udim                        ! time scale
+  Tdim        = Hdim/Udim                        ! time scale
   Tempdim     = T_0                              ! temperature scale (both theta and T from DYNAMICO)
 
   acceldim    = Udim*Udim/Hdim                   ! acceleration scale
@@ -562,10 +576,10 @@ program DCMIP2008c5
   
   dt_init     = 500.0_8                          ! Time step (not used if adapt_dt is true)
 
-  viscosity_mass = 1.0d-3/kmax**2                ! viscosity for mass equation
-  viscosity_temp = 1.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_mass = 2.0d-3/kmax**2                ! viscosity for mass equation
+  viscosity_temp = 2.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 2.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 2.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -622,10 +636,9 @@ program DCMIP2008c5
      call write_and_print_step
      
      if (rank .eq. 0) then
-        write(*,'(6(A,ES10.4),A,I2,A,I9,A,ES9.2)') &
+        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES9.2)') &
              ' time [h] = ', time/3600.0_8, &
              ' dt [s] = ', dt, &
-             ' min mass = ', min_mass, &
              '  mass tol = ', tol_mass, &
              ' temp tol = ', tol_temp, &
              ' velo tol = ', tol_velo, &
@@ -633,8 +646,8 @@ program DCMIP2008c5
              '  dof = ', sum(n_active), &
              ' cpu = ', timing
 
-        write(12,'(6(ES14.8,1x),I2,1X,I9,1X,ES14.8)')  &
-             time/3600.0_8, dt, min_mass, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing
+        write (12,'(5(ES14.9,1x),I2,1X,I9,1X,ES14.8)')  &
+             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing
      end if
 
      call print_load_balance

@@ -1180,7 +1180,6 @@ contains
     else
        dt = dt_init
     end if
-    min_mass       = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0
 
@@ -1190,36 +1189,14 @@ contains
 
     loc_min = dt
     call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-
     cpt_dt_mpi = glo_min
-
-    ! on error stop without a mess (everyone must call finalize)
-    if (glo_min .le. 0) then
-       if (rank .eq. 0) write(0,*)  "ERROR: Negative timestep"
-       call finalize(); stop
-    end if
-
-    loc_min = min_mass
-    call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    min_mass = glo_min
-
-    if (min_mass .le. 0.0_8) then
-       ! only rank(s) where error occurs print(s)
-       if (loc_min .le. 0.0_8) write(0,*)  "ERROR: Full depth is negative. Coord:", where_error
-       ! extra message so we know where we stoped if something really strange went wrong
-       ! and last message does not get printed
-       if (rank .eq. 0) write(0,*)  "ERROR ABORT" 
-       call finalize(); stop
-    end if
-
+    
     n_active_loc = (/sum(n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end))/)
 
     call MPI_Allreduce (n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-
     n_active = n_active_glo
 
     call MPI_Allreduce (level_end, n_level_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
-
     level_end = n_level_glo
   end function cpt_dt_mpi
 

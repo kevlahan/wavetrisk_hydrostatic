@@ -2,11 +2,9 @@ module comm_mod
   use arch_mod
   use domain_mod
   implicit none
-  integer, dimension(4,4) :: shift_arr
-  integer, allocatable    ::  n_active_edges(:), n_active_nodes(:)
-  real(8)                 :: dt, min_mass
-  type(Coord)             :: where_error
-  real sync_val
+  integer, dimension(4,4)            :: shift_arr
+  integer, dimension(:), allocatable ::  n_active_edges, n_active_nodes
+  real(8)                            :: dt, sync_val
 
 contains
 
@@ -22,7 +20,7 @@ contains
   end subroutine init_comm_mod
 
   subroutine init_comm()
-    integer k, s, d
+    integer :: k, s, d
 
     allocate(n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
 
@@ -42,8 +40,7 @@ contains
   end subroutine init_comm
 
   subroutine comm_nodes9(get, set)
-    external get
-    external set
+    external :: get, set
     real(8), dimension(7) :: val
     integer src_loc
     integer src_glo
@@ -1133,10 +1130,12 @@ contains
        ! Find total mass for this node
        total_mass = 0.0_8
        do k = 1, zlevels
-          min_mass = min (min_mass, sol(S_MASS,k)%data(d)%elts(id+1))
-          if (sol(S_MASS,k)%data(d)%elts(id+1) .le. 0.0_8) where_error = dom%node%elts(id+1)  ! sqrt will give NaN
-          
           total_mass = total_mass + sol(S_MASS,k)%data(d)%elts(id+1)
+
+          if (sol(S_MASS,k)%data(d)%elts(id+1) .le. 0.0_8) then
+             write(0,*) "ERROR: a mass element is less than zero"
+             stop
+          end if
           if (isnan(sol(S_MASS,k)%data(d)%elts(id+1))) then
              write(0,*) "ERROR: a mass element is NaN"
              stop
