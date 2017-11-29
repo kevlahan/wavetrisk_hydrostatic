@@ -143,17 +143,10 @@ contains
        end do
 
        cp_idx = 0
-       
-       if (adapt_trend) then
-          call trend_ml (sol, trend)
-          call forward_wavelet_transform (trend, trend_wav_coeff)
-       end if
-       call adapt (set_thresholds)
-       call apply_init_cond
-       
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
+    dt_init = cpt_dt_mpi() ; if (rank.eq.0) write(6,*) sum(n_active)
     call restart_full (set_thresholds, custom_load)
   end subroutine initialize
 
@@ -500,7 +493,7 @@ contains
 
     call init_RK_mem 
 
-    call read_sol(custom_load)
+    call read_sol (custom_load)
 
     ! do not overwrite existing checkpoint archive
     write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
@@ -513,13 +506,13 @@ contains
     if (rank .eq. 0) call system (command)
 
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-    if (adapt_trend) call trend_ml (sol, trend)
-    call adapt (set_thresholds)
-    call inverse_wavelet_transform (wav_coeff, sol, level_start)
-    dt_new = cpt_dt_mpi()
+    istep = 0
+    dt_init = cpt_dt_mpi()
+    call adapt_grid (set_thresholds)
+    dt_new = cpt_dt_mpi() ;  if (rank.eq.0) write(6,*) sum(n_active)
   end subroutine restart_full
 
-  subroutine read_sol(custom_load)
+  subroutine read_sol (custom_load)
     external :: custom_load
     integer :: k, d, v
     
@@ -528,7 +521,7 @@ contains
     itime = nint (time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
 
-    call load_adapt_mpi(read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
+    call load_adapt_mpi (read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
        
     call inverse_wavelet_transform (wav_coeff, sol)
   end subroutine read_sol
