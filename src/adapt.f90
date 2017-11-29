@@ -42,12 +42,12 @@ contains
 
     call mask_adjacent
     if (adapt_trend) then 
-       call set_thresholds(0)
-       call mask_active (trend_wav_coeff)
        if (istep.eq.0) then ! Also adapt on variables when initializing
           call set_thresholds(1)
           call mask_active (wav_coeff)
        end if
+       call set_thresholds(0)
+       call mask_active (trend_wav_coeff)
     else
        call set_thresholds(1)
        call mask_active (wav_coeff)

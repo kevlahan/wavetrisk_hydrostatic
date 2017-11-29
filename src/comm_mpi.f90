@@ -1176,9 +1176,9 @@ contains
     real(8)               :: loc_min, glo_min
 
     if (adapt_dt) then
-       dt = 1d16
+       dt_loc = 1d16
     else
-       dt = dt_init
+       dt_loc = dt_init
     end if
     n_active_nodes = 0
     n_active_edges = 0
@@ -1187,7 +1187,7 @@ contains
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
 
-    loc_min = dt
+    loc_min = dt_loc
     call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
     cpt_dt_mpi = glo_min
     

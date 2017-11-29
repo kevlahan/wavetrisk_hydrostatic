@@ -4,7 +4,7 @@ module comm_mod
   implicit none
   integer, dimension(4,4)            :: shift_arr
   integer, dimension(:), allocatable ::  n_active_edges, n_active_nodes
-  real(8)                            :: dt, sync_val
+  real(8)                            :: dt_loc, sync_val
 
 contains
 
@@ -1150,12 +1150,12 @@ contains
              n_active_edges(l) = n_active_edges(l) + 1
 
              if (adapt_dt) then
-                dt = min(dt,  cfl_num*dx_min/wave_speed)
+                dt_loc = min(dt_loc,  cfl_num*dx_min/wave_speed)
                 do k = 1, zlevels
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
-                   if (v_e.ne.0.0_8) dt =  min(dt, cfl_num*dx_min/v_e)
+                   if (v_e.ne.0.0_8) dt_loc =  min(dt_loc, cfl_num*dx_min/v_e)
                 end do
-                if (diffuse) dt = min (dt, C_visc*dx_min**2/visc)
+                if (diffuse) dt_loc = min (dt_loc, C_visc*dx_min**2/visc)
              end if
           end if
        end do

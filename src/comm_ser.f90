@@ -193,9 +193,9 @@ contains
     integer                        :: d, i, ierror, j, l, p
 
     if (adapt_dt) then
-       dt = 1d16
+       dt_loc = 1d16
     else
-       dt = dt_init
+       dt_loc = dt_init
     end if
 
     n_active_nodes = 0

@@ -145,10 +145,10 @@ contains
     end do
   end subroutine manage_RK_mem
 
-  subroutine RK45_opt()
+  subroutine RK45_opt(dt)
     !see A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011
-    real(8), dimension(5,5) :: alpha
-    real(8), dimension(5,5) :: beta
+    real(8)                 :: dt
+    real(8), dimension(5,5) :: alpha, beta
 
     alpha = reshape((/1.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.444370494067_8, 0.555629505933_8, 0.0_8, 0.0_8, 0.0_8,  &
          0.620101851385_8, 0.0_8, 0.379898148615_8, 0.0_8, 0.0_8, 0.178079954108_8, 0.0_8, 0.0_8, 0.821920045892_8, 0.0_8,  &
@@ -183,8 +183,9 @@ contains
     call WT_after_step(sol, wav_coeff, level_start-1)
   end subroutine RK45_opt
 
-  subroutine euler 
+  subroutine euler(dt)
     ! An Euler step to diffuse solution
+    real(8) :: dt
 
     integer :: d, k, v, start
 
@@ -193,8 +194,9 @@ contains
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine euler
 
-  function wav_coeff_predict (trend)
+  function wav_coeff_predict (trend, dt)
     ! Predicts wavelet coefficients at next time step using a forward Euler step
+    real(8)                                                        :: dt
     type(Float_Field), dimension (S_MASS:S_VELO,1:zlevels), target :: wav_coeff_predict
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: trend
 

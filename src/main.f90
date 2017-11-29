@@ -25,7 +25,7 @@ module main_mod
   integer, allocatable :: node_level_start(:), edge_level_start(:)
 
   integer(8) :: itime
-  real(8)    :: dt_new, time_mult
+  real(8)    :: dt, dt_new, time_mult
 
 contains
 
@@ -202,7 +202,7 @@ contains
     if (aligned) idt = ialign - modulo(itime,ialign)
     dt = idt/time_mult ! Modify time step
 
-    call RK45_opt 
+    call RK45_opt(dt)
 
     if (min_level .lt. max_level) call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
@@ -211,9 +211,10 @@ contains
     time  = itime/time_mult
   end subroutine time_step
 
-  subroutine time_step_diffuse
+  subroutine time_step_diffuse(dt)
     ! Euler time step to diffuse solution
-    call euler
+    real(8) :: dt
+    call euler(dt)
   end subroutine time_step_diffuse
 
   subroutine reset(init_state)

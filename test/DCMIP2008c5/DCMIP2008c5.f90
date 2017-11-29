@@ -396,15 +396,21 @@ contains
        temp_scale = sync_max_d(norm_temp)
        velo_scale = sync_max_d(norm_velo)
     end if
-       
-    if (itype.eq.0 .or. istep.ne.0) then
-       tol_mass = threshold * mass_scale
-       tol_temp = threshold * temp_scale
-       tol_velo = threshold * velo_scale
+   
+    if (istep.ne.0) then
+       tol_mass = 0.9_8*tol_mass + 0.1_8*threshold * mass_scale
+       tol_temp = 0.9_8*tol_temp + 0.1_8*threshold * temp_scale
+       tol_velo = 0.9_8*tol_velo + 0.1_8*threshold * velo_scale
     elseif (istep.eq.0) then
-       tol_mass = threshold * dt_init*mass_scale
-       tol_temp = threshold * dt_init*temp_scale
-       tol_velo = threshold * dt_init*velo_scale
+       if (adapt_trend .and. itype.eq.1) then
+          tol_mass = threshold * dt_init*mass_scale * 8_8
+          tol_temp = threshold * dt_init*temp_scale * 8_8
+          tol_velo = threshold * dt_init*velo_scale * 8_8
+       else
+          tol_mass = threshold * mass_scale
+          tol_temp = threshold * temp_scale
+          tol_velo = threshold * velo_scale
+       end if
     end if
   end subroutine set_thresholds
 
@@ -602,7 +608,7 @@ program DCMIP2008c5
 
   allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2;  call set_surf_geopot 
-  
+
   call sum_total_mass (.True.)
 
   if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
@@ -611,10 +617,24 @@ program DCMIP2008c5
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite)
 
-  open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
-  
   if(resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
+
+  open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
+  if (rank .eq. 0) then
+     write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES9.2)') &
+          ' time [h] = ', time/3600.0_8, &
+          ' dt [s] = ', dt_init, &
+          '  mass tol = ', tol_mass, &
+          ' temp tol = ', tol_temp, &
+          ' velo tol = ', tol_velo, &
+          ' Jmax =', level_end, &
+          '  dof = ', sum(n_active), &
+          ' cpu = ', timing
+
+     write (12,'(5(ES14.9,1x),I2,1X,I9,1X,ES14.8)')  &
+          time/3600.0_8, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing
+  end if
   do while (time .lt. time_end)
      call start_timing
      call update_array_bdry (sol, NONE)
