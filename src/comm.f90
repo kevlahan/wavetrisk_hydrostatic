@@ -1150,7 +1150,7 @@ contains
              n_active_edges(l) = n_active_edges(l) + 1
 
              if (adapt_dt) then
-                dt_loc = min(dt_loc,  cfl_num*dx_min/wave_speed)
+                dt_loc = min(dt_loc, cfl_num*dx_min/wave_speed)
                 do k = 1, zlevels
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
                    if (v_e.ne.0.0_8) dt_loc =  min(dt_loc, cfl_num*dx_min/v_e)

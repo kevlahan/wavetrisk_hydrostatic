@@ -509,7 +509,7 @@ contains
     istep = 0
     dt_init = cpt_dt_mpi()
     call adapt_grid (set_thresholds)
-    dt_new = cpt_dt_mpi() ;  if (rank.eq.0) write(6,*) sum(n_active)
+    dt_new = cpt_dt_mpi() 
   end subroutine restart_full
 
   subroutine read_sol (custom_load)

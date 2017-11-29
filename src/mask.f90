@@ -105,6 +105,12 @@ contains
           end do
        end do
     end do
+
+    do l = level_end-1, level_start, -1
+       call apply_interscale (mask_active_nodes, l, z_null,  0, 1)
+       call apply_interscale (mask_active_edges, l, z_null, -1, 1)
+       call comm_masks_mpi (l)
+    end do
   end subroutine mask_active
   
   subroutine mask_tol (dom, i, j, zlev, offs, dims)
