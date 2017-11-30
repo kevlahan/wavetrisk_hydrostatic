@@ -817,10 +817,12 @@ contains
     id = idx(i, j, offs, dims)
     
     ! Calculate Q_perp
-    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
+    Qperp_e = Qperp (dom, i, j, z_null, offs, dims) 
 
     do e = 1, EDGE 
        dvelo(EDGE*id+e) = - Qperp_e(e)
+       ! Rayleigh friction
+       if (zlev.eq.zlevels) dvelo(EDGE*id+e) =  dvelo(EDGE*id+e) - ray_friction*velo(EDGE*id+e)*dom%len%elts(EDGE*id+e)
     end do
 
     if (diffuse) then

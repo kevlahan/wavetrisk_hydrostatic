@@ -582,10 +582,12 @@ program DCMIP2008c5
   
   dt_init     = 500.0_8                          ! Time step (not used if adapt_dt is true)
 
-  viscosity_mass = 2.0d-3/kmax**2                ! viscosity for mass equation
-  viscosity_temp = 2.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 2.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 2.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
+
+  viscosity_mass = 1.0d-3/kmax**2                ! viscosity for mass equation
+  viscosity_temp = 1.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
