@@ -146,7 +146,7 @@ contains
        call write_load_conn(0)
        ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
     end if
-    dt_init = cpt_dt_mpi() ; if (rank.eq.0) write(6,*) sum(n_active)
+    dt_init = cpt_dt_mpi()
     call restart_full (set_thresholds, custom_load)
   end subroutine initialize
 
