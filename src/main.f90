@@ -508,8 +508,10 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     istep = 0
     dt_init = cpt_dt_mpi()
-    call adapt_grid (set_thresholds)
-    dt_new = cpt_dt_mpi() 
+    if (adapt_trend) call trend_ml (sol, trend)
+    call adapt (set_thresholds)
+    call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    dt_new = cpt_dt_mpi()
   end subroutine restart_full
 
   subroutine read_sol (custom_load)
