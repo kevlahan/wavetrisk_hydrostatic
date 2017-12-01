@@ -189,7 +189,8 @@ contains
 
     integer :: d, k, v, start
 
-    call trend_diffuse (sol, trend)
+    !call trend_diffuse (sol, trend)
+    call trend_ml (sol, trend)
     call RK_sub_step1 (sol, trend, 1.0_8, n_diffuse*dt, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine euler
