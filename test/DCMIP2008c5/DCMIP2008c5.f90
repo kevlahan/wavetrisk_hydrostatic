@@ -559,6 +559,7 @@ program DCMIP2008c5
   R_d         = 287.04_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_p         = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
   c_v         = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
+  gamma       = c_p/c_v       ! heat capacity ratio
   kappa       = 2.0_8/7.0_8   ! kappa=R_d/c_p
   N_freq      = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
 
@@ -580,14 +581,14 @@ program DCMIP2008c5
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
-  dt_init     = 500.0_8                          ! Time step (not used if adapt_dt is true)
+  dt_init     = 50.0_8                          ! Time step (not used if adapt_dt is true)
 
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
-  viscosity_mass = 1.0d-3/kmax**2                ! viscosity for mass equation
-  viscosity_temp = 1.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 1.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_mass = 4.0d-3/kmax**2                ! viscosity for mass equation
+  viscosity_temp = 4.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 4.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 4.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -599,7 +600,7 @@ program DCMIP2008c5
 
   ! Set logical switches
   adapt_trend      = .false. ! Adapt on trend or on variables
-  adapt_dt         = .true.  ! Adapt time step
+  adapt_dt         = .false.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates
