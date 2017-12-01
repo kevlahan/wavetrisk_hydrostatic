@@ -41,8 +41,6 @@ contains
        ! Remap mass and mass-weighted temperature
        call apply_onescale (remap_scalars,  l, z_null, 0, 1)
     end do
-    call WT_after_step (sol, wav_coeff, level_start-1)
-
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Remap at coarser scales !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
