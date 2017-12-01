@@ -598,7 +598,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .true. ! Adapt on trend or on variables
+  adapt_trend      = .false. ! Adapt on trend or on variables
   adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
@@ -634,7 +634,7 @@ program DCMIP2008c5
           '  dof = ', sum(n_active), &
           ' cpu = ', timing
 
-     write (12,'(5(ES14.9,1x),I2,1X,I9,1X,ES14.8)')  &
+     write (12,'(5(ES15.9,1x),I2,1X,I9,1X,ES14.8)')  &
           time/3600.0_8, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing
   end if
   do while (time .lt. time_end)
@@ -668,7 +668,7 @@ program DCMIP2008c5
              '  dof = ', sum(n_active), &
              ' cpu = ', timing
 
-        write (12,'(5(ES14.9,1x),I2,1X,I9,1X,ES14.8)')  &
+        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,ES14.8)')  &
              time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing
      end if
 
