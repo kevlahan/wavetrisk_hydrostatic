@@ -307,7 +307,7 @@ contains
 
     integer                          :: d, e, id, id_i, k, kb, kc, kk, m
     real(8)                          :: layer_pressure, p_surf, diff, dmin, vel_old
-    real(8), dimension (zlevels+1)   :: integrated_mass, new_mass, integrated_temp, new_temp, pressure
+    real(8), dimension (zlevels+1)   :: integrated_temp, new_temp, pressure
 
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
@@ -315,11 +315,9 @@ contains
 
     ! Integrate full full mass-weighted potential temperature vertically downward from the top
     ! All quantities located at interfaces
-    !integrated_mass(1) = 0.0_8
     integrated_temp(1) = 0.0_8
     do kb = 2, zlevels + 1
        k = zlevels-kb+2 ! Actual zlevel
-       !integrated_mass(kb) = integrated_mass(kb-1) + sol(S_MASS,k)%data(d)%elts(id_i)
        integrated_temp(kb) = integrated_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i)
     end do
 
@@ -358,7 +356,6 @@ contains
        end if
 
        ! Interpolate integrated temperature and integrated mass flux at top interfaces of new vertical grid
-       !new_mass(kb) = Newton_interp(pressure(stencil), integrated_mass(stencil), layer_pressure)
        new_temp(kb) = Newton_interp(pressure(stencil), integrated_temp(stencil), layer_pressure)
     end do
 
@@ -366,10 +363,7 @@ contains
     do k = 1, zlevels
        kb = zlevels-k+1
        ! Remapped mass-weighted potential temperature from integrated value interpolated to new grid
-       sol(S_MASS,k)%data(d)%elts(id_i) = new_mass(kb+1) - new_mass(kb)
-!       sol(S_TEMP,k)%data(d)%elts(id_i) = new_temp(kb+1) - new_temp(kb)
-
-       ! Remapped mass from new surface pressure and definition of vertical grid
+       sol(S_TEMP,k)%data(d)%elts(id_i) = new_temp(kb+1) - new_temp(kb)
        sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel
     end do
   end subroutine remap_scalars

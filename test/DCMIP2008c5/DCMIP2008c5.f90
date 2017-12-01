@@ -585,10 +585,10 @@ program DCMIP2008c5
 
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
-  viscosity_mass = 4.0d-3/kmax**2                ! viscosity for mass equation
-  viscosity_temp = 4.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 4.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 4.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_mass = 8.0d-3/kmax**2                ! viscosity for mass equation
+  viscosity_temp = 8.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = 8.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  viscosity_rotu = 8.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
