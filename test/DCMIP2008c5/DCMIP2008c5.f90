@@ -46,16 +46,16 @@ contains
        end do
   end subroutine set_surf_geopot
 
-  subroutine sum_total_mass(initialgo)
-    integer k
-    logical initialgo
+  subroutine sum_total_mass (initialgo)
+    integer :: k
+    logical :: initialgo
 
-    k=1 !select vertical level
+    k = 1 !select vertical level
     if (initialgo) then
-       initotalmass=integrate_hex(mass_pert, level_start, k)
+       initotalmass = integrate_hex (mass_pert, level_start, k)
     else
-       totalmass=integrate_hex(mass_pert, level_start, k)
-       !        if (rank.eq.0) write(*,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+       totalmass = integrate_hex (mass_pert, level_start, k)
+       if (rank.eq.0) write(6,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 

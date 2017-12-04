@@ -21,7 +21,7 @@ contains
 
   subroutine adapt_grid (set_thresholds)
     external :: set_thresholds
-    
+
     if (adapt_trend) then
        call trend_ml (sol, trend)
        call forward_wavelet_transform (trend, trend_wav_coeff)

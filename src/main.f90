@@ -195,8 +195,8 @@ contains
     if (aligned) idt = ialign - modulo(itime,ialign)
     dt = idt/time_mult ! Modify time step
 
-    !call RK45_opt(dt)
-    call euler(dt)
+    !call RK45_opt (trend_ml, dt)
+    call euler (trend_ml, dt)
 
     if (min_level .lt. max_level) call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
@@ -205,13 +205,13 @@ contains
     time  = itime/time_mult
   end subroutine time_step
 
-  subroutine time_step_diffuse(dt)
+  subroutine time_step_diffuse (dt)
     ! Euler time step to diffuse solution
     real(8) :: dt
-    call euler(dt)
+    call euler (trend_ml, dt)
   end subroutine time_step_diffuse
 
-  subroutine reset(init_state)
+  subroutine reset (init_state)
     type(Initial_State), dimension (:), allocatable :: init_state
     integer                                         :: k, l, d, v, i
     integer, dimension (AT_NODE:AT_EDGE)            :: num

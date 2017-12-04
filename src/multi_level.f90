@@ -822,17 +822,17 @@ contains
 
       if (dom%mask_e%elts(EDGE*id_par+RT+1) .ge. RESTRCT) then
          h_flux(EDGE*id_par+RT+1) = &
-              complete_coarse_flux(dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, RT, offs_chd, dims_chd)
+              complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, RT, offs_chd, dims_chd)
       end if
 
       if (dom%mask_e%elts(EDGE*id_par+DG+1) .ge. RESTRCT) then
          h_flux(EDGE*id_par+DG+1) = &
-              complete_coarse_flux(dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, DG, offs_chd, dims_chd)
+              complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, DG, offs_chd, dims_chd)
       end if
 
       if (dom%mask_e%elts(EDGE*id_par+UP+1) .ge. RESTRCT) then
          h_flux(EDGE*id_par+UP+1) = &
-              complete_coarse_flux(dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
+              complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
       end if
     end subroutine flux_restr
 
@@ -849,15 +849,15 @@ contains
       real(8), dimension(4)  :: sm_flux
 
       if (e .eq. RT) then
-         p_flux = part_coarse_flux(dscalar, flux, dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
+         p_flux = part_coarse_flux (dscalar, flux, dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
          c_flux = coarse_flux(dscalar, dom, i_par, j_par, i_chd+1, j_chd, RT)
          complete_coarse_flux = p_flux + c_flux + sm_flux(1) + sm_flux(2)
       elseif (e .eq. DG) then
-         p_flux = part_coarse_flux(dscalar, flux, dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd)
+         p_flux = part_coarse_flux (dscalar, flux, dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd)
          c_flux = coarse_flux(dscalar, dom, i_par, j_par, i_chd+1, j_chd+1, DG)
          complete_coarse_flux = p_flux + c_flux + sm_flux(2) + sm_flux(3)
       elseif (e .eq. UP) then
-         p_flux = part_coarse_flux(dscalar, flux, dom, i_chd, j_chd+1, UP, offs_chd, dims_chd)
+         p_flux = part_coarse_flux (dscalar, flux, dom, i_chd, j_chd+1, UP, offs_chd, dims_chd)
          c_flux = coarse_flux(dscalar, dom, i_par, j_par, i_chd, j_chd+1, UP)
          complete_coarse_flux = p_flux + c_flux + sm_flux(3) + sm_flux(4)
       end if
@@ -952,23 +952,23 @@ contains
 
       call get_indices (dom, i+1, j, RT, offs, dims, id)
 
-      interp_flux(1) = - sum(flux(id((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j-2, offs, dims)+1)%enc) &
+      interp_flux(1) = - sum(flux(id((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1, j-2, offs, dims)+1)%enc) &
            - sum((flux(id((/VPM,WMMM,UMZ/)+1)+1) -flux(id((/UPZ,VPMM,WMM/)+1)+1)) * &
-           dom%R_F_wgt%elts(idx(i+1,j-1, offs, dims)+1)%enc) ! UPLT S
+           dom%R_F_wgt%elts(idx(i+1, j-1, offs, dims)+1)%enc) ! UPLT S
 
-      interp_flux(2) = sum(flux(id((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(idx(i  ,j, offs, dims)+1)%enc) &
+      interp_flux(2) = sum(flux(id((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(idx(i, j, offs, dims)+1)%enc) &
            + sum((flux(id((/VMP,WPPP,UPZ/)+1)+1) - flux(id((/UMZ,VMPP,WPP/)+1)+1))* &
-           dom%R_F_wgt%elts(idx(i  ,j+1, offs, dims)+1)%enc) ! LORT
+           dom%R_F_wgt%elts(idx(i, j+1, offs, dims)+1)%enc) ! LORT
 
       call get_indices(dom, i, j+1, UP, offs, dims, id)
 
       interp_flux(3) = - sum(flux(id((/UZM,VMM,WPM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j, offs, dims)+1)%enc) &
            - sum((flux(id((/WMMM,UMZ,VPM/)+1)+1) - flux(id((/VPMM,WMM,UPZ/)+1)+1))* &
-           dom%R_F_wgt%elts(idx(i+1,j+1, offs, dims)+1)%enc) ! UPLT
+           dom%R_F_wgt%elts(idx(i+1, j+1, offs, dims)+1)%enc) ! UPLT
 
       interp_flux(4) = sum(flux(id((/UZP,VPP,WMP/)+1)+1) * dom%R_F_wgt%elts(idx(i-2,j, offs, dims)+1)%enc) &
            + sum((flux(id((/WPPP,UPZ,VMP/)+1)+1) - flux(id((/VMPP,WPP,UMZ/)+1)+1))* &
-           dom%R_F_wgt%elts(idx(i-2,j+1, offs, dims)+1)%enc) ! LORT W
+           dom%R_F_wgt%elts(idx(i-2, j+1, offs, dims)+1)%enc) ! LORT W
     end function interp_flux
 
     function part_coarse_flux (dscalar, flux, dom, i, j, e, offs, dims)
@@ -997,9 +997,9 @@ contains
       ol_area(3) = dom%overl_areas%elts(id(MP+1)+1)%a(3) - dom%overl_areas%elts(id(MP+1)+1)%split(1)
       ol_area(4) = dom%overl_areas%elts(id(PM+1)+1)%a(4) - dom%overl_areas%elts(id(PM+1)+1)%split(2)
 
-      part_coarse_flux = sum(flux(id((/UPZ,UMZ/)+1)+1)*area) - sum(flux(id((/VMM,WMP/)+1)+1))*area(2) &
-           - sum(flux(id((/WPM,VPP/)+1)+1))*area(1) &
-           + ol_area(3)*dscalar(id(MP+1)+1) - ol_area(4)*dscalar(id(PM+1)+1) &
+      part_coarse_flux = &
+           sum(flux(id((/UPZ,UMZ/)+1)+1)*area) - sum(flux(id((/VMM,WMP/)+1)+1))*area(2) - sum(flux(id((/WPM,VPP/)+1)+1))*area(1) &
+           + ol_area(3)*dscalar(id(MP+1)+1) - ol_area(4)*dscalar(id(PM+1)+1)  &
            - ol_area(1)*dscalar(id(PP+1)+1) + ol_area(2)*dscalar(id(MM+1)+1)
     end function part_coarse_flux
   end subroutine flux_cpt_restr

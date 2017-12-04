@@ -126,7 +126,7 @@ contains
     end do
   end subroutine init_RK_mem
 
-  subroutine manage_RK_mem()
+  subroutine manage_RK_mem
     integer :: d, k, v, n_new
 
     do k = 1, zlevels
@@ -145,9 +145,11 @@ contains
     end do
   end subroutine manage_RK_mem
 
-  subroutine RK45_opt(dt)
+  subroutine RK45_opt(trend_fun, dt)
     !see A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011
-    real(8)                 :: dt
+    external :: trend_fun
+    real(8)  :: dt
+    
     real(8), dimension(5,5) :: alpha, beta
 
     alpha = reshape((/1.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.444370494067_8, 0.555629505933_8, 0.0_8, 0.0_8, 0.0_8,  &
@@ -159,39 +161,38 @@ contains
          0.544974750212_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0846041633821_8,  &
          0.226007483194_8/), (/5, 5/))
 
-    call manage_RK_mem()
+    call manage_RK_mem
 
-    call trend_ml (sol, trend) 
-    call RK_sub_step1(sol, trend, alpha(1,1), dt*beta(1,1), q1)
-    call WT_after_step(q1, wav_coeff)
+    call trend_fun (sol, trend) 
+    call RK_sub_step1 (sol, trend, alpha(1,1), dt*beta(1,1), q1)
+    call WT_after_step (q1, wav_coeff)
 
-    call trend_ml(q1, trend)
-    call RK_sub_step2(sol, q1, trend, alpha(1:2,2), dt*beta(2,2), q2)
-    call WT_after_step(q2, wav_coeff)
+    call trend_fun (q1, trend)
+    call RK_sub_step2 (sol, q1, trend, alpha(1:2,2), dt*beta(2,2), q2)
+    call WT_after_step (q2, wav_coeff)
 
-    call trend_ml(q2, trend)
-    call RK_sub_step2(sol, q2, trend, (/alpha(1,3), alpha(3,3)/), dt*beta(3,3), q3)
-    call WT_after_step(q3, wav_coeff)
+    call trend_fun (q2, trend)
+    call RK_sub_step2 (sol, q2, trend, (/alpha(1,3), alpha(3,3)/), dt*beta(3,3), q3)
+    call WT_after_step (q3, wav_coeff)
 
-    call trend_ml(q3, trend)
-    call RK_sub_step2(sol, q3, trend, (/alpha(1,4), alpha(4,4)/), dt*beta(4,4), q4)
-    call WT_after_step(q4, wav_coeff)
+    call trend_fun (q3, trend)
+    call RK_sub_step2 (sol, q3, trend, (/alpha(1,4), alpha(4,4)/), dt*beta(4,4), q4)
+    call WT_after_step (q4, wav_coeff)
 
-    call trend_ml(q4, dq1)
-    call RK_sub_step4(sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), dt*beta(4:5,5), sol)
-
-    call WT_after_step(sol, wav_coeff, level_start-1)
+    call trend_fun (q4, dq1)
+    call RK_sub_step4 (sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), dt*beta(4:5,5), sol)
+    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK45_opt
 
-  subroutine euler(dt)
+  subroutine euler (trend_fun, dt)
     ! An Euler step to diffuse solution
     real(8) :: dt
+    external :: trend_fun
 
     integer :: d, k, v, start
 
-    !call trend_diffuse (sol, trend)
-    call trend_ml (sol, trend)
-    call RK_sub_step1 (sol, trend, 1.0_8, n_diffuse*dt, sol)
+    call trend_fun (sol, trend)
+    call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine euler
 
@@ -204,7 +205,7 @@ contains
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: sol_euler
 
     sol_euler = sol
-    call RK_sub_step1(sol, trend, 1.0_8, dt, sol_Euler)
+    call RK_sub_step1 (sol, trend, 1.0_8, dt, sol_Euler)
     
     wav_coeff_predict = wav_coeff
     !call WT_after_step(sol_euler, wav_coeff_predict, level_start-1)
