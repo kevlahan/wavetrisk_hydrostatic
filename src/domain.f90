@@ -132,42 +132,36 @@ contains
     initialized = .True.
   end subroutine init_domain_mod
 
-  subroutine apply_onescale_to_patch__int(routine, dom, p, zlev, st, en, ival)
-    external routine
-    type(Domain) dom
-    integer p
-    integer zlev
-    integer st, en
-    integer ival
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer j
-    integer i
+  subroutine apply_onescale_to_patch__int (routine, dom, p, zlev, st, en, ival)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, ival, p, st, zlev
+
+    integer :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     call get_offs_Domain(dom, p, offs, dims)
 
     do j = st + 1, PATCH_SIZE + en
        do i = st + 1, PATCH_SIZE + en
-          call routine(dom, p, i - 1, j - 1, zlev, offs, dims, ival)
+          call routine (dom, p, i - 1, j - 1, zlev, offs, dims, ival)
        end do
     end do
   end subroutine apply_onescale_to_patch__int
 
   subroutine apply_onescale_to_patch(routine, dom, p, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer p
-    integer zlev
-    integer st
-    integer en
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer bdry(JPlUS:IMINUS)
-    logical inner_bdry(JPlUS:IMINUS)
-    integer j
-    integer i
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, p, st, zlev
 
-    call get_offs_Domain(dom, p, offs, dims, inner_bdry)
+    integer                          :: i, j
+    integer, dimension(N_BDRY+1)     :: offs
+    integer, dimension(2,N_BDRY+1)   :: dims
+    integer, dimension(JPlUS:IMINUS) :: bdry
+    logical, dimension(JPlUS:IMINUS) :: inner_bdry
+
+    call get_offs_Domain (dom, p, offs, dims, inner_bdry)
 
     bdry = (/en, en, st, st/)
 
@@ -175,27 +169,26 @@ contains
 
     do j = bdry(JMINUS) + 1, PATCH_SIZE + bdry(JPLUS)
        do i = bdry(IMINUS) + 1, PATCH_SIZE + bdry(IPLUS)
-          call routine(dom, i - 1, j - 1, zlev, offs, dims)
+          call routine (dom, i - 1, j - 1, zlev, offs, dims)
        end do
     end do
   end subroutine apply_onescale_to_patch
 
-  integer function idx__fast(i, j, offs)
-    integer i
-    integer j
-    integer offs
+  function idx__fast (i, j, offs)
+    integer ::  idx__fast
+    integer :: i, j, offs
 
     idx__fast = PATCH_SIZE*j + i + offs
   end function idx__fast
 
-  integer function idx(i0, j0, offs, dims)
+   function idx (i0, j0, offs, dims)
     ! given regular array coordinates (i0,j0), offset array offs and domain array dims returns associated grid element as elts(idx+1)
-    integer i0
-    integer j0
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer i
-    integer j
+    integer                        :: idx
+    integer                        :: i0, j0
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: i, j
 
     i = i0
     j = j0
