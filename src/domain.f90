@@ -99,9 +99,9 @@ module domain_mod
 
 contains
 
-  subroutine init_Float_Field(self, pos)
-    type(Float_Field) self
-    integer pos
+  subroutine init_Float_Field (self, pos)
+    type(Float_Field) :: self
+    integer           :: pos
 
     self%bdry_uptodate = .False.
     self%pos = pos
@@ -109,16 +109,16 @@ contains
     allocate(self%data(n_domain(rank+1)))
   end subroutine init_Float_Field
 
-  subroutine init_domain_mod()
-    integer i, v
+  subroutine init_domain_mod
+    integer :: i, v
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
 
-    call init_shared_mod()
-    call init_sphere_mod()
-    call init_patch_mod()
-    call init_arch_mod()
+    call init_shared_mod
+    call init_sphere_mod
+    call init_patch_mod
+    call init_arch_mod
 
     sides_dims = reshape((/PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
          BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, PATCH_SIZE, &
@@ -245,30 +245,19 @@ contains
     end if
   end function idx
 
-  subroutine apply_interscale_to_patch2(routine, dom, p_par, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer p_par
-    integer zlev
-    integer st
-    integer en
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer c
-    integer p_chd
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer j
-    integer j_chd
-    integer j_par
-    integer i
-    integer i_chd
-    integer i_par
-    integer bdry(JPlUS:IMINUS)
-    logical inner_bdry(JPlUS:IMINUS)
+  subroutine apply_interscale_to_patch2 (routine, dom, p_par, zlev, st, en)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, st, p_par, zlev
+
+    integer                          :: c, i, i_chd, i_par, j, j_chd, j_par, p_chd
+    integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
+    integer, dimension(2,N_BDRY+1)   :: dims_chd, dims_par
+    integer, dimension(JPlUS:IMINUS) :: bdry
+    logical, dimension(JPlUS:IMINUS) :: inner_bdry
     !TODO{uncomment & test}  if (dom%patch%elts(p_par+1)%active .eq. NONE) return
 
-    call get_offs_Domain(dom, p_par, offs_par, dims_par)
+    call get_offs_Domain (dom, p_par, offs_par, dims_par)
 
     do c = 1, N_CHDRN
        p_chd = dom%patch%elts(p_par+1)%children(c)
@@ -287,7 +276,7 @@ contains
           do i = bdry(IMINUS) + 1, PATCH_SIZE/2 + bdry(IPLUS)
              i_chd = (i - 1)*2
              i_par = i - 1 + chd_offs(1,c)
-             call routine(dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+             call routine (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
           end do
        end do
     end do
@@ -304,28 +293,24 @@ contains
     ed_idx = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
   end function ed_idx
 
-  subroutine apply_onescale_d(routine, dom, l, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer l
-    integer zlev
-    integer st
-    integer en
-    integer k
+  subroutine apply_onescale_d (routine, dom, l, zlev, st, en)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, l, st, zlev
+
+    integer :: k
 
     do k = 1, dom%lev(l)%length
        call apply_onescale_to_patch(routine, dom, dom%lev(l)%elts(k), zlev, st, en)
     end do
   end subroutine apply_onescale_d
 
-  subroutine apply_interscale_d(routine, dom, l, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer l
-    integer zlev
-    integer st
-    integer en
-    integer k
+  subroutine apply_interscale_d (routine, dom, l, zlev, st, en)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, l, st, zlev
+
+    integer :: k
 
     do k = 1, dom%lev(l)%length
        call apply_interscale_to_patch(routine, dom, dom%lev(l)%elts(k), zlev, st, en)
@@ -333,30 +318,25 @@ contains
   end subroutine apply_interscale_d
 
   subroutine apply_interscale_d2(routine, dom, l, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer l
-    integer zlev
-    integer st
-    integer en
-    integer k
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, l, st, zlev
+
+    integer :: k
 
     do k = 1, dom%lev(l)%length
        call apply_interscale_to_patch22(routine, dom, dom%lev(l)%elts(k), zlev, st, en)
     end do
   end subroutine apply_interscale_d2
 
-  subroutine apply_to_pole_d(routine, dom, l, zlev, ival, to_all)
-    external routine
-    type(Domain) dom
-    integer l, zlev
-    integer ival
-    logical to_all
-    integer c
-    integer p
-    integer p_par
-    integer l_cur
-    integer, dimension(N_BDRY + 1) :: offs
+  subroutine apply_to_pole_d (routine, dom, l, zlev, ival, to_all)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: ival, l, zlev
+    logical      :: to_all
+
+    integer                        :: c, l_cur, p, p_par
+    integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     do c = SOUTHEAST, NORTHWEST, 2
@@ -379,38 +359,34 @@ contains
              end if
           end if
 
-          call get_offs_Domain(dom, p_par, offs, dims)
+          call get_offs_Domain (dom, p_par, offs, dims)
 
           if (c .eq. NORTHWEST) then
-             call routine(dom, p_par, 0, PATCH_SIZE, zlev, offs, dims, ival) ! NORTHPOLE
+             call routine (dom, p_par, 0, PATCH_SIZE, zlev, offs, dims, ival) ! NORTHPOLE
           else
-             call routine(dom, p_par, PATCH_SIZE, 0, zlev, offs, dims, ival) ! SOUTHPOLE
+             call routine (dom, p_par, PATCH_SIZE, 0, zlev, offs, dims, ival) ! SOUTHPOLE
           end if
 
        end do
     end do
   end subroutine apply_to_pole_d
 
-  subroutine apply_to_pole(routine, l, zlev, ival, to_all)
-    external routine
-    integer l, zlev
-    integer ival
-    logical to_all
-    integer d
-    integer c
-    integer p
-    integer p_par
-    integer l_cur
-    integer, dimension(N_BDRY + 1) :: offs
+  subroutine apply_to_pole (routine, l, zlev, ival, to_all)
+    external :: routine
+    integer  :: ival, l, zlev
+    logical  :: to_all
+
+    integer                        :: c, d, l_cur, p, p_par
+    integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     do d = 1, size(grid)
-       call apply_to_pole_d(routine, grid(d), l, zlev, ival, to_all)
+       call apply_to_pole_d (routine, grid(d), l, zlev, ival, to_all)
     end do
   end subroutine apply_to_pole
 
-  subroutine apply_to_penta_d(routine, dom, l, zlev)
-    external routine
+  subroutine apply_to_penta_d (routine, dom, l, zlev)
+    external     :: routine
     type(Domain) :: dom
     integer      :: l, zlev
 
@@ -434,8 +410,8 @@ contains
              end if
           end if
 
-          call get_offs_Domain(dom, p_par, offs, dims)
-          call routine(dom, p_par, c, offs, dims, zlev)
+          call get_offs_Domain (dom, p_par, offs, dims)
+          call routine (dom, p_par, c, offs, dims, zlev)
        end do
     end do
   end subroutine apply_to_penta_d
@@ -471,27 +447,16 @@ contains
     nidx = offs(s+1) + j*dims(1,s+1) + i
   end function nidx
 
-  subroutine apply_interscale_to_patch3(routine, dom, p_par, c, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer p_par
-    integer zlev
-    integer st
-    integer en
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer c
-    integer p_chd
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer j
-    integer j_chd
-    integer j_par
-    integer i
-    integer i_chd
-    integer i_par
-    integer bdry(JPlUS:IMINUS)
-    logical inner_bdry(JPlUS:IMINUS)
+  subroutine apply_interscale_to_patch3 (routine, dom, p_par, c, zlev, st, en)
+    external :: routine
+    type(Domain) :: dom
+    integer :: c, en, p_par, st, zlev
+    
+    integer                          :: i, i_chd, i_par, j, j_chd, j_par, p_chd
+    integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
+    integer, dimension(2,N_BDRY+1)   :: dims_chd, dims_par
+    integer, dimension(JPlUS:IMINUS) :: bdry
+    logical, dimension(JPlUS:IMINUS) :: inner_bdry
     !TODO{uncomment & test}  if (dom%patch%elts(p_par+1)%active .eq. NONE) return
 
     call get_offs_Domain(dom, p_par, offs_par, dims_par)
@@ -513,27 +478,16 @@ contains
     end do
   end subroutine apply_interscale_to_patch3
 
-  subroutine apply_interscale_to_patch22(routine, dom, p_par, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer p_par
-    integer zlev
-    integer st
-    integer en
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer c
-    integer p_chd
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer j
-    integer j_chd
-    integer j_par
-    integer i
-    integer i_chd
-    integer i_par
-    integer bdry(JPlUS:IMINUS)
-    logical inner_bdry(JPlUS:IMINUS)
+  subroutine apply_interscale_to_patch22 (routine, dom, p_par, zlev, st, en)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, p_par, st, zlev
+    
+    integer                          :: c, i, i_chd, i_par, j, j_chd, j_par, p_chd
+    integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
+    integer, dimension(2,N_BDRY+1)   :: dims_chd, dims_par
+    integer, dimension(JPlUS:IMINUS) :: bdry
+    logical, dimension(JPlUS:IMINUS) :: inner_bdry
 
     call get_offs_Domain(dom, p_par, offs_par, dims_par)
 
@@ -557,27 +511,16 @@ contains
     end do
   end subroutine apply_interscale_to_patch22
 
-  subroutine apply_interscale_to_patch(routine, dom, p_par, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer p_par
-    integer zlev
-    integer st
-    integer en
-    integer, dimension(N_BDRY + 1) :: offs_par
-    integer, dimension(2,N_BDRY + 1) :: dims_par
-    integer c
-    integer p_chd
-    integer, dimension(N_BDRY + 1) :: offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_chd
-    integer j
-    integer j_chd
-    integer j_par
-    integer i
-    integer i_chd
-    integer i_par
-    integer bdry(JPlUS:IMINUS)
-    logical inner_bdry(JPlUS:IMINUS)
+  subroutine apply_interscale_to_patch (routine, dom, p_par, zlev, st, en)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, p_par, st, zlev
+
+    integer                          :: c, i, i_chd, i_par, j, j_chd, j_par, p_chd
+    integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
+    integer, dimension(2,N_BDRY+1)   :: dims_chd, dims_par
+    integer, dimension(JPlUS:IMINUS) :: bdry
+    logical, dimension(JPlUS:IMINUS) :: inner_bdry
 
     call get_offs_Domain(dom, p_par, offs_par, dims_par)
 
@@ -603,14 +546,11 @@ contains
     end do
   end subroutine apply_interscale_to_patch
 
-  subroutine apply_onescale2(routine, l, zlev, st, en)
-    external routine
-    integer l
-    integer zlev
-    integer st
-    integer en
-    integer d
-    integer k
+  subroutine apply_onescale2 (routine, l, zlev, st, en)
+    external :: routine
+    integer  :: en, l, st, zlev
+
+    integer :: d, k
 
     do d = 1, size(grid)
        do k = 1, grid(d)%lev(l)%length
@@ -619,19 +559,16 @@ contains
     end do
   end subroutine apply_onescale2
 
-  subroutine apply_onescale_to_patch5(routine, dom, p, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer p
-    integer zlev
-    integer st
-    integer en
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    logical inner_patch(JPlUS:IMINUS)
-    integer bdry(JPlUS:IMINUS)
-    integer j
-    integer i
+  subroutine apply_onescale_to_patch5 (routine, dom, p, zlev, st, en)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, p, st, zlev
+
+    integer                          :: i, j
+    integer, dimension(N_BDRY+1)     :: offs
+    integer, dimension(2,N_BDRY+1)   :: dims
+    logical, dimension(JPlUS:IMINUS) :: inner_patch
+    integer, dimension(JPlUS:IMINUS) :: bdry
 
     call get_offs_Domain5(dom, p, offs, dims, inner_patch)
 
@@ -646,17 +583,14 @@ contains
     end do
   end subroutine apply_onescale_to_patch5
 
-  subroutine apply_onescale_to_patch2(routine, dom, p, zlev, st, en)
-    external routine
-    type(Domain) dom
-    integer p
-    integer zlev
-    integer st
-    integer en
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer j
-    integer i
+  subroutine apply_onescale_to_patch2 (routine, dom, p, zlev, st, en)
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, p, st, zlev
+
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     call get_offs_Domain(dom, p, offs, dims)
 
@@ -667,23 +601,22 @@ contains
     end do
   end subroutine apply_onescale_to_patch2
 
-  integer function idx2(i, j, noffs, offs, dims)
-    integer i
-    integer j
-    integer, dimension(2) :: noffs
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  integer function idx2 (i, j, noffs, offs, dims)
+    integer                        :: i, j
+    integer, dimension(2)          :: noffs
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     idx2 = idx(i + noffs(1), j + noffs(2), offs, dims)
   end function idx2
 
-  logical function is_penta(dom, p, s)
-    type(Domain) dom
-    integer p
-    integer s
-    logical penta
-    integer n
-    integer side
+  function is_penta(dom, p, s)
+    logical      :: is_penta
+    type(Domain) :: dom
+    integer      :: p, s
+
+    integer :: n, side
+    logical :: penta
 
     penta = .False.
 
@@ -702,34 +635,33 @@ contains
     is_penta = penta
   end function is_penta
 
-  subroutine apply_interscale(routine, l, zlev, st, en)
-    external routine
-    integer l, zlev
-    integer st
-    integer en
-    integer d
+  subroutine apply_interscale (routine, l, zlev, st, en)
+    external :: routine
+    integer  :: en, l, st, zlev
+
+    integer :: d
 
     do d = 1, size(grid)
        call apply_interscale_d(routine, grid(d), l, zlev, st, en)
     end do
   end subroutine apply_interscale
 
-  subroutine apply(routine, zlev)
-    external routine
-    integer l, zlev
+  subroutine apply (routine, zlev)
+    external :: routine
+    integer  :: zlev
+
+    integer :: l
 
     do l = level_start, level_end
        call apply_onescale(routine, l, zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine apply
 
-  subroutine apply_onescale(routine, l, zlev, st, en)
-    external routine
-    integer l, zlev
-    integer st
-    integer en
-    integer d
-    integer k
+  subroutine apply_onescale (routine, l, zlev, st, en)
+    external :: routine
+    integer  :: en, l, st, zlev
+
+    integer :: d, k
 
     do d = 1, size(grid)
        do k = 1, grid(d)%lev(l)%length
@@ -738,15 +670,12 @@ contains
     end do
   end subroutine apply_onescale
 
-  subroutine apply_onescale__int(routine, l, zlev, st, en, ival)
-    external routine
-    integer l, zlev
-    integer st
-    integer en
-    integer d
-    integer k
-    integer ival
-    logical pole_done(2)
+  subroutine apply_onescale__int (routine, l, zlev, st, en, ival)
+    external :: routine
+    integer  :: en, ival, l, st, zlev
+
+    integer               :: d, k
+    logical, dimension(2) :: pole_done
 
     do d = 1, size(grid)
        do k = 1, grid(d)%lev(l)%length
@@ -755,7 +684,7 @@ contains
     end do
   end subroutine apply_onescale__int
 
-  function add_bdry_patch_Domain(self, side)
+  function add_bdry_patch_Domain (self, side)
     integer      :: add_bdry_patch_Domain
     type(Domain) :: self
     integer      :: side
@@ -771,14 +700,14 @@ contains
     add_bdry_patch_Domain = p
   end function add_bdry_patch_Domain
 
-  subroutine get_offs_Domain5(self, p, offs, dims, inner_patch)
-    type(Domain) self
-    integer p
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    logical, optional :: inner_patch(4)
-    integer i
-    integer n
+  subroutine get_offs_Domain5 (self, p, offs, dims, inner_patch)
+    type(Domain)                    :: self
+    integer                         :: p
+    integer, dimension(N_BDRY+1)    :: offs
+    integer, dimension(2,N_BDRY+1)  :: dims
+    logical, dimension(4), optional :: inner_patch(4)
+
+    integer :: i, n
 
     offs = -1
     dims = 0
@@ -801,14 +730,14 @@ contains
     end do
   end subroutine get_offs_Domain5
 
-  subroutine get_offs_Domain(self, p, offs, dims, inner_bdry)
-    type(Domain) self
-    integer p
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    logical, optional :: inner_bdry(4)
-    integer i
-    integer n
+  subroutine get_offs_Domain (self, p, offs, dims, inner_bdry)
+    type(Domain)                    :: self
+    integer                         :: p
+    integer, dimension(N_BDRY+1)    :: offs
+    integer, dimension(2,N_BDRY+1)  :: dims
+    logical, dimension(4), optional :: inner_bdry
+
+    integer :: i, n
 
     offs = -1
     dims = 0
@@ -831,20 +760,20 @@ contains
     end do
   end subroutine get_offs_Domain
 
-  subroutine set_neigh_Domain(self, s, id, rot)
-    type(Domain) self
-    integer s
-    integer id
-    integer rot
+  subroutine set_neigh_Domain (self, s, id, rot)
+    type(Domain) :: self
+    integer      :: id, rot, s
 
     self%neigh(s) = id
     self%neigh_rot(s) = rot
   end subroutine set_neigh_Domain
 
-  integer function find_neigh_bdry_patch_Domain(self, p_par, c, s)
-    type(Domain) self
-    integer p_par, c, s
-    integer p_chd, p_par1, c1
+  function find_neigh_bdry_patch_Domain (self, p_par, c, s)
+    integer      :: find_neigh_bdry_patch_Domain
+    type(Domain) :: self
+    integer      :: p_par, c, s
+    
+    integer :: p_chd, p_par1, c1
 
     find_neigh_bdry_patch_Domain = 0
 
@@ -856,7 +785,7 @@ contains
     if (s .ge. 4) return
 
     if (find_neigh_bdry_patch_Domain .eq. 0) then
-       call find_neigh_patch2_Domain(self, p_par, c, modulo(s+1,4), p_par1, c1)
+       call find_neigh_patch2_Domain (self, p_par, c, modulo(s+1,4), p_par1, c1)
        if (p_par1 .gt. 0) then
           p_chd = self%patch%elts(p_par1+1)%children(c1+1)
           if (p_chd .gt. 0) find_neigh_bdry_patch_Domain = self%patch%elts(p_chd+1)%neigh((modulo(s-1,4)+4)+1)
@@ -864,7 +793,7 @@ contains
     end if
 
     if (find_neigh_bdry_patch_Domain .eq. 0) then
-       call find_neigh_patch2_Domain(self, p_par, c, modulo(s-1,4), p_par1, c1)
+       call find_neigh_patch2_Domain (self, p_par, c, modulo(s-1,4), p_par1, c1)
        if (p_par1 .gt. 0) then
           p_chd = self%patch%elts(p_par1+1)%children(c1+1)
           if (p_chd .gt. 0) find_neigh_bdry_patch_Domain = self%patch%elts(p_chd+1)%neigh((s+4)+1)
@@ -872,14 +801,15 @@ contains
     end if
   end function find_neigh_bdry_patch_Domain
 
-  subroutine find_neigh_patch2_Domain(self, p_par0, c0, s0, p_par, c)
+  subroutine find_neigh_patch2_Domain (self, p_par0, c0, s0, p_par, c)
     ! for patch given as `c0`-th child of `p_par0`
     ! find neighbour with respect to side `s0`
     ! result as `c`-th child of patch `p_par`
-    type(Domain) self
-    integer, intent(in) :: p_par0, c0, s0
+    type(Domain)         :: self
+    integer, intent(in)  :: p_par0, c0, s0
     integer, intent(out) :: p_par, c
-    integer s_par
+    
+    integer :: s_par
 
     s_par = par_side(c0, s0)
     if (s0 .eq. c0 .or. s0 .eq. modulo(c0 + 1, 4) .or. (s0 .eq. c0 + 4)) then
@@ -891,12 +821,10 @@ contains
     end if
 
     c = ngb_chd_idx(c0, s0)
-
   contains
-
-    integer function ngb_chd_idx(c, s)
-      integer c
-      integer s
+     function ngb_chd_idx(c, s)
+      integer :: ngb_chd_idx
+      integer :: c, s
 
       if (s .lt. 4) then
          ngb_chd_idx = modulo(-c + 2*s + 1, 4)
@@ -906,24 +834,18 @@ contains
          return
       end if
     end function ngb_chd_idx
-
   end subroutine find_neigh_patch2_Domain
 
-  integer function find_neigh_patch_Domain(self, p_par, c, s_chd)
+  function find_neigh_patch_Domain (self, p_par, c, s_chd)
     !  finds the neighbour at side s of c-th child
     !             of parent patch p_par through p_par
-    type(Domain) self
-    integer p_par, p_par1
-    integer c, c1
-    integer s_chd
-    integer s_par
-    integer n_par
-    integer typ
-    integer p_chd
-    integer s_help
-    integer n_side
+    integer      :: find_neigh_patch_Domain
+    type(Domain) :: self
+    integer      :: c, p_par, s_chd
 
-    call find_neigh_patch2_Domain(self, p_par, c, s_chd, n_par, c1)
+    integer :: c1, n_par, n_side, p_chd, p_par1, s_help, s_par, typ
+
+    call find_neigh_patch2_Domain (self, p_par, c, s_chd, n_par, c1)
 
     s_par = par_side(c, s_chd)
 
@@ -951,9 +873,9 @@ contains
     end if
   end function find_neigh_patch_Domain
 
-  integer function par_side(c, s)
-    integer c
-    integer s
+  function par_side (c, s)
+    integer :: par_side
+    integer :: c, s
 
     if (s .eq. modulo(c + 1, 4) + 4) then
        par_side = modulo(c + 1, 4)
@@ -969,7 +891,7 @@ contains
     end if
   end function par_side
 
-  subroutine extend_Domain(self, num)
+  subroutine extend_Domain (self, num)
     type(Domain) :: self
     integer      :: num
     
@@ -986,9 +908,10 @@ contains
     end do
   end subroutine extend_Domain
 
-  subroutine init_Domain(self)
-    type(Domain) self
-    integer i, k, l, r
+  subroutine init_Domain (self)
+    type(Domain) :: self
+    
+    integer :: i, k, l, r
 
     call init(self%patch, 1)
     call init(self%bdry_patch, 1)
@@ -1028,7 +951,7 @@ contains
     self%pole_master = .False.
   end subroutine init_Domain
 
-  function add_patch_Domain(self, level)
+  function add_patch_Domain (self, level)
     integer      :: add_patch_Domain
     type(Domain) :: self
     
