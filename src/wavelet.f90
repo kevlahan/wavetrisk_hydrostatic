@@ -1169,50 +1169,46 @@ contains
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    mass(id_par+1) = restrict_s (mass(id_chd+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    temp(id_par+1) = restrict_s (temp(id_chd+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-  end subroutine restrict_scalar
+    mass(id_par+1) = restrict_s (mass(id_chd+1), wc_m)
+    temp(id_par+1) = restrict_s (temp(id_chd+1), wc_t)
+  contains
+    function restrict_s (scalar, wavelet)
+      ! Restriction operator at nodes: sub-sample and lift
+      real(8)                        :: restrict_s
+      real(8)                        :: scalar
+      real(8), dimension(:), pointer :: wavelet
 
-  function restrict_s (scalar, wavelet, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    ! Restriction operator at nodes: sub-sample and lift
-    real(8)                        :: restrict_s
-    real(8)                        :: scalar
-    real(8), dimension(:), pointer :: wavelet
-    type(Domain)                   :: dom
-    integer                        :: id_par, i_chd, j_chd
-    integer, dimension(N_BDRY+1)   :: offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_chd
-    
-    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
-   
-    idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idN2E = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
-    id2NE = idx(i_chd + 1, j_chd + 2, offs_chd, dims_chd)
-    idN   = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-    idW   = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
-    idNW  = idx(i_chd - 1, j_chd + 1, offs_chd, dims_chd)
-    idS2W = idx(i_chd - 2, j_chd - 1, offs_chd, dims_chd)
-    idSW  = idx(i_chd - 1, j_chd - 1, offs_chd, dims_chd)
-    idS   = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
-    id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
-    idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
-    
-    restrict_s = scalar + &
-         (wavelet(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-         wavelet(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-         wavelet(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-         wavelet(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-         wavelet(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-         wavelet(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-         wavelet(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-         wavelet(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-         wavelet(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-         wavelet(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-         wavelet(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-         wavelet(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
-         dom%areas%elts(id_par+1)%hex_inv
-  end function restrict_s
+      integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
+
+      idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
+      idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
+      idN2E = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
+      id2NE = idx(i_chd + 1, j_chd + 2, offs_chd, dims_chd)
+      idN   = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
+      idW   = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
+      idNW  = idx(i_chd - 1, j_chd + 1, offs_chd, dims_chd)
+      idS2W = idx(i_chd - 2, j_chd - 1, offs_chd, dims_chd)
+      idSW  = idx(i_chd - 1, j_chd - 1, offs_chd, dims_chd)
+      idS   = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
+      id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
+      idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
+
+      restrict_s = scalar + &
+           (wavelet(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+           wavelet(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+           wavelet(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+           wavelet(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+           wavelet(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+           wavelet(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+           wavelet(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+           wavelet(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+           wavelet(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+           wavelet(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+           wavelet(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+           wavelet(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+           dom%areas%elts(id_par+1)%hex_inv
+    end function restrict_s
+end subroutine restrict_scalar
 
   type(Iu_Wgt) function outer_velo_weights (dom, p, i0, j0, e0, offs, dims)
     type(Domain)                   :: dom
