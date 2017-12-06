@@ -579,31 +579,31 @@ contains
     integer :: idNW, idN, idNE, idW, id, idE, idSW, idS, idSE
     type(Areas) :: area
 
-    idNW = idx(i - 1, j + 1, offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-    idW  = idx(i - 1, j,     offs, dims)
-    id   = idx(i,     j,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idSW = idx(i - 1, j - 1, offs, dims)
-    idS  = idx(i,     j - 1, offs, dims)
-    idSE = idx(i + 1, j - 1, offs, dims)
+    idNW = idx(i-1, j+1, offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    id   = idx(i,   j,   offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idSE = idx(i+1, j-1, offs, dims)
 
-    call init_Areas(area, dom%node%elts(id+1), &
+    call init_Areas (area, dom%node%elts(id+1), &
          
          (/ dom%ccentre%elts(TRIAG*id  +LORT+1), &
-         dom%ccentre%elts(TRIAG*id  +UPLT+1), &
-         dom%ccentre%elts(TRIAG*idW +LORT+1), &
-         dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-         dom%ccentre%elts(TRIAG*idSW+LORT+1), &
-         dom%ccentre%elts(TRIAG*idS +UPLT+1) /), &
+            dom%ccentre%elts(TRIAG*id  +UPLT+1), &
+            dom%ccentre%elts(TRIAG*idW +LORT+1), &
+            dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
+            dom%ccentre%elts(TRIAG*idSW+LORT+1), &
+            dom%ccentre%elts(TRIAG*idS +UPLT+1) /), &
          
          (/ dom%midpt%elts(EDGE*id  +RT+1), &
-         dom%midpt%elts(EDGE*id  +DG+1), &
-         dom%midpt%elts(EDGE*id  +UP+1), &
-         dom%midpt%elts(EDGE*idW +RT+1), &
-         dom%midpt%elts(EDGE*idSW+DG+1), &
-         dom%midpt%elts(EDGE*idS +UP+1)/) )
+            dom%midpt%elts(EDGE*id  +DG+1), &
+            dom%midpt%elts(EDGE*id  +UP+1), &
+            dom%midpt%elts(EDGE*idW +RT+1), &
+            dom%midpt%elts(EDGE*idSW+DG+1), &
+            dom%midpt%elts(EDGE*idS +UP+1)/) )
 
     if (j .ge. PATCH_SIZE + 1) then
        dom%areas%elts(id+1)%part(4:6) = area%part(4:6)

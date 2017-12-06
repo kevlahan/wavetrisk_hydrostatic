@@ -216,7 +216,7 @@ contains
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, wav
     integer, optional                                             :: l_start0
     
-    integer :: l, ll, d, k, l_start
+    integer :: d, j, k, l, l_start
 
     !  everything needed in terms of forward and backward wavelet transform
     !         after one time step (e.g. RK sub-step)
@@ -252,7 +252,7 @@ contains
              wc_t => wav(S_TEMP,k)%data(d)%elts
              wc_u => wav(S_VELO,k)%data(d)%elts
              
-             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d (compute_velo_wavelets,   grid(d), l, z_null, 0, 0)
              call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
              nullify (mass, temp, velo, wc_m, wc_t, wc_u)
@@ -262,8 +262,8 @@ contains
 
        do l = level_start+1, level_end
           do d = 1, size(grid)
-             do ll = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (compress, grid(d), grid(d)%lev(l)%elts(ll), k, 0, 1)
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (compress, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
           end do
           wav(:,k)%bdry_uptodate = .False.

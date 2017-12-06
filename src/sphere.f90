@@ -253,8 +253,7 @@ contains
     real(8) :: area
 
     do i = 1, 6
-       self%part(i) = triarea(centre, corners(i), midpts(i)) &
-            + triarea(centre, corners(i), midpts(modulo(i,6)+1))
+       self%part(i) = triarea(centre, corners(i), midpts(i)) + triarea(centre, corners(i), midpts(modulo(i,6)+1))
     end do
     area = sum(self%part)
 

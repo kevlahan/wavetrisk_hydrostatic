@@ -11,12 +11,14 @@ module remap_mod
   integer                             :: order
   integer, dimension (:), allocatable :: stencil
 contains
-  subroutine remap_vertical_coordinates()
+  subroutine remap_vertical_coordinates
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! interpolate on the full (not the perturbation) quantities
     ! Conserves mass, heat and momentum flux
-    integer            :: d, j, k, l
+    integer            :: d, j, k, l, p
     integer, parameter :: order_default = 7 ! order must be odd
+
+    if (rank.eq.0) write(6,*) "Remapping vertical coordinates"
 
     ! Set order of Newton interpolation
     order = min(zlevels+1, order_default)
@@ -35,43 +37,40 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     ! Remap velocity first to use only values of mass on current grid to find old momentum
-    do l = level_start, level_end
-       ! Remap velocity first to use only values of mass on current grid to find old momentum
-       call apply_onescale (remap_velocity, l, z_null, 0, 0)
-       ! Remap mass and mass-weighted temperature
-       call apply_onescale (remap_scalars,  l, z_null, 0, 1)
-    end do
+    !call apply_onescale (remap_velocity, level_end, z_null, 0, 0)
+    ! Remap mass and mass-weighted temperature
+    !call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
+    
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Remap at coarser scales !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! do l = level_end-1, level_start, -1
-    !    do d = 1, size(grid)
-    !       call cpt_or_restr_velo (grid(d), l)
-    !    end do
-    !    do d = 1, size(grid)
-    !       do j = 1, grid(d)%lev(l)%length
-    !          call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
-    !       end do
-    !    end do
+    do l = level_end-1, level_start, -1
+       do d = 1, size(grid)
+          !call cpt_or_restr_velo (grid(d), l)
+       end do
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(l)%length
+             !call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+          end do
+       end do
 
-    !    do d = 1, size(grid)
-    !       do j = 1, grid(d)%lev(l)%length
-    !          call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-    !       end do
-    !    end do
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(l)%length
+            ! call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+          end do
+       end do
 
-    !    do d = 1, size(grid)
-    !       do k = 1, zlevels
-    !          mass => sol(S_MASS,k)%data(d)%elts
-    !          temp => sol(S_TEMP,k)%data(d)%elts
-    !          call cpt_or_restr_scalar (grid(d), l)
-    !          nullify (mass, temp)
-    !       end do
-    !     end do
-    ! end do
-
-     ! Ensure boundary values are up to date
-   ! call update_array_bdry (sol, NONE)
+       do k = 1, zlevels
+          do d = 1, size(grid)
+             mass => sol(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (scalar_cpt_restr, grid(d), l, k, 0, 0) ! +1 to include poles
+             !call cpt_or_restr_scalar (grid(d), l)
+             nullify (mass, temp)
+          end do
+        end do
+    end do
+    !call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine remap_vertical_coordinates
 
   subroutine cpt_or_restr_velo (dom, l)
@@ -145,13 +144,18 @@ contains
           p_chd = dom%patch%elts(p_par+1)%children(c)
           if (p_chd .gt. 0) restrict(c) = .True.
        end do
-       do c = 1, N_CHDRN
-          if (restrict(c)) call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, c, z_null, 0, 1)
-       end do
+      ! do c = 1, N_CHDRN
+      !    if (restrict(c)) call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, c, z_null, 0, 0)
+       ! end do
+       !call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, 1, z_null, 0, 0)
+       call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, 2, z_null, 0, 0)
+       call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, 3, z_null, 0, 0)
+       !call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, 4, z_null, 0, 0)
     end do
   end subroutine cpt_or_restr_scalar
 
-  subroutine scalar_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+ ! subroutine scalar_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine scalar_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute or restrict scalars
     type(Domain)                   :: dom
     integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
@@ -172,23 +176,88 @@ contains
       real(8)                        :: scalar_restr
       real(8), dimension(:)          :: scalar
      
-      integer :: id_chd, idE_chd, idNE_chd, idN_chd, idW_chd, idSW_chd, idS_chd
+      integer :: id, idE, idNE, idN, idW, idSW, idS, idSWW, idSSW
+      integer :: idN2E, id2NE, idNW, idS2W, id2SW, idSE, d
+      real(8) :: Area_E, Area_NE,  Area_N, Area_W, Area_SW, Area_S
+      real(8) :: Area_restrict, Area_parent, Error
 
-      id_chd   = idx(i_chd,   j_chd,   offs_chd, dims_chd)
-      idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
-      idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-      idN_chd  = idx(i_chd,   j_chd,   offs_chd, dims_chd)
-      idW_chd  = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
-      idSW_chd = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
-      idS_chd  = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
+          
+      id    = idx(i_chd,   j_chd,   offs_chd, dims_chd)
 
-      scalar_restr = (scalar(id_chd+1)/dom%areas%elts(id_chd+1)%hex_inv + 0.5_8 * ( &
-           scalar(idE_chd+1) /dom%areas%elts(idE_chd+1)%hex_inv  + &
-           scalar(idNE_chd+1)/dom%areas%elts(idNE_chd+1)%hex_inv + &
-           scalar(idN_chd+1) /dom%areas%elts(idN_chd+1)%hex_inv  + &
-           scalar(idW_chd+1) /dom%areas%elts(idW_chd+1)%hex_inv  + &
-           scalar(idSW_chd+1)/dom%areas%elts(idSW_chd+1)%hex_inv + &
-           scalar(idS_chd+1) /dom%areas%elts(idS_chd+1)%hex_inv)) * dom%areas%elts(id_par+1)%hex_inv
+      if (dom%mask_n%elts(id+1) .eq. 0) return
+      
+      idE   = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+      idNE  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+      idN   = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
+      idW   = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
+      idSW  = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
+      idSWW = idx(i_chd-2, j_chd-1, offs_chd, dims_chd)
+      idSSW = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
+      idS   = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
+      idN2E = idx(i_chd+2, j_chd+1, offs_chd, dims_chd)
+      id2NE = idx(i_chd+1, j_chd+2, offs_chd, dims_chd)
+      idNW  = idx(i_chd-1, j_chd+1, offs_chd, dims_chd)
+      idS2W = idx(i_chd-2, j_chd-1, offs_chd, dims_chd)
+      id2SW = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
+      idSE  = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
+
+      ! Areas of six half hexagons neighbouring child hexagon
+      ! Area_E = dom%areas%elts(idE+1)%part(3) + dom%areas%elts(idE+1)%part(4) + &
+      !      triarea(dom%node%elts(idE+1), dom%ccentre%elts(TRIAG*idS+LORT+1), dom%midpt%elts(EDGE*idS+DG+1)) + &
+      !      triarea(dom%node%elts(idE+1), dom%ccentre%elts(TRIAG*idE+UPLT+1), dom%midpt%elts(EDGE*idE+UP+1))
+           
+      ! Area_NE = dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idNE+1)%part(5) + &
+      !      triarea(dom%node%elts(idNE+1), dom%ccentre%elts(TRIAG*idE+UPLT+1), dom%midpt%elts(EDGE*idE+UP+1)) + &
+      !      triarea(dom%node%elts(idNE+1), dom%ccentre%elts(TRIAG*idN+LORT+1), dom%midpt%elts(EDGE*idN+RT+1))
+           
+      ! Area_N = dom%areas%elts(idN+1)%part(5) + dom%areas%elts(idN+1)%part(6) + &
+      !      triarea(dom%node%elts(idN+1), dom%ccentre%elts(TRIAG*idN+LORT+1), dom%midpt%elts(EDGE*idN+RT+1)) + &
+      !      triarea(dom%node%elts(idN+1), dom%ccentre%elts(TRIAG*idW+UPLT+1), dom%midpt%elts(EDGE*idW+DG+1))
+      
+      ! Area_W = dom%areas%elts(idW+1)%part(6) + dom%areas%elts(idW+1)%part(1) + &
+      !      triarea(dom%node%elts(idW+1), dom%ccentre%elts(TRIAG*idW+UPLT+1), dom%midpt%elts(EDGE*idW+DG+1)) + &
+      !      triarea(dom%node%elts(idW+1), dom%ccentre%elts(TRIAG*idSWW+LORT+1), dom%midpt%elts(EDGE*idSW+UP+1))
+
+      ! Area_SW = dom%areas%elts(idSW+1)%part(1) + dom%areas%elts(idSW+1)%part(2) + &
+      !      triarea(dom%node%elts(idSW+1), dom%ccentre%elts(TRIAG*idSWW+LORT+1), dom%midpt%elts(EDGE*idSW+UP+1)) + &
+      !      triarea(dom%node%elts(idSW+1), dom%ccentre%elts(TRIAG*idSSW+UPLT+1), dom%midpt%elts(EDGE*idSW+RT+1))
+      
+      ! Area_S = dom%areas%elts(idS+1)%part(2) + dom%areas%elts(idS+1)%part(3) + &
+      !      triarea(dom%node%elts(idS+1), dom%ccentre%elts(TRIAG*idSSW+UPLT+1), dom%midpt%elts(EDGE*idSW+RT+1)) + &
+      !      triarea(dom%node%elts(idS+1), dom%ccentre%elts(TRIAG*idS+LORT+1), dom%midpt%elts(EDGE*idS+DG+1))
+      
+     
+      scalar_restr = (scalar(id+1)/dom%areas%elts(id+1)%hex_inv + &
+           scalar(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
+           scalar(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
+           scalar(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
+           scalar(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
+           scalar(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
+           scalar(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
+           scalar(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
+           scalar(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
+           scalar(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
+           scalar(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
+           scalar(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
+           scalar(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+           dom%areas%elts(id_par+1)%hex_inv
+
+      Area_restrict = 1.0_8/dom%areas%elts(id+1)%hex_inv + &
+         dom%overl_areas%elts(idE+1)%a(1) + &
+         dom%overl_areas%elts(idNE+1)%a(2) + &
+         dom%overl_areas%elts(idN2E+1)%a(3) + &
+         dom%overl_areas%elts(id2NE+1)%a(4) + &
+         dom%overl_areas%elts(idN+1)%a(1) + &
+         dom%overl_areas%elts(idW+1)%a(2) + &
+         dom%overl_areas%elts(idNW+1)%a(3) + &
+         dom%overl_areas%elts(idS2W+1)%a(4) + &
+         dom%overl_areas%elts(idSW+1)%a(1) + &
+         dom%overl_areas%elts(idS+1)%a(2) + &
+         dom%overl_areas%elts(id2SW+1)%a(3) + &
+         dom%overl_areas%elts(idSE+1)%a(4)
+      Area_parent = 1.0_8/dom%areas%elts(id_par+1)%hex_inv
+      Error =  (Area_restrict-Area_parent)/Area_parent
+      if (Error.gt. 1e-10) write(6,*) error
     end function scalar_restr
   end subroutine scalar_cpt_restr
 

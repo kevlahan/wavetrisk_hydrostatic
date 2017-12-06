@@ -1043,10 +1043,10 @@ contains
     call init_Overl_Area(dom%overl_areas%elts(idN_chd+1), area)
     call basic_F_restr_wgt(dom, i_par, j_par, UP, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
 
-    call set_coarse_overlay()
+    call set_coarse_overlay
   end subroutine set_RF_wgts
 
-  subroutine set_coarse_overlay ()
+  subroutine set_coarse_overlay 
     ! Set overlay quantities on coarsest level
     integer :: d, p
 
@@ -1183,7 +1183,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_chd
     
-    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE, d
+    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
    
     idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)

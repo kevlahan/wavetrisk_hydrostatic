@@ -100,7 +100,7 @@ contains
     end if
   end subroutine vort_extrema
 
-  subroutine write_step(fid, time, k)
+  subroutine write_step (fid, time, k)
     integer fid
     real(8) time
     integer l, k
@@ -113,14 +113,15 @@ contains
        call apply_onescale(vort_extrema, l, z_null, 0, 0)
     end do
 
-    tot_mass = integrate_hex(mass_pert, level_start, k)
+    tot_mass = integrate_hex(mu, level_start, k)
 
-    if (rank .eq. 0) write(fid,'(E16.9, I3, 2(1X, I9), 7(1X, E16.8), 1X, F16.7)') time, &
-         level_end, n_active, tot_mass, &
-         get_timing()
+    if (rank .eq. 0) write(fid,'(E16.9, I3, 2(1X, I9), 7(1X, E16.8), 1X, F16.7)') &
+         time, level_end, n_active, tot_mass, get_timing()
   end subroutine write_step
 
-  real(8) function integrate_hex (fun, l, k)
+  function integrate_hex (fun, l, k)
+    ! Integrate function defined by fun over hexagons
+    real(8)  :: integrate_hex
     external :: fun
     integer  :: l, k
     
@@ -133,7 +134,7 @@ contains
     do d = 1, size(grid)
        do ll = 1, grid(d)%lev(l)%length
           p = grid(d)%lev(l)%elts(ll)
-          call get_offs_Domain(grid(d), p, offs, dims)
+          call get_offs_Domain (grid(d), p, offs, dims)
           do j = 1, PATCH_SIZE
              do i = 1, PATCH_SIZE
                 id = idx(i-1,j-1,offs,dims)
@@ -148,7 +149,7 @@ contains
           do while (grid(d)%patch%elts(p+1)%level .lt. l)
              p = grid(d)%patch%elts(p+1)%children(c-4)
              if (p .eq. 0) then
-                write(*,*) "ERROR(rank=", rank, "):integrate_hex: level incomplete"
+                write(6,*) "ERROR(rank=", rank, "):integrate_hex: level incomplete"
                 return
              end if
           end do
@@ -161,12 +162,12 @@ contains
                   grid(d)%areas%elts(idx(PATCH_SIZE,0,offs,dims)+1)%hex_inv
           end if
        end do
-
     end do
-    integrate_hex =  sum_real(s)
+    integrate_hex = sum_real(s)
   end function integrate_hex
 
-  real(8) function integrate_tri(fun, k)
+  function integrate_tri (fun, k)
+    real(8)  :: integrate_tri
     external :: fun
     integer  :: k
     
@@ -204,8 +205,8 @@ contains
     only_area = 1.0_8
   end function only_area
 
-  function mass_pert (dom, i, j, zlev, offs, dims)
-    real(8)                        :: mass_pert
+  function mu (dom, i, j, zlev, offs, dims)
+    real(8)                        :: mu
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -214,8 +215,8 @@ contains
     integer :: id
 
     id = idx(i, j, offs, dims)
-    mass_pert = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
-  end function mass_pert
+    mu = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
+  end function mu
 
   function pot_energy (dom, i, j, zlev, offs, dims)
     real(8)                        :: pot_energy

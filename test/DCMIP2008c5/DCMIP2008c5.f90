@@ -47,15 +47,22 @@ contains
   end subroutine set_surf_geopot
 
   subroutine sum_total_mass (initialgo)
-    integer :: k
+    ! Total mass over all vertical layers
     logical :: initialgo
 
-    k = 1 !select vertical level
+    integer :: k
+
     if (initialgo) then
-       initotalmass = integrate_hex (mass_pert, level_start, k)
+       initotalmass = 0.0_8
+       do k = 1, zlevels
+          initotalmass = initotalmass + integrate_hex (mu, level_start, k)
+       end do
     else
-       totalmass = integrate_hex (mass_pert, level_start, k)
-       if (rank.eq.0) write(6,'(A,ES23.14)') 'integr_hex relative change in mass', abs(totalmass-initotalmass)/initotalmass
+       totalmass = 0.0_8
+       do k = 1, zlevels
+          totalmass = totalmass + integrate_hex (mu, level_start, k)
+       end do
+       if (rank.eq.0) write(6,'(A,ES10.4)') 'Relative change in mass = ', abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 
@@ -646,10 +653,7 @@ program DCMIP2008c5
 
      call time_step (dt_write, aligned, set_thresholds)
 
-     if (remap .and. mod(istep, n_remap).eq.0) then
-        if (rank.eq.0) write(6,*) 'Remapping vertical coordinates'
-       call remap_vertical_coordinates
-     end if
+     if (remap .and. mod(istep, n_remap).eq.0) call remap_vertical_coordinates
 
      call set_surf_geopot
      call stop_timing
@@ -678,9 +682,10 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         ! Remap to original vertical coordinates before saving data or checkpoint
-        !call remap_vertical_coordinates
+        call remap_vertical_coordinates
         if (rank.eq.0) write(6,*) 'Saving fields'
         call write_and_export (iwrite)
+        call sum_total_mass (.False.)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle 
         ierr = write_checkpoint (DCMIP2008c5_dump)
@@ -701,8 +706,7 @@ program DCMIP2008c5
 
         call barrier
      end if
-
-     call sum_total_mass(.False.)
+     call sum_total_mass (.False.)
   end do
 
   if (rank .eq. 0) then
