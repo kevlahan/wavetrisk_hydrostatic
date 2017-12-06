@@ -1114,7 +1114,7 @@ contains
   end subroutine restrict_velo
 
   subroutine check_m (dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par,  offs_chd, dims_chd)
-    ! Check_m is an unused subroutine
+    ! Check that mass is indeed conserved by restriction
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd

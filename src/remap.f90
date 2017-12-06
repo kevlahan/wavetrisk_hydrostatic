@@ -11,10 +11,11 @@ module remap_mod
   integer                             :: order
   integer, dimension (:), allocatable :: stencil
 contains
-  subroutine remap_vertical_coordinates
+  subroutine remap_vertical_coordinates (set_thresholds)
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! interpolate on the full (not the perturbation) quantities
     ! Conserves mass, heat and momentum flux
+    external           :: set_thresholds
     integer            :: d, j, k, l, p
     integer, parameter :: order_default = 7 ! order must be odd
 
@@ -32,45 +33,15 @@ contains
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Remap variables on finest scale !
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
-    ! Remap velocity first to use only values of mass on current grid to find old momentum
-    !call apply_onescale (remap_velocity, level_end, z_null, 0, 0)
-    ! Remap mass and mass-weighted temperature
-    !call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
-    
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Remap at coarser scales !
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    do l = level_end-1, level_start, -1
-       do d = 1, size(grid)
-          !call cpt_or_restr_velo (grid(d), l)
-       end do
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(l)%length
-             !call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
-          end do
-       end do
-
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(l)%length
-            ! call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-          end do
-       end do
-
-       do k = 1, zlevels
-          do d = 1, size(grid)
-             mass => sol(S_MASS,k)%data(d)%elts
-             temp => sol(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d (scalar_cpt_restr, grid(d), l, k, 0, 0) ! +1 to include poles
-             !call cpt_or_restr_scalar (grid(d), l)
-             nullify (mass, temp)
-          end do
-        end do
+    do l = level_end, level_end
+       ! Remap velocity first to use only values of mass on current grid to find old momentum
+       call apply_onescale (remap_velocity, l, z_null, 0, 0)
+       ! Remap mass and mass-weighted temperature
+       call apply_onescale (remap_scalars,  l, z_null, 0, 1)
     end do
-    !call WT_after_step (sol, wav_coeff, level_start-1)
+   
+    call WT_after_step (sol, wav_coeff, level_start-1)
+    call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
   subroutine cpt_or_restr_velo (dom, l)
@@ -144,17 +115,13 @@ contains
           p_chd = dom%patch%elts(p_par+1)%children(c)
           if (p_chd .gt. 0) restrict(c) = .True.
        end do
-      ! do c = 1, N_CHDRN
-      !    if (restrict(c)) call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, c, z_null, 0, 0)
-       ! end do
-       !call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, 1, z_null, 0, 0)
-       call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, 2, z_null, 0, 0)
-       call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, 3, z_null, 0, 0)
-       !call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, 4, z_null, 0, 0)
+       do c = 1, N_CHDRN
+          if (restrict(c)) call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, c, z_null, 0, 1)
+       end do
     end do
   end subroutine cpt_or_restr_scalar
 
- ! subroutine scalar_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  !subroutine scalar_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
   subroutine scalar_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute or restrict scalars
     type(Domain)                   :: dom
@@ -162,37 +129,32 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer :: id_par
+    integer :: id_chd, id_par
 
+    id_chd  = idx(i_chd, j_chd, offs_chd, dims_chd)
+    
+    if (dom%mask_n%elts(id_chd+1) .eq. 0) return
+    
     id_par = idx(i_par, j_par, offs_par, dims_par)
     
-    if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) then
-       mass(id_par+1) = scalar_restr (mass)
-       temp(id_par+1) = scalar_restr (temp)
-    end if
+    mass(id_par+1) = scalar_restr (mass)
+    temp(id_par+1) = scalar_restr (temp)
   contains
     function scalar_restr (scalar)
       ! Mass conserving restriction
       real(8)                        :: scalar_restr
       real(8), dimension(:)          :: scalar
      
-      integer :: id, idE, idNE, idN, idW, idSW, idS, idSWW, idSSW
-      integer :: idN2E, id2NE, idNW, idS2W, id2SW, idSE, d
+      integer :: id, idE, idNE, idN, idW, idSW, idS, idN2E, id2NE, idNW, idS2W, id2SW, idSE
       real(8) :: Area_E, Area_NE,  Area_N, Area_W, Area_SW, Area_S
-      real(8) :: Area_restrict, Area_parent, Error
-
+      real(8) :: Area_restrict, Area_parent
+      real(8), dimension(2) :: error
           
-      id    = idx(i_chd,   j_chd,   offs_chd, dims_chd)
-
-      if (dom%mask_n%elts(id+1) .eq. 0) return
-      
       idE   = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
       idNE  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
       idN   = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
       idW   = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
       idSW  = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
-      idSWW = idx(i_chd-2, j_chd-1, offs_chd, dims_chd)
-      idSSW = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
       idS   = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
       idN2E = idx(i_chd+2, j_chd+1, offs_chd, dims_chd)
       id2NE = idx(i_chd+1, j_chd+2, offs_chd, dims_chd)
@@ -201,33 +163,7 @@ contains
       id2SW = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
       idSE  = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
 
-      ! Areas of six half hexagons neighbouring child hexagon
-      ! Area_E = dom%areas%elts(idE+1)%part(3) + dom%areas%elts(idE+1)%part(4) + &
-      !      triarea(dom%node%elts(idE+1), dom%ccentre%elts(TRIAG*idS+LORT+1), dom%midpt%elts(EDGE*idS+DG+1)) + &
-      !      triarea(dom%node%elts(idE+1), dom%ccentre%elts(TRIAG*idE+UPLT+1), dom%midpt%elts(EDGE*idE+UP+1))
-           
-      ! Area_NE = dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idNE+1)%part(5) + &
-      !      triarea(dom%node%elts(idNE+1), dom%ccentre%elts(TRIAG*idE+UPLT+1), dom%midpt%elts(EDGE*idE+UP+1)) + &
-      !      triarea(dom%node%elts(idNE+1), dom%ccentre%elts(TRIAG*idN+LORT+1), dom%midpt%elts(EDGE*idN+RT+1))
-           
-      ! Area_N = dom%areas%elts(idN+1)%part(5) + dom%areas%elts(idN+1)%part(6) + &
-      !      triarea(dom%node%elts(idN+1), dom%ccentre%elts(TRIAG*idN+LORT+1), dom%midpt%elts(EDGE*idN+RT+1)) + &
-      !      triarea(dom%node%elts(idN+1), dom%ccentre%elts(TRIAG*idW+UPLT+1), dom%midpt%elts(EDGE*idW+DG+1))
-      
-      ! Area_W = dom%areas%elts(idW+1)%part(6) + dom%areas%elts(idW+1)%part(1) + &
-      !      triarea(dom%node%elts(idW+1), dom%ccentre%elts(TRIAG*idW+UPLT+1), dom%midpt%elts(EDGE*idW+DG+1)) + &
-      !      triarea(dom%node%elts(idW+1), dom%ccentre%elts(TRIAG*idSWW+LORT+1), dom%midpt%elts(EDGE*idSW+UP+1))
-
-      ! Area_SW = dom%areas%elts(idSW+1)%part(1) + dom%areas%elts(idSW+1)%part(2) + &
-      !      triarea(dom%node%elts(idSW+1), dom%ccentre%elts(TRIAG*idSWW+LORT+1), dom%midpt%elts(EDGE*idSW+UP+1)) + &
-      !      triarea(dom%node%elts(idSW+1), dom%ccentre%elts(TRIAG*idSSW+UPLT+1), dom%midpt%elts(EDGE*idSW+RT+1))
-      
-      ! Area_S = dom%areas%elts(idS+1)%part(2) + dom%areas%elts(idS+1)%part(3) + &
-      !      triarea(dom%node%elts(idS+1), dom%ccentre%elts(TRIAG*idSSW+UPLT+1), dom%midpt%elts(EDGE*idSW+RT+1)) + &
-      !      triarea(dom%node%elts(idS+1), dom%ccentre%elts(TRIAG*idS+LORT+1), dom%midpt%elts(EDGE*idS+DG+1))
-      
-     
-      scalar_restr = (scalar(id+1)/dom%areas%elts(id+1)%hex_inv + &
+      scalar_restr = (scalar(id_chd+1)/dom%areas%elts(id_chd+1)%hex_inv + &
            scalar(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
            scalar(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
            scalar(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
@@ -239,10 +175,10 @@ contains
            scalar(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
            scalar(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
            scalar(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-           scalar(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4))* &
+           scalar(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4)) * &
            dom%areas%elts(id_par+1)%hex_inv
 
-      Area_restrict = 1.0_8/dom%areas%elts(id+1)%hex_inv + &
+      Area_restrict = 1.0_8/dom%areas%elts(id_chd+1)%hex_inv + &
          dom%overl_areas%elts(idE+1)%a(1) + &
          dom%overl_areas%elts(idNE+1)%a(2) + &
          dom%overl_areas%elts(idN2E+1)%a(3) + &
@@ -255,9 +191,13 @@ contains
          dom%overl_areas%elts(idS+1)%a(2) + &
          dom%overl_areas%elts(id2SW+1)%a(3) + &
          dom%overl_areas%elts(idSE+1)%a(4)
+
+      if (rank.eq.0 .and.scalar_restr.lt.0.0_8) write(6,*) scalar_restr
       Area_parent = 1.0_8/dom%areas%elts(id_par+1)%hex_inv
-      Error =  (Area_restrict-Area_parent)/Area_parent
-      if (Error.gt. 1e-10) write(6,*) error
+      Error(1) =  abs(Area_restrict-Area_parent)/Area_parent
+      !if (Error(1).gt. 1e-10) write(6,*) error(1)
+      Error(2) = abs(scalar(id_par+1)-scalar_restr)/scalar_restr
+      !write(6,'(2(es10.4,1x))') Error(1), Error(2)
     end function scalar_restr
   end subroutine scalar_cpt_restr
 
@@ -268,7 +208,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                          :: d, e, id, id_i, idE, idN, idNE, k, kb, kc, kk, m
-    real(8)                          :: layer_pressure, p_surf, p_surf_E, p_surf_N, p_surf_NE, diff, dmin, vel_old
+    real(8)                          :: layer_pressure, p_surf, p_surf_E, p_surf_N, p_surf_NE, diff, dmin
     real(8)                          :: mass_id, mass_idE, mass_idN, mass_idNE
     real(8), dimension (3)           :: mass_e
     real(8), dimension (zlevels+1)   :: pressure
@@ -278,9 +218,9 @@ contains
     id   = idx(i, j, offs, dims)
     id_i = id + 1
 
-    idN  = idx(i,     j + 1, offs, dims) + 1
-    idE  = idx(i + 1, j,     offs, dims) + 1
-    idNE = idx(i + 1, j + 1, offs, dims) + 1
+    idN  = idx(i,   j+1, offs, dims) + 1
+    idE  = idx(i+1, j,   offs, dims) + 1
+    idNE = idx(i+1, j+1, offs, dims) + 1
 
     ! Integrate full momentum flux vertically downward from the top
     ! All quantities located at interfaces
@@ -373,7 +313,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                          :: d, e, id, id_i, k, kb, kc, kk, m
-    real(8)                          :: layer_pressure, p_surf, diff, dmin, vel_old
+    real(8)                          :: layer_pressure, p_surf, diff, dmin
     real(8), dimension (zlevels+1)   :: integrated_temp, new_temp, pressure
 
     d    = dom%id + 1
@@ -389,7 +329,6 @@ contains
     end do
 
     ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
-    ! also calculate surface pressure at adjacent nodes needed to interpolate mass to edges
     pressure(1) = press_infty
     do kb = 2, zlevels + 1
        k = zlevels-kb+2

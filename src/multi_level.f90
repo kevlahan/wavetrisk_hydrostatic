@@ -288,7 +288,6 @@ contains
           end do
           nullify (mass, temp, dvelo, bernoulli, exner)
        end do
-
     end do
   end subroutine trend_ml
 

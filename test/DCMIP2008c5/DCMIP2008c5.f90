@@ -586,7 +586,7 @@ program DCMIP2008c5
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
-  dt_init     = 50.0_8                          ! Time step (not used if adapt_dt is true)
+  dt_init     = 200.0_8                          ! Time step (not used if adapt_dt is true)
 
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
