@@ -15,7 +15,7 @@ module DCMIP2008c5_mod
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
   real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
-  real(8)                            :: l2_mass, l2_temp, l2_velo
+  real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
 contains
   subroutine apply_initial_conditions
     integer :: k, l
@@ -62,7 +62,7 @@ contains
        do k = 1, zlevels
           totalmass = totalmass + integrate_hex (mu, level_start, k)
        end do
-       if (rank.eq.0) write(6,'(A,ES10.4)') 'Relative change in mass = ', abs(totalmass-initotalmass)/initotalmass
+       mass_error = abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 
@@ -523,7 +523,7 @@ program DCMIP2008c5
   integer                      :: d, ierr, k, l, v
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
-  real(8)                      :: Area_min, total_mass, visc, wave_speed
+  real(8)                      :: Area_min, visc, wave_speed
   character(len_cmd_files)     :: cmd_files
   character(len_cmd_archive)   :: cmd_archive
   character(8+8+29+14)         :: command
@@ -541,8 +541,6 @@ program DCMIP2008c5
 
   ! Read test case parameters
   call read_test_case_parameters("DCMIP2008c5.in")
-
-  call initialize_a_b_vert
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -613,6 +611,9 @@ program DCMIP2008c5
   remap            = .false.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
 
+  ! Initialize vertical grid
+  call initialize_a_b_vert
+
   ! Initialize variables
   call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
 
@@ -663,7 +664,7 @@ program DCMIP2008c5
      call write_and_print_step
      
      if (rank .eq. 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES9.2)') &
+        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,2(A,ES9.2,1x))') &
              ' time [h] = ', time/3600.0_8, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
@@ -671,10 +672,11 @@ program DCMIP2008c5
              ' velo tol = ', tol_velo, &
              ' Jmax =', level_end, &
              '  dof = ', sum(n_active), &
+             ' mass error = ', mass_error, &
              ' cpu = ', timing
 
-        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,ES14.8)')  &
-             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing
+        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES14.8,1x))')  &
+             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, timing
      end if
 
      call print_load_balance
