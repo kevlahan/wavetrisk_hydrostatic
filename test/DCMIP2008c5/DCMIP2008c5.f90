@@ -633,18 +633,17 @@ program DCMIP2008c5
 
   open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
   if (rank .eq. 0) then
-     write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES9.2)') &
+     write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9)') &
           ' time [h] = ', time/3600.0_8, &
           ' dt [s] = ', dt_init, &
           '  mass tol = ', tol_mass, &
           ' temp tol = ', tol_temp, &
           ' velo tol = ', tol_velo, &
           ' Jmax =', level_end, &
-          '  dof = ', sum(n_active), &
-          ' cpu = ', timing
+          '  dof = ', sum(n_active)
 
-     write (12,'(5(ES15.9,1x),I2,1X,I9,1X,ES14.8)')  &
-          time/3600.0_8, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing
+     write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES14.8,1x))')  &
+          time/3600.0_8, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing, timing
   end if
   do while (time .lt. time_end)
      call start_timing
@@ -654,7 +653,7 @@ program DCMIP2008c5
 
      call time_step (dt_write, aligned, set_thresholds)
 
-     if (remap .and. mod(istep, n_remap).eq.0) call remap_vertical_coordinates
+     if (remap .and. mod(istep, n_remap).eq.0) call remap_vertical_coordinates (set_thresholds)
 
      call set_surf_geopot
      call stop_timing
@@ -684,7 +683,7 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         ! Remap to original vertical coordinates before saving data or checkpoint
-        call remap_vertical_coordinates
+        call remap_vertical_coordinates(set_thresholds)
         if (rank.eq.0) write(6,*) 'Saving fields'
         call write_and_export (iwrite)
         call sum_total_mass (.False.)
