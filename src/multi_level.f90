@@ -8,19 +8,19 @@ module multi_level_mod
 
 contains
 
-  subroutine init_multi_level_mod()
+  subroutine init_multi_level_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
-    call init_comm_mod()
-    call init_ops_mod()
-    call init_wavelet_mod()
-    call init_refine_patch_mod()
+    call init_comm_mod
+    call init_ops_mod
+    call init_wavelet_mod
+    call init_refine_patch_mod
     initialized = .True.
   end subroutine init_multi_level_mod
 
-  subroutine add_second_level()
-    integer d, c
+  subroutine add_second_level
+    integer :: d, c
 
     do d = 1, size(grid)
        do c = 1, N_CHDRN
@@ -32,18 +32,18 @@ contains
        call connect_children(grid(d), 1)
     end do
 
-    call comm_patch_conn_mpi()
+    call comm_patch_conn_mpi
 
     do d = 1, size(grid)
        call update_comm(grid(d))
     end do
 
-    call comm_communication_mpi()
+    call comm_communication_mpi
     call comm_nodes9_mpi(get_areas, set_areas, NONE)
     call apply_to_penta(area_post_comm, NONE, z_null)
   end subroutine add_second_level
 
-  subroutine fill_up_level()
+  subroutine fill_up_level
     ! fills up level `level_start + 1` and increases `level_start`
     integer d, j, p_par, c, p_chd
 
@@ -58,12 +58,12 @@ contains
           end do
        end do
     end do
-    call post_refine()
+    call post_refine
     level_start = level_start+1
   end subroutine fill_up_level
 
-  subroutine post_refine()
-    integer d, p
+  subroutine post_refine
+    integer :: d, p
 
     level_end = sync_max(level_end)
 
@@ -73,13 +73,13 @@ contains
        end do
     end do
 
-    call comm_patch_conn_mpi()
+    call comm_patch_conn_mpi
 
     do d = 1, size(grid)
        call update_comm(grid(d))
     end do
 
-    call comm_communication_mpi()
+    call comm_communication_mpi
     call comm_nodes9_mpi(get_areas, set_areas, NONE)
     call apply_to_penta(area_post_comm, NONE, z_null)
   end subroutine post_refine

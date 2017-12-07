@@ -586,7 +586,7 @@ program DCMIP2008c5
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
-  dt_init     = 200.0_8                          ! Time step (not used if adapt_dt is true)
+  dt_init     = 50.0_8                          ! Time step (not used if adapt_dt is true)
 
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
@@ -604,7 +604,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .false. ! Adapt on trend or on variables
+  adapt_trend      = .true. ! Adapt on trend or on variables
   adapt_dt         = .false.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
@@ -683,7 +683,7 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         ! Remap to original vertical coordinates before saving data or checkpoint
-        call remap_vertical_coordinates(set_thresholds)
+        !call remap_vertical_coordinates(set_thresholds)
         if (rank.eq.0) write(6,*) 'Saving fields'
         call write_and_export (iwrite)
         call sum_total_mass (.False.)

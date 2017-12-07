@@ -1032,16 +1032,16 @@ contains
     idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
     idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
 
-    call get_overl_areas(dom, i_par, j_par, i_chd + 1, j_chd, offs_par, dims_par, offs_chd, dims_chd, RT, area, typ)
-    call init_Overl_Area(dom%overl_areas%elts(idE_chd+1), area)
-    call basic_F_restr_wgt(dom, i_par, j_par, RT, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
+    call get_overl_areas (dom, i_par, j_par, i_chd + 1, j_chd, offs_par, dims_par, offs_chd, dims_chd, RT, area, typ)
+    call init_Overl_Area (dom%overl_areas%elts(idE_chd+1), area)
+    call basic_F_restr_wgt (dom, i_par, j_par, RT, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
 
-    call get_overl_areas(dom, i_par, j_par, i_chd + 1, j_chd + 1, offs_par, dims_par, offs_chd, dims_chd, DG, area, typ)
-    call init_Overl_Area(dom%overl_areas%elts(idNE_chd+1), area)
+    call get_overl_areas (dom, i_par, j_par, i_chd + 1, j_chd + 1, offs_par, dims_par, offs_chd, dims_chd, DG, area, typ)
+    call init_Overl_Area (dom%overl_areas%elts(idNE_chd+1), area)
 
-    call get_overl_areas(dom, i_par, j_par, i_chd, j_chd + 1, offs_par, dims_par, offs_chd, dims_chd, UP, area, typ)
-    call init_Overl_Area(dom%overl_areas%elts(idN_chd+1), area)
-    call basic_F_restr_wgt(dom, i_par, j_par, UP, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
+    call get_overl_areas (dom, i_par, j_par, i_chd, j_chd + 1, offs_par, dims_par, offs_chd, dims_chd, UP, area, typ)
+    call init_Overl_Area (dom%overl_areas%elts(idN_chd+1), area)
+    call basic_F_restr_wgt (dom, i_par, j_par, UP, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
 
     call set_coarse_overlay
   end subroutine set_RF_wgts

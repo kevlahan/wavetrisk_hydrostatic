@@ -33,15 +33,50 @@ contains
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
 
-    do l = level_end, level_end
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Remap variables on finest scale !
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    do l = level_start, level_end
        ! Remap velocity first to use only values of mass on current grid to find old momentum
        call apply_onescale (remap_velocity, l, z_null, 0, 0)
        ! Remap mass and mass-weighted temperature
        call apply_onescale (remap_scalars,  l, z_null, 0, 1)
     end do
-   
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! ! Remap at coarser scales !
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! do l = level_end-1, level_start, -1
+    !    call update_array_bdry (sol(S_MASS:S_TEMP,1:zlevels), l+1)
+    !    do d = 1, size(grid)
+    !       call cpt_or_restr_velo (grid(d), l)
+    !    end do
+    !    do d = 1, size(grid)
+    !       do j = 1, grid(d)%lev(l)%length
+    !          call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+    !       end do
+    !    end do
+
+    !    do k = 1, zlevels
+    !       do d = 1, size(grid)
+    !          mass => sol(S_MASS,k)%data(d)%elts
+    !          temp => sol(S_TEMP,k)%data(d)%elts
+    !          call apply_interscale_d (scalar_cpt_restr, grid(d), l, k, 0, 1) ! +1 to include poles
+    !          !call cpt_or_restr_scalar (grid(d), l)
+    !          nullify (mass, temp)
+    !       end do
+    !    end do
+
+    !    do d = 1, size(grid)
+    !       do j = 1, grid(d)%lev(l)%length
+    !          call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+    !       end do
+    !    end do
+    !    sol%bdry_uptodate = .False.
+    ! end do
     call WT_after_step (sol, wav_coeff, level_start-1)
-    call adapt_grid (set_thresholds)
+    !call forward_wavelet_transform (sol, wav_coeff)
+    !call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
   subroutine cpt_or_restr_velo (dom, l)
@@ -150,18 +185,18 @@ contains
       real(8) :: Area_restrict, Area_parent
       real(8), dimension(2) :: error
           
-      idE   = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
-      idNE  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-      idN   = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
-      idW   = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
-      idSW  = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
-      idS   = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
-      idN2E = idx(i_chd+2, j_chd+1, offs_chd, dims_chd)
-      id2NE = idx(i_chd+1, j_chd+2, offs_chd, dims_chd)
-      idNW  = idx(i_chd-1, j_chd+1, offs_chd, dims_chd)
-      idS2W = idx(i_chd-2, j_chd-1, offs_chd, dims_chd)
-      id2SW = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
-      idSE  = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
+      idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
+      idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
+      idN2E = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
+      id2NE = idx(i_chd + 1, j_chd + 2, offs_chd, dims_chd)
+      idN   = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
+      idW   = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
+      idNW  = idx(i_chd - 1, j_chd + 1, offs_chd, dims_chd)
+      idS2W = idx(i_chd - 2, j_chd - 1, offs_chd, dims_chd)
+      idSW  = idx(i_chd - 1, j_chd - 1, offs_chd, dims_chd)
+      idS   = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
+      id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
+      idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
 
       scalar_restr = (scalar(id_chd+1)/dom%areas%elts(id_chd+1)%hex_inv + &
            scalar(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
@@ -179,8 +214,8 @@ contains
            dom%areas%elts(id_par+1)%hex_inv
 
       Area_restrict = 1.0_8/dom%areas%elts(id_chd+1)%hex_inv + &
-         dom%overl_areas%elts(idE+1)%a(1) + &
-         dom%overl_areas%elts(idNE+1)%a(2) + &
+           dom%overl_areas%elts(idE+1)%a(1) + &
+           dom%overl_areas%elts(idNE+1)%a(2) + &
          dom%overl_areas%elts(idN2E+1)%a(3) + &
          dom%overl_areas%elts(id2NE+1)%a(4) + &
          dom%overl_areas%elts(idN+1)%a(1) + &
@@ -208,7 +243,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                          :: d, e, id, id_i, idE, idN, idNE, k, kb, kc, kk, m
-    real(8)                          :: layer_pressure, p_surf, p_surf_E, p_surf_N, p_surf_NE, diff, dmin
+    real(8)                          :: layer_pressure, p_surf, p_surf_E, p_surf_N, p_surf_NE, diff, dmin, vel_old
     real(8)                          :: mass_id, mass_idE, mass_idN, mass_idNE
     real(8), dimension (3)           :: mass_e
     real(8), dimension (zlevels+1)   :: pressure
@@ -218,9 +253,9 @@ contains
     id   = idx(i, j, offs, dims)
     id_i = id + 1
 
-    idN  = idx(i,   j+1, offs, dims) + 1
-    idE  = idx(i+1, j,   offs, dims) + 1
-    idNE = idx(i+1, j+1, offs, dims) + 1
+    idN  = idx(i,     j + 1, offs, dims) + 1
+    idE  = idx(i + 1, j,     offs, dims) + 1
+    idNE = idx(i + 1, j + 1, offs, dims) + 1
 
     ! Integrate full momentum flux vertically downward from the top
     ! All quantities located at interfaces
