@@ -82,19 +82,12 @@ contains
     project_on_sphere = p
   end function project_on_sphere
 
-  subroutine arc_inters(arc1_no1, arc1_no2, arc2_no1, arc2_no2, &
-       inters_pt, does_inters, troubles)
-    type(Coord) arc1_no1
-    type(Coord) arc1_no2
-    type(Coord) arc2_no1
-    type(Coord) arc2_no2
-    type(Coord) inters_pt
-    logical does_inters, troubles
-    type(Coord) normal1
-    type(Coord) normal2
-    type(Coord) neg_int_pt
-    real(8) inpr
-
+  subroutine arc_inters (arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, does_inters, troubles)
+    type(Coord) :: arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, neg_int_pt, normal1, normal2
+    
+    real(8) :: inpr
+    logical :: does_inters, troubles
+    
     inters_pt = arc2_no2
     does_inters = .True.
     troubles = .False.
@@ -143,15 +136,11 @@ contains
     inner = u%x*v%x + u%y*v%y + u%z*v%z
   end function inner
 
-  real(8) function triarea(A, B, C)
-    type(Coord) A
-    type(Coord) B
-    type(Coord) C
-    real(8) ab
-    real(8) ac
-    real(8) bc
-    real(8) s
-    real(8) t
+  function triarea (A, B, C)
+    real(8) :: triarea
+    type(Coord) :: A, B, C
+
+    real(8) :: ab, ac, bc, s, t
 
     ab = distn(A, B)
     ac = distn(A, C)
@@ -170,10 +159,11 @@ contains
     triarea = 4*radius**2*atan(sqrt(t))
   end function triarea
 
-  real(8) function distn(p, q)
-    type(Coord) p
-    type(Coord) q
-    real(8) sindist
+  function distn (p, q)
+    real(8)     :: distn
+    type(Coord) :: p, q
+
+    real(8) :: sindist
 
     sindist = (1.0_8/radius)**2*sqrt((p%y*q%z - p%z*q%y)**2 + (p%z*q%x - &
          p%x*q%z)**2 + (p%x*q%y - p%y*q%x)**2)
@@ -187,19 +177,18 @@ contains
   end function distn
 
   subroutine cart2sph(c, lon, lat)
-    type(Coord) c
-    real(8) lat
-    real(8) lon
+    type(Coord) :: c
+    real(8)     :: lat, lon
 
-    lat = asin(c%z/radius)
-    lon = atan2(c%y, c%x)
+    lat = asin (c%z/radius)
+    lon = atan2 (c%y, c%x)
   end subroutine cart2sph
 
-  type(Coord) function circumcentre(A, B, C)
-    type(Coord) A
-    type(Coord) B
-    type(Coord) C
-    type(Coord) centre
+  function circumcentre(A, B, C)
+    type(Coord) :: circumcentre
+    type(Coord) :: A, B, C
+
+    type(Coord) :: centre
 
     centre = cross(Coord(A%x - B%x, A%y - B%y, A%z - B%z), Coord(C%x - B%x, &
          C%y - B%y, C%z - B%z))
@@ -212,32 +201,33 @@ contains
     circumcentre = project_on_sphere(centre)
   end function circumcentre
 
-  real(8) function norm(c)
-    type(Coord) c
+  function norm (c)
+    real(8)     :: norm
+    type(Coord) :: c
 
     norm = sqrt(c%x**2 + c%y**2 + c%z**2)
   end function norm
 
-  type(Coord) function mid_pt(p, q)
-    type(Coord) p
-    type(Coord) q
+  function mid_pt(p, q)
+    type(Coord) :: mid_pt
+    type(Coord) :: p, q
 
     mid_pt = project_on_sphere(Coord(p%x + q%x, p%y + q%y, p%z + q%z))
   end function mid_pt
 
-  type(Coord) function normalize_Coord(self)
-    type(Coord) self
-    real(8) nrm
+  function normalize_Coord (self)
+    type(Coord) :: normalize_Coord
+    type(Coord) :: self
+    
+    real(8) :: nrm
 
     nrm = sqrt(self%x**2 + self%y**2 + self%z**2)
     normalize_Coord = Coord(self%x/nrm, self%y/nrm, self%z/nrm)
   end function normalize_Coord
 
-  subroutine init_Coord(self, x, y, z)
-    type(Coord) self
-    real(8) x
-    real(8) y
-    real(8) z
+  subroutine init_Coord (self, x, y, z)
+    type(Coord) :: self
+    real(8)     :: x, y, z
 
     self%x = x
     self%y = y
@@ -292,20 +282,15 @@ contains
     proj_vel = inner(direction(ep1, ep2), vel)
   end function proj_vel
 
-  real(8) function proj_vel_eta(vel_fun, ep1, ep2, eta_z)
+  function proj_vel_eta (vel_fun, ep1, ep2, eta_z)
     !extention of proj_vel that allows for another parameter eta_z to be passed in vel_fun
-    external vel_fun
-    type(Coord) ep1
-    type(Coord) ep2
-    type(Coord) co
-    real(8) lon
-    real(8) lat
-    real(8), dimension(3) :: e_lat
-    real(8), dimension(3) :: e_lon
-    real(8) u
-    real(8) v
-    real(8) eta_z
-    real(8), dimension(3) :: vel
+    real(8)     :: proj_vel_eta
+    external    :: vel_fun
+    type(Coord) :: co, ep1, ep2
+    real(8)     :: eta_z
+
+    real(8)               :: lon, lat, u, v
+    real(8), dimension(3) :: e_lat, e_lon, vel
 
     co = mid_pt(ep1, ep2)
 
