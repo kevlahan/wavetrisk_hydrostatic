@@ -6,29 +6,26 @@ module io_mod
   use smooth_mod
   use comm_mpi_mod
   implicit none
-  real, allocatable :: field2d(:,:,:)
-  real(8) dx_export, dy_export
-  real(8) kx_export, ky_export
-  real(8) vmin, vmax
-  integer next_fid
-  integer HR_offs(2,4)!, HR_sub_dom_id(4)
-  integer, parameter :: N_VAR_OUT = 5
-  real(8) minv(N_VAR_OUT), maxv(N_VAR_OUT)
-  type(Float_Field) :: active_level
+  integer, parameter                  :: N_VAR_OUT = 5
+  integer, dimension(2,4)             :: HR_offs
+  real(8)                             :: dx_export, dy_export, kx_export, ky_export, vmin, vmax
+  real(8), dimension(N_VAR_OUT)       :: minv, maxv
+  real, dimension(:,:,:), allocatable :: field2d
+  integer                             :: next_fid
+  type(Float_Field)                   :: active_level
   data HR_offs /0,0, 1,0, 1,1, 0,1/
-
 contains
-
-  subroutine init_io_mod()
+  subroutine init_io_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
-    call init_domain_mod()
+    call init_domain_mod
     next_fid = 100
     initialized = .True.
   end subroutine init_io_mod
 
-  integer function get_fid()
+  function get_fid()
+    integer :: get_fid
     get_fid  = next_fid
     next_fid = next_fid + 1
   end function get_fid
@@ -67,13 +64,14 @@ contains
     end if
   end subroutine write_dual
 
-  subroutine vort_extrema(dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id, idN, idE
-    real(8) vort
+  subroutine vort_extrema (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id, idN, idE
+    real(8) :: vort
 
     id  = idx(i,   j,   offs, dims)
     idN = idx(i,   j+1, offs, dims)
@@ -101,10 +99,11 @@ contains
   end subroutine vort_extrema
 
   subroutine write_step (fid, time, k)
-    integer fid
-    real(8) time
-    integer l, k
-    real(8) tot_mass
+    integer ::  fid, k
+    real(8) :: time
+    
+    integer :: l
+    real(8) :: tot_mass
 
     vmin =  1.0e-16
     vmax = -1.0e-16
@@ -128,7 +127,7 @@ contains
     integer                        :: d, ll, p, i, j, c, id
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8) :: s, fun
+    real(8)                        :: s, fun
 
     s = 0.0_8
     do d = 1, size(grid)
@@ -356,10 +355,11 @@ contains
     deallocate(field2d)
   end subroutine export_2d
 
-  subroutine fix_boundary(a, b, c, fixed)
+  subroutine fix_boundary (a, b, c, fixed)
     real(8), intent(inout) :: a
-    real(8), intent(in) :: b, c
-    integer, intent(out) :: fixed
+    real(8), intent(in)    :: b, c
+    integer, intent(out)   :: fixed
+    
     fixed = 0
     if (a .lt. -MATH_PI/2.0_8 .and. (b .gt. MATH_PI/2.0_8 .and. c .gt. MATH_PI/2.0_8)) then
        a = a + MATH_PI*2.0_8
@@ -370,12 +370,15 @@ contains
     end if
   end subroutine fix_boundary
 
-  subroutine interp_tri_to_2d_and_fix_bdry(a0, b0, c0, val, v)
+  subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val, v)
     real(8), dimension(2) :: a0, b0, c0
-    real(8), dimension(2) :: a, b, c
     real(8), dimension(3) :: val
-    integer fixed(3), i, v
+    integer :: v
 
+    integer               :: i
+    integer, dimension(3) :: fixed
+    real(8), dimension(2) :: a, b, c
+    
     a = a0
     b = b0
     c = c0
@@ -426,14 +429,13 @@ contains
     end do
   end subroutine interp_tri_to_2d
 
-  subroutine interp_tria(ll, coord1, coord2, coord3, values, ival, inside)
-    real(8), dimension(2) :: ll
-    real(8), dimension(2) :: coord1
-    real(8), dimension(2) :: coord2
-    real(8), dimension(2) :: coord3
+  subroutine interp_tria (ll, coord1, coord2, coord3, values, ival, inside)
+    real(8), dimension(2) :: coord1, coord2, coord3
     real(8), dimension(3) :: values
-    real(8) :: ival
-    logical :: inside
+    real(8)               :: ival
+    logical               :: inside
+    
+    real(8), dimension(2) :: ll
     real(8), dimension(3) :: bc
 
     bc = bary_coord(ll, coord1, coord2, coord3)
@@ -443,23 +445,19 @@ contains
     if (inside) ival = sum(values*bc)
   end subroutine interp_tria
 
-  function bary_coord(ll, a, b, c)
+  function bary_coord (ll, a, b, c)
     real(8), dimension(3) :: bary_coord
-    real(8), dimension(2) :: ll
-    real(8), dimension(2) :: a
-    real(8), dimension(2) :: b
-    real(8), dimension(2) :: c
+    real(8), dimension(2) :: a, b, c, ll
+
+    real(8)               :: det
     real(8), dimension(3) :: bac
-    real(8), dimension(2) :: cb
-    real(8), dimension(2) :: ca
-    real(8), dimension(2) :: cll
-    real(8) det
+    real(8), dimension(2) :: ca, cb, cll
 
     cb = b - c
     ca = a - c
     cll = ll - c
     det = cb(2)*ca(1) - cb(1)*ca(2)
-    bac(1) = (cb(2)*cll(1) - cb(1)*cll(2))/det
+    bac(1) = ( cb(2)*cll(1) - cb(1)*cll(2))/det
     bac(2) = (-ca(2)*cll(1) + ca(1)*cll(2))/det
     bac(3) = 1 - bac(1) - bac(2)
     bary_coord = bac
@@ -641,15 +639,13 @@ contains
     end do
   end subroutine write_u_wc
 
-  subroutine write_velo(dom, p, i, j, offs, dims, fid)
-    type(Domain) dom
-    integer p
-    integer i, j, k
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer fid
-    integer e
-    integer id
+  subroutine write_velo (dom, p, i, j, offs, dims, fid)
+    type(Domain)                   :: dom
+    integer                        :: fid, i, j, p
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: e, id, k
 
     do k = 1, zlevels
        do e = 1, EDGE
@@ -659,16 +655,14 @@ contains
     end do
   end subroutine write_velo
 
-  subroutine read_u_wc_and_mask(dom, p, i, j, offs, dims, fid)
+  subroutine read_u_wc_and_mask (dom, p, i, j, offs, dims, fid)
     !read in wavelet coefficients of velocity (JEMF: not mask though??)
-    type(Domain) dom
-    integer p
-    integer i, j, k
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer fid
-    integer e
-    integer id
+    type(Domain)                   :: dom
+    integer                        :: fid, i, j, p
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: e, id, k
 
     id = idx(i, j, offs, dims)
     do k = 1, zlevels
@@ -961,16 +955,16 @@ contains
     wav_coeff%bdry_uptodate = .False.
   end subroutine load_adapt_mpi
 
-  subroutine default_dump(fid)
-    integer fid
+  subroutine default_dump (fid)
+    integer :: fid
   end subroutine default_dump
 
-  subroutine default_load(fid)
-    integer fid
+  subroutine default_load (fid)
+    integer :: fid
   end subroutine default_load
 
-  subroutine proj_xz_plane(cin, cout)
-    type(Coord) cin
+  subroutine proj_xz_plane (cin, cout)
+    type(Coord)          :: cin
     real(8), intent(out) :: cout(2)
 
     if (cin%y .gt. 0) then
@@ -980,42 +974,42 @@ contains
     end if
   end subroutine proj_xz_plane
 
-  subroutine error(msg)
-    character(*) msg
+  subroutine error (msg)
+    character(*) :: msg
     write(0,*) "ERROR: ", msg
   end subroutine error
 
-  subroutine read_lonlat_from_binary(arr, n, fid)
+  subroutine read_lonlat_from_binary (arr, n, fid)
     ! use: 
     !     real(8) arr(n_lon,n_lat)
     !     call read_lonlat_from_binary(arr(1,1),n_lon*n_lat,fid)
-    integer n, fid
-    real(8) arr(n)
-    integer i
+    integer               :: n, fid
+    real(8), dimension(n) :: arr
+    
+    integer :: i
 
     read(fid) (arr(i),i=1,n)
 
   end subroutine read_lonlat_from_binary
 
-  subroutine read_HR_optim_grid()
-    integer fid
-    character(19+1) filename
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer d_HR, p, d_glo, d_sub, loz
-
+  subroutine read_HR_optim_grid
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer                        :: d_HR, p, d_glo, d_sub, fid, loz
+    character(19+1)                :: filename
+    
     maxerror = 0.0_8
     l2error = 0.0_8
 
-    call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
-    call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
-    call apply_onescale(check_d,  level_end-1, z_null,  0, 0)
+    call comm_nodes3_mpi (get_coord, set_coord, NONE)
+    call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
+    call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
+    call apply_onescale (check_d,  level_end-1, z_null,  0, 0)
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
 
-    if (rank .eq. 0) write(*,'(A,2(es12.4,1x))') 'Grid quality before optimization:', maxerror, l2error
+    if (rank .eq. 0) write(6,'(A,2(es12.4,1x))') 'Grid quality before optimization:', maxerror, l2error
 
     fid = get_fid()
     if (level_start .ne. level_end) then
@@ -1039,40 +1033,42 @@ contains
     end do
     close(fid)
 
-    call comm_nodes3_mpi(get_coord, set_coord, NONE)
+    call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
-    call apply_onescale2(ccentre,    level_end-1, z_null, -2, 1)
-    call apply_onescale2(midpt,      level_end-1, z_null, -1, 1)
-    call apply_onescale2(check_grid, level_end-1, z_null,  0, 0)
+    call apply_onescale2 (ccentre,    level_end-1, z_null, -2, 1)
+    call apply_onescale2 (midpt,      level_end-1, z_null, -1, 1)
+    call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
 
     maxerror = 0.0_8
     l2error = 0.0_8
 
-    call comm_nodes3_mpi(get_coord, set_coord, NONE)
+    call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
-    call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
-    call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
-    call apply_onescale(check_d,  level_end-1, z_null,  0, 0)
+    call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
+    call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
+    call apply_onescale (check_d,  level_end-1, z_null,  0, 0)
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
     if (rank .eq. 0) write(*,'(A,2(es12.4,1x))') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
   end subroutine read_HR_optim_grid
 
-  integer function dom_id_from_HR_id(d_HR)
+  function dom_id_from_HR_id (d_HR)
+    integer :: dom_id_from_HR_id
     ! d_HR: lozange id as used by Heikes & Randall (starts from 1)
     ! results: domain id (starts from 0)
-    integer d_HR
+    integer :: d_HR
+    
     dom_id_from_HR_id = modulo(d_HR,2)*5 + modulo(d_HR/2-1,5)
   end function dom_id_from_HR_id
 
-  integer function sub_dom_id_from_HR_sub_id(sub_id)
+  function sub_dom_id_from_HR_sub_id (sub_id)
+    integer ::  sub_dom_id_from_HR_sub_id
     ! sub_id: lozange sub id as used by Heikes & Randall (starts from 1)
     ! results: sub domain id (starts from 0)
-    integer sub_id
-    integer id, i, j
-    integer halv_sub_dom, l
-    integer jdiv, idiv
+    integer :: sub_id
+    
+    integer :: id, i, j, halv_sub_dom, l, jdiv, idiv
 
     i = 0
     j = 0
@@ -1090,9 +1086,9 @@ contains
     sub_dom_id_from_HR_sub_id = j*N_SUB_DOM_PER_DIM + i
   end function sub_dom_id_from_HR_sub_id
 
-  subroutine  zrotate(c_in, c_out, angle)
-    real(8), intent(in) :: angle
-    type(Coord), intent(in) :: c_in
+  subroutine zrotate (c_in, c_out, angle)
+    real(8),      intent(in) :: angle
+    type(Coord),  intent(in) :: c_in
     type(Coord), intent(out) :: c_out
 
     c_out%x =  c_in%x*cos(angle) - c_in%y*sin(angle)
@@ -1146,8 +1142,9 @@ contains
 
   ! now active_level can be used
 
-  subroutine post_levelout()
+  subroutine post_levelout
     integer :: d
+    
     do d = 1, size(grid)
        deallocate(active_level%data(d)%elts)
     end do
