@@ -496,8 +496,8 @@ contains
 
     if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
 
-    call load_adapt_mpi(read_p_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
-
+    call load_adapt_mpi (read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
+        
     itime = nint(time*time_mult, 8)
 
     ! do not overwrite existing checkpoint archive
