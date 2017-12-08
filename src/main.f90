@@ -492,9 +492,13 @@ contains
 
     call record_init_state (ini_st)
 
-    call init_RK_mem 
+    call init_RK_mem
 
-    call read_sol (custom_load)
+    if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
+
+    call load_adapt_mpi(read_p_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
+
+    itime = nint(time*time_mult, 8)
 
     ! do not overwrite existing checkpoint archive
     write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
@@ -514,20 +518,6 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol, level_start)
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
-
-  subroutine read_sol (custom_load)
-    external :: custom_load
-    integer :: k, d, v
-    
-    if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
-
-    itime = nint (time*time_mult, 8)
-    resume = cp_idx ! to disable alignment for next step
-
-    call load_adapt_mpi (read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
-       
-    call inverse_wavelet_transform (wav_coeff, sol)
-  end subroutine read_sol
 
   function write_checkpoint(custom_dump)
     integer :: write_checkpoint
