@@ -289,7 +289,7 @@ contains
     close(fid)
   end subroutine read_test_case_parameters
 
-  subroutine write_and_export(iwrite)
+  subroutine write_and_export (iwrite)
     integer :: iwrite
     
     integer :: l, k, zlev, d, u, i, p
@@ -357,7 +357,7 @@ contains
 
     call post_levelout
     call barrier
-    !if (rank .eq. 0) call compress_files(k)
+    if (rank .eq. 0) call compress_files (iwrite)
   end subroutine write_and_export
 
   subroutine DCMIP2008c5_dump(fid)

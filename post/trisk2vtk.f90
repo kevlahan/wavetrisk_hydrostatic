@@ -80,11 +80,11 @@ program trisk2vtk
      write (s_time,'(I3.3)') itime
 
      ! Check if files are compressed
-     filename_in = trim(file_base) // s_time // '.tbz'
+     filename_in = trim(file_base) // s_time // '.tgz'
      inquire(FILE=trim(filename_in), EXIST=compressed_file_exists)
 
      if (compressed_file_exists) then ! Uncompress base file
-        command = 'tar xjf ' // filename_in
+        command = 'tar xzf ' // filename_in
         write(*,*) command
         CALL system(command)
 

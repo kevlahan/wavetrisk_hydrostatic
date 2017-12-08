@@ -15,20 +15,18 @@ module main_mod
   use remap_mod
 
   implicit none
-  integer cp_idx
+  
+  integer(8)                         :: itime
+  integer                            :: cp_idx
+  integer, dimension(:), allocatable :: node_level_start, edge_level_start
+  real(8)                            :: dt, dt_new, time_mult  
   type Initial_State
-     integer n_patch, n_bdry_patch
-     integer n_node, n_edge, n_tria
+     integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
-  type(Initial_State), allocatable :: ini_st(:)
-  integer, allocatable :: node_level_start(:), edge_level_start(:)
-
-  integer(8) :: itime
-  real(8)    :: dt, dt_new, time_mult
-
+  
+  type(Initial_State), dimension(:), allocatable :: ini_st
 contains
-
   subroutine init_main_mod
     call init_arch_mod
     call init_domain_mod
@@ -69,30 +67,30 @@ contains
     call init_geometry
 
     if (optimize_grid .eq. XU_GRID) call smooth_Xu(1.0e6_8*eps())
-    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid()
+    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid
 
-    call comm_nodes3_mpi(get_coord, set_coord, NONE)
-    call precompute_geometry()
+    call comm_nodes3_mpi (get_coord, set_coord, NONE)
+    call precompute_geometry
 
-    allocate(node_level_start(size(grid)), edge_level_start(size(grid)))
+    allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
-    if (rank .eq. 0) write(*,*) 'Make level J_min =', min_level, '...'
+    if (rank .eq. 0) write(6,*) 'Make level J_min =', min_level, '...'
 
-    call init_wavelets()
-    call init_masks()
-    call add_second_level()
+    call init_wavelets
+    call init_masks
+    call add_second_level
 
-    call apply_onescale2(set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale(mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
+    call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
+    call apply_interscale (mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
-    call record_init_state(ini_st)
+    call record_init_state (ini_st)
     if (time_end .gt. 0.0_8) time_mult = huge(itime)/2/time_end
     if (stage .eq. 0) return
 
     call init_RK_mem
 
     if (resume .ge. 0) then
-       if (rank .eq. 0) write(*,*) 'Resuming from checkpoint', resume
+       if (rank .eq. 0) write(6,*) 'Resuming from checkpoint', resume
     else
        call apply_init_cond
        call forward_wavelet_transform (sol, wav_coeff)
@@ -109,7 +107,7 @@ contains
           
           call adapt (set_thresholds)
 
-          if (rank .eq. 0) write(*,*) 'Initialize solution on level', level_end
+          if (rank .eq. 0) write(6,*) 'Initialize solution on level', level_end
 
           call apply_init_cond
           
@@ -150,9 +148,10 @@ contains
     call restart_full (set_thresholds, custom_load)
   end subroutine initialize
 
-  subroutine record_init_state(init_state)
-    type(Initial_State), allocatable :: init_state(:)
-    integer d, i, v
+  subroutine record_init_state (init_state)
+    type(Initial_State), dimension(:), allocatable :: init_state
+    
+    integer :: d, i, v
 
     allocate (init_state(size(grid)))
 
@@ -334,70 +333,70 @@ contains
 
     ! deallocate mask and geometry allocations
     do d = 1, size(grid)
-       deallocate(grid(d)%mask_n%elts)
-       deallocate(grid(d)%mask_e%elts)
-       deallocate(grid(d)%level%elts)
-       deallocate(grid(d)%R_F_wgt%elts)
-       deallocate(grid(d)%I_u_wgt%elts)
-       deallocate(grid(d)%overl_areas%elts)
-       deallocate(grid(d)%surf_press%elts)
-       deallocate(grid(d)%press%elts)
-       deallocate(grid(d)%surf_geopot%elts)
-       deallocate(grid(d)%geopot%elts)
-       deallocate(grid(d)%u_zonal%elts)
-       deallocate(grid(d)%v_merid%elts)
-       deallocate(grid(d)%adj_mass%elts)
-       deallocate(grid(d)%adj_temp%elts)
-       deallocate(grid(d)%adj_geopot%elts)
-       deallocate(grid(d)%vort%elts)
-       deallocate(grid(d)%qe%elts)
-       deallocate(grid(d)%exner%elts)
-       deallocate(grid(d)%bernoulli%elts)
-       deallocate(grid(d)%divu%elts)
-       deallocate(grid(d)%coriolis%elts)
-       deallocate(grid(d)%triarea%elts)
-       deallocate(grid(d)%len%elts)
-       deallocate(grid(d)%pedlen%elts)
-       deallocate(grid(d)%areas%elts)
-       deallocate(grid(d)%midpt%elts)
-       deallocate(grid(d)%ccentre%elts)
+       deallocate (grid(d)%mask_n%elts)
+       deallocate (grid(d)%mask_e%elts)
+       deallocate (grid(d)%level%elts)
+       deallocate (grid(d)%R_F_wgt%elts)
+       deallocate (grid(d)%I_u_wgt%elts)
+       deallocate (grid(d)%overl_areas%elts)
+       deallocate (grid(d)%surf_press%elts)
+       deallocate (grid(d)%press%elts)
+       deallocate (grid(d)%surf_geopot%elts)
+       deallocate (grid(d)%geopot%elts)
+       deallocate (grid(d)%u_zonal%elts)
+       deallocate (grid(d)%v_merid%elts)
+       deallocate (grid(d)%adj_mass%elts)
+       deallocate (grid(d)%adj_temp%elts)
+       deallocate (grid(d)%adj_geopot%elts)
+       deallocate (grid(d)%vort%elts)
+       deallocate (grid(d)%qe%elts)
+       deallocate (grid(d)%exner%elts)
+       deallocate (grid(d)%bernoulli%elts)
+       deallocate (grid(d)%divu%elts)
+       deallocate (grid(d)%coriolis%elts)
+       deallocate (grid(d)%triarea%elts)
+       deallocate (grid(d)%len%elts)
+       deallocate (grid(d)%pedlen%elts)
+       deallocate (grid(d)%areas%elts)
+       deallocate (grid(d)%midpt%elts)
+       deallocate (grid(d)%ccentre%elts)
 
        ! For mass-based vertical coordinates
-       deallocate(grid(d)%vert_velo%elts)
-       deallocate(grid(d)%adj_vflux%elts)
-       deallocate(grid(d)%adj_velo%elts)
-       deallocate(grid(d)%integr_horiz_flux%elts)
+       deallocate (grid(d)%vert_velo%elts)
+       deallocate (grid(d)%adj_vflux%elts)
+       deallocate (grid(d)%adj_velo%elts)
+       deallocate (grid(d)%integr_horiz_flux%elts)
     end do
 
     ! deallocate wavelet allocations
     do k = 1, zlevels
        do d = 1, size(grid)
           do v = S_MASS, S_VELO
-             deallocate(wav_coeff(v,k)%data(d)%elts)
-             deallocate(trend_wav_coeff(v,k)%data(d)%elts)
+             deallocate (wav_coeff(v,k)%data(d)%elts)
+             deallocate (trend_wav_coeff(v,k)%data(d)%elts)
           end do
        end do
        do v = S_MASS, S_VELO
-          deallocate(wav_coeff(v,k)%data)
-          deallocate(trend_wav_coeff(v,k)%data)
+          deallocate (wav_coeff(v,k)%data)
+          deallocate (trend_wav_coeff(v,k)%data)
        end do
     end do
-    deallocate(wav_coeff, trend_wav_coeff)
+    deallocate (wav_coeff, trend_wav_coeff)
 
-    deallocate(node_level_start, edge_level_start)
+    deallocate (node_level_start, edge_level_start)
 
     ! deallocate precompute_geometry allocations
     do k = 1, zlevels
        do d = 1, size(grid)
           do v = S_MASS, S_VELO
-             deallocate(trend(v,k)%data(d)%elts)
+             deallocate (trend(v,k)%data(d)%elts)
           end do
        end do
     end do
 
     do d = 1, size(grid)
        do v = S_MASS, S_TEMP
-          deallocate(horiz_flux(v)%data(d)%elts)
+          deallocate (horiz_flux(v)%data(d)%elts)
        end do
     end do
 
@@ -405,41 +404,41 @@ contains
     do k = 1, zlevels
        do d = 1, size(grid)
           do v = S_MASS, S_VELO
-             deallocate(sol(v,k)%data(d)%elts) 
+             deallocate (sol(v,k)%data(d)%elts) 
           end do
        end do
     end do
 
     ! deallocate init_grid allocations
     do d = 1, size(grid)
-       deallocate(grid(d)%neigh_pa_over_pole%elts)
+       deallocate (grid(d)%neigh_pa_over_pole%elts)
 
        do k = AT_NODE, AT_EDGE
           do i = 1, N_GLO_DOMAIN
-             deallocate(grid(d)%pack(k,i)%elts)
-             deallocate(grid(d)%unpk(k,i)%elts)
+             deallocate (grid(d)%pack(k,i)%elts)
+             deallocate (grid(d)%unpk(k,i)%elts)
           end do
        end do
 
        do i = 1, N_GLO_DOMAIN
-          deallocate(grid(d)%recv_pa(i)%elts)
+          deallocate (grid(d)%recv_pa(i)%elts)
        end do
 
-       deallocate(grid(d)%send_pa_all%elts)
+       deallocate (grid(d)%send_pa_all%elts)
 
        do i = 1, N_GLO_DOMAIN
-          deallocate(grid(d)%send_conn(i)%elts)
+          deallocate (grid(d)%send_conn(i)%elts)
        end do
 
        do i = lbound(grid(d)%lev,1), ubound(grid(d)%lev,1)
-          deallocate(grid(d)%lev(i)%elts)
+          deallocate (grid(d)%lev(i)%elts)
        end do
 
-       deallocate(grid(d)%lev)
+       deallocate (grid(d)%lev)
 
        do l = min_level, max_level
           do r = 1, n_process
-             deallocate(grid(d)%src_patch(r,l)%elts) 
+             deallocate (grid(d)%src_patch(r,l)%elts) 
           end do
        end do
 
@@ -451,13 +450,13 @@ contains
 
     do k = 1, zlevels
        do v = S_MASS, S_VELO
-          deallocate(sol(v,k)%data)
-          deallocate(trend(v,k)%data)
+          deallocate (sol(v,k)%data)
+          deallocate (trend(v,k)%data)
        end do
     end do
 
     do v = S_MASS, S_TEMP
-       deallocate(horiz_flux(v)%data)
+       deallocate (horiz_flux(v)%data)
     end do
 
     deallocate (grid, sol, trend, horiz_flux)
@@ -519,36 +518,35 @@ contains
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
 
-  function write_checkpoint(custom_dump)
+  function write_checkpoint (custom_dump)
     integer :: write_checkpoint
     external :: custom_dump, custom_load
 
-    character(38+4+22+4+6) :: command
+    character (38+4+22+4+6) :: command
     
     cp_idx = cp_idx + 1
     call write_load_conn (cp_idx)
-    write_checkpoint = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
+    write_checkpoint = dump_adapt_mpi (write_mt_wc, write_u_wc, cp_idx, custom_dump)
   end function write_checkpoint
 
-  subroutine compress_files(iwrite)
+  subroutine compress_files (iwrite)
     integer :: iwrite
 
-    character(3) :: s_time
+    character(3)   :: s_time
     character(130) :: command
 
-    write(s_time, '(i3.3)') iwrite
+    write (s_time, '(i3.3)') iwrite
 
     command = '\rm tmp; ls -1 fort.1' // s_time // '* > tmp' 
-    CALL system(command)
+    CALL system (command)
 
-    !command = 'tar cjf fort.1' // s_time //'.tbz -T tmp --remove-files &' !JEMF
-    !CALL system(command)
+    command = 'tar czf fort.1' // s_time //'.tgz -T tmp --remove-files &'
+    CALL system (command)
 
     command = '\rm tmp; ls -1 fort.2' // s_time // '* > tmp' 
-    CALL system(command)
+    CALL system (command)
 
-    !command = 'tar cjf fort.2' // s_time //'.tbz -T tmp --remove-files &'
-    !CALL system(command)
+    command = 'tar czf fort.2' // s_time //'.tgz -T tmp --remove-files &'
+    CALL system (command)
   end subroutine compress_files
-
 end module main_mod
