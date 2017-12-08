@@ -283,8 +283,8 @@ contains
        write(*,'(A,i6)')     "resume           = ", resume
        write(*,*) ' '
     end if
-    dt_write = dt_write * 60_8!/Tdim
-    time_end = time_end * 60_8**2!/Tdim
+    dt_write = dt_write * 60_8
+    time_end = time_end * 60_8**2
 
     close(fid)
   end subroutine read_test_case_parameters
@@ -643,7 +643,7 @@ program DCMIP2008c5
           '  dof = ', sum(n_active)
 
      write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES14.8,1x))')  &
-          time/3600.0_8, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing, timing
+          time/60_8**2, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing, timing
   end if
   do while (time .lt. time_end)
      call start_timing
@@ -664,7 +664,7 @@ program DCMIP2008c5
      
      if (rank .eq. 0) then
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,2(A,ES9.2,1x))') &
-             ' time [h] = ', time/3600.0_8, &
+             ' time [h] = ', time/60_8**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
              ' temp tol = ', tol_temp, &

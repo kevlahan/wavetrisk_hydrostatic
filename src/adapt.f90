@@ -10,11 +10,11 @@ module adapt_mod
   integer, parameter :: FILLED_AND_FROZEN = DOF_PER_PATCH + 1
 
 contains
-  subroutine init_adapt_mod()
+  subroutine init_adapt_mod
     logical :: initialized = .False.
     if (initialized) return ! initialize only once
-    call init_comm_mod()
-    call init_refine_patch_mod()
+    call init_comm_mod
+    call init_refine_patch_mod
     max_level_exceeded = .False.
     initialized = .True.
   end subroutine init_adapt_mod
