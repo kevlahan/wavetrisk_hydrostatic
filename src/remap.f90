@@ -43,6 +43,9 @@ contains
        ! Remap mass and mass-weighted temperature
        call apply_onescale (remap_scalars,  l, z_null, 0, 1)
     end do
+    call WT_after_step (sol, wav_coeff, level_start-1)
+    !call forward_wavelet_transform (sol, wav_coeff)
+    !call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
   subroutine cpt_or_restr_velo (dom, l)
