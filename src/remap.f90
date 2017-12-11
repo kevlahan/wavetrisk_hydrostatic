@@ -33,50 +33,20 @@ contains
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Remap variables on finest scale !
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
     do l = level_start, level_end
        ! Remap velocity first to use only values of mass on current grid to find old momentum
-       call apply_onescale (remap_velocity, l, z_null, 0, 0)
+       call apply_onescale (remap_velocity, level_end, z_null, 0, 0)
        ! Remap mass and mass-weighted temperature
-       call apply_onescale (remap_scalars,  l, z_null, 0, 1)
+       call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
     end do
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! ! Remap at coarser scales !
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! do l = level_end-1, level_start, -1
-    !    call update_array_bdry (sol(S_MASS:S_TEMP,1:zlevels), l+1)
-    !    do d = 1, size(grid)
-    !       call cpt_or_restr_velo (grid(d), l)
-    !    end do
-    !    do d = 1, size(grid)
-    !       do j = 1, grid(d)%lev(l)%length
-    !          call apply_onescale_to_patch (remap_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-    !       end do
-    !    end do
 
-    !    do k = 1, zlevels
-    !       do d = 1, size(grid)
-    !          mass => sol(S_MASS,k)%data(d)%elts
-    !          temp => sol(S_TEMP,k)%data(d)%elts
-    !          call apply_interscale_d (scalar_cpt_restr, grid(d), l, k, 0, 1) ! +1 to include poles
-    !          !call cpt_or_restr_scalar (grid(d), l)
-    !          nullify (mass, temp)
-    !       end do
-    !    end do
-
-    !    do d = 1, size(grid)
-    !       do j = 1, grid(d)%lev(l)%length
-    !          call apply_onescale_to_patch (remap_scalars, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-    !       end do
-    !    end do
-    !    sol%bdry_uptodate = .False.
-    ! end do
-    call WT_after_step (sol, wav_coeff, level_start-1)
-    !call forward_wavelet_transform (sol, wav_coeff)
-    !call adapt_grid (set_thresholds)
+    ! Remap poles
+    do d = 1, size(grid)
+       call apply_to_pole_d (remap_scalars, grid(d), min_level-1, z_null, z_null, .True.)
+    end do
+    
+    ! Ensure boundary values are up to date
+    call update_array_bdry (sol, NONE)
   end subroutine remap_vertical_coordinates
 
   subroutine cpt_or_restr_velo (dom, l)
