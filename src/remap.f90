@@ -67,7 +67,7 @@ contains
              temp => sol(S_TEMP,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
+             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 0)
 
              velo => sol(S_VELO,k)%data(d)%elts
              call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
