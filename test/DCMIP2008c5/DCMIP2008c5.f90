@@ -32,13 +32,7 @@ contains
   subroutine set_surf_geopot
     integer ::  d, p
     
-    ! do d = 1, size(grid)
-    !    do p = n_patch_old(d)+1, grid(d)%patch%length
-    !       call apply_onescale_to_patch(set_surfgeopot, grid(d), p-1, z_null, 0, 1)
-    !    end do
-    ! end do
-
-     do d = 1, size(grid)
+    do d = 1, size(grid)
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (set_surfgeopot, grid(d), p-1, z_null, 0, 1)
           end do
