@@ -602,7 +602,7 @@ program DCMIP2008c5
   adapt_dt         = .false.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
-  remap            = .false.  ! Remap vertical coordinates
+  remap            = .true.  ! Remap vertical coordinates
   uniform          = .false. ! Type of vertical grid
 
   ! Initialize vertical grid

@@ -33,178 +33,57 @@ contains
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
 
-    do l = level_start, level_end
-       ! Remap velocity first to use only values of mass on current grid to find old momentum
-       call apply_onescale (remap_velocity, level_end, z_null, 0, 0)
-       ! Remap mass and mass-weighted temperature
-       call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
+    ! Remap on finest scale
+    call apply_onescale (remap_velocity, level_end, z_null, 0, 0)
+    call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
+
+    ! Remap scalars at coarser levels
+    do l = level_end - 1, level_start - 1, -1
+       call update_array_bdry (sol, l+1)
+
+       ! Compute scalar wav_coeff coefficients
+       do d = 1, size(grid)
+          do k = 1, zlevels
+             mass => sol(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+             nullify (wc_m, wc_t, mass, temp)
+          end do
+       end do
+       call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
+
+       ! Remap velocity at level l (over-written if value available from restriction)
+       call apply_onescale (remap_velocity, l, z_null, 0, 0)
+       
+       ! Remap scalars at level l (over-written if value available from restriction)
+       call apply_onescale (remap_scalars, l, z_null, 0, 0)
+
+       ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
+       do d = 1, size(grid)
+          do k = 1, zlevels
+             mass => sol(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
+
+             velo => sol(S_VELO,k)%data(d)%elts
+             call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
+             nullify (mass, temp, velo, wc_m, wc_t)
+          end do
+       end do
     end do
 
+    sol%bdry_uptodate       = .False.
+    wav_coeff%bdry_uptodate = .False.
+    
     ! Remap poles
     do d = 1, size(grid)
        call apply_to_pole_d (remap_scalars, grid(d), min_level-1, z_null, z_null, .True.)
     end do
-    
-    ! Ensure boundary values are up to date
-    call update_array_bdry (sol, NONE)
   end subroutine remap_vertical_coordinates
-
-  subroutine cpt_or_restr_velo (dom, l)
-    type(Domain) :: dom
-    integer      :: l
-
-    integer :: c, j, p_par, p_chd
-
-    do j = 1, dom%lev(l)%length
-       p_par = dom%lev(l)%elts(j)
-       do c = 1, N_CHDRN
-          p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .eq. 0) call apply_onescale_to_patch (remap_velocity, dom, p_par, z_null, -1, 0)
-       end do
-       call apply_interscale_to_patch (velo_cpt_restr, dom, dom%lev(l)%elts(j), z_null, -1, 0)
-    end do
-  end subroutine cpt_or_restr_velo
-
-  subroutine velo_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    type(Domain)                     :: dom
-    integer                          :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
-
-    integer :: d, id_par, id_chd, idE_chd, idNE_chd, idN_chd, k
-    real (8) :: u_prim_RT, u_prim_RT_E, u_prim_DG, u_prim_DG_NE, u_prim_UP, u_prim_UP_N
-
-    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
-    d = dom%id + 1
-
-    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
-    idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-
-    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. ADJZONE) then
-       call remap_velocity (dom, i_par, j_par, z_null, offs_par, dims_par)
-    end if
-
-    do k = 1, zlevels
-       ! Restriction is defined for edge integrated velocity (i.e. flux)
-       u_prim_RT    = sol(S_VELO,k)%data(d)%elts(EDGE*id_chd+RT+1)*dom%len%elts(EDGE*id_chd+RT+1)
-       u_prim_RT_E  = sol(S_VELO,k)%data(d)%elts(EDGE*idE_chd+RT+1)*dom%len%elts(EDGE*idE_chd+RT+1)
-       u_prim_DG    = sol(S_VELO,k)%data(d)%elts(EDGE*id_chd+DG+1)*dom%len%elts(EDGE*id_chd+DG+1)
-       u_prim_DG_NE = sol(S_VELO,k)%data(d)%elts(EDGE*idNE_chd+DG+1)*dom%len%elts(EDGE*idNE_chd+DG+1)
-       u_prim_UP    = sol(S_VELO,k)%data(d)%elts(EDGE*id_chd+UP+1)*dom%len%elts(EDGE*id_chd+UP+1)
-       u_prim_UP_N  = sol(S_VELO,k)%data(d)%elts(EDGE*idN_chd+UP+1)*dom%len%elts(EDGE*idN_chd+UP+1)
-
-       if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) &
-            sol(S_VELO,k)%data(d)%elts(EDGE*id_par+RT+1) = (u_prim_RT + u_prim_RT_E)/dom%len%elts(EDGE*id_par+RT+1)
-       
-       if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) &
-            sol(S_VELO,k)%data(d)%elts(EDGE*id_par+DG+1) = (u_prim_DG + u_prim_DG_NE)/dom%len%elts(EDGE*id_par+DG+1)
-       
-       if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) &
-            sol(S_VELO,k)%data(d)%elts(EDGE*id_par+UP+1) = (u_prim_UP + u_prim_UP_N)/dom%len%elts(EDGE*id_par+UP+1)
-    end do
-  end subroutine velo_cpt_restr
-
-  subroutine cpt_or_restr_scalar (dom, l)
-    type(Domain) :: dom
-    integer      :: l
-
-    integer :: j, p_par, c, p_chd
-    logical :: restrict(N_CHDRN)
-
-    do j = 1, dom%lev(l)%length
-       p_par = dom%lev(l)%elts(j)
-       restrict = .False.
-       do c = 1, N_CHDRN
-          p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .gt. 0) restrict(c) = .True.
-       end do
-       do c = 1, N_CHDRN
-          if (restrict(c)) call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, c, z_null, 0, 1)
-       end do
-    end do
-  end subroutine cpt_or_restr_scalar
-
-  !subroutine scalar_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-  subroutine scalar_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Compute or restrict scalars
-    type(Domain)                   :: dom
-    integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: id_chd, id_par
-
-    id_chd  = idx(i_chd, j_chd, offs_chd, dims_chd)
-    
-    if (dom%mask_n%elts(id_chd+1) .eq. 0) return
-    
-    id_par = idx(i_par, j_par, offs_par, dims_par)
-    
-    mass(id_par+1) = scalar_restr (mass)
-    temp(id_par+1) = scalar_restr (temp)
-  contains
-    function scalar_restr (scalar)
-      ! Mass conserving restriction
-      real(8)                        :: scalar_restr
-      real(8), dimension(:)          :: scalar
-     
-      integer :: id, idE, idNE, idN, idW, idSW, idS, idN2E, id2NE, idNW, idS2W, id2SW, idSE
-      real(8) :: Area_E, Area_NE,  Area_N, Area_W, Area_SW, Area_S
-      real(8) :: Area_restrict, Area_parent
-      real(8), dimension(2) :: error
-          
-      idE   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-      idNE  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-      idN2E = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
-      id2NE = idx(i_chd + 1, j_chd + 2, offs_chd, dims_chd)
-      idN   = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-      idW   = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
-      idNW  = idx(i_chd - 1, j_chd + 1, offs_chd, dims_chd)
-      idS2W = idx(i_chd - 2, j_chd - 1, offs_chd, dims_chd)
-      idSW  = idx(i_chd - 1, j_chd - 1, offs_chd, dims_chd)
-      idS   = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
-      id2SW = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
-      idSE  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
-
-      scalar_restr = (scalar(id_chd+1)/dom%areas%elts(id_chd+1)%hex_inv + &
-           scalar(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
-           scalar(idNE+1)*dom%overl_areas%elts(idNE+1)%a(2) + &
-           scalar(idN2E+1)*dom%overl_areas%elts(idN2E+1)%a(3) + &
-           scalar(id2NE+1)*dom%overl_areas%elts(id2NE+1)%a(4) + &
-           scalar(idN+1)*dom%overl_areas%elts(idN+1)%a(1) + &
-           scalar(idW+1)*dom%overl_areas%elts(idW+1)%a(2) + &
-           scalar(idNW+1)*dom%overl_areas%elts(idNW+1)%a(3) + &
-           scalar(idS2W+1)*dom%overl_areas%elts(idS2W+1)%a(4) + &
-           scalar(idSW+1)*dom%overl_areas%elts(idSW+1)%a(1) + &
-           scalar(idS+1)*dom%overl_areas%elts(idS+1)%a(2) + &
-           scalar(id2SW+1)*dom%overl_areas%elts(id2SW+1)%a(3) + &
-           scalar(idSE+1)*dom%overl_areas%elts(idSE+1)%a(4)) * &
-           dom%areas%elts(id_par+1)%hex_inv
-
-      Area_restrict = 1.0_8/dom%areas%elts(id_chd+1)%hex_inv + &
-           dom%overl_areas%elts(idE+1)%a(1) + &
-           dom%overl_areas%elts(idNE+1)%a(2) + &
-         dom%overl_areas%elts(idN2E+1)%a(3) + &
-         dom%overl_areas%elts(id2NE+1)%a(4) + &
-         dom%overl_areas%elts(idN+1)%a(1) + &
-         dom%overl_areas%elts(idW+1)%a(2) + &
-         dom%overl_areas%elts(idNW+1)%a(3) + &
-         dom%overl_areas%elts(idS2W+1)%a(4) + &
-         dom%overl_areas%elts(idSW+1)%a(1) + &
-         dom%overl_areas%elts(idS+1)%a(2) + &
-         dom%overl_areas%elts(id2SW+1)%a(3) + &
-         dom%overl_areas%elts(idSE+1)%a(4)
-
-      if (rank.eq.0 .and.scalar_restr.lt.0.0_8) write(6,*) scalar_restr
-      Area_parent = 1.0_8/dom%areas%elts(id_par+1)%hex_inv
-      Error(1) =  abs(Area_restrict-Area_parent)/Area_parent
-      !if (Error(1).gt. 1e-10) write(6,*) error(1)
-      Error(2) = abs(scalar(id_par+1)-scalar_restr)/scalar_restr
-      !write(6,'(2(es10.4,1x))') Error(1), Error(2)
-    end function scalar_restr
-  end subroutine scalar_cpt_restr
 
   subroutine remap_velocity (dom, i, j, zlev, offs, dims)
     type (Domain)                   :: dom
@@ -223,9 +102,9 @@ contains
     id   = idx(i, j, offs, dims)
     id_i = id + 1
 
-    idN  = idx(i,     j + 1, offs, dims) + 1
-    idE  = idx(i + 1, j,     offs, dims) + 1
-    idNE = idx(i + 1, j + 1, offs, dims) + 1
+    idN  = idx(i,   j+1, offs, dims) + 1
+    idE  = idx(i+1, j,   offs, dims) + 1
+    idNE = idx(i+1, j+1, offs, dims) + 1
 
     ! Integrate full momentum flux vertically downward from the top
     ! All quantities located at interfaces
