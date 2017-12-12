@@ -145,8 +145,9 @@ contains
     end do
   end subroutine manage_RK_mem
 
-  subroutine RK45_opt(trend_fun, dt)
-    !see A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011
+  subroutine RK45_opt (trend_fun, dt)
+    ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiter and Ruuth 2002
+    ! CFL = 1.51
     external :: trend_fun
     real(8)  :: dt
     

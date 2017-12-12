@@ -570,19 +570,20 @@ program DCMIP2008c5
   massdim     = pdim*Hdim/(Tempdim*R_d)          ! mass (=rho*dz following DYNAMICO) scale
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
-
-  cfl_num     = 0.8d0                            ! cfl number
+  wave_speed  = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
+  cfl_num     = 1.5d0                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
-  dt_init     = 50.0_8                          ! Time step (not used if adapt_dt is true)
-
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
-  viscosity_mass = 8.0d-3/kmax**2                ! viscosity for mass equation
-  viscosity_temp = 8.0d-3/kmax**2                ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = 8.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 8.0d-3/kmax**2                ! viscosity for divergent part of momentum equation
+  visc = 2d-3/kmax**2
+  viscosity_mass = visc               ! viscosity for mass equation
+  viscosity_temp = visc               ! viscosity for mass-weighted potential temperature equation
+  viscosity_divu = visc               ! viscosity for divergent part of momentum equation
+  viscosity_rotu = visc                ! viscosity for divergent part of momentum equation
+
+  dt_init = min(cfl_num*dx_min/sqrt(3d0)/wave_speed, 0.1_8*dx_min**2/visc)  ! Time step based on acoustic wave speed and hexagon edge length 
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -652,13 +653,13 @@ program DCMIP2008c5
      total_cpu_time = total_cpu_time + timing
      
      if (rank .eq. 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES9.2,1x,A,ES10.4,1x,A,ES9.2)') &
+        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES10.4,1x,A,ES8.2)') &
              ' time [h] = ', time/60_8**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
              ' temp tol = ', tol_temp, &
              ' velo tol = ', tol_velo, &
-             ' Jmax =', level_end, &
+             ' Jmax = ', level_end, &
              '  dof = ', sum(n_active), &
              ' mass error = ', mass_error, &
              ' min mass = ', min_mass, &
