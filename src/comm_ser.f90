@@ -197,7 +197,8 @@ contains
     else
        dt_loc = dt_init
     end if
-
+    min_mass = 1d16
+    
     n_active_nodes = 0
     n_active_edges = 0
     do l = level_start, level_end
@@ -207,33 +208,40 @@ contains
     cpt_dt_mpi = dt_loc
   end function cpt_dt_mpi
 
-  integer function sync_max(val)
-    integer val
+   function sync_max (val)
+    integer :: sync_max
+    integer :: val
+    
     sync_max = val
   end function sync_max
 
-  real(8) function sync_max_d(val)
-    real(8) val
+  function sync_max_d (val)
+    real(8) :: sync_max_d
+    real(8) :: val
+    
     sync_max_d = val
   end function sync_max_d
 
-  real(8) function sum_real(val)
-    real(8) val
+  function sum_real (val)
+    real(8) :: sum_real
+    real(8) :: val
+    
     sum_real = val
   end function sum_real
 
-  subroutine start_timing()
+  subroutine start_timing
   end subroutine start_timing
 
-  subroutine stop_timing()
+  subroutine stop_timing
   end subroutine stop_timing
 
-  real(8) function get_timing()
+  function get_timing
+    real(8) :: get_timing
     get_timing = 0.0_8
   end function get_timing
 
-  subroutine sync_array(arr, N)
-    real arr(N)
-    integer N
+  subroutine sync_array (arr, N)
+    integer            :: N
+    real, dimension(N) :: arr
   end subroutine sync_array
 end module comm_mpi_mod

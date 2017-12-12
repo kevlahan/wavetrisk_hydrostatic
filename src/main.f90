@@ -57,7 +57,7 @@ contains
     if (resume .ge. 0) then
        cp_idx = resume
        write(command, '(A,I4.4,A)')  "tar -xzf checkpoint_" , cp_idx , ".tgz"
-       if (rank .eq. 0) call system(command)
+       if (rank .eq. 0) call system (command)
        call barrier ! make sure all files are extracted before everyone starts reading them
     end if
 
@@ -66,7 +66,7 @@ contains
     call init_comm_mpi
     call init_geometry
 
-    if (optimize_grid .eq. XU_GRID) call smooth_Xu(1.0e6_8*eps())
+    if (optimize_grid .eq. XU_GRID) call smooth_Xu (1d6*eps())
     if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
@@ -185,7 +185,7 @@ contains
     ! Match certain times exactly
     idt    = nint(dt*time_mult, 8)
     ialign = nint(align_time*time_mult, 8)
-    if (ialign.gt.0 .and. cp_idx.ne.resume) then
+    if (ialign.gt.0 .and. cp_idx.ne.resume .and. istep.ne.1) then
        aligned = (modulo(itime+idt,ialign) .lt. modulo(itime,ialign))
     else
        resume = NONE ! Set unequal cp_idx => only first step after resume is protected from alignment
@@ -301,6 +301,7 @@ contains
 
   subroutine restart_full (set_thresholds, custom_load)
     external           :: set_thresholds, custom_load
+    
     integer            :: i, d, k, r, l, v
     integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
     integer, parameter :: len_cmd_archive = 11 + 4 + 4
@@ -465,7 +466,7 @@ contains
     level_start = min_level
     level_end = level_start
 
-    call distribute_grid(cp_idx)
+    call distribute_grid (cp_idx)
     deallocate (n_active_edges, n_active_nodes)
 
     call init_grid 
@@ -473,7 +474,7 @@ contains
     call comm_communication_mpi 
     call init_geometry 
 
-    if (optimize_grid .eq. XU_GRID) call smooth_Xu (1.0e6_8*eps())
+    if (optimize_grid .eq. XU_GRID) call smooth_Xu (1d6*eps())
     if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid 
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
@@ -493,17 +494,17 @@ contains
 
     call init_RK_mem
 
-    if (rank .eq. 0) write(*,*) 'Reloading from checkpoint', cp_idx
+    if (rank .eq. 0) write (6,*) 'Reloading from checkpoint', cp_idx
 
     call load_adapt_mpi (read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
         
     itime = nint(time*time_mult, 8)
 
-    ! do not overwrite existing checkpoint archive
+    ! Do not override existing checkpoint archive
     write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
     write(cmd_archive, '(A,I4.4,A)') "checkpoint_" , cp_idx, ".tgz"
     write(command, '(A,A,A,A,A,A,A,A,A)') "if [ -e ", cmd_archive, " ]; then rm -f ", cmd_files, &
-         "; else tar c -z -f ", cmd_archive, " ", cmd_files, "; fi" !JEMF
+         "; else tar c --remove-files -z -f ", cmd_archive, " ", cmd_files, "; fi"
 
     call barrier ! do not delete files before everyone has read them
 
@@ -519,8 +520,10 @@ contains
   end subroutine restart_full
 
   function write_checkpoint (custom_dump)
-    integer :: write_checkpoint
-    external :: custom_dump, custom_load
+    integer  :: write_checkpoint
+    external :: custom_dump
+    
+    external :: custom_load
 
     character (38+4+22+4+6) :: command
     
@@ -537,16 +540,16 @@ contains
 
     write (s_time, '(i3.3)') iwrite
 
-    command = '\rm tmp; ls -1 fort.1' // s_time // '* > tmp' 
-    CALL system (command)
+    command = 'ls -1 fort.1'//s_time // '* > tmp' 
+    call system (command)
 
-    command = 'tar czf fort.1' // s_time //'.tgz -T tmp --remove-files &'
-    CALL system (command)
+    command = 'tar czf fort.1'//s_time //'.tgz -T tmp --remove-files'
+    call system (command)
 
-    command = '\rm tmp; ls -1 fort.2' // s_time // '* > tmp' 
-    CALL system (command)
+    command = '\rm tmp; ls -1 fort.2' //s_time // '* > tmp' 
+    call system (command)
 
-    command = 'tar czf fort.2' // s_time //'.tgz -T tmp --remove-files &'
-    CALL system (command)
+    command = 'tar czf fort.2'//s_time //'.tgz -T tmp --remove-files;\rm tmp'
+    call system (command)
   end subroutine compress_files
 end module main_mod

@@ -105,14 +105,14 @@ contains
     integer :: l
     real(8) :: tot_mass
 
-    vmin =  1.0e-16
-    vmax = -1.0e-16
+    vmin =  1d-16
+    vmax = -1d-16
 
     do l = level_start, level_end
        call apply_onescale(vort_extrema, l, z_null, 0, 0)
     end do
 
-    tot_mass = integrate_hex(mu, level_start, k)
+    tot_mass = integrate_hex (mu, level_start, k)
 
     if (rank .eq. 0) write(fid,'(E16.9, I3, 2(1X, I9), 7(1X, E16.8), 1X, F16.7)') &
          time, level_end, n_active, tot_mass, get_timing()

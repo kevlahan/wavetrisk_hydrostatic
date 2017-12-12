@@ -60,13 +60,6 @@ contains
     end if
   end subroutine sum_total_mass
 
-  subroutine write_and_print_step
-    real(4) timing
-    timing = get_timing()
-    if (rank .eq. 0) write(1011,'(3(ES13.4,1X), I3, 2(1X, I9), 1(1X,ES13.4))') &
-         time, dt, timing, level_end, n_active
-  end subroutine write_and_print_step
-
   subroutine initialize_a_b_vert
     integer :: k
 
@@ -287,6 +280,8 @@ contains
     integer :: iwrite
     
     integer :: l, k, zlev, d, u, i, p
+
+    if (rank.eq.0) write(6,*) 'Saving fields'
 
     call update_array_bdry (sol, NONE)
 
@@ -602,7 +597,7 @@ program DCMIP2008c5
   adapt_dt         = .false.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
-  remap            = .true.  ! Remap vertical coordinates
+  remap            = .false.  ! Remap vertical coordinates (always remap when saving results)
   uniform          = .false. ! Type of vertical grid
 
   ! Initialize vertical grid
@@ -622,23 +617,25 @@ program DCMIP2008c5
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite)
 
-  if(resume.le.0) iwrite = 0
+  if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
 
   open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
   if (rank .eq. 0) then
-     write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9)') &
+     write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES10.4)') &
           ' time [h] = ', time/3600.0_8, &
           ' dt [s] = ', dt_init, &
           '  mass tol = ', tol_mass, &
           ' temp tol = ', tol_temp, &
           ' velo tol = ', tol_velo, &
           ' Jmax =', level_end, &
-          '  dof = ', sum(n_active)
+          '  dof = ', sum(n_active), &
+          ' min mass = ', min_mass
 
-     write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES14.8,1x))')  &
-          time/60_8**2, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), timing, timing
+     write (12,'(5(ES15.9,1x),I2,1X,I9,1X,ES14.8)')  &
+          time/60_8**2, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), min_mass
   end if
+  
   do while (time .lt. time_end)
      call start_timing
      call update_array_bdry (sol, NONE)
@@ -654,10 +651,8 @@ program DCMIP2008c5
      timing = get_timing()
      total_cpu_time = total_cpu_time + timing
      
-     call write_and_print_step
-     
      if (rank .eq. 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,2(A,ES9.2,1x))') &
+        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES9.2,1x,A,ES10.4,1x,A,ES9.2)') &
              ' time [h] = ', time/60_8**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
@@ -666,10 +661,11 @@ program DCMIP2008c5
              ' Jmax =', level_end, &
              '  dof = ', sum(n_active), &
              ' mass error = ', mass_error, &
+             ' min mass = ', min_mass, &
              ' cpu = ', timing
 
-        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES14.8,1x))')  &
-             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, timing
+        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
+             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, min_mass, timing
      end if
 
      call print_load_balance
@@ -677,27 +673,27 @@ program DCMIP2008c5
      if (aligned) then
         iwrite = iwrite + 1
         ! Remap to original vertical coordinates before saving data or checkpoint
-        call remap_vertical_coordinates(set_thresholds)
-        if (rank.eq.0) write(6,*) 'Saving fields'
+        call remap_vertical_coordinates (set_thresholds)
+
+        ! Save fields
         call write_and_export (iwrite)
+        
         call sum_total_mass (.False.)
 
-        if (modulo(iwrite,CP_EVERY) .ne. 0) cycle 
+        if (modulo(iwrite,CP_EVERY) .ne. 0) cycle ! Do not write checkpoint
+        
         ierr = write_checkpoint (DCMIP2008c5_dump)
 
-        ! let all cpus exit gracefully if NaN has been produced
-        ierr = sync_max(ierr)
+        ! Let all cpus exit gracefully if NaN has been produced
+        ierr = sync_max (ierr)
         if (ierr .eq. 1) then ! NaN
            write (0,*) "NaN when writing checkpoint"
            call finalize
            stop
         end if
 
+        ! Restart after checkpoint and load balance
         call restart_full (set_thresholds, DCMIP2008c5_load)
-
-        ! deallocate(n_patch_old); allocate(n_patch_old(size(grid)))
-        ! deallocate(n_node_old);  allocate(n_node_old(size(grid)))
-        ! n_patch_old = 2; call set_surf_geopot
 
         call barrier
      end if
@@ -705,10 +701,12 @@ program DCMIP2008c5
   end do
 
   if (rank .eq. 0) then
-     write(6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
-     close(12)
-     close(1011)
-     close(8450)
+     write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
+     close (12)
+     close (1011)
+     close (8450)
+     command = '\rm tmp'
+     call system (command)
   end if
 
   call finalize

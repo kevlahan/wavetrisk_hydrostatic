@@ -6,23 +6,18 @@ module init_mod
   real(8), parameter :: YANGLE = 0.0_8
 
 contains
-  subroutine init_init_mod()
+  subroutine init_init_mod
     logical :: initialized = .False.
+    
     if (initialized) return ! initialize only once
-    call init_sphere_mod()
-    call init_domain_mod()
-    call init_arch_mod()
+    call init_sphere_mod
+    call init_domain_mod
+    call init_arch_mod
     initialized = .True.
   end subroutine init_init_mod
 
-  subroutine init_grid()
-    integer k, v
-    integer d
-    integer s
-    integer b
-    integer p
-    integer i_
-    integer loz
+  subroutine init_grid
+    integer :: b, d, i_, k, loz, p, s, v
 
     allocate (grid(n_domain(rank+1)))
     allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels))
@@ -68,27 +63,22 @@ contains
     end do
 
     do loz = 1, N_ICOSAH_LOZANGE
-       call set_penta(N_SUB_DOM*(loz - 1),                                 SOUTHWEST)
-       call set_penta(N_SUB_DOM*(loz - 1) + N_SUB_DOM_PER_DIM - 1,         SOUTHEAST)
-       call set_penta(N_SUB_DOM*(loz - 1) + N_SUB_DOM - N_SUB_DOM_PER_DIM, NORTHWEST)
-       call set_penta(N_SUB_DOM*(loz - 1) + N_SUB_DOM - 1,                 NORTHEAST)
+       call set_penta (N_SUB_DOM*(loz - 1),                                 SOUTHWEST)
+       call set_penta (N_SUB_DOM*(loz - 1) + N_SUB_DOM_PER_DIM - 1,         SOUTHEAST)
+       call set_penta (N_SUB_DOM*(loz - 1) + N_SUB_DOM - N_SUB_DOM_PER_DIM, NORTHWEST)
+       call set_penta (N_SUB_DOM*(loz - 1) + N_SUB_DOM - 1,                 NORTHEAST)
     end do
 
-    call init_connections()
-    call init_coordinates()
+    call init_connections
+    call init_coordinates
   end subroutine init_grid
 
-  subroutine init_coordinates()
-    real(8), dimension(4) :: lat
-    real(8), dimension(10) :: lon
-    integer ii, jj
-    integer loz
-    type(Coord) ne, se, sw, nw
+  subroutine init_coordinates
+    integer                     :: d, d_glo, i, ii, j, jj, k, loz
+    real(8), dimension(4)       :: lat
+    real(8), dimension(10)      :: lon
+    type(Coord)                 :: ne, se, sw, nw
     type(Coord), dimension(2,2) :: cnr
-    integer j, i
-    integer d_glo
-    integer d
-    integer k
 
     lat = (/-MATH_PI/2.0_8, -atan(1.0_8/2.0_8), atan(1.0_8/2.0_8), &
          MATH_PI/2.0_8/)
@@ -103,8 +93,8 @@ contains
           sw = sph2cart(lon(modulo(ii + 2*jj - 4, 10) + 1), lat(ii+1))
           nw = sph2cart(lon(ii+2*jj-2),                     lat(ii+2))
 
-          call yrotate(nw, cnr(1,2), YANGLE); call yrotate(ne, cnr(2,2), YANGLE)
-          call yrotate(sw, cnr(1,1), YANGLE); call yrotate(se, cnr(2,1), YANGLE)
+          call yrotate (nw, cnr(1,2), YANGLE); call yrotate (ne, cnr(2,2), YANGLE)
+          call yrotate (sw, cnr(1,1), YANGLE); call yrotate (se, cnr(2,1), YANGLE)
 
           do j = 1, N_SUB_DOM_PER_DIM
              do i = 1, N_SUB_DOM_PER_DIM
@@ -113,7 +103,7 @@ contains
                 if (.not. owner(d_glo+1) .eq. rank) cycle
 
                 d = loc_id(d_glo+1)
-                call assign_coord(grid(d+1), 1, get_J0_coord(i, j, &
+                call assign_coord (grid(d+1), 1, get_J0_coord(i, j, &
                      DOMAIN_LEVEL), get_J0_coord(i, j - 1, &
                      DOMAIN_LEVEL), get_J0_coord(i - 1, j - 1, &
                      DOMAIN_LEVEL), get_J0_coord(i - 1, j, &
@@ -122,12 +112,10 @@ contains
           end do
        end do
     end do
-
   contains
-
-    subroutine  yrotate(c_in, c_out, angle)
-      real(8), intent(in) :: angle
-      type(Coord), intent(in) :: c_in
+    subroutine  yrotate (c_in, c_out, angle)
+      real(8),     intent(in)  :: angle
+      type(Coord), intent(in)  :: c_in
       type(Coord), intent(out) :: c_out
 
       c_out%x =  c_in%x*cos(angle) - c_in%z*sin(angle)
@@ -135,10 +123,8 @@ contains
       c_out%z =  c_in%x*sin(angle) + c_in%z*cos(angle)
     end subroutine yrotate
 
-    type(Coord) recursive function get_J0_coord(i, j, l) result(c)
-      integer i
-      integer j
-      integer l
+    type(Coord) recursive function get_J0_coord (i, j, l) result(c)
+      integer :: i, j, l
 
       if (l .gt. 0) then
          c = mid_pt( get_J0_coord(i/2,       j/2,       l-1), &
@@ -152,7 +138,7 @@ contains
 
   end subroutine init_coordinates
 
-  subroutine ccentre_penta(dom, p)
+  subroutine ccentre_penta (dom, p)
     type(Domain) dom
     integer p
     integer, dimension(N_BDRY + 1) :: offs
@@ -281,9 +267,8 @@ contains
     end if
   end subroutine lengths
 
-  subroutine init_geometry()
-    integer d
-    integer i, v
+  subroutine init_geometry
+    integer :: d, i, v
 
     do d = 1, size(grid)
        call init(grid(d)%ccentre, grid(d)%node%length*TRIAG)

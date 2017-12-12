@@ -38,10 +38,10 @@ contains
     call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
 
     ! Remap scalars at coarser levels
-    do l = level_end - 1, level_start - 1, -1
+    do l = level_end-1, level_start-1, -1
        call update_array_bdry (sol, l+1)
 
-       ! Compute scalar wav_coeff coefficients
+       ! Compute scalar wavelet coefficients
        do d = 1, size(grid)
           do k = 1, zlevels
              mass => sol(S_MASS,k)%data(d)%elts
@@ -54,23 +54,20 @@ contains
        end do
        call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
 
-       ! Remap velocity at level l (over-written if value available from restriction)
+       ! Remap at level l (over-written if value available from restriction)
        call apply_onescale (remap_velocity, l, z_null, 0, 0)
-       
-       ! Remap scalars at level l (over-written if value available from restriction)
-       call apply_onescale (remap_scalars, l, z_null, 0, 0)
+       call apply_onescale (remap_scalars,  l, z_null, 0, 0)
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
        do d = 1, size(grid)
           do k = 1, zlevels
              mass => sol(S_MASS,k)%data(d)%elts
              temp => sol(S_TEMP,k)%data(d)%elts
+             velo => sol(S_VELO,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
              call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 0)
-
-             velo => sol(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
+             call apply_interscale_d (restrict_velo,   grid(d), l, k, 0, 0)
              nullify (mass, temp, velo, wc_m, wc_t)
           end do
        end do
@@ -83,6 +80,10 @@ contains
     do d = 1, size(grid)
        call apply_to_pole_d (remap_scalars, grid(d), min_level-1, z_null, z_null, .True.)
     end do
+
+    ! Re-adapt grid after remapping
+    call WT_after_step (sol, wav_coeff, level_start-1)
+    call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
   subroutine remap_velocity (dom, i, j, zlev, offs, dims)

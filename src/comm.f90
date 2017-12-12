@@ -4,11 +4,10 @@ module comm_mod
   implicit none
   integer, dimension(4,4)            :: shift_arr
   integer, dimension(:), allocatable ::  n_active_edges, n_active_nodes
-  real(8)                            :: dt_loc, sync_val
+  real(8)                            :: dt_loc, min_mass, sync_val
 
 contains
-
-  subroutine init_comm_mod()
+  subroutine init_comm_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
@@ -19,7 +18,7 @@ contains
     initialized = .True.
   end subroutine init_comm_mod
 
-  subroutine init_comm()
+  subroutine init_comm
     integer :: k, s, d
 
     allocate(n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
@@ -39,16 +38,11 @@ contains
     end do
   end subroutine init_comm
 
-  subroutine comm_nodes9(get, set)
+  subroutine comm_nodes9 (get, set)
     external :: get, set
+    
+    integer               :: i, dest_glo, dest_id, dest_loc, src_glo, src_id, src_loc
     real(8), dimension(7) :: val
-    integer src_loc
-    integer src_glo
-    integer dest_loc
-    integer dest_glo
-    integer i
-    integer src_id
-    integer dest_id
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
@@ -384,11 +378,12 @@ contains
     end if
   end subroutine create_comm_e
 
-  integer function rot_direction(dom, typ)
-    type(Domain) dom
-    integer typ
-    integer t_last
-    integer t_next
+  function rot_direction (dom, typ)
+    integer      :: rot_direction
+    type(Domain) :: dom
+    integer      :: typ
+
+    integer :: t_last, t_next
 
     if (typ .le. 4) then
        rot_direction = modulo(typ, 2)
@@ -406,12 +401,8 @@ contains
     end if
   end function rot_direction
 
-  subroutine comm_communication()
-    integer src_loc
-    integer src_glo
-    integer dest_loc
-    integer dest_glo
-    integer i
+  subroutine comm_communication
+    integer               :: i, dest_glo, dest_loc, src_glo, src_loc
     integer, dimension(4) :: st
 
     do src_loc = 1, size(grid)
@@ -1091,10 +1082,11 @@ contains
     end do
   end subroutine comm_nodes
 
-  subroutine set_areas(dom, id, val)
-    type(Domain) dom
-    integer id
+  subroutine set_areas (dom, id, val)
+    type(Domain)          :: dom
+    integer               :: id
     real(8), dimension(7) :: val
+    
     real(8), dimension(4) :: area
 
     area = val(1:4)
@@ -1130,6 +1122,8 @@ contains
        ! Find total mass for this node
        total_mass = 0.0_8
        do k = 1, zlevels
+          min_mass = min (min_mass, sol(S_MASS,k)%data(d)%elts(id+1))
+
           total_mass = total_mass + sol(S_MASS,k)%data(d)%elts(id+1)
 
           if (sol(S_MASS,k)%data(d)%elts(id+1) .le. 0.0_8) then
@@ -1162,18 +1156,19 @@ contains
     end if
   end subroutine min_dt
 
-  integer function domain_load(dom)
-    type(Domain) dom
+   function domain_load (dom)
+    integer      :: domain_load
+    type(Domain) :: dom
 
     domain_load = &
          count(abs(dom%mask_n%elts(1+1:dom%node%length)) .gt. ADJZONE) + &
          count(abs(dom%mask_e%elts(EDGE+1:dom%midpt%length)) .gt. ADJZONE)
   end function domain_load
 
-  subroutine write_load_conn1(fid)
-    integer fid
-    integer d
-    integer n_active_d
+  subroutine write_load_conn1 (fid)
+    integer :: fid
+
+    integer :: d, n_active_d
 
     do d = 1, size(grid)
        ! the following adds load for boundaries, but that seem just fair
