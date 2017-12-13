@@ -571,13 +571,13 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed  = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num     = 0.5d0                            ! cfl number
+  cfl_num     = 1.4d0                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
-  visc = 4d-3/kmax**2
+  visc = 2d-3/kmax**2
   viscosity_mass = visc               ! viscosity for mass equation
   viscosity_temp = visc               ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc               ! viscosity for divergent part of momentum equation
@@ -665,8 +665,6 @@ program DCMIP2008c5
              time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, min_mass, timing
      end if
 
-     call print_load_balance
-     
      if (aligned) then
         iwrite = iwrite + 1
         ! Remap to original vertical coordinates before saving data or checkpoint
@@ -691,7 +689,8 @@ program DCMIP2008c5
 
         ! Restart after checkpoint and load balance
         call restart_full (set_thresholds, DCMIP2008c5_load)
-
+        call print_load_balance
+        
         call barrier
      end if
      call sum_total_mass (.False.)

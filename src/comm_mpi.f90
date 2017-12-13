@@ -122,14 +122,17 @@ contains
   end subroutine get_load_balance
 
   subroutine print_load_balance
+    ! Prints out load balance between processors
     integer :: load_min, load_max
     real(8) :: rel_imbalance, load_avg
 
     call get_load_balance (load_min, load_avg, load_max)
     rel_imbalance = dble(load_max)/load_avg
 
-    !if (rank .eq. 0) write(6,'(A,1x,i9,1x,f10.1,1x,i9)') 'min load, average load, max load:', load_min, load_avg, load_max
-    !if (rank .eq. 0) write(6,'(A,1x,f10.2)') 'relative imbalance (1=perfect balance)', rel_imbalance
+    if (rank .eq. 0) then
+       write(6,'(A,1x,i9,1x,f10.1,1x,i9)') 'min load, average load, max load:', load_min, load_avg, load_max
+       write(6,'(A,1x,f10.2)') 'relative imbalance (1=perfect balance)', rel_imbalance
+    end if
   end subroutine print_load_balance
 
   subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole)
