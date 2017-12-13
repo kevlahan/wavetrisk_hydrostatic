@@ -512,7 +512,7 @@ program DCMIP2008c5
   integer                      :: d, ierr, k, l, v
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
-  real(8)                      :: Area_min, visc, wave_speed
+  real(8)                      :: Area_min, visc
   character(len_cmd_files)     :: cmd_files
   character(len_cmd_archive)   :: cmd_archive
   character(8+8+29+14)         :: command
@@ -571,19 +571,19 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed  = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num     = 1.5d0                            ! cfl number
+  cfl_num     = 0.5d0                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
-  visc = 2d-3/kmax**2
+  visc = 4d-3/kmax**2
   viscosity_mass = visc               ! viscosity for mass equation
   viscosity_temp = visc               ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc               ! viscosity for divergent part of momentum equation
   viscosity_rotu = visc                ! viscosity for divergent part of momentum equation
 
-  dt_init = min(cfl_num*dx_min/sqrt(3d0)/wave_speed, 0.1_8*dx_min**2/visc)  ! Time step based on acoustic wave speed and hexagon edge length 
+  dt_init = min(cfl_num*dx_min/sqrt(3d0)/wave_speed, 0.1_8*dx_min**2/visc)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -594,8 +594,8 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .false. ! Adapt on trend or on variables
-  adapt_dt         = .false.  ! Adapt time step
+  adapt_trend      = .true. ! Adapt on trend or on variables
+  adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates (always remap when saving results)
@@ -623,18 +623,14 @@ program DCMIP2008c5
 
   open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
   if (rank .eq. 0) then
-     write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES10.4)') &
+     write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9,A,ES10.4)') &
           ' time [h] = ', time/3600.0_8, &
-          ' dt [s] = ', dt_init, &
           '  mass tol = ', tol_mass, &
           ' temp tol = ', tol_temp, &
           ' velo tol = ', tol_velo, &
           ' Jmax =', level_end, &
           '  dof = ', sum(n_active), &
           ' min mass = ', min_mass
-
-     write (12,'(5(ES15.9,1x),I2,1X,I9,1X,ES14.8)')  &
-          time/60_8**2, dt_init, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), min_mass
   end if
   
   do while (time .lt. time_end)

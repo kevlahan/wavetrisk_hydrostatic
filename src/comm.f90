@@ -1106,7 +1106,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: A_i, A_v, C_visc, csq, d_e, l_e, total_mass, v_e, visc, wave_speed
+    real(8) :: A_i, A_v, C_visc, csq, d_e, l_e, v_e, visc
 
     C_visc = 0.1_8
     
@@ -1114,18 +1114,16 @@ contains
     d  = dom%id + 1
     l  = dom%level%elts(id+1)
 
+    A_i = 1.0_8/dom%areas%elts(id+1)%hex_inv ! Hexagon area
+    A_v = max (dom%triarea%elts(TRIAG*id+LORT+1),dom%triarea%elts(TRIAG*id+UPLT+1)) ! Triangle areas
+
     if (diffuse) visc = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
 
-       ! Find total mass for this node
-       total_mass = 0.0_8
+       ! Find minimum mass for this node
        do k = 1, zlevels
-          min_mass = min (min_mass, sol(S_MASS,k)%data(d)%elts(id+1))
-
-          total_mass = total_mass + sol(S_MASS,k)%data(d)%elts(id+1)
-
           if (sol(S_MASS,k)%data(d)%elts(id+1) .le. 0.0_8) then
              write(0,*) "ERROR: a mass element is less than zero"
              stop
@@ -1134,22 +1132,21 @@ contains
              write(0,*) "ERROR: a mass element is NaN"
              stop
           end if
+          min_mass = min (min_mass, sol(S_MASS,k)%data(d)%elts(id+1))
        end do
-       
-       ! Inertia gravity wave speed
-       wave_speed = sqrt(grav_accel*total_mass)
 
        do e = 1, EDGE
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
 
              if (adapt_dt) then
-                dt_loc = min(dt_loc, cfl_num*dx_min/wave_speed)
+                d_e = dom%len%elts(EDGE*id+e) ! Triangle edge length
+                l_e = dom%pedlen%elts(EDGE*id+e) ! Hexagon edge length
                 do k = 1, zlevels
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
-                   if (v_e.ne.0.0_8) dt_loc =  min(dt_loc, cfl_num*dx_min/v_e)
+                   if (v_e.ne.0.0_8) dt_loc =  min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
                 end do
-                if (diffuse) dt_loc = min (dt_loc, C_visc*dx_min**2/visc)
+                if (diffuse) dt_loc = min (dt_loc, C_visc*min(A_i,A_v)/visc)
              end if
           end if
        end do
@@ -1160,8 +1157,7 @@ contains
     integer      :: domain_load
     type(Domain) :: dom
 
-    domain_load = &
-         count(abs(dom%mask_n%elts(1+1:dom%node%length)) .gt. ADJZONE) + &
+    domain_load = count(abs(dom%mask_n%elts(1+1:dom%node%length)) .gt. ADJZONE) + &
          count(abs(dom%mask_e%elts(EDGE+1:dom%midpt%length)) .gt. ADJZONE)
   end function domain_load
 

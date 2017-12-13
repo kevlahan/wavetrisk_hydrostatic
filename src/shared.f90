@@ -292,7 +292,7 @@ module shared_mod
   integer :: istep, n_diffuse, n_remap, resume
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8) :: viscosity_mass, viscosity_temp, viscosity_rotu,  viscosity_divu, omega, radius, grav_accel, cfl_num, kmax, ray_friction
-  real(8) :: ref_density, press_infty, ref_press, gamma, kappa, c_p, R_d
+  real(8) :: ref_density, press_infty, ref_press, gamma, kappa, c_p, R_d, wave_speed
 
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
