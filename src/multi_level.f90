@@ -6,12 +6,12 @@ module multi_level_mod
   use comm_mpi_mod
   implicit none
 contains
-  subroutine trend_ml (q, dq, type)
+  subroutine trend_ml (q, dq, itype)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
-    integer, optional                                        :: type
+    integer                                                       :: itype
 
-    integer                                                       :: d, j, k, l, p
+    integer :: d, j, k, l, p
 
     call update_array_bdry (q, NONE)
 
@@ -202,14 +202,14 @@ contains
        ! Evaluate complete velocity trend by adding gradient terms on entire grid at vertical level k !
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do d = 1, size(grid)
-          mass      =>  q(S_MASS,k)%data(d)%elts
-          temp      =>  q(S_TEMP,k)%data(d)%elts
-          dvelo     => dq(S_VELO,k)%data(d)%elts
-          exner     => grid(d)%exner%elts
-          if (present(type)) then
-             bernoulli => grid(d)%bern_slow%elts
-          else
+          mass  =>  q(S_MASS,k)%data(d)%elts
+          temp  =>  q(S_TEMP,k)%data(d)%elts
+          dvelo => dq(S_VELO,k)%data(d)%elts
+          exner => grid(d)%exner%elts
+          if (itype.eq.0) then ! Full trend
              bernoulli => grid(d)%bernoulli%elts
+          elseif (itype.eq.1) then ! Slow part only
+             bernoulli => grid(d)%bern_slow%elts
           end if
 
           do p = 3, grid(d)%patch%length

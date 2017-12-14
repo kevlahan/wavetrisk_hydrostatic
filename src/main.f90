@@ -95,7 +95,7 @@ contains
        call apply_init_cond
        call forward_wavelet_transform (sol, wav_coeff)
        if (adapt_trend) then
-          call trend_ml (sol, trend)
+          call trend_ml (sol, trend, 0)
           call forward_wavelet_transform (trend, trend_wav_coeff)
        end if
 
@@ -114,7 +114,7 @@ contains
           call forward_wavelet_transform (sol, wav_coeff)
 
           if (adapt_trend) then
-             call trend_ml (sol, trend)
+             call trend_ml (sol, trend, 0)
              call forward_wavelet_transform (trend, trend_wav_coeff)
           end if
                     
@@ -195,8 +195,8 @@ contains
     dt = idt/time_mult ! Modify time step
 
     !call ARK2 (trend_ml, dt) 
-    call RK45_opt (trend_ml, dt)
-    !call euler (trend_ml, dt)
+    !call RK45_opt (trend_ml, dt)
+    call euler (trend_ml, dt)
 
     if (min_level .lt. max_level) call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
@@ -507,7 +507,7 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     istep = 0
     dt_init = cpt_dt_mpi()
-    if (adapt_trend) call trend_ml (sol, trend)
+    if (adapt_trend) call trend_ml (sol, trend, 0)
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol, level_start)
     dt_new = cpt_dt_mpi()

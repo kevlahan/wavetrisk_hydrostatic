@@ -164,23 +164,23 @@ contains
 
     call manage_RK_mem
 
-    call trend_fun (sol, trend) 
+    call trend_fun (sol, trend, 0) 
     call RK_sub_step1 (sol, trend, alpha(1,1), dt*beta(1,1), q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_fun (q1, trend)
+    call trend_fun (q1, trend, 0)
     call RK_sub_step2 (sol, q1, trend, alpha(1:2,2), dt*beta(2,2), q2)
     call WT_after_step (q2, wav_coeff)
 
-    call trend_fun (q2, trend)
+    call trend_fun (q2, trend, 0)
     call RK_sub_step2 (sol, q2, trend, (/alpha(1,3), alpha(3,3)/), dt*beta(3,3), q3)
     call WT_after_step (q3, wav_coeff)
 
-    call trend_fun (q3, trend)
+    call trend_fun (q3, trend, 0)
     call RK_sub_step2 (sol, q3, trend, (/alpha(1,4), alpha(4,4)/), dt*beta(4,4), q4)
     call WT_after_step (q4, wav_coeff)
 
-    call trend_fun (q4, dq1)
+    call trend_fun (q4, dq1, 0)
     call RK_sub_step4 (sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), dt*beta(4:5,5), sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK45_opt
@@ -293,7 +293,7 @@ contains
 
     integer :: d, k, v, start
 
-    call trend_fun (sol, trend)
+    call trend_fun (sol, trend, 0)
     call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine euler

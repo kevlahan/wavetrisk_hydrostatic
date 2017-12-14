@@ -23,7 +23,7 @@ contains
     external :: set_thresholds
 
     if (adapt_trend) then
-       call trend_ml (sol, trend)
+       call trend_ml (sol, trend, 0)
        call forward_wavelet_transform (trend, trend_wav_coeff)
        call adapt (set_thresholds)
     else
