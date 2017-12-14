@@ -185,6 +185,107 @@ contains
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK45_opt
 
+  subroutine ARK2 (trend_fun, dt)
+    ! See Weller, Lock & Wood (JCP 2013).
+    !
+    ! ARK2 to advance the solution y^{n} to y^{n+1} using intermediate steps y^(1), y^(2) and y^(3)
+    ! and handling of the fast (vertical) terms implicitly and slow (horizontal) terms explicitly (HEVI)
+    ! notation: sol=y^{n}, q1=y^(1), q2=y^(2), q3=y^(3), q4=y^{n+1}
+
+    external :: trend_fun
+    real(8)  :: dt
+    
+    integer                 :: d, v
+    real(8)                 :: ARKgam, ARKdel, ARKalp !relevant ARK2 constants gamma, delta and alpha
+    real(8), dimension(3)   :: ARKc, ARKw !w and w tilde are the same, as are c and c tilde
+    real(8), dimension(3,3) :: ARKa, ARKat !Butcher tableaux a and a tilde
+
+    ARKalp = (3.0_8+2.0_8*sqrt(2.0_8))/6.0_8
+    ARKdel = 0.5_8/sqrt(2.0_8)
+    ARKgam = 1.0_8-1.0_8/sqrt(2.0_8)
+
+    ARKat = reshape((/ 0.0_8, 2.0_8*ARKgam, 1.0_8 - ARKalp, 0.0_8, 0.0_8, ARKalp, &
+                        0.0_8, 0.0_8, 0.0_8 /), (/3, 3/)) !first column, second column, third column
+
+    ARKa = reshape((/ 0.0_8, ARKgam, ARKdel, 0.0_8, ARKgam, ARKdel, 0.0_8, 0.0_8, ARKgam /), (/3, 3/))
+
+    ARKc = (/ 0.0_8, 2.0_8*ARKgam, 1.0_8 /)
+
+    ARKw = (/ ARKdel, ARKdel, ARKgam /)
+
+    call manage_RK_mem
+
+    ! Compute s(y^(1)) and use it appropriately in all qi=y^(i)
+    call trend_fun (sol, trend, 1) !obtain trend
+    call ARK_sub_step (sol, trend, 0.0_8,         q1) ! q1 = y^(1)=y^{n}, no more terms coming
+    call ARK_sub_step (sol, trend, ARKat(2,1)*dt, q2) ! q2 = y^(2)=y^{n} + ARKat(2,1)*dt*s(y^(1))  + [more terms later]
+    call ARK_sub_step (sol, trend, ARKat(3,1)*dt, q3) ! q3 = y^(3)=y^{n} + ARKat(3,1)*dt*s(y^(1))  + [more terms later]
+    call ARK_sub_step (sol, trend, ARKw(1)*dt,    q4) ! q4 = y^{n+1} = y^{n} + ARKw(1)*dt*s(y^(1)) + [more terms later]
+    call WT_after_step (q1, wav_coeff) ! q1 is complete
+
+    ! Compute f(y^(1)) and use it appropriately in all qi=y^(i)
+    call trend_fast (sol, trend) ! obtain trend
+    call ARK_sub_step (q2, trend, ARKa(2,1)*dt, q2) ! q2 = y^(2) = q2 + ARKa(2,1)*dt*f(y^(1)) + [more terms later]
+    call ARK_sub_step (q3, trend, ARKa(3,1)*dt, q3) ! q3 = y^(3) = q3 + ARKa(3,1)*dt*f(y^(1)) + [more terms later]
+    call ARK_sub_step (q4, trend, ARKw(1)*dt,   q4) ! q4 = y^{n+1} = q4 + ARKw(1)*dt*f(y^(1)) + [more terms later]
+    !call WT_after_step(q2) !q2 is semi-complete, line should not be here and does not resolve anything
+
+    ! At this point we have summed all terms of y^(2) except the implicit term f(y^(2)).
+    ! Note that this is solely a velocity trend and it depends only on mass and temperature, which have already been added into q2
+    ! the quantities for the fast trend SHOULD be updated at this point, e.g. Bernoulli using the new mass
+
+    ! Compute f(y^(2)) and use it appropriately in all qi=y^(i)
+    call trend_fast (q2, trend) ! obtain trend
+    call ARK_sub_step (q2, trend, ARKa(2,2)*dt, q2) ! q2 = y^(2) =   q2 + ARKa(2,2)*dt*f(y^(2)), no more terms coming
+    call ARK_sub_step (q3, trend, ARKa(3,2)*dt, q3) ! q3 = y^(3) =   q3 + ARKa(3,2)*dt*f(y^(2)) + [more terms later]
+    call ARK_sub_step (q4, trend, ARKw(2)*dt,   q4) ! q4 = y^{n+1} = q4 + ARKw(2)*dt*f(y^(2))   + [more terms later]
+    call WT_after_step (q2, wav_coeff) !q2 is complete
+
+    ! Compute s(y^(2)) and use it appropriately in all qi=y^(i)
+    call trend_fun (q2, trend, 1) ! obtain trend
+    call ARK_sub_step (q3, trend, ARKat(3,2)*dt, q3) ! q3 = y^(3)   = q3 + ARKat(3,2)*dt*s(y^(2)) + [more terms later]
+    call ARK_sub_step (q4, trend, ARKw(2)*dt,    q4) ! q4 = y^{n+1} = q4 + ARKw(2)*dt*s(y^(2))    + [more terms later]
+
+    ! at this point we have summed all terms of y^(3) except the implicit term f(y^(3)).
+    ! the quantities for the fast trend SHOULD be updated at this point, e.g. Bernoulli using the new mass
+
+    ! Compute f(y^(3)) and use it appropriately in all qi=y^(i)
+    call trend_fast (q3, trend) !obtain trend
+    call ARK_sub_step (q3, trend, ARKa(3,3)*dt, q3) ! q3 = y^(3)   = q3 + ARKa(3,3)*dt*f(y^(3)), no more terms coming
+    call ARK_sub_step (q4, trend, ARKw(3)*dt,   q4) ! q4 = y^{n+1} = q4 + ARKw(3)*dt*f(y^(3)) + [one more term later]
+    call WT_after_step (q3, wav_coeff) ! q3 is complete
+
+    ! Compute s(y^(3)) and use it appropriately in all qi=y^(i)
+    call trend_fun (q3, trend, 1) !obtain trend
+    call ARK_sub_step (q4, trend, ARKw(3)*dt, q4) ! q4 = y^{n+1} = q4 + ARKw(3)*dt*s(y^(3)), no more terms coming
+    call WT_after_step (q4, wav_coeff) ! q4 is complete
+
+    ! Solution is now simply q4
+    call ARK_sub_step (q4, trend, 0.0_8, sol) ! sol=y^{n+1}=q4
+
+    call WT_after_step (sol, wav_coeff, level_start-1)
+  end subroutine ARK2
+
+  subroutine ARK_sub_step (sol1, trend1, dt, dest)
+    ! Compute sol1+dt*trend1
+    real(8)                                                                :: dt
+    type(Float_Field), dimension (S_MASS:S_TEMP, 1:zlevels)                :: sol1, trend1
+    type(Float_Field), dimension (S_MASS:S_TEMP, 1:zlevels), intent(inout) :: dest
+    
+    integer :: k, v, s, t, d, start
+
+    do k = 1, zlevels
+       do d = 1, n_domain(rank+1)
+          do v = S_MASS, S_TEMP
+             start = (1+2*(v-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
+                  + dt * trend1(v,k)%data(d)%elts(start+1:trend1(v,k)%data(d)%length)
+          end do
+       end do
+       dest(:,k)%bdry_uptodate = .False.
+    end do
+  end subroutine ARK_sub_step
+
   subroutine euler (trend_fun, dt)
     ! An Euler step to diffuse solution
     real(8) :: dt

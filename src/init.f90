@@ -4,7 +4,6 @@ module init_mod
   use arch_mod
   implicit none
   real(8), parameter :: YANGLE = 0.0_8
-
 contains
   subroutine init_init_mod
     logical :: initialized = .False.
@@ -22,9 +21,10 @@ contains
     allocate (grid(n_domain(rank+1)))
     allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
-    allocate (horiz_flux(S_MASS:S_TEMP))
+    allocate (bernoulli_fast(1:zlevels), horiz_flux(S_MASS:S_TEMP))
 
     do k = 1, zlevels
+        call init_Float_Field(bernoulli_fast(k), AT_NODE)
        do v = S_MASS, S_VELO
           call init_Float_Field(sol(v,k), POSIT(v))
           call init_Float_Field(trend(v,k), POSIT(v))
@@ -310,6 +310,7 @@ contains
 
     do k = 1, zlevels
        do d = 1, size(grid)
+          call init(bernoulli_fast(k)%data(d), grid(d)%node%length)
           call init(trend(S_MASS,k)%data(d),   grid(d)%node%length)
           call init(trend(S_VELO,k)%data(d),   grid(d)%node%length*EDGE); trend(S_VELO,k)%data(d)%elts = 0
           call init(trend(S_TEMP,k)%data(d),   grid(d)%node%length)
@@ -333,31 +334,17 @@ contains
        call init(grid(d)%adj_geopot,   grid(d)%node%length)
        call init(grid(d)%exner,        grid(d)%node%length)
        call init(grid(d)%bernoulli,    grid(d)%node%length)
+       call init(grid(d)%bern_slow,    grid(d)%node%length)
        call init(grid(d)%divu,         grid(d)%node%length)
        call init(grid(d)%vort,         grid(d)%node%length*TRIAG)
        call init(grid(d)%qe,           grid(d)%node%length*EDGE)
-
-       ! For mass-based vertical coordinates
-       call init(grid(d)%adj_vflux,         grid(d)%node%length)
-       call init(grid(d)%vert_velo,         grid(d)%node%length)
-       call init(grid(d)%adj_velo,          grid(d)%node%length*EDGE)
-       call init(grid(d)%integr_horiz_flux, grid(d)%node%length*EDGE)
     end do
   end subroutine precompute_geometry
 
-  subroutine init_connections()
-    logical pole_assigned(2)
+  subroutine init_connections
+    logical, dimension(2) :: pole_assigned
     integer, dimension(2) :: neigh_over_pole
-    integer ii, jj
-    integer loz
-    integer i, j
-    integer split
-    integer d_glo
-    integer d
-    integer k
-    integer rot
-    integer ngb_loz
-    integer s
+    integer               :: d, d_glo, i, ii, j, jj, k, loz, ngb_loz, rot, s, split
 
     pole_assigned = .False.
 
@@ -496,16 +483,15 @@ contains
     end do
   end subroutine init_connections
 
-  subroutine set_penta(d_glo, side)
-    integer d_glo
-    integer side
+  subroutine set_penta (d_glo, side)
+    integer :: d_glo, side
 
     if (owner(d_glo+1) .eq. rank) then
        grid(loc_id(d_glo+1) + 1)%penta(side) = .True.
     end if
   end subroutine set_penta
 
-  subroutine assign_coord(dom, p, ne, se, sw, nw)
+  subroutine assign_coord (dom, p, ne, se, sw, nw)
     type(Domain) :: dom
     integer      :: p
     type(Coord)  :: ne, se, sw, nw

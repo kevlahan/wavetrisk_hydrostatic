@@ -12,75 +12,60 @@ module domain_mod
 
   ! objects same on all zlevels
   type Domain 
-     type(Patch_Array) :: patch
-     type(Bdry_Patch_Array) :: bdry_patch
-     type(Coord_Array) :: node
-     type(Int_Array), allocatable :: lev(:)
-     type(Int_Array), dimension(N_GLO_DOMAIN) :: send_conn
-     type(Int_Array) :: send_pa_all
-     type(Int_Array), dimension(N_GLO_DOMAIN) :: recv_pa
-     type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack
-     type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: unpk
-     type(Int_Array), allocatable :: src_patch(:,:)
+     integer                    :: id
+     integer, dimension(N_BDRY) :: neigh, neigh_rot
+     integer, dimension(2)      :: neigh_over_pole
+
+     logical, dimension(2)      :: pole_master
      logical, dimension(N_BDRY) :: penta
-     integer :: id
-     integer, dimension(N_BDRY) :: neigh
-     integer, dimension(2) :: neigh_over_pole
-     type(Int_Array) :: neigh_pa_over_pole
-     integer, dimension(N_BDRY) :: neigh_rot
+     
+     type(Patch_Array) :: patch
+     
+     type(Bdry_Patch_Array) :: bdry_patch
+     
+     type(Coord_Array) :: ccentre, midpt, node
+     
+     type(Int_Array)                                          :: level, mask_e, mask_n, neigh_pa_over_pole, send_pa_all
+     type(Int_Array), dimension(:), allocatable               :: lev
+     type(Int_Array), dimension(N_GLO_DOMAIN)                 ::  recv_pa, send_conn
+     type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk
+     type(Int_Array), dimension(:,:), allocatable             :: src_patch
 
-     type(Coord_Array) ccentre
-     type(Coord_Array) midpt
+     type(Float_Array) :: coriolis, len, pedlen, triarea
 
-     type(Float_Array) pedlen
-     type(Float_Array) len
+     type(Areas_Array) :: areas
 
-     type(Areas_Array) areas
-     type(Float_Array) triarea
+     type(Float_Array) :: surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
+     type(Float_Array) :: press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)
+     type(Float_Array) :: surf_geopot ! surface geopotential
+     type(Float_Array) :: geopot      ! geopotential
+     type(Float_Array) :: u_zonal     ! zonal velocity
+     type(Float_Array) :: v_merid     ! meridional velocity
+     type(Float_Array) :: adj_mass    ! mass in adjacent vertical cell
+     type(Float_Array) :: adj_temp    ! temp in adjacent vertical cell
+     type(Float_Array) :: adj_geopot  ! specific volume in adjacent vertical cell
+     type(Float_Array) :: vort        ! vorticity
+     type(Float_Array) :: exner       ! Exner function
+     type(Float_Array) :: bernoulli   ! Bernoulli function
+     type(Float_Array) :: bern_slow   ! Bernoulli function (slow part)
+     type(Float_Array) :: divu        ! divergence of velocity
+     type(Float_Array) :: qe          ! 
 
-     type(Float_Array) coriolis
-
-     type(Float_Array) surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
-     type(Float_Array) press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)
-     type(Float_Array) surf_geopot ! surface geopotential
-     type(Float_Array) geopot      ! geopotential
-     type(Float_Array) u_zonal     ! zonal velocity
-     type(Float_Array) v_merid     ! meridional velocity
-     type(Float_Array) adj_mass    ! mass in adjacent vertical cell
-     type(Float_Array) adj_temp    ! temp in adjacent vertical cell
-     type(Float_Array) adj_geopot  ! specific volume in adjacent vertical cell
-     type(Float_Array) vort        ! vorticity
-     type(Float_Array) exner       ! Exner function
-     type(Float_Array) bernoulli   ! Bernoulli function
-     type(Float_Array) divu        ! divergence of velocity
-     type(Float_Array) qe          ! 
-
-     ! For mass-based vertical coordinates
-     type(Float_Array) adj_vflux ! adjacent vertical flux (at nodes)
-     type(Float_Array) vert_velo ! vertical non-mass weighted velocity (at nodes)
-     type(Float_Array) integr_horiz_flux ! Vertically integrated horizontal flux (at edges)
-     type(Float_Array) adj_velo ! adjacent velocity (at edges)
-
-     type(Overl_Area_Array) overl_areas
-     type(Iu_Wgt_Array) I_u_wgt
-     type(RF_Wgt_Array) R_F_wgt
-
-     type(Int_Array) mask_n
-     type(Int_Array) mask_e
-     type(Int_Array) level
-
-     logical pole_master(2)
+     type(Overl_Area_Array) :: overl_areas
+     
+     type(Iu_Wgt_Array)     :: I_u_wgt
+     type(RF_Wgt_Array)     :: R_F_wgt
   end type Domain
 
   type Float_Field
-     type(Float_Array), allocatable :: data(:)
-     logical bdry_uptodate
-     integer pos
+     integer                                      :: pos
+     logical                                      :: bdry_uptodate
+     type(Float_Array), dimension(:), allocatable :: data
   end type Float_Field
 
-  type(Domain), allocatable, target :: grid(:)
+  type(Domain), dimension(:), allocatable, target        :: grid
   type(Float_Field), dimension(:,:), allocatable, target :: sol, trend, wav_coeff, trend_wav_coeff
-  type(Float_Field), dimension(:), allocatable, target :: horiz_flux
+  type(Float_Field), dimension(:), allocatable, target   :: bernoulli_fast, horiz_flux
 
   !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
   !we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
@@ -92,13 +77,9 @@ module domain_mod
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo, h_uflux
-  real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort
+  real(8), dimension(:), pointer :: bern_fast, bernoulli, divu, exner, qe, vort
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
-  ! For mass-based vertical coordinates
-  real(8), dimension(:), pointer :: adj_temp_up, adj_mass_up, adj_velo_up, v_mflux
-
 contains
-
   subroutine init_Float_Field (self, pos)
     type(Float_Field) :: self
     integer           :: pos

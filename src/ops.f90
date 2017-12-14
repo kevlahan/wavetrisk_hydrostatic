@@ -163,7 +163,7 @@ contains
     subroutine comp_ijmin
       integer :: idS, idSW, idW
       real(8) :: circ_LORT_SW, circ_UPLT_SW, u_prim_RT_SW, u_prim_UP_SW
-      
+
       idS  = id+S
       idSW = id+SW
       idW  = id+W
@@ -285,8 +285,12 @@ contains
       ! Bernoulli function
       if (compressible) then 
          bernoulli(id+1) = kinetic_energy + Phi_k
+         bern_fast(id+1) = Phi_k
+         dom%bern_slow%elts(id+1) = kinetic_energy
       else 
          bernoulli(id+1) = kinetic_energy + Phi_k + dom%press%elts(id+1)/ref_density
+         bern_fast(id+1) = Phi_k + dom%press%elts(id+1)/ref_density
+         dom%bern_slow%elts(id+1) = kinetic_energy
       end if
 
       ! Exner function in incompressible case from geopotential
@@ -375,7 +379,7 @@ contains
             + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
        pv_UPLT_SW = pv_LORT_SW
-       
+
        qe(EDGE*idW+RT+1) = interp(pv_LORT_W, pv_UPLT_SW)
        qe(EDGE*idS+UP+1) = interp(pv_UPLT_S, pv_LORT_SW)
     end if
@@ -391,7 +395,7 @@ contains
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
        u_prim_RT    = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
-       
+
        circ_LORT_SW = - u_prim_RT + u_prim_RT_SW + u_prim_DG_SW 
        circ_LORT    = vort(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1)
        circ_UPLT_SW = vort(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1)
@@ -400,9 +404,9 @@ contains
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-             (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
-             mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
-             mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
+            (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
+            mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
+            mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/ &
             (mass(id+1)*dom%areas%elts(id+1)%part(1) &
@@ -431,7 +435,7 @@ contains
        u_prim_UP    = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
        u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
-       
+
        circ_UPLT_SW = u_prim_UP - u_prim_DG_SW - u_prim_UP_SW
        circ_UPLT    = vort(TRIAG*id+UPLT+1)*dom%triarea%elts(TRIAG*id+UPLT+1)
        circ_LORT_SW = vort(TRIAG*idSW+LORT+1)*dom%triarea%elts(TRIAG*idSW+LORT+1)
@@ -470,7 +474,7 @@ contains
        u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+DG+1)
        u_prim_UP   = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
-       
+
        circ_LORT   = u_prim_RT - u_prim_RT_N - u_prim_UP
        circ_LORT_W = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
        circ_UPLT_S = vort(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1)
@@ -494,7 +498,7 @@ contains
             + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
        pv_UPLT = pv_LORT
-       
+
        qe(EDGE*id+RT+1) = interp(pv_LORT, pv_UPLT_S)
        qe(EDGE*id+UP+1) = interp(pv_UPLT, pv_LORT_W)
     end if
@@ -535,7 +539,7 @@ contains
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
        u_prim_RT    = velo(EDGE*id+RT+1)  *dom%len%elts(EDGE*id+RT+1)
-       
+
        circ_LORT_SW = - u_prim_RT + u_prim_RT_SW + u_prim_DG_SW 
 
        vort(TRIAG*idSW+LORT+1) = circ_LORT_SW/dom%triarea%elts(TRIAG*idSW+LORT+1)
@@ -550,7 +554,7 @@ contains
        u_prim_UP    = velo(EDGE*id+UP+1)  *dom%len%elts(EDGE*id+UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
        u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
-       
+
        circ_UPLT_SW = u_prim_UP - u_prim_DG_SW - u_prim_UP_SW
 
        vort(TRIAG*idSW+UPLT+1) = circ_UPLT_SW/dom%triarea%elts(TRIAG*idSW+UPLT+1)  
@@ -564,7 +568,7 @@ contains
        u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1)
        u_prim_UP   = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
-       
+
        circ_LORT   = u_prim_RT - u_prim_RT_N - u_prim_UP
 
        vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1)
@@ -591,7 +595,7 @@ contains
     idW  = idx(i-1, j,   offs, dims)
     idSW = idx(i-1, j-1, offs, dims)
     idS  = idx(i,   j-1, offs, dims)
-    
+
     ! Find the velocity on primal and dual grid edges, which are equal except for the length of the
     ! side they are on
     u_dual_RT    = velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
@@ -633,57 +637,6 @@ contains
     dom%u_zonal%elts(id+1) = inner(vel, e_zonal)
     dom%v_merid%elts(id+1) = inner(vel, e_merid)
   end subroutine interp_vel_hex
-
-  subroutine vert_integrated_horiz_flux (dom, i, j, zlev, offs, dims)
-    ! Integrate horizontal fluxes on the three edges vertically 
-    type(Domain)                     :: dom
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-
-    integer :: id, k
-
-    id   = idx(i, j, offs, dims)
-
-    dom%integr_horiz_flux%elts(EDGE*id+UP+1) = 0.0_8
-    dom%integr_horiz_flux%elts(EDGE*id+DG+1) = 0.0_8
-    dom%integr_horiz_flux%elts(EDGE*id+RT+1) = 0.0_8
-
-    ! do k = 1, zlevels
-    !    dom%integr_horiz_flux%elts(EDGE*id+UP+1) = dom%integr_horiz_flux%elts(EDGE*id+UP+1) + &
-    !         horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+UP+1)
-
-    !    dom%integr_horiz_flux%elts(EDGE*id+DG+1) = dom%integr_horiz_flux%elts(EDGE*id+DG+1) + &
-    !         horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+DG+1)
-
-    !    dom%integr_horiz_flux%elts(EDGE*id+RT+1) = dom%integr_horiz_flux%elts(EDGE*id+RT+1) + &
-    !         horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+RT+1)
-    ! end do
-  end subroutine vert_integrated_horiz_flux
-
-  subroutine compute_vert_flux (dom, i, j, zlev, offs, dims)
-    ! Computes vertical mass flux at upper interface of level zlev from mass trend and divergence of horizontal flux
-    ! when using mass-based vertical coordinates
-    type(Domain)                     :: dom
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-
-    integer :: id, k
-
-    id   = idx(i, j, offs, dims)
-
-    if (zlev.eq.1) then 
-       v_mflux(id+1) = 0.0_8                   - dmass(id+1) - div(h_mflux, dom, i, j, offs, dims) ! Flux is zero at surface
-    elseif (zlev.eq.zlevels) then ! Flux is zero at upper interface of top level
-       v_mflux(id+1) = 0.0_8
-    else
-       v_mflux(id+1) = dom%adj_mass%elts(id+1) - dmass(id+1) - div(h_mflux, dom, i, j, offs, dims)
-    end if
-
-    ! Save current vertical mass flux for lower interface of next vertical level (use adj_mass)
-    dom%adj_mass%elts(id+1) = v_mflux(id+1)
-  end subroutine compute_vert_flux
 
   subroutine integrate_pressure_down (dom, i, j, zlev, offs, dims)
     ! Pressure is computed during downward integration from zlev=zlevels to zlev=1
@@ -802,7 +755,7 @@ contains
        dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel* mass(id+1)/ref_density
     end if
   end subroutine integrate_pressure_up
-  
+
   subroutine du_source (dom, i, j, zlev, offs, dims)
     ! Edge integrated source (non gradient) terms in velocity trend
     ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
@@ -815,7 +768,7 @@ contains
     real(8), dimension (3) :: Laplacian, Qperp_e
 
     id = idx(i, j, offs, dims)
-    
+
     ! Calculate Q_perp
     Qperp_e = Qperp (dom, i, j, z_null, offs, dims) 
 
@@ -828,7 +781,7 @@ contains
     if (diffuse) then
        ! Calculate Laplacian of velocity
        Laplacian  = Laplacian_u (dom, i, j, z_null, offs, dims)
-       
+
        id = idx(i, j, offs, dims)
        do e = 1, EDGE 
           dvelo(EDGE*id+e) =  dvelo(EDGE*id+e) + Laplacian(e) * dom%len%elts(EDGE*id+e) ! Need to use edge integrated Laplacian for velocity restriction
@@ -888,7 +841,7 @@ contains
     real(8), dimension(5) :: wgt1, wgt2
 
     id   = idx(i, j, offs, dims)
-    
+
     idNW = idx(i-1, j+1, offs, dims)
     idN  = idx(i,   j+1, offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
@@ -916,7 +869,7 @@ contains
     wgt1 = get_weights(dom, id,   1)
     wgt2 = get_weights(dom, idNE, 4)
 
-   Qperp(DG+1) = &
+    Qperp(DG+1) = &
          h_mflux(EDGE*id+UP+1)   * interp(qe(EDGE*id+UP+1),   qe(EDGE*id+DG+1))*wgt1(1) + &
          h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1),  qe(EDGE*id+DG+1))*wgt1(2) + &
          h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+DG+1))*wgt1(3) + &
@@ -948,7 +901,7 @@ contains
     ! Weights for Qperp computation [Aechtner thesis page 44]
     type(Domain) :: dom
     integer      :: id, offs
-    
+
     integer               :: i
     real(8), dimension(5) :: get_weights, wgt
 
@@ -971,53 +924,53 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (lagrangian_vertical) then
-       dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims)
-       dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) 
-    else ! Mass-based vertical coordinates
+    ! if (lagrangian_vertical) then
+    dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims)
+    dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) 
+    ! else ! Mass-based vertical coordinates
 
-       ! Compute mass trend (mu_t) at level zlev from total mass trend M_t
-       ! (our definition of a_vert, b_vert reversed compared with Dynamico paper)
-       dmass(id+1) = - (b_vert(zlev+1)-b_vert(zlev)) * div(h_mflux, dom, i, j, offs, dims)
+    !    ! Compute mass trend (mu_t) at level zlev from total mass trend M_t
+    !    ! (our definition of a_vert, b_vert reversed compared with Dynamico paper)
+    !    dmass(id+1) = - (b_vert(zlev+1)-b_vert(zlev)) * div(h_mflux, dom, i, j, offs, dims)
 
-       ! Compute horizontal divergence of horizontal temperature flux
-       dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims)
+    !    ! Compute horizontal divergence of horizontal temperature flux
+    !    dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims)
 
-       ! Compute vertical mass flux v_mflux at upper interface of level zlev
-       call compute_vert_flux (dom, i, j, zlev, offs, dims)
+    !    ! Compute vertical mass flux v_mflux at upper interface of level zlev
+    !    call compute_vert_flux (dom, i, j, zlev, offs, dims)
 
-       ! Find non mass-weighted potential temperature at current level
-       theta = temp(id+1)/mass(id+1)
+    !    ! Find non mass-weighted potential temperature at current level
+    !    theta = temp(id+1)/mass(id+1)
 
-       ! Add vertical divergence of vertical potential temperature flux to
-       ! trend of mass-weighted potential temperature
-       if (zlev.eq.1) then  ! Vertical flux is zero at surface
-          ! Potential temperature at next level up
-          theta_up = adj_temp_up(id+1)/adj_mass_up(id+1)
+    !    ! Add vertical divergence of vertical potential temperature flux to
+    !    ! trend of mass-weighted potential temperature
+    !    if (zlev.eq.1) then  ! Vertical flux is zero at surface
+    !       ! Potential temperature at next level up
+    !       theta_up = adj_temp_up(id+1)/adj_mass_up(id+1)
 
-          ! Vertical flux of potential temperature at upper interface
-          v_tflux = interp(theta, theta_up) * v_mflux(id+1)
+    !       ! Vertical flux of potential temperature at upper interface
+    !       v_tflux = interp(theta, theta_up) * v_mflux(id+1)
 
-          dtemp(id+1) = dtemp(id+1) + v_tflux
+    !       dtemp(id+1) = dtemp(id+1) + v_tflux
 
-       elseif (zlev.eq.zlevels) then ! Vertical flux is zero at top interface
+    !    elseif (zlev.eq.zlevels) then ! Vertical flux is zero at top interface
 
-          dtemp(id+1) = dtemp(id+1) - dom%adj_vflux%elts(id+1)
+    !       dtemp(id+1) = dtemp(id+1) - dom%adj_vflux%elts(id+1)
 
-       else
-          ! Potential temperature at next level up
-          theta_up = adj_temp_up(id+1)/adj_mass_up(id+1)
+    !    else
+    !       ! Potential temperature at next level up
+    !       theta_up = adj_temp_up(id+1)/adj_mass_up(id+1)
 
-          ! Vertical flux of potential temperature at upper interface
-          v_tflux = interp(theta, theta_up) * v_mflux(id+1)
+    !       ! Vertical flux of potential temperature at upper interface
+    !       v_tflux = interp(theta, theta_up) * v_mflux(id+1)
 
-          dtemp(id+1) = dtemp(id+1) + (v_tflux - dom%adj_vflux%elts(id+1))
+    !       dtemp(id+1) = dtemp(id+1) + (v_tflux - dom%adj_vflux%elts(id+1))
 
-       end if
+    !    end if
 
-       ! Save vertical flux of potential temperature for lower interface of next vertical level
-       dom%adj_vflux%elts(id+1) = v_tflux
-    end if
+    !    ! Save vertical flux of potential temperature for lower interface of next vertical level
+    !    dom%adj_vflux%elts(id+1) = v_tflux
+    ! end if
   end subroutine scalar_trend
 
   function gradi_e (scalar, dom, i, j, offs, dims)
@@ -1093,7 +1046,6 @@ contains
 
   subroutine du_gradB_gradExn (dom, i, j, zlev, offs, dims)
     ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
-    ! mass and potential temperature trend is zero
     type(Domain)                     :: dom
     integer                          :: i, j, zlev
     integer, dimension(N_BDRY + 1)   :: offs
@@ -1101,7 +1053,7 @@ contains
 
     integer                      :: e, id, idE, idN, idNE
     real(8), dimension(0:N_BDRY) :: theta
-    real(8), dimension(3)        :: gradB, gradE, v_star, theta_e
+    real(8), dimension(3)        :: gradB, gradE, theta_e
 
     id   = idx(i,   j,   offs, dims)
     idE  = idx(i+1, j,   offs, dims)
@@ -1134,63 +1086,26 @@ contains
     do e = 1, EDGE
        dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
     end do
-
-    ! Add vertical flux gradient term
-    if (.not. lagrangian_vertical) then
-
-       ! Assume free slip boundary conditions at top and bottom of vertical layers (i.e. velocity at top interface and surface equals
-       ! velocity at adjacent full level)
-
-       if (zlev.eq.1) then ! surface
-          ! Horizontal velocities at edges interpolated at upper interface
-          do e = 1, EDGE
-             v_star(e) = interp(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
-          end do
-
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
-               (v_star(RT+1) - velo(EDGE*id+RT+1))
-
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
-               (v_star(DG+1) - velo(EDGE*id+DG+1))
-
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
-               (v_star(UP+1) - velo(EDGE*id+UP+1))
-
-          ! Save horizontal velocities (needed for lower interface at next vertical level)
-          do e = 1, EDGE
-             dom%adj_velo%elts(EDGE*id+e) = v_star(e)
-          end do
-       elseif (zlev.eq.zlevels) then ! top level
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
-               (velo(EDGE*id+RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
-
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
-               (velo(EDGE*id+DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
-
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
-               (velo(EDGE*id+UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
-       else
-          ! Horizontal velocities at edges interpolated at upper interface
-          do e = 1, EDGE
-             v_star(e) = interp(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
-          end do
-
-          dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1)) * &
-               (v_star(RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
-
-          dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
-               (v_star(DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
-
-          dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1)) * &
-               (v_star(UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
-
-          ! Save horizontal velocities interpolated at upper interface (needed for lower interface at next vertical level)
-          do e = 1, EDGE
-             dom%adj_velo%elts(EDGE*id+e) = v_star(e)
-          end do
-       end if
-    end if
   end subroutine du_gradB_gradExn
+
+   subroutine du_gradB_fast (dom, i, j, zlev, offs, dims)
+    ! Gradient of Bernoulli function (fast part)
+    type(Domain)                     :: dom
+    integer                          :: i, j, zlev
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+
+    integer                      :: e, id
+    real(8), dimension(3)        :: gradB
+
+    ! Calculate gradient
+    gradB = gradi_e (bern_fast, dom, i, j, offs, dims)
+
+    ! Update velocity trend (no other contribution)
+    do e = 1, EDGE
+       dvelo(EDGE*id+e) = - gradB(e)
+    end do
+  end subroutine du_gradB_fast
 
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
     type(Domain)                   :: dom
@@ -1234,12 +1149,12 @@ contains
     u_prim_UP   = velo(EDGE*id+UP +1)*dom%len%elts(EDGE*id+UP+1)
     u_prim_UP_E = velo(EDGE*idE+UP+1)*dom%len%elts(EDGE*idE+UP+1)
     u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1)
-    
+
     vort(TRIAG*id+LORT+1) =   (u_prim_RT + u_prim_UP_E + u_prim_DG)  /dom%triarea%elts(TRIAG*id+LORT+1) 
     vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N)/dom%triarea%elts(TRIAG*id+UPLT+1)
   end subroutine cal_vort
 
- subroutine flux_add_grad_scalar (dom, i, j, zlev, offs, dims)
+  subroutine flux_add_grad_scalar (dom, i, j, zlev, offs, dims)
     ! Add diffusive term to fluxes
     type(Domain) :: dom
     integer :: i, j, zlev
@@ -1263,7 +1178,7 @@ contains
        h_tflux(EDGE*id+e) = h_tflux(EDGE*id+e) - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
     end do
   end subroutine flux_add_grad_scalar
-  
+
   subroutine flux_grad_scalar (dom, i, j, zlev, offs, dims)
     ! Diffusive term
     type(Domain) :: dom
@@ -1289,32 +1204,21 @@ contains
     end do
   end subroutine flux_grad_scalar
 
-  subroutine interp_vert_velo_at_full_levels (dom, i, j, zlev, offs, dims)
-    ! Interpolate non mass-weighted vertical velocity at full levels from vertical velocity at interfaces 
-    type(Domain)                     :: dom
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  subroutine sum_mass_temp (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer  :: id
-    real (8) :: velo
+    integer :: id
 
-    id = idx(i, j, offs, dims)
+    id   = idx(i, j, offs, dims)
 
-    ! Non-mass weighted vertical velocity at upper interface
-    velo = v_mflux(id+1)/mass(id+1)
+    sum_mass = sum_mass + abs(mass(id+1))
+    sum_temp = sum_temp + abs(temp(id+1))
+  end subroutine sum_mass_temp
 
-    if (zlev.eq.1) then ! No vertical flux through lower interface of bottom level
-       dom%vert_velo%elts(id+1) = interp(velo, 0.0_8)
-    else
-       dom%vert_velo%elts(id+1) = interp(velo, dom%adj_vflux%elts(id+1))
-    end if
-
-    ! Save current vertical velocity at upper interface for lower interface of next vertical level (use adj_vflux)
-    dom%adj_vflux%elts(id+1) = velo
-  end subroutine interp_vert_velo_at_full_levels
-
-  subroutine sum_mass_temp(dom, i, j, zlev, offs, dims)
+  subroutine sum_dmassdtemp (dom, i, j, zlev, offs, dims)
     type(Domain) dom
     integer i
     integer j
@@ -1322,17 +1226,27 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
     integer id
+    integer idS
+    integer idW
+    integer idSW
 
-    id   = idx(i,     j,     offs, dims)
+    id = idx(i, j, offs, dims)
 
-    sum_mass = sum_mass + abs(mass(id+1))
-    sum_temp = sum_temp + abs(temp(id+1))
-  end subroutine sum_mass_temp
+    totaldmass = totaldmass + dmass(id+1)/dom%areas%elts(id+1)%hex_inv
+    totalabsdmass = totalabsdmass + abs(dmass(id+1)/dom%areas%elts(id+1)%hex_inv)
 
-  subroutine comp_offs3(dom, p, offs, dims)
-    type(Domain) dom
-    integer p 
-    integer offs(0:N_BDRY), dims(2,N_BDRY), i, n
+    totaldtemp = totaldtemp + dtemp(id+1)/dom%areas%elts(id+1)%hex_inv
+    totalabsdtemp = totalabsdtemp + abs(dtemp(id+1)/dom%areas%elts(id+1)%hex_inv)
+  end subroutine sum_dmassdtemp
+
+
+  subroutine comp_offs3 (dom, p, offs, dims)
+    type(Domain)                 :: dom
+    integer                      :: p 
+    integer, dimension(0:N_BDRY) :: offs
+    integer, dimension(2,N_BDRY) :: dims
+
+    integer :: i, n
 
     offs(0) = dom%patch%elts(p+1)%elts_start
     do i = 1, N_BDRY
@@ -1359,28 +1273,7 @@ contains
     offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
   end subroutine comp_offs3
 
-  subroutine sum_dmassdtemp (dom, i, j, zlev, offs, dims)
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-    integer idS
-    integer idW
-    integer idSW
-
-    id = idx(i, j, offs, dims)
-
-    totaldmass = totaldmass + dmass(id+1)/dom%areas%elts(id+1)%hex_inv
-    totalabsdmass = totalabsdmass + abs(dmass(id+1)/dom%areas%elts(id+1)%hex_inv)
-
-    totaldtemp = totaldtemp + dtemp(id+1)/dom%areas%elts(id+1)%hex_inv
-    totalabsdtemp = totalabsdtemp + abs(dtemp(id+1)/dom%areas%elts(id+1)%hex_inv)
-  end subroutine sum_dmassdtemp
-
-   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
+  subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
     ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
@@ -1392,7 +1285,7 @@ contains
     type (Coord) :: x_i, x_E, x_N, x_NE
 
     d = dom%id+1
-    
+
     id   = idx(i,   j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
     idE  = idx(i+1, j,   offs, dims)
@@ -1402,9 +1295,186 @@ contains
     x_E  = dom%node%elts(idE+1)
     x_N  = dom%node%elts(idN+1)
     x_NE = dom%node%elts(idNE+1)
-    
+
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, x_i,  x_E)
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
   end subroutine vel2uvw
+
+  ! subroutine vert_integrated_horiz_flux (dom, i, j, zlev, offs, dims)
+  !   ! Integrate horizontal fluxes on the three edges vertically 
+  !   type(Domain)                     :: dom
+  !   integer                          :: i, j, zlev
+  !   integer, dimension(N_BDRY + 1)   :: offs
+  !   integer, dimension(2,N_BDRY + 1) :: dims
+
+  !   integer :: id, k
+
+  !   id   = idx(i, j, offs, dims)
+
+  !   dom%integr_horiz_flux%elts(EDGE*id+UP+1) = 0.0_8
+  !   dom%integr_horiz_flux%elts(EDGE*id+DG+1) = 0.0_8
+  !   dom%integr_horiz_flux%elts(EDGE*id+RT+1) = 0.0_8
+  !
+  !   do k = 1, zlevels
+  !      dom%integr_horiz_flux%elts(EDGE*id+UP+1) = dom%integr_horiz_flux%elts(EDGE*id+UP+1) + &
+  !           horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+UP+1)
+
+  !      dom%integr_horiz_flux%elts(EDGE*id+DG+1) = dom%integr_horiz_flux%elts(EDGE*id+DG+1) + &
+  !           horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+DG+1)
+
+  !      dom%integr_horiz_flux%elts(EDGE*id+RT+1) = dom%integr_horiz_flux%elts(EDGE*id+RT+1) + &
+  !           horiz_flux(S_MASS,k)%data(dom%id+1)%elts(EDGE*id+RT+1)
+  !   end do
+  ! end subroutine vert_integrated_horiz_flux
+  ! subroutine compute_vert_flux (dom, i, j, zlev, offs, dims)
+  !   ! Computes vertical mass flux at upper interface of level zlev from mass trend and divergence of horizontal flux
+  !   ! when using mass-based vertical coordinates
+  !   type(Domain)                     :: dom
+  !   integer                          :: i, j, zlev
+  !   integer, dimension(N_BDRY + 1)   :: offs
+  !   integer, dimension(2,N_BDRY + 1) :: dims
+
+  !   integer :: id, k
+
+  !   id   = idx(i, j, offs, dims)
+
+  !   if (zlev.eq.1) then 
+  !      v_mflux(id+1) = 0.0_8                   - dmass(id+1) - div(h_mflux, dom, i, j, offs, dims) ! Flux is zero at surface
+  !   elseif (zlev.eq.zlevels) then ! Flux is zero at upper interface of top level
+  !      v_mflux(id+1) = 0.0_8
+  !   else
+  !      v_mflux(id+1) = dom%adj_mass%elts(id+1) - dmass(id+1) - div(h_mflux, dom, i, j, offs, dims)
+  !   end if
+
+  !   ! Save current vertical mass flux for lower interface of next vertical level (use adj_mass)
+  !   dom%adj_mass%elts(id+1) = v_mflux(id+1)
+  ! end subroutine compute_vert_flux
+  !
+  ! subroutine interp_vert_velo_at_full_levels (dom, i, j, zlev, offs, dims)
+  !   ! Interpolate non mass-weighted vertical velocity at full levels from vertical velocity at interfaces 
+  !   type(Domain)                     :: dom
+  !   integer                          :: i, j, zlev
+  !   integer, dimension(N_BDRY + 1)   :: offs
+  !   integer, dimension(2,N_BDRY + 1) :: dims
+
+  !   integer  :: id
+  !   real (8) :: velo
+
+  !   id = idx(i, j, offs, dims)
+
+  !   ! Non-mass weighted vertical velocity at upper interface
+  !   velo = v_mflux(id+1)/mass(id+1)
+
+  !   if (zlev.eq.1) then ! No vertical flux through lower interface of bottom level
+  !      dom%vert_velo%elts(id+1) = interp(velo, 0.0_8)
+  !   else
+  !      dom%vert_velo%elts(id+1) = interp(velo, dom%adj_vflux%elts(id+1))
+  !   end if
+
+  !   ! Save current vertical velocity at upper interface for lower interface of next vertical level (use adj_vflux)
+  !   dom%adj_vflux%elts(id+1) = velo
+  ! end subroutine interp_vert_velo_at_full_levels
+
+  ! subroutine du_gradB_gradExn (dom, i, j, zlev, offs, dims)
+  ! Mass-based version
+   !  ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
+   !  ! mass and potential temperature trend is zero
+   !  type(Domain)                     :: dom
+   !  integer                          :: i, j, zlev
+   !  integer, dimension(N_BDRY + 1)   :: offs
+   !  integer, dimension(2,N_BDRY + 1) :: dims
+
+   !  integer                      :: e, id, idE, idN, idNE
+   !  real(8), dimension(0:N_BDRY) :: theta
+   !  real(8), dimension(3)        :: gradB, gradE, v_star, theta_e
+
+   !  id   = idx(i,   j,   offs, dims)
+   !  idE  = idx(i+1, j,   offs, dims)
+   !  idN  = idx(i,   j+1, offs, dims)
+   !  idNE = idx(i+1, j+1, offs, dims)
+
+   !  ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
+   !  ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
+   !  theta(0)         = temp(id+1)/mass(id+1)
+   !  theta(NORTH)     = temp(idN+1)/mass(idN+1)
+   !  theta(EAST)      = temp(idE+1)/mass(idE+1)
+   !  theta(NORTHEAST) = temp(idNE+1)/mass(idNE+1)
+
+   !  ! Interpolate potential temperature to edges
+   !  if (compressible) then
+   !     theta_e(1) = interp(theta(0), theta(EAST))
+   !     theta_e(2) = interp(theta(0), theta(NORTHEAST))
+   !     theta_e(3) = interp(theta(0), theta(NORTH))
+   !  else
+   !     theta_e(1) = interp(1.0_8-theta(0), 1.0_8-theta(EAST))
+   !     theta_e(2) = interp(1.0_8-theta(0), 1.0_8-theta(NORTHEAST)) 
+   !     theta_e(3) = interp(1.0_8-theta(0), 1.0_8-theta(NORTH)) 
+   !  end if
+
+   !  ! Calculate gradients
+   !  gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
+   !  gradE = gradi_e (exner,     dom, i, j, offs, dims)
+
+   !  ! Update velocity trend (source dvelo calculated was edge integrated)
+   !  do e = 1, EDGE
+   !     dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
+   !  end do
+
+    ! ! Add vertical flux gradient term
+    ! if (.not. lagrangian_vertical) then
+
+    !    ! Assume free slip boundary conditions at top and bottom of vertical layers (i.e. velocity at top interface and surface equals
+    !    ! velocity at adjacent full level)
+
+    !    if (zlev.eq.1) then ! surface
+    !       ! Horizontal velocities at edges interpolated at upper interface
+    !       do e = 1, EDGE
+    !          v_star(e) = interp(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
+    !       end do
+
+    !       dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
+    !            (v_star(RT+1) - velo(EDGE*id+RT+1))
+
+    !       dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
+    !            (v_star(DG+1) - velo(EDGE*id+DG+1))
+
+    !       dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
+    !            (v_star(UP+1) - velo(EDGE*id+UP+1))
+
+    !       ! Save horizontal velocities (needed for lower interface at next vertical level)
+    !       do e = 1, EDGE
+    !          dom%adj_velo%elts(EDGE*id+e) = v_star(e)
+    !       end do
+    !    elseif (zlev.eq.zlevels) then ! top level
+    !       dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
+    !            (velo(EDGE*id+RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
+
+    !       dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
+    !            (velo(EDGE*id+DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
+
+    !       dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1))  * &
+    !            (velo(EDGE*id+UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
+    !    else
+    !       ! Horizontal velocities at edges interpolated at upper interface
+    !       do e = 1, EDGE
+    !          v_star(e) = interp(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
+    !       end do
+
+    !       dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1)) * &
+    !            (v_star(RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
+
+    !       dvelo(EDGE*id+DG+1) = dvelo(EDGE*id+DG+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idNE+1)) * &
+    !            (v_star(DG+1) - dom%adj_velo%elts(EDGE*id+DG+1))
+
+    !       dvelo(EDGE*id+UP+1) = dvelo(EDGE*id+UP+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idN+1)) * &
+    !            (v_star(UP+1) - dom%adj_velo%elts(EDGE*id+UP+1))
+
+    !       ! Save horizontal velocities interpolated at upper interface (needed for lower interface at next vertical level)
+    !       do e = 1, EDGE
+    !          dom%adj_velo%elts(EDGE*id+e) = v_star(e)
+    !       end do
+    !    end if
+    ! end if
+    !  end subroutine du_gradB_gradExn
 end module ops_mod

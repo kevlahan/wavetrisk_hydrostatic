@@ -369,7 +369,7 @@ contains
     integer :: l, k
 
     ! Set thresholds dynamically (trend or sol must be known)
-    if (adapt_trend) then
+    if (itype.eq.0) then ! Adapt on trend
        norm_mass_trend = 0.0_8
        norm_temp_trend = 0.0_8
        norm_velo_trend = 0.0_8
@@ -377,10 +377,10 @@ contains
           call apply_onescale (linf_trend, l, z_null, 0, 0)
        end do
        
-       mass_scale = sync_max_d(norm_mass_trend)
-       temp_scale = sync_max_d(norm_temp_trend)
-       velo_scale = sync_max_d(norm_velo_trend)
-    else
+       mass_scale = sync_max_d (norm_mass_trend)
+       temp_scale = sync_max_d (norm_temp_trend)
+       velo_scale = sync_max_d (norm_velo_trend)
+    else ! Adapt on variables
        norm_mass = 0.0_8
        norm_temp = 0.0_8
        norm_velo = 0.0_8
@@ -388,24 +388,23 @@ contains
           call apply_onescale (linf_vars, l, z_null, 0, 0)
        end do
        
-       mass_scale = sync_max_d(norm_mass)
-       temp_scale = sync_max_d(norm_temp)
-       velo_scale = sync_max_d(norm_velo)
+       mass_scale = sync_max_d (norm_mass)
+       temp_scale = sync_max_d (norm_temp)
+       velo_scale = sync_max_d (norm_velo)
     end if
    
     if (istep.ne.0) then
-       tol_mass = 0.9_8*tol_mass + 0.1_8*threshold * mass_scale
-       tol_temp = 0.9_8*tol_temp + 0.1_8*threshold * temp_scale
-       tol_velo = 0.9_8*tol_velo + 0.1_8*threshold * velo_scale
+       tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
+       tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
+       tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
     elseif (istep.eq.0) then
-       if (adapt_trend .and. itype.eq.1) then
-          tol_mass = threshold * dt_init*mass_scale * 8_8
-          tol_temp = threshold * dt_init*temp_scale * 8_8
-          tol_velo = threshold * dt_init*velo_scale * 8_8
-       else
-          tol_mass = threshold * mass_scale
-          tol_temp = threshold * temp_scale
-          tol_velo = threshold * velo_scale
+       tol_mass = threshold * mass_scale
+       tol_temp = threshold * temp_scale
+       tol_velo = threshold * velo_scale
+       if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
+          tol_mass = threshold**2 * mass_scale/2_8
+          tol_temp = threshold**2 * temp_scale/2_8
+          tol_velo = threshold**2 * velo_scale/2_8
        end if
     end if
   end subroutine set_thresholds
@@ -525,8 +524,7 @@ program DCMIP2008c5
 
   ! Nullify all pointers initially
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t)
-  nullify (bernoulli, exner, qe)
-  nullify (adj_temp_up, adj_mass_up, adj_velo_up, v_mflux)
+  nullify (bern_fast, bernoulli, exner, qe)
 
   ! Read test case parameters
   call read_test_case_parameters("DCMIP2008c5.in")
@@ -571,19 +569,20 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed  = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num     = 1.4d0                            ! cfl number
+  cfl_num     = 1.5d0                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
-  visc = 2d-3/kmax**2
+  visc = 8d-3/kmax**2
   viscosity_mass = visc               ! viscosity for mass equation
   viscosity_temp = visc               ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc               ! viscosity for divergent part of momentum equation
   viscosity_rotu = visc                ! viscosity for divergent part of momentum equation
 
   dt_init = min(cfl_num*dx_min/sqrt(3d0)/wave_speed, 0.1_8*dx_min**2/visc)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
+  dt_init = 60_8
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -595,7 +594,7 @@ program DCMIP2008c5
 
   ! Set logical switches
   adapt_trend      = .true. ! Adapt on trend or on variables
-  adapt_dt         = .true.  ! Adapt time step
+  adapt_dt         = .false.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates (always remap when saving results)
