@@ -209,7 +209,7 @@ contains
           if (present(type)) then
              bernoulli => grid(d)%bern_slow%elts
           else
-             bernoulli => bernoulli_fast(k)%data(d)%elts
+             bernoulli => grid(d)%bernoulli%elts
           end if
 
           do p = 3, grid(d)%patch%length
