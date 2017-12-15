@@ -150,13 +150,13 @@ contains
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd) ! child node
 
     ! Three neighbours of child node
-    idE  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idW  = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
-    idN  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-    idNE = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idNW = idx(i_chd - 1, j_chd + 1, offs_chd, dims_chd)
-    idS  = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
-    idSE = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
+    idE  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    idW  = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
+    idN  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
+    idNE = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idNW = idx(i_chd-1, j_chd+1, offs_chd, dims_chd)
+    idS  = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
+    idSE = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
 
     ! Check six child edges neighbouring each parent edge to see if at least one is active
     ! if true make parent edge active
@@ -199,12 +199,12 @@ contains
     id = idx(i, j, offs, dims)
 
     ! six nearest neighbour nodes at same scale
-    idS  = idx(i,     j - 1, offs, dims)
-    idW  = idx(i - 1, j,     offs, dims)
-    idSW = idx(i - 1, j - 1, offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
 
     ! Add test node to adjacent mask if at least one of its six neighbours is active
     ! (also needed for div, gradi_e and gradv_e operators)
@@ -231,12 +231,12 @@ contains
     id  = idx(i, j, offs, dims)
 
     ! six neighbour nodes at same scale
-    idS  = idx(i,     j - 1, offs, dims)
-    idW  = idx(i - 1, j,     offs, dims)
-    idSW = idx(i - 1, j - 1, offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
 
     ! add node to adjacent zone if at least one of six neighbouring nodes is active
     if (dom%mask_n%elts(idN+1)  .eq. TOLRNZ .or. &
@@ -281,27 +281,27 @@ contains
     ! Includes some edge->node and node->edge cross masking
     id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
 
-    idE_chd   = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idNE_chd  = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idN_chd   = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-    idW_chd   = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
-    idNW_chd  = idx(i_chd - 1, j_chd + 1, offs_chd, dims_chd)
-    idSW_chd  = idx(i_chd - 1, j_chd - 1, offs_chd, dims_chd)
-    idS_chd   = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
-    idSE_chd  = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
-    idN2E_chd = idx(i_chd + 2, j_chd + 1, offs_chd, dims_chd)
-    id2NE_chd = idx(i_chd + 1, j_chd + 2, offs_chd, dims_chd)
-    id2SW_chd = idx(i_chd - 1, j_chd - 2, offs_chd, dims_chd)
-    idS2W_chd = idx(i_chd - 2, j_chd - 1, offs_chd, dims_chd)
+    idE_chd   = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd   = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
+    idW_chd   = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
+    idNW_chd  = idx(i_chd-1, j_chd+1, offs_chd, dims_chd)
+    idSW_chd  = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
+    idS_chd   = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
+    idSE_chd  = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
+    idN2E_chd = idx(i_chd+2, j_chd+1, offs_chd, dims_chd)
+    id2NE_chd = idx(i_chd+1, j_chd+2, offs_chd, dims_chd)
+    id2SW_chd = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
+    idS2W_chd = idx(i_chd-2, j_chd-1, offs_chd, dims_chd)
     
-    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
+    id_par   = idx(i_par,   j_par,   offs_par, dims_par)
     
-    idS_par  = idx(i_par,     j_par - 1, offs_par, dims_par)
-    idW_par  = idx(i_par - 1, j_par,     offs_par, dims_par)
-    idSW_par = idx(i_par - 1, j_par - 1, offs_par, dims_par)
-    idE_par  = idx(i_par + 1, j_par,     offs_par, dims_par)
-    idN_par  = idx(i_par,     j_par + 1, offs_par, dims_par)
-    idNE_par = idx(i_par + 1, j_par + 1, offs_par, dims_par)
+    idS_par  = idx(i_par,   j_par-1, offs_par, dims_par)
+    idW_par  = idx(i_par-1, j_par,   offs_par, dims_par)
+    idSW_par = idx(i_par-1, j_par-1, offs_par, dims_par)
+    idE_par  = idx(i_par+1, j_par,   offs_par, dims_par)
+    idN_par  = idx(i_par,   j_par+1, offs_par, dims_par)
+    idNE_par = idx(i_par+1, j_par+1, offs_par, dims_par)
 
     if (dom%mask_n%elts(id_par+1) .ge. TOLRNZ) then
        ! Nearest neighbour nodes in same cell at finer scale
@@ -441,10 +441,10 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims_par
     integer                        :: id_par, idE_par, idN_par, idNE_par
 
-    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
-    idE_par  = idx(i_par + 1, j_par,     offs_par, dims_par)
-    idN_par  = idx(i_par,     j_par + 1, offs_par, dims_par)
-    idNE_par = idx(i_par + 1, j_par + 1, offs_par, dims_par)
+    id_par   = idx(i_par,   j_par,     offs_par, dims_par)
+    idE_par  = idx(i_par+1, j_par,     offs_par, dims_par)
+    idN_par  = idx(i_par,   j_par+1, offs_par, dims_par)
+    idNE_par = idx(i_par+1, j_par+1, offs_par, dims_par)
 
     if (dom%mask_n%elts(id_par+1) .ge. ADJSPACE) then
        call set_at_least(dom%mask_e%elts(EDGE*id_par+UP+1), RESTRCT)
@@ -465,17 +465,17 @@ contains
 
     integer :: id, id_par, idN, idS, idE, idW, idNE, idNW, idSE
 
-    id     = idx(i_chd,     j_chd,     offs_chd, dims_chd)
-    id_par = idx(i_par,     j_par,     offs_par, dims_par)
+    id     = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx(i_par, j_par, offs_par, dims_par)
 
     
-    idN    = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-    idE    = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idS    = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
-    idW    = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
-    idNE   = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idNW   = idx(i_chd - 1, j_chd + 1, offs_chd, dims_chd)
-    idSE   = idx(i_chd + 1, j_chd - 1, offs_chd, dims_chd)
+    idN    = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE    = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    idS    = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
+    idW    = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
+    idNE   = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idNW   = idx(i_chd-1, j_chd+1, offs_chd, dims_chd)
+    idSE   = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
 
     if (dom%mask_e%elts(EDGE*id+UP+1)   .ge. CONSIST .or. &
         dom%mask_e%elts(EDGE*idN+UP+1)  .ge. CONSIST .or. &
@@ -527,14 +527,14 @@ contains
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
     ! Eight nearest neighbours of child node
-    idN  = idx(i_chd,     j_chd + 2, offs_chd, dims_chd)
-    idE  = idx(i_chd + 2, j_chd,     offs_chd, dims_chd)
-    idNE = idx(i_chd + 2, j_chd + 2, offs_chd, dims_chd)
-    idS  = idx(i_chd,     j_chd - 2, offs_chd, dims_chd)
-    idW  = idx(i_chd - 2, j_chd,     offs_chd, dims_chd)
-    idSW = idx(i_chd - 2, j_chd - 2, offs_chd, dims_chd)
-    idNW = idx(i_chd - 2, j_chd + 2, offs_chd, dims_chd)
-    idSE = idx(i_chd + 2, j_chd - 2, offs_chd, dims_chd)
+    idN  = idx(i_chd,   j_chd+2, offs_chd, dims_chd)
+    idE  = idx(i_chd+2, j_chd,   offs_chd, dims_chd)
+    idNE = idx(i_chd+2, j_chd+2, offs_chd, dims_chd)
+    idS  = idx(i_chd,   j_chd-2, offs_chd, dims_chd)
+    idW  = idx(i_chd-2, j_chd,   offs_chd, dims_chd)
+    idSW = idx(i_chd-2, j_chd-2, offs_chd, dims_chd)
+    idNW = idx(i_chd-2, j_chd+2, offs_chd, dims_chd)
+    idSE = idx(i_chd+2, j_chd-2, offs_chd, dims_chd)
 
     ! Check if edges of child nodes are in adjacent zone
     if ( dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE .or. &
@@ -598,12 +598,12 @@ contains
     id_par = idx(i_par, j_par, offs_par, dims_par)
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
-    idN    = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
-    idE    = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idNE   = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idSW   = idx(i_chd - 1, j_chd - 1, offs_chd, dims_chd)
-    idS    = idx(i_chd,     j_chd - 1, offs_chd, dims_chd)
-    idW    = idx(i_chd - 1, j_chd,     offs_chd, dims_chd)
+    idN    = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE    = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE   = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idSW   = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
+    idS    = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
+    idW    = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
 
     if (dom%mask_n%elts(idE+1)  .eq. TOLRNZ .or. &
         dom%mask_n%elts(idNE+1) .eq. TOLRNZ .or. &
@@ -626,10 +626,10 @@ contains
     
     integer :: id, idW, idS, idSW
 
-    id   = idx(i,     j,     offs, dims)
-    idW  = idx(i - 1, j,     offs, dims)
-    idS  = idx(i,     j - 1, offs, dims)
-    idSW = idx(i - 1, j - 1, offs, dims)
+    id   = idx(i,   j,   offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
 
     if ( dom%mask_e%elts(EDGE*id+UP+1)   .ge. ADJZONE .and. &
          dom%mask_e%elts(EDGE*id+DG+1)   .ge. ADJZONE .and. &
@@ -653,9 +653,9 @@ contains
     integer :: id, idE, idN, idNE
 
     id   = idx(i,     j,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
+    idE  = idx(i+1, j,     offs, dims)
+    idN  = idx(i,     j+1, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
 
     if ( dom%mask_n%elts(id+1)  .ge. ADJZONE .and. &
          dom%mask_n%elts(idE+1) .ge. ADJZONE) then
@@ -676,7 +676,7 @@ contains
     end if
   end subroutine mask_e_if_both_n
 
-   subroutine init_mask_mod()
+   subroutine init_mask_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
@@ -688,7 +688,7 @@ contains
     initialized = .True.
   end subroutine init_mask_mod
 
-  subroutine init_masks ()
+  subroutine init_masks
     integer :: d, i, num
 
     do d = 1, size(grid)
@@ -705,7 +705,7 @@ contains
     end do
   end subroutine init_masks
 
-  subroutine complete_masks()
+  subroutine complete_masks
     integer :: l
 
     call apply_onescale (mask_adj_space, level_end, z_null, 0, 1)
@@ -737,7 +737,7 @@ contains
     if (level_start+1 .le. level_end) call apply_onescale (mask_n_if_all_e, level_start+1, z_null, 0, 1)
   end subroutine complete_masks
 
-    subroutine set_at_least (mask, typ)
+  subroutine set_at_least (mask, typ)
     integer :: mask, typ
 
     if (mask .lt. typ) mask = typ
