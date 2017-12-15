@@ -1108,7 +1108,7 @@ contains
     integer :: d, e, id, k, l
     real(8) :: A_i, A_v, C_visc, csq, d_e, l_e, v_e, visc
 
-    C_visc = 0.1_8
+    C_visc = 0.45_8
     
     id = idx(i, j, offs, dims)
     d  = dom%id + 1

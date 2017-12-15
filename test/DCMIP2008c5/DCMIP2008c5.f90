@@ -579,8 +579,7 @@ program DCMIP2008c5
   viscosity_divu = visc               ! viscosity for divergent part of momentum equation
   viscosity_rotu = visc                ! viscosity for divergent part of momentum equation
 
-  dt_init = min(cfl_num*dx_min/sqrt(3d0)/wave_speed, 0.1_8*dx_min**2/visc)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
-  dt_init = 60_8
+  dt_init = min(cfl_num*dx_min/sqrt(3d0)/wave_speed, 0.45_8*dx_min**2/visc)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
