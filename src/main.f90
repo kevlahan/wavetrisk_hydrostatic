@@ -195,8 +195,8 @@ contains
     dt = idt/time_mult ! Modify time step
 
     !call ARK2 (trend_ml, dt) 
-    !call RK45_opt (trend_ml, dt)
-    call euler (trend_ml, dt)
+    call RK45_opt (trend_ml, dt)
+    !call euler (trend_ml, dt)
 
     if (min_level .lt. max_level) call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes

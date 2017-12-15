@@ -186,7 +186,7 @@ contains
   end subroutine RK45_opt
 
   subroutine ARK2 (trend_fun, dt)
-    ! See Weller, Lock & Wood (JCP 2013).
+    ! See Weller, Lock & Wood (JCP 2013), Giraldo, Kelly, Constantinescu 2013
     !
     ! ARK2 to advance the solution y^{n} to y^{n+1} using intermediate steps y^(1), y^(2) and y^(3)
     ! and handling of the fast (vertical) terms implicitly and slow (horizontal) terms explicitly (HEVI)

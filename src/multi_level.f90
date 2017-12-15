@@ -200,11 +200,11 @@ contains
        ! Evaluate complete velocity trend by adding gradient terms on entire grid at vertical level k !
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do d = 1, size(grid)
-          mass  =>  q(S_MASS,k)%data(d)%elts
-          temp  =>  q(S_TEMP,k)%data(d)%elts
           dvelo => dq(S_VELO,k)%data(d)%elts
-          exner => exner_fun(k)%data(d)%elts
           if (itype.eq.0) then ! Full trend
+             mass  =>  q(S_MASS,k)%data(d)%elts
+             temp  =>  q(S_TEMP,k)%data(d)%elts
+             exner => exner_fun(k)%data(d)%elts
              bernoulli => grid(d)%bernoulli%elts
           elseif (itype.eq.1) then ! Slow part only
              bernoulli => grid(d)%bern_slow%elts
@@ -217,7 +217,8 @@ contains
                 call apply_onescale_to_patch (du_gradB_slow, grid(d),    p-1, k, 0, 0)
              end if
           end do
-          nullify (mass, temp, dvelo, bernoulli, exner)
+          nullify (dvelo, bernoulli)
+          if (itype.eq.0) nullify (mass, temp, exner)
        end do
     end do
   end subroutine trend_ml
@@ -233,12 +234,15 @@ contains
     ! Evaluate complete velocity trend by adding gradient terms on entire grid at vertical level k !
     do k = 1, zlevels
        do d = 1, size(grid)
+          mass      =>  q(S_MASS,k)%data(d)%elts
+          temp      =>  q(S_TEMP,k)%data(d)%elts
           dvelo     => dq(S_VELO,k)%data(d)%elts
+          exner     => exner_fun(k)%data(d)%elts
           bernoulli => bernoulli_fast(k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (du_gradB_gradExn, grid(d), p-1, k, 0, 0)
           end do
-          nullify (dvelo, bernoulli)
+          nullify (mass, temp, dvelo, exner, bernoulli)
        end do
     end do
   end subroutine trend_fast
