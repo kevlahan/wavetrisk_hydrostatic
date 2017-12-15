@@ -253,13 +253,14 @@ contains
        grid(d)%adj_geopot%length  = init_state(d)%n_node
        grid(d)%bernoulli%length   = init_state(d)%n_node
        grid(d)%bern_slow%length   = init_state(d)%n_node
+       grid(d)%bern_fast%length   = init_state(d)%n_node
        grid(d)%divu%length        = init_state(d)%n_node
-       grid(d)%exner%length       = init_state(d)%n_node
        grid(d)%vort%length        = init_state(d)%n_tria
        grid(d)%qe%length          = init_state(d)%n_edge
 
        do k = 1, zlevels
           bernoulli_fast(k)%data(d)%length = num(AT_NODE)
+          exner_fun(k)%data(d)%length      = num(AT_NODE)
           do v = S_MASS, S_VELO
              wav_coeff(v,k)%data(d)%length = num(POSIT(v))
              trend_wav_coeff(v,k)%data(d)%length = num(POSIT(v))
@@ -348,9 +349,9 @@ contains
        deallocate (grid(d)%adj_geopot%elts)
        deallocate (grid(d)%vort%elts)
        deallocate (grid(d)%qe%elts)
-       deallocate (grid(d)%exner%elts)
        deallocate (grid(d)%bernoulli%elts)
        deallocate (grid(d)%bern_slow%elts)
+       deallocate (grid(d)%bern_fast%elts)
        deallocate (grid(d)%divu%elts)
        deallocate (grid(d)%coriolis%elts)
        deallocate (grid(d)%triarea%elts)
@@ -382,6 +383,7 @@ contains
     do k = 1, zlevels
        do d = 1, size(grid)
           deallocate (bernoulli_fast(k)%data(d)%elts)
+          deallocate (exner_fun(k)%data(d)%elts)
           do v = S_MASS, S_VELO
              deallocate (trend(v,k)%data(d)%elts)
           end do
@@ -444,6 +446,7 @@ contains
 
     do k = 1, zlevels
        deallocate (bernoulli_fast(k)%data)
+       deallocate (exner_fun(k)%data)
        do v = S_MASS, S_VELO
           deallocate (sol(v,k)%data)
           deallocate (trend(v,k)%data)
@@ -454,7 +457,7 @@ contains
        deallocate (horiz_flux(v)%data)
     end do
 
-    deallocate (grid, sol, trend, bernoulli_fast, horiz_flux)
+    deallocate (grid, sol, trend, bernoulli_fast, exner_fun, horiz_flux)
 
     ! init_shared_mod
     level_start = min_level

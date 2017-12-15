@@ -21,10 +21,12 @@ contains
     allocate (grid(n_domain(rank+1)))
     allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
-    allocate (bernoulli_fast(1:zlevels), horiz_flux(S_MASS:S_TEMP))
+    allocate (bernoulli_fast(1:zlevels), exner_fun(1:zlevels))
+    allocate (horiz_flux(S_MASS:S_TEMP))
 
     do k = 1, zlevels
-        call init_Float_Field(bernoulli_fast(k), AT_NODE)
+       call init_Float_Field(bernoulli_fast(k), AT_NODE)
+       call init_Float_Field(exner_fun(k), AT_NODE)
        do v = S_MASS, S_VELO
           call init_Float_Field(sol(v,k), POSIT(v))
           call init_Float_Field(trend(v,k), POSIT(v))
@@ -311,6 +313,7 @@ contains
     do k = 1, zlevels
        do d = 1, size(grid)
           call init(bernoulli_fast(k)%data(d), grid(d)%node%length)
+          call init(exner_fun(k)%data(d),      grid(d)%node%length)
           call init(trend(S_MASS,k)%data(d),   grid(d)%node%length)
           call init(trend(S_VELO,k)%data(d),   grid(d)%node%length*EDGE); trend(S_VELO,k)%data(d)%elts = 0
           call init(trend(S_TEMP,k)%data(d),   grid(d)%node%length)
@@ -332,9 +335,9 @@ contains
        call init(grid(d)%adj_mass,     grid(d)%node%length)
        call init(grid(d)%adj_temp,     grid(d)%node%length)
        call init(grid(d)%adj_geopot,   grid(d)%node%length)
-       call init(grid(d)%exner,        grid(d)%node%length)
        call init(grid(d)%bernoulli,    grid(d)%node%length)
        call init(grid(d)%bern_slow,    grid(d)%node%length)
+       call init(grid(d)%bern_fast,    grid(d)%node%length)
        call init(grid(d)%divu,         grid(d)%node%length)
        call init(grid(d)%vort,         grid(d)%node%length*TRIAG)
        call init(grid(d)%qe,           grid(d)%node%length*EDGE)

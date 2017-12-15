@@ -33,11 +33,10 @@ contains
     integer ::  d, p
     
     do d = 1, size(grid)
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (set_surfgeopot, grid(d), p-1, z_null, 0, 1)
-          end do
-          nullify (mass, temp, dvelo, bernoulli, exner)
+       do p = 3, grid(d)%patch%length
+          call apply_onescale_to_patch (set_surfgeopot, grid(d), p-1, z_null, 0, 1)
        end do
+    end do
   end subroutine set_surf_geopot
 
   subroutine sum_total_mass (initialgo)
@@ -312,7 +311,7 @@ contains
           do d = 1, size(grid)
              mass  => sol(S_MASS,k)%data(d)%elts
              temp  => sol(S_TEMP,k)%data(d)%elts
-             exner => grid(d)%exner%elts
+             exner => exner_fun(k)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
@@ -402,9 +401,9 @@ contains
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
        if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
-          tol_mass = threshold**2 * mass_scale/2_8
-          tol_temp = threshold**2 * temp_scale/2_8
-          tol_velo = threshold**2 * velo_scale/2_8
+          tol_mass = threshold**1.5 * mass_scale/6
+          tol_temp = threshold**1.5 * temp_scale/6
+          tol_velo = threshold**1.5 * velo_scale/6
        end if
     end if
   end subroutine set_thresholds
@@ -523,8 +522,7 @@ program DCMIP2008c5
   call init_main_mod 
 
   ! Nullify all pointers initially
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t)
-  nullify (bern_fast, bernoulli, exner, qe)
+  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
   ! Read test case parameters
   call read_test_case_parameters("DCMIP2008c5.in")
@@ -593,7 +591,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend      = .false. ! Adapt on trend or on variables
+  adapt_trend      = .true. ! Adapt on trend or on variables
   adapt_dt         = .false.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations

@@ -41,9 +41,8 @@ contains
           velo      => q(S_VELO,k)%data(d)%elts
           h_mflux   => horiz_flux(S_MASS)%data(d)%elts
           h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
-          bern_fast => bernoulli_fast(k)%data(d)%elts
+          exner     => exner_fun(k)%data(d)%elts
           bernoulli => grid(d)%bernoulli%elts
-          exner     => grid(d)%exner%elts
           vort      => grid(d)%vort%elts
           qe        => grid(d)%qe%elts
 
@@ -67,7 +66,7 @@ contains
              nullify (divu)
           end if
           
-          nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, bern_fast, exner, vort, qe)
+          nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, vort, qe)
        end do
 
        if (level_start .lt. level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
@@ -128,11 +127,10 @@ contains
              temp      =>  q(S_TEMP,k)%data(d)%elts
              dmass     => dq(S_MASS,k)%data(d)%elts
              dtemp     => dq(S_TEMP,k)%data(d)%elts
-             bern_fast => bernoulli_fast(k)%data(d)%elts
+             exner     => exner_fun(k)%data(d)%elts
              h_mflux   => horiz_flux(S_MASS)%data(d)%elts
              h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
              bernoulli => grid(d)%bernoulli%elts
-             exner     => grid(d)%exner%elts
              vort      => grid(d)%vort%elts
              qe        => grid(d)%qe%elts
 
@@ -158,7 +156,7 @@ contains
 
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
 
-             nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, bern_fast, exner, vort, qe)
+             nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, exner, vort, qe)
           end do
 
           call update_vector_bdry (horiz_flux, l)
@@ -205,7 +203,7 @@ contains
           mass  =>  q(S_MASS,k)%data(d)%elts
           temp  =>  q(S_TEMP,k)%data(d)%elts
           dvelo => dq(S_VELO,k)%data(d)%elts
-          exner => grid(d)%exner%elts
+          exner => exner_fun(k)%data(d)%elts
           if (itype.eq.0) then ! Full trend
              bernoulli => grid(d)%bernoulli%elts
           elseif (itype.eq.1) then ! Slow part only
@@ -213,7 +211,11 @@ contains
           end if
 
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (du_gradB_gradExn, grid(d), p-1, k, 0, 0)
+             if (itype.eq.0) then ! Full trend
+                call apply_onescale_to_patch (du_gradB_gradExn, grid(d), p-1, k, 0, 0)
+             elseif (itype.eq.1) then ! Slow part only
+                call apply_onescale_to_patch (du_gradB_slow, grid(d),    p-1, k, 0, 0)
+             end if
           end do
           nullify (mass, temp, dvelo, bernoulli, exner)
        end do
@@ -224,7 +226,7 @@ contains
     ! Compute fast part of trend of prognostic variables assuming Lagrangian vertical coordinates
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
     
-    integer                                                       :: d, j, k, p
+    integer                                                       :: d, k, p
 
     call update_array_bdry (q, NONE)
 
@@ -232,11 +234,11 @@ contains
     do k = 1, zlevels
        do d = 1, size(grid)
           dvelo     => dq(S_VELO,k)%data(d)%elts
-          bern_fast => bernoulli_fast(k)%data(d)%elts
+          bernoulli => bernoulli_fast(k)%data(d)%elts
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (du_gradB_fast, grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (du_gradB_gradExn, grid(d), p-1, k, 0, 0)
           end do
-          nullify (dvelo, bern_fast)
+          nullify (dvelo, bernoulli)
        end do
     end do
   end subroutine trend_fast
@@ -395,9 +397,9 @@ contains
 
     if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) then
        bernoulli(id_par+1) = bernoulli(id_chd+1)
-       bern_fast(id_par+1) = bern_fast(id_chd+1)
-       dom%bern_slow%elts(id_par+1)  = dom%bern_slow%elts(id_chd+1)
-       exner(id_par+1)     = exner(id_chd+1)
+       dom%bern_slow%elts(id_par+1) = dom%bern_slow%elts(id_chd+1)
+       dom%bern_fast%elts(id_par+1) = dom%bern_fast%elts(id_chd+1)
+       exner(id_par+1) = exner(id_chd+1)
     end if
   end subroutine Bernoulli_Exner_cpt_restr
 

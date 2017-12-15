@@ -285,12 +285,12 @@ contains
       ! Bernoulli function
       if (compressible) then 
          bernoulli(id+1) = kinetic_energy + Phi_k
-         bern_fast(id+1) = Phi_k
          dom%bern_slow%elts(id+1) = kinetic_energy
+         dom%bern_fast%elts(id+1) = Phi_k
       else 
          bernoulli(id+1) = kinetic_energy + Phi_k + dom%press%elts(id+1)/ref_density
-         bern_fast(id+1) = Phi_k + dom%press%elts(id+1)/ref_density
          dom%bern_slow%elts(id+1) = kinetic_energy
+         dom%bern_fast%elts(id+1) = Phi_k + dom%press%elts(id+1)/ref_density
       end if
 
       ! Exner function in incompressible case from geopotential
@@ -1088,8 +1088,9 @@ contains
     end do
   end subroutine du_gradB_gradExn
 
-   subroutine du_gradB_fast (dom, i, j, zlev, offs, dims)
-    ! Gradient of Bernoulli function (fast part)
+
+   subroutine du_gradB_slow (dom, i, j, zlev, offs, dims)
+    ! Gradient of Bernoulli function (slow part)
     type(Domain)                     :: dom
     integer                          :: i, j, zlev
     integer, dimension(N_BDRY + 1)   :: offs
@@ -1099,14 +1100,14 @@ contains
     real(8), dimension(3)        :: gradB
 
     ! Calculate gradient
-    gradB = gradi_e (bern_fast, dom, i, j, offs, dims)
+    gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
 
     ! Update velocity trend (no other contribution)
     do e = 1, EDGE
        dvelo(EDGE*id+e) = - gradB(e)
     end do
-  end subroutine du_gradB_fast
-
+  end subroutine du_gradB_slow
+  
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
