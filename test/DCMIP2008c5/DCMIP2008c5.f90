@@ -573,7 +573,7 @@ program DCMIP2008c5
   
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
-  visc = 8d-3/kmax**2
+  visc = 1d-2/kmax**2
   viscosity_mass = visc               ! viscosity for mass equation
   viscosity_temp = visc               ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc               ! viscosity for divergent part of momentum equation
