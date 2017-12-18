@@ -499,7 +499,6 @@ contains
        end do
     endif
   end subroutine l2_vars
-
 end module DCMIP2008c5_mod
 
 program DCMIP2008c5
@@ -510,7 +509,7 @@ program DCMIP2008c5
   integer                      :: d, ierr, k, l, v
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
-  real(8)                      :: Area_min, visc
+  real(8)                      :: Area_min
   character(len_cmd_files)     :: cmd_files
   character(len_cmd_archive)   :: cmd_archive
   character(8+8+29+14)         :: command
@@ -573,7 +572,7 @@ program DCMIP2008c5
   
   ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
 
-  visc = 1d-2/kmax**2
+  visc = 1d-3 * dx_min**2             ! Corresponds to value used in Giraldo et al (SIAM J Sci Comput 2013)
   viscosity_mass = visc               ! viscosity for mass equation
   viscosity_temp = visc               ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc               ! viscosity for divergent part of momentum equation
@@ -591,7 +590,7 @@ program DCMIP2008c5
 
   ! Set logical switches
   adapt_trend      = .true. ! Adapt on trend or on variables
-  adapt_dt         = .false.  ! Adapt time step
+  adapt_dt         = .true.  ! Adapt time step
   diffuse          = .true.  ! Diffuse scalars
   compressible     = .true.  ! Compressible equations
   remap            = .false.  ! Remap vertical coordinates (always remap when saving results)
