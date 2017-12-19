@@ -19,7 +19,7 @@ module geom_mod
   integer, parameter :: N_GLO_DOMAIN = N_ICOSAH_LOZANGE*N_SUB_DOM
 
 contains
-  subroutine init_sphere_mod()
+  subroutine init_sphere_mod
     ! if needed in future
   end subroutine init_sphere_mod
 
@@ -96,7 +96,7 @@ contains
 
     normal1 = cross(arc1_no1, arc1_no2)
     inpr = inner(normal1, arc2_no1)*inner(normal1, arc2_no2)
-    if (inpr .gt. 0.0_8) then
+    if (inpr .gt. 0.0) then
        if (inpr .lt. (eps()*radius**2)**2) troubles = .True.
        does_inters = .False.
        return
@@ -105,7 +105,7 @@ contains
     normal2 = cross(arc2_no1, arc2_no2)
     inpr = inner(normal2, arc1_no1)*inner(normal2, arc1_no2)
 
-    if (inpr .gt. 0.0_8) then
+    if (inpr .gt. 0.0) then
        if (inpr .lt. (eps()*radius**2)**2) troubles = .True.
        does_inters = .False.
        return
@@ -152,7 +152,7 @@ contains
          0.5_8*s)*tan(-0.5_8*bc + 0.5_8*s)
 
     if (t .lt. 1.0d-64) then
-       triarea = 0.0_8
+       triarea = 0.0
        return
     end if
 
@@ -247,7 +247,7 @@ contains
     end do
     area = sum(self%part)
 
-    if (area .eq. 0.0_8) then ! Avoid overflow for unused zero area hexagons (points at origin and 10 lozenge vertices)
+    if (area .eq. 0.0) then ! Avoid overflow for unused zero area hexagons (points at origin and 10 lozenge vertices)
        self%hex_inv = 1.0_8
     else
        self%hex_inv = 1.0_8/area

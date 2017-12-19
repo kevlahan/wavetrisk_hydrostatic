@@ -359,10 +359,10 @@ contains
     istep         = 0
     n_diffuse     = 1
     n_remap       = 10
-    time          = 0.0_8
+    time          = 0.0
     optimize_grid = NO_OPTIM
-    threshold     = 0.0_8
-    cfl_num       = 1.0_8
+    threshold     = 0.0
+    cfl_num       = 1.0
     min_level     = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level     = min_level
     level_start   = min_level
@@ -371,19 +371,19 @@ contains
     ! Physical parameters
     ! these parameters are typically reset in test case file, but are needed for compilation
     omega       = 7.292d-05
-    grav_accel  = 9.80616_8
-    radius      = 6371220.0_8
-    ref_density = 1.0_8
-    press_infty = 0.0_8
-    R_d         = 1.0_8
-    c_p         = 1.0_8
+    grav_accel  = 9.80616
+    radius      = 6371220.0
+    ref_density = 1.0
+    press_infty = 0.0
+    R_d         = 1.0
+    c_p         = 1.0
     kappa       = R_d/c_p
-    ref_press   = 0.0_8
-    ray_friction = 0.0_8
-    viscosity_mass   = 0.0_8
-    viscosity_temp   = 0.0_8
-    viscosity_divu   = 0.0_8
-    viscosity_rotu   = 0.0_8
+    ref_press   = 0.0
+    ray_friction = 0.0
+    viscosity_mass   = 0.0
+    viscosity_temp   = 0.0
+    viscosity_divu   = 0.0
+    viscosity_rotu   = 0.0
   end subroutine init_shared_mod
 
   real(8) function eps()
@@ -405,10 +405,10 @@ contains
   real(8) function exp__flush(x)
     real(8) :: x
     
-    if (x .gt. -100.0_8) then
+    if (x .gt. -100.0) then
        exp__flush = exp(x)
     else
-       exp__flush = 0.0_8
+       exp__flush = 0.0
     end if
   end function exp__flush
 

@@ -641,7 +641,7 @@ contains
     integer id
     real(8), dimension(7) :: area
 
-    area = 0.0_8
+    area = 0.0
     area(1:4) = dom%overl_areas%elts(id+1)%a
     area(5:6) = dom%overl_areas%elts(id+1)%split
     area(7) = dom%areas%elts(id+1)%hex_inv
@@ -849,11 +849,11 @@ contains
 
     if (c .eq. IPLUSJMINUS) then
        id = idx(PATCH_SIZE, -1, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0.0_8
+       dom%overl_areas%elts(id+1)%a = 0.0
     end if
     if (c .eq. IMINUSJPLUS) then
        id = idx(-1, PATCH_SIZE, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0.0_8
+       dom%overl_areas%elts(id+1)%a = 0.0
     end if
   end subroutine area_post_comm
 
@@ -1124,7 +1124,7 @@ contains
 
        ! Find minimum mass for this node
        do k = 1, zlevels
-          if (sol(S_MASS,k)%data(d)%elts(id+1) .le. 0.0_8) then
+          if (sol(S_MASS,k)%data(d)%elts(id+1) .le. 0.0) then
              write(0,*) "ERROR: a mass element is less than zero"
              stop
           end if
@@ -1144,7 +1144,7 @@ contains
                 l_e = dom%pedlen%elts(EDGE*id+e) ! Hexagon edge length
                 do k = 1, zlevels
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
-                   if (v_e.ne.0.0_8) dt_loc =  min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
+                   if (v_e.ne.0.0) dt_loc =  min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
                 end do
                 if (diffuse) dt_loc = min (dt_loc, C_visc*min(A_i,A_v)/visc)
              end if

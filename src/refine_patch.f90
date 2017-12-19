@@ -148,7 +148,7 @@ contains
     call apply_onescale_to_patch2(lengths, dom, p_chd, z_null, -1, 2)
 
     tmp = ORIGIN
-    call extend(dom%areas, num, Areas(0.0_8, 0.0_8))
+    call extend(dom%areas, num, Areas(0.0, 0.0))
     call apply_onescale_to_patch2(cpt_areas, dom, p_chd, z_null, -1, 2)
     call extend(dom%triarea, EDGE*num, 1.0_8)
     call apply_onescale_to_patch(cpt_triarea, dom, p_chd, z_null, -1, 1)

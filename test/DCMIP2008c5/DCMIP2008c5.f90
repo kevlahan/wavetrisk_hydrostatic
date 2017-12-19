@@ -46,12 +46,12 @@ contains
     integer :: k
 
     if (initialgo) then
-       initotalmass = 0.0_8
+       initotalmass = 0.0
        do k = 1, zlevels
           initotalmass = initotalmass + integrate_hex (mu, level_start, k)
        end do
     else
-       totalmass = 0.0_8
+       totalmass = 0.0
        do k = 1, zlevels
           totalmass = totalmass + integrate_hex (mu, level_start, k)
        end do
@@ -69,47 +69,47 @@ contains
     
     if (uniform) then
        do k = 1, zlevels+1
-          press_infty = 0.0_8
+          press_infty = 0.0
           a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
-          b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
+          b_vert(k) = 1.0 - real(k-1)/real(zlevels)
        end do
     else
        if (zlevels.eq.18) then
-          !a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-               a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-               0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
-               0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
-               0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
-               0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
-               0.953189_8, 0.985056_8, 1.0_8 /)
+          !a_vert=(/0.0, 0.00710361, 0.01904260, 0.04607560, 0.08181860, &
+               a_vert=(/0.00251499, 0.00710361, 0.01904260, 0.04607560, 0.08181860, &
+               0.07869805, 0.07463175, 0.06955308, 0.06339061, 0.05621774, 0.04815296, &
+               0.03949230, 0.03058456, 0.02193336, 0.01403670, 0.007458598, 0.002646866, &
+               0.0, 0.0 /)
+          b_vert=(/0.0, 0.0, 0.0, 0.0, 0.0, 0.03756984, 0.08652625, 0.1476709, 0.221864, &
+               0.308222, 0.4053179, 0.509588, 0.6168328, 0.7209891, 0.816061, 0.8952581, &
+               0.953189, 0.985056, 1.0 /)
        elseif (zlevels.eq.26) then
-          !a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
-          a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
-               0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
-               0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
-               0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
-                0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
-                0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
+          !a_vert=(/0.0, 0.004895209, 0.009882418, 0.01805201, 0.02983724, 0.04462334, 0.06160587, &
+          a_vert=(/0.002194067, 0.004895209, 0.009882418, 0.01805201, 0.02983724, 0.04462334, 0.06160587, &
+               0.07851243, 0.07731271, 0.07590131, 0.07424086, 0.07228744, 0.06998933, 0.06728574, 0.06410509, &
+               0.06036322, 0.05596111, 0.05078225, 0.04468960, 0.03752191, 0.02908949, 0.02084739, 0.01334443, &
+               0.00708499, 0.00252136, 0.0, 0.0 /)
+          b_vert=(/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01505309, 0.03276228, 0.05359622, &
+                0.07810627, 0.1069411, 0.1408637, 0.1807720, 0.2277220, 0.2829562, 0.3479364, 0.4243822, &
+                0.5143168, 0.6201202, 0.7235355, 0.8176768, 0.8962153, 0.9534761, 0.9851122, 1.0 /)
        elseif (zlevels.eq.49) then
-          a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
-               0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
-               0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
-               0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
-               0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
-               0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
-               0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
-               0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
-               0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
-               0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
-               0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
-               0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
-               0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
-               0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
-               0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
-               0.9851122_8, 1.0_8/)
+          a_vert=(/0.002251865, 0.003983890, 0.006704364, 0.01073231, 0.01634233, 0.02367119, &
+               0.03261456, 0.04274527, 0.05382610, 0.06512175, 0.07569850, 0.08454283, &
+               0.08396310, 0.08334103, 0.08267352, 0.08195725, 0.08118866, 0.08036393, &
+               0.07947895, 0.07852934, 0.07751036, 0.07641695, 0.07524368, 0.07398470, &
+               0.07263375, 0.07118414, 0.06962863, 0.06795950, 0.06616846, 0.06424658, &
+               0.06218433, 0.05997144, 0.05759690, 0.05504892, 0.05231483, 0.04938102, &
+               0.04623292, 0.04285487, 0.03923006, 0.03534049, 0.03116681, 0.02668825, &
+               0.02188257, 0.01676371, 0.01208171, 0.007959612, 0.004510297, 0.001831215, &
+               0.0, 0.0 /)
+          b_vert=(/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, &
+               0.006755112, 0.01400364, 0.02178164, 0.03012778, 0.03908356, 0.04869352, &
+               0.05900542, 0.07007056, 0.08194394, 0.09468459, 0.1083559, 0.1230258, &
+               0.1387673, 0.1556586, 0.1737837, 0.1932327, 0.2141024, 0.2364965, &
+               0.2605264, 0.2863115, 0.3139801, 0.3436697, 0.3755280, 0.4097133, &
+               0.4463958, 0.4857576, 0.5279946, 0.5733168, 0.6219495, 0.6741346, &
+               0.7301315, 0.7897776, 0.8443334, 0.8923650, 0.9325572, 0.9637744, &
+               0.9851122, 1.0/)
        else
           write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
           stop
@@ -152,7 +152,7 @@ contains
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
 
     ! Pressure at level zlev
-    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+    lev_press = 0.5*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = &
@@ -232,7 +232,7 @@ contains
     call cart2sph(x_i, lon, lat)
     
     surf_pressure_fun = p_sp * exp__flush ( &
-         - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+f0)*(sin(lat)**2-1.0_8) &
+         - radius*N_freq**2*u_0/(2.0*grav_accel**2*kappa)*(u_0/radius+f0)*(sin(lat)**2-1.0) &
          - N_freq**2/(grav_accel**2*kappa)*surf_geopot_fun (x_i) )
   end function surf_pressure_fun
   
@@ -241,7 +241,7 @@ contains
     real(8) :: lon, lat, u, v
     
     u = u_0*cos(lat)  ! Zonal velocity component
-    v = 0.0_8         ! Meridional velocity component
+    v = 0.0         ! Meridional velocity component
   end subroutine vel_fun
 
   subroutine read_test_case_parameters(filename)
@@ -269,8 +269,8 @@ contains
        write(*,'(A,i6)')     "resume           = ", resume
        write(*,*) ' '
     end if
-    dt_write = dt_write * 60_8
-    time_end = time_end * 60_8**2
+    dt_write = dt_write * 60
+    time_end = time_end * 60**2
 
     close(fid)
   end subroutine read_test_case_parameters
@@ -369,9 +369,9 @@ contains
 
     ! Set thresholds dynamically (trend or sol must be known)
     if (itype.eq.0) then ! Adapt on trend
-       norm_mass_trend = 0.0_8
-       norm_temp_trend = 0.0_8
-       norm_velo_trend = 0.0_8
+       norm_mass_trend = 0.0
+       norm_temp_trend = 0.0
+       norm_velo_trend = 0.0
        do l = level_start, level_end
           call apply_onescale (linf_trend, l, z_null, 0, 0)
        end do
@@ -380,9 +380,9 @@ contains
        temp_scale = sync_max_d (norm_temp_trend)
        velo_scale = sync_max_d (norm_velo_trend)
     else ! Adapt on variables
-       norm_mass = 0.0_8
-       norm_temp = 0.0_8
-       norm_velo = 0.0_8
+       norm_mass = 0.0
+       norm_temp = 0.0
+       norm_velo = 0.0
        do l = level_start, level_end
           call apply_onescale (linf_vars, l, z_null, 0, 0)
        end do
@@ -393,9 +393,9 @@ contains
     end if
    
     if (istep.ne.0) then
-       tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
-       tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
-       tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
+       tol_mass = 0.99*tol_mass + 0.01*threshold * mass_scale
+       tol_temp = 0.99*tol_temp + 0.01*threshold * temp_scale
+       tol_velo = 0.99*tol_velo + 0.01*threshold * velo_scale
     elseif (istep.eq.0) then
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
@@ -527,29 +527,29 @@ program DCMIP2008c5
   call read_test_case_parameters("DCMIP2008c5.in")
 
   ! Average minimum grid size and maximum wavenumber
-  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
-  Area_min = sqrt(3.0_8)/2.0_8*dx_min**2
-  dx_max = 2.0_8*MATH_PI * radius
+  dx_min = sqrt(4.0*MATH_PI*radius**2/(10.0*4**max_level+2.0))
+  Area_min = sqrt(3.0)/2.0*dx_min**2
+  dx_max = 2.0*MATH_PI * radius
   kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
   ! Parameters for the simulation
-  grav_accel  = 9.80616_8     ! gravitational acceleration in meters per second squared
+  grav_accel  = 9.80616     ! gravitational acceleration in meters per second squared
   omega       = 7.29211d-5    ! Earth’s angular velocity in radians per second
-  f0          = 2.0_8*omega   ! Coriolis parameter
-  u_0         = 20.0_8        ! velocity in meters per second
-  T_0         = 288.0_8       ! temperature in Kelvin
+  f0          = 2.0*omega   ! Coriolis parameter
+  u_0         = 20.0        ! velocity in meters per second
+  T_0         = 288.0       ! temperature in Kelvin
   d2          = 1500d3**2     ! square of half width of Gaussian mountain profile in meters
-  h_0         = 2000.0_8      ! mountain height in meters
-  lon_c       = MATH_PI/2.0_8 ! mountain peak longitudinal location in radians
-  lat_c       = MATH_PI/6.0_8 ! mountain peak latitudinal location in radians
+  h_0         = 2000.0      ! mountain height in meters
+  lon_c       = MATH_PI/2.0 ! mountain peak longitudinal location in radians
+  lat_c       = MATH_PI/6.0 ! mountain peak latitudinal location in radians
   p_sp        = 930.0d2       ! South Pole surface pressure in Pascals
   radius      = 6.371229d6    ! mean radius of the Earth in meters
-  ref_press   = 100145.6_8    ! reference pressure (mean surface pressure) in Pascals
-  R_d         = 287.04_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
-  c_p         = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
-  c_v         = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
+  ref_press   = 100145.6    ! reference pressure (mean surface pressure) in Pascals
+  R_d         = 287.04      ! ideal gas constant for dry air in joules per kilogram Kelvin
+  c_p         = 1004.64     ! specific heat at constant pressure in joules per kilogram Kelvin
+  c_v         = 717.6       ! specfic heat at constant volume c_v = R_d - c_p
   gamma       = c_p/c_v       ! heat capacity ratio
-  kappa       = 2.0_8/7.0_8   ! kappa=R_d/c_p
+  kappa       = 2.0/7.0   ! kappa=R_d/c_p
   N_freq      = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
 
   ! Dimensional scaling
@@ -566,11 +566,11 @@ program DCMIP2008c5
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed  = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num     = 1.5d0                            ! cfl number
+  cfl_num     = 1.9d0                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
-  ray_friction = 0.0_8!1_8/25_8                        ! Rayleigh friction
+  ray_friction = 0.0!1/25                        ! Rayleigh friction
 
   visc = 1d-3 * dx_min**2             ! Corresponds to value used in Giraldo et al (SIAM J Sci Comput 2013)
   viscosity_mass = visc               ! viscosity for mass equation
@@ -578,7 +578,7 @@ program DCMIP2008c5
   viscosity_divu = visc               ! viscosity for divergent part of momentum equation
   viscosity_rotu = visc                ! viscosity for divergent part of momentum equation
 
-  dt_init = min(cfl_num*dx_min/sqrt(3d0)/wave_speed, 0.45_8*dx_min**2/visc)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
+  dt_init = min(cfl_num*dx_min/sqrt(3d0)/wave_speed, 0.45*dx_min**2/visc)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -614,12 +614,12 @@ program DCMIP2008c5
   call write_and_export (iwrite)
 
   if (resume.le.0) iwrite = 0
-  total_cpu_time = 0.0_8
+  total_cpu_time = 0.0
 
   open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
   if (rank .eq. 0) then
      write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9,A,ES10.4)') &
-          ' time [h] = ', time/3600.0_8, &
+          ' time [h] = ', time/3600.0, &
           '  mass tol = ', tol_mass, &
           ' temp tol = ', tol_temp, &
           ' velo tol = ', tol_velo, &
@@ -645,7 +645,7 @@ program DCMIP2008c5
      
      if (rank .eq. 0) then
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES10.4,1x,A,ES8.2)') &
-             ' time [h] = ', time/60_8**2, &
+             ' time [h] = ', time/60**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
              ' temp tol = ', tol_temp, &
@@ -657,7 +657,7 @@ program DCMIP2008c5
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, min_mass, timing
+             time/3600.0, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, min_mass, timing
      end if
 
      if (aligned) then

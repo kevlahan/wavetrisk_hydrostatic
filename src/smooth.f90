@@ -81,8 +81,8 @@ contains
     call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
     call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
 
-    maxerror = 0.0_8
-    l2error = 0.0_8
+    maxerror = 0.0
+    l2error = 0.0
     call  apply_onescale(check_d, level_end-1, z_null, 0, 0)
 
     l2error = sqrt(sum_real(l2error))
@@ -96,7 +96,7 @@ contains
     k = 0
     maxerror = 2.0_8*tol
     do while(maxerror .gt. tol)
-       maxerror = 0.0_8
+       maxerror = 0.0
        call comm_nodes3_mpi(get_coord, set_coord, NONE)
 
        call apply_onescale(Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
@@ -118,8 +118,8 @@ contains
     call apply_onescale2(ccentre, level_end-1, z_null, -2, 1)
     call apply_onescale2(midpt,   level_end-1, z_null, -1, 1)
 
-    maxerror = 0.0_8
-    l2error = 0.0_8
+    maxerror = 0.0
+    l2error = 0.0
     call  apply_onescale(check_d, level_end-1, z_null, 0, 0)
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)

@@ -13,7 +13,7 @@ module time_integr_mod
 
 contains
 
-  subroutine init_time_integr_mod()
+  subroutine init_time_integr_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
@@ -24,6 +24,50 @@ contains
 
     initialized = .True.
   end subroutine init_time_integr_mod
+
+  subroutine RK_sub_step1 (sols, trends, alpha, dt, dest)
+    real(8) :: alpha, dt
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sols
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
+    
+    integer :: k, v, s, t, d, start
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
+                  alpha*sols(v,k)%data(d)%elts(start+1:sols(v,k)%data(d)%length) &
+                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
+          end do
+       end do
+       dest(:,k)%bdry_uptodate = .False.
+    end do
+
+  end subroutine RK_sub_step1
+
+  subroutine RK_sub_step2 (sol1, sol2, trends, alpha, dt, dest)
+    real(8) :: alpha(2), dt
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
+    integer k, v, s, t, d, start
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
+                  alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
+                  + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
+                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
+          end do
+       end do
+       dest(:,k)%bdry_uptodate = .False.
+    end do
+
+  end subroutine RK_sub_step2
 
   subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
     real(8), dimension(2) :: dt
@@ -50,54 +94,9 @@ contains
        end do
        dest(:,k)%bdry_uptodate = .False.
     end do
-
   end subroutine RK_sub_step4
 
-  subroutine RK_sub_step1(sols, trends, alpha, dt, dest)
-    real(8) :: alpha, dt
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sols
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
-    
-    integer :: k, v, s, t, d, start
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
-             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
-                  alpha*sols(v,k)%data(d)%elts(start+1:sols(v,k)%data(d)%length) &
-                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
-          end do
-       end do
-       dest(:,k)%bdry_uptodate = .False.
-    end do
-
-  end subroutine RK_sub_step1
-
-  subroutine RK_sub_step2(sol1, sol2, trends, alpha, dt, dest)
-    real(8) :: alpha(2), dt
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
-    integer k, v, s, t, d, start
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
-             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
-                  alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
-                  + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
-                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
-          end do
-       end do
-       dest(:,k)%bdry_uptodate = .False.
-    end do
-
-  end subroutine RK_sub_step2
-
-  subroutine init_RK_mem()
+  subroutine init_RK_mem
     integer :: d, k, v
 
     allocate (q1(S_MASS:S_VELO,1:zlevels), q2(S_MASS:S_VELO,1:zlevels), q3(S_MASS:S_VELO,1:zlevels), &
@@ -144,6 +143,32 @@ contains
        end do
     end do
   end subroutine manage_RK_mem
+  
+  subroutine RK34_opt (trend_fun, dt)
+    ! Stable for hyperbolic equations for CFL<2
+    ! Spiteri and Ruuth (2002) Appendix A.1
+    ! Third order, four stage
+    external :: trend_fun
+    real(8)  :: dt
+  
+    call manage_RK_mem
+
+    call trend_fun (sol, trend, 0) 
+    call RK_sub_step1 (sol, trend, 1.0_8, dt/2.0, q1)
+    call WT_after_step (q1, wav_coeff)
+
+    call trend_fun (q1, trend, 0) 
+    call RK_sub_step1 (q1, trend, 1.0_8, dt/2.0, q2)
+    call WT_after_step (q2, wav_coeff)
+
+    call trend_fun (q2, trend, 0)
+    call RK_sub_step2 (sol, q2, trend, (/ 2.0_8/3.0_8, 1.0_8/3.0_8 /), dt/6.0, q3)
+    call WT_after_step (q3, wav_coeff)
+    
+    call trend_fun (q3, trend, 0) 
+    call RK_sub_step1 (q3, trend, 1.0_8, dt/2.0, sol)
+    call WT_after_step (sol, wav_coeff, level_start-1)
+  end subroutine RK34_opt
 
   subroutine RK45_opt (trend_fun, dt)
     ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiter and Ruuth 2002
@@ -153,14 +178,14 @@ contains
     
     real(8), dimension(5,5) :: alpha, beta
 
-    alpha = reshape((/1.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.444370494067_8, 0.555629505933_8, 0.0_8, 0.0_8, 0.0_8,  &
-         0.620101851385_8, 0.0_8, 0.379898148615_8, 0.0_8, 0.0_8, 0.178079954108_8, 0.0_8, 0.0_8, 0.821920045892_8, 0.0_8,  &
-         0.006833258840_8, 0.0_8, 0.517231672090_8, 0.127598311333_8, 0.348336757737_8/), (/5, 5/))
+    alpha = reshape((/1.0, 0.0, 0.0, 0.0, 0.0, 0.444370494067, 0.555629505933, 0.0, 0.0, 0.0,  &
+         0.620101851385, 0.0, 0.379898148615, 0.0, 0.0, 0.178079954108, 0.0, 0.0, 0.821920045892, 0.0,  &
+         0.006833258840, 0.0, 0.517231672090, 0.127598311333, 0.348336757737/), (/5, 5/))
 
-    beta = reshape((/0.391752227004_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.36841059263_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
-         0.251891774247_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
-         0.544974750212_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0846041633821_8,  &
-         0.226007483194_8/), (/5, 5/))
+    beta = reshape((/0.391752227004, 0.0, 0.0, 0.0, 0.0, 0.0, 0.36841059263, 0.0, 0.0, 0.0, 0.0, 0.0, &
+         0.251891774247, 0.0, 0.0, 0.0, 0.0, 0.0, &
+         0.544974750212, 0.0, 0.0, 0.0, 0.0, 0.0846041633821,  &
+         0.226007483194/), (/5, 5/))
 
     call manage_RK_mem
 

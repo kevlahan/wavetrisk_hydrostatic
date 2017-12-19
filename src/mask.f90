@@ -682,9 +682,9 @@ contains
     if (initialized) return ! initialize only once
     call init_domain_mod
     call init_comm_mod
-    tol_velo = 0.0_8
-    tol_mass = 0.0_8
-    tol_temp = 0.0_8
+    tol_velo = 0.0
+    tol_mass = 0.0
+    tol_temp = 0.0
     initialized = .True.
   end subroutine init_mask_mod
 

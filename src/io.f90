@@ -129,7 +129,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8)                        :: s, fun
 
-    s = 0.0_8
+    s = 0.0
     do d = 1, size(grid)
        do ll = 1, grid(d)%lev(l)%length
           p = grid(d)%lev(l)%elts(ll)
@@ -175,7 +175,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8)                        :: s, fun
 
-    s = 0.0_8
+    s = 0.0
     do d = 1, size(grid)
        do ll = 1, grid(d)%lev(level_start)%length
           p = grid(d)%lev(level_start)%elts(ll)
@@ -286,8 +286,8 @@ contains
 
     dx_export = valrange(1)/(Nx(2)-Nx(1)+1)
     dy_export = valrange(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1./dx_export
-    ky_export = 1./dy_export
+    kx_export = 1d8/dx_export
+    ky_export = 1d8/dy_export
 
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2),n_val))
 
@@ -316,17 +316,17 @@ contains
                    valE  = values(v)%data(d)%elts(idE+1)
                    valNE = values(v)%data(d)%elts(idNE+1)
 
-                   if (abs(cN(2) - MATH_PI/2) .lt. sqrt(1.0e-15)) then
-                      call interp_tri_to_2d_and_fix_bdry(cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/), v)
-                      call interp_tri_to_2d_and_fix_bdry((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/), v)
+                   if (abs(cN(2) - MATH_PI/2) .lt. sqrt(1d-15)) then
+                      call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/), v)
+                      call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/), v)
                    else
-                      call interp_tri_to_2d_and_fix_bdry(cNE, cN, cC, (/valNE, valN, val/), v)
+                      call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/), v)
                    end if
-                   if (abs(cE(2) + MATH_PI/2) .lt. sqrt(1.0e-15)) then
-                      call interp_tri_to_2d_and_fix_bdry(cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/), v)
-                      call interp_tri_to_2d_and_fix_bdry((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/), v)
+                   if (abs(cE(2) + MATH_PI/2) .lt. sqrt(1d-15)) then
+                      call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/), v)
+                      call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/), v)
                    else
-                      call interp_tri_to_2d_and_fix_bdry(cC, cE, cNE, (/val, valE, valNE/), v)
+                      call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/), v)
                    end if
                 end do
              end do
@@ -347,8 +347,8 @@ contains
           end do
           close(fid+v)
           write(fidv, '(i5)') fid+v
-          command = 'bzip2 fort.' // fidv // ' &'
-          !call system(command) !JEMF
+          command = 'gzip fort.' // fidv // ' &'
+          call system(command)
        end do
     end if
 
@@ -439,9 +439,9 @@ contains
     real(8), dimension(3) :: bc
 
     bc = bary_coord(ll, coord1, coord2, coord3)
-    inside = (0.0_8 .lt. bc(1) .and. bc(1) .lt. 1.0_8 .and. &
-         0.0_8 .lt. bc(2) .and. bc(2) .lt. 1.0_8 .and. &
-         0.0_8 .lt. bc(3) .and. bc(3) .lt. 1.0_8)
+    inside = (0.0 .lt. bc(1) .and. bc(1) .lt. 1.0_8 .and. &
+         0.0 .lt. bc(2) .and. bc(2) .lt. 1.0_8 .and. &
+         0.0 .lt. bc(3) .and. bc(3) .lt. 1.0_8)
     if (inside) ival = sum(values*bc)
   end subroutine interp_tria
 
@@ -559,7 +559,7 @@ contains
     ! Find longitude and latitude coordinates of node
     call cart2sph (co_node, lon, lat)
 
-    e_zonal = Coord (-sin(lon),          cos(lon),           0.0_8)    ! Zonal direction
+    e_zonal = Coord (-sin(lon),          cos(lon),           0.0)    ! Zonal direction
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
     ! Least squares overdetermined matrix 
@@ -998,8 +998,8 @@ contains
     integer                        :: d_HR, p, d_glo, d_sub, fid, loz
     character(19+1)                :: filename
     
-    maxerror = 0.0_8
-    l2error = 0.0_8
+    maxerror = 0.0
+    l2error = 0.0
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
     call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
@@ -1039,8 +1039,8 @@ contains
     call apply_onescale2 (midpt,      level_end-1, z_null, -1, 1)
     call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
 
-    maxerror = 0.0_8
-    l2error = 0.0_8
+    maxerror = 0.0
+    l2error = 0.0
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
