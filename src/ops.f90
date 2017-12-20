@@ -191,21 +191,32 @@ contains
       qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
       qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
-      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(idW+1), mass(id+1))
-      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1),  mass(idSW+1))
-      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(idS+1), mass(id+1))
+      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(idW+1), mass(id+1)) &
+           - viscosity_mass * dom%pedlen%elts(EDGE*idW+RT+1) * (mass(id+1)-mass(idW+1))/dom%len%elts(EDGE*idW+RT+1)
+      
+      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1),  mass(idSW+1)) &
+           - viscosity_mass * dom%pedlen%elts(EDGE*idSW+DG+1) * (mass(idSW+1)-mass(id+1))/dom%len%elts(EDGE*idSW+DG+1)
+      
+      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(idS+1), mass(id+1)) &
+           - viscosity_mass * dom%pedlen%elts(EDGE*idS+UP+1) * (mass(id+1)-mass(idS+1))/dom%len%elts(EDGE*idS+UP+1)
 
-      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(idW+1), temp(id+1))
-      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1),  temp(idSW+1))
-      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(idS+1), temp(id+1))
+      
+      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(idW+1), temp(id+1)) &
+           - viscosity_temp * dom%pedlen%elts(EDGE*idW+RT+1) * (temp(id+1)-temp(idW+1))/dom%len%elts(EDGE*idW+RT+1)
+      
+      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1),  temp(idSW+1)) &
+           - viscosity_temp * dom%pedlen%elts(EDGE*idSW+DG+1) * (temp(idSW+1)-temp(id+1))/dom%len%elts(EDGE*idSW+DG+1)
+      
+      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(idS+1), temp(id+1)) &
+           - viscosity_temp * dom%pedlen%elts(EDGE*idS+UP+1) * (temp(id+1)-temp(idS+1))/dom%len%elts(EDGE*idS+UP+1)
     end subroutine comp_ijmin
 
     subroutine comput
       ! Computes physical quantities during upward integration
-      type (Coord) :: x_e, x_i, vel
-      integer      :: idE, idN, idNE, idS, idSW, idW
-      real(8)      :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
-      real(8)      :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
+      type (Coord)          :: x_e, x_i, vel
+      integer               :: idE, idN, idNE, idS, idSW, idW
+      real(8)               :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
+      real(8)               :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
 
       idE  = id+E
       idN  = id+N
@@ -233,13 +244,23 @@ contains
       u_prim_DG_S  = velo(EDGE*idS+DG+1)*dom%len%elts(EDGE*idS+DG+1)
 
       ! Calculate mass and temperature fluxes
-      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1))
-      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1))
-      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1))
+      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1)) &
+           - viscosity_mass * dom%pedlen%elts(EDGE*id+RT+1) * (mass(idE+1)-mass(id+1))/dom%len%elts(EDGE*id+RT+1)
+      
+      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1)) &
+           - viscosity_mass * dom%pedlen%elts(EDGE*id+DG+1) * (mass(id+1)-mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+           
+      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1)) &
+           - viscosity_mass * dom%pedlen%elts(EDGE*id+UP+1) * (mass(idN+1)-mass(id+1))/dom%len%elts(EDGE*id+UP+1)
 
-      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1))
-      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1))
-      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1))
+      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1)) &
+           - viscosity_temp * dom%pedlen%elts(EDGE*id+RT+1) * (temp(idE+1)-temp(id+1))/dom%len%elts(EDGE*id+RT+1)
+      
+      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1)) &
+           - viscosity_temp * dom%pedlen%elts(EDGE*id+DG+1) * (temp(id+1)-temp(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+      
+      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1)) &
+           - viscosity_temp * dom%pedlen%elts(EDGE*id+UP+1) * (temp(idN+1)-temp(id+1))/dom%len%elts(EDGE*id+UP+1)
 
       ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
       ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
@@ -771,22 +792,20 @@ contains
 
     ! Calculate Q_perp
     Qperp_e = Qperp (dom, i, j, z_null, offs, dims) 
-
+    
     do e = 1, EDGE 
        dvelo(EDGE*id+e) = - Qperp_e(e)
        ! Rayleigh friction
        if (zlev.eq.zlevels) dvelo(EDGE*id+e) =  dvelo(EDGE*id+e) - ray_friction*velo(EDGE*id+e)*dom%len%elts(EDGE*id+e)
     end do
 
-    if (diffuse) then
-       ! Calculate Laplacian of velocity
-       Laplacian  = Laplacian_u (dom, i, j, z_null, offs, dims)
+    ! Calculate Laplacian of velocity
+    Laplacian  = Laplacian_u (dom, i, j, z_null, offs, dims)
 
-       id = idx(i, j, offs, dims)
-       do e = 1, EDGE 
-          dvelo(EDGE*id+e) =  dvelo(EDGE*id+e) + Laplacian(e) * dom%len%elts(EDGE*id+e) ! Need to use edge integrated Laplacian for velocity restriction
-       end do
-    end if
+    id = idx(i, j, offs, dims)
+    do e = 1, EDGE 
+       dvelo(EDGE*id+e) =  dvelo(EDGE*id+e) + Laplacian(e) * dom%len%elts(EDGE*id+e) ! Need to use edge integrated Laplacian for velocity restriction
+    end do
   end subroutine du_source
 
   subroutine du_source_diffuse (dom, i, j, zlev, offs, dims)
@@ -920,58 +939,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: v_tflux, theta, theta_up
 
     id = idx(i, j, offs, dims)
 
-    ! if (lagrangian_vertical) then
     dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims)
     dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) 
-    ! else ! Mass-based vertical coordinates
-
-    !    ! Compute mass trend (mu_t) at level zlev from total mass trend M_t
-    !    ! (our definition of a_vert, b_vert reversed compared with Dynamico paper)
-    !    dmass(id+1) = - (b_vert(zlev+1)-b_vert(zlev)) * div(h_mflux, dom, i, j, offs, dims)
-
-    !    ! Compute horizontal divergence of horizontal temperature flux
-    !    dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims)
-
-    !    ! Compute vertical mass flux v_mflux at upper interface of level zlev
-    !    call compute_vert_flux (dom, i, j, zlev, offs, dims)
-
-    !    ! Find non mass-weighted potential temperature at current level
-    !    theta = temp(id+1)/mass(id+1)
-
-    !    ! Add vertical divergence of vertical potential temperature flux to
-    !    ! trend of mass-weighted potential temperature
-    !    if (zlev.eq.1) then  ! Vertical flux is zero at surface
-    !       ! Potential temperature at next level up
-    !       theta_up = adj_temp_up(id+1)/adj_mass_up(id+1)
-
-    !       ! Vertical flux of potential temperature at upper interface
-    !       v_tflux = interp(theta, theta_up) * v_mflux(id+1)
-
-    !       dtemp(id+1) = dtemp(id+1) + v_tflux
-
-    !    elseif (zlev.eq.zlevels) then ! Vertical flux is zero at top interface
-
-    !       dtemp(id+1) = dtemp(id+1) - dom%adj_vflux%elts(id+1)
-
-    !    else
-    !       ! Potential temperature at next level up
-    !       theta_up = adj_temp_up(id+1)/adj_mass_up(id+1)
-
-    !       ! Vertical flux of potential temperature at upper interface
-    !       v_tflux = interp(theta, theta_up) * v_mflux(id+1)
-
-    !       dtemp(id+1) = dtemp(id+1) + (v_tflux - dom%adj_vflux%elts(id+1))
-
-    !    end if
-
-    !    ! Save vertical flux of potential temperature for lower interface of next vertical level
-    !    dom%adj_vflux%elts(id+1) = v_tflux
-    ! end if
-  end subroutine scalar_trend
+   end subroutine scalar_trend
 
   function gradi_e (scalar, dom, i, j, offs, dims)
     ! Gradient of a scalar at nodes x_i
@@ -1154,31 +1127,6 @@ contains
     vort(TRIAG*id+LORT+1) =   (u_prim_RT + u_prim_UP_E + u_prim_DG)  /dom%triarea%elts(TRIAG*id+LORT+1) 
     vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N)/dom%triarea%elts(TRIAG*id+UPLT+1)
   end subroutine cal_vort
-
-  subroutine flux_add_grad_scalar (dom, i, j, zlev, offs, dims)
-    ! Add diffusive term to fluxes
-    type(Domain) :: dom
-    integer :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-
-    integer               :: e, id, idE, idN, idNE
-    real(8), dimension(3) :: gradM, gradT
-
-    id   = idx(i,     j,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-
-    ! Gradient of mass and temperature at edges
-    gradM = gradi_e (mass, dom, i, j, offs, dims)
-    gradT = gradi_e (temp, dom, i, j, offs, dims)
-
-    do e = 1, EDGE
-       h_mflux(EDGE*id+e) = h_mflux(EDGE*id+e) - viscosity_mass * dom%pedlen%elts(EDGE*id+e) * gradM(e)
-       h_tflux(EDGE*id+e) = h_tflux(EDGE*id+e) - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
-    end do
-  end subroutine flux_add_grad_scalar
 
   subroutine flux_grad_scalar (dom, i, j, zlev, offs, dims)
     ! Diffusive term

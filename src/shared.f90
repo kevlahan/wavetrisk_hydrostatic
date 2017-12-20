@@ -299,7 +299,7 @@ module shared_mod
 
   real(8), dimension (:), allocatable :: a_vert, b_vert
 
-  logical :: adapt_dt, adapt_trend, compressible, diffuse, lagrangian_vertical 
+  logical :: adapt_dt, adapt_trend, compressible, lagrangian_vertical 
 
 contains
 
@@ -351,7 +351,6 @@ contains
     ! Default values
     adapt_dt            = .true.
     adapt_trend         = .false.
-    diffuse             = .false.
     initialized         = .true.
     lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates
     
@@ -359,10 +358,10 @@ contains
     istep         = 0
     n_diffuse     = 1
     n_remap       = 10
-    time          = 0.0
+    time          = 0.0_8
     optimize_grid = NO_OPTIM
-    threshold     = 0.0
-    cfl_num       = 1.0
+    threshold     = 0.0_8
+    cfl_num       = 1.0_8
     min_level     = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level     = min_level
     level_start   = min_level
@@ -371,19 +370,19 @@ contains
     ! Physical parameters
     ! these parameters are typically reset in test case file, but are needed for compilation
     omega       = 7.292d-05
-    grav_accel  = 9.80616
-    radius      = 6371220.0
-    ref_density = 1.0
-    press_infty = 0.0
-    R_d         = 1.0
-    c_p         = 1.0
+    grav_accel  = 9.80616_8
+    radius      = 6371220.0_8
+    ref_density = 1.0_8
+    press_infty = 0.0_8
+    R_d         = 1.0_8
+    c_p         = 1.0_8
     kappa       = R_d/c_p
-    ref_press   = 0.0
-    ray_friction = 0.0
-    viscosity_mass   = 0.0
-    viscosity_temp   = 0.0
-    viscosity_divu   = 0.0
-    viscosity_rotu   = 0.0
+    ref_press   = 0.0_8
+    ray_friction = 0.0_8
+    viscosity_mass   = 0.0_8
+    viscosity_temp   = 0.0_8
+    viscosity_divu   = 0.0_8
+    viscosity_rotu   = 0.0_8
   end subroutine init_shared_mod
 
   real(8) function eps()
@@ -405,10 +404,10 @@ contains
   real(8) function exp__flush(x)
     real(8) :: x
     
-    if (x .gt. -100.0) then
+    if (x .gt. -1.0d2) then
        exp__flush = exp(x)
     else
-       exp__flush = 0.0
+       exp__flush = 0.0_8
     end if
   end function exp__flush
 

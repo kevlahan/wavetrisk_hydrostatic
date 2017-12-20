@@ -3,9 +3,8 @@ module comm_mod
   use domain_mod
   implicit none
   integer, dimension(4,4)            :: shift_arr
-  integer, dimension(:), allocatable ::  n_active_edges, n_active_nodes
+  integer, dimension(:), allocatable :: n_active_edges, n_active_nodes
   real(8)                            :: dt_loc, min_mass, sync_val
-
 contains
   subroutine init_comm_mod
     logical :: initialized = .False.
@@ -1106,7 +1105,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: A_i, A_v, C_visc, csq, d_e, l_e, v_e, visc
+    real(8) :: A_i, A_v, C_visc, csq, d_e, l_e, v_e, viscosity
 
     C_visc = 0.45_8
     
@@ -1117,7 +1116,7 @@ contains
     A_i = 1.0_8/dom%areas%elts(id+1)%hex_inv ! Hexagon area
     A_v = max (dom%triarea%elts(TRIAG*id+LORT+1),dom%triarea%elts(TRIAG*id+UPLT+1)) ! Triangle areas
 
-    if (diffuse) visc = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
+    viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
@@ -1146,7 +1145,7 @@ contains
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
                    if (v_e.ne.0.0) dt_loc =  min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
                 end do
-                if (diffuse) dt_loc = min (dt_loc, C_visc*min(A_i,A_v)/visc)
+                dt_loc = min (dt_loc, C_visc*min(A_i,A_v)/viscosity)
              end if
           end if
        end do

@@ -235,8 +235,8 @@ contains
          dom%ccentre%elts(tri_idx(ije(1,UZP+1),ije(2,UZP+1), &
          adj_tri(:,-k+2,ije(3,UZP+1)+1),offs,dims)+1)) .lt. eps()) then ! COINSIDE
 
-       dom%R_F_wgt%elts(id_enc(1)+1)%enc = 0.0
-       dom%R_F_wgt%elts(id_enc(2)+1)%enc = 0.0
+       dom%R_F_wgt%elts(id_enc(1)+1)%enc = 0.0_8
+       dom%R_F_wgt%elts(id_enc(2)+1)%enc = 0.0_8
     else
 
        if (typ(k+1) .eq. OUTER1) then
@@ -268,8 +268,8 @@ contains
          
          adj_tri(:,-k+2,ije(3,UZM+1)+1),offs,dims)+1)) .lt. eps()) then ! COINSIDE
 
-       dom%R_F_wgt%elts(id_enc(3)+1)%enc = 0.0
-       dom%R_F_wgt%elts(id_enc(4)+1)%enc = 0.0
+       dom%R_F_wgt%elts(id_enc(3)+1)%enc = 0.0_8
+       dom%R_F_wgt%elts(id_enc(4)+1)%enc = 0.0_8
     else
 
        if (typ(k+1) .eq. OUTER1) then
@@ -536,7 +536,7 @@ contains
     integer                     :: i
     logical                     :: does_inters0, does_inters1, troubles
 
-    area = 0.0
+    area = 0.0_8
     typ = 0
 
     hex = (/ (dom%ccentre%elts(tri_idx(i_chd, j_chd, no_adj_tri(:,i + &
@@ -573,7 +573,7 @@ contains
           typ(-i+3) = INSIDE
        else
           if (.not. does_inters0 .and. .not. does_inters1) then
-             area(i+2) = 0.0
+             area(i+2) = 0.0_8
              call arc_inters(tri(2,1), tri(2,2), hex(3*i-2), hex(3*i-1), &
                   inters_pt0, does_inters0, troubles)
              call arc_inters(tri(2,2), tri(2,1), hex(3*i-1), hex(3*i), &
@@ -909,7 +909,7 @@ contains
    
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    curl_u = 0.0
+    curl_u = 0.0_8
     do k = 1, TRIAG
        id1_par = idx(i_par - k + 2, j_par,         offs_par, dims_par)
        id2_par = idx(i_par,         j_par + k - 1, offs_par, dims_par)
@@ -931,7 +931,7 @@ contains
     idN2  = idx(i_chd,     j_chd + 2, offs_chd, dims_chd)
     idE2  = idx(i_chd + 2, j_chd,     offs_chd, dims_chd)
 
-    u = 0.0
+    u = 0.0_8
     
     u(1) = (dom%triarea%elts(LORT+TRIAG*id+1)*curl_u(1) - &
          velo(idRT+1)*dom%len%elts(idRT+1) - &
@@ -1066,8 +1066,8 @@ contains
     integer :: id
 
     id = idx(i, j, offs, dims)
-    dom%overl_areas%elts(id+1)%a     = 0.0
-    dom%overl_areas%elts(id+1)%split = 0.0
+    dom%overl_areas%elts(id+1)%a     = 0.0_8
+    dom%overl_areas%elts(id+1)%split = 0.0_8
   end subroutine zero_overlay
 
   subroutine set_WT_wgts (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -1227,16 +1227,12 @@ end subroutine restrict_scalar
          offs, dims) + 1), dom%node%elts(idx(i0 + end_pt(1,2,e0+1), j0 + &
          end_pt(2,2,e0+1), offs, dims) + 1), x, y)
 
-    weights = 0.0
+    weights = 0.0_8
 
     do k = 1, 2
        id = idx(i0, j0, offs, dims)
 
-       G = reshape((/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, &
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, &
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, &
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, &
-            0.0, 0.0, 0.0, 0.0/), (/6, 6/))
+       G = 0.0_8
 
        G(:,1) = coords_to_row(i0, j0, (/0, 0/), (/0, 0, e0/), e0)
 

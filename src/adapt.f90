@@ -101,15 +101,15 @@ contains
     
     if (dom%mask_n%elts(id+1) .lt. ADJZONE) then
        do v = S_MASS, S_TEMP
-          wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0
-          if (adapt_trend) trend_wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0
+          wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+          if (adapt_trend) trend_wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
        end do
     end if
     
     do e = 1, EDGE
        if (dom%mask_e%elts(EDGE*id+e) .lt. ADJZONE) then
-          wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0
-          if (adapt_trend) trend_wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0
+          wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
+          if (adapt_trend) trend_wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
        end if
     end do
   end subroutine compress
