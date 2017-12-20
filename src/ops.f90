@@ -126,9 +126,7 @@ contains
           n = dims(1,NORTHEAST)
           e = 1
           ne = n+e
-
-          ! Avoid doing nodes twice
-          if (offs(NORTHEAST).ne.1) call comput
+          call comput
        end if
     end if
 

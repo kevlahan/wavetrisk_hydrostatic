@@ -591,7 +591,7 @@ program DCMIP2008c5
 
   ! Set logical switches
   adapt_trend  = .false. ! Adapt on trend or on variables
-  adapt_dt     = .false.  ! Adapt time step
+  adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .false. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
