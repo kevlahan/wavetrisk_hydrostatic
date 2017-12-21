@@ -145,9 +145,9 @@ contains
   end subroutine manage_RK_mem
   
   subroutine RK34_opt (trend_fun, dt)
+    ! Third order, four stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2
-    ! Spiteri and Ruuth (2002) Appendix A.1
-    ! Third order, four stage
+    ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     external :: trend_fun
     real(8)  :: dt
   

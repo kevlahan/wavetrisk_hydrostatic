@@ -1105,16 +1105,13 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: A_i, A_v, C_visc, csq, d_e, l_e, v_e, viscosity
+    real(8) :: C_visc, csq, d_e, v_e, viscosity
 
-    C_visc = 0.45_8
+    C_visc = 0.25_8
     
     id = idx(i, j, offs, dims)
     d  = dom%id + 1
     l  = dom%level%elts(id+1)
-
-    A_i = 1.0_8/dom%areas%elts(id+1)%hex_inv ! Hexagon area
-    A_v = max (dom%triarea%elts(TRIAG*id+LORT+1),dom%triarea%elts(TRIAG*id+UPLT+1)) ! Triangle areas
 
     viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
@@ -1137,22 +1134,20 @@ contains
        do e = 1, EDGE
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
-
              if (adapt_dt) then
                 d_e = dom%len%elts(EDGE*id+e) ! Triangle edge length
-                l_e = dom%pedlen%elts(EDGE*id+e) ! Hexagon edge length
                 do k = 1, zlevels
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
-                   if (v_e.ne.0.0) dt_loc =  min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
+                   if (v_e.ne.0.0_8) dt_loc =  min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
                 end do
-                dt_loc = min (dt_loc, C_visc*min(A_i,A_v)/viscosity)
+                dt_loc = min (dt_loc, C_visc*d_e**2/viscosity)
              end if
           end if
        end do
     end if
   end subroutine min_dt
 
-   function domain_load (dom)
+  function domain_load (dom)
     integer      :: domain_load
     type(Domain) :: dom
 

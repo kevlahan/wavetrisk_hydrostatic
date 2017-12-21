@@ -6,8 +6,7 @@ module DCMIP2008c5_mod
 
   integer                            :: CP_EVERY, id, zlev, iwrite, j, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
-  real(8)                            :: Hmin, dh_min, dh_max, kmin
-  real(8)                            :: initotalmass, totalmass, timing, total_cpu_time, dh
+  real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
   logical                            :: wasprinted, uniform
   character (255)                    :: IC_file
 
@@ -46,12 +45,12 @@ contains
     integer :: k
 
     if (initialgo) then
-       initotalmass = 0.0
+       initotalmass = 0.0_8
        do k = 1, zlevels
           initotalmass = initotalmass + integrate_hex (mu, level_start, k)
        end do
     else
-       totalmass = 0.0
+       totalmass = 0.0_8
        do k = 1, zlevels
           totalmass = totalmass + integrate_hex (mu, level_start, k)
        end do
@@ -69,9 +68,9 @@ contains
     
     if (uniform) then
        do k = 1, zlevels+1
-          press_infty = 0.0
+          press_infty = 0.0_8
           a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
-          b_vert(k) = 1.0 - real(k-1)/real(zlevels)
+          b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
     else
        if (zlevels.eq.18) then
@@ -152,7 +151,7 @@ contains
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
 
     ! Pressure at level zlev
-    lev_press = 0.5*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = &
@@ -166,26 +165,6 @@ contains
 
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
-
-    ! Print out layer thicknesses
-    ! if (rank.eq.0 .and. .not.wasprinted) then
-    !    if(zlev.eq.1) then
-    !       write(6,'(4(A,es11.4))') &
-    !            ' surf geopot =', dom%surf_geopot%elts(id+1), &
-    !            ' surf press =', dom%surf_press%elts(id+1), &
-    !            ' press_infty =', press_infty
-    !    end if
-
-    !    write(6,'(A,I2,1x,6(A,es11.4))') &
-    !         ' zlev = ', zlev, &
-    !         ' press =', lev_press, &
-    !         ' mu =', sol(S_MASS,zlev)%data(d)%elts(id+1), &
-    !         ' Theta =', sol(S_TEMP,zlev)%data(d)%elts(id+1), &
-    !         ' U = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1), &
-    !         ' V = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1), &
-    !         ' W = ', sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)
-    !    wasprinted=.true.
-    ! end if
   end subroutine init_sol
 
   subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
@@ -232,7 +211,7 @@ contains
     call cart2sph(x_i, lon, lat)
     
     surf_pressure_fun = p_sp * exp__flush ( &
-         - radius*N_freq**2*u_0/(2.0*grav_accel**2*kappa)*(u_0/radius+f0)*(sin(lat)**2-1.0) &
+         - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+f0)*(sin(lat)**2-1.0_8) &
          - N_freq**2/(grav_accel**2*kappa)*surf_geopot_fun (x_i) )
   end function surf_pressure_fun
   
@@ -241,7 +220,7 @@ contains
     real(8) :: lon, lat, u, v
     
     u = u_0*cos(lat)  ! Zonal velocity component
-    v = 0.0         ! Meridional velocity component
+    v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
   subroutine read_test_case_parameters(filename)
@@ -269,8 +248,8 @@ contains
        write(*,'(A,i6)')     "resume           = ", resume
        write(*,*) ' '
     end if
-    dt_write = dt_write * 60
-    time_end = time_end * 60**2
+    dt_write = dt_write * 60.0_8
+    time_end = time_end * 60.0_8**2
 
     close(fid)
   end subroutine read_test_case_parameters
@@ -369,9 +348,9 @@ contains
 
     ! Set thresholds dynamically (trend or sol must be known)
     if (itype.eq.0) then ! Adapt on trend
-       norm_mass_trend = 0.0
-       norm_temp_trend = 0.0
-       norm_velo_trend = 0.0
+       norm_mass_trend = 0.0_8
+       norm_temp_trend = 0.0_8
+       norm_velo_trend = 0.0_8
        do l = level_start, level_end
           call apply_onescale (linf_trend, l, z_null, 0, 0)
        end do
@@ -380,9 +359,9 @@ contains
        temp_scale = sync_max_d (norm_temp_trend)
        velo_scale = sync_max_d (norm_velo_trend)
     else ! Adapt on variables
-       norm_mass = 0.0
-       norm_temp = 0.0
-       norm_velo = 0.0
+       norm_mass = 0.0_8
+       norm_temp = 0.0_8
+       norm_velo = 0.0_8
        do l = level_start, level_end
           call apply_onescale (linf_vars, l, z_null, 0, 0)
        end do
@@ -393,17 +372,17 @@ contains
     end if
    
     if (istep.ne.0) then
-       tol_mass = 0.99*tol_mass + 0.01*threshold * mass_scale
-       tol_temp = 0.99*tol_temp + 0.01*threshold * temp_scale
-       tol_velo = 0.99*tol_velo + 0.01*threshold * velo_scale
+       tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
+       tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
+       tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
     elseif (istep.eq.0) then
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
        if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
-          tol_mass = threshold**1.5 * mass_scale/6
-          tol_temp = threshold**1.5 * temp_scale/6
-          tol_velo = threshold**1.5 * velo_scale/6
+          tol_mass = threshold**1.5_8 * mass_scale/6.0_8
+          tol_temp = threshold**1.5_8 * temp_scale/6.0_8
+          tol_velo = threshold**1.5_8 * velo_scale/6.0_8
        end if
     end if
   end subroutine set_thresholds
@@ -509,7 +488,7 @@ program DCMIP2008c5
   integer                      :: d, ierr, k, l, v
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
-  real(8)                      :: Area_min, viscosity
+  real(8)                      :: viscosity
   character(len_cmd_files)     :: cmd_files
   character(len_cmd_archive)   :: cmd_archive
   character(8+8+29+14)         :: command
@@ -528,8 +507,6 @@ program DCMIP2008c5
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
-  Area_min = sqrt(3.0)/2.0*dx_min**2
-  kmin = MATH_PI/dx_max ; kmax = MATH_PI/dx_min
 
   ! Parameters for the simulation
   grav_accel  = 9.80616_8     ! gravitational acceleration in meters per second squared
@@ -537,10 +514,10 @@ program DCMIP2008c5
   f0          = 2.0_8*omega   ! Coriolis parameter
   u_0         = 20.0_8        ! velocity in meters per second
   T_0         = 288.0_8       ! temperature in Kelvin
-  d2          = 1500d3**2     ! square of half width of Gaussian mountain profile in meters
-  h_0         = 2.0d3      ! mountain height in meters
-  lon_c       = MATH_PI/2_8 ! mountain peak longitudinal location in radians
-  lat_c       = MATH_PI/6_8 ! mountain peak latitudinal location in radians
+  d2          = 1.5d6**2      ! square of half width of Gaussian mountain profile in meters
+  h_0         = 2.0d3         ! mountain height in meters
+  lon_c       = MATH_PI/2.0_8 ! mountain peak longitudinal location in radians
+  lat_c       = MATH_PI/6.0_8 ! mountain peak latitudinal location in radians
   p_sp        = 930.0d2       ! South Pole surface pressure in Pascals
   radius      = 6.371229d6    ! mean radius of the Earth in meters
   ref_press   = 100145.6_8    ! reference pressure (mean surface pressure) in Pascals
@@ -558,29 +535,29 @@ program DCMIP2008c5
   Tdim        = Hdim/Udim                        ! time scale
   Tempdim     = T_0                              ! temperature scale (both theta and T from DYNAMICO)
 
-  acceldim    = Udim*Udim/Hdim                   ! acceleration scale
-
+  acceldim    = Udim**2/Hdim                     ! acceleration scale
   pdim        = ref_press                        ! pressure scale
   R_ddim      = R_d                              ! R_d scale
   massdim     = pdim*Hdim/(Tempdim*R_d)          ! mass (=rho*dz following DYNAMICO) scale
   specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed  = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num     = 1.0_8                            ! cfl number
+  cfl_num     = 1.2_8                            ! cfl number
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
   ray_friction = 0.0_8!1/25                        ! Rayleigh friction
 
-  visc = 1.0d-3             ! Constant for viscosity corresponds to value used in Giraldo et al (SIAM J Sci Comput 2013)
+  visc = 4.0d-4 ! Constant for viscosity 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
   viscosity_rotu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   
-  dt_init = min(cfl_num*dx_min/wave_speed, 0.2_8*dx_min**2/viscosity)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
-  dt_init = 180.0_8
+  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
+  write(6,'(2(es10.4,1x))') cfl_num*dx_min/(wave_speed+u_0), 0.25_8*dx_min**2/viscosity
+
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
      write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
