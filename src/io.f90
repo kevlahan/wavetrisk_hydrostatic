@@ -286,8 +286,8 @@ contains
 
     dx_export = valrange(1)/(Nx(2)-Nx(1)+1)
     dy_export = valrange(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1d8/dx_export
-    ky_export = 1d8/dy_export
+    kx_export = 1.0_8/dx_export
+    ky_export = 1.0_8/dy_export
 
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2),n_val))
 
@@ -297,18 +297,18 @@ contains
 
     do d = 1, size(grid)
        do k = 1, grid(d)%lev(l)%length
-          call get_offs_Domain(grid(d), grid(d)%lev(l)%elts(k), offs, dims)
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(k), offs, dims)
           do j = 0, PATCH_SIZE-1
              do i = 0, PATCH_SIZE-1
-                id   = idx(i,     j,     offs, dims)
-                idN  = idx(i,     j + 1, offs, dims)
-                idE  = idx(i + 1, j,     offs, dims)
-                idNE = idx(i + 1, j + 1, offs, dims)
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
 
-                call proj(grid(d)%node%elts(id+1),   cC)
-                call proj(grid(d)%node%elts(idN+1),  cN)
-                call proj(grid(d)%node%elts(idE+1),  cE)
-                call proj(grid(d)%node%elts(idNE+1), cNE)
+                call proj (grid(d)%node%elts(id+1),   cC)
+                call proj (grid(d)%node%elts(idN+1),  cN)
+                call proj (grid(d)%node%elts(idE+1),  cE)
+                call proj (grid(d)%node%elts(idNE+1), cNE)
 
                 do v = 1, n_val
                    val   = values(v)%data(d)%elts(id+1)
@@ -316,13 +316,13 @@ contains
                    valE  = values(v)%data(d)%elts(idE+1)
                    valNE = values(v)%data(d)%elts(idNE+1)
 
-                   if (abs(cN(2) - MATH_PI/2) .lt. sqrt(1d-15)) then
+                   if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
                       call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/), v)
                       call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/), v)
                    else
                       call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/), v)
                    end if
-                   if (abs(cE(2) + MATH_PI/2) .lt. sqrt(1d-15)) then
+                   if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
                       call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/), v)
                       call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/), v)
                    else
@@ -336,7 +336,7 @@ contains
 
     do v = 1, n_val
        sync_val = default_val(v)
-       call sync_array(field2d(Nx(1),Ny(1),v), size(field2d(:,:,v)))
+       call sync_array (field2d(Nx(1),Ny(1),v), size(field2d(:,:,v)))
     end do
 
     if (rank .eq. 0) then
@@ -347,13 +347,18 @@ contains
           end do
           close(fid+v)
           write(fidv, '(i5)') fid+v
-          command = 'gzip fort.' // fidv // ' &'
-          call system(command)
+          command = 'gzip fort.3' // fidv // ' &'
+          call system (command)
        end do
     end if
-
-    deallocate(field2d)
+    deallocate (field2d)
   end subroutine export_2d
+
+  subroutine cart2sph2 (cin, cout)
+    type(Coord)                        :: cin
+    real(8), dimension(2), intent(out) :: cout
+    call cart2sph (cin, cout(1), cout(2))
+  end subroutine cart2sph2
 
   subroutine fix_boundary (a, b, c, fixed)
     real(8), intent(inout) :: a
@@ -382,10 +387,10 @@ contains
     a = a0
     b = b0
     c = c0
-    call fix_boundary(a(1), b(1), c(1), fixed(1))
-    call fix_boundary(b(1), c(1), a(1), fixed(2))
-    call fix_boundary(c(1), a(1), b(1), fixed(3))
-    call interp_tri_to_2d(a, b, c, val, v)
+    call fix_boundary (a(1), b(1), c(1), fixed(1))
+    call fix_boundary (b(1), c(1), a(1), fixed(2))
+    call fix_boundary (c(1), a(1), b(1), fixed(3))
+    call interp_tri_to_2d (a, b, c, val, v)
 
     if (sum(abs(fixed)) .gt. 1) write(0,*) 'ALARM'
 
@@ -393,21 +398,20 @@ contains
        a(1) = a(1) - sum(fixed)*MATH_PI*2.0_8
        b(1) = b(1) - sum(fixed)*MATH_PI*2.0_8
        c(1) = c(1) - sum(fixed)*MATH_PI*2.0_8
-       call interp_tri_to_2d(a, b, c, val, v)
+       call interp_tri_to_2d (a, b, c, val, v)
     end if
   end subroutine interp_tri_to_2d_and_fix_bdry
 
-  subroutine interp_tri_to_2d(a, b, c, val, v)
+  subroutine interp_tri_to_2d (a, b, c, val, v)
     real(8), dimension(2) :: a, b, c
     real(8), dimension(3) :: val
-    integer :: v
-    real(8) minx
-    real(8) maxx
-    real(8) miny
-    real(8) maxy
-    integer id_x, id_y
-    real(8) ll(2), bac(3), ival
-    logical inside
+    integer               :: v
+    
+    integer               :: id_x, id_y
+    real(8)               :: ival, minx, maxx, miny, maxy
+    real(8), dimension(2) :: ll
+    real(8), dimension(3) :: bac
+    logical               :: inside
 
     minx = min(min(a(1), b(1)), c(1))
     maxx = max(max(a(1), b(1)), c(1))
@@ -423,7 +427,7 @@ contains
        do id_y = floor(ky_export*miny), ceiling(ky_export*maxy)
           if (id_y .lt. lbound(field2d,2) .or. id_y .gt. ubound(field2d,2)) cycle
           ll = (/dx_export*id_x, dy_export*id_y/)
-          call interp_tria(ll, a, b, c, val, ival, inside)
+          call interp_tria (ll, a, b, c, val, ival, inside)
           if (inside) field2d(id_x,id_y,v) = ival
        end do
     end do

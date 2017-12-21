@@ -546,7 +546,9 @@ program DCMIP2008c5
   n_diffuse   = 1                                ! Diffusion step interval
   n_remap     = 1                                ! Vertical remap interval
   
-  ray_friction = 0.0_8!1/25                        ! Rayleigh friction
+  ray_friction = 0.0_8                           ! Rayleigh friction
+
+  zlev        = 7                                ! vertical level to output
 
   visc = 4.0d-4 ! Constant for viscosity 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
@@ -556,7 +558,7 @@ program DCMIP2008c5
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
-  write(6,'(2(es10.4,1x))') cfl_num*dx_min/(wave_speed+u_0), 0.25_8*dx_min**2/viscosity
+  if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/(wave_speed+u_0), " dt_visc = ", 0.25_8*dx_min**2/viscosity
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -634,7 +636,7 @@ program DCMIP2008c5
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/3600.0, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, min_mass, timing
+             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, min_mass, timing
      end if
 
      if (aligned) then
@@ -644,6 +646,10 @@ program DCMIP2008c5
 
         ! Save fields
         call write_and_export (iwrite)
+
+        ! Save 2D projection
+        call export_2d (cart2sph2, (/sol(S_TEMP,zlev)/), 1, 300000+100*iwrite, level_end, &
+             (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), (/0.0_8/))
         
         call sum_total_mass (.False.)
 
