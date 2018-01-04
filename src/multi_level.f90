@@ -183,9 +183,9 @@ contains
        do d = 1, size(grid)
           dvelo => dq(S_VELO,k)%data(d)%elts
           if (itype.eq.0) then ! Full trend
-             mass  =>  q(S_MASS,k)%data(d)%elts
-             temp  =>  q(S_TEMP,k)%data(d)%elts
-             exner => exner_fun(k)%data(d)%elts
+             mass      =>  q(S_MASS,k)%data(d)%elts
+             temp      =>  q(S_TEMP,k)%data(d)%elts
+             exner     => exner_fun(k)%data(d)%elts
              bernoulli => grid(d)%bernoulli%elts
           elseif (itype.eq.1) then ! Slow part only
              bernoulli => grid(d)%bern_slow%elts

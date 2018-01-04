@@ -6,7 +6,9 @@
 !
 ! The icosahedron is divided into a network of ten regular lozange grids (with the exception of the poles), each lozange is then divided
 ! into N_SUB_DOM = 2**(2*DOMAIN_LEVEL) regular sub-domains with the number of sub-domains on each processor given by n_domain(rank+1)).
-! Therefore the maximum number of processors than can be used is 10*2**(2*DOMAIN_LEVEL).
+! Therefore the maximum number of processors than can be used is 10*2**(2*DOMAIN_LEVEL).  The number of domains is set by the coarsest scale Jmin
+! and PATCH_LEVEL: Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1.  There are 2**PATCH_LEVEL patches per domain in the hybrid data structure. The larger
+! PATCH_LEVEL is the fewer levels of tree structure must be traversed before reaching a uniform grid (which will in general contain inactive nodes).
 !
 ! There are two special nodes called POLEs. One connects the five lozange vertices at the top of the network and the other connects the 
 ! five lozange grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and South poles.
@@ -163,9 +165,7 @@ module shared_mod
   integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL ! number of subdomains per lozange in each direction
   integer, parameter :: N_SUB_DOM = N_SUB_DOM_PER_DIM**2    ! total number of sub-domains per lozange
   integer, parameter :: N_BDRY = 8                          ! number of boundary patches associated to each patch
-
-  integer, allocatable :: n_domain(:) ! number of subdomains on each processor
-
+  integer, dimension(:), allocatable :: n_domain            ! number of subdomains on each processor
 
   ! thickness of boundary overlaps between lozanges (ghost points)
   integer, parameter :: BDRY_THICKNESS = 2
@@ -336,17 +336,13 @@ contains
          0, 1, LORT, -1, 0, LORT, 0, -1, UPLT, 1, 0, UPLT, 0, 0, LORT, 0, &
          1, LORT, -1, 0, UPLT, -1, -1, UPLT/), (/3, 4, 3/))
 
-    adj_tri = reshape((/0, -1, UPLT, 0, 0, LORT, 0, 0, UPLT, 0, 0, LORT, 0, &
-         0, UPLT, -1, 0, LORT/), (/3, 2, 3/))
-
-    nghb_pt = reshape((/1, 0, 1, 1, 0, 1, -1, 0, -1, -1, 0, -1, 1, 0, 1, 1, &
-         0, 1, -1, 0/), (/2, 10/))
-
-    bfly_no = reshape((/-1, -1, 1, -1, 2, 1, 0, 1, 1, 2, -1, 0, 0, -1, 2, 1, &
-         1, 0, 1, 2, -1, 1, -1, -1/), (/2, 4, 3/))
-
-    bfly_no2 = reshape((/-3, -2, 1, -2, 3, 2, -1, 2, 1, 3, -3, -1, -1, -3, 3, &
-         1, 2, -1, 2, 3, -2, 1, -2, -3/), (/2, 4, 3/))
+    adj_tri  = reshape((/0, -1, UPLT, 0, 0, LORT, 0, 0, UPLT, 0, 0, LORT, 0, 0, UPLT, -1, 0, LORT/), (/3, 2, 3/))
+    
+    nghb_pt  = reshape((/1, 0, 1, 1, 0, 1, -1, 0, -1, -1, 0, -1, 1, 0, 1, 1, 0, 1, -1, 0/), (/2, 10/))
+    
+    bfly_no  = reshape((/-1, -1, 1, -1, 2, 1, 0, 1, 1, 2, -1, 0, 0, -1, 2, 1, 1, 0, 1, 2, -1, 1, -1, -1/), (/2, 4, 3/))
+    
+    bfly_no2 = reshape((/-3, -2, 1, -2, 3, 2, -1, 2, 1, 3, -3, -1, -1, -3, 3, 1, 2, -1, 2, 3, -2, 1, -2, -3/), (/2, 4, 3/))
 
     ! Default values
     adapt_dt            = .true.
@@ -385,11 +381,12 @@ contains
     viscosity_rotu   = 0.0_8
   end subroutine init_shared_mod
 
-  real(8) function eps()
+  function eps()
+    real(8) :: eps
     eps = radius*1d-13
   end function eps
 
-  integer function max_nodes_per_level(lev, entity)
+  integer function max_nodes_per_level (lev, entity)
     integer           :: lev
     integer, optional :: entity
     
@@ -401,7 +398,8 @@ contains
     end if
   end function max_nodes_per_level
 
-  real(8) function exp__flush(x)
+  function exp__flush(x)
+    real(8) :: exp__flush
     real(8) :: x
     
     if (x .gt. -1.0d2) then
