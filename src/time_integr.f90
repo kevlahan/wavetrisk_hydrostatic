@@ -10,139 +10,19 @@ module time_integr_mod
   implicit none
 
   type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
-
 contains
+  subroutine euler (trend_fun, dt)
+    ! Euler time step
+    ! Stable for CFL<1, first order
+    real(8) :: dt
+    external :: trend_fun
 
-  subroutine init_time_integr_mod
-    logical :: initialized = .False.
+    integer :: d, k, v, start
 
-    if (initialized) return ! initialize only once
-
-    call init_comm_mod()
-    call init_ops_mod()
-    call init_multi_level_mod()
-
-    initialized = .True.
-  end subroutine init_time_integr_mod
-
-  subroutine RK_sub_step1 (sols, trends, alpha, dt, dest)
-    real(8) :: alpha, dt
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sols
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
-    
-    integer :: k, v, s, t, d, start
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
-             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
-                  alpha*sols(v,k)%data(d)%elts(start+1:sols(v,k)%data(d)%length) &
-                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
-          end do
-       end do
-       dest(:,k)%bdry_uptodate = .False.
-    end do
-
-  end subroutine RK_sub_step1
-
-  subroutine RK_sub_step2 (sol1, sol2, trends, alpha, dt, dest)
-    real(8) :: alpha(2), dt
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
-    integer k, v, s, t, d, start
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
-             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
-                  alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
-                  + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
-                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
-          end do
-       end do
-       dest(:,k)%bdry_uptodate = .False.
-    end do
-
-  end subroutine RK_sub_step2
-
-  subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
-    real(8), dimension(2) :: dt
-    real(8), dimension(4) :: alpha
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trend1, trend2
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
-    
-    integer :: k, v, s, t, d, start
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
-
-             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
-                  alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
-                  + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
-                  + alpha(3)*sol3(v,k)%data(d)%elts(start+1:sol3(v,k)%data(d)%length) &
-                  + alpha(4)*sol4(v,k)%data(d)%elts(start+1:sol4(v,k)%data(d)%length) &
-                  + dt(1)*trend1(v,k)%data(d)%elts(start+1:trend1(v,k)%data(d)%length) &
-                  + dt(2)*trend2(v,k)%data(d)%elts(start+1:trend2(v,k)%data(d)%length)
-          end do
-       end do
-       dest(:,k)%bdry_uptodate = .False.
-    end do
-  end subroutine RK_sub_step4
-
-  subroutine init_RK_mem
-    integer :: d, k, v
-
-    allocate (q1(S_MASS:S_VELO,1:zlevels), q2(S_MASS:S_VELO,1:zlevels), q3(S_MASS:S_VELO,1:zlevels), &
-         q4(S_MASS:S_VELO,1:zlevels), dq1(S_MASS:S_VELO,1:zlevels))
-
-    do k = 1, zlevels
-       do v = S_MASS, S_VELO
-          call init_Float_Field(q1(v,k), POSIT(v))
-          call init_Float_Field(q2(v,k), POSIT(v))
-          call init_Float_Field(q3(v,k), POSIT(v))
-          call init_Float_Field(q4(v,k), POSIT(v))
-          call init_Float_Field(dq1(v,k), POSIT(v))
-       end do
-    end do
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             call init(q1(v,k)%data(d), sol(v,k)%data(d)%length); q1(v,k)%data(d)%elts = dble(3-v)
-             call init(q2(v,k)%data(d), sol(v,k)%data(d)%length); q2(v,k)%data(d)%elts = dble(3-v)
-             call init(q3(v,k)%data(d), sol(v,k)%data(d)%length); q3(v,k)%data(d)%elts = dble(3-v)
-             call init(q4(v,k)%data(d), sol(v,k)%data(d)%length); q4(v,k)%data(d)%elts = dble(3-v)
-             call init(dq1(v,k)%data(d), sol(v,k)%data(d)%length); dq1(v,k)%data(d)%elts = dble(3-v) 
-          end do
-       end do
-    end do
-  end subroutine init_RK_mem
-
-  subroutine manage_RK_mem
-    integer :: d, k, v, n_new
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
-             if (n_new .gt. 0) then
-                call extend(q1(v,k)%data(d),  n_new, dble(3-v))
-                call extend(q2(v,k)%data(d),  n_new, dble(3-v))
-                call extend(q3(v,k)%data(d),  n_new, dble(3-v))
-                call extend(q4(v,k)%data(d),  n_new, dble(3-v))
-                call extend(dq1(v,k)%data(d), n_new, dble(3-v))
-             end if
-          end do
-       end do
-    end do
-  end subroutine manage_RK_mem
+    call trend_fun (sol, trend, 0)
+    call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
+    call WT_after_step (sol, wav_coeff, level_start-1)
+  end subroutine euler
   
   subroutine RK34_opt (trend_fun, dt)
     ! Third order, four stage strong stability preserving Runge-Kutta method
@@ -290,6 +170,89 @@ contains
 
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine ARK2
+  
+  subroutine init_time_integr_mod
+    logical :: initialized = .False.
+
+    if (initialized) return ! initialize only once
+
+    call init_comm_mod()
+    call init_ops_mod()
+    call init_multi_level_mod()
+
+    initialized = .True.
+  end subroutine init_time_integr_mod
+
+  subroutine RK_sub_step1 (sols, trends, alpha, dt, dest)
+    real(8) :: alpha, dt
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sols
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
+    
+    integer :: k, v, s, t, d, start
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
+                  alpha*sols(v,k)%data(d)%elts(start+1:sols(v,k)%data(d)%length) &
+                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
+          end do
+       end do
+       dest(:,k)%bdry_uptodate = .False.
+    end do
+
+  end subroutine RK_sub_step1
+
+  subroutine RK_sub_step2 (sol1, sol2, trends, alpha, dt, dest)
+    real(8) :: alpha(2), dt
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
+    integer k, v, s, t, d, start
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
+                  alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
+                  + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
+                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
+          end do
+       end do
+       dest(:,k)%bdry_uptodate = .False.
+    end do
+
+  end subroutine RK_sub_step2
+
+  subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
+    real(8), dimension(2) :: dt
+    real(8), dimension(4) :: alpha
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2, sol3, sol4
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trend1, trend2
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
+    
+    integer :: k, v, s, t, d, start
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
+
+             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
+                  alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
+                  + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
+                  + alpha(3)*sol3(v,k)%data(d)%elts(start+1:sol3(v,k)%data(d)%length) &
+                  + alpha(4)*sol4(v,k)%data(d)%elts(start+1:sol4(v,k)%data(d)%length) &
+                  + dt(1)*trend1(v,k)%data(d)%elts(start+1:trend1(v,k)%data(d)%length) &
+                  + dt(2)*trend2(v,k)%data(d)%elts(start+1:trend2(v,k)%data(d)%length)
+          end do
+       end do
+       dest(:,k)%bdry_uptodate = .False.
+    end do
+  end subroutine RK_sub_step4
 
   subroutine ARK_sub_step (sol1, trend1, dt, dest)
     ! Compute sol1+dt*trend1
@@ -311,33 +274,53 @@ contains
     end do
   end subroutine ARK_sub_step
 
-  subroutine euler (trend_fun, dt)
-    ! An Euler step to diffuse solution
-    real(8) :: dt
-    external :: trend_fun
+  subroutine init_RK_mem
+    integer :: d, k, v
 
-    integer :: d, k, v, start
+    allocate (q1(S_MASS:S_VELO,1:zlevels), q2(S_MASS:S_VELO,1:zlevels), q3(S_MASS:S_VELO,1:zlevels), &
+         q4(S_MASS:S_VELO,1:zlevels), dq1(S_MASS:S_VELO,1:zlevels))
 
-    call trend_fun (sol, trend, 0)
-    call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
-    call WT_after_step (sol, wav_coeff, level_start-1)
-  end subroutine euler
+    do k = 1, zlevels
+       do v = S_MASS, S_VELO
+          call init_Float_Field(q1(v,k), POSIT(v))
+          call init_Float_Field(q2(v,k), POSIT(v))
+          call init_Float_Field(q3(v,k), POSIT(v))
+          call init_Float_Field(q4(v,k), POSIT(v))
+          call init_Float_Field(dq1(v,k), POSIT(v))
+       end do
+    end do
 
-  function wav_coeff_predict (trend, dt)
-    ! Predicts wavelet coefficients at next time step using a forward Euler step
-    real(8)                                                        :: dt
-    type(Float_Field), dimension (S_MASS:S_VELO,1:zlevels), target :: wav_coeff_predict
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: trend
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             call init(q1(v,k)%data(d), sol(v,k)%data(d)%length); q1(v,k)%data(d)%elts = dble(3-v)
+             call init(q2(v,k)%data(d), sol(v,k)%data(d)%length); q2(v,k)%data(d)%elts = dble(3-v)
+             call init(q3(v,k)%data(d), sol(v,k)%data(d)%length); q3(v,k)%data(d)%elts = dble(3-v)
+             call init(q4(v,k)%data(d), sol(v,k)%data(d)%length); q4(v,k)%data(d)%elts = dble(3-v)
+             call init(dq1(v,k)%data(d), sol(v,k)%data(d)%length); dq1(v,k)%data(d)%elts = dble(3-v) 
+          end do
+       end do
+    end do
+  end subroutine init_RK_mem
 
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: sol_euler
+  subroutine manage_RK_mem
+    integer :: d, k, v, n_new
 
-    sol_euler = sol
-    call RK_sub_step1 (sol, trend, 1.0_8, dt, sol_Euler)
-    
-    wav_coeff_predict = wav_coeff
-    !call WT_after_step(sol_euler, wav_coeff_predict, level_start-1)
-     call forward_wavelet_transform(sol_euler, wav_coeff_predict)
-  end function wav_coeff_predict
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
+             if (n_new .gt. 0) then
+                call extend(q1(v,k)%data(d),  n_new, dble(3-v))
+                call extend(q2(v,k)%data(d),  n_new, dble(3-v))
+                call extend(q3(v,k)%data(d),  n_new, dble(3-v))
+                call extend(q4(v,k)%data(d),  n_new, dble(3-v))
+                call extend(dq1(v,k)%data(d), n_new, dble(3-v))
+             end if
+          end do
+       end do
+    end do
+  end subroutine manage_RK_mem
 
   subroutine WT_after_step (q, wav, l_start0)
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, wav

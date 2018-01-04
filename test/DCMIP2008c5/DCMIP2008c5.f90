@@ -648,7 +648,7 @@ program DCMIP2008c5
         call write_and_export (iwrite)
 
         ! Save 2D projection
-        call export_2d (cart2sph2, (/sol(S_TEMP,zlev)/), 1, 300000+100*iwrite, level_end, &
+        call export_2d (cart2sph2, (/sol(S_MASS,zlev)/), 1, 300000+100*iwrite, level_end, &
              (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), (/0.0_8/))
         
         call sum_total_mass (.False.)
