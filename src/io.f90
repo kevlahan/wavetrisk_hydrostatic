@@ -352,7 +352,7 @@ contains
        command = 'ls -1 fort.'//s_time//'* > tmp' 
        call system (command)
 
-       command = 'tar czf fort.'//s_time//'.tgz -T tmp --remove-files;\rm tmp'
+       command = 'tar czf fort.'//s_time//'.tgz -T tmp --remove-files &'
        call system (command)
     end if
     deallocate (field2d)
