@@ -537,16 +537,16 @@ contains
 
     write (s_time, '(i3.3)') iwrite
 
-    command = 'ls -1 fort.1'//s_time // '* > tmp' 
+    command = 'ls -1 fort.1'//s_time//'* > tmp' 
     call system (command)
 
-    command = 'tar czf fort.1'//s_time //'.tgz -T tmp --remove-files'
+    command = 'tar czf fort.1'//s_time//'.tgz -T tmp --remove-files;\rm tmp'
     call system (command)
 
-    command = '\rm tmp; ls -1 fort.2' //s_time // '* > tmp' 
+    command = 'ls -1 fort.2'//s_time //'* > tmp' 
     call system (command)
 
-    command = 'tar czf fort.2'//s_time //'.tgz -T tmp --remove-files;\rm tmp'
+    command = 'tar czf fort.2'//s_time//'.tgz -T tmp --remove-files;\rm tmp'
     call system (command)
   end subroutine compress_files
 end module main_mod

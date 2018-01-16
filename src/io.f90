@@ -281,7 +281,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8)                        :: val, valN, valE, valNE
     real(8), dimension(2)          :: cC, cN, cE, cNE
-    character(5)                   :: fidv
+    character(4)                   :: s_time
     character(130)                 :: command
 
     dx_export = valrange(1)/(Nx(2)-Nx(1)+1)
@@ -341,15 +341,19 @@ contains
 
     if (rank .eq. 0) then
        do v = 1, n_val
-          open(fid+v, recl=32768)
-          do i = Ny(1),Ny(2)
-             write(fid+v,'(2047(E15.6, 1X))') field2d(:,i,v)
+          open (fid+v, recl=32768)
+          do i = Ny(1), Ny(2)
+             write (fid+v,'(2047(E15.6, 1X))') field2d(:,i,v)
           end do
-          close(fid+v)
-          write(fidv, '(i5)') fid+v
-          command = 'gzip fort.3' // fidv // ' &'
-          call system (command)
+          close (fid+v)
        end do
+
+       write (s_time, '(i4)') fid/100
+       command = 'ls -1 fort.'//s_time//'* > tmp' 
+       call system (command)
+
+       command = 'tar czf fort.'//s_time//'.tgz -T tmp --remove-files;\rm tmp'
+       call system (command)
     end if
     deallocate (field2d)
   end subroutine export_2d
