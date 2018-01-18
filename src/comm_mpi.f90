@@ -1268,8 +1268,8 @@ contains
     integer            :: myop
     real, dimension(N) :: garr
 
-    call MPI_Op_create(sync, .True., myop, ierror)  
-    call MPI_Reduce(arr, garr, N, MPI_REAL, myop, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Op_create (sync, .True., myop, ierror)  
+    call MPI_Reduce (arr, garr, N, MPI_REAL, myop, 0, MPI_COMM_WORLD, ierror)
     if (rank .eq. 0) arr(1:N) = garr(1:N)
   end subroutine sync_array
 
@@ -1279,15 +1279,15 @@ contains
     !call stop_and_record_timings(6501); call start_timing()
     integer :: id
 
-    real(8) time_loc, time_max, time_min, time_sum
+    real(8) :: time_loc, time_max, time_min, time_sum
 
     call stop_timing
 
     time_loc = get_timing()
 
-    call MPI_Reduce(time_loc, time_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Reduce(time_loc, time_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Reduce(time_loc, time_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Reduce (time_loc, time_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Reduce (time_loc, time_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Reduce (time_loc, time_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
 
     if (rank .eq. 0) write(id,*) time_max, time_min, time_sum
   end subroutine stop_and_record_timings

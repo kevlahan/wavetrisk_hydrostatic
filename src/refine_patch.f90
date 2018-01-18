@@ -7,25 +7,22 @@ module refine_patch_mod
   implicit none
 
 contains
-  subroutine init_refine_patch_mod()
+  subroutine init_refine_patch_mod
     logical :: initialized = .False.
     if (initialized) return ! initialize only once
-    call init_shared_mod()
-    call init_domain_mod()
-    call init_init_mod()
-    call init_wavelet_mod()
-    call init_mask_mod()
+    call init_shared_mod
+    call init_domain_mod
+    call init_init_mod
+    call init_wavelet_mod
+    call init_mask_mod
     initialized = .True.
   end subroutine init_refine_patch_mod
 
-  subroutine attach_bdry(dom, p_par, c, s, side)
-    type(Domain) dom
-    integer p_par
-    integer c
-    integer s
-    integer side
-    integer n_chd
-    integer p_chd
+  subroutine attach_bdry (dom, p_par, c, s, side)
+    type(Domain) :: dom
+    integer :: p_par, c, s, side
+
+    integer :: n_chd, p_chd
 
     n_chd = find_neigh_patch_Domain(dom, p_par, c, s)
     if (n_chd .eq. 0) then
@@ -36,12 +33,12 @@ contains
     dom%patch%elts(p_chd+1)%neigh(s+1) = n_chd
   end subroutine attach_bdry
 
-  subroutine refine_patch(dom, p, c0)
-    type(Domain) dom
-    integer p, c0
+  subroutine refine_patch (dom, p, c0)
+    type(Domain) :: dom
+    integer      :: p, c0
 
-    call refine_patch1(dom, p, c0)
-    call refine_patch2(dom, p, c0)
+    call refine_patch1 (dom, p, c0)
+    call refine_patch2 (dom, p, c0)
   end subroutine refine_patch
 
   subroutine refine_patch1 (dom, p, c0)
@@ -201,11 +198,11 @@ contains
     call extend(dom%level, num, dom%patch%elts(p_chd+1)%level)
   end subroutine refine_patch2
 
-  integer function side(dom, p, s)
-    type(Domain) dom
-    integer p
-    integer s
-    integer n
+  integer function side (dom, p, s)
+    type(Domain) :: dom
+    integer      :: p, s
+
+    integer :: n
 
     n = dom%patch%elts(p+1)%neigh(s+1)
     if (n .ge. 0) then
@@ -217,15 +214,11 @@ contains
     end if
   end function side
 
-  subroutine connect_cousin(dom, p_par, p_chd, s_par, s_chd, c)
-    type(Domain) dom
-    integer p_par
-    integer p_chd
-    integer s_par
-    integer s_chd
-    integer c
-    integer n
-    integer typ
+  subroutine connect_cousin (dom, p_par, p_chd, s_par, s_chd, c)
+    type(Domain) :: dom
+    integer      :: p_par, p_chd, s_par, s_chd, c
+
+    integer :: n, typ
     !  c: which child on neighbour
 
     n = dom%patch%elts(p_par+1)%neigh(s_par+1)
@@ -246,12 +239,11 @@ contains
     end if
   end subroutine connect_cousin
 
-  subroutine connect_pole(dom, n, p_chd, s_par)
-    type(Domain) dom
-    integer n
-    integer p_chd
-    integer s_par
-    integer i
+  subroutine connect_pole (dom, n, p_chd, s_par)
+    type(Domain) :: dom
+    integer      :: n, p_chd, s_par
+
+    integer :: i
     do i = 1, 2
        call append(dom%send_pa_all, n)
        call append(dom%send_pa_all, i - 1)

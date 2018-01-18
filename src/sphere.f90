@@ -176,7 +176,7 @@ contains
     distn = asin(sindist)
   end function distn
 
-  subroutine cart2sph(c, lon, lat)
+  subroutine cart2sph (c, lon, lat)
     type(Coord) :: c
     real(8)     :: lat, lon
 

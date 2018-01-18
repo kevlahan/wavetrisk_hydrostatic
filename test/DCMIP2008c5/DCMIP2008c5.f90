@@ -4,17 +4,19 @@ module DCMIP2008c5_mod
   use remap_mod
   implicit none
 
-  integer                            :: CP_EVERY, id, zlev, iwrite, j, N_node
+  integer                            :: CP_EVERY, id, iwrite, j, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
   logical                            :: wasprinted, uniform
   character (255)                    :: IC_file
 
-  real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, p_sp, T_0, u_0
+  real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, T_0, u_0
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
   real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
+
+  type(Float_Field)                  :: rel_vort 
 contains
   subroutine apply_initial_conditions
     integer :: k, l
@@ -185,21 +187,6 @@ contains
     dom%surf_geopot%elts(id+1) = surf_geopot_fun(x_i)
   end subroutine set_surfgeopot
 
-  function surf_geopot_fun (x_i)
-    ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
-    type(Coord) :: x_i
-    real(8)     :: surf_geopot_fun
-    
-    real(8) :: lon, lat, rgrc
-    
-    ! Find latitude and longitude from Cartesian coordinates
-    call cart2sph(x_i, lon, lat)
-
-    rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
-    
-    surf_geopot_fun = grav_accel * h_0 * exp__flush(-rgrc**2/d2)
-  end function surf_geopot_fun
-
   function surf_pressure_fun (x_i)
     ! Surface pressure
     type(Coord) :: x_i
@@ -208,12 +195,27 @@ contains
     real(8) :: lon, lat, surf_geopot
 
     ! Find latitude and longitude from Cartesian coordinates
-    call cart2sph(x_i, lon, lat)
+    call cart2sph (x_i, lon, lat)
     
-    surf_pressure_fun = p_sp * exp__flush ( &
+    surf_pressure_fun = ref_surf_press * exp__flush ( &
          - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+f0)*(sin(lat)**2-1.0_8) &
          - N_freq**2/(grav_accel**2*kappa)*surf_geopot_fun (x_i) )
   end function surf_pressure_fun
+
+  function surf_geopot_fun (x_i)
+    ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
+    type(Coord) :: x_i
+    real(8)     :: surf_geopot_fun
+    
+    real(8) :: lon, lat, rgrc
+    
+    ! Find latitude and longitude from Cartesian coordinates
+    call cart2sph (x_i, lon, lat)
+
+    rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
+    
+    surf_geopot_fun = grav_accel * h_0 * exp__flush(-rgrc**2/d2)
+  end function surf_geopot_fun
   
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
@@ -254,18 +256,16 @@ contains
     close(fid)
   end subroutine read_test_case_parameters
 
-  subroutine write_and_export (iwrite)
-    integer :: iwrite
+  subroutine write_and_export (iwrite, zlev)
+    integer :: iwrite, zlev
     
-    integer :: l, k, zlev, d, u, i, p
+    integer :: l, k, d, u, i, p
 
     if (rank.eq.0) write(6,*) 'Saving fields'
 
     call update_array_bdry (sol, NONE)
 
     call pre_levelout
-
-    zlev = 6 ! Only export one vertical level
 
     ! First integrate pressure down across all grid points in order to compute surface pressure
     do k = zlevels, 1, -1
@@ -485,7 +485,7 @@ program DCMIP2008c5
   use DCMIP2008c5_mod
   implicit none
 
-  integer                      :: d, ierr, k, l, v
+  integer                      :: d, ierr, k, l, v, zlev
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
   real(8)                      :: viscosity
@@ -509,42 +509,42 @@ program DCMIP2008c5
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
 
   ! Parameters for the simulation
-  grav_accel  = 9.80616_8     ! gravitational acceleration in meters per second squared
-  omega       = 7.29211d-5    ! Earth’s angular velocity in radians per second
-  f0          = 2.0_8*omega   ! Coriolis parameter
-  u_0         = 20.0_8        ! velocity in meters per second
-  T_0         = 288.0_8       ! temperature in Kelvin
-  d2          = 1.5d6**2      ! square of half width of Gaussian mountain profile in meters
-  h_0         = 2.0d3         ! mountain height in meters
-  lon_c       = MATH_PI/2.0_8 ! mountain peak longitudinal location in radians
-  lat_c       = MATH_PI/6.0_8 ! mountain peak latitudinal location in radians
-  p_sp        = 930.0d2       ! South Pole surface pressure in Pascals
-  radius      = 6.371229d6    ! mean radius of the Earth in meters
-  ref_press   = 100145.6_8    ! reference pressure (mean surface pressure) in Pascals
-  R_d         = 287.04_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
-  c_p         = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
-  c_v         = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
-  gamma       = c_p/c_v       ! heat capacity ratio
-  kappa       = 2.0_8/7.0_8   ! kappa=R_d/c_p
-  N_freq      = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
+  grav_accel     = 9.80616_8     ! gravitational acceleration in meters per second squared
+  omega          = 7.29211d-5    ! Earth’s angular velocity in radians per second
+  f0             = 2.0_8*omega   ! Coriolis parameter
+  u_0            = 20.0_8        ! velocity in meters per second
+  T_0            = 288.0_8       ! temperature in Kelvin
+  d2             = 1.5d6**2      ! square of half width of Gaussian mountain profile in meters
+  h_0            = 2.0d3         ! mountain height in meters
+  lon_c          = MATH_PI/2.0_8 ! mountain peak longitudinal location in radians
+  lat_c          = MATH_PI/6.0_8 ! mountain peak latitudinal location in radians
+  radius         = 6.371229d6    ! mean radius of the Earth in meters
+  ref_press      = 100145.6_8    ! reference pressure (mean surface pressure) in Pascals
+  ref_surf_press = 930.0d2       ! South Pole surface pressure in Pascals
+  R_d            = 287.04_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
+  c_p            = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
+  c_v            = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
+  gamma          = c_p/c_v       ! heat capacity ratio
+  kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
+  N_freq         = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
 
   ! Dimensional scaling
-  Ldim        = sqrt(d2)                         ! horizontal length scale
-  Hdim        = h_0                              ! vertical length scale
-  Udim        = u_0                              ! velocity scale
-  Tdim        = Hdim/Udim                        ! time scale
-  Tempdim     = T_0                              ! temperature scale (both theta and T from DYNAMICO)
+  Ldim           = sqrt(d2)                         ! horizontal length scale
+  Hdim           = h_0                              ! vertical length scale
+  Udim           = u_0                              ! velocity scale
+  Tdim           = Hdim/Udim                        ! time scale
+  Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
 
-  acceldim    = Udim**2/Hdim                     ! acceleration scale
-  pdim        = ref_press                        ! pressure scale
-  R_ddim      = R_d                              ! R_d scale
-  massdim     = pdim*Hdim/(Tempdim*R_d)          ! mass (=rho*dz following DYNAMICO) scale
-  specvoldim  = (R_d*Tempdim)/pdim               ! specific volume scale
-  geopotdim   = acceldim*massdim*specvoldim/Hdim ! geopotential scale
-  wave_speed  = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num     = 1.2_8                            ! cfl number
-  n_diffuse   = 1                                ! Diffusion step interval
-  n_remap     = 1                                ! Vertical remap interval
+  acceldim       = Udim**2/Hdim                     ! acceleration scale
+  pdim           = ref_press                        ! pressure scale
+  R_ddim         = R_d                              ! R_d scale
+  massdim        = pdim*Hdim/(Tempdim*R_d)          ! mass (=rho*dz following DYNAMICO) scale
+  specvoldim     = (R_d*Tempdim)/pdim               ! specific volume scale
+  geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
+  wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
+  cfl_num        = 1.2_8                            ! cfl number
+  n_diffuse      = 1                                ! Diffusion step interval
+  n_remap        = 1                                ! Vertical remap interval
   
   ray_friction = 0.0_8                           ! Rayleigh friction
 
@@ -575,6 +575,8 @@ program DCMIP2008c5
   remap        = .false. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
+  zlev = 6 ! Level to save
+
   ! Initialize vertical grid
   call initialize_a_b_vert
 
@@ -586,11 +588,13 @@ program DCMIP2008c5
 
   call sum_total_mass (.True.)
 
-  if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:',  tol_mass, tol_temp, tol_velo
+  if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
   call barrier
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
-  call write_and_export (iwrite)
+  call write_and_export (iwrite, zlev)
+  call export_2d (cart2sph2, sol, 1, 300000+100*iwrite, level_end, &
+       zlev, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
 
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
@@ -606,7 +610,7 @@ program DCMIP2008c5
           '  dof = ', sum(n_active), &
           ' min mass = ', min_mass
   end if
-  
+
   do while (time .lt. time_end)
      call start_timing
      call update_array_bdry (sol, NONE)
@@ -645,11 +649,11 @@ program DCMIP2008c5
         call remap_vertical_coordinates (set_thresholds)
 
         ! Save fields
-        call write_and_export (iwrite)
+        call write_and_export (iwrite, zlev)
 
         ! Save 2D projection
-        call export_2d (cart2sph2, (/sol(S_MASS,zlev)/), 1, 300000+100*iwrite, level_end, &
-             (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), (/0.0_8/))
+        call export_2d (cart2sph2, sol, 1, 300000+100*iwrite, level_end, &
+             zlev, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
         
         call sum_total_mass (.False.)
 
@@ -679,8 +683,7 @@ program DCMIP2008c5
      close (12)
      close (1011)
      close (8450)
-     command = '\rm tmp'
-     call system (command)
+     command = '\rm tmp tmp1 tmp2'; call system (command)
   end if
 
   call finalize

@@ -176,9 +176,9 @@ contains
 
     if (initialized) return ! initialize only once
 
-    call init_comm_mod()
-    call init_ops_mod()
-    call init_multi_level_mod()
+    call init_comm_mod
+    call init_ops_mod
+    call init_multi_level_mod
 
     initialized = .True.
   end subroutine init_time_integr_mod

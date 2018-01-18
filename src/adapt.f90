@@ -306,4 +306,73 @@ contains
     end do
     check_child_required = .False.
   end function check_child_required
+
+   subroutine init_multi_level_mod
+    logical :: initialized = .False.
+
+    if (initialized) return ! initialize only once
+    call init_comm_mod
+    call init_ops_mod
+    call init_wavelet_mod
+    call init_refine_patch_mod
+    initialized = .True.
+  end subroutine init_multi_level_mod
+
+  subroutine add_second_level
+    integer :: d, c
+
+    do d = 1, size(grid)
+       do c = 1, N_CHDRN
+          call refine_patch1(grid(d), 1, c-1)
+       end do
+       do c = 1, N_CHDRN
+          call refine_patch2(grid(d), 1, c-1)
+       end do
+       call connect_children(grid(d), 1)
+    end do
+
+    call comm_patch_conn_mpi
+
+    do d = 1, size(grid)
+       call update_comm(grid(d))
+    end do
+
+    call comm_communication_mpi
+    call comm_nodes9_mpi(get_areas, set_areas, NONE)
+    call apply_to_penta(area_post_comm, NONE, z_null)
+  end subroutine add_second_level
+
+  subroutine fill_up_level
+    ! Fills up level level_start+1 and increases level_start
+    integer :: d, j, p_par, c, p_chd
+
+    do d = 1, size(grid)
+       do j = 1, grid(d)%lev(level_start)%length
+          p_par = grid(d)%lev(level_start)%elts(j)
+          do c = 1, N_CHDRN
+             p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+             if (p_chd .eq. 0) then
+                call refine_patch (grid(d), p_par, c - 1)
+             end if
+          end do
+       end do
+    end do
+    call post_refine
+    level_start = level_start+1
+  end subroutine fill_up_level
+
+  subroutine fill_up_grid_and_IWT (l)
+    ! Fills grid up to level l and does inverse wavelet transform of solution onto grid
+    integer :: l
+    
+    integer :: old_level_start
+    
+    old_level_start = level_start
+    do while (level_start .lt. l)
+       call fill_up_level
+    end do
+    call inverse_wavelet_transform (wav_coeff, sol, old_level_start)
+    call update_array_bdry (sol, NONE)
+    level_start = old_level_start
+  end subroutine fill_up_grid_and_IWT
 end module adapt_mod

@@ -5,6 +5,7 @@ module io_mod
   use adapt_mod
   use smooth_mod
   use comm_mpi_mod
+  use multi_level_mod
   implicit none
   integer, parameter                  :: N_VAR_OUT = 5
   integer, dimension(2,4)             :: HR_offs
@@ -24,8 +25,9 @@ contains
     initialized = .True.
   end subroutine init_io_mod
 
-  function get_fid()
+  function get_fid ()
     integer :: get_fid
+
     get_fid  = next_fid
     next_fid = next_fid + 1
   end function get_fid
@@ -69,7 +71,7 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     integer :: id, idN, idE
     real(8) :: vort
 
@@ -101,7 +103,7 @@ contains
   subroutine write_step (fid, time, k)
     integer ::  fid, k
     real(8) :: time
-    
+
     integer :: l
     real(8) :: tot_mass
 
@@ -123,7 +125,7 @@ contains
     real(8)  :: integrate_hex
     external :: fun
     integer  :: l, k
-    
+
     integer                        :: d, ll, p, i, j, c, id
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
@@ -169,7 +171,7 @@ contains
     real(8)  :: integrate_tri
     external :: fun
     integer  :: k
-    
+
     integer                        :: d, ll, p, i, j, t, id
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
@@ -267,85 +269,132 @@ contains
     only_coriolis = (dom%coriolis%elts(TRIAG*id+t+1)/dom%triarea%elts(TRIAG*id+t+1))**2
   end function only_coriolis
 
-  subroutine export_2d (proj, values, n_val, fid, l, Nx, Ny, valrange, default_val)
-    external                            :: proj
-    type(Float_Field), dimension(n_val) :: values
+  subroutine export_2d (proj, sol, n_val, fid, l, zlev, Nx, Ny, lon_lat_range, set_thresholds)
+    ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
+    ! save zonal average and horizontal grid at vertical level zlevel
+    external                            :: proj, set_thresholds
+    integer                             :: n_val
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol
     integer, dimension(2)               :: Nx, Ny
-    integer                             :: l, n_val, fid
-    real(8), dimension(2)               :: valrange
-    real(8), dimension(n_val)           :: default_val
-    
-    integer                        :: d, k, i, j, v, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    character(4)                   :: s_time
-    character(130)                 :: command
+    integer                             :: l, fid, zlev
+    real(8), dimension(2)               :: lon_lat_range
 
-    dx_export = valrange(1)/(Nx(2)-Nx(1)+1)
-    dy_export = valrange(2)/(Ny(2)-Ny(1)+1)
+    integer                              :: d, i, j, jj, k, v, p, c, p_par, l_cur
+    integer                              :: id, idN, idE, idNE
+    integer, dimension(N_BDRY+1)         :: offs
+    integer, dimension(2,N_BDRY+1)       :: dims
+
+    real(8)                              :: val, valN, valE, valNE
+    real(8), dimension(2)                :: cC, cN, cE, cNE
+    real, dimension(:,:,:), allocatable  :: field2d_save, zonal_av
+    real(8), dimension(n_val)            :: default_val
+
+    character(4)                         :: s_time
+    character(130)                       :: command
+
+
+    ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
+    call fill_up_grid_and_IWT (l)
+
+    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1)
+    dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
     kx_export = 1.0_8/dx_export
     ky_export = 1.0_8/dy_export
 
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2),n_val))
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2),1:n_val))
+    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),1:n_val))
+    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),1:n_val))
 
-    do v = 1, n_val
-       field2d(:,:,v) = default_val(v)
-    end do
+    default_val = 0.0_8
+    
+    do k = 1, zlevels
+       do v = 1, n_val
+          field2d(:,:,v) = default_val(v)
+       end do
+       do d = 1, size(grid)
+          do jj = 1, grid(d)%lev(l)%length
+             call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+             do j = 0, PATCH_SIZE-1
+                do i = 0, PATCH_SIZE-1
+                   id   = idx(i,   j,   offs, dims)
+                   idN  = idx(i,   j+1, offs, dims)
+                   idE  = idx(i+1, j,   offs, dims)
+                   idNE = idx(i+1, j+1, offs, dims)
 
-    do d = 1, size(grid)
-       do k = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(k), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
+                   call proj (grid(d)%node%elts(id+1),   cC)
+                   call proj (grid(d)%node%elts(idN+1),  cN)
+                   call proj (grid(d)%node%elts(idE+1),  cE)
+                   call proj (grid(d)%node%elts(idNE+1), cNE)
 
-                call proj (grid(d)%node%elts(id+1),   cC)
-                call proj (grid(d)%node%elts(idN+1),  cN)
-                call proj (grid(d)%node%elts(idE+1),  cE)
-                call proj (grid(d)%node%elts(idNE+1), cNE)
+                   do v = 1, n_val
+                      val   = sol(v,k)%data(d)%elts(id+1)
+                      valN  = sol(v,k)%data(d)%elts(idN+1)
+                      valE  = sol(v,k)%data(d)%elts(idE+1)
+                      valNE = sol(v,k)%data(d)%elts(idNE+1)
 
-                do v = 1, n_val
-                   val   = values(v)%data(d)%elts(id+1)
-                   valN  = values(v)%data(d)%elts(idN+1)
-                   valE  = values(v)%data(d)%elts(idE+1)
-                   valNE = values(v)%data(d)%elts(idNE+1)
-
-                   if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
-                      call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/), v)
-                      call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/), v)
-                   else
-                      call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/), v)
-                   end if
-                   if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
-                      call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/), v)
-                      call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/), v)
-                   else
-                      call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/), v)
-                   end if
+                      if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                         call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/), v)
+                         call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/), v)
+                      else
+                         call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/), v)
+                      end if
+                      if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                         call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/), v)
+                         call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/), v)
+                      else
+                         call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/), v)
+                      end if
+                   end do
                 end do
              end do
           end do
        end do
-    end do
-
-    do v = 1, n_val
-       sync_val = default_val(v)
-       call sync_array (field2d(Nx(1),Ny(1),v), size(field2d(:,:,v)))
+       ! Calculate zonal average at vertical level k
+       do v = 1, n_val
+          zonal_av(k,:,v) = sum(field2d(:,Ny(1):Ny(2),v),DIM=1)/real(Nx(2)-Nx(1)+1)
+       end do
+       ! Save lon-lat interpolated values at zlev
+       if (k.eq.zlev) then
+          do v = 1, n_val
+             sync_val = default_val(v)
+             call sync_array (field2d(Nx(1),Ny(1),v), size(field2d(:,:,v)))
+          end do
+          field2d_save = field2d
+       end if
     end do
 
     if (rank .eq. 0) then
        do v = 1, n_val
+          ! Solution at level zlev
           open (fid+v, recl=32768)
           do i = Ny(1), Ny(2)
-             write (fid+v,'(2047(E15.6, 1X))') field2d(:,i,v)
+             write (fid+v,'(2047(E15.6, 1X))') field2d_save(:,i,v)
           end do
           close (fid+v)
+
+          ! Zonal average of solution over all vertical levels
+          open (fid+v+10, recl=32768)
+          do k = zlevels,1,-1
+             write (fid+v+10,'(2047(E15.6, 1X))') zonal_av(k,:,v)
+          end do
+          close (fid+v+10)
+
+          ! Coordinates
+
+          ! Longitude values
+          open (fid+v+20, recl=32768) 
+          write (fid+v+20,'(2047(E15.6, 1X))') (dx_export*(i-1)/MATH_PI*180.0_8, i=Nx(2)-Nx(1)+1,1,-1)
+          close (fid+v+20)
+
+          ! Latitude values
+          open (fid+v+21, recl=32768) 
+          write (fid+v+21,'(2047(E15.6, 1X))') (-90.0_8+dy_export*(i-1)/MATH_PI*180.0_8, i=1,Ny(2)-Ny(1)+1)
+          close (fid+v+21)
+
+          ! Pressure vertical coordinates
+          open (fid+v+22, recl=32768) 
+          write (fid+v+22,'(2047(E15.6, 1X))') (a_vert(k)*ref_press/ref_surf_press + b_vert(k), k=zlevels+1,2,-1)
+          close (fid+v+22)
        end do
 
        write (s_time, '(i4)') fid/100
@@ -355,39 +404,21 @@ contains
        command = 'tar czf fort.'//s_time//'.tgz -T tmp --remove-files &'
        call system (command)
     end if
-    deallocate (field2d)
+    deallocate (field2d, field2d_save, zonal_av)
+
+    ! Reconstruct adapted solution
+    call adapt_grid (set_thresholds)
   end subroutine export_2d
-
-  subroutine cart2sph2 (cin, cout)
-    type(Coord)                        :: cin
-    real(8), dimension(2), intent(out) :: cout
-    call cart2sph (cin, cout(1), cout(2))
-  end subroutine cart2sph2
-
-  subroutine fix_boundary (a, b, c, fixed)
-    real(8), intent(inout) :: a
-    real(8), intent(in)    :: b, c
-    integer, intent(out)   :: fixed
-    
-    fixed = 0
-    if (a .lt. -MATH_PI/2.0_8 .and. (b .gt. MATH_PI/2.0_8 .and. c .gt. MATH_PI/2.0_8)) then
-       a = a + MATH_PI*2.0_8
-       fixed = 1
-    elseif (a .gt. MATH_PI/2.0_8 .and. (b .lt. -MATH_PI/2.0_8 .and. c .lt. -MATH_PI/2.0_8)) then
-       a = a - MATH_PI*2.0_8
-       fixed = -1
-    end if
-  end subroutine fix_boundary
 
   subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val, v)
     real(8), dimension(2) :: a0, b0, c0
     real(8), dimension(3) :: val
-    integer :: v
+    integer               :: v
 
     integer               :: i
     integer, dimension(3) :: fixed
     real(8), dimension(2) :: a, b, c
-    
+
     a = a0
     b = b0
     c = c0
@@ -410,7 +441,7 @@ contains
     real(8), dimension(2) :: a, b, c
     real(8), dimension(3) :: val
     integer               :: v
-    
+
     integer               :: id_x, id_y
     real(8)               :: ival, minx, maxx, miny, maxy
     real(8), dimension(2) :: ll
@@ -442,7 +473,7 @@ contains
     real(8), dimension(3) :: values
     real(8)               :: ival
     logical               :: inside
-    
+
     real(8), dimension(2) :: ll
     real(8), dimension(3) :: bc
 
@@ -470,6 +501,27 @@ contains
     bac(3) = 1 - bac(1) - bac(2)
     bary_coord = bac
   end function bary_coord
+
+  subroutine fix_boundary (a, b, c, fixed)
+    real(8), intent(inout) :: a
+    real(8), intent(in)    :: b, c
+    integer, intent(out)   :: fixed
+
+    fixed = 0
+    if (a .lt. -MATH_PI/2.0_8 .and. (b .gt. MATH_PI/2.0_8 .and. c .gt. MATH_PI/2.0_8)) then
+       a = a + MATH_PI*2.0_8
+       fixed = 1
+    elseif (a .gt. MATH_PI/2.0_8 .and. (b .lt. -MATH_PI/2.0_8 .and. c .lt. -MATH_PI/2.0_8)) then
+       a = a - MATH_PI*2.0_8
+       fixed = -1
+    end if
+  end subroutine fix_boundary
+
+  subroutine cart2sph2 (cin, cout)
+    type(Coord)                        :: cin
+    real(8), dimension(2), intent(out) :: cout
+    call cart2sph (cin, cout(1), cout(2))
+  end subroutine cart2sph2
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)
     ! Write primal grid for vertical level zlev
@@ -993,7 +1045,7 @@ contains
     !     call read_lonlat_from_binary(arr(1,1),n_lon*n_lat,fid)
     integer               :: n, fid
     real(8), dimension(n) :: arr
-    
+
     integer :: i
 
     read(fid) (arr(i),i=1,n)
@@ -1005,7 +1057,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     integer                        :: d_HR, p, d_glo, d_sub, fid, loz
     character(19+1)                :: filename
-    
+
     maxerror = 0.0
     l2error = 0.0
 
@@ -1066,7 +1118,7 @@ contains
     ! d_HR: lozange id as used by Heikes & Randall (starts from 1)
     ! results: domain id (starts from 0)
     integer :: d_HR
-    
+
     dom_id_from_HR_id = modulo(d_HR,2)*5 + modulo(d_HR/2-1,5)
   end function dom_id_from_HR_id
 
@@ -1075,7 +1127,7 @@ contains
     ! sub_id: lozange sub id as used by Heikes & Randall (starts from 1)
     ! results: sub domain id (starts from 0)
     integer :: sub_id
-    
+
     integer :: id, i, j, halv_sub_dom, l, jdiv, idiv
 
     i = 0
@@ -1152,7 +1204,7 @@ contains
 
   subroutine post_levelout
     integer :: d
-    
+
     do d = 1, size(grid)
        deallocate(active_level%data(d)%elts)
     end do
