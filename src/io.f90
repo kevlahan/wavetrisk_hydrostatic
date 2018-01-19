@@ -306,7 +306,7 @@ contains
     allocate (zonal_av(1:zlevels,Ny(1):Ny(2),1:n_val))
 
     default_val = 0.0_8
-    
+
     do k = 1, zlevels
        do v = 1, n_val
           field2d(:,:,v) = default_val(v)
@@ -349,18 +349,19 @@ contains
              end do
           end do
        end do
+       ! Synchronize array over all processors
+       do v = 1, n_val
+          sync_val = default_val(v)
+          call sync_array (field2d(Nx(1),Ny(1),v), size(field2d(:,:,v)))
+       end do
+
+       ! Save lon-lat interpolated values at zlev
+       if (k.eq.zlev) field2d_save = field2d
+
        ! Calculate zonal average at vertical level k
        do v = 1, n_val
-          zonal_av(k,:,v) = sum(field2d(:,Ny(1):Ny(2),v),DIM=1)/real(Nx(2)-Nx(1)+1)
+          zonal_av(k,:,v) = sum(field2d(:,:,v),DIM=1)/real(Nx(2)-Nx(1)+1)
        end do
-       ! Save lon-lat interpolated values at zlev
-       if (k.eq.zlev) then
-          do v = 1, n_val
-             sync_val = default_val(v)
-             call sync_array (field2d(Nx(1),Ny(1),v), size(field2d(:,:,v)))
-          end do
-          field2d_save = field2d
-       end if
     end do
 
     if (rank .eq. 0) then
