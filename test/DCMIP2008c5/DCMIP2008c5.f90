@@ -593,8 +593,8 @@ program DCMIP2008c5
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite, zlev)
-  call export_2d (cart2sph2, sol, 1, 300000+100*iwrite, level_end, &
-       zlev, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+  call export_2d (cart2sph2, 300000+100*iwrite, level_end, zlev, &
+       (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
 
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
@@ -652,8 +652,9 @@ program DCMIP2008c5
         call write_and_export (iwrite, zlev)
 
         ! Save 2D projection
-        call export_2d (cart2sph2, sol, 1, 300000+100*iwrite, level_end, &
-             zlev, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+        call export_2d (cart2sph2, 300000+100*iwrite, level_end, zlev, &
+            !(/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+        (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
         
         call sum_total_mass (.False.)
 
