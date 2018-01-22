@@ -546,9 +546,9 @@ program DCMIP2008c5
   n_diffuse      = 1                                ! Diffusion step interval
   n_remap        = 1                                ! Vertical remap interval
   
-  ray_friction = 0.0_8                           ! Rayleigh friction
+  ray_friction   = 0.0_8                            ! Rayleigh friction
 
-  zlev        = 7                                ! vertical level to output
+  zlev           = 6                                ! vertical level to output
 
   visc = 4.0d-4 ! Constant for viscosity 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
@@ -593,8 +593,8 @@ program DCMIP2008c5
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite, zlev)
-  call export_2d (cart2sph2, 300000+100*iwrite, level_end, zlev, &
-       (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+  call export_2d (cart2sph2, 300000+100*iwrite, level_start+1, zlev, &
+       (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
 
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
@@ -652,7 +652,7 @@ program DCMIP2008c5
         call write_and_export (iwrite, zlev)
 
         ! Save 2D projection
-        call export_2d (cart2sph2, 300000+100*iwrite, level_end, zlev, &
+        call export_2d (cart2sph2, 300000+100*iwrite, level_start+1, zlev, &
             !(/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
         (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
         

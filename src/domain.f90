@@ -8,9 +8,9 @@ module domain_mod
   implicit none
 
   integer, dimension(2,N_BDRY+1) :: sides_dims
-  integer, dimension(2,4) :: chd_offs
+  integer, dimension(2,4)        :: chd_offs
 
-  ! objects same on all zlevels
+  ! Objects same on all zlevels
   type Domain 
      integer                    :: id
      integer, dimension(N_BDRY) :: neigh, neigh_rot
@@ -27,7 +27,7 @@ module domain_mod
      
      type(Int_Array)                                          :: level, mask_e, mask_n, neigh_pa_over_pole, send_pa_all
      type(Int_Array), dimension(:), allocatable               :: lev
-     type(Int_Array), dimension(N_GLO_DOMAIN)                 ::  recv_pa, send_conn
+     type(Int_Array), dimension(N_GLO_DOMAIN)                 :: recv_pa, send_conn
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk
      type(Int_Array), dimension(:,:), allocatable             :: src_patch
 
@@ -43,7 +43,7 @@ module domain_mod
      type(Float_Array) :: v_merid     ! meridional velocity
      type(Float_Array) :: adj_mass    ! mass in adjacent vertical cell
      type(Float_Array) :: adj_temp    ! temp in adjacent vertical cell
-     type(Float_Array) :: adj_geopot  ! specific volume in adjacent vertical cell
+     type(Float_Array) :: adj_geopot  ! geopotential in adjacent vertical cell
      type(Float_Array) :: vort        ! vorticity
      type(Float_Array) :: bernoulli   ! Bernoulli function
      type(Float_Array) :: bern_fast   ! Bernoulli function

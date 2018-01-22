@@ -279,7 +279,7 @@ contains
     real(8), dimension(2)               :: lon_lat_range
 
     integer                              :: d, i, id, j, k, p, v
-    integer, parameter                   :: n_val=4 ! Number of variables to save
+    integer, parameter                   :: n_val=5 ! Number of variables to save
 
     real, dimension(:,:,:), allocatable  :: field2d_save, zonal_av
     real(8), dimension(n_val)            :: default_val
@@ -287,19 +287,39 @@ contains
     character(4)                         :: s_time
     character(130)                       :: command
 
-    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
-    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),n_val))
-    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),n_val))
+    type(Domain), dimension(:), allocatable, target :: old_grid
+
+    ! Save adapted grid
+    allocate(old_grid(1:size(grid))); old_grid = grid
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (l)
+
+    ! First integrate pressure down across all grid points in order to compute surface pressure on non-adapted grid
+    do k = zlevels, 1, -1
+       do d = 1, size(grid)
+          mass => sol(S_MASS,k)%data(d)%elts
+          temp => sol(S_TEMP,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (mass, temp)
+       end do
+    end do
 
     ! Calculate temperature (store in exner_fun)
     call apply_onescale (cal_temp, l, z_null, 0, 1)
     call update_vector_bdry (exner_fun, NONE)
 
+    ! Calculate geopotential (stored in adj_geopot)
+    call apply_onescale (cal_geopot, l, z_null, 0, 1)
+   
+    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
+    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
+    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),n_val))
+    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),n_val))
+    
     do k = 1, zlevels
        ! Mass density
        call project_onto_plane (sol(S_MASS,k), Nx, Ny, l, proj, 0.0_8)
@@ -327,20 +347,24 @@ contains
        zonal_av(k,:,4) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
 
        ! Geopotential
-
+       call project_geopot_onto_plane (Nx, Ny, l, proj, 1.0_8)
+       if (k.eq.zlev) field2d_save(:,:,5) = field2d
+       
        ! Vorticity
     end do
     
     if (rank .eq. 0) then
+       ! Solution at level zlev
        do v = 1, n_val
-          ! Solution at level zlev
           open (fid+v, recl=32768)
           do i = Ny(1), Ny(2)
              write (fid+v,'(2047(E15.6, 1X))') field2d_save(:,i,v)
           end do
           close (fid+v)
+       end do
 
-          ! Zonal average of solution over all vertical levels
+       ! Zonal average of solution over all vertical levels
+       do v = 1, n_val-1
           open (fid+v+10, recl=32768)
           do k = zlevels,1,-1
              write (fid+v+10,'(2047(E15.6, 1X))') zonal_av(k,:,v)
@@ -374,8 +398,8 @@ contains
     end if
     deallocate (field2d, field2d_save, zonal_av)
 
-    ! Reconstruct adapted solution
-    call adapt_grid (set_thresholds)
+    ! Reset grid to adapted grid
+    grid = old_grid ; deallocate(old_grid)
   end subroutine export_2d
 
   subroutine project_onto_plane (field, Nx, Ny, l, proj, default_val)
@@ -434,6 +458,62 @@ contains
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_onto_plane
+
+  subroutine project_geopot_onto_plane (Nx, Ny, l, proj, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    external              :: proj
+    integer               :: l, itype
+    integer, dimension(2) :: Nx, Ny
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call proj (grid(d)%node%elts(id+1),   cC)
+                call proj (grid(d)%node%elts(idN+1),  cN)
+                call proj (grid(d)%node%elts(idE+1),  cE)
+                call proj (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = grid(d)%adj_geopot%elts(id+1)
+                valN  = grid(d)%adj_geopot%elts(idN+1)
+                valE  = grid(d)%adj_geopot%elts(idE+1)
+                valNE = grid(d)%adj_geopot%elts(idNE+1)
+
+                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_geopot_onto_plane
 
   subroutine project_uzonal_onto_plane (Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
@@ -671,19 +751,54 @@ contains
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    ! Integrate the pressure from top zlev down to bottom zlev; press_infty is user-set
-    do k = zlevels, 1, -1
-       if (k .eq. zlevels) then
-          pressure = press_infty + 0.5_8*grav_accel*sol(S_MASS,k)%data(d)%elts(id+1)
-       else ! Interpolate mass to lower interface
-          pressure = pressure + grav_accel*interp(adjacent_mass, sol(S_MASS,k)%data(d)%elts(id+1))
+    ! Integrate the pressure from top zlev down to bottom zlev
+    do k = 1, zlevels
+        if (k .eq. 1) then
+          pressure = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*sol(S_MASS,k)%data(d)%elts(id+1) 
+       else ! Interpolate mass=rho*dz to lower interface of current level
+          pressure = pressure - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), adjacent_mass)
        end if
-       exner_fun(k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1)/sol(S_TEMP,k)%data(d)%elts(id+1) * &
+       exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * &
             (pressure/ref_press)**kappa
 
        adjacent_mass = sol(S_MASS,k)%data(d)%elts(id+1)
     end do
   end subroutine cal_temp
+
+  subroutine cal_geopot (dom, i, j, zlev, offs, dims)
+    ! Compute geopotential in compressible case
+    ! Assumes that temperature has already been calculated and stored in exner_fun
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, d, k
+    real(8) :: pressure_lower, pressure_upper
+    real(8), parameter :: pressure_save = 700d2
+
+    d = dom%id + 1
+    id = idx(i, j, offs, dims)
+
+    ! Integrate geopotential upwards from surface
+    k = 0
+    pressure_lower = dom%surf_press%elts(id+1)
+    pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
+    dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/grav_accel
+    
+    do while (pressure_upper .gt. pressure_save)
+       k = k+1
+       dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
+            R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_upper))
+       
+       pressure_lower = pressure_upper
+       pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id+1)
+    end do
+
+    ! Add additional contribution up to pressure level pressure_save
+    dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) &
+         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save))
+  end subroutine cal_geopot
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)
     ! Write primal grid for vertical level zlev

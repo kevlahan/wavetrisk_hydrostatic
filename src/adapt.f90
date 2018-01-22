@@ -5,7 +5,7 @@ module adapt_mod
   implicit none
   logical :: max_level_exceeded
   ! fillup patch to remove lower level if at least FILLUP_THRESHOLD*100% of nodes are active
-  real(8), parameter :: FILLUP_THRESHOLD = 0.9 
+  real(8), parameter :: FILLUP_THRESHOLD = 0.9
   integer, parameter :: DOF_PER_PATCH = PATCH_SIZE*PATCH_SIZE*(EDGE+1)
   integer, parameter :: FILLED_AND_FROZEN = DOF_PER_PATCH + 1
 
@@ -115,13 +115,8 @@ contains
   end subroutine compress
 
   logical function refine()
-    integer did_refine
-    logical required
-    integer d
-    integer p_par
-    integer c
-    integer p_chd
-    integer old_n_patch
+    logical :: required
+    integer :: c, d, did_refine, old_n_patch, p_chd, p_par
 
     !  using tol masks call refine patch where necessary
     did_refine = FALSE

@@ -1,6 +1,6 @@
 % Plot longitude-latitude data
 clear all; close all;
-itime      = '005';
+itime      = '000';
 unif_grid  = false;
 n_contours = 15;
 
@@ -42,86 +42,95 @@ ylabel('P/P_S','fontsize',16);
 set(gca,'Ydir','reverse')
 
 % Plot temperature data
+v = 270:3:303;
 s = load([file_base itime '02']); 
-figure(3);colormap(jet(n_contours))
+figure(3);
 contourf(lon,lat,s,n_contours);hold on; 
-c=colorbar;c.Label.String='Temperature';c.Label.FontSize=12;
+colormap(jet(numel(v)-1));caxis([min(v) max(v)]);c=colorbar;c.Label.String='Temperature (K)';c.Label.FontSize=12;
 shading('flat');axis('equal');axis([0 360 -90 90]); axis('tight'); 
 xlabel('Longitude','fontsize',16);
 ylabel('Latitude','fontsize',16);
 
 % Plot zonally averaged temperature
 s = load([file_base itime '12']);
-figure(4); colormap(jet(n_contours))
+figure(4); 
 if (unif_grid)
     %Interpolate onto uniform pressure grid
     P_unif = linspace(min(P_z),max(P_z),numel(P_z));
     [lat_unif,P_unif] = meshgrid(lat,P_unif);
-    contourf(lat_unif, P_unif, griddata(lat,P_z,s,lat_unif,P_unif), n_contours);
-    c=colorbar;c.Label.String='Temperature';c.Label.FontSize=12;
-else
+    contourf(lat_unif, P_unif, griddata(lat,P_z,s,lat_unif,P_unif), v);
+    else
     contourf(lat,P_z,s);
-    c=colorbar;c.Label.String='Temperature';c.Label.FontSize=12;
 end
+colormap(jet(numel(v)-1));caxis([min(v) max(v)]);c=colorbar;c.Label.String='Temperature (K)';c.Label.FontSize=12;
 shading('flat');axis('square'); axis('tight');
 xlabel('Latitude','fontsize',16);
 ylabel('P/P_S','fontsize',16);
 set(gca,'Ydir','reverse')
 
 % Plot zonal velocity data
+v = -15:5:50;
 s = load([file_base itime '03']); 
-figure(5);colormap(jet(n_contours))
-contourf(lon,lat,s,n_contours);hold on; 
-c=colorbar;c.Label.String='Zonal velocity';c.Label.FontSize=12;
+figure(5);
+contourf(lon,lat,s,v);hold on; 
+colormap(jet(numel(v)-1));caxis([min(v) max(v)]);c=colorbar;c.Label.String='Zonal velocity (m/s)';c.Label.FontSize=12;
 shading('flat');axis('equal');axis([0 360 -90 90]); axis('tight'); 
 xlabel('Longitude','fontsize',16);
 ylabel('Latitude','fontsize',16);
 
 % Plot zonally averaged zonal velocity
 s = load([file_base itime '13']);
-figure(6); colormap(jet(n_contours))
+figure(6); colormap(jet(numel(v)-1))
 if (unif_grid)
     %Interpolate onto uniform pressure grid
     P_unif = linspace(min(P_z),max(P_z),numel(P_z));
     [lat_unif,P_unif] = meshgrid(lat,P_unif);
-    contourf(lat_unif, P_unif, griddata(lat,P_z,s,lat_unif,P_unif), n_contours);
-    c=colorbar;c.Label.String='Zonal velocity';c.Label.FontSize=12;
+    contourf(lat_unif, P_unif, griddata(lat,P_z,s,lat_unif,P_unif), v);
 else
     contourf(lat,P_z,s);
-    c=colorbar;c.Label.String='Zonal velocity';c.Label.FontSize=12;
 end
+colormap(jet(numel(v)-1));caxis([min(v) max(v)]);c=colorbar;c.Label.String='Zonal velocity (m/s)';c.Label.FontSize=12;
 shading('flat');axis('square'); axis('tight');
 xlabel('Latitude','fontsize',16);
 ylabel('P/P_S','fontsize',16);
 set(gca,'Ydir','reverse')
 
 % Plot meridional velocity data
+v = -35:5:20;
 s = load([file_base itime '04']); 
-figure(7);colormap(jet(n_contours))
-contourf(lon,lat,s,n_contours); 
-%pcolor(lon,lat,s);
-c=colorbar;c.Label.String='Meridional velocity';c.Label.FontSize=12;
+figure(7);
+contourf(lon,lat,s,v); 
+colormap(jet(numel(v)-1));caxis([min(v) max(v)]);c=colorbar;c.Label.String='Meridional velocity (m/s)';c.Label.FontSize=12;
 shading('flat');axis('equal');axis([0 360 -90 90]); axis('tight'); 
 xlabel('Longitude','fontsize',16);
 ylabel('Latitude','fontsize',16);
 
 % Plot zonally averaged meridional velocity
 s = load([file_base itime '14']);
-figure(8); colormap(jet(n_contours))
+figure(8); 
 if (unif_grid)
     %Interpolate onto uniform pressure grid
     P_unif = linspace(min(P_z),max(P_z),numel(P_z));
     [lat_unif,P_unif] = meshgrid(lat,P_unif);
-    contourf(lat_unif, P_unif, griddata(lat,P_z,s,lat_unif,P_unif), n_contours);
-    c=colorbar;c.Label.String='Meridional velocity';c.Label.FontSize=12;
+    contourf(lat_unif, P_unif, griddata(lat,P_z,s,lat_unif,P_unif), v);
 else
-    contourf(lat,P_z,s);
-    c=colorbar;c.Label.String='Meridional velocity';c.Label.FontSize=12;
+    contourf(lat,P_z,s,v);
 end
+colormap(jet(numel(v)-1));caxis([min(v) max(v)]);c=colorbar;c.Label.String='Meridional velocity (m/s)';c.Label.FontSize=12;
 shading('flat');axis('square'); axis('tight');
 xlabel('Latitude','fontsize',16);
 ylabel('P/P_S','fontsize',16);
 set(gca,'Ydir','reverse')
+
+% Plot geopotential
+v = 2400:100:3400;
+s = load([file_base itime '05']); 
+figure(9);
+contourf(lon,lat,s,v); 
+colormap(jet(numel(v)-1));caxis([min(v) max(v)]);c=colorbar;c.Label.String='Geopotential (m)';c.Label.FontSize=12;
+shading('flat');axis('equal');axis([0 360 -90 90]); axis('tight'); 
+xlabel('Longitude','fontsize',16);
+ylabel('Latitude','fontsize',16);
 
 
 % Erase extracted files

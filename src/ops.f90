@@ -721,7 +721,7 @@ contains
        else ! Interpolate mass=rho*dz to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(mass(id+1), dom%adj_mass%elts(id+1))
        end if
-       dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressurce calculation at next vertical level
+       dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressure calculation at next vertical level
 
        if (zlev .eq. zlevels) then !top zlev, purely diagnostic
           err = abs((dom%press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)) - press_infty)/dom%surf_press%elts(id+1)
