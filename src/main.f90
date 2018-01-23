@@ -274,6 +274,12 @@ contains
           end do
        end do
 
+       do k = 1, save_levels
+          do v = S_MASS, S_VELO
+             sol_save(v,k)%data(d)%length = num(POSIT(v))
+          end do
+       end do
+
        do v = S_MASS, S_TEMP
           horiz_flux(v)%data(d)%length = num(AT_EDGE)
        end do
@@ -405,6 +411,14 @@ contains
        end do
     end do
 
+    do k = 1, save_levels
+       do d = 1, size(grid)
+          do v = S_MASS, S_VELO
+             deallocate (sol_save(v,k)%data(d)%elts) 
+          end do
+       end do
+    end do
+
     ! deallocate init_grid allocations
     do d = 1, size(grid)
        deallocate (grid(d)%neigh_pa_over_pole%elts)
@@ -453,11 +467,17 @@ contains
        end do
     end do
 
+    do k = 1, save_levels
+       do v = S_MASS, S_VELO
+          deallocate (sol_save(v,k)%data)
+       end do
+    end do
+
     do v = S_MASS, S_TEMP
        deallocate (horiz_flux(v)%data)
     end do
 
-    deallocate (grid, sol, trend, bernoulli_fast, exner_fun, horiz_flux)
+    deallocate (grid, sol, sol_save, trend, bernoulli_fast, exner_fun, horiz_flux)
 
     ! init_shared_mod
     level_start = min_level

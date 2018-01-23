@@ -548,7 +548,10 @@ program DCMIP2008c5
   
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
-  zlev           = 6                                ! vertical level to output
+  zlev           = 5
+  save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
+  level_save     = level_end                    ! resolution level at which to save lat-lon data
+  pressure_save  = 700d2                            ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   visc = 4.0d-4 ! Constant for viscosity 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
@@ -593,8 +596,8 @@ program DCMIP2008c5
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite, zlev)
-  call export_2d (cart2sph2, 300000+100*iwrite, level_start+1, zlev, &
-       (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+  call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+  !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
 
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
@@ -645,16 +648,15 @@ program DCMIP2008c5
 
      if (aligned) then
         iwrite = iwrite + 1
-        ! Remap to original vertical coordinates before saving data or checkpoint
+        ! Remap to original vertical coordinates 
         call remap_vertical_coordinates (set_thresholds)
 
         ! Save fields
         call write_and_export (iwrite, zlev)
 
         ! Save 2D projection
-        call export_2d (cart2sph2, 300000+100*iwrite, level_start+1, zlev, &
-            !(/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
-        (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+        call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+        !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
         
         call sum_total_mass (.False.)
 

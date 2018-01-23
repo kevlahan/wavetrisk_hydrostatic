@@ -3,7 +3,7 @@ module time_integr_mod
   use comm_mod
   use ops_mod
   use multi_level_mod
-  use io_mod
+  !use io_mod
   use wavelet_mod
   use adapt_mod
   use arch_mod

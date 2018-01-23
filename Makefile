@@ -14,7 +14,7 @@ vpath %.f90 src
 SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
       base_$(ARCH).f90 domain.f90 init.f90 comm.f90 comm_$(ARCH).f90 \
       wavelet.f90 mask.f90 refine_patch.f90 ops.f90 \
-      multi_level.f90 adapt.f90 smooth.f90 io.f90 time_integr.f90 remap.f90 main.f90
+      multi_level.f90 adapt.f90 smooth.f90  time_integr.f90 remap.f90 io.f90  main.f90
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
 INTEL_FLAGS = -fpe0 -traceback -module $(BUILD_DIR) # -fpe0 -traceback -check bounds

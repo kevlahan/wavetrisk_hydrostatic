@@ -19,7 +19,7 @@ contains
     integer :: b, d, i_, k, loz, p, s, v
 
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(S_MASS:S_VELO,1:zlevels), trend(S_MASS:S_VELO,1:zlevels))
+    allocate (sol(S_MASS:S_VELO,1:zlevels), sol_save(S_MASS:S_VELO,1:save_levels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
     allocate (bernoulli_fast(1:zlevels), exner_fun(1:zlevels))
     allocate (horiz_flux(S_MASS:S_TEMP))
@@ -30,6 +30,12 @@ contains
        do v = S_MASS, S_VELO
           call init_Float_Field(sol(v,k), POSIT(v))
           call init_Float_Field(trend(v,k), POSIT(v))
+       end do
+    end do
+
+    do k = 1, save_levels
+       do v = S_MASS, S_VELO
+          call init_Float_Field(sol_save(v,k), POSIT(v))
        end do
     end do
 
@@ -44,6 +50,12 @@ contains
              call init(sol(v,k)%data(d), 1)
           end do
           call init(sol(S_VELO,k)%data(d), EDGE)
+       end do
+       do k = 1, save_levels
+          do v = S_MASS, S_TEMP
+             call init(sol_save(v,k)%data(d), 1)
+          end do
+          call init(sol_save(S_VELO,k)%data(d), EDGE)
        end do
     end do
 

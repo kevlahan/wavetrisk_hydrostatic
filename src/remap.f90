@@ -86,7 +86,39 @@ contains
     call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
+  subroutine remap_save 
+    ! Remap the Lagrangian layers to pressure levels given by pressure_save array
+    integer            :: d, j, k, l, p
+    integer, parameter :: order_default = 7 ! order must be odd
+
+    if (rank.eq.0) write(6,*) "Remapping vertical coordinates for saving"
+
+    ! Set order of Newton interpolation
+    order = min(zlevels+1, order_default)
+    if (allocated(stencil)) deallocate(stencil)
+    allocate(stencil(1:order))
+    if (zlevels+1.lt.3) then
+       write(6,*) "Cannot remap fewer than 3 vertical levels"
+       stop
+    end if
+
+    ! Ensure boundary values are up to date
+    call update_array_bdry (sol, NONE)
+
+    ! Remap at save level
+    call apply_onescale (remap_vars_save, level_save, z_null, 0, 1)
+    
+    ! Remap poles
+    do d = 1, size(grid)
+       call apply_to_pole_d (remap_vars_save, grid(d), min_level-1, z_null, z_null, .True.)
+    end do
+    
+    ! Ensure boundary values are up to date
+    call update_array_bdry (sol_save, NONE)
+  end subroutine remap_save
+
   subroutine remap_velocity (dom, i, j, zlev, offs, dims)
+    ! Remap velocity to original vertical grid
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
@@ -192,6 +224,7 @@ contains
   end subroutine remap_velocity
 
   subroutine remap_scalars (dom, i, j, zlev, offs, dims)
+    ! Remap scalars to original grid
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
@@ -246,7 +279,7 @@ contains
           stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
        end if
 
-       ! Interpolate integrated temperature and integrated mass flux at top interfaces of new vertical grid
+       ! Interpolate integrated temperature at top interfaces of new vertical grid
        new_temp(kb) = Newton_interp(pressure(stencil), integrated_temp(stencil), layer_pressure)
     end do
 
@@ -258,6 +291,68 @@ contains
        sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel
     end do
   end subroutine remap_scalars
+
+  subroutine remap_vars_save (dom, i, j, zlev, offs, dims)
+    ! Non-conservative interpolation of solution to pressure_save pressure levels
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer                           :: d, e, id, id_i, k, kc, kk, m
+    real(8)                           :: diff, dmin, adjacent_mass
+    real(8), dimension (zlevels)      :: pressure, mass_interp, temp_interp
+    real(8), dimension (EDGE,zlevels) :: velo_interp
+
+    d    = dom%id + 1
+    id   = idx(i, j, offs, dims)
+    id_i = id + 1
+
+    do k = 1, zlevels
+       mass_interp(k) = sol(S_MASS,k)%data(d)%elts(id_i)
+       temp_interp(k) = sol(S_TEMP,k)%data(d)%elts(id_i)
+       do e = 1, EDGE
+          velo_interp(e,k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) 
+       end do
+    end do
+
+    ! Calculate pressure at each vertical level
+    pressure(1) = dom%surf_press%elts(id_i) - 0.5_8*grav_accel*sol(S_MASS,1)%data(d)%elts(id_i)
+    do k = 2, zlevels
+       pressure(k) = pressure(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k-1)%data(d)%elts(id_i))
+    end do
+
+    ! Interpolate using the moving stencil centred at each interpolation point computed downward from top
+    do k = 1, save_levels
+       ! Find index of pressure on old vertical grid closest to layer_pressure on new grid
+       dmin = 1d16
+       do kk = 1, zlevels
+          diff = abs(pressure(kk)-pressure_save(k))
+          if (diff.lt.dmin) then
+             kc = kk
+             dmin = diff
+          end if
+       end do
+
+       ! Set interpolation stencil based on layer_pressure
+       if (kc .lt. (order-1)/2+1) then
+          stencil = (/ (m, m = 1, order) /)
+       else if (kc .gt. zlevels-(order-1)/2) then
+          stencil = (/ (m, m = zlevels-order+1, zlevels) /)
+       else
+          stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
+       end if
+
+       ! Interpolate mass and temperature
+       sol_save(S_MASS,k)%data(d)%elts(id_i) = Newton_interp(pressure(stencil), mass_interp(stencil), pressure_save(k))
+       sol_save(S_TEMP,k)%data(d)%elts(id_i) = Newton_interp(pressure(stencil), temp_interp(stencil), pressure_save(k))
+       
+       ! Interpolate velocity
+       do e = 1, EDGE
+          sol_save(S_VELO,k)%data(d)%elts(EDGE*id+e) = Newton_interp(pressure(stencil), velo_interp(e,stencil), pressure_save(k))
+       end do
+    end do
+  end subroutine remap_vars_save
 
   function Newton_interp (xv, yv, xd)
     ! Order point Newton form polynomial interpolation scheme as in Yang (2001)

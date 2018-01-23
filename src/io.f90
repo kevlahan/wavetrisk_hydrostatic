@@ -6,15 +6,16 @@ module io_mod
   use smooth_mod
   use comm_mpi_mod
   use multi_level_mod
+  use remap_mod
   implicit none
   integer, parameter                  :: N_VAR_OUT = 5
   integer, dimension(2,4)             :: HR_offs
   real(8)                             :: dx_export, dy_export, kx_export, ky_export, vmin, vmax
   real(8), dimension(N_VAR_OUT)       :: minv, maxv
+  real, dimension(:), pointer         :: interp_var
   real, dimension(:,:), allocatable   :: field2d
   integer                             :: next_fid
   type(Float_Field)                   :: active_level
-  type(Float_Field), dimension(:), allocatable  :: temp_zlevels
   data HR_offs /0,0, 1,0, 1,1, 0,1/
 contains
   subroutine init_io_mod
@@ -270,19 +271,19 @@ contains
     only_coriolis = (dom%coriolis%elts(TRIAG*id+t+1)/dom%triarea%elts(TRIAG*id+t+1))**2
   end function only_coriolis
 
-  subroutine export_2d (proj, fid, l, zlev, Nx, Ny, lon_lat_range, set_thresholds)
+  subroutine export_2d (proj, fid, Nx, Ny, lon_lat_range, set_thresholds)
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
     ! save zonal average and horizontal grid at vertical level zlevel
     external                            :: proj, set_thresholds
     integer, dimension(2)               :: Nx, Ny
-    integer                             :: l, fid, zlev
+    integer                             :: fid
     real(8), dimension(2)               :: lon_lat_range
 
     integer                              :: d, i, id, j, k, p, v
-    integer, parameter                   :: n_val=5 ! Number of variables to save
+    integer, parameter                   :: n_vars=5 ! Number of variables to save
 
     real, dimension(:,:,:), allocatable  :: field2d_save, zonal_av
-    real(8), dimension(n_val)            :: default_val
+    real(8), dimension(n_vars)            :: default_val
 
     character(4)                         :: s_time
     character(130)                       :: command
@@ -293,7 +294,7 @@ contains
     allocate(old_grid(1:size(grid))); old_grid = grid
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
-    call fill_up_grid_and_IWT (l)
+    call fill_up_grid_and_IWT (level_save)
 
     ! First integrate pressure down across all grid points in order to compute surface pressure on non-adapted grid
     do k = zlevels, 1, -1
@@ -307,55 +308,80 @@ contains
        end do
     end do
 
+    ! Remap to pressure_save vertical levels for saving data
+    call remap_save
+
     ! Calculate temperature (store in exner_fun)
-    call apply_onescale (cal_temp, l, z_null, 0, 1)
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     call update_vector_bdry (exner_fun, NONE)
 
     ! Calculate geopotential (stored in adj_geopot)
-    call apply_onescale (cal_geopot, l, z_null, 0, 1)
+    call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
    
     dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
-    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),n_val))
-    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),n_val))
-    
+    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),n_vars*save_levels))
+    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),n_vars))
+
+    do k = 1, save_levels
+       ! Mass density
+       call project_onto_plane (sol_save(S_MASS,k), Nx, Ny, level_save, proj, 0.0_8)
+       field2d_save(:,:,1+k-1) = field2d
+
+       ! Temperature
+       !call project_onto_plane (horiz_flux(k), Nx, Ny, level_save, proj, 0.0_8)
+       call project_onto_plane (exner_fun(5), Nx, Ny, level_save, proj, 1.0_8)
+       field2d_save(:,:,2+k-1) = field2d
+
+       ! Zonal and meridional velocities
+       do d = 1, size(grid)
+          !velo => sol_save(S_VELO,k)%data(d)%elts
+          velo => sol(S_VELO,5)%data(d)%elts
+          do j = 1, grid(d)%lev(level_save)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+          end do
+          nullify (velo)
+       end do
+       call project_uzonal_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
+       field2d_save(:,:,3+k-1) = field2d
+       call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
+       field2d_save(:,:,4+k-1) = field2d
+
+       ! Geopotential
+       call project_geopot_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
+       field2d_save(:,:,5+k-1) = field2d
+    end do
+
+    ! Zonal averages
     do k = 1, zlevels
        ! Mass density
-       call project_onto_plane (sol(S_MASS,k), Nx, Ny, l, proj, 0.0_8)
-       if (k.eq.zlev) field2d_save(:,:,1) = field2d
+       call project_onto_plane (sol(S_MASS,k), Nx, Ny, level_save, proj, 0.0_8)
        zonal_av(k,:,1) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
 
        ! Temperature
-       call project_onto_plane (exner_fun(k), Nx, Ny, l, proj, 1.0_8)
-       if (k.eq.zlev) field2d_save(:,:,2) = field2d
+       call project_onto_plane (exner_fun(k), Nx, Ny, level_save, proj, 1.0_8)
        zonal_av(k,:,2) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
           velo => sol(S_VELO,k)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+          do j = 1, grid(d)%lev(level_save)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
           nullify (velo)
        end do
-       call project_uzonal_onto_plane (Nx, Ny, l, proj, 0.0_8)
-       if (k.eq.zlev) field2d_save(:,:,3) = field2d
+       call project_uzonal_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
        zonal_av(k,:,3) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
-       call project_vmerid_onto_plane (Nx, Ny, l, proj, 0.0_8)
-       if (k.eq.zlev) field2d_save(:,:,4) = field2d
+       call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
        zonal_av(k,:,4) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
-
-       ! Geopotential
-       call project_geopot_onto_plane (Nx, Ny, l, proj, 1.0_8)
-       if (k.eq.zlev) field2d_save(:,:,5) = field2d
        
        ! Vorticity
     end do
     
     if (rank .eq. 0) then
        ! Solution at level zlev
-       do v = 1, n_val
+       do v = 1, n_vars*save_levels
           open (fid+v, recl=32768)
           do i = Ny(1), Ny(2)
              write (fid+v,'(2047(E15.6, 1X))') field2d_save(:,i,v)
@@ -364,7 +390,7 @@ contains
        end do
 
        ! Zonal average of solution over all vertical levels
-       do v = 1, n_val-1
+       do v = 1, n_vars-1
           open (fid+v+10, recl=32768)
           do k = zlevels,1,-1
              write (fid+v+10,'(2047(E15.6, 1X))') zonal_av(k,:,v)
@@ -376,7 +402,7 @@ contains
        
        ! Longitude values
        open (fid+20, recl=32768) 
-       write (fid+20,'(2047(E15.6, 1X))') (dx_export*(i-1)/MATH_PI*180.0_8, i=Nx(2)-Nx(1)+1,1,-1)
+       write (fid+20,'(2047(E15.6, 1X))') (-180.0_8+dx_export*(i-1)/MATH_PI*180.0_8, i=1,Nx(2)-Nx(1)+1)
        close (fid+20)
 
        ! Latitude values
@@ -398,8 +424,10 @@ contains
     end if
     deallocate (field2d, field2d_save, zonal_av)
 
-    ! Reset grid to adapted grid
+    ! Reset grid to adapted grid and recover old solution
     grid = old_grid ; deallocate(old_grid)
+    call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    call update_array_bdry (sol, NONE)
   end subroutine export_2d
 
   subroutine project_onto_plane (field, Nx, Ny, l, proj, default_val)
@@ -746,22 +774,26 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: pressure, adjacent_mass
+    real(8), dimension(zlevels) :: pressure
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    ! Integrate the pressure from top zlev down to bottom zlev
-    do k = 1, zlevels
-        if (k .eq. 1) then
-          pressure = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*sol(S_MASS,k)%data(d)%elts(id+1) 
-       else ! Interpolate mass=rho*dz to lower interface of current level
-          pressure = pressure - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), adjacent_mass)
-       end if
-       exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * &
-            (pressure/ref_press)**kappa
+    ! Integrate the pressure upwards
+    pressure(1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
+    do k = 2, zlevels
+       pressure(k) = pressure(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
+    end do
 
-       adjacent_mass = sol(S_MASS,k)%data(d)%elts(id+1)
+    do k = 1, zlevels
+       exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) &
+            * (pressure(k)/ref_press)**kappa
+    end do
+    
+    ! temperature at save levels
+    do k = 1, save_levels
+       horiz_flux(k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
+            (pressure_save(k)/ref_press)**kappa
     end do
   end subroutine cal_temp
 
@@ -775,7 +807,6 @@ contains
 
     integer :: id, d, k
     real(8) :: pressure_lower, pressure_upper
-    real(8), parameter :: pressure_save = 700d2
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
@@ -786,7 +817,7 @@ contains
     pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
     dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/grav_accel
     
-    do while (pressure_upper .gt. pressure_save)
+    do while (pressure_upper .gt. pressure_save(1))
        k = k+1
        dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
             R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_upper))
@@ -797,7 +828,7 @@ contains
 
     ! Add additional contribution up to pressure level pressure_save
     dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) &
-         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save))
+         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)

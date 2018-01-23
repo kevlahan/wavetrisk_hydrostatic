@@ -276,7 +276,8 @@ module shared_mod
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
   integer :: min_level, max_level ! minimum and maximum grid refinement levels in pseudo-horizontal directions
   integer :: zlevels ! number of levels in vertical direction
-  integer :: level_start, level_end 
+  integer :: save_levels ! number of vertical levels to save
+  integer :: level_start, level_end, level_save
 
   real(8) :: threshold ! threshold level on wavelet coefficients for grid adaptation
 
@@ -294,6 +295,7 @@ module shared_mod
   real(8) :: visc, viscosity_mass, viscosity_temp, viscosity_rotu, viscosity_divu, ray_friction
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
+  real(8), dimension(:), allocatable :: pressure_save
 
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
@@ -363,27 +365,29 @@ contains
     max_level     = min_level
     level_start   = min_level
     level_end     = level_start
+    level_save    = level_start
+    zlevels       = 1
+    save_levels   = 1
     
     ! Physical parameters
     ! these parameters are typically reset in test case file, but are needed for compilation
-    omega       = 7.292d-05
-    grav_accel  = 9.80616_8
-    radius      = 6371220.0_8
-    ref_density = 1.0_8
-    press_infty = 0.0_8
-    R_d         = 1.0_8
-    c_p         = 1.0_8
-    kappa       = R_d/c_p
-    ref_press   = 0.0_8
-    ray_friction = 0.0_8
+    omega         = 7.292d-05
+    grav_accel    = 9.80616_8
+    radius        = 6371220.0_8
+    ref_density   = 1.0_8
+    press_infty   = 0.0_8
+    R_d           = 1.0_8
+    c_p           = 1.0_8
+    kappa         = R_d/c_p
+    ref_press     = 1000d2  
+    ray_friction  = 0.0_8
     viscosity_mass   = 0.0_8
     viscosity_temp   = 0.0_8
     viscosity_divu   = 0.0_8
     viscosity_rotu   = 0.0_8
   end subroutine init_shared_mod
 
-  function eps()
-    real(8) :: eps
+  real(8) function eps()
     eps = radius*1d-13
   end function eps
 
@@ -399,8 +403,7 @@ contains
     end if
   end function max_nodes_per_level
 
-  function exp__flush(x)
-    real(8) :: exp__flush
+  real(8) function exp__flush(x)
     real(8) :: x
     
     if (x .gt. -1.0d2) then
@@ -409,5 +412,4 @@ contains
        exp__flush = 0.0_8
     end if
   end function exp__flush
-
 end module shared_mod
