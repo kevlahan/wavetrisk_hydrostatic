@@ -2,10 +2,10 @@
 
 clear all; close all;
 
-itime     = '005'
-itype     = 'geopot'
+itime     = '001'
+itype     = 'temp'
 lon_lat   = 1; % Plot longitude - latitude data
-zonal_avg = 1; % Plot zonally averaged data
+zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
 
 % Extract files
