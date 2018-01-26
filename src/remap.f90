@@ -38,7 +38,7 @@ contains
     call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
 
     ! Remap scalars at coarser levels
-    do l = level_end-1, level_start-1, -1
+    do l = level_end-1, level_start+1, -1
        call update_array_bdry (sol, l+1)
 
        ! Compute scalar wavelet coefficients
@@ -104,6 +104,7 @@ contains
 
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
+    sol_save = sol
 
     ! Remap at save level
     call apply_onescale (remap_vars_save, level_save, z_null, 0, 1)
@@ -190,7 +191,7 @@ contains
        if (kc .lt. (order-1)/2+1) then
           stencil = (/ (m, m = 1, order) /)
        else if (kc .gt. zlevels+1-(order-1)/2) then
-          stencil = (/ (m, m = zlevels-order+2, zlevels+1) /)
+          stencil = (/ (m, m = zlevels+1-(order-1), zlevels+1) /)
        else
           stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
        end if
@@ -274,7 +275,7 @@ contains
        if (kc .lt. (order-1)/2+1) then
           stencil = (/ (m, m = 1, order) /)
        else if (kc .gt. zlevels+1-(order-1)/2) then
-          stencil = (/ (m, m = zlevels-order+2, zlevels+1) /)
+          stencil = (/ (m, m = zlevels+1-(order-1), zlevels+1) /)
        else
           stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
        end if
@@ -300,7 +301,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                           :: d, e, id, id_i, k, kc, kk, m
-    real(8)                           :: diff, dmin, adjacent_mass
+    real(8)                           :: diff, dmin
     real(8), dimension (zlevels)      :: pressure, mass_interp, temp_interp
     real(8), dimension (EDGE,zlevels) :: velo_interp
 
@@ -338,7 +339,7 @@ contains
        if (kc .lt. (order-1)/2+1) then
           stencil = (/ (m, m = 1, order) /)
        else if (kc .gt. zlevels-(order-1)/2) then
-          stencil = (/ (m, m = zlevels-order+1, zlevels) /)
+          stencil = (/ (m, m = zlevels-(order-1), zlevels) /)
        else
           stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
        end if
