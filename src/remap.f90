@@ -38,7 +38,7 @@ contains
     call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
 
     ! Remap scalars at coarser levels
-    do l = level_end-1, level_start+1, -1
+    do l = level_end-1, level_start-1, -1
        call update_array_bdry (sol, l+1)
 
        ! Compute scalar wavelet coefficients
