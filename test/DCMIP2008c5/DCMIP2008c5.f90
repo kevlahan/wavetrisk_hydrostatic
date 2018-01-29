@@ -553,11 +553,11 @@ program DCMIP2008c5
   level_save     = level_end                    ! resolution level at which to save lat-lon data
   pressure_save  = 700.0d2                            ! interpolate values to this pressure level when interpolating to lat-lon grid
 
-  visc = 4.0d-4 ! Constant for viscosity 
+  visc = 2.0d-4 ! Constant for viscosity 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = 0.0_8!visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = 0.0_8!visc * dx_min**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = visc/1.0d2 * dx_min**2 ! viscosity for divergent part of momentum equation
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
