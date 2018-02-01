@@ -1,17 +1,21 @@
 % Plot 2d data from export_2d
-
 clear all; close all;
 
-itime     = '001'
-itype     = 'temp'
+machine   = 'if'
+itime     = '005'
+itype     = 'merid'
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
+smooth    = 1; % smooth data over two points in each direction
 
 % Extract files
 file_base = 'fort.3';
-%pathid = '/net/if/1/home/kevlahan/hydro/';
-pathid = '/Users/kevlahan/hydro/';
+if (strcmp(machine,'if'))
+    pathid = '/net/if/1/home/kevlahan/data/jobs/hydrostatic/';
+elseif (strcmp(machine,'pecan'))
+    pathid = '/Users/kevlahan/hydro/';
+end
 file_tar = ['tar ' 'xvf ' pathid file_base itime '.tgz'];
 system(file_tar);
 
@@ -54,9 +58,15 @@ elseif (strcmp(itype,'geopot')) % Plot geopotential data
     zonal_avg = 0; 
 end
 if (lon_lat)
+    if (smooth)
+        s_ll = smooth2a(s_ll,2,2);
+    end
     plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, 1)
 end
 if (zonal_avg)
+    if (smooth)
+        s_zo = smooth2a(s_zo,2,2);
+    end
     plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, 0)
 end
 

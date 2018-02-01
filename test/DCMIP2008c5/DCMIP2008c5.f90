@@ -439,17 +439,17 @@ contains
 
     integer :: d, e, id, k
 
-    d = dom%id+1
     id = idx(i, j, offs, dims)
-
+    d = dom%id+1
+    
     ! L2 norms of trends
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
-          norm_mass_trend = norm_mass_trend + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
-          norm_temp_trend = norm_temp_trend + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
+          norm_mass_trend = norm_mass_trend + trend(S_MASS,k)%data(d)%elts(id+1)**2
+          norm_temp_trend = norm_temp_trend + trend(S_TEMP,k)%data(d)%elts(id+1)**2
           do e = 1, EDGE
-             norm_velo_trend  = norm_velo_trend + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+             norm_velo_trend  = norm_velo_trend + trend(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
           end do
        end do
     endif
@@ -542,7 +542,7 @@ program DCMIP2008c5
   specvoldim     = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num        = 1.2_8                            ! cfl number
+  cfl_num        = 0.8_8                            ! cfl number
   n_diffuse      = 1                                ! Diffusion step interval
   n_remap        = 1                                ! Vertical remap interval
   
@@ -572,7 +572,7 @@ program DCMIP2008c5
   end if
 
   ! Set logical switches
-  adapt_trend  = .false. ! Adapt on trend or on variables
+  adapt_trend  = .true. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .false. ! Remap vertical coordinates (always remap when saving results)

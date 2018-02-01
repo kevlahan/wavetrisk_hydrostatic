@@ -330,14 +330,12 @@ contains
        field2d_save(:,:,1+k-1) = field2d
 
        ! Temperature
-       !call project_onto_plane (horiz_flux(k), Nx, Ny, level_save, proj, 0.0_8)
-       call project_onto_plane (exner_fun(6), Nx, Ny, level_save, proj, 1.0_8)
+       call project_onto_plane (horiz_flux(k), Nx, Ny, level_save, proj, 0.0_8)
        field2d_save(:,:,2+k-1) = field2d
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
-          !velo => sol_save(S_VELO,k)%data(d)%elts
-          velo => sol(S_VELO,6)%data(d)%elts
+          velo => sol_save(S_VELO,k)%data(d)%elts
           do j = 1, grid(d)%lev(level_save)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
@@ -790,7 +788,7 @@ contains
             * (pressure(k)/ref_press)**kappa
     end do
     
-    ! temperature at save levels
+    ! temperature at save levels (use horiz_flux variable)
     do k = 1, save_levels
        horiz_flux(k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
             (pressure_save(k)/ref_press)**kappa
