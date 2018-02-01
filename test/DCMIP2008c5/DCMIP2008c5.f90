@@ -380,9 +380,9 @@ contains
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
        if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
-          tol_mass = threshold**1.5_8 * mass_scale/6.0_8
-          tol_temp = threshold**1.5_8 * temp_scale/6.0_8
-          tol_velo = threshold**1.5_8 * velo_scale/6.0_8
+          tol_mass = threshold**1.5_8 * mass_scale/7.0d1
+          tol_temp = threshold**1.5_8 * temp_scale/7.0d1
+          tol_velo = threshold**1.5_8 * velo_scale/7.0d1
        end if
     end if
   end subroutine set_thresholds
