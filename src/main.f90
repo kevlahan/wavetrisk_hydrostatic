@@ -526,11 +526,7 @@ contains
     if (rank .eq. 0) call system (command)
 
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-    istep = 0
-    dt_init = cpt_dt_mpi()
-    if (adapt_trend) call trend_ml (sol, trend, 0)
-    call adapt (set_thresholds)
-    call inverse_wavelet_transform (wav_coeff, sol)
+    call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
 
