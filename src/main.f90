@@ -524,7 +524,7 @@ contains
     call barrier ! do not delete files before everyone has read them
 
     if (rank .eq. 0) call system (command)
-
+    if (adapt_trend) trend_wav_coeff = wav_coeff
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi()
