@@ -29,7 +29,7 @@ contains
     else
        call adapt (set_thresholds)
     end if
-    call inverse_wavelet_transform (wav_coeff, sol)
+    call inverse_wavelet_transform (wav_coeff, sol, leve_start)
   end subroutine adapt_grid
 
   subroutine adapt (set_thresholds)
