@@ -550,17 +550,27 @@ program DCMIP2008c5
 
   zlev           = 6
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
-  level_save     = level_end                    ! resolution level at which to save lat-lon data
-  pressure_save  = 700.0d2                            ! interpolate values to this pressure level when interpolating to lat-lon grid
+  level_save     = level_end                                  ! resolution level at which to save lat-lon data
+  pressure_save  = (/700.0d2/)                                    ! interpolate values to this pressure level when interpolating to lat-lon grid
 
-  visc = 2.0d-4 ! Constant for viscosity 
+  ! Set logical switches
+  adapt_trend  = .false. ! Adapt on trend or on variables
+  adapt_dt     = .true.  ! Adapt time step
+  compressible = .true.  ! Compressible equations
+  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
+  uniform      = .false. ! Type of vertical grid
+
+  ! Set viscosity
+  visc = 2.0d-4 ! Constant for viscosity
+  
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = 0.0_8!visc * dx_min**2 ! viscosity for divergent part of momentum equation
   viscosity_rotu = visc/1.0d2 * dx_min**2 ! viscosity for divergent part of momentum equation
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   
-  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
+  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
+  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
   if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/(wave_speed+u_0), " dt_visc = ", 0.25_8*dx_min**2/viscosity
 
   if (rank .eq. 0) then
@@ -570,13 +580,6 @@ program DCMIP2008c5
      write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
      write(6,'(A,es10.4)') ' '
   end if
-
-  ! Set logical switches
-  adapt_trend  = .true. ! Adapt on trend or on variables
-  adapt_dt     = .true.  ! Adapt time step
-  compressible = .true.  ! Compressible equations
-  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
-  uniform      = .false. ! Type of vertical grid
 
   ! Initialize vertical grid
   call initialize_a_b_vert

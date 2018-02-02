@@ -195,8 +195,6 @@ contains
     dt = idt/time_mult ! Modify time step
 
     call RK34_opt (trend_ml, dt)
-    !call RK45_opt (trend_ml, dt)
-    !call euler (trend_ml, dt)
 
     if (min_level .lt. max_level) call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
@@ -532,7 +530,7 @@ contains
     dt_init = cpt_dt_mpi()
     if (adapt_trend) call trend_ml (sol, trend, 0)
     call adapt (set_thresholds)
-    call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    call inverse_wavelet_transform (wav_coeff, sol)
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
 

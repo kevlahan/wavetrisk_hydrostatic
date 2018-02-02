@@ -80,10 +80,6 @@ contains
     do d = 1, size(grid)
        call apply_to_pole_d (remap_scalars, grid(d), min_level-1, z_null, z_null, .True.)
     end do
-
-    ! Re-adapt grid after remapping
-    call WT_after_step (sol, wav_coeff, level_start-1)
-    call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
   subroutine remap_save 
