@@ -544,7 +544,7 @@ program DCMIP2008c5
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
   cfl_num        = 0.8_8                            ! cfl number
   n_diffuse      = 1                                ! Diffusion step interval
-  n_remap        = 1                                ! Vertical remap interval
+  n_remap        = 30                                ! Vertical remap interval
   
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
@@ -557,7 +557,7 @@ program DCMIP2008c5
   adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
-  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
+  remap        = .true. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
@@ -566,7 +566,7 @@ program DCMIP2008c5
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = 0.0_8!visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = visc/1.0d2 * dx_min**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
@@ -621,9 +621,8 @@ program DCMIP2008c5
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     call time_step (dt_write, aligned, set_thresholds)
-
      if (remap .and. mod(istep, n_remap).eq.0) call remap_vertical_coordinates (set_thresholds)
+     call time_step (dt_write, aligned, set_thresholds)
 
      call set_surf_geopot
      call stop_timing
@@ -649,8 +648,6 @@ program DCMIP2008c5
 
      if (aligned) then
         iwrite = iwrite + 1
-        ! Remap to original vertical coordinates 
-        call remap_vertical_coordinates (set_thresholds)
 
         ! Save fields
         call write_and_export (iwrite, zlev)
