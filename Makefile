@@ -20,42 +20,43 @@ OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 INTEL_FLAGS = -fpe0 -traceback -module $(BUILD_DIR) # -fpe0 -traceback -check bounds
 GNU_FLAGS = -J$(BUILD_DIR) -fbacktrace -fcheck=all
 
-MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
+
+SYSTEM = $(shell uname -a | cut -c 1-6 -)
+ifeq ($(SYSTEM),Darwin)
+  MACHINE = mac
+else
+  MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
+endif
 
 # lapack/mkl used only to solve 6x6 eq. sys.
 ifeq ($(MACHINE),if)
   VENDOR = gnu
   LIBS = -llapack
-else
-  ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
-   VENDOR = intel
-   LIBS =  -L/opt/sharcnet/mkl/10.3.9/mkl/lib/intel64/ -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
- else
-  ifeq ($(MACHINE),req)
-    VENDOR = path
-    LIBS = -llapack
-  else
-   ifeq ($(MACHINE),gpc)
-     VENDOR = intel
-     LIBS = -mkl
-   else # try gfortran and liblapack as default
-     VENDOR = gnu
-     LIBS = -llapack
-   endif
-  endif
- endif
+else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
+  VENDOR = intel
+  LIBS =  -L/opt/sharcnet/mkl/10.3.9/mkl/lib/intel64/ -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
+else ifeq ($(MACHINE),req)
+  VENDOR = path
+  LIBS = -llapack
+else ifeq ($(MACHINE),gpc)
+  VENDOR = intel
+  LIBS = -mkl
+else ifeq ($(MACHINE),mac)
+  VENDOR = gnu
+  LIBS = -llapack -lf77blas -lcblas -latlas
+else # try gfortran and liblapack as default
+  VENDOR = gnu
+  LIBS = -llapack 
 endif
 
 ifeq ($(VENDOR),gnu)
     FLAGS = $(OPTIM_FLAGS) $(GNU_FLAGS)
     F90 = gfortran
-else
- ifeq ($(VENDOR),intel)
+else ifeq ($(VENDOR),intel)
     FLAGS = $(OPTIM_FLAGS) $(INTEL_FLAGS)
     F90 = ifort
- else # default puts all mod files in current directory
+else # default puts all mod files in current directory
     FLAGS = $(OPTIM_FLAGS)
- endif
 endif
 
 LIBMETIS = -lmetis
@@ -74,6 +75,7 @@ $(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
 	$(LINKER) $(FLAGS) -o $@ $^ $(LIBS)
 
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
+	echo "config : $(SYSTEM) $(MACHINE) $(VENDOR) $(LIBS)"
 	$(COMPILER) -c $< -o $@ $(FLAGS) 
 
 clean:
