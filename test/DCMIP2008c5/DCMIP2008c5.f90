@@ -557,7 +557,7 @@ program DCMIP2008c5
   adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
-  remap        = .true. ! Remap vertical coordinates (always remap when saving results)
+  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
@@ -566,7 +566,7 @@ program DCMIP2008c5
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = 0.0_8!visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = visc/1.0d2 * dx_min**2 ! viscosity for divergent part of momentum equation
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
@@ -650,6 +650,7 @@ program DCMIP2008c5
         iwrite = iwrite + 1
 
         ! Save fields
+        call remap_vertical_coordinates (set_thresholds)
         call write_and_export (iwrite, zlev)
 
         ! Save 2D projection
