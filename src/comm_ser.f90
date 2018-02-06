@@ -235,7 +235,7 @@ contains
   subroutine stop_timing
   end subroutine stop_timing
 
-  function get_timing
+  function get_timing()
     real(8) :: get_timing
     get_timing = 0.0_8
   end function get_timing

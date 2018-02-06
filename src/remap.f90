@@ -17,7 +17,7 @@ contains
     ! Conserves mass, heat and momentum flux
     external           :: set_thresholds
     integer            :: d, j, k, l, p
-    integer, parameter :: order_default = 7 ! order must be odd
+    integer, parameter :: order_default = 3 ! order must be odd
 
     if (rank.eq.0) write(6,*) "Remapping vertical coordinates"
 
