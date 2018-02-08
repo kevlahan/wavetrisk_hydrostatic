@@ -49,6 +49,32 @@ contains
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK34_opt
 
+  subroutine RK4 (trend_fun, dt)
+    ! Low storage four stage second order accurate Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
+    ! fourth order accurate for linear equations.
+    ! Does not require extra solution variables.
+    external :: trend_fun
+    real(8)  :: dt
+  
+    call manage_RK_mem
+
+    call trend_fun (sol, trend, 0) 
+    call RK_sub_step1 (sol, trend, 1.0_8, dt/4.0_8, q1)
+    call WT_after_step (q1, wav_coeff)
+
+    call trend_fun (q1, trend, 0) 
+    call RK_sub_step1 (sol, trend, 1.0_8, dt/3.0_8, q1)
+    call WT_after_step (q1, wav_coeff)
+
+    call trend_fun (q1, trend, 0) 
+    call RK_sub_step1 (sol, trend, 1.0_8, dt/2.0_8, q1)
+    call WT_after_step (q1, wav_coeff)
+
+    call trend_fun (q1, trend, 0) 
+    call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
+    call WT_after_step (sol, wav_coeff, level_start-1)
+  end subroutine RK4
+
   subroutine RK45_opt (trend_fun, dt)
     ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiter and Ruuth 2002
     ! CFL = 1.51
