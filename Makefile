@@ -43,7 +43,8 @@ else ifeq ($(MACHINE),gpc)
   LIBS = -mkl
 else ifeq ($(MACHINE),mac)
   VENDOR = gnu
-  LIBS = -llapack -lf77blas -lcblas -latlas
+  #LIBS = -llapack -lf77blas -lcblas -latlas
+  LIBS = -llapack 	
 else # try gfortran and liblapack as default
   VENDOR = gnu
   LIBS = -llapack 
