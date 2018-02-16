@@ -266,8 +266,8 @@ contains
       ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
 
       ! Sum contributions from all six edge velocities reconstructed at hexagon node x_i
-      ! u_i = A_i sum_e (x_e-x_i) d_e n_e, where n_e is the outward normal vector to the hexagon edge e,
-      ! l_e is the length of the hexagon edge (pedlen) and d_e is the length of the triangle edge (len)
+      ! u_i = 1/A_i sum_e (x_e-x_i) l_e (u_e,n_e), where n_e is the outward normal vector to the hexagon edge e,
+      ! l_e is the length of the hexagon edge (pedlen)
 
       ! Coordinate of centroid of hexagon
       hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
@@ -276,7 +276,7 @@ contains
       x_i = centroid(hex_nodes, 6)
 
       ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
-      x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1),dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge
+      x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge
       vel = vec_scale(u_dual_RT, vec_minus(x_e,x_i))
 
       x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))

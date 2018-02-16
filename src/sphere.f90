@@ -53,33 +53,38 @@ contains
     vec_minus = Coord (v1%x-v2%x, v1%y-v2%y, v1%z-v2%z)
   end function vec_minus
 
-  type(Coord) function vec_scale (alpha, v)
+  function vec_scale (alpha, v)
+    type(Coord) :: vec_scale
     real(8) :: alpha
     type(Coord) :: v
 
     vec_scale = Coord (alpha*v%x, alpha*v%y, alpha*v%z)
   end function vec_scale
 
-  real(8) function dist(p, q)
+  function dist (p, q)
+    real(8) :: dist
     type(Coord) p
     type(Coord) q
 
     dist = asin(sqrt((p%y*q%z - p%z*q%y)**2 + (p%z*q%x - p%x*q%z)**2 + (p%x*q%y - p%y*q%x)**2)/radius**2)*radius
   end function dist
 
-  type(Coord) function sph2cart(lon, lat)
+  function sph2cart (lon, lat)
+    type(Coord) :: sph2cart
     real(8) lon
     real(8) lat
     sph2cart = Coord(cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat))
   end function sph2cart
 
-  type(Coord) function cross(u, v)
+  function cross(u, v)
+    type(Coord) :: cross
     type(Coord) u
     type(Coord) v
     cross = Coord(u%y*v%z - u%z*v%y, u%z*v%x - u%x*v%z, u%x*v%y - u%y*v%x)
   end function cross
 
-  type(Coord) function project_on_sphere(p)
+  function project_on_sphere (p)
+    type(Coord) :: project_on_sphere
     type(Coord) p
     real(8) nrm
     nrm = sqrt(p%x**2 + p%y**2 + p%z**2)
@@ -191,7 +196,7 @@ contains
     lon = atan2 (c%y, c%x)
   end subroutine cart2sph
 
-  function circumcentre(A, B, C)
+  function circumcentre (A, B, C)
     type(Coord) :: circumcentre
     type(Coord) :: A, B, C
 
@@ -209,7 +214,7 @@ contains
   end function circumcentre
   
   function centroid (points, n)
-    ! Computes centroid of polygon given its n coordinates points
+    ! Computes centroid of polygon given coordinates for its n nodes
     ! Simple area-weighted average (second-order accurate, stable)
     type(Coord)               :: centroid
     integer                   :: n
@@ -234,7 +239,7 @@ contains
        area = triarea (cc, p1, p2)
        centroid = vec_plus(centroid, vec_scale(area, vec_plus3(p1, p2, cc)))
     end do
-    centroid = normalize_Coord(centroid)
+    centroid = vec_scale(radius, normalize_Coord(centroid))
   end function centroid
 
   function norm (c)
@@ -340,5 +345,4 @@ contains
     vel = e_lat*v + e_lon*u
     proj_vel_eta = inner(direction(ep1, ep2), Coord(vel(1), vel(2), vel(3)))
   end function proj_vel_eta
-
 end module geom_mod
