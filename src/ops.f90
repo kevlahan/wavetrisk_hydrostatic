@@ -270,11 +270,12 @@ contains
       ! l_e is the length of the hexagon edge (pedlen)
 
       ! Coordinate of centroid of hexagon
-      hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
-                     dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-                     dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
+      ! hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
+      !                dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
+      !                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
+      ! x_i = centroid(hex_nodes, 6)  ! Coordinate of hexagon centroid
 
-      x_i = centroid(hex_nodes, 6)  ! Coordinate of node
+      x_i = dom%node%elts(id+1)  ! Coordinate of node (very close to centroid and faster to calculate)
 
       ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
       x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge
