@@ -216,6 +216,8 @@ contains
       real(8)               :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
       real(8)               :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
 
+      type (Coord), dimension (6) :: hex_nodes
+
       idE  = id+E
       idN  = id+N
       idNE = id+NE
@@ -226,7 +228,7 @@ contains
       ! Find the velocity on primal and dual grids
       u_prim_RT    = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
       u_dual_RT    = velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
-      u_prim_up    = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
+      u_prim_UP    = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
       u_dual_UP    = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
       u_prim_DG    = velo(EDGE*id+DG+1)*dom%len%elts(EDGE*id+DG+1)
       u_dual_DG    = velo(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
@@ -267,32 +269,36 @@ contains
       ! u_i = A_i sum_e (x_e-x_i) d_e n_e, where n_e is the outward normal vector to the hexagon edge e,
       ! l_e is the length of the hexagon edge (pedlen) and d_e is the length of the triangle edge (len)
 
-      x_i = dom%node%elts(id+1)  ! Coordinate of node
+      ! Coordinate of centroid of hexagon
+      hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
+                     dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
+                     dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
+      x_i = centroid(hex_nodes, 6)
 
       ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
-      x_e = dom%midpt%elts(EDGE*id+RT+1)
+      x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1),dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge
       vel = vec_scale(u_dual_RT, vec_minus(x_e,x_i))
 
-      x_e = dom%midpt%elts(EDGE*idW+RT+1)
+      x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
       vel = vec_plus(vel, vec_scale(u_dual_RT_W,  vec_minus(x_i,x_e)))
 
-      x_e = dom%midpt%elts(EDGE*id+DG+1)
+      x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
       vel = vec_plus(vel, vec_scale(u_dual_DG,    vec_minus(x_i,x_e)))
 
-      x_e = dom%midpt%elts(EDGE*idSW+DG+1)
+      x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
       vel = vec_plus(vel, vec_scale(u_dual_DG_SW, vec_minus(x_e,x_i)))
 
-      x_e = dom%midpt%elts(EDGE*id+UP+1)
+      x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
       vel = vec_plus(vel, vec_scale(u_dual_UP,    vec_minus(x_e,x_i)))
 
-      x_e = dom%midpt%elts(EDGE*idS+UP+1)
+      x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1))
       vel = vec_plus(vel, vec_scale(u_dual_UP_S,  vec_minus(x_i,x_e)))
 
       vel = vec_scale(dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
 
       kinetic_energy = 0.5_8 * inner(vel,vel)
 
-      ! ! Formula from TRiSK ... not convergent!
+      ! Formula from TRiSK ... not convergent!
       ! kinetic_energy = &
       !      (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
       !      u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W &

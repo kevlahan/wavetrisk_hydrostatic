@@ -39,6 +39,13 @@ contains
     vec_plus = Coord (v1%x+v2%x, v1%y+v2%y, v1%z+v2%z)
   end function vec_plus
 
+  function vec_plus3 (v1, v2, v3)
+    type(Coord) :: vec_plus3
+    type(Coord) :: v1, v2, v3
+
+    vec_plus3 = Coord (v1%x+v2%x+v3%x, v1%y+v2%y+v3%y, v1%z+v2%z+v3%z)
+  end function vec_plus3
+
   function vec_minus (v1, v2)
     type(Coord) :: vec_minus
     type(Coord) :: v1, v2
@@ -46,7 +53,7 @@ contains
     vec_minus = Coord (v1%x-v2%x, v1%y-v2%y, v1%z-v2%z)
   end function vec_minus
 
-  type(Coord) function vec_scale(alpha, v)
+  type(Coord) function vec_scale (alpha, v)
     real(8) :: alpha
     type(Coord) :: v
 
@@ -200,6 +207,35 @@ contains
 
     circumcentre = project_on_sphere(centre)
   end function circumcentre
+  
+  function centroid (points, n)
+    ! Computes centroid of polygon given its n coordinates points
+    ! Simple area-weighted average (second-order accurate, stable)
+    type(Coord)               :: centroid
+    integer                   :: n
+    type(Coord), dimension(n) :: points
+
+    integer     :: i, j
+    type(Coord) :: p1, p2, cross, cc
+    real(8)     :: norm_cross, area
+
+    ! Arithmetic mean used as center
+    cc = points(1)
+    do i = 2, n
+       cc = vec_plus(cc, points(i))
+    end do
+    cc = normalize_Coord(cc)
+    
+    centroid = Coord(0.0_8, 0.0_8, 0.0_8)
+    do i = 1, n
+       j = mod(i,n)+1
+       p1 = normalize_Coord(points(i))
+       p2 = normalize_Coord(points(j))
+       area = triarea (cc, p1, p2)
+       centroid = vec_plus(centroid, vec_scale(area, vec_plus3(p1, p2, cc)))
+    ENDDO
+    centroid = normalize_Coord(centroid)
+  end function centroid
 
   function norm (c)
     real(8)     :: norm
