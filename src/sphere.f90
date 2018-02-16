@@ -216,8 +216,8 @@ contains
     type(Coord), dimension(n) :: points
 
     integer     :: i, j
-    type(Coord) :: p1, p2, cross, cc
-    real(8)     :: norm_cross, area
+    type(Coord) :: p1, p2, cc
+    real(8)     :: area
 
     ! Arithmetic mean used as center
     cc = points(1)
@@ -233,7 +233,7 @@ contains
        p2 = normalize_Coord(points(j))
        area = triarea (cc, p1, p2)
        centroid = vec_plus(centroid, vec_scale(area, vec_plus3(p1, p2, cc)))
-    ENDDO
+    end do
     centroid = normalize_Coord(centroid)
   end function centroid
 
