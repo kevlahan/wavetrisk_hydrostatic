@@ -216,7 +216,7 @@ contains
       real(8)               :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
       real(8)               :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
 
-      type (Coord), dimension (6) :: hex_nodes
+      type (Coord), dimension(6) :: hex_nodes
 
       idE  = id+E
       idN  = id+N
@@ -273,7 +273,8 @@ contains
       hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
                      dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
                      dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
-      x_i = centroid(hex_nodes, 6)
+
+      x_i = centroid(hex_nodes, 6)  ! Coordinate of node
 
       ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
       x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge

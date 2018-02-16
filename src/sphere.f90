@@ -221,7 +221,7 @@ contains
     type(Coord), dimension(n) :: points
 
     integer     :: i, j
-    type(Coord) :: p1, p2, cc
+    type(Coord) :: cc
     real(8)     :: area
 
     ! Arithmetic mean used as center
@@ -229,17 +229,15 @@ contains
     do i = 2, n
        cc = vec_plus(cc, points(i))
     end do
-    cc = normalize_Coord(cc)
+    cc = vec_scale(1.0_8/6.0_8, cc)
     
-    centroid = Coord(0.0_8, 0.0_8, 0.0_8)
+    centroid = ORIGIN
     do i = 1, n
        j = mod(i,n)+1
-       p1 = normalize_Coord(points(i))
-       p2 = normalize_Coord(points(j))
-       area = triarea (cc, p1, p2)
-       centroid = vec_plus(centroid, vec_scale(area, vec_plus3(p1, p2, cc)))
+       area = triarea (cc, points(i), points(j))
+       centroid = vec_plus(centroid, vec_scale(area, vec_plus3(cc, points(i), points(j))))
     end do
-    centroid = vec_scale(radius, normalize_Coord(centroid))
+    centroid = project_on_sphere(vec_scale(1.0_8/6.0_8, centroid))
   end function centroid
 
   function norm (c)
@@ -263,7 +261,11 @@ contains
     real(8) :: nrm
 
     nrm = sqrt(self%x**2 + self%y**2 + self%z**2)
-    normalize_Coord = Coord(self%x/nrm, self%y/nrm, self%z/nrm)
+    if(nrm.ge.eps()) then
+       normalize_Coord = Coord(self%x/nrm, self%y/nrm, self%z/nrm)
+    else
+       normalize_Coord = ORIGIN
+    end if
   end function normalize_Coord
 
   subroutine init_Coord (self, x, y, z)
