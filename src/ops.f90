@@ -226,22 +226,22 @@ contains
       idW  = id+W
 
       ! Find the velocity on primal and dual grids
-      u_prim_RT    = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
-      u_dual_RT    = velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
-      u_prim_UP    = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
-      u_dual_UP    = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
-      u_prim_DG    = velo(EDGE*id+DG+1)*dom%len%elts(EDGE*id+DG+1)
-      u_dual_DG    = velo(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
-      u_prim_RT_W  = velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1)
-      u_dual_RT_W  = velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
-      u_prim_UP_S  = velo(EDGE*idS+UP+1)*dom%len%elts(EDGE*idS+UP+1)
-      u_dual_UP_S  = velo(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
+      u_prim_RT    = velo(EDGE*id  +RT+1)*dom%len%elts(EDGE*id+RT+1)
+      u_dual_RT    = velo(EDGE*id  +RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
+      u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id+UP+1)
+      u_dual_UP    = velo(EDGE*id  +UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
+      u_prim_DG    = velo(EDGE*id  +DG+1)*dom%len%elts(EDGE*id+DG+1)
+      u_dual_DG    = velo(EDGE*id  +DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
+      u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW+RT+1)
+      u_dual_RT_W  = velo(EDGE*idW +RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
+      u_prim_UP_S  = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS+UP+1)
+      u_dual_UP_S  = velo(EDGE*idS +UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
       u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
       u_dual_DG_SW = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
-      u_prim_UP_E  = velo(EDGE*idE+UP+1)*dom%len%elts(EDGE*idE+UP+1)
-      u_prim_RT_N  = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1)
-      u_prim_DG_W  = velo(EDGE*idW+DG+1)*dom%len%elts(EDGE*idW+DG+1)
-      u_prim_DG_S  = velo(EDGE*idS+DG+1)*dom%len%elts(EDGE*idS+DG+1)
+      u_prim_UP_E  = velo(EDGE*idE +UP+1)*dom%len%elts(EDGE*idE+UP+1)
+      u_prim_RT_N  = velo(EDGE*idN +RT+1)*dom%len%elts(EDGE*idN+RT+1)
+      u_prim_DG_W  = velo(EDGE*idW +DG+1)*dom%len%elts(EDGE*idW+DG+1)
+      u_prim_DG_S  = velo(EDGE*idS +DG+1)*dom%len%elts(EDGE*idS+DG+1)
 
       ! Calculate mass and temperature fluxes
       h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1)) &
@@ -379,9 +379,9 @@ contains
        idN  = idx( 0,  1, offs, dims)
        idE  = idx( 1,  0, offs, dims)
 
-       u_prim_RT_W  = velo(EDGE*idW+RT+1)*dom%len%elts(EDGE*idW+RT+1)
-       u_prim_DG_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) ! Is this really RT edge (no edge lablel)!
-       u_prim_UP_S  = velo(EDGE*idS+UP+1)*dom%len%elts(EDGE*idS+UP+1)
+       u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW +RT+1)
+       u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) 
+       u_prim_UP_S  = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS +UP+1)
 
        circ_LORT_SW = u_prim_UP_S - u_prim_RT_W + u_prim_RT_SW
        circ_LORT_W  = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
@@ -421,7 +421,7 @@ contains
 
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
-       u_prim_RT    = velo(EDGE*id+RT+1)*dom%len%elts(EDGE*id+RT+1)
+       u_prim_RT    = velo(EDGE*id  +RT+1)*dom%len%elts(EDGE*id  +RT+1)
 
        circ_LORT_SW = - u_prim_RT + u_prim_RT_SW + u_prim_DG_SW 
        circ_LORT    = vort(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1)
@@ -459,7 +459,7 @@ contains
        idN  = idx(0,  PATCH_SIZE+1, offs, dims)
        idNE = idx(1,  PATCH_SIZE+1, offs, dims)
 
-       u_prim_UP    = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
+       u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id  +UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
        u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
 
@@ -498,9 +498,9 @@ contains
        idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
        idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
 
-       u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1)
+       u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id +RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+DG+1)
-       u_prim_UP   = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
+       u_prim_UP   = velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id +UP+1)
 
        circ_LORT   = u_prim_RT - u_prim_RT_N - u_prim_UP
        circ_LORT_W = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
@@ -549,7 +549,7 @@ contains
        idW  = idx(-1,  0, offs, dims)
 
        u_prim_RT_W  = velo(EDGE*idW+RT+1) *dom%len%elts(EDGE*idW+RT+1)
-       u_prim_DG_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) ! Is this really RT edge (no edge lablel)!
+       u_prim_DG_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_UP_S  = velo(EDGE*idS+UP+1) *dom%len%elts(EDGE*idS+UP+1)
 
        circ_LORT_SW = u_prim_UP_S - u_prim_RT_W + u_prim_RT_SW
