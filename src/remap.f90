@@ -34,63 +34,56 @@ contains
     call update_array_bdry (sol, NONE)
 
     ! Remap on finest scale
-    ! call apply_onescale (remap_velocity_fv, level_end, z_null, 0, 0)
-    !  call apply_onescale (remap_scalars_fv,  level_end, z_null, 0, 1)
+    call apply_onescale (remap_velocity_fv, level_end, z_null, 0, 0)
+    call apply_onescale (remap_scalars_fv,  level_end, z_null, 0, 0)
 
-    ! ! Remap scalars at coarser levels
-    ! do l = level_end-1, level_start-1, -1
-    !    call update_array_bdry (sol(S_MASS:S_TEMP,:), l+1)
+    ! Remap scalars at coarser levels
+    do l = level_end-1, level_start-1, -1
+       call update_array_bdry (sol, l+1)
 
-    !    ! Compute scalar wavelet coefficients
-    !    do d = 1, size(grid)
-    !       do k = 1, zlevels
-    !          mass => sol(S_MASS,k)%data(d)%elts
-    !          temp => sol(S_TEMP,k)%data(d)%elts
-    !          wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-    !          wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-    !          call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-    !          nullify (wc_m, wc_t, mass, temp)
-    !       end do
-    !    end do
-    !    call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
+       ! Compute scalar wavelet coefficients
+       do d = 1, size(grid)
+          do k = 1, zlevels
+             mass => sol(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+             nullify (wc_m, wc_t, mass, temp)
+          end do
+       end do
+       call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
 
-    !    ! Remap at level l (over-written if value available from restriction)
-    ! !   call apply_onescale (remap_velocity_fv, l, z_null, 0, 0)
-    !    call apply_onescale (remap_scalars_fv,  l, z_null, 0, 1)
+       ! Remap at level l (over-written if value available from restriction)
+       call apply_onescale (remap_velocity_fv, l, z_null, 0, 0)
+       call apply_onescale (remap_scalars_fv,  l, z_null, 0, 0)
 
-    !    ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
-    !    do d = 1, size(grid)
-    !       do k = 1, zlevels
-    !          mass => sol(S_MASS,k)%data(d)%elts
-    !          temp => sol(S_TEMP,k)%data(d)%elts
-    !          velo => sol(S_VELO,k)%data(d)%elts
-    !          wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-    !          wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-    !          call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1)
-    !          !call apply_interscale_d (restrict_velo,   grid(d), l, k, 0, 0)
-    !          nullify (mass, temp, velo, wc_m, wc_t)
-    !       end do
-    !    end do
-    ! end do
-
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (remap_scalars, grid(d), p-1, z_null, 0, 1)
+       ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
+       do d = 1, size(grid)
+          do k = 1, zlevels
+             mass => sol(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             velo => sol(S_VELO,k)%data(d)%elts
+             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 0)
+             call apply_interscale_d (restrict_velo,   grid(d), l, k, 0, 0)
+             nullify (mass, temp, velo, wc_m, wc_t)
+          end do
        end do
     end do
 
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (remap_velocity, grid(d), p-1, z_null, 0, 0)
-       end do
-    end do
-    
     sol%bdry_uptodate       = .False.
     wav_coeff%bdry_uptodate = .False.
     
+    ! Remap poles
+    do d = 1, size(grid)
+       call apply_to_pole_d (remap_scalars, grid(d), min_level-1, z_null, z_null, .True.)
+    end do
+    
     ! Re-adapt grid after remapping
-    !call WT_after_step (sol, wav_coeff, level_start-1)
-    !call adapt_grid (set_thresholds)
+    call WT_after_step (sol, wav_coeff, level_start-1)
+    call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
   subroutine remap_save 
