@@ -306,5 +306,4 @@ contains
 
     call inverse_wavelet_transform (wav, q)
   end subroutine WT_after_step
-
 end module time_integr_mod

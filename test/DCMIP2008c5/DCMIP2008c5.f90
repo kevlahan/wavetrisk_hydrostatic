@@ -4,7 +4,7 @@ module DCMIP2008c5_mod
   use remap_mod
   implicit none
 
-  integer                            :: CP_EVERY, id, iwrite, j, N_node
+  integer                            :: CP_EVERY, iwrite, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
   logical                            :: wasprinted, uniform
@@ -15,130 +15,22 @@ module DCMIP2008c5_mod
   real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
+  real(8)                            :: visc, viscosity_divu, viscosity_rotu, viscosity_mass, viscosity_temp, ray_friction
 
   type(Float_Field)                  :: rel_vort 
 contains
-  subroutine apply_initial_conditions
-    integer :: k, l
-
-    wasprinted=.false.
-    do l = level_start, level_end
-       do k = 1, zlevels
-          call apply_onescale (init_sol, l, k, -1, 1)
-          wasprinted=.false.
-       end do
-    end do
-  end subroutine apply_initial_conditions
-
-  subroutine set_surf_geopot
-    integer ::  d, p
-    
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (set_surfgeopot, grid(d), p-1, z_null, 0, 1)
-       end do
-    end do
-  end subroutine set_surf_geopot
-
-  subroutine sum_total_mass (initialgo)
-    ! Total mass over all vertical layers
-    logical :: initialgo
-
-    integer :: k
-
-    if (initialgo) then
-       initotalmass = 0.0_8
-       do k = 1, zlevels
-          initotalmass = initotalmass + integrate_hex (mu, level_start, k)
-       end do
-    else
-       totalmass = 0.0_8
-       do k = 1, zlevels
-          totalmass = totalmass + integrate_hex (mu, level_start, k)
-       end do
-       mass_error = abs(totalmass-initotalmass)/initotalmass
-    end if
-  end subroutine sum_total_mass
-
-  subroutine initialize_a_b_vert
-    integer :: k
-
-    ! Allocate vertical grid parameters
-    if (allocated(a_vert)) deallocate(a_vert)
-    if (allocated(b_vert)) deallocate(b_vert)
-    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
-    
-    if (uniform) then
-       do k = 1, zlevels+1
-          press_infty = 0.0_8
-          a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
-          b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
-       end do
-    else
-       if (zlevels.eq.18) then
-          !a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-               a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-               0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
-               0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
-               0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
-               0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
-               0.953189_8, 0.985056_8, 1.0_8 /)
-       elseif (zlevels.eq.26) then
-          !a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
-          a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
-               0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
-               0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
-               0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
-                0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
-                0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
-       elseif (zlevels.eq.49) then
-          a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
-               0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
-               0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
-               0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
-               0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
-               0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
-               0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
-               0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
-               0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
-               0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
-               0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
-               0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
-               0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
-               0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
-               0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
-               0.9851122_8, 1.0_8/)
-       else
-          write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
-          stop
-       end if
-
-       ! DCMIP order is opposite to ours
-       if (.not. uniform) then
-          a_vert = a_vert(zlevels+1:1:-1)
-          b_vert = b_vert(zlevels+1:1:-1)
-       end if
-       
-       ! Set pressure at infinity
-       press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
-    end if
-  end subroutine initialize_a_b_vert
-
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     type (Domain)                  :: dom
     integer                        :: i, j, k, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
-    
+
     type(Coord) :: x_i, x_E, x_N, x_NE
     integer     :: id, d, idN, idE, idNE
     real(8)     :: rgrc, lev_press, pot_temp, p_top, p_bot
 
     d = dom%id+1
-    
+
     id   = idx(i, j, offs, dims)
     idN  = idx(i, j + 1, offs, dims)
     idE  = idx(i + 1, j, offs, dims)
@@ -158,10 +50,10 @@ contains
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = &
          ((a_vert(zlev)-a_vert(zlev+1))*ref_press + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel
-    
+
     ! Horizontally uniform potential temperature
     pot_temp =  T_0 * (lev_press/ref_press)**(-kappa)
-    
+
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
 
@@ -191,12 +83,12 @@ contains
     ! Surface pressure
     type(Coord) :: x_i
     real(8)     :: surf_pressure_fun
-    
+
     real(8) :: lon, lat, surf_geopot
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
-    
+
     surf_pressure_fun = ref_surf_press * exp__flush ( &
          - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+f0)*(sin(lat)**2-1.0_8) &
          - N_freq**2/(grav_accel**2*kappa)*surf_geopot_fun (x_i) )
@@ -206,24 +98,91 @@ contains
     ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
     type(Coord) :: x_i
     real(8)     :: surf_geopot_fun
-    
+
     real(8) :: lon, lat, rgrc
-    
+
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
     rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
-    
+
     surf_geopot_fun = grav_accel * h_0 * exp__flush(-rgrc**2/d2)
   end function surf_geopot_fun
-  
+
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
     real(8) :: lon, lat, u, v
-    
+
     u = u_0*cos(lat)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
+
+  subroutine initialize_a_b_vert
+    integer :: k
+
+    ! Allocate vertical grid parameters
+    if (allocated(a_vert)) deallocate(a_vert)
+    if (allocated(b_vert)) deallocate(b_vert)
+    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+
+    if (uniform) then
+       do k = 1, zlevels+1
+          press_infty = 0.0_8
+          a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
+          b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
+       end do
+    else
+       if (zlevels.eq.18) then
+          !a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+          a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+               0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
+               0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
+               0.0_8, 0.0_8 /)
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
+               0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
+               0.953189_8, 0.985056_8, 1.0_8 /)
+       elseif (zlevels.eq.26) then
+          !a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
+          a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
+               0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
+               0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
+               0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
+               0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
+               0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
+       elseif (zlevels.eq.49) then
+          a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
+               0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
+               0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
+               0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
+               0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
+               0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
+               0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
+               0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
+               0.0_8, 0.0_8 /)
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
+               0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
+               0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
+               0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
+               0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
+               0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
+               0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
+               0.9851122_8, 1.0_8/)
+       else
+          write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
+          stop
+       end if
+
+       ! DCMIP order is opposite to ours
+       if (.not. uniform) then
+          a_vert = a_vert(zlevels+1:1:-1)
+          b_vert = b_vert(zlevels+1:1:-1)
+       end if
+
+       ! Set pressure at infinity
+       press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+    end if
+  end subroutine initialize_a_b_vert
 
   subroutine read_test_case_parameters(filename)
     character(*) filename
@@ -258,8 +217,8 @@ contains
 
   subroutine write_and_export (iwrite, zlev)
     integer :: iwrite, zlev
-    
-    integer :: l, k, d, u, i, p
+
+    integer :: d, i, j, k, l, p, u
 
     if (rank.eq.0) write(6,*) 'Saving fields'
 
@@ -340,10 +299,10 @@ contains
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
   end subroutine DCMIP2008c5_load
-  
+
   subroutine set_thresholds (itype)
     integer, optional :: itype
-    
+
     integer :: l, k
 
     ! Set thresholds dynamically (trend or sol must be known)
@@ -354,7 +313,7 @@ contains
        do l = level_start, level_end
           call apply_onescale (linf_trend, l, z_null, 0, 0)
        end do
-       
+
        mass_scale = sync_max_d (norm_mass_trend)
        temp_scale = sync_max_d (norm_temp_trend)
        velo_scale = sync_max_d (norm_velo_trend)
@@ -365,12 +324,12 @@ contains
        do l = level_start, level_end
           call apply_onescale (linf_vars, l, z_null, 0, 0)
        end do
-       
+
        mass_scale = sync_max_d (norm_mass)
        temp_scale = sync_max_d (norm_temp)
        velo_scale = sync_max_d (norm_velo)
     end if
-   
+
     if (istep.ne.0) then
        tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
        tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
@@ -414,7 +373,7 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     integer :: d, id, e, k
 
     d = dom%id+1
@@ -441,7 +400,7 @@ contains
 
     id = idx(i, j, offs, dims)
     d = dom%id+1
-    
+
     ! L2 norms of trends
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        N_node = N_node + 1
@@ -478,6 +437,47 @@ contains
        end do
     endif
   end subroutine l2_vars
+  subroutine apply_initial_conditions
+    integer :: k, l
+
+    wasprinted=.false.
+    do l = level_start, level_end
+       do k = 1, zlevels
+          call apply_onescale (init_sol, l, k, -1, 1)
+          wasprinted=.false.
+       end do
+    end do
+  end subroutine apply_initial_conditions
+
+  subroutine set_surf_geopot
+    integer ::  d, p
+
+    do d = 1, size(grid)
+       do p = 3, grid(d)%patch%length
+          call apply_onescale_to_patch (set_surfgeopot, grid(d), p-1, z_null, 0, 1)
+       end do
+    end do
+  end subroutine set_surf_geopot
+
+  subroutine sum_total_mass (initialgo)
+    ! Total mass over all vertical layers
+    logical :: initialgo
+
+    integer :: k
+
+    if (initialgo) then
+       initotalmass = 0.0_8
+       do k = 1, zlevels
+          initotalmass = initotalmass + integrate_hex (mu, level_start, k)
+       end do
+    else
+       totalmass = 0.0_8
+       do k = 1, zlevels
+          totalmass = totalmass + integrate_hex (mu, level_start, k)
+       end do
+       mass_error = abs(totalmass-initotalmass)/initotalmass
+    end if
+  end subroutine sum_total_mass
 end module DCMIP2008c5_mod
 
 program DCMIP2008c5
@@ -488,7 +488,6 @@ program DCMIP2008c5
   integer                      :: d, ierr, k, l, v, zlev
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
-  real(8)                      :: viscosity
   character(len_cmd_files)     :: cmd_files
   character(len_cmd_archive)   :: cmd_archive
   character(8+8+29+14)         :: command
@@ -543,32 +542,31 @@ program DCMIP2008c5
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
   cfl_num        = 0.8_8                            ! cfl number
-  n_diffuse      = 1                                ! Diffusion step interval
-  n_remap        = 10                                ! Vertical remap interval
-  
+  n_remap        = 10                               ! Vertical remap interval
+
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
   zlev           = 1
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = level_end                                  ! resolution level at which to save lat-lon data
-  pressure_save  = (/700.0d2/)                                    ! interpolate values to this pressure level when interpolating to lat-lon grid
+  pressure_save  = (/700.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
   adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
-  remap        = .true. ! Remap vertical coordinates (always remap when saving results)
+  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
-  visc = 0.0_8!2.0d-4 ! Constant for viscosity
-  
+  visc = 2.0d-4 ! Constant for viscosity
+
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = visc/1.0d2 * dx_min**2 ! viscosity for divergent part of momentum equation
+  viscosity_rotu = visc/1.0d2 * dx_min**2 ! viscosity for rotational part of momentum equation
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
-  
+
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
   if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/(wave_speed+u_0), " dt_visc = ", 0.25_8*dx_min**2/viscosity
@@ -616,19 +614,20 @@ program DCMIP2008c5
   end if
 
   do while (time .lt. time_end)
-     call start_timing
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     if (remap .and. mod(istep, n_remap).eq.0) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. mod(istep, n_remap).eq.0 .and. istep.gt.1) call remap_vertical_coordinates (set_thresholds)
+
+     call start_timing
      call time_step (dt_write, aligned, set_thresholds)
+     call stop_timing
 
      call set_surf_geopot
-     call stop_timing
      timing = get_timing()
      total_cpu_time = total_cpu_time + timing
-     
+
      if (rank .eq. 0) then
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES10.4,1x,A,ES8.2)') &
              ' time [h] = ', time/60.0_8**2, &
@@ -650,17 +649,17 @@ program DCMIP2008c5
         iwrite = iwrite + 1
 
         ! Save fields
-        !call remap_vertical_coordinates (set_thresholds)
+        if (remap) call remap_vertical_coordinates (set_thresholds)
         call write_and_export (iwrite, zlev)
 
         ! Save 2D projection
         call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
         !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
-        
+
         call sum_total_mass (.False.)
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle ! Do not write checkpoint
-        
+
         ierr = write_checkpoint (DCMIP2008c5_dump)
 
         ! Let all cpus exit gracefully if NaN has been produced
@@ -674,7 +673,7 @@ program DCMIP2008c5
         ! Restart after checkpoint and load balance
         call restart_full (set_thresholds, DCMIP2008c5_load)
         call print_load_balance
-        
+
         call barrier
      end if
      call sum_total_mass (.False.)
@@ -690,3 +689,128 @@ program DCMIP2008c5
 
   call finalize
 end program DCMIP2008c5
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Physics routines for this test case (including diffusion)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+function physics_scalar_flux (dom, id, idE, idNE, idN, type)
+  ! Additional physics for the flux term of the scalar trend
+  ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+  !
+  ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
+  use domain_mod
+  use DCMIP2008c5_mod
+  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
+  type(Domain)                             :: dom
+  integer                                  :: id, idE, idNE, idN
+  logical, optional                        :: type
+
+  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
+  logical :: local_type
+
+  if (present(type)) then
+     local_type = type
+  else
+     local_type = .false.
+  end if
+
+  ! Calculate gradients
+  if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
+     grad(S_MASS,RT+1) = (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1) 
+     grad(S_MASS,DG+1) = (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
+     grad(S_MASS,UP+1) = (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1) 
+
+     grad(S_TEMP,RT+1) = (temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*id+RT+1) 
+     grad(S_TEMP,DG+1) = (temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
+     grad(S_TEMP,UP+1) = (temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*id+UP+1) 
+  else ! Gradient for southwest edges of hexagon W, SW, S
+     grad(S_MASS,RT+1) = -(mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
+     grad(S_MASS,DG+1) = -(mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
+     grad(S_MASS,UP+1) = -(mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+
+     grad(S_TEMP,RT+1) = -(temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
+     grad(S_TEMP,DG+1) = -(temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
+     grad(S_TEMP,UP+1) = -(temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+  end if
+
+  ! Fluxes of physics
+  if (.not.local_type) then ! Usual flux at edges E, NE, N
+     physics_scalar_flux(S_MASS,RT+1) = -viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+     physics_scalar_flux(S_MASS,DG+1) = -viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+     physics_scalar_flux(S_MASS,UP+1) = -viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+
+     physics_scalar_flux(S_TEMP,RT+1) = -viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+     physics_scalar_flux(S_TEMP,DG+1) = -viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+     physics_scalar_flux(S_TEMP,UP+1) = -viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+  else ! Flux at edges W, SW, S
+     physics_scalar_flux(S_MASS,RT+1) = -viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
+     physics_scalar_flux(S_MASS,DG+1) = -viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
+     physics_scalar_flux(S_MASS,UP+1) = -viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
+
+     physics_scalar_flux(S_TEMP,RT+1) = -viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
+     physics_scalar_flux(S_TEMP,DG+1) = -viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
+     physics_scalar_flux(S_TEMP,UP+1) = -viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
+  end if
+end function physics_scalar_flux
+
+function physics_scalar_source (dom, i, j, zlev, offs, dims)
+  ! Additional physics for the source term of the scalar trend
+  ! In this test case there is no scalar source term
+  use domain_mod
+  use DCMIP2008c5_mod
+  real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
+  type(Domain)                      :: dom
+  integer                           :: i, j, zlev
+  integer, dimension(N_BDRY+1)      :: offs
+  integer, dimension(2,N_BDRY+1)    :: dims
+
+  physics_scalar_source = 0.0_8
+end function physics_scalar_source
+
+function physics_velo_source (dom, i, j, zlev, offs, dims)
+  ! Additional physics for the source term of the velocity trend
+  ! In this test case we add Rayleigh friction and Laplacian diffusion
+  use domain_mod
+  use ops_mod
+  use DCMIP2008c5_mod
+  real(8), dimension(1:EDGE)     :: physics_velo_source
+  type(Domain)                   :: dom
+  integer                        :: i, j, zlev
+  integer, dimension(N_BDRY+1)   :: offs
+  integer, dimension(2,N_BDRY+1) :: dims
+
+  integer                    :: e, id
+  real(8), dimension(1:EDGE) :: diffusion, friction, curl_rotu, grad_divu
+
+  interface
+     function velo_diffusion (dom, i, j, zlev, offs, dims)
+       use domain_mod
+       real(8), dimension(1:EDGE)     :: velo_diffusion
+       type(Domain)                   :: dom
+       integer                        :: i, j, zlev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end function velo_diffusion
+  end interface
+
+  id = idx(i, j, offs, dims)
+
+  ! Calculate Laplacian of velocity
+  grad_divu = gradi_e (divu, dom, i, j, offs, dims)
+  curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
+  do e = 1, EDGE 
+     diffusion(e) = viscosity_divu * grad_divu(e) - viscosity_rotu * curl_rotu(e)
+  end do
+
+  ! Calculate Rayleigh friction
+  do e = 1, EDGE 
+     friction(e) = -ray_friction*velo(EDGE*id+e)
+  end do
+
+  ! Total physics for source term of velocity trend
+  do e = 1, EDGE
+     physics_velo_source(e) = friction(e) + diffusion(e)
+  end do
+end function physics_velo_source
+
+

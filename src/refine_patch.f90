@@ -162,15 +162,12 @@ contains
     call extend(dom%adj_temp,    num, 0.0_8)
     call extend(dom%adj_geopot,  num, 0.0_8)
     call extend(dom%bernoulli,   num, 0.0_8)
-    call extend(dom%bern_slow,   num, 0.0_8)
-    call extend(dom%bern_fast,   num, 0.0_8)
     call extend(dom%divu,        num, 0.0_8)
     
     call extend(dom%qe,     EDGE*num, 0.0_8)
     call extend(dom%vort,  TRIAG*num, 0.0_8)
 
     do k = 1, zlevels
-       call extend(bernoulli_fast(k)%data(d), num, 0.0_8)
        call extend(exner_fun(k)%data(d), num, 0.0_8)
        do v = S_MASS, S_TEMP
           call extend(trend(v,k)%data(d), num, 0.0_8)

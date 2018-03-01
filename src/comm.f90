@@ -1113,8 +1113,6 @@ contains
     d  = dom%id + 1
     l  = dom%level%elts(id+1)
 
-    viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
-
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
 

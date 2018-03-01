@@ -290,10 +290,9 @@ module shared_mod
   integer, parameter :: DAY = 24*60*60
 
   ! simulation variables
-  integer :: istep, n_diffuse, n_remap, resume
+  integer :: istep, n_remap, resume
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
-  real(8) :: visc, viscosity_mass, viscosity_temp, viscosity_rotu, viscosity_divu, ray_friction
-  real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty
+  real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
   real(8), dimension(:), allocatable :: pressure_save
 
@@ -303,10 +302,8 @@ module shared_mod
   real(8), dimension (:), allocatable :: a_vert, b_vert
 
   logical :: adapt_dt, adapt_trend, compressible, lagrangian_vertical 
-
 contains
-
-  subroutine init_shared_mod()
+  subroutine init_shared_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
@@ -355,7 +352,6 @@ contains
     
     resume        = NONE
     istep         = 0
-    n_diffuse     = 1
     n_remap       = 10
     time          = 0.0_8
     optimize_grid = NO_OPTIM
@@ -379,12 +375,7 @@ contains
     R_d           = 1.0_8
     c_p           = 1.0_8
     kappa         = R_d/c_p
-    ref_press     = 1000d2  
-    ray_friction  = 0.0_8
-    viscosity_mass   = 0.0_8
-    viscosity_temp   = 0.0_8
-    viscosity_divu   = 0.0_8
-    viscosity_rotu   = 0.0_8
+    ref_press     = 1000.0d2  
   end subroutine init_shared_mod
 
   real(8) function eps()

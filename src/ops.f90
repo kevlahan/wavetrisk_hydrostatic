@@ -1,4 +1,4 @@
-Module ops_mod
+module ops_mod
   use domain_mod
   use arch_mod
   implicit none
@@ -8,10 +8,10 @@ Module ops_mod
   integer :: tic
 
 contains
-  subroutine init_ops_mod()
+  subroutine init_ops_mod
     logical :: initialized = .False.
     if (initialized) return ! initialize only once
-    call init_domain_mod()
+    call init_domain_mod
     initialized = .True.
   end subroutine init_ops_mod
 
@@ -161,6 +161,17 @@ contains
     subroutine comp_ijmin
       integer :: idS, idSW, idW
       real(8) :: circ_LORT_SW, circ_UPLT_SW, u_prim_RT_SW, u_prim_UP_SW
+      real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
+
+      interface
+         function physics_scalar_flux (dom, id, idE, idNE, idN, type)
+           use domain_mod
+           real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
+           type(Domain)                             :: dom
+           integer                                  :: id, idE, idNE, idN
+           logical, optional                        :: type
+         end function physics_scalar_flux
+      end interface
 
       idS  = id+S
       idSW = id+SW
@@ -189,35 +200,38 @@ contains
       qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
       qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
-      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(idW+1), mass(id+1)) &
-           - viscosity_mass * dom%pedlen%elts(EDGE*idW+RT+1) * (mass(id+1)-mass(idW+1))/dom%len%elts(EDGE*idW+RT+1)
-      
-      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1),  mass(idSW+1)) &
-           - viscosity_mass * dom%pedlen%elts(EDGE*idSW+DG+1) * (mass(idSW+1)-mass(id+1))/dom%len%elts(EDGE*idSW+DG+1)
-      
-      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(idS+1), mass(id+1)) &
-           - viscosity_mass * dom%pedlen%elts(EDGE*idS+UP+1) * (mass(id+1)-mass(idS+1))/dom%len%elts(EDGE*idS+UP+1)
+      ! Mass and temperature fluxes
+      physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
 
+      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(id+1), mass(idW+1))  + physics(S_MASS,RT+1)
+      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1), mass(idSW+1)) + physics(S_MASS,DG+1)
+      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(id+1), mass(idS+1))  + physics(S_MASS,UP+1)
       
-      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(idW+1), temp(id+1)) &
-           - viscosity_temp * dom%pedlen%elts(EDGE*idW+RT+1) * (temp(id+1)-temp(idW+1))/dom%len%elts(EDGE*idW+RT+1)
-      
-      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1),  temp(idSW+1)) &
-           - viscosity_temp * dom%pedlen%elts(EDGE*idSW+DG+1) * (temp(idSW+1)-temp(id+1))/dom%len%elts(EDGE*idSW+DG+1)
-      
-      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(idS+1), temp(id+1)) &
-           - viscosity_temp * dom%pedlen%elts(EDGE*idS+UP+1) * (temp(id+1)-temp(idS+1))/dom%len%elts(EDGE*idS+UP+1)
+      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(id+1), temp(idW+1))  + physics(S_TEMP,RT+1)
+      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1), temp(idSW+1)) + physics(S_TEMP,DG+1)
+      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(id+1), temp(idS+1))  + physics(S_TEMP,UP+1)
     end subroutine comp_ijmin
 
     subroutine comput
       ! Computes physical quantities during upward integration
-      type (Coord)          :: x_e, x_i, vel
-      integer               :: idE, idN, idNE, idS, idSW, idW
-      real(8)               :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
-      real(8)               :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
+      type (Coord)                             :: x_e, x_i, vel
+      integer                                  :: idE, idN, idNE, idS, idSW, idW
+      real(8)                                  :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
+      real(8)                                  :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
+      real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
 
       type (Coord), dimension(6) :: hex_nodes
 
+      interface
+         function physics_scalar_flux (dom, id, idE, idNE, idN, type)
+           use domain_mod
+           real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
+           type(Domain)                             :: dom
+           integer                                  :: id, idE, idNE, idN
+           logical, optional                        :: type
+         end function physics_scalar_flux
+      end interface
+      
       idE  = id+E
       idN  = id+N
       idNE = id+NE
@@ -242,25 +256,6 @@ contains
       u_prim_RT_N  = velo(EDGE*idN +RT+1)*dom%len%elts(EDGE*idN+RT+1)
       u_prim_DG_W  = velo(EDGE*idW +DG+1)*dom%len%elts(EDGE*idW+DG+1)
       u_prim_DG_S  = velo(EDGE*idS +DG+1)*dom%len%elts(EDGE*idS+DG+1)
-
-      ! Calculate mass and temperature fluxes
-      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1)) &
-           - viscosity_mass * dom%pedlen%elts(EDGE*id+RT+1) * (mass(idE+1)-mass(id+1))/dom%len%elts(EDGE*id+RT+1)
-      
-      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1)) &
-           - viscosity_mass * dom%pedlen%elts(EDGE*id+DG+1) * (mass(id+1)-mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)
-           
-      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1)) &
-           - viscosity_mass * dom%pedlen%elts(EDGE*id+UP+1) * (mass(idN+1)-mass(id+1))/dom%len%elts(EDGE*id+UP+1)
-
-      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1)) &
-           - viscosity_temp * dom%pedlen%elts(EDGE*id+RT+1) * (temp(idE+1)-temp(id+1))/dom%len%elts(EDGE*id+RT+1)
-      
-      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1)) &
-           - viscosity_temp * dom%pedlen%elts(EDGE*id+DG+1) * (temp(id+1)-temp(idNE+1))/dom%len%elts(EDGE*id+DG+1)
-      
-      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1)) &
-           - viscosity_temp * dom%pedlen%elts(EDGE*id+UP+1) * (temp(idN+1)-temp(id+1))/dom%len%elts(EDGE*id+UP+1)
 
       ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
       ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
@@ -312,12 +307,8 @@ contains
       ! Bernoulli function
       if (compressible) then 
          bernoulli(id+1) = kinetic_energy + Phi_k
-         dom%bern_slow%elts(id+1) = kinetic_energy
-         dom%bern_fast%elts(id+1) = Phi_k
       else 
          bernoulli(id+1) = kinetic_energy + Phi_k + dom%press%elts(id+1)/ref_density
-         dom%bern_slow%elts(id+1) = kinetic_energy
-         dom%bern_fast%elts(id+1) = Phi_k + dom%press%elts(id+1)/ref_density
       end if
 
       ! Exner function in incompressible case from geopotential
@@ -355,6 +346,17 @@ contains
       qe(EDGE*id+RT+1) = interp(pv_UPLT_S, pv_LORT)
       qe(EDGE*id+DG+1) = interp(pv_UPLT,   pv_LORT)
       qe(EDGE*id+UP+1) = interp(pv_UPLT,   pv_LORT_W)
+
+      ! Mass and temperature fluxes
+      physics = physics_scalar_flux (dom, id, idE, idNE, idN)
+
+      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1))  + physics(S_MASS,RT+1)
+      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1)) + physics(S_MASS,DG+1)
+      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1))  + physics(S_MASS,UP+1)
+
+      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1))  + physics(S_TEMP,RT+1)
+      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1)) + physics(S_TEMP,DG+1)
+      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1))  + physics(S_TEMP,UP+1)
     end subroutine comput
   end subroutine step1
 
@@ -790,69 +792,33 @@ contains
     integer,                        intent(in) :: i, j, zlev
     integer, dimension(N_BDRY+1),   intent(in) :: offs
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
+    
+    interface
+       function physics_velo_source (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         real(8), dimension(1:EDGE)     :: physics_velo_source
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end function physics_velo_source
+    end interface
 
     integer                :: e, id
-    real(8), dimension (3) :: Laplacian, Qperp_e
+    real(8), dimension (3) :: Qperp_e, physics
 
     id = idx(i, j, offs, dims)
 
     ! Calculate Q_perp
-    Qperp_e = Qperp (dom, i, j, z_null, offs, dims) 
+    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
+
+    ! Calculate physics
+    physics = physics_velo_source (dom, i, j, z_null, offs, dims)
     
     do e = 1, EDGE 
-       dvelo(EDGE*id+e) = - Qperp_e(e)
-       ! Rayleigh friction
-       if (zlev.eq.zlevels) dvelo(EDGE*id+e) =  dvelo(EDGE*id+e) - ray_friction*velo(EDGE*id+e)*dom%len%elts(EDGE*id+e)
-    end do
-
-    ! Calculate Laplacian of velocity
-    Laplacian  = Laplacian_u (dom, i, j, z_null, offs, dims)
-
-    id = idx(i, j, offs, dims)
-    do e = 1, EDGE 
-       dvelo(EDGE*id+e) =  dvelo(EDGE*id+e) + Laplacian(e) * dom%len%elts(EDGE*id+e) ! Need to use edge integrated Laplacian for velocity restriction
+       dvelo(EDGE*id+e) = - Qperp_e(e) + physics(e)*dom%len%elts(EDGE*id+e)
     end do
   end subroutine du_source
-
-  subroutine du_source_diffuse (dom, i, j, zlev, offs, dims)
-    ! Source (non gradient) terms in velocity trend
-    ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
-    type(Domain),                   intent(in) :: dom
-    integer,                        intent(in) :: i, j, zlev
-    integer, dimension(N_BDRY+1),   intent(in) :: offs
-    integer, dimension(2,N_BDRY+1), intent(in) :: dims
-
-    integer               :: e, id
-    real(8), dimension(3) :: Laplacian
-
-    ! Calculate Laplcian of velocity
-    Laplacian  = Laplacian_u (dom, i, j, z_null, offs, dims)
-
-    id = idx(i, j, offs, dims)
-    do e = 1, EDGE 
-       dvelo(EDGE*id+e) = Laplacian(e)
-    end do
-  end subroutine du_source_diffuse
-
-  function Laplacian_u (dom, i, j, zlev, offs, dims)
-    ! Calculate grad(divu) - curl(vort) to diffuse momentum
-    real(8), dimension(3)          :: Laplacian_u
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer               :: e, id
-    real(8), dimension(3) :: grad_divu, curl_rotu
-
-    grad_divu = gradi_e (divu, dom, i, j, offs, dims)
-    curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-
-    id = idx(i, j, offs, dims)
-    do e = 1, EDGE
-       Laplacian_u(e) = viscosity_divu * grad_divu(e) - viscosity_rotu * curl_rotu(e)
-    end do
-  end function Laplacian_u
 
   function Qperp (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving edge integrated Qperp and add it to dvelo [Aechtner thesis page 44]
@@ -945,16 +911,31 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
+    real(8), dimension(S_MASS:S_TEMP) :: physics
 
+    interface
+       function physics_scalar_source (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
+         type(Domain)                      :: dom
+         integer                           :: i, j, zlev
+         integer, dimension(N_BDRY+1)      :: offs
+         integer, dimension(2,N_BDRY+1)    :: dims
+       end function physics_scalar_source
+    end interface
+
+    physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
+    
     id = idx(i, j, offs, dims)
 
-    dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims)
-    dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) 
-   end subroutine scalar_trend
+    dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
+    dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
+  end subroutine scalar_trend
 
   function gradi_e (scalar, dom, i, j, offs, dims)
     ! Gradient of a scalar at nodes x_i
     ! output is at edges
+    ! If type = .true. then compute the gradient at the southwest edges of the hexagon
     real(8), dimension(3)          :: gradi_e
     real(8), dimension(:), pointer :: scalar
     type(Domain)                   :: dom
@@ -963,7 +944,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, idE, idN, idNE
-
+    
     id   = idx(i,   j,   offs, dims)
     idE  = idx(i+1, j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
@@ -1023,7 +1004,7 @@ contains
     interp = 0.5_8 * (e1 + e2)
   end function interp
 
-  subroutine du_gradB_gradExn (dom, i, j, zlev, offs, dims)
+  subroutine du_grad (dom, i, j, zlev, offs, dims)
     ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
     type(Domain)                     :: dom
     integer                          :: i, j, zlev
@@ -1065,28 +1046,8 @@ contains
     do e = 1, EDGE
        dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
     end do
-  end subroutine du_gradB_gradExn
+  end subroutine du_grad
 
-
-   subroutine du_gradB_slow (dom, i, j, zlev, offs, dims)
-    ! Gradient of Bernoulli function (slow part)
-    type(Domain)                     :: dom
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-
-    integer                      :: e, id
-    real(8), dimension(3)        :: gradB
-
-    ! Calculate gradient
-    gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
-
-    ! Update velocity trend (no other contribution)
-    do e = 1, EDGE
-       dvelo(EDGE*id+e) = - gradB(e)
-    end do
-  end subroutine du_gradB_slow
-  
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1133,31 +1094,6 @@ contains
     vort(TRIAG*id+LORT+1) =   (u_prim_RT + u_prim_UP_E + u_prim_DG)  /dom%triarea%elts(TRIAG*id+LORT+1) 
     vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N)/dom%triarea%elts(TRIAG*id+UPLT+1)
   end subroutine cal_vort
-
-  subroutine flux_grad_scalar (dom, i, j, zlev, offs, dims)
-    ! Diffusive term
-    type(Domain) :: dom
-    integer :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-
-    integer               :: e, id, idE, idN, idNE
-    real(8), dimension(3) :: gradM, gradT
-
-    id   = idx(i,     j,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-
-    ! Gradient of mass and temperature at edges
-    gradM = gradi_e (mass, dom, i, j, offs, dims)
-    gradT = gradi_e (temp, dom, i, j, offs, dims)
-
-    do e = 1, EDGE
-       h_mflux(EDGE*id+e) = - viscosity_mass * dom%pedlen%elts(EDGE*id+e) * gradM(e)
-       h_tflux(EDGE*id+e) = - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
-    end do
-  end subroutine flux_grad_scalar
 
   subroutine sum_mass_temp (dom, i, j, zlev, offs, dims)
     type(Domain)                   :: dom
@@ -1331,7 +1267,7 @@ contains
   !   dom%adj_vflux%elts(id+1) = velo
   ! end subroutine interp_vert_velo_at_full_levels
 
-  ! subroutine du_gradB_gradExn (dom, i, j, zlev, offs, dims)
+  ! subroutine du_grad (dom, i, j, zlev, offs, dims)
   ! Mass-based version
    !  ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
    !  ! mass and potential temperature trend is zero
@@ -1431,5 +1367,5 @@ contains
     !       end do
     !    end if
     ! end if
-    !  end subroutine du_gradB_gradExn
+    !  end subroutine du_grad
 end module ops_mod

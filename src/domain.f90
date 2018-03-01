@@ -46,8 +46,6 @@ module domain_mod
      type(Float_Array) :: adj_geopot  ! geopotential in adjacent vertical cell
      type(Float_Array) :: vort        ! vorticity
      type(Float_Array) :: bernoulli   ! Bernoulli function
-     type(Float_Array) :: bern_fast   ! Bernoulli function
-     type(Float_Array) :: bern_slow   ! Bernoulli function (slow part)
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          ! 
 
@@ -65,7 +63,7 @@ module domain_mod
 
   type(Domain), dimension(:), allocatable, target        :: grid
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_save, trend, wav_coeff, trend_wav_coeff
-  type(Float_Field), dimension(:), allocatable, target   :: bernoulli_fast, exner_fun, horiz_flux
+  type(Float_Field), dimension(:), allocatable, target   :: exner_fun, horiz_flux
 
   !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
   !we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
