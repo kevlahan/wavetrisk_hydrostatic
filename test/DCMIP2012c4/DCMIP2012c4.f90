@@ -1,5 +1,5 @@
-module DCMIP2008c5_mod
-  ! DCMIP2008 test case 5 parameters
+module DCMIP2012c4_mod
+  ! DCMIP2012 test case 4: baroclinic instability
   use main_mod
   use remap_mod
   implicit none
@@ -10,12 +10,13 @@ module DCMIP2008c5_mod
   logical                            :: wasprinted, uniform
   character (255)                    :: IC_file
 
-  real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, T_0, u_0
+  real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, T_0
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
   real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
   real(8)                            :: visc, viscosity_divu, viscosity_rotu, viscosity_mass, viscosity_temp, ray_friction
+  real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, R_pert, u_p, u_0
 
   type(Float_Field)                  :: rel_vort 
 contains
@@ -47,12 +48,16 @@ contains
     ! Pressure at level zlev
     lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
 
+    ! Normalized pressure
+    eta = lev_press/dom%surf_press%elts(id+1)
+    eta_v = (eta - eta_0) * MATH_PI/2.0_8
+
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = &
          ((a_vert(zlev)-a_vert(zlev+1))*ref_press + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel
 
     ! Horizontally uniform potential temperature
-    pot_temp =  T_0 * (lev_press/ref_press)**(-kappa)
+    pot_temp =  set_temp(x_i) * (lev_press/ref_press)**(-kappa)
 
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
@@ -60,6 +65,24 @@ contains
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
+
+  function set_temp(x_i)
+    real(8) :: set_temp
+    type(Coord) :: x_i
+    real(8) :: lon, lat, Tmean
+
+    call cart2sph (x_i, lon, lat)
+    
+    if (eta.ge.eta_t) then
+       Tmean = T_0*eta**(R_d*Gamma_T/grav_accel)
+    else
+       Tmean = T_0*eta**(R_d*Gamma_T/grav_accel) + delta_T * (eta_t - eta)**5
+    end if
+
+    set_temp = Tmean + 0.75_8 * eta*MATH_PI*u_0/R_d * sin(eta_v) * sqrt(cos(eta_v)) * &
+         (2.0_8*cos(eta_v)**1.5*(-2.0_8*sin(lat)**6*(cos(lat)**2+1.0_8/3.0_8) + 10.0_8/63.0_8) + &
+         radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2+2.0_8/3.0_8) - MATH_PI/4.0_8))
+  end function set_temp
 
   subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
     ! Initialize surface geopotential after restart
@@ -70,7 +93,6 @@ contains
 
     type (Coord) :: x_i
     integer      :: id
-    real (8)     :: lat, lon
 
     id   = idx(i, j, offs, dims)
     x_i  = dom%node%elts(id+1)
@@ -78,42 +100,68 @@ contains
     ! Surfaced geopotential
     dom%surf_geopot%elts(id+1) = surf_geopot_fun(x_i)
   end subroutine set_surfgeopot
+ 
+  function geopot_fun (x_i)
+    ! Geopotential 
+    type(Coord) :: x_i
+    real(8)     :: geopot_fun
+    
+    real(8) :: lon, lat, phi_mean, rgrc
 
-  function surf_pressure_fun (x_i)
+    ! Find latitude and longitude from Cartesian coordinates
+    call cart2sph (x_i, lon, lat)
+
+    if (eta.ge.eta_t) then
+       phi_mean = T_0*grav_accel/gamma_T * (1.0_8 - eta**(R_d*gamma_T/grav_accel))
+    else
+       phi_mean = T_0*grav_accel/gamma_T * (1.0_8 - eta**(R_d*gamma_T/grav_accel)) - delta_phi(eta)
+    end if
+
+    geopot_fun = phi_mean + u_0*cos(eta_v)**1.5*(u_0*cos(eta_v)**1.5* &
+         (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8) + &
+         radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
+  end function geopot_fun
+
+  function delta_phi (eta)
+    real(8) :: delta_phi
+    real(8) :: eta
+
+    delta_phi = R_d * delta_T*((log(eta/eta_t) + 137.0_8/60.0_8)*eta_t**5 - 5.0_8*eta_t**4*eta + 5.0_8*eta_t**3*eta**2 &
+         - 10.0_8/3.0_8 * eta_t**2*eta**3 + 5.0_8/4.0_8*eta_t*eta**4 - eta**5/5.0_8)
+  end function delta_phi
+  
+  function surf_geopot_fun (x_i)
+    ! Surface geopotential
+    Type(Coord) :: x_i
+    real(8)     :: surf_geopot_fun
+    real(8)     :: lon, lat
+
+    ! Find latitude and longitude from Cartesian coordinates
+    call cart2sph (x_i, lon, lat)
+
+    surf_geopot_fun = u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5 * &
+         (u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5 * &
+         (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
+         radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
+  end function surf_geopot_fun
+
+   function surf_pressure_fun (x_i)
     ! Surface pressure
     type(Coord) :: x_i
     real(8)     :: surf_pressure_fun
 
-    real(8) :: lon, lat, surf_geopot
-
-    ! Find latitude and longitude from Cartesian coordinates
-    call cart2sph (x_i, lon, lat)
-
-    surf_pressure_fun = ref_surf_press * exp__flush ( &
-         - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+f0)*(sin(lat)**2-1.0_8) &
-         - N_freq**2/(grav_accel**2*kappa)*surf_geopot_fun (x_i) )
+    surf_pressure_fun = ref_press
   end function surf_pressure_fun
-
-  function surf_geopot_fun (x_i)
-    ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
-    type(Coord) :: x_i
-    real(8)     :: surf_geopot_fun
-
-    real(8) :: lon, lat, rgrc
-
-    ! Find latitude and longitude from Cartesian coordinates
-    call cart2sph (x_i, lon, lat)
-
-    rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
-
-    surf_geopot_fun = grav_accel * h_0 * exp__flush(-rgrc**2/d2)
-  end function surf_geopot_fun
 
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
     real(8) :: lon, lat, u, v
+    real(8) :: rgrc
 
-    u = u_0*cos(lat)  ! Zonal velocity component
+    ! Great circle distance
+    rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
+    
+    u = u_0*cos(eta_v)**1.5*sin(2.0_8*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
@@ -132,42 +180,18 @@ contains
           b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
     else
-       if (zlevels.eq.18) then
-          !a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-          a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-               0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
-               0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
-               0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
-               0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
-               0.953189_8, 0.985056_8, 1.0_8 /)
-       elseif (zlevels.eq.26) then
-          !a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
-          a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
-               0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
-               0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
-               0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
-               0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
-               0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
-       elseif (zlevels.eq.49) then
-          a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
-               0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
-               0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
-               0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
-               0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
-               0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
-               0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
-               0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
-               0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
-               0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
-               0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
-               0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
-               0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
-               0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
-               0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
-               0.9851122_8, 1.0_8/)
+       if (zlevels.eq.30) then
+          a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
+               0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
+               0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
+               0.155995160341263, 0.14416541159153, 0.130248308181763, 0.113875567913055, 0.0946138575673103, &
+               0.0753444507718086, 0.0576589405536652, 0.0427346378564835, 0.0316426791250706, 0.0252212174236774, &
+               0.0191967375576496, 0.0136180268600583, 0.00853108894079924, 0.00397881818935275, 0.0, 0.0 /)
+          b_vert = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0393548272550106, &
+               0.0856537595391273, 0.140122056007385, 0.204201176762581, 0.279586911201477, 0.368274360895157,  &
+               0.47261056303978, 0.576988518238068, 0.672786951065063, 0.753628432750702, 0.813710987567902, &
+               0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
+               0.985112190246582, 1.0 /)
        else
           write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
           stop
@@ -286,19 +310,19 @@ contains
     if (rank .eq. 0) call compress_files (iwrite)
   end subroutine write_and_export
 
-  subroutine DCMIP2008c5_dump(fid)
+  subroutine DCMIP2012c4_dump(fid)
     integer :: fid
     write(fid) itime
     write(fid) iwrite
     write(fid) tol_mass, tol_temp, tol_velo
-  end subroutine DCMIP2008c5_dump
+  end subroutine DCMIP2012c4_dump
 
-  subroutine DCMIP2008c5_load(fid)
+  subroutine DCMIP2012c4_load(fid)
     integer :: fid
     read(fid) itime
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
-  end subroutine DCMIP2008c5_load
+  end subroutine DCMIP2012c4_load
 
   subroutine set_thresholds (itype)
     integer, optional :: itype
@@ -478,11 +502,11 @@ contains
        mass_error = abs(totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
-end module DCMIP2008c5_mod
+end module DCMIP2012c4_mod
 
-program DCMIP2008c5
+program DCMIP2012c4
   use main_mod
-  use DCMIP2008c5_mod
+  use DCMIP2012c4_mod
   implicit none
 
   integer                      :: d, ierr, k, l, v, zlev
@@ -502,24 +526,27 @@ program DCMIP2008c5
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
   ! Read test case parameters
-  call read_test_case_parameters ("DCMIP2008c5.in")
+  call read_test_case_parameters ("DCMIP2012c4.in")
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
 
   ! Parameters for the simulation
+  radius         = 6.371229d6    ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8     ! gravitational acceleration in meters per second squared
   omega          = 7.29211d-5    ! Earth’s angular velocity in radians per second
   f0             = 2.0_8*omega   ! Coriolis parameter
-  u_0            = 20.0_8        ! velocity in meters per second
+  u_0            = 35.0_8        ! maximum velocity of zonal wind
+  u_p            = 1.0_8         ! maximum perturbation to zonal wind
+  R_pert         = radius/10.0_8 ! 
   T_0            = 288.0_8       ! temperature in Kelvin
-  d2             = 1.5d6**2      ! square of half width of Gaussian mountain profile in meters
-  h_0            = 2.0d3         ! mountain height in meters
-  lon_c          = MATH_PI/2.0_8 ! mountain peak longitudinal location in radians
-  lat_c          = MATH_PI/6.0_8 ! mountain peak latitudinal location in radians
-  radius         = 6.371229d6    ! mean radius of the Earth in meters
-  ref_press      = 100145.6_8    ! reference pressure (mean surface pressure) in Pascals
-  ref_surf_press = 930.0d2       ! South Pole surface pressure in Pascals
+  gamma_T        = 0.005         ! temperature lapse rate
+  delta_T        = 4.8d5         ! empirical temperature difference
+  eta_0          = 0.252_8       ! value of eta at reference level (level of the jet)
+  eta_t          = 0.2_8         ! value of eta at the tropopause
+  lon_c          = MATH_PI/9.0_8 ! longitude location of perturbation to zonal wind
+  lat_c          = 2.0_8*MATH_PI/9.0_8 ! latitude location of perturbation to zonal wind
+  ref_press      = 100000.0_8    ! reference pressure (mean surface pressure) in Pascals
   R_d            = 287.04_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_p            = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
   c_v            = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
@@ -546,20 +573,20 @@ program DCMIP2008c5
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
-  zlev           = 1
+  zlev           = 8 ! about 820 hPa
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = level_end                                  ! resolution level at which to save lat-lon data
-  pressure_save  = (/700.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
+  pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
   adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
-  remap        = .true. ! Remap vertical coordinates (always remap when saving results)
+  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
-  visc = 0.0_8!2.0d-4 ! Constant for viscosity
+  visc = 2.0d-4 ! Constant for viscosity
 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
@@ -583,7 +610,7 @@ program DCMIP2008c5
   call initialize_a_b_vert
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
+  call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2012c4_dump, DCMIP2012c4_load)
 
   allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2;  call set_surf_geopot 
@@ -601,7 +628,7 @@ program DCMIP2008c5
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
 
-  open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
+  open(unit=12, file='DCMIP2012c4_log', action='WRITE', form='FORMATTED')
   if (rank .eq. 0) then
      write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9,A,ES10.4)') &
           ' time [h] = ', time/3600.0_8, &
@@ -660,7 +687,7 @@ program DCMIP2008c5
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle ! Do not write checkpoint
 
-        ierr = write_checkpoint (DCMIP2008c5_dump)
+        ierr = write_checkpoint (DCMIP2012c4_dump)
 
         ! Let all cpus exit gracefully if NaN has been produced
         ierr = sync_max (ierr)
@@ -671,7 +698,7 @@ program DCMIP2008c5
         end if
 
         ! Restart after checkpoint and load balance
-        call restart_full (set_thresholds, DCMIP2008c5_load)
+        call restart_full (set_thresholds, DCMIP2012c4_load)
         call print_load_balance
 
         call barrier
@@ -688,7 +715,7 @@ program DCMIP2008c5
   end if
 
   call finalize
-end program DCMIP2008c5
+end program DCMIP2012c4
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
@@ -699,7 +726,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   !
   ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
   use domain_mod
-  use DCMIP2008c5_mod
+  use DCMIP2012c4_mod
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
   type(Domain)                             :: dom
   integer                                  :: id, idE, idNE, idN
@@ -761,7 +788,7 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the scalar trend
   ! In this test case there is no scalar source term
   use domain_mod
-  use DCMIP2008c5_mod
+  use DCMIP2012c4_mod
   real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
   type(Domain)                      :: dom
   integer                           :: i, j, zlev
@@ -777,7 +804,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! In this test case we add Rayleigh friction and Laplacian diffusion
   use domain_mod
   use ops_mod
-  use DCMIP2008c5_mod
+  use DCMIP2012c4_mod
   real(8), dimension(1:EDGE)     :: physics_velo_source
   type(Domain)                   :: dom
   integer                        :: i, j, zlev
