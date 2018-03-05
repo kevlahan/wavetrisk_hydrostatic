@@ -197,7 +197,6 @@ contains
     else
        dt_loc = dt_init
     end if
-    min_mass = 1d16
     
     n_active_nodes = 0
     n_active_edges = 0

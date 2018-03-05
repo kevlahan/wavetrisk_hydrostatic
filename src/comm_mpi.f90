@@ -1179,11 +1179,6 @@ contains
     n_active_nodes = 0
     n_active_edges = 0
 
-    min_mass = 1d16
-    loc_min = min_mass
-    call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    min_mass = glo_min
-
     do l = level_start, level_end
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do

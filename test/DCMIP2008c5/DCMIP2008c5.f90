@@ -555,11 +555,11 @@ program DCMIP2008c5
   adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
-  remap        = .true. ! Remap vertical coordinates (always remap when saving results)
+  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
-  visc = 0.0_8!2.0d-4 ! Constant for viscosity
+  visc = 2.0d-5!2.0d-4 ! Constant for viscosity
 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
@@ -603,14 +603,13 @@ program DCMIP2008c5
 
   open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
   if (rank .eq. 0) then
-     write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9,A,ES10.4)') &
+     write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9)') &
           ' time [h] = ', time/3600.0_8, &
           '  mass tol = ', tol_mass, &
           ' temp tol = ', tol_temp, &
           ' velo tol = ', tol_velo, &
           ' Jmax =', level_end, &
-          '  dof = ', sum(n_active), &
-          ' min mass = ', min_mass
+          '  dof = ', sum(n_active)
   end if
 
   do while (time .lt. time_end)
@@ -629,7 +628,7 @@ program DCMIP2008c5
      total_cpu_time = total_cpu_time + timing
 
      if (rank .eq. 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES10.4,1x,A,ES8.2)') &
+        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2)') &
              ' time [h] = ', time/60.0_8**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
@@ -638,11 +637,10 @@ program DCMIP2008c5
              ' Jmax = ', level_end, &
              '  dof = ', sum(n_active), &
              ' mass error = ', mass_error, &
-             ' min mass = ', min_mass, &
              ' cpu = ', timing
 
-        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, min_mass, timing
+        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES15.9,1x))')  &
+             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, timing
      end if
 
      if (aligned) then

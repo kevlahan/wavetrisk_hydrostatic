@@ -2,8 +2,8 @@
 clear all; close all;
 
 machine   = 'if'
-itime     = '005'
-itype     = 'merid'
+itime     = '056'
+itype     = 'geopot'
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
@@ -25,7 +25,8 @@ lat = load([file_base itime '21']);
 P_z = load([file_base itime '22']); % Pressure-based vertical coordinates
 
 if (strcmp(itype,'temp')) % Plot temperature
-    c_scale = 270:3:303;
+    %c_scale = 270:3:303; % DCMIP2008c5
+    c_scale = 220:10:320; % DCMIP2012c4
     v_title = 'Temperature (K)';
     if (lon_lat)
         s_ll = load([file_base itime '02']);
@@ -34,7 +35,8 @@ if (strcmp(itype,'temp')) % Plot temperature
         s_zo = load([file_base itime '12']);
     end
 elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
-    c_scale = -15:5:50;
+    %c_scale = -15:5:50; % DCMIP2008c5
+    c_scale = 0:2:20; % DCMIP2012c4
     v_title = 'Zonal velocity (m/s)';
     if (lon_lat)
         s_ll = load([file_base itime '03']);
@@ -43,7 +45,8 @@ elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
         s_zo = load([file_base itime '13']);
     end
 elseif (strcmp(itype,'merid')) % Plot meridional velocity data
-    c_scale = -35:5:20;
+    %c_scale = -35:5:20;% DCMIP2008c5
+    c_scale = -5:1:5;% DCMIP2012c4
     v_title = 'Meridional velocity (m/s)';
     if (lon_lat)
         s_ll = load([file_base itime '04']);
@@ -52,7 +55,8 @@ elseif (strcmp(itype,'merid')) % Plot meridional velocity data
         s_zo = load([file_base itime '14']);
     end
 elseif (strcmp(itype,'geopot')) % Plot geopotential data
-    c_scale = 2400:100:3400;
+    %c_scale = 2400:100:3400; % DCMIP2008c5
+    c_scale = 750:100:1500; % DCMIP2012c4
     v_title = 'Geopotential (m)';
     s_ll = load([file_base itime '05']);
     zonal_avg = 0; 
@@ -69,6 +73,9 @@ if (zonal_avg)
     end
     plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, 0)
 end
+
+min(min(s_ll))
+max(max(s_ll))
 
 % Erase extracted files
 file_erase = ['\rm ' file_base '*'];

@@ -4,7 +4,7 @@ module comm_mod
   implicit none
   integer, dimension(4,4)            :: shift_arr
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes
-  real(8)                            :: dt_loc, min_mass, sync_val
+  real(8)                            :: dt_loc, sync_val
 contains
   subroutine init_comm_mod
     logical :: initialized = .False.
@@ -1115,19 +1115,6 @@ contains
 
     if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
-
-       ! Find minimum mass for this node
-       do k = 1, zlevels
-          if (sol(S_MASS,k)%data(d)%elts(id+1) .le. 0.0) then
-             write(0,*) "ERROR: a mass element is less than zero"
-             stop
-          end if
-          if (isnan(sol(S_MASS,k)%data(d)%elts(id+1))) then
-             write(0,*) "ERROR: a mass element is NaN"
-             stop
-          end if
-          min_mass = min (min_mass, sol(S_MASS,k)%data(d)%elts(id+1))
-       end do
 
        do e = 1, EDGE
           if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) then
