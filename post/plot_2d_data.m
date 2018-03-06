@@ -1,9 +1,9 @@
 % Plot 2d data from export_2d
 clear all; close all;
 
-machine   = 'if'
-itime     = '056'
-itype     = 'geopot'
+machine   = 'mac'
+itime     = '030'
+itype     = 'vort'
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
@@ -13,7 +13,7 @@ smooth    = 1; % smooth data over two points in each direction
 file_base = 'fort.3';
 if (strcmp(machine,'if'))
     pathid = '/net/if/1/home/kevlahan/data/jobs/hydrostatic/';
-elseif (strcmp(machine,'pecan'))
+elseif (strcmp(machine,'mac'))
     pathid = '/Users/kevlahan/hydro/';
 end
 file_tar = ['tar ' 'xvf ' pathid file_base itime '.tgz'];
@@ -59,7 +59,12 @@ elseif (strcmp(itype,'geopot')) % Plot geopotential data
     c_scale = 750:100:1500; % DCMIP2012c4
     v_title = 'Geopotential (m)';
     s_ll = load([file_base itime '05']);
-    zonal_avg = 0; 
+    zonal_avg = 0;
+elseif (strcmp(itype,'vort')) % Plot relative vorticity data
+    s_ll = load([file_base itime '06']);
+    c_scale = linspace(-3e-5,3e-5,10);
+    v_title = 'Relative vorticity';
+    zonal_avg = 0;
 end
 if (lon_lat)
     if (smooth)
@@ -74,8 +79,8 @@ if (zonal_avg)
     plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, 0)
 end
 
-min(min(s_ll))
-max(max(s_ll))
+fprintf('Minimum value of variable %s = %8.4e\n',itype, min(min(s_ll)));
+fprintf('Maximum value of variable %s = %8.4e\n',itype, max(max(s_ll)));
 
 % Erase extracted files
 file_erase = ['\rm ' file_base '*'];

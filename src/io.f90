@@ -280,7 +280,7 @@ contains
     real(8), dimension(2)               :: lon_lat_range
 
     integer                              :: d, i, id, j, k, p, v
-    integer, parameter                   :: n_vars=5 ! Number of variables to save
+    integer, parameter                   :: n_vars=6 ! Number of variables to save
 
     real, dimension(:,:,:), allocatable  :: field2d_save, zonal_av
     real(8), dimension(n_vars)            :: default_val
@@ -317,7 +317,20 @@ contains
 
     ! Calculate geopotential (stored in adj_geopot)
     call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
-   
+
+    ! Calculate vorticity
+    do d = 1, size(grid)
+       velo => sol(S_VELO,level_save)%data(d)%elts
+       vort => grid(d)%vort%elts
+       do j = 1, grid(d)%lev(level_end)%length
+          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
+       end do
+       call apply_to_penta_d (post_vort, grid(d), level_end, k)
+       nullify (velo, vort)
+    end do
+    ! Calculate vorticity at hexagon points (stored in adj_mass)
+    call apply_onescale (vort_triag_to_hex, level_save, z_null, 0, 1)
+      
     dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
@@ -349,6 +362,10 @@ contains
        ! Geopotential
        call project_geopot_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
        field2d_save(:,:,5+k-1) = field2d
+
+       ! Vorticity
+       call project_vorticity_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
+       field2d_save(:,:,6+k-1) = field2d
     end do
 
     ! Zonal averages
@@ -373,8 +390,6 @@ contains
        zonal_av(k,:,3) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
        call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
        zonal_av(k,:,4) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
-       
-       ! Vorticity
     end do
     
     if (rank .eq. 0) then
@@ -540,6 +555,62 @@ contains
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_geopot_onto_plane
+
+  subroutine project_vorticity_onto_plane (Nx, Ny, l, proj, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    external              :: proj
+    integer               :: l, itype
+    integer, dimension(2) :: Nx, Ny
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call proj (grid(d)%node%elts(id+1),   cC)
+                call proj (grid(d)%node%elts(idN+1),  cN)
+                call proj (grid(d)%node%elts(idE+1),  cE)
+                call proj (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = grid(d)%adj_mass%elts(id+1)
+                valN  = grid(d)%adj_mass%elts(idN+1)
+                valE  = grid(d)%adj_mass%elts(idE+1)
+                valNE = grid(d)%adj_mass%elts(idNE+1)
+
+                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_vorticity_onto_plane
 
   subroutine project_uzonal_onto_plane (Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
@@ -828,6 +899,34 @@ contains
     dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) &
          + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
+
+   subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
+     ! Approximate vorticity at hexagon points
+     type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, idE, idNE, idN, idW, idSW, idS, d, k
+    real(8) :: temp_vort
+
+    d = dom%id + 1
+    id   = idx(i,   j,   offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+
+    dom%adj_mass%elts(id+1) = &
+         (dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1) + &
+         dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1) + &
+         dom%areas%elts(idW+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1) + &
+         dom%areas%elts(idSW+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
+         dom%areas%elts(idSW+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
+         dom%areas%elts(idS+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)) * dom%areas%elts(id+1)%hex_inv
+   end subroutine vort_triag_to_hex
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)
     ! Write primal grid for vertical level zlev
