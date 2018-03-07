@@ -2,11 +2,10 @@ module comm_mpi_mod
   use domain_mod
   use comm_mod
   implicit none
-
 contains
-  subroutine init_comm_mpi()
-    call init_comm()
-    call comm_communication_mpi()
+  subroutine init_comm_mpi
+    call init_comm
+    call comm_communication_mpi
   end subroutine init_comm_mpi
 
   integer function write_active_per_level()
@@ -24,31 +23,33 @@ contains
     write_active_per_level = recommended_level_start
   end function write_active_per_level
 
-  subroutine print_load_balance()
+  subroutine print_load_balance
+    
   end subroutine print_load_balance
 
-  subroutine write_level_mpi(out_rout, fid, l, zlev, eval_pole)
-    external out_rout
-    integer fid, l, zlev
-    character(5+6) filename
-    logical eval_pole
+  subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole)
+    external       :: out_rout
+    integer        :: fid, l, zlev
+    logical        :: eval_pole
 
-    write(filename,   '(A,I6)')  "fort.", fid
+    character(5+6) :: filename
+    
+    write(filename,'(A,I6)')  "fort.", fid
     open(unit=fid, file=filename)
-    if (eval_pole) call apply_to_pole(out_rout, l, zlev, fid, .False.)
-    call apply_onescale__int(out_rout, l, zlev, 0, 0, fid)
+    if (eval_pole) call apply_to_pole (out_rout, l, zlev, fid, .False.)
+    call apply_onescale__int (out_rout, l, zlev, 0, 0, fid)
     close(fid)
   end subroutine write_level_mpi
 
-  subroutine write_load_conn(id)
+  subroutine write_load_conn (id)
     ! write out load distribution and connectivity for load balancing
-    integer id
-    character(5+4) filename
-    integer fid
+    integer        :: id
+    character(5+4) :: filename
+    integer        :: fid
 
     fid = 599
 
-    write(filename, '(A,I4.4)')  "conn.", id
+    write(filename,'(A,I4.4)')  "conn.", id
     open(unit=fid, file=filename)
     call write_load_conn1(fid)
     close(fid)
@@ -57,108 +58,113 @@ contains
   subroutine init_comm_mpi_mod()
   end subroutine init_comm_mpi_mod
 
-  subroutine comm_communication_mpi()
-    call comm_communication()
+  subroutine comm_communication_mpi
+    call comm_communication
   end subroutine comm_communication_mpi
 
   subroutine comm_masks_mpi(l)
-    integer l
-    call comm_masks()
+    integer :: l
+    call comm_masks
   end subroutine comm_masks_mpi
 
-  subroutine update_bdry1(field, l_start, l_end)
+  subroutine update_bdry1 (field, l_start, l_end)
     type(Float_Field) :: field
-    integer l_start, l_end
+    integer           :: l_start, l_end
     
     call cp_bdry_inside(field)
   end subroutine update_bdry1
 
-  subroutine update_array_bdry1(field, l_start, l_end)
+  subroutine update_array_bdry1 (field, l_start, l_end)
     type(Float_Field), dimension(:,:) :: field
-    integer l_start, l_end
-    integer :: i1, i2
+    integer                           :: l_start, l_end
+    
+    integer               :: i1, i2
     integer, dimension(2) :: sz
 
     sz = shape(field)
 
     do i2 = 1, sz(2)
        do i1 = 1, sz(1)
-          call cp_bdry_inside(field(i1,i2))
+          call cp_bdry_inside (field(i1,i2))
        end do
     end do
   end subroutine update_array_bdry1
 
-  subroutine comm_nodes9_mpi(get, set, l)
-    external get, set
-    integer l
-    call comm_nodes9(get, set) ! communicate inside domain
+  subroutine comm_nodes9_mpi (get, set, l)
+    external :: get, set
+    integer  :: l
+    call comm_nodes9 (get, set) ! communicate inside domain
   end subroutine comm_nodes9_mpi
 
-  subroutine comm_nodes3_mpi(get, set, l)
-    external get, set
-    integer l
+  subroutine comm_nodes3_mpi (get, set, l)
+    external :: get, set
+    integer  :: l
     type(Coord) get
-    call comm_nodes3(get, set) ! communicate inside domain
+    call comm_nodes3 (get, set) ! communicate inside domain
   end subroutine comm_nodes3_mpi
 
-  subroutine comm_patch_conn_mpi()
-    call comm_patch_conn()
+  subroutine comm_patch_conn_mpi
+    call comm_patch_conn
   end subroutine comm_patch_conn_mpi
 
-  subroutine update_bdry(field, l)
-    type(Float_Field) field
-    integer l
-    call cp_bdry_inside(field)
+  subroutine update_bdry (field, l)
+    type(Float_Field) :: field
+    integer           :: l
+    call cp_bdry_inside (field)
   end subroutine update_bdry
 
-  subroutine update_vector_bdry(field, l)
+  subroutine update_vector_bdry (field, l)
     type(Float_Field), dimension(:) :: field
-    integer l, i1, i2, sz
+    
+    integer :: l, i1, i2, sz
 
     sz = size(field)
 
     do i1 = 1, sz
-       call cp_bdry_inside(field(i1))
+       call cp_bdry_inside (field(i1))
     end do
   end subroutine update_vector_bdry
 
-  subroutine update_array_bdry(field, l)
+  subroutine update_array_bdry (field, l)
     type(Float_Field), dimension(:,:) :: field
-    integer l
-    integer :: i1, i2
+    integer                           :: l
+    
+    integer                :: i1, i2
     integer, dimension (2) :: sz
 
     sz = shape(field)
 
     do i2 = 1, sz(2)
        do i1 = 1, sz(1)
-          call cp_bdry_inside(field(i1,i2))
+          call cp_bdry_inside (field(i1,i2))
        end do
     end do
   end subroutine update_array_bdry
 
-  subroutine update_bdry__start(field, l)
-    type(Float_Field) field
-    integer l
-    call cp_bdry_inside(field)
+  subroutine update_bdry__start (field, l)
+    type(Float_Field) :: field
+    integer           :: l
+    call cp_bdry_inside (field)
   end subroutine update_bdry__start
   
-  subroutine update_vector_bdry__start(field, l)
+  subroutine update_vector_bdry__start (field, l)
     type(Float_Field), dimension(:) :: field
-    integer l, i1, sz
+    integer                         :: l
+    
+    integer :: i1, sz
     
     sz = size(field)
 
     do i1 = 1, sz
-       call cp_bdry_inside(field(i1))
+       call cp_bdry_inside (field(i1))
     end do
   end subroutine update_vector_bdry__start
 
-  subroutine update_array_bdry__start(field, l)
+  subroutine update_array_bdry__start (field, l)
     type(Float_Field), dimension(:,:) :: field
-    integer l
+    integer                           :: l
 
-    integer :: i1, i2
+    integer                :: i1, i2
     integer, dimension (2) :: sz
 
     sz = shape(field)
@@ -170,19 +176,19 @@ contains
     end do
   end subroutine update_array_bdry__start
 
-  subroutine update_bdry__finish(field, l)
-    type(Float_Field) field
-    integer l
+  subroutine update_bdry__finish (field, l)
+    type(Float_Field) :: field
+    integer           :: l
   end subroutine update_bdry__finish
 
-  subroutine update_vector_bdry__finish(field, l)
+  subroutine update_vector_bdry__finish (field, l)
     type(Float_Field), dimension(:) :: field
-    integer l
+    integer                         :: l
   end subroutine update_vector_bdry__finish
 
-  subroutine update_array_bdry__finish(field, l)
+  subroutine update_array_bdry__finish (field, l)
     type(Float_Field), dimension(:,:) :: field
-    integer l
+    integer                           :: l
   end subroutine update_array_bdry__finish
 
   function cpt_dt_mpi()
