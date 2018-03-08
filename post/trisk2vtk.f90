@@ -69,7 +69,7 @@ program trisk2vtk
 
      if (trim(file_type) .eq. "primal") then
         n_vertices = 6 ! Hexagonal cells (primal grid)
-        nvar_out   = 5
+        nvar_out   = 7
      elseif (trim(file_type) .eq. "dual") then
         n_vertices = 3 ! Triangular cells (dual grid)
         nvar_out   = 1
@@ -160,7 +160,7 @@ program trisk2vtk
         open (unit=iunit, file=filename_in, form="formatted")
         if (file_type.eq."primal") then
            do icell = n_cells_old+1, n_cells
-              read (iunit, fmt='(18(E14.5E2, 1X), 5(E14.5E2, 1X), I3, 1X, I3)') &
+              read (iunit, fmt='(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
                    ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
                    outv(icell,1:nvar_out), mask(icell), level(icell)
            end do
@@ -254,6 +254,20 @@ program trisk2vtk
         write(iunit) 'LOOKUP_TABLE default'//lf
         do icell = 1, n_cells
            write (iunit) outv(icell,5)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS surf_press float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,6)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS vorticity float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,7)
         end do
         write(iunit) lf
 

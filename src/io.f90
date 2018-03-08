@@ -8,7 +8,7 @@ module io_mod
   use multi_level_mod
   use remap_mod
   implicit none
-  integer, parameter                  :: N_VAR_OUT = 5
+  integer, parameter                  :: N_VAR_OUT = 7
   integer, dimension(2,4)             :: HR_offs
   real(8)                             :: dx_export, dy_export, kx_export, ky_export, vmin, vmax
   real(8), dimension(N_VAR_OUT)       :: minv, maxv
@@ -280,7 +280,7 @@ contains
     real(8), dimension(2)               :: lon_lat_range
 
     integer                              :: d, i, id, j, k, p, v
-    integer, parameter                   :: n_vars=6 ! Number of variables to save
+    integer, parameter                   :: n_vars=7 ! Number of variables to save
 
     real, dimension(:,:,:), allocatable  :: field2d_save, zonal_av
     real(8), dimension(n_vars)            :: default_val
@@ -314,7 +314,7 @@ contains
     ! Calculate temperature (store in exner_fun)
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     call update_vector_bdry (exner_fun, NONE)
-
+    
     ! Calculate geopotential (stored in adj_geopot)
     call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
 
@@ -328,9 +328,10 @@ contains
        call apply_to_penta_d (post_vort, grid(d), level_end, k)
        nullify (velo, vort)
     end do
+    
     ! Calculate vorticity at hexagon points (stored in adj_mass)
     call apply_onescale (vort_triag_to_hex, level_save, z_null, 0, 1)
-      
+
     dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
@@ -366,6 +367,10 @@ contains
        ! Vorticity
        call project_vorticity_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
        field2d_save(:,:,6+k-1) = field2d
+
+       ! Surface pressure
+       call project_surf_press_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
+       field2d_save(:,:,7+k-1) = field2d
     end do
 
     ! Zonal averages
@@ -555,6 +560,62 @@ contains
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_geopot_onto_plane
+
+  subroutine project_surf_press_onto_plane (Nx, Ny, l, proj, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    external              :: proj
+    integer               :: l, itype
+    integer, dimension(2) :: Nx, Ny
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call proj (grid(d)%node%elts(id+1),   cC)
+                call proj (grid(d)%node%elts(idN+1),  cN)
+                call proj (grid(d)%node%elts(idE+1),  cE)
+                call proj (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = grid(d)%surf_press%elts(id+1)/1.0d2
+                valN  = grid(d)%surf_press%elts(idN+1)/1.0d2
+                valE  = grid(d)%surf_press%elts(idE+1)/1.0d2
+                valNE = grid(d)%surf_press%elts(idNE+1)/1.0d2
+
+                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_surf_press_onto_plane
 
   subroutine project_vorticity_onto_plane (Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
@@ -900,32 +961,29 @@ contains
          + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
 
-   subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
-     ! Approximate vorticity at hexagon points
-     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
+  subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
+    ! Approximate vorticity at hexagon points
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN, idW, idSW, idS, d, k
-    real(8) :: temp_vort
+    integer :: id, idW, idSW, idS, d
 
     d = dom%id + 1
     id   = idx(i,   j,   offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
     idW  = idx(i-1, j,   offs, dims)
     idSW = idx(i-1, j-1, offs, dims)
     idS  = idx(i,   j-1, offs, dims)
 
-    dom%adj_mass%elts(id+1) = &
-         (dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1) + &
-         dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1) + &
-         dom%areas%elts(idW+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1) + &
-         dom%areas%elts(idSW+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
-         dom%areas%elts(idSW+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
-         dom%areas%elts(idS+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)) * dom%areas%elts(id+1)%hex_inv
+    dom%adj_mass%elts(id+1) = ( &
+         dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1)   + &
+         dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1)   + &
+         dom%areas%elts(id+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1)  + &
+         dom%areas%elts(id+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
+         dom%areas%elts(id+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
+         dom%areas%elts(id+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)    &
+         ) * dom%areas%elts(id+1)%hex_inv
    end subroutine vort_triag_to_hex
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)
@@ -941,10 +999,10 @@ contains
 
     d = dom%id + 1
 
-    id   = idx(i,     j,     offs, dims)
-    idW  = idx(i - 1, j,     offs, dims)
-    idSW = idx(i - 1, j - 1, offs, dims)
-    idS  = idx(i,     j - 1, offs, dims)
+    id   = idx(i,   j,   offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
 
     ! Temperature in layer zlev
     outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/sol(S_MASS,zlev)%data(d)%elts(id+1)*(dom%press%elts(id+1)/ref_press)**kappa
@@ -959,6 +1017,18 @@ contains
     ! Mass
     outv(5) = sol(S_MASS,zlev)%data(d)%elts(id+1)
 
+    ! Surface pressure
+    outv(6) = dom%surf_press%elts(id+1)
+
+    ! Vorticity at hexagon points
+    outv(7) =  dom%adj_mass%elts(id+1)
+         ! (dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1) + &
+         ! dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1) + &
+         ! dom%areas%elts(idW+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1) + &
+         ! dom%areas%elts(idSW+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
+         ! dom%areas%elts(idSW+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
+         ! dom%areas%elts(idS+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)) * dom%areas%elts(id+1)%hex_inv
+
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
        outl = nint(active_level%data(dom%id+1)%elts(id+1))
     else
@@ -966,7 +1036,7 @@ contains
     end if
 
     if (dom%mask_n%elts(id+1) .gt. 0) then
-       write (fid,'(18(E14.5E2, 1X), 5(E14.5E2, 1X), I3, 1X, I3)') &
+       write (fid,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
             dom%ccentre%elts(TRIAG*id   +LORT+1), dom%ccentre%elts(TRIAG*id   +UPLT+1), &
             dom%ccentre%elts(TRIAG*idW  +LORT+1), dom%ccentre%elts(TRIAG*idSW +UPLT+1), &
             dom%ccentre%elts(TRIAG*idSW +LORT+1), dom%ccentre%elts(TRIAG*idS  +UPLT+1), &

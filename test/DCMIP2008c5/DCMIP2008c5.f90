@@ -269,14 +269,17 @@ contains
           nullify (velo, vort)
        end do
 
+       ! Calculate vorticity at hexagon points (stored in adj_mass)
+       call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
+
        Call write_level_mpi (write_primal, u+l, l, zlev, .True.)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
           maxv(i) =  sync_max_d( maxv(i))
        end do
-       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+       if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+       if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
        u = 200000+100*iwrite
        call write_level_mpi (write_dual, u+l, l, zlev, .False.)
     end do
@@ -284,6 +287,10 @@ contains
     call post_levelout
     call barrier
     if (rank .eq. 0) call compress_files (iwrite)
+
+    ! Save 2D projection
+    call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
   end subroutine write_and_export
 
   subroutine DCMIP2008c5_dump(fid)
@@ -542,7 +549,7 @@ program DCMIP2008c5
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 10                               ! Vertical remap interval
+  n_remap        = 20                               ! Vertical remap interval
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
@@ -555,11 +562,11 @@ program DCMIP2008c5
   adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
-  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
+  remap        = .true. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
-  visc = 2.0d-5!2.0d-4 ! Constant for viscosity
+  visc = 2.0d-4 ! Constant for viscosity
 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
@@ -595,8 +602,6 @@ program DCMIP2008c5
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite, zlev)
-  call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
-  !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
 
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
@@ -649,10 +654,6 @@ program DCMIP2008c5
         ! Save fields
         if (remap) call remap_vertical_coordinates (set_thresholds)
         call write_and_export (iwrite, zlev)
-
-        ! Save 2D projection
-        call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
-        !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
 
         call sum_total_mass (.False.)
 

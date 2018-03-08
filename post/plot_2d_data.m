@@ -2,8 +2,8 @@
 clear all; close all;
 
 machine   = 'mac'
-itime     = '030'
-itype     = 'vort'
+itime     = '004'
+itype     = 'vort' % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
@@ -64,6 +64,12 @@ elseif (strcmp(itype,'vort')) % Plot relative vorticity data
     s_ll = load([file_base itime '06']);
     c_scale = linspace(-3e-5,3e-5,10);
     v_title = 'Relative vorticity';
+    zonal_avg = 0;
+elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
+    s_ll = load([file_base itime '07']);
+    c_scale = 800:20:1030; % DCMIP2008c5
+    %c_scale = 930:10:1030; % DCMIP2012c4
+    v_title = 'Surface pressure';
     zonal_avg = 0;
 end
 if (lon_lat)
