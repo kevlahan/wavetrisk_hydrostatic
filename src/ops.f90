@@ -373,7 +373,7 @@ contains
     real(8)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW
     real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
-    if (c .eq. IJMINUS) then
+    if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
        id   = idx( 0,  0, offs, dims)
        idSW = idx(-1, -1, offs, dims)
        idW  = idx(-1,  0, offs, dims)
@@ -413,7 +413,7 @@ contains
        qe(EDGE*idS+UP+1) = interp(pv_UPLT_S, pv_LORT_SW)
     end if
 
-    if (c .eq. IPLUSJMINUS) then
+    if (c .eq. IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
        id   = idx(PATCH_SIZE,    0, offs, dims)
        idSW = idx(PATCH_SIZE-1, -1, offs, dims)
        idS  = idx(PATCH_SIZE,   -1, offs, dims)
@@ -434,16 +434,16 @@ contains
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
             (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
-            mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
-            mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
+             mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
+             mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/ &
-            (mass(id+1)*dom%areas%elts(id+1)%part(1) &
+            ( mass(id+1)*dom%areas%elts(id+1)%part(1) &
             + mass(idE+1)*dom%areas%elts(idE+1)%part(3) &
             + mass(idNE+1)*dom%areas%elts(idNE+1)%part(5))
 
        pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            (mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) &
+            ( mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) &
             + mass(id+1)*dom%areas%elts(id+1)%part(4) &
             + mass(idW+1)*dom%areas%elts(idW+1)%part(6))
 
@@ -453,13 +453,13 @@ contains
        qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
-    if (c .eq. IMINUSJPLUS) then
-       id   = idx(0,  PATCH_SIZE,   offs, dims)
+    if (c .eq. IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+       id   = idx( 0, PATCH_SIZE,   offs, dims)
        idSW = idx(-1, PATCH_SIZE-1, offs, dims)
        idW  = idx(-1, PATCH_SIZE,   offs, dims)
-       idS  = idx(0,  PATCH_SIZE-1, offs, dims)
-       idN  = idx(0,  PATCH_SIZE+1, offs, dims)
-       idNE = idx(1,  PATCH_SIZE+1, offs, dims)
+       idS  = idx( 0, PATCH_SIZE-1, offs, dims)
+       idN  = idx( 0, PATCH_SIZE+1, offs, dims)
+       idNE = idx( 1, PATCH_SIZE+1, offs, dims)
 
        u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id  +UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
@@ -493,7 +493,7 @@ contains
        qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
-    if (c .eq. IJPLUS) then
+    if (c .eq. IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
        id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
        idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
        idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
@@ -544,15 +544,15 @@ contains
     real(8) ::  circ_LORT, circ_LORT_SW, circ_UPLT_SW
     real(8) :: u_prim_DG_SW, u_prim_RT, u_prim_RT_N, u_prim_RT_SW,  u_prim_RT_W, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
-    if (c .eq. IJMINUS) then
+    if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS (lower left corner of lozenge) combined to form pentagon
        id   = idx( 0,  0, offs, dims)
        idS  = idx( 0, -1, offs, dims)
        idSW = idx(-1, -1, offs, dims)
        idW  = idx(-1,  0, offs, dims)
 
-       u_prim_RT_W  = velo(EDGE*idW+RT+1) *dom%len%elts(EDGE*idW+RT+1)
-       u_prim_DG_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
-       u_prim_UP_S  = velo(EDGE*idS+UP+1) *dom%len%elts(EDGE*idS+UP+1)
+       u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW+RT+1)
+       u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
+       u_prim_UP_S  = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS+UP+1)
 
        circ_LORT_SW = u_prim_UP_S - u_prim_RT_W + u_prim_RT_SW
 
@@ -560,7 +560,7 @@ contains
        vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
     end if
 
-    if (c .eq. IPLUSJMINUS) then
+    if (c .eq. IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
        id   = idx(PATCH_SIZE,    0, offs, dims)
        idS  = idx(PATCH_SIZE,   -1, offs, dims)
        idSW = idx(PATCH_SIZE-1, -1, offs, dims)
@@ -575,8 +575,8 @@ contains
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
     end if
 
-    if (c .eq. IMINUSJPLUS) then
-       id   = idx(0,  PATCH_SIZE,   offs, dims)
+    if (c .eq. IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+       id   = idx( 0, PATCH_SIZE,   offs, dims)
        idSW = idx(-1, PATCH_SIZE-1, offs, dims)
        idW  = idx(-1, PATCH_SIZE,   offs, dims)
 
@@ -590,13 +590,13 @@ contains
        vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
     end if
 
-    if (c .eq. IJPLUS) then
+    if (c .eq. IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
        id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
        idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
 
        u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id+RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1)
-       u_prim_UP   = velo(EDGE*id+UP+1)*dom%len%elts(EDGE*id+UP+1)
+       u_prim_UP   = velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id+UP+1)
 
        circ_LORT   = u_prim_RT - u_prim_RT_N - u_prim_UP
 
