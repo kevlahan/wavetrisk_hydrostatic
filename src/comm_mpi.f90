@@ -146,7 +146,7 @@ contains
     write (filename, '(A,I6)')  "fort.", fid
     
     do r = 1, n_process
-       if (r .ne. rank+1) then ! Write only if our turn, otherwise only wait at Barrier0
+       if (r .ne. rank+1) then ! Write only if our turn, otherwise only wait at barrier
           call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
