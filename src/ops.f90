@@ -180,8 +180,11 @@ contains
       u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
       u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
 
-      circ_LORT_SW =  u_prim_RT_SW + u_prim_UP_S + u_prim_DG_SW
-      circ_UPLT_SW = -(u_prim_RT_W + u_prim_DG_SW + u_prim_UP_SW)
+      circ_LORT_SW =   u_prim_RT_SW + u_prim_UP_S  + u_prim_DG_SW
+      circ_UPLT_SW = -(u_prim_RT_W  + u_prim_DG_SW + u_prim_UP_SW)
+
+      vort(TRIAG*idW+LORT+1) = circ_LORT_W/dom%triarea%elts(TRIAG*idW+LORT+1) 
+      vort(TRIAG*idS+UPLT+1) = circ_UPLT_S/dom%triarea%elts(TRIAG*idS+UPLT+1) 
 
       pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/( &
            mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
@@ -192,9 +195,6 @@ contains
            mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) + &
            mass(id+1)*dom%areas%elts(id+1)%part(4) + &
            mass(idW+1)*dom%areas%elts(idW+1)%part(6))
-
-      vort(TRIAG*idW+LORT+1) = circ_LORT_W/dom%triarea%elts(TRIAG*idW+LORT+1) 
-      vort(TRIAG*idS+UPLT+1) = circ_UPLT_S/dom%triarea%elts(TRIAG*idS+UPLT+1) 
 
       qe(EDGE*idW+RT+1)  = interp(pv_LORT_W , pv_UPLT_SW)
       qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
@@ -314,11 +314,13 @@ contains
       ! Exner function in incompressible case from geopotential
       if (.not. compressible) exner(id+1) = -Phi_k
 
-      circ_LORT   =   u_prim_RT + u_prim_UP_E + u_prim_DG 
-      circ_UPLT   = -(u_prim_DG + u_prim_UP + u_prim_RT_N)
-
-      circ_LORT_W =   u_prim_RT_W  + u_prim_UP + u_prim_DG_W
+      circ_LORT   =   u_prim_RT    + u_prim_UP_E + u_prim_DG 
+      circ_UPLT   = -(u_prim_DG    + u_prim_UP   + u_prim_RT_N)
+      circ_LORT_W =   u_prim_RT_W  + u_prim_UP   + u_prim_DG_W
       circ_UPLT_S = -(u_prim_RT    + u_prim_DG_S + u_prim_UP_S)
+
+      vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1) 
+      vort(TRIAG*id+UPLT+1) = circ_UPLT/dom%triarea%elts(TRIAG*id+UPLT+1)
 
       pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/( &
            mass(id+1)*dom%areas%elts(id+1)%part(1) + &
@@ -339,9 +341,6 @@ contains
            mass(idS+1)*dom%areas%elts(idS+1)%part(2) + &
            mass(idE+1)*dom%areas%elts(idE+1)%part(4) + &
            mass(id+1)*dom%areas%elts(id+1)%part(6))
-
-      vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1) 
-      vort(TRIAG*id+UPLT+1) = circ_UPLT/dom%triarea%elts(TRIAG*id+UPLT+1) 
 
       qe(EDGE*id+RT+1) = interp(pv_UPLT_S, pv_LORT)
       qe(EDGE*id+DG+1) = interp(pv_UPLT,   pv_LORT)
@@ -544,7 +543,7 @@ contains
     real(8) ::  circ_LORT, circ_LORT_SW, circ_UPLT_SW
     real(8) :: u_prim_DG_SW, u_prim_RT, u_prim_RT_N, u_prim_RT_SW,  u_prim_RT_W, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
-    if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS (lower left corner of lozenge) combined to form pentagon
+    if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS (SW corner of lozenge) combined to form pentagon
        id   = idx( 0,  0, offs, dims)
        idS  = idx( 0, -1, offs, dims)
        idSW = idx(-1, -1, offs, dims)
@@ -560,7 +559,7 @@ contains
        vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
     end if
 
-    if (c .eq. IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
+    if (c .eq. IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (SE corner of lozenge) combined to form pentagon
        id   = idx(PATCH_SIZE,    0, offs, dims)
        idS  = idx(PATCH_SIZE,   -1, offs, dims)
        idSW = idx(PATCH_SIZE-1, -1, offs, dims)
@@ -575,7 +574,7 @@ contains
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
     end if
 
-    if (c .eq. IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+    if (c .eq. IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (NW corner of lozenge) combined to form pentagon
        id   = idx( 0, PATCH_SIZE,   offs, dims)
        idSW = idx(-1, PATCH_SIZE-1, offs, dims)
        idW  = idx(-1, PATCH_SIZE,   offs, dims)
@@ -590,7 +589,7 @@ contains
        vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
     end if
 
-    if (c .eq. IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
+    if (c .eq. IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (NE corner of lozenge) combined to form pentagon
        id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
        idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
 

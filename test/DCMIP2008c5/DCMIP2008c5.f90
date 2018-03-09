@@ -184,10 +184,11 @@ contains
     end if
   end subroutine initialize_a_b_vert
 
-  subroutine read_test_case_parameters(filename)
-    character(*) filename
-    integer :: fid = 500
-    character(255) varname
+  subroutine read_test_case_parameters (filename)
+    character(*)   :: filename
+    integer        :: fid = 500
+    character(255) :: varname
+    
     open(unit=fid, file=filename, action='READ')
     read(fid,*) varname, max_level
     read(fid,*) varname, zlevels
@@ -261,6 +262,7 @@ contains
        do d = 1, size(grid)
           velo => sol(S_VELO,zlev)%data(d)%elts
           vort => grid(d)%vort%elts
+          grid(d)%adj_mass%elts = 100.0_8
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), zlev,    0, 0)
              call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
@@ -293,15 +295,17 @@ contains
     !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
   end subroutine write_and_export
 
-  subroutine DCMIP2008c5_dump(fid)
+  subroutine DCMIP2008c5_dump (fid)
     integer :: fid
+    
     write(fid) itime
     write(fid) iwrite
     write(fid) tol_mass, tol_temp, tol_velo
   end subroutine DCMIP2008c5_dump
 
-  subroutine DCMIP2008c5_load(fid)
+  subroutine DCMIP2008c5_load (fid)
     integer :: fid
+    
     read(fid) itime
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo

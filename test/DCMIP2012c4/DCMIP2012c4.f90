@@ -208,10 +208,11 @@ contains
     end if
   end subroutine initialize_a_b_vert
 
-  subroutine read_test_case_parameters(filename)
-    character(*) filename
-    integer :: fid = 500
-    character(255) varname
+  subroutine read_test_case_parameters (filename)
+    character(*)   :: filename
+    integer        :: fid = 500
+    character(255) :: varname
+    
     open(unit=fid, file=filename, action='READ')
     read(fid,*) varname, max_level
     read(fid,*) varname, zlevels
@@ -287,11 +288,14 @@ contains
           vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), zlev,    0, 0)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
           end do
           call apply_to_penta_d (post_vort, grid(d), l, zlev)
           nullify (velo, vort)
        end do
+
+       ! Calculate vorticity at hexagon points (stored in adj_mass)
+       call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
 
        Call write_level_mpi (write_primal, u+l, l, zlev, .True.)
 
@@ -299,8 +303,8 @@ contains
           minv(i) = -sync_max_d(-minv(i))
           maxv(i) =  sync_max_d( maxv(i))
        end do
-       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-       if (rank .eq. 0) write(u,'(A, 5(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+       if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+       if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
        u = 200000+100*iwrite
        call write_level_mpi (write_dual, u+l, l, zlev, .False.)
     end do
@@ -308,17 +312,23 @@ contains
     call post_levelout
     call barrier
     if (rank .eq. 0) call compress_files (iwrite)
+
+    ! Save 2D projection
+    !call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
   end subroutine write_and_export
 
-  subroutine DCMIP2012c4_dump(fid)
+  subroutine DCMIP2012c4_dump (fid)
     integer :: fid
+    
     write(fid) itime
     write(fid) iwrite
     write(fid) tol_mass, tol_temp, tol_velo
   end subroutine DCMIP2012c4_dump
 
-  subroutine DCMIP2012c4_load(fid)
+  subroutine DCMIP2012c4_load (fid)
     integer :: fid
+    
     read(fid) itime
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
@@ -622,8 +632,6 @@ program DCMIP2012c4
 
   if (rank .eq. 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite, zlev)
-  call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
-  !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
 
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
@@ -676,10 +684,6 @@ program DCMIP2012c4
         ! Save fields
         if (remap) call remap_vertical_coordinates (set_thresholds)
         call write_and_export (iwrite, zlev)
-
-        ! Save 2D projection
-        call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
-        !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
 
         call sum_total_mass (.False.)
 

@@ -51,7 +51,7 @@ contains
     idN  = idx(i,     j + 1, offs, dims)
     idNE = idx(i + 1, j + 1, offs, dims)
 
-    relvort = get_vort (dom, i, j, offs, dims) 
+    relvort = get_vort (dom, i, j, offs, dims)
 
     if (maxval(dom%mask_n%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
        ! avoid segfault if pre_levelout not used
@@ -893,6 +893,7 @@ contains
   subroutine cart2sph2 (cin, cout)
     type(Coord)                        :: cin
     real(8), dimension(2), intent(out) :: cout
+    
     call cart2sph (cin, cout(1), cout(2))
   end subroutine cart2sph2
 

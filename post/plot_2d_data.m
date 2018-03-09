@@ -1,13 +1,15 @@
 % Plot 2d data from export_2d
 clear all; close all;
 
-machine   = 'mac'
-itime     = '004'
+machine   = 'if'
+itime     = '042'
 itype     = 'vort' % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
 smooth    = 1; % smooth data over two points in each direction
+% limits for axis
+ax        = [90 200 25 75]; % DCMIP2012c4 vorticity day 7
 
 % Extract files
 file_base = 'fort.3';
@@ -62,7 +64,8 @@ elseif (strcmp(itype,'geopot')) % Plot geopotential data
     zonal_avg = 0;
 elseif (strcmp(itype,'vort')) % Plot relative vorticity data
     s_ll = load([file_base itime '06']);
-    c_scale = linspace(-3e-5,3e-5,10);
+    %c_scale = -3e-5:1e-5:6e-5;
+    c_scale = -1e-5:1e-6:2e-5;
     v_title = 'Relative vorticity';
     zonal_avg = 0;
 elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
@@ -77,6 +80,7 @@ if (lon_lat)
         s_ll = smooth2a(s_ll,2,2);
     end
     plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, 1)
+    axis(ax)
 end
 if (zonal_avg)
     if (smooth)
