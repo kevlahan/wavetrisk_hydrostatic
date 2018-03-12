@@ -84,7 +84,6 @@ contains
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2+2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function set_temp
  
-
   subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
     ! Initialize surface geopotential after restart
     type (Domain)                   :: dom
@@ -315,8 +314,8 @@ contains
     if (rank .eq. 0) call compress_files (iwrite)
 
     ! Save 2D projection
-    !call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
-    call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
   end subroutine write_and_export
 
   subroutine DCMIP2012c4_dump (fid)
