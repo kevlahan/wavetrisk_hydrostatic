@@ -27,7 +27,7 @@ contains
 
     type(Coord) :: x_i, x_E, x_N, x_NE
     integer     :: id, d, idN, idE, idNE
-    real(8)     :: eta, lev_press, p_top, p_bot, pot_temp, lon, lat, theta_eq
+    real(8)     :: eta, lev_press, p_top, p_bot, pot_temp, lon, lat, r, theta_eq
 
     d = dom%id+1
 
@@ -56,9 +56,11 @@ contains
     ! Horizontally uniform potential temperature
     eta = lev_press/dom%surf_press%elts(id+1) 
     pot_temp =  theta_eq (eta, lat, lev_press)
+    !call random_number(r)
+    r = 0.0_8 ! optionally add random perturbation
 
     ! Mass-weighted potential temperature
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * (pot_temp + 5.0d-4*r)
     
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
@@ -505,6 +507,9 @@ program Held_Suarez
   character(6+len_cmd_files)   :: command2
   logical                      :: aligned, remap, write_init
 
+  ! Initialize random number generator
+  call random_seed
+  
   ! Initialize grid etc
   call init_main_mod 
 
@@ -529,7 +534,7 @@ program Held_Suarez
   gamma          = c_p/c_v       ! heat capacity ratio
   kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
   ref_press      = 1.0d5        ! reference pressure (mean surface pressure) in Pascals
-
+  
   cfl_num        = 0.8_8                            ! cfl number
   n_remap        = 10                               ! Vertical remap interval
 
@@ -543,6 +548,9 @@ program Held_Suarez
   k_s            = 0.25_8 / DAY
   delta_T        = 60.0_8
   delta_theta    = 10.0_8
+
+  specvoldim     = (R_d*T_mean)/ref_press               ! specific volume scale
+  wave_speed     = sqrt(gamma*ref_press*specvoldim)      ! acoustic wave speed
   
   zlev           = 8 ! about 820 hPa
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
@@ -551,7 +559,7 @@ program Held_Suarez
 
   ! Set logical switches
   adapt_trend  = .false. ! Adapt on trend or on variables
-  adapt_dt     = .true.  ! Adapt time step
+  adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .false. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
@@ -566,8 +574,8 @@ program Held_Suarez
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
-!  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
-!  if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/(wave_speed+u_0), " dt_visc = ", 0.25_8*dx_min**2/viscosity
+  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
+  if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/wave_speed, " dt_visc = ", 0.25_8*dx_min**2/viscosity
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
