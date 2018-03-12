@@ -528,12 +528,12 @@ program Held_Suarez
   omega          = 7.292d-5    ! Earth’s angular velocity in radians per second
   f0             = 2.0_8*omega   ! Coriolis parameter
   ref_press      = 1.0d5        ! reference pressure (mean surface pressure) in Pascals
+  ref_surf_press = ref_press    ! reference surface pressure
   R_d            = 287.0_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_p            = 1004.0_8     ! specific heat at constant pressure in joules per kilogram Kelvin
   c_v            = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
   gamma          = c_p/c_v       ! heat capacity ratio
   kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
-  ref_press      = 1.0d5        ! reference pressure (mean surface pressure) in Pascals
   
   cfl_num        = 0.8_8                            ! cfl number
   n_remap        = 10                               ! Vertical remap interval

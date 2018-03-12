@@ -557,6 +557,7 @@ program DCMIP2012c4
   lon_c          = MATH_PI/9.0_8 ! longitude location of perturbation to zonal wind
   lat_c          = 2.0_8*MATH_PI/9.0_8 ! latitude location of perturbation to zonal wind
   ref_press      = 1.0d5        ! reference pressure (mean surface pressure) in Pascals
+  ref_surf_press = ref_press    ! reference surface pressure
   R_d            = 287.0_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_p            = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
   c_v            = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
