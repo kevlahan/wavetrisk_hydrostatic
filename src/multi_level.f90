@@ -69,6 +69,8 @@ contains
 
        ! Compute scalar trends at finest level
        do d = 1, size(grid)
+          mass   =>  q(S_MASS,k)%data(d)%elts
+          temp   =>  q(S_TEMP,k)%data(d)%elts
           dmass   => dq(S_MASS,k)%data(d)%elts
           dtemp   => dq(S_TEMP,k)%data(d)%elts
           h_mflux => horiz_flux(S_MASS)%data(d)%elts
@@ -78,7 +80,7 @@ contains
              call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
           end do
 
-          nullify (dmass, dtemp, h_mflux, h_tflux)
+          nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
        end do
 
        dq(:,k)%bdry_uptodate    = .False.
@@ -147,6 +149,8 @@ contains
 
           ! Compute scalar trends at level l
           do d = 1, size(grid)
+             mass   =>  q(S_MASS,k)%data(d)%elts
+             temp   =>  q(S_TEMP,k)%data(d)%elts
              dmass   => dq(S_MASS,k)%data(d)%elts
              dtemp   => dq(S_TEMP,k)%data(d)%elts
              h_mflux => horiz_flux(S_MASS)%data(d)%elts
@@ -156,7 +160,7 @@ contains
                 call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
 
-             nullify (dmass, dtemp, h_mflux, h_tflux)
+             nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
           end do
 
           dq(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
