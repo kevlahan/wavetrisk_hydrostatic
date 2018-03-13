@@ -20,6 +20,7 @@ module io_mod
   data HR_offs /0,0, 1,0, 1,1, 0,1/
 contains
   subroutine init_io_mod
+    implicit none
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
@@ -29,6 +30,7 @@ contains
   end subroutine init_io_mod
 
   function get_fid ()
+    implicit none
     integer :: get_fid
 
     get_fid  = next_fid
@@ -37,7 +39,6 @@ contains
 
   subroutine write_dual (dom, p, i, j, zlev, offs, dims, fid)
     implicit none
-    
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev, fid
     integer, dimension(N_BDRY+1)   :: offs
@@ -73,7 +74,6 @@ contains
 
   subroutine vort_extrema (dom, i, j, zlev, offs, dims)
     implicit none
-    
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -108,6 +108,7 @@ contains
   end subroutine vort_extrema
 
   subroutine write_step (fid, time, k)
+    implicit none
     integer ::  fid, k
     real(8) :: time
 
@@ -129,6 +130,7 @@ contains
 
   function integrate_hex (fun, l, k)
     ! Integrate function defined by fun over hexagons
+    implicit none
     real(8)  :: integrate_hex
     external :: fun
     integer  :: l, k
@@ -175,6 +177,7 @@ contains
   end function integrate_hex
 
   function integrate_tri (fun, k)
+    implicit none
     real(8)  :: integrate_tri
     external :: fun
     integer  :: k
@@ -204,6 +207,7 @@ contains
   end function integrate_tri
 
   function only_area (dom, i, j, offs, dims)
+    implicit none
     real(8)                        :: only_area
     type(Domain)                   :: dom
     integer                        :: i, j
@@ -214,6 +218,7 @@ contains
   end function only_area
 
   function mu (dom, i, j, zlev, offs, dims)
+    implicit none
     real(8)                        :: mu
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -227,6 +232,7 @@ contains
   end function mu
 
   function pot_energy (dom, i, j, zlev, offs, dims)
+    implicit none
     real(8)                        :: pot_energy
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -240,6 +246,7 @@ contains
   end function pot_energy
 
   function energy (dom, i, j, zlev, offs, dims)
+    implicit none
     real(8)                        :: energy
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -254,6 +261,7 @@ contains
   end function energy
 
   function tri_only_area (dom, i, j, t, offs, dims)
+    implicit none
     real(8)                        :: tri_only_area
     type(Domain)                   :: dom
     integer                        :: i, j, t
@@ -264,6 +272,7 @@ contains
   end function tri_only_area
 
   function only_coriolis (dom, i, j, t, offs, dims)
+    implicit none
     real(8)                        :: only_coriolis
     type(Domain)                   :: dom
     integer                        :: i, j, t
@@ -279,6 +288,7 @@ contains
   subroutine export_2d (proj, fid, Nx, Ny, lon_lat_range, set_thresholds)
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
     ! save zonal average and horizontal grid at vertical level zlevel
+    implicit none
     external                            :: proj, set_thresholds
     integer, dimension(2)               :: Nx, Ny
     integer                             :: fid
@@ -455,6 +465,7 @@ contains
 
   subroutine project_onto_plane (field, Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    implicit none
     external              :: proj
     integer               :: l, itype
     integer, dimension(2) :: Nx, Ny
@@ -512,6 +523,7 @@ contains
 
   subroutine project_geopot_onto_plane (Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    implicit none
     external              :: proj
     integer               :: l, itype
     integer, dimension(2) :: Nx, Ny
@@ -568,6 +580,7 @@ contains
 
   subroutine project_surf_press_onto_plane (Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    implicit none
     external              :: proj
     integer               :: l, itype
     integer, dimension(2) :: Nx, Ny
@@ -624,6 +637,7 @@ contains
 
   subroutine project_vorticity_onto_plane (Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    implicit none
     external              :: proj
     integer               :: l, itype
     integer, dimension(2) :: Nx, Ny
@@ -680,6 +694,7 @@ contains
 
   subroutine project_uzonal_onto_plane (Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    implicit none
     external              :: proj
     integer, dimension(2) :: Nx, Ny
     integer               :: l, itype
@@ -734,8 +749,9 @@ contains
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_uzonal_onto_plane
 
-   subroutine project_vmerid_onto_plane (Nx, Ny, l, proj, default_val)
+  subroutine project_vmerid_onto_plane (Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    implicit none
     external              :: proj
     integer, dimension(2) :: Nx, Ny
     integer               :: l, itype
@@ -791,6 +807,7 @@ contains
   end subroutine project_vmerid_onto_plane
 
   subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val)
+    implicit none
     real(8), dimension(2) :: a0, b0, c0
     real(8), dimension(3) :: val
 
@@ -847,6 +864,7 @@ contains
   end subroutine interp_tri_to_2d
 
   subroutine interp_tria (ll, coord1, coord2, coord3, values, ival, inside)
+    implicit none
     real(8), dimension(2) :: coord1, coord2, coord3
     real(8), dimension(3) :: values
     real(8)               :: ival
@@ -863,6 +881,7 @@ contains
   end subroutine interp_tria
 
   function bary_coord (ll, a, b, c)
+    implicit none
     real(8), dimension(3) :: bary_coord
     real(8), dimension(2) :: a, b, c, ll
 
@@ -881,6 +900,7 @@ contains
   end function bary_coord
 
   subroutine fix_boundary (a, b, c, fixed)
+    implicit none
     real(8), intent(inout) :: a
     real(8), intent(in)    :: b, c
     integer, intent(out)   :: fixed
@@ -896,6 +916,7 @@ contains
   end subroutine fix_boundary
 
   subroutine cart2sph2 (cin, cout)
+    implicit none
     type(Coord)                        :: cin
     real(8), dimension(2), intent(out) :: cout
     
@@ -904,6 +925,7 @@ contains
 
   subroutine cal_temp (dom, i, j, zlev, offs, dims)
     ! Compute temperature in compressible case
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -936,6 +958,7 @@ contains
   subroutine cal_geopot (dom, i, j, zlev, offs, dims)
     ! Compute geopotential in compressible case
     ! Assumes that temperature has already been calculated and stored in exner_fun
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -948,16 +971,16 @@ contains
     id = idx(i, j, offs, dims)
 
     ! Integrate geopotential upwards from surface
-    k = 0
     pressure_lower = dom%surf_press%elts(id+1)
     pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
     dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/grav_accel
-    
+
+    k = 1
     do while (pressure_upper .gt. pressure_save(1))
-       k = k+1
        dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
             R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_upper))
        
+       k = k+1
        pressure_lower = pressure_upper
        pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id+1)
     end do
@@ -969,6 +992,7 @@ contains
 
   subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
     ! Approximate vorticity at hexagon points
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -994,6 +1018,7 @@ contains
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)
     ! Write primal grid for vertical level zlev
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -1055,6 +1080,7 @@ contains
   subroutine zonal_meridional_vel (dom, i, j, offs, dims, zlev, vel_latlon)
     ! Finds lat-lon velocity (with components in zonal and meridional directions) given index information of node
     ! using lapack least squares routine dgels
+    implicit none
     type (Domain)                :: dom
     integer                      :: i, j, zlev
     integer, dimension(N_BDRY+1) :: offs
@@ -1117,6 +1143,7 @@ contains
 
   function get_vort (dom, i, j, offs, dims)
     ! Averages vorticity to get smooth field for visualization
+    implicit none
     real(8), dimension(TRIAG)      :: get_vort
     type(Domain)                   :: dom
     integer                        :: i, j
@@ -1162,6 +1189,7 @@ contains
 
   subroutine write_u_wc (dom, p, i, j, offs, dims, fid)
     ! Write wavelet coefficients of velocity
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, p
     integer, dimension(N_BDRY+1)   :: offs
@@ -1179,6 +1207,7 @@ contains
   end subroutine write_u_wc
 
   subroutine write_velo (dom, p, i, j, offs, dims, fid)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: fid, i, j, p
     integer, dimension(N_BDRY+1)   :: offs
@@ -1196,6 +1225,7 @@ contains
 
   subroutine read_u_wc_and_mask (dom, p, i, j, offs, dims, fid)
     !read in wavelet coefficients of velocity (JEMF: not mask though??)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: fid, i, j, p
     integer, dimension(N_BDRY+1)   :: offs
@@ -1212,6 +1242,7 @@ contains
   end subroutine read_u_wc_and_mask
 
   subroutine write_scalar (dom, p, i, j, zlev, offs, dims, fid)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -1228,6 +1259,7 @@ contains
   end subroutine write_scalar
 
   subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -1245,6 +1277,7 @@ contains
 
   subroutine read_mt_wc_and_mask (dom, p, i, j, offs, dims, fid)
     !read in wavelet coefficients of mass and potential temperature (not mask though??)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: fid, p, i, j
     integer, dimension(N_BDRY+1)   :: offs
@@ -1264,6 +1297,7 @@ contains
 
   subroutine write_mt_wc (dom, p, i, j, offs, dims, fid)
     ! Write wavelet coefficients of mass and potential temperature
+    implicit none
     type(Domain)                   :: dom
     integer                        :: fid, p, i, j
     integer, dimension(N_BDRY+1)   :: offs
@@ -1283,6 +1317,7 @@ contains
 
   function dump_adapt_mpi (node_out_rout, edge_out_rout, id, custom_dump)
     ! One file per domain
+    implicit none
     integer  :: dump_adapt_mpi
     external :: node_out_rout, edge_out_rout, custom_dump
     integer  :: id
@@ -1399,6 +1434,7 @@ contains
 
   subroutine load_adapt_mpi (node_in_rout, edge_in_rout, id, custom_load)
     ! One file per domain
+    implicit none
     external                             :: node_in_rout, edge_in_rout, custom_load
     integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid !ASCII, fid_ed 
     integer                              :: id
@@ -1503,6 +1539,7 @@ contains
   end subroutine default_load
 
   subroutine proj_xz_plane (cin, cout)
+    implicit none
     type(Coord)          :: cin
     real(8), intent(out) :: cout(2)
 
@@ -1514,6 +1551,7 @@ contains
   end subroutine proj_xz_plane
 
   subroutine error (msg)
+    implicit none
     character(*) :: msg
     write(0,*) "ERROR: ", msg
   end subroutine error
@@ -1522,6 +1560,7 @@ contains
     ! use: 
     !     real(8) arr(n_lon,n_lat)
     !     call read_lonlat_from_binary(arr(1,1),n_lon*n_lat,fid)
+    implicit none
     integer               :: n, fid
     real(8), dimension(n) :: arr
 
@@ -1532,6 +1571,7 @@ contains
   end subroutine read_lonlat_from_binary
 
   subroutine read_HR_optim_grid
+    implicit none
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     integer                        :: d_HR, p, d_glo, d_sub, fid, loz
@@ -1593,6 +1633,7 @@ contains
   end subroutine read_HR_optim_grid
 
   function dom_id_from_HR_id (d_HR)
+    implicit none
     integer :: dom_id_from_HR_id
     ! d_HR: lozange id as used by Heikes & Randall (starts from 1)
     ! results: domain id (starts from 0)
@@ -1602,6 +1643,7 @@ contains
   end function dom_id_from_HR_id
 
   function sub_dom_id_from_HR_sub_id (sub_id)
+    implicit none
     integer ::  sub_dom_id_from_HR_sub_id
     ! sub_id: lozange sub id as used by Heikes & Randall (starts from 1)
     ! results: sub domain id (starts from 0)
@@ -1626,6 +1668,7 @@ contains
   end function sub_dom_id_from_HR_sub_id
 
   subroutine zrotate (c_in, c_out, angle)
+    implicit none
     real(8),      intent(in) :: angle
     type(Coord),  intent(in) :: c_in
     type(Coord), intent(out) :: c_out
@@ -1636,6 +1679,7 @@ contains
   end subroutine zrotate
 
   recursive subroutine coord_from_file (d_glo, l, fid, offs, dims, ij0)
+    implicit none
     integer,                        intent(in) :: d_glo, l, fid
     integer, dimension(2),          intent(in) :: ij0
     integer, dimension(N_BDRY+1),   intent(in) :: offs
@@ -1663,6 +1707,7 @@ contains
   end subroutine coord_from_file
 
   subroutine pre_levelout
+    implicit none
     integer :: d, l, max_output_level, num
 
     ! FIXME cleaner would be to use init_io routine
@@ -1682,6 +1727,7 @@ contains
   ! now active_level can be used
 
   subroutine post_levelout
+    implicit none
     integer :: d
 
     do d = 1, size(grid)
@@ -1691,6 +1737,7 @@ contains
   end subroutine post_levelout
 
   subroutine restrict_level (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
