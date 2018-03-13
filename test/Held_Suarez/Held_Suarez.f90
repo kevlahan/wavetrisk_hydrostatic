@@ -20,14 +20,15 @@ module Held_Suarez_mod
   type(Float_Field)                  :: rel_vort 
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
-    type (Domain)                  :: dom
-    integer                        :: i, j, k, zlev
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, k, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
     type(Coord) :: x_i, x_E, x_N, x_NE
     integer     :: id, d, idN, idE, idNE
-    real(8)     :: eta, lev_press, p_top, p_bot, pot_temp, lon, lat, r, theta_eq
+    real(8)     :: eta, k_T, lev_press, p_top, p_bot, pot_temp, lon, lat, r
 
     d = dom%id+1
 
@@ -53,9 +54,10 @@ contains
     sol(S_MASS,zlev)%data(d)%elts(id+1) = &
          ((a_vert(zlev)-a_vert(zlev+1))*ref_press + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel
 
-    ! Horizontally uniform potential temperature
-    eta = lev_press/dom%surf_press%elts(id+1) 
-    pot_temp =  theta_eq (eta, lat, lev_press)
+    ! Initial potential temperature to equilibrium value
+    eta = lev_press/dom%surf_press%elts(id+1)
+    call cal_theta_eq (eta, lat, lev_press, k_T, pot_temp)
+
     !call random_number(r)
     r = 0.0_8 ! optionally add random perturbation
 
@@ -68,6 +70,7 @@ contains
 
   subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
     ! Initialize surface geopotential after restart
+    implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, k, zlev
     integer, dimension (N_BDRY+1)   :: offs
@@ -85,6 +88,7 @@ contains
    
   function surf_geopot_fun (x_i)
     ! Surface geopotential
+    implicit none
     real(8)     :: surf_geopot_fun
     Type(Coord) :: x_i
 
@@ -93,6 +97,7 @@ contains
 
   function surf_pressure_fun (x_i)
     ! Surface pressure
+    implicit none
     type(Coord) :: x_i
     real(8)     :: surf_pressure_fun
 
@@ -101,6 +106,7 @@ contains
 
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
+    implicit none
     real(8) :: lon, lat, u, v
 
     u = 0.0_8 ! Zonal velocity component
@@ -108,6 +114,7 @@ contains
   end subroutine vel_fun
 
   subroutine initialize_a_b_vert
+    implicit none
     integer :: k
 
     ! Allocate vertical grid parameters
@@ -187,6 +194,7 @@ contains
   end subroutine initialize_a_b_vert
 
   subroutine read_test_case_parameters (filename)
+    implicit none
     character(*)   :: filename
     integer        :: fid = 500
     character(255) :: varname
@@ -219,6 +227,7 @@ contains
   end subroutine read_test_case_parameters
 
   subroutine write_and_export (iwrite, zlev)
+    implicit none
     integer :: iwrite, zlev
 
     integer :: d, i, j, k, l, p, u
@@ -297,6 +306,7 @@ contains
   end subroutine write_and_export
 
   subroutine Held_Suarez_dump (fid)
+    implicit none
     integer :: fid
     
     write(fid) itime
@@ -305,6 +315,7 @@ contains
   end subroutine Held_Suarez_dump
 
   subroutine Held_Suarez_load (fid)
+    implicit none
     integer :: fid
     
     read(fid) itime
@@ -313,6 +324,7 @@ contains
   end subroutine Held_Suarez_load
 
   subroutine set_thresholds (itype)
+    implicit none
     integer, optional :: itype
 
     integer :: l, k
@@ -359,6 +371,7 @@ contains
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -381,6 +394,7 @@ contains
   end subroutine linf_trend
 
   subroutine linf_vars (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -403,6 +417,7 @@ contains
   end subroutine linf_vars
 
   subroutine l2_trend (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -427,6 +442,7 @@ contains
   end subroutine l2_trend
 
   subroutine l2_vars (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -449,7 +465,9 @@ contains
        end do
     endif
   end subroutine l2_vars
+
   subroutine apply_initial_conditions
+    implicit none
     integer :: k, l
 
     wasprinted=.false.
@@ -462,6 +480,7 @@ contains
   end subroutine apply_initial_conditions
 
   subroutine set_surf_geopot
+    implicit none
     integer ::  d, p
 
     do d = 1, size(grid)
@@ -473,6 +492,7 @@ contains
 
   subroutine sum_total_mass (initialgo)
     ! Total mass over all vertical layers
+    implicit none
     logical :: initialgo
 
     integer :: k
@@ -539,15 +559,15 @@ program Held_Suarez
   n_remap        = 10                               ! Vertical remap interval
 
   ! Forcing parameters
-  T_0            = 300.0_8      ! reference temperature
-  T_mean         = 315.0_8      ! mean temperature
-  T_tropo        = 200.0_8      ! tropopause temperature
+  T_0            = 300.0_8            ! reference temperature
+  T_mean         = 315.0_8            ! mean temperature
+  T_tropo        = 200.0_8            ! tropopause temperature
   eta_b          = 0.7_8
-  k_a            = 1.0_8/40.0_8 / DAY
-  k_f            = 1.0_8 / DAY
-  k_s            = 0.25_8 / DAY
-  delta_T        = 60.0_8
-  delta_theta    = 10.0_8
+  k_a            = 1.0_8/(40.0_8*DAY) ! cooling at free surface of atmosphere
+  k_f            = 1.0_8/(1.0_8*DAY)  ! Rayleigh friction
+  k_s            = 1.0_8/(4.0_8*DAY)  ! cooling at surface
+  delta_T        = 60.0_8             ! meridional temperature gradient
+  delta_theta    = 10.0_8             ! vertical temperature gradient
 
   specvoldim     = (R_d*T_mean)/ref_press               ! specific volume scale
   wave_speed     = sqrt(gamma*ref_press*specvoldim)      ! acoustic wave speed
@@ -698,6 +718,8 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
   use domain_mod
   use Held_Suarez_mod
+  implicit none
+
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
   type(Domain)                             :: dom
   integer                                  :: id, idE, idNE, idN
@@ -760,6 +782,8 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! In this test case there is no scalar source term
   use domain_mod
   use Held_Suarez_mod
+  implicit none
+
   real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
   type(Domain)                      :: dom
   integer                           :: i, j, zlev
@@ -768,7 +792,7 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
 
   integer     :: id
   type(Coord) :: x_i
-  real(8)     :: eta, lat, lon, press, theta_eq
+  real(8)     :: eta, k_T, lat, lon, press, theta, theta_equil
 
   id = idx(i, j, offs, dims)
 
@@ -778,29 +802,35 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   eta = press/dom%surf_press%elts(id+1) ! Normalized pressure
   
   ! Potential temperature
-  theta    = temp(id+1)/mass(id+1) 
+  theta = temp(id+1)/mass(id+1)
+
+  call cal_theta_eq (eta, lat, press, k_T, theta_equil)
   
   physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = -k_T*(theta - theta_eq(eta, lat, press)) * mass(id+1)
+  physics_scalar_source(S_TEMP) = -k_T*(theta - theta_equil) * mass(id+1)
 end function physics_scalar_source
 
-function theta_eq (eta, lat, press)
-  ! Returns equilibrium potential temperature
+subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)
+  ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
   use domain_mod
   use Held_Suarez_mod
-  real(8) :: theta_eq
+  implicit none
+  
+  real(8) :: k_T, theta_equil
   real(8) :: eta, lat, press
  
-  real(8) :: ddsin, k_T, T_strat
+  real(8) :: ddsin, theta_force, theta_tropo 
   
   ddsin = sin(lat) 
 
   k_T = k_a + (k_s-k_a) * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cos(lat)**4
 
-  T_strat = T_mean - delta_T*ddsin**2 + delt_theta*(1.0_8 - ddsin**2)*log(press/ref_press)
+  theta_tropo = T_tropo * (press/ref_press)**(-kappa) ! Potential temperature at tropopause
 
-  theta_eq = max(T_tropo, T_strat)
-end function theta_eq
+  theta_force  = T_mean - delta_T*ddsin**2 + delta_theta*(1.0_8 - ddsin**2)*log(press/ref_press)
+  
+  theta_equil = max(theta_tropo, theta_force) ! Equilibrium temperature
+end subroutine cal_theta_eq
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
@@ -809,6 +839,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   use domain_mod
   use ops_mod
   use Held_Suarez_mod
+  implicit none
+  
   real(8), dimension(1:EDGE)     :: physics_velo_source
   type(Domain)                   :: dom
   integer                        :: i, j, zlev

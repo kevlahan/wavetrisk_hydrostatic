@@ -20,6 +20,7 @@ module DCMIP2008c5_mod
   type(Float_Field)                  :: rel_vort 
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
+    implicit none
     type (Domain)                  :: dom
     integer                        :: i, j, k, zlev
     integer, dimension (N_BDRY+1)   :: offs
@@ -63,6 +64,7 @@ contains
 
   subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
     ! Initialize surface geopotential after restart
+    implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, k, zlev
     integer, dimension (N_BDRY+1)   :: offs
@@ -81,6 +83,7 @@ contains
 
   function surf_pressure_fun (x_i)
     ! Surface pressure
+    implicit none
     type(Coord) :: x_i
     real(8)     :: surf_pressure_fun
 
@@ -96,6 +99,7 @@ contains
 
   function surf_geopot_fun (x_i)
     ! Surface geopotential for Gaussian mountain (note that this really only needs to be done once)
+    implicit none
     type(Coord) :: x_i
     real(8)     :: surf_geopot_fun
 
@@ -111,6 +115,7 @@ contains
 
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
+    implicit none
     real(8) :: lon, lat, u, v
 
     u = u_0*cos(lat)  ! Zonal velocity component
@@ -118,6 +123,7 @@ contains
   end subroutine vel_fun
 
   subroutine initialize_a_b_vert
+    implicit none
     integer :: k
 
     ! Allocate vertical grid parameters
@@ -185,6 +191,7 @@ contains
   end subroutine initialize_a_b_vert
 
   subroutine read_test_case_parameters (filename)
+    implicit none
     character(*)   :: filename
     integer        :: fid = 500
     character(255) :: varname
@@ -217,6 +224,7 @@ contains
   end subroutine read_test_case_parameters
 
   subroutine write_and_export (iwrite, zlev)
+    implicit none
     integer :: iwrite, zlev
 
     integer :: d, i, j, k, l, p, u
@@ -296,6 +304,7 @@ contains
   end subroutine write_and_export
 
   subroutine DCMIP2008c5_dump (fid)
+    implicit none
     integer :: fid
     
     write(fid) itime
@@ -304,6 +313,7 @@ contains
   end subroutine DCMIP2008c5_dump
 
   subroutine DCMIP2008c5_load (fid)
+    implicit none
     integer :: fid
     
     read(fid) itime
@@ -312,6 +322,7 @@ contains
   end subroutine DCMIP2008c5_load
 
   subroutine set_thresholds (itype)
+    implicit none
     integer, optional :: itype
 
     integer :: l, k
@@ -358,6 +369,7 @@ contains
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -380,6 +392,7 @@ contains
   end subroutine linf_trend
 
   subroutine linf_vars (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -402,6 +415,7 @@ contains
   end subroutine linf_vars
 
   subroutine l2_trend (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -426,6 +440,7 @@ contains
   end subroutine l2_trend
 
   subroutine l2_vars (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -448,7 +463,9 @@ contains
        end do
     endif
   end subroutine l2_vars
+
   subroutine apply_initial_conditions
+    implicit none
     integer :: k, l
 
     wasprinted=.false.
@@ -461,6 +478,7 @@ contains
   end subroutine apply_initial_conditions
 
   subroutine set_surf_geopot
+    implicit none
     integer ::  d, p
 
     do d = 1, size(grid)
@@ -472,6 +490,7 @@ contains
 
   subroutine sum_total_mass (initialgo)
     ! Total mass over all vertical layers
+    implicit none
     logical :: initialgo
 
     integer :: k
@@ -703,6 +722,8 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
   use domain_mod
   use DCMIP2008c5_mod
+  implicit none
+
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
   type(Domain)                             :: dom
   integer                                  :: id, idE, idNE, idN
@@ -765,6 +786,8 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! In this test case there is no scalar source term
   use domain_mod
   use DCMIP2008c5_mod
+  implicit none
+
   real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
   type(Domain)                      :: dom
   integer                           :: i, j, zlev
@@ -781,6 +804,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   use domain_mod
   use ops_mod
   use DCMIP2008c5_mod
+  implicit none
+
   real(8), dimension(1:EDGE)     :: physics_velo_source
   type(Domain)                   :: dom
   integer                        :: i, j, zlev

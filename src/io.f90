@@ -8,6 +8,7 @@ module io_mod
   use multi_level_mod
   use remap_mod
   implicit none
+  
   integer, parameter                  :: N_VAR_OUT = 7
   integer, dimension(2,4)             :: HR_offs
   real(8)                             :: dx_export, dy_export, kx_export, ky_export, vmin, vmax
@@ -35,6 +36,8 @@ contains
   end function get_fid
 
   subroutine write_dual (dom, p, i, j, zlev, offs, dims, fid)
+    implicit none
+    
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev, fid
     integer, dimension(N_BDRY+1)   :: offs
@@ -69,6 +72,8 @@ contains
   end subroutine write_dual
 
   subroutine vort_extrema (dom, i, j, zlev, offs, dims)
+    implicit none
+    
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
