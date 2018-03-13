@@ -32,9 +32,9 @@ contains
     integer        :: fid, l, zlev
     logical        :: eval_pole
 
-    character(5+6) :: filename
+    character(5+7) :: filename
     
-    write(filename,'(A,I6)')  "fort.", fid
+    write(filename,'(A,I7)')  "fort.", fid
     open(unit=fid, file=filename)
     if (eval_pole) call apply_to_pole (out_rout, l, zlev, fid, .False.)
     call apply_onescale__int (out_rout, l, zlev, 0, 0, fid)

@@ -138,12 +138,12 @@ contains
   subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole)
     external       :: out_rout
     integer        :: fid, l, zlev
-    character(5+6) :: filename
+    character(5+7) :: filename
     logical        :: eval_pole
 
     integer        :: r
     
-    write (filename, '(A,I6)')  "fort.", fid
+    write (filename, '(A,I7)')  "fort.", fid
     
     do r = 1, n_process
        if (r .ne. rank+1) then ! Write only if our turn, otherwise only wait at barrier

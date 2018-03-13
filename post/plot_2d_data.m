@@ -1,9 +1,9 @@
 % Plot 2d data from export_2d
 clear all; close all;
 
-machine   = 'if';
-t1        = 101; % Start time
-t2        = 124; % End time
+machine   = 'mac';
+t1        = 1; % Start time
+t2        = t1; % End time
 itype     = 'zonal'; % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
 lon_lat   = 0; % Plot longitude - latitude data
 zonal_avg = 1; % Plot zonally averaged data
@@ -22,8 +22,8 @@ end
 s_ll = 0; s_zo = 0;
 for t = t1:t2
     % Extract files
-    itime = num2str(t,'%03i');
-    disp(['Loading file ' itime ' of ' num2str(t2,'%03i')]);
+    itime = num2str(t,'%04i');
+    disp(['Loading file ' itime ' of ' num2str(t2,'%04i')]);
     file_tar = ['tar ' 'xf ' pathid file_base itime '.tgz'];
     system(file_tar);
     
@@ -82,11 +82,9 @@ for t = t1:t2
     end
 end
 
-% Average
-s_ll = s_ll/(t2-t1+1); s_zo = s_zo/(t2-t1+1);
-
 % Plot data
 if (lon_lat)
+    s_ll = s_ll/(t2-t1+1); % Average
     fprintf('Minimum value of variable %s = %8.4e\n',itype, min(min(s_ll)));
     fprintf('Maximum value of variable %s = %8.4e\n',itype, max(max(s_ll)));
     if (smooth)
@@ -97,6 +95,7 @@ if (lon_lat)
 end
 
 if (zonal_avg)
+    s_zo = s_zo/(t2-t1+1); % Average
     fprintf('Minimum value of variable %s = %8.4e\n',itype, min(min(s_zo)));
     fprintf('Maximum value of variable %s = %8.4e\n',itype, max(max(s_zo)));
     if (smooth)

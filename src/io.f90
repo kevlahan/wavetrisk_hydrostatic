@@ -285,7 +285,7 @@ contains
     real, dimension(:,:,:), allocatable  :: field2d_save, zonal_av
     real(8), dimension(n_vars)            :: default_val
 
-    character(4)                         :: s_time
+    character(5)                         :: s_time
     character(130)                       :: command
 
     type(Domain), dimension(:), allocatable, target :: old_grid
@@ -433,7 +433,7 @@ contains
        write (fid+22,'(2047(E15.6, 1X))') (a_vert(k)*ref_press/ref_surf_press + b_vert(k), k=zlevels+1,2,-1)
        close (fid+22)
 
-       write (s_time, '(i4)') fid/100
+       write (s_time, '(i5)') fid/100
        command = 'ls -1 fort.'//s_time//'* > tmp' 
        call system (command)
 

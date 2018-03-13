@@ -538,10 +538,10 @@ contains
   subroutine compress_files (iwrite)
     integer :: iwrite
 
-    character(3)   :: s_time
+    character(4)   :: s_time
     character(130) :: command
 
-    write (s_time, '(i3.3)') iwrite
+    write (s_time, '(i4.4)') iwrite
 
     command = 'ls -1 fort.1'//s_time//'* > tmp1' 
     call system (command)

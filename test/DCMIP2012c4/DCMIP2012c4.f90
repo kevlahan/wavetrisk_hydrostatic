@@ -267,7 +267,7 @@ contains
 
     do l = level_start, level_end
        minv = 1.0d63; maxv = -1.0d63
-       u = 100000+100*iwrite
+       u = 1000000+100*iwrite
 
        ! Calculate pressure, exner and geopotential at vertical level zlev and scale l
        do k = 1, zlev
@@ -305,7 +305,7 @@ contains
        end do
        if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
        if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
-       u = 200000+100*iwrite
+       u = 2000000+100*iwrite
        call write_level_mpi (write_dual, u+l, l, zlev, .False.)
     end do
 
@@ -314,8 +314,8 @@ contains
     if (rank .eq. 0) call compress_files (iwrite)
 
     ! Save 2D projection
-    call export_2d (cart2sph2, 300000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
-    !call export_2d (cart2sph2, 300000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    call export_2d (cart2sph2, 3000000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
   end subroutine write_and_export
 
   subroutine DCMIP2012c4_dump (fid)

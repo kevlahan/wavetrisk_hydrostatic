@@ -21,7 +21,7 @@ program trisk2vtk
   integer, dimension(:), allocatable :: tmp_mask, mask, tmp_level, level
 
   character(2)   :: j_lev
-  character(3)   :: s_time
+  character(4)   :: s_time
   character(12)  :: str1, str2
   character(6)   :: file_type
   character(32)  :: file_vtk, arg, command, filename_in, filename_out, file_base
@@ -77,7 +77,7 @@ program trisk2vtk
   end if
 
   do itime = tstart, tend
-     write (s_time,'(I3.3)') itime
+     write (s_time,'(I4.4)') itime
 
      ! Check if files are compressed
      filename_in = trim(file_base) // s_time // '.tgz'
@@ -181,7 +181,7 @@ program trisk2vtk
      end do
 
      ! Write out data in old vtk format
-     write (s_time, '(I3.3)')  itime
+     write (s_time, '(I4.4)')  itime
      filename_out = trim(file_vtk) // '_' // s_time // '.vtk'
 
      write (*,'("File ", A," opened to write vtk output field")') trim(filename_out)
