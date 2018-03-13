@@ -17,7 +17,7 @@ contains
     ! Conserves mass, heat and momentum flux
     external           :: set_thresholds
     integer            :: d, j, k, l, p
-    integer, parameter :: order_default = 7 ! order must be odd
+    integer, parameter :: order_default = 3 ! order must be odd
 
     if (rank.eq.0) write(6,*) "Remapping vertical coordinates"
 
@@ -34,8 +34,8 @@ contains
     call update_array_bdry (sol, NONE)
 
     ! Remap on finest scale
-    call apply_onescale (remap_velocity_fv, level_end, z_null, 0, 0)
-    call apply_onescale (remap_scalars_fv,  level_end, z_null, 0, 0)
+    call apply_onescale (remap_velocity, level_end, z_null, 0, 0)
+    call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
 
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
@@ -55,8 +55,8 @@ contains
        call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
 
        ! Remap at level l (over-written if value available from restriction)
-       call apply_onescale (remap_velocity_fv, l, z_null, 0, 0)
-       call apply_onescale (remap_scalars_fv,  l, z_null, 0, 0)
+       call apply_onescale (remap_velocity, l, z_null, 0, 0)
+       call apply_onescale (remap_scalars,  l, z_null, 0, 0)
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
        do d = 1, size(grid)
