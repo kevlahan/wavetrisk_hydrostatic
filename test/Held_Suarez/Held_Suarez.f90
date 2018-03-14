@@ -556,7 +556,7 @@ program Held_Suarez
   kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
   
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 50                               ! Vertical remap interval
+  n_remap        = 150                               ! Vertical remap interval
 
   ! Forcing parameters
   T_0            = 300.0_8            ! reference temperature
@@ -779,7 +779,7 @@ end function physics_scalar_flux
 
 function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the scalar trend
-  ! In this test case there is no scalar source term
+  ! Newton cooling to equilibrium potential temperature theta_equil
   use domain_mod
   use Held_Suarez_mod
   implicit none
@@ -796,9 +796,9 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
 
   id = idx(i, j, offs, dims)
 
-  x_i  = dom%node%elts(id+1)    ! Coordinates
-  call cart2sph (x_i, lon, lat) ! Latitude and longitude
-  press = dom%press%elts(id+1)  ! Pressure
+  x_i  = dom%node%elts(id+1)            ! Coordinates
+  call cart2sph (x_i, lon, lat)         ! Latitude and longitude
+  press = dom%press%elts(id+1)          ! Pressure
   eta = press/dom%surf_press%elts(id+1) ! Normalized pressure
   
   ! Potential temperature
@@ -807,7 +807,7 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   call cal_theta_eq (eta, lat, press, k_T, theta_equil)
   
   physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = -k_T*(theta - theta_equil) * mass(id+1)
+  physics_scalar_source(S_TEMP) = -k_T*(theta - theta_equil) * mass(id+1) + dmass(id+1)*theta ! Include correction for dtheta/dt -> dTheta/dt
 end function physics_scalar_source
 
 subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)
