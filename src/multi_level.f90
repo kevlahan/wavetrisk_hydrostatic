@@ -6,10 +6,9 @@ module multi_level_mod
   use comm_mpi_mod
   implicit none
 contains
-  subroutine trend_ml (q, dq, itype)
+  subroutine trend_ml (q, dq)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
-    integer                                                       :: itype
 
     integer :: d, j, k, l, p
 
@@ -61,7 +60,7 @@ contains
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
           end do
-          
+
           nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, divu, exner, vort, qe)
        end do
 
@@ -198,6 +197,184 @@ contains
        end do
     end do
   end subroutine trend_ml
+
+  subroutine trend_physics (q, dq)
+    ! Compute trend due to physics terms
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+
+    integer                                                       :: d, j, k, l, p
+
+    interface
+       subroutine physics_scalar_flux (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end subroutine physics_scalar_flux
+       subroutine physics_velo_source (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end subroutine physics_velo_source
+    end interface
+
+    call update_array_bdry (q, NONE)
+
+    ! First integrate pressure down across all grid points in order to compute surface pressure
+    do k = zlevels, 1, -1
+       do d = 1, size(grid)
+          mass => q(S_MASS,k)%data(d)%elts
+          temp => q(S_TEMP,k)%data(d)%elts
+
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
+          end do
+
+          nullify (mass, temp)
+       end do
+    end do
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Calculate trend on finest scale !
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    ! Compute each vertical level starting from surface
+    do k = 1, zlevels
+       ! Compute scalar fluxes and div, vort
+       do d = 1, size(grid)
+          mass    => q(S_MASS,k)%data(d)%elts
+          temp    => q(S_TEMP,k)%data(d)%elts
+          velo    => q(S_VELO,k)%data(d)%elts
+          h_mflux => horiz_flux(S_MASS)%data(d)%elts
+          h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+          exner   => exner_fun(k)%data(d)%elts
+          divu    => grid(d)%divu%elts
+          vort    => grid(d)%vort%elts
+
+          ! Compute pressure, geopotential, Exner (compressible case), specific volume
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+          end do
+
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (physics_scalar_flux, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (cal_divu,            grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,            grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), level_end, k)
+
+          nullify (mass, temp, velo, h_mflux, h_tflux, exner, divu, vort)
+       end do
+
+       if (level_start .lt. level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
+
+       ! Compute trends at finest level
+       do d = 1, size(grid)
+          mass    => q(S_MASS,k)%data(d)%elts
+          temp    => q(S_TEMP,k)%data(d)%elts
+          velo    => q(S_VELO,k)%data(d)%elts
+          dmass   => dq(S_MASS,k)%data(d)%elts
+          dtemp   => dq(S_TEMP,k)%data(d)%elts
+          dvelo   => dq(S_VELO,k)%data(d)%elts
+          h_mflux => horiz_flux(S_MASS)%data(d)%elts
+          h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+          divu    => grid(d)%divu%elts
+          vort    => grid(d)%vort%elts
+
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (scalar_physics_trend, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (physics_velo_source,  grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
+          end do
+
+          nullify (mass, temp, velo, dmass, dtemp, dvelo, h_mflux, h_tflux, divu, vort)
+       end do
+
+       dq(:,k)%bdry_uptodate    = .False.
+       horiz_flux%bdry_uptodate = .False.
+       if (level_start .lt. level_end) then
+          call update_vector_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
+          call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), level_end) ! <= start non-blocking communicate dmass (l+1)
+       end if
+
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! Calculate trend on coarser scales, from fine to coarse !
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       do l = level_end-1, level_start, -1
+          call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
+
+          ! Compute (or restrict) scalar fluxes and compute div and vort at scale l
+          do d = 1, size(grid)
+             mass    =>  q(S_MASS,k)%data(d)%elts
+             temp    =>  q(S_TEMP,k)%data(d)%elts
+             velo    =>  q(S_VELO,k)%data(d)%elts
+             dmass   => dq(S_MASS,k)%data(d)%elts
+             dtemp   => dq(S_TEMP,k)%data(d)%elts
+             h_mflux => horiz_flux(S_MASS)%data(d)%elts
+             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+             divu    => grid(d)%divu%elts
+             vort    => grid(d)%vort%elts
+
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+             end do
+
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (physics_scalar_flux, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+                call apply_onescale_to_patch (cal_divu,            grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+                call apply_onescale_to_patch (cal_vort,            grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+             end do
+             call apply_to_penta_d (post_vort, grid(d), l, k)
+
+             call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
+
+             nullify (mass, temp, velo, dmass, dtemp, h_mflux, h_tflux, divu, vort)
+          end do
+
+          call update_vector_bdry (horiz_flux, l)
+
+          ! Compute trends at level l
+          do d = 1, size(grid)
+             mass    => q(S_MASS,k)%data(d)%elts
+             temp    => q(S_TEMP,k)%data(d)%elts
+             velo   =>  q(S_VELO,k)%data(d)%elts
+             dmass   => dq(S_MASS,k)%data(d)%elts
+             dtemp   => dq(S_TEMP,k)%data(d)%elts
+             dvelo   => dq(S_VELO,k)%data(d)%elts
+             h_mflux => horiz_flux(S_MASS)%data(d)%elts
+             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+             divu    => grid(d)%divu%elts
+             vort    => grid(d)%vort%elts
+
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (scalar_physics_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             call cpt_or_restr_physics_velo_source (grid(d), l)
+
+             nullify (mass, temp, velo, dmass, dtemp, dvelo, h_mflux, h_tflux, divu, vort)
+          end do
+
+          dq(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
+          if (l .gt. level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l)  ! <= start non-blocking communicate dmass (l+1)
+          dq(S_VELO,k)%bdry_uptodate = .False.
+       end do
+
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! Remove edge weighting from velocity trend !
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       do d = 1, size(grid)
+          dvelo => dq(S_VELO,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (du_remove_edge, grid(d), p-1, k, 0, 0)
+          end do
+          nullify (dvelo)
+       end do
+    end do
+  end subroutine trend_physics
  
   subroutine cpt_or_restr_Bernoulli_Exner (dom, l)
     type(Domain) :: dom
@@ -286,6 +463,84 @@ contains
        dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
     end if
   end subroutine du_source_cpt_restr
+
+  subroutine cpt_or_restr_physics_velo_source (dom, l)
+    type(Domain) :: dom
+    integer      :: l
+    
+    integer :: c, j, p_par, p_chd
+
+    interface
+       subroutine physics_velo_source (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end subroutine physics_velo_source
+    end interface
+
+    do j = 1, dom%lev(l)%length
+       p_par = dom%lev(l)%elts(j)
+       do c = 1, N_CHDRN
+          p_chd = dom%patch%elts(p_par+1)%children(c)
+          if (p_chd .eq. 0) then
+             call apply_onescale_to_patch (physics_velo_source, dom, p_par, z_null, 0, 0)
+          end if
+       end do
+       call apply_interscale_to_patch (source_physics_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
+    end do
+  end subroutine cpt_or_restr_physics_velo_source
+
+  subroutine source_physics_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    type(Domain)                     :: dom
+    integer                          :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
+
+    integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
+    real (8) :: u_prim_RT, u_prim_RT_E, u_prim_DG, u_prim_DG_NE, u_prim_UP, u_prim_UP_N
+
+    interface
+       subroutine physics_velo_source (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end subroutine physics_velo_source
+    end interface
+
+    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
+
+    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
+    idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
+    idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
+    idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
+
+    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. ADJZONE) then
+       call physics_velo_source (dom, i_par, j_par, zlev, offs_par, dims_par)
+    end if
+
+    ! Restriction is on edge integrated velocity
+    u_prim_RT    = dvelo(EDGE*id_chd+RT+1)*dom%len%elts(EDGE*id_chd+RT+1)
+    u_prim_RT_E  = dvelo(EDGE*idE_chd+RT+1)*dom%len%elts(EDGE*idE_chd+RT+1)
+    u_prim_DG    = dvelo(EDGE*id_chd+DG+1)*dom%len%elts(EDGE*id_chd+DG+1)
+    u_prim_DG_NE = dvelo(EDGE*idNE_chd+DG+1)*dom%len%elts(EDGE*idNE_chd+DG+1)
+    u_prim_UP    = dvelo(EDGE*id_chd+UP+1)*dom%len%elts(EDGE*id_chd+UP+1)
+    u_prim_UP_N  = dvelo(EDGE*idN_chd+UP+1)*dom%len%elts(EDGE*idN_chd+UP+1)
+    
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) &
+         dvelo(EDGE*id_par+RT+1) = (u_prim_RT + u_prim_RT_E)/dom%len%elts(EDGE*id_par+RT+1)
+
+    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) &
+         dvelo(EDGE*id_par+DG+1) = (u_prim_DG + u_prim_DG_NE)/dom%len%elts(EDGE*id_par+DG+1)
+
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) &
+         dvelo(EDGE*id_par+UP+1) = (u_prim_UP + u_prim_UP_N)/dom%len%elts(EDGE*id_par+UP+1)
+  end subroutine source_physics_cpt_restr
 
   subroutine cpt_or_restr_flux (dom, l)
     type(Domain) :: dom

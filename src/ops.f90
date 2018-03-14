@@ -161,18 +161,7 @@ contains
     subroutine comp_ijmin
       integer :: idS, idSW, idW
       real(8) :: circ_LORT_SW, circ_UPLT_SW, u_prim_RT_SW, u_prim_UP_SW
-      real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
-
-      interface
-         function physics_scalar_flux (dom, id, idE, idNE, idN, type)
-           use domain_mod
-           real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-           type(Domain)                             :: dom
-           integer                                  :: id, idE, idNE, idN
-           logical, optional                        :: type
-         end function physics_scalar_flux
-      end interface
-
+    
       idS  = id+S
       idSW = id+SW
       idW  = id+W
@@ -200,16 +189,13 @@ contains
       qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
       qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
-      ! Mass and temperature fluxes
-      physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
-
-      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(id+1), mass(idW+1))  + physics(S_MASS,RT+1)
-      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1), mass(idSW+1)) + physics(S_MASS,DG+1)
-      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(id+1), mass(idS+1))  + physics(S_MASS,UP+1)
+      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(id+1), mass(idW+1)) 
+      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1), mass(idSW+1))
+      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(id+1), mass(idS+1)) 
       
-      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(id+1), temp(idW+1))  + physics(S_TEMP,RT+1)
-      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1), temp(idSW+1)) + physics(S_TEMP,DG+1)
-      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(id+1), temp(idS+1))  + physics(S_TEMP,UP+1)
+      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(id+1), temp(idW+1)) 
+      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1), temp(idSW+1))
+      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(id+1), temp(idS+1)) 
     end subroutine comp_ijmin
 
     subroutine comput
@@ -218,19 +204,8 @@ contains
       integer                                  :: idE, idN, idNE, idS, idSW, idW
       real(8)                                  :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
       real(8)                                  :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
-      real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
 
       type (Coord), dimension(6) :: hex_nodes
-
-      interface
-         function physics_scalar_flux (dom, id, idE, idNE, idN, type)
-           use domain_mod
-           real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-           type(Domain)                             :: dom
-           integer                                  :: id, idE, idNE, idN
-           logical, optional                        :: type
-         end function physics_scalar_flux
-      end interface
       
       idE  = id+E
       idN  = id+N
@@ -347,15 +322,13 @@ contains
       qe(EDGE*id+UP+1) = interp(pv_UPLT,   pv_LORT_W)
 
       ! Mass and temperature fluxes
-      physics = physics_scalar_flux (dom, id, idE, idNE, idN)
+      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1))  
+      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1)) 
+      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1))  
 
-      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1))  + physics(S_MASS,RT+1)
-      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1)) + physics(S_MASS,DG+1)
-      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1))  + physics(S_MASS,UP+1)
-
-      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1))  + physics(S_TEMP,RT+1)
-      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1)) + physics(S_TEMP,DG+1)
-      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1))  + physics(S_TEMP,UP+1)
+      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1))  
+      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1)) 
+      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1))  
     end subroutine comput
   end subroutine step1
 
@@ -791,31 +764,17 @@ contains
     integer,                        intent(in) :: i, j, zlev
     integer, dimension(N_BDRY+1),   intent(in) :: offs
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
-    
-    interface
-       function physics_velo_source (dom, i, j, zlev, offs, dims)
-         use domain_mod
-         real(8), dimension(1:EDGE)     :: physics_velo_source
-         type(Domain)                   :: dom
-         integer                        :: i, j, zlev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
-       end function physics_velo_source
-    end interface
-
+  
     integer                :: e, id
-    real(8), dimension (3) :: Qperp_e, physics
+    real(8), dimension (3) :: Qperp_e
 
     id = idx(i, j, offs, dims)
 
     ! Calculate Q_perp
     Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
-    ! Calculate physics
-    physics = physics_velo_source (dom, i, j, z_null, offs, dims)
-    
     do e = 1, EDGE 
-       dvelo(EDGE*id+e) = - Qperp_e(e) + physics(e)*dom%len%elts(EDGE*id+e)
+       dvelo(EDGE*id+e) = - Qperp_e(e)
     end do
   end subroutine du_source
 
@@ -910,6 +869,20 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
+    
+    id = idx(i, j, offs, dims)
+
+    dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims) 
+    dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) 
+  end subroutine scalar_trend
+
+  subroutine scalar_physics_trend (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
     real(8), dimension(S_MASS:S_TEMP) :: physics
 
     interface
@@ -929,12 +902,11 @@ contains
 
     dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
     dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
-  end subroutine scalar_trend
+  end subroutine scalar_physics_trend
 
-  function gradi_e (scalar, dom, i, j, offs, dims)
+   function gradi_e (scalar, dom, i, j, offs, dims)
     ! Gradient of a scalar at nodes x_i
     ! output is at edges
-    ! If type = .true. then compute the gradient at the southwest edges of the hexagon
     real(8), dimension(3)          :: gradi_e
     real(8), dimension(:), pointer :: scalar
     type(Domain)                   :: dom
@@ -943,7 +915,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, idE, idN, idNE
-    
+
     id   = idx(i,   j,   offs, dims)
     idE  = idx(i+1, j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
@@ -1046,6 +1018,22 @@ contains
        dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
     end do
   end subroutine du_grad
+
+   subroutine du_remove_edge (dom, i, j, zlev, offs, dims)
+    ! Remove edge integration from velocity trend
+    type(Domain)                     :: dom
+    integer                          :: i, j, zlev
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
+
+    integer :: e, id
+
+    id = idx(i,   j,   offs, dims)
+    
+    do e = 1, EDGE
+       dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e)
+    end do
+  end subroutine du_remove_edge
 
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
     type(Domain)                   :: dom

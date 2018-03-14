@@ -13,12 +13,13 @@ contains
   subroutine euler (trend_fun, dt)
     ! Euler time step
     ! Stable for CFL<1, first order
+    implicit none
     real(8) :: dt
     external :: trend_fun
 
     integer :: d, k, v, start
 
-    call trend_fun (sol, trend, 0)
+    call trend_fun (sol, trend)
     call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine euler
@@ -27,24 +28,25 @@ contains
     ! Third order, four stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
+    implicit none
     external :: trend_fun
     real(8)  :: dt
   
     call manage_RK_mem
 
-    call trend_fun (sol, trend, 0) 
+    call trend_fun (sol, trend) 
     call RK_sub_step1 (sol, trend, 1.0_8, dt/2.0_8, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_fun (q1, trend, 0) 
+    call trend_fun (q1, trend) 
     call RK_sub_step1 (q1, trend, 1.0_8, dt/2.0_8, q2)
     call WT_after_step (q2, wav_coeff)
 
-    call trend_fun (q2, trend, 0)
+    call trend_fun (q2, trend)
     call RK_sub_step2 (sol, q2, trend, (/ 2.0_8/3.0_8, 1.0_8/3.0_8 /), dt/6.0_8, q3)
     call WT_after_step (q3, wav_coeff)
     
-    call trend_fun (q3, trend, 0) 
+    call trend_fun (q3, trend) 
     call RK_sub_step1 (q3, trend, 1.0_8, dt/2.0_8, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK34_opt
@@ -53,24 +55,25 @@ contains
     ! Low storage four stage second order accurate Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
     ! fourth order accurate for linear equations.
     ! Does not require extra solution variables.
+    implicit none
     external :: trend_fun
     real(8)  :: dt
   
     call manage_RK_mem
 
-    call trend_fun (sol, trend, 0) 
+    call trend_fun (sol, trend) 
     call RK_sub_step1 (sol, trend, 1.0_8, dt/4.0_8, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_fun (q1, trend, 0) 
+    call trend_fun (q1, trend) 
     call RK_sub_step1 (sol, trend, 1.0_8, dt/3.0_8, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_fun (q1, trend, 0) 
+    call trend_fun (q1, trend) 
     call RK_sub_step1 (sol, trend, 1.0_8, dt/2.0_8, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_fun (q1, trend, 0) 
+    call trend_fun (q1, trend) 
     call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK4
@@ -78,6 +81,7 @@ contains
   subroutine RK45_opt (trend_fun, dt)
     ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiter and Ruuth 2002
     ! CFL = 1.51
+    implicit none
     external :: trend_fun
     real(8)  :: dt
     
@@ -94,23 +98,23 @@ contains
 
     call manage_RK_mem
 
-    call trend_fun (sol, trend, 0) 
+    call trend_fun (sol, trend) 
     call RK_sub_step1 (sol, trend, alpha(1,1), dt*beta(1,1), q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_fun (q1, trend, 0)
+    call trend_fun (q1, trend)
     call RK_sub_step2 (sol, q1, trend, alpha(1:2,2), dt*beta(2,2), q2)
     call WT_after_step (q2, wav_coeff)
 
-    call trend_fun (q2, trend, 0)
+    call trend_fun (q2, trend)
     call RK_sub_step2 (sol, q2, trend, (/alpha(1,3), alpha(3,3)/), dt*beta(3,3), q3)
     call WT_after_step (q3, wav_coeff)
 
-    call trend_fun (q3, trend, 0)
+    call trend_fun (q3, trend)
     call RK_sub_step2 (sol, q3, trend, (/alpha(1,4), alpha(4,4)/), dt*beta(4,4), q4)
     call WT_after_step (q4, wav_coeff)
 
-    call trend_fun (q4, dq1, 0)
+    call trend_fun (q4, dq1)
     call RK_sub_step4 (sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), dt*beta(4:5,5), sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK45_opt
@@ -128,6 +132,7 @@ contains
   end subroutine init_time_integr_mod
 
   subroutine RK_sub_step1 (sols, trends, alpha, dt, dest)
+    implicit none
     real(8) :: alpha, dt
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sols
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
@@ -150,6 +155,7 @@ contains
   end subroutine RK_sub_step1
 
   subroutine RK_sub_step2 (sol1, sol2, trends, alpha, dt, dest)
+    implicit none
     real(8) :: alpha(2), dt
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
@@ -172,6 +178,7 @@ contains
   end subroutine RK_sub_step2
 
   subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
+    implicit none
     real(8), dimension(2) :: dt
     real(8), dimension(4) :: alpha
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2, sol3, sol4
@@ -199,6 +206,7 @@ contains
   end subroutine RK_sub_step4
 
   subroutine init_RK_mem
+    implicit none
     integer :: d, k, v
 
     allocate (q1(S_MASS:S_VELO,1:zlevels), q2(S_MASS:S_VELO,1:zlevels), q3(S_MASS:S_VELO,1:zlevels), &
@@ -228,6 +236,7 @@ contains
   end subroutine init_RK_mem
 
   subroutine manage_RK_mem
+    implicit none
     integer :: d, k, v, n_new
 
     do k = 1, zlevels
@@ -247,6 +256,7 @@ contains
   end subroutine manage_RK_mem
 
   subroutine WT_after_step (q, wav, l_start0)
+    implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, wav
     integer, optional                                             :: l_start0
     

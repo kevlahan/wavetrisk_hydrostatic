@@ -645,6 +645,7 @@ program Held_Suarez
 
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
+     call time_step_physics
      call stop_timing
 
      call set_surf_geopot
@@ -711,74 +712,73 @@ end program Held_Suarez
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (dom, id, idE, idNE, idN, type)
+subroutine physics_scalar_flux (dom, i, j, zlev, offs, dims)
   ! Additional physics for the flux term of the scalar trend
+  ! NOTE: we calculate the flux for potential temperature, NOT mass-weighted potential temperature
+  
   ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
-  !
-  ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
   use domain_mod
+  use ops_mod
   use Held_Suarez_mod
   implicit none
+  type(Domain)                   :: dom
+  integer                        :: i, j, zlev
+  integer, dimension(N_BDRY+1)   :: offs
+  integer, dimension(2,N_BDRY+1) :: dims
 
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-  type(Domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
-  logical, optional                        :: type
+  integer               :: e, id, idE, idN, idNE
+  real(8), dimension(3) :: gradM, gradT
+  
+  interface
+     function grad_theta_i_e (dom, i, j, offs, dims)
+       use domain_mod
+       real(8), dimension(3)          :: grad_theta_i_e
+       real(8), dimension(:), pointer :: scalar
+       type(Domain)                   :: dom
+       integer                        :: i, j
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end function grad_theta_i_e
+  end interface
 
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
-  logical :: local_type
+  id   = idx(i, j, offs, dims)
 
-  if (present(type)) then
-     local_type = type
-  else
-     local_type = .false.
-  end if
+  ! Gradient of mass and potential temperature at edges
+  gradM = gradi_e (mass, dom, i, j, offs, dims)
+  gradT = grad_theta_i_e (dom, i, j, offs, dims)
+  
+  do e = 1, EDGE
+     h_mflux(EDGE*id+e) = - viscosity_mass * dom%pedlen%elts(EDGE*id+e) * gradM(e)
+     h_tflux(EDGE*id+e) = - viscosity_temp * dom%pedlen%elts(EDGE*id+e) * gradT(e)
+  end do
+end subroutine physics_scalar_flux
 
-  if (max(viscosity_mass, viscosity_temp).eq.0.0_8) then
-     physics_scalar_flux = 0.0_8
-  else
-     ! Calculate gradients
-     if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-        grad(S_MASS,RT+1) = (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-        grad(S_MASS,DG+1) = (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-        grad(S_MASS,UP+1) = (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1) 
+function grad_theta_i_e (dom, i, j, offs, dims)
+  ! Gradient of a potential temperature at nodes x_i
+  ! output is at edges
+  use domain_mod
+  real(8), dimension(3)          :: grad_theta_i_e
+  type(Domain)                   :: dom
+  integer                        :: i, j
+  integer, dimension(N_BDRY+1)   :: offs
+  integer, dimension(2,N_BDRY+1) :: dims
 
-        grad(S_TEMP,RT+1) = (temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-        grad(S_TEMP,DG+1) = (temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-        grad(S_TEMP,UP+1) = (temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-     else ! Gradient for southwest edges of hexagon W, SW, S
-        grad(S_MASS,RT+1) = -(mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-        grad(S_MASS,DG+1) = -(mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-        grad(S_MASS,UP+1) = -(mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+  integer :: id, idE, idN, idNE
 
-        grad(S_TEMP,RT+1) = -(temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-        grad(S_TEMP,DG+1) = -(temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-        grad(S_TEMP,UP+1) = -(temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
-     end if
+  id   = idx(i,   j,   offs, dims)
+  idE  = idx(i+1, j,   offs, dims)
+  idN  = idx(i,   j+1, offs, dims)
+  idNE = idx(i+1, j+1, offs, dims)
 
-     ! Fluxes of physics
-     if (.not.local_type) then ! Usual flux at edges E, NE, N
-        physics_scalar_flux(S_MASS,RT+1) = -viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-        physics_scalar_flux(S_MASS,DG+1) = -viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-        physics_scalar_flux(S_MASS,UP+1) = -viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-
-        physics_scalar_flux(S_TEMP,RT+1) = -viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-        physics_scalar_flux(S_TEMP,DG+1) = -viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-        physics_scalar_flux(S_TEMP,UP+1) = -viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-     else ! Flux at edges W, SW, S
-        physics_scalar_flux(S_MASS,RT+1) = -viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(S_MASS,DG+1) = -viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(S_MASS,UP+1) = -viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
-
-        physics_scalar_flux(S_TEMP,RT+1) = -viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(S_TEMP,DG+1) = -viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(S_TEMP,UP+1) = -viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
-     end if
-  end if
-end function physics_scalar_flux
+  grad_theta_i_e(RT+1) = (temp(idE+1)/mass(idE+1) - temp(id+1)/mass(id+1))  /dom%len%elts(EDGE*id+RT+1)
+  grad_theta_i_e(DG+1) = (temp(id+1)/mass(id+1)   - temp(idNE+1)/mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+  grad_theta_i_e(UP+1) = (temp(idN+1)/mass(idN+1) - temp(id+1)/mass(id+1))  /dom%len%elts(EDGE*id+UP+1)
+end function grad_theta_i_e
 
 function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the scalar trend
+  
+  ! NOTE: we calculate the source for potential temperature, NOT mass-weighted potential temperature
   ! Newton cooling to equilibrium potential temperature theta_equil
   use domain_mod
   use Held_Suarez_mod
@@ -791,13 +791,12 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1)    :: dims
 
   integer     :: id
-  type(Coord) :: x_i
   real(8)     :: eta, k_T, lat, lon, press, theta, theta_equil
 
   id = idx(i, j, offs, dims)
 
-  x_i  = dom%node%elts(id+1)            ! Coordinates
-  call cart2sph (x_i, lon, lat)         ! Latitude and longitude
+  call cart2sph (dom%node%elts(id+1), lon, lat) ! Latitude and longitude
+  
   press = dom%press%elts(id+1)          ! Pressure
   eta = press/dom%surf_press%elts(id+1) ! Normalized pressure
   
@@ -807,7 +806,7 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   call cal_theta_eq (eta, lat, press, k_T, theta_equil)
   
   physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = -k_T*(theta - theta_equil) * mass(id+1) + dmass(id+1)*theta ! Include correction for dtheta/dt -> dTheta/dt
+  physics_scalar_source(S_TEMP) = - k_T*(theta - theta_equil) 
 end function physics_scalar_source
 
 subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)
@@ -832,55 +831,72 @@ subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)
   theta_equil = max(theta_tropo, theta_force) ! Equilibrium temperature
 end subroutine cal_theta_eq
 
-function physics_velo_source (dom, i, j, zlev, offs, dims)
+subroutine physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
-  !
+  
   ! In this test case we add Rayleigh friction and Laplacian diffusion
   use domain_mod
   use ops_mod
   use Held_Suarez_mod
   implicit none
   
-  real(8), dimension(1:EDGE)     :: physics_velo_source
   type(Domain)                   :: dom
   integer                        :: i, j, zlev
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                    :: e, id
-  real(8)                    :: eta, rayleigh_friction
-  real(8), dimension(1:EDGE) :: diffusion, friction, curl_rotu, grad_divu
-
+  real(8)                    :: eta
+  real(8), dimension(1:EDGE) :: diffusion
+  
   interface
-     function velo_diffusion (dom, i, j, zlev, offs, dims)
+     function Laplacian_u (dom, i, j, zlev, offs, dims)
        use domain_mod
-       real(8), dimension(1:EDGE)     :: velo_diffusion
+       implicit none
+       real(8), dimension(3)          :: Laplacian_u
        type(Domain)                   :: dom
        integer                        :: i, j, zlev
        integer, dimension(N_BDRY+1)   :: offs
        integer, dimension(2,N_BDRY+1) :: dims
-     end function velo_diffusion
+     end function Laplacian_u
   end interface
-
-  id = idx(i, j, offs, dims)
   
   if (max(viscosity_divu, viscosity_rotu).eq.0.0_8) then
      diffusion = 0.0_8
-  else
-     ! Calculate Laplacian of velocity
-     grad_divu = gradi_e (divu, dom, i, j, offs, dims)
-     curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-     do e = 1, EDGE 
-        diffusion(e) = viscosity_divu * grad_divu(e) - viscosity_rotu * curl_rotu(e)
-     end do
+  else ! Calculate Laplacian of velocity
+     diffusion  = Laplacian_u (dom, i, j, z_null, offs, dims)
   end if
 
+  id = idx(i, j, offs, dims)
   eta = dom%press%elts(id+1)/dom%surf_press%elts(id+1) ! Normalized pressure
   
-  ! Total physics for source term of velocity trend
+  ! Total physics for source term of velocity trend (edge integrated for restriction)
   do e = 1, EDGE
-     physics_velo_source(e) =  diffusion(e) - k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
+     dvelo(EDGE*id+e) = (diffusion(e) - k_f*max(0.0_8, (eta-eta_b)/(1.0_8-eta_b))*velo(EDGE*id+e)) * dom%len%elts(EDGE*id+e)
   end do
-end function physics_velo_source
+end subroutine physics_velo_source
+
+function Laplacian_u (dom, i, j, zlev, offs, dims)
+  ! Calculate grad(divu) - curl(vort) to diffuse momentum
+  use domain_mod
+  use ops_mod
+  use Held_Suarez_mod
+  implicit none
+  real(8), dimension(3)          :: Laplacian_u
+  type(Domain)                   :: dom
+  integer                        :: i, j, zlev
+  integer, dimension(N_BDRY+1)   :: offs
+  integer, dimension(2,N_BDRY+1) :: dims
+
+  integer               :: e
+  real(8), dimension(3) :: grad_divu, curl_rotu
+
+  grad_divu = gradi_e (divu, dom, i, j, offs, dims)
+  curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
+
+  do e = 1, EDGE
+     Laplacian_u(e) = viscosity_divu * grad_divu(e) - viscosity_rotu * curl_rotu(e)
+  end do
+end function Laplacian_u
 
 
