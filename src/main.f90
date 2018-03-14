@@ -203,55 +203,55 @@ contains
     time  = itime/time_mult
   end subroutine time_step
 
-  subroutine time_step_physics
-    ! Euler time step to diffuse solution
-    implicit none
-    integer :: d, k, p
+  ! subroutine time_step_physics
+  !   ! Euler time step to diffuse solution
+  !   implicit none
+  !   integer :: d, k, p
 
-    call trend_physics (sol, trend)
+  !   call trend_physics (sol, trend)
     
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          mass => sol(S_MASS,k)%data(d)%elts
-          temp => sol(S_TEMP,k)%data(d)%elts
-          velo => sol(S_VELO,k)%data(d)%elts
-          dmass => trend(S_MASS,k)%data(d)%elts
-          dtemp => trend(S_TEMP,k)%data(d)%elts
-          dvelo => trend(S_VELO,k)%data(d)%elts
+  !   do k = 1, zlevels
+  !      do d = 1, size(grid)
+  !         mass => sol(S_MASS,k)%data(d)%elts
+  !         temp => sol(S_TEMP,k)%data(d)%elts
+  !         velo => sol(S_VELO,k)%data(d)%elts
+  !         dmass => trend(S_MASS,k)%data(d)%elts
+  !         dtemp => trend(S_TEMP,k)%data(d)%elts
+  !         dvelo => trend(S_VELO,k)%data(d)%elts
 
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (euler_step_physics, grid(d), p-1, k, 0, 1)
-          end do
-          nullify (mass, temp, velo, dmass, dtemp, dvelo)
-       end do
-       sol(:,k)%bdry_uptodate = .False.
-    end do
-  end subroutine time_step_physics
+  !         do p = 3, grid(d)%patch%length
+  !            call apply_onescale_to_patch (euler_step_physics, grid(d), p-1, k, 0, 1)
+  !         end do
+  !         nullify (mass, temp, velo, dmass, dtemp, dvelo)
+  !      end do
+  !      sol(:,k)%bdry_uptodate = .False.
+  !   end do
+  ! end subroutine time_step_physics
   
-  subroutine euler_step_physics (dom, i, j, zlev, offs, dims)
-    ! Euler time step
-    implicit none
-    type(Domain)                     :: dom
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+  ! subroutine euler_step_physics (dom, i, j, zlev, offs, dims)
+  !   ! Euler time step
+  !   implicit none
+  !   type(Domain)                     :: dom
+  !   integer                          :: i, j, zlev
+  !   integer, dimension(N_BDRY + 1)   :: offs
+  !   integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer :: e, id, theta
+  !   integer :: e, id, theta
 
-    id = idx(i, j, offs, dims)
+  !   id = idx(i, j, offs, dims)
 
-    ! Potential temperature at previous time step
-    theta = temp(id+1)/mass(id+1)
+  !   ! Potential temperature at previous time step
+  !   theta = temp(id+1)/mass(id+1)
 
-    mass(id+1) = mass(id+1) + dt * dmass(id+1)
+  !   mass(id+1) = mass(id+1) + dt * dmass(id+1)
 
-    ! Take Euler step for potential temperature and then form mass-weighted potential temperature
-    temp(id+1) = (theta + dt*dtemp(id+1)) * mass(id+1)
+  !   ! Take Euler step for potential temperature and then form mass-weighted potential temperature
+  !   temp(id+1) = (theta + dt*dtemp(id+1)) * mass(id+1)
     
-    do e = 1, EDGE
-       velo(EDGE*id+e) = velo(EDGE*id+e) + dt*dvelo(EDGE*id+e)
-    end do
-  end subroutine euler_step_physics
+  !   do e = 1, EDGE
+  !      velo(EDGE*id+e) = velo(EDGE*id+e) + dt*dvelo(EDGE*id+e)
+  !   end do
+  ! end subroutine euler_step_physics
 
   subroutine reset (init_state)
     type(Initial_State), dimension (:), allocatable :: init_state
