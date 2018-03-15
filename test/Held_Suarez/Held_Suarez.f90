@@ -556,7 +556,7 @@ program Held_Suarez
   kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
   
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 150                               ! Vertical remap interval
+  n_remap        = 50                               ! Vertical remap interval
 
   ! Forcing parameters
   T_0            = 300.0_8            ! reference temperature
