@@ -585,12 +585,12 @@ program Held_Suarez
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
-  visc = 2.0d-4 ! Constant for viscosity
+  visc = 5.0d-5 ! Constant for viscosity
 
   viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
   viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = visc/1.0d2 * dx_min**2 ! viscosity for rotational part of momentum equation
+  viscosity_rotu = visc * dx_min**2/1.0d2 ! viscosity for rotational part of momentum equation
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
@@ -914,13 +914,11 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY + 1)   :: offs
   integer, dimension(2,N_BDRY + 1) :: dims
 
-  integer :: e, id
-  real(8) :: eta, k_T, lat, lon, press, theta, theta_equil
+  integer :: id
+  real(8) :: eta, k_T, lat, lon, press, theta_equil
 
   id = idx(i, j, offs, dims)
  
-  theta = temp(id+1)/mass(id+1)  ! Potential temperature 
-  
   call cart2sph (dom%node%elts(id+1), lon, lat) ! Latitude and longitude
   
   press = dom%press%elts(id+1)          ! Pressure
@@ -929,7 +927,7 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   call cal_theta_eq (eta, lat, press, k_T, theta_equil)
 
   ! Take Euler step for potential temperature and then form mass-weighted potential temperature
-  temp(id+1) = (theta - dt * k_T*(theta-theta_equil)) * mass(id+1)
+  temp(id+1) = temp(id+1) - dt * k_T*(temp(id+1)-theta_equil*mass(id+1)) 
 end subroutine euler_step_cooling
 
 subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)
