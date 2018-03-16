@@ -1,10 +1,10 @@
 % Plot 2d data from export_2d
 clear all; close all;
 
-machine   = 'mac';
-t1        = 1; % Start time
-t2        = t1; % End time
-itype     = 'zonal'; % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
+machine   = 'if';
+t1        = 200; % Start time
+t2        = 1200; % End time
+itype     = 'temp'; % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
 lon_lat   = 0; % Plot longitude - latitude data
 zonal_avg = 1; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
@@ -80,6 +80,9 @@ for t = t1:t2
         %c_scale = 930:10:1030; % DCMIP2012c4
         v_title = 'Surface pressure';
     end
+    % Erase extracted files
+    file_erase = ['\rm ' file_base '*'];
+    system(file_erase);
 end
 
 % Plot data
@@ -104,7 +107,5 @@ if (zonal_avg)
     plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, 0)
 end
 
-% Erase extracted files
-file_erase = ['\rm ' file_base '*'];
-system(file_erase);
+
 

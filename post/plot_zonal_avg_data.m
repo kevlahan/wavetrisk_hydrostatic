@@ -18,7 +18,10 @@ if (unif_grid) %Interpolate onto uniform pressure grid
 else
     contourf(lat,P_z,s);
 end
-colormap(jet(numel(c_scale)-1));caxis([min(c_scale) max(c_scale)]);c=colorbar;c.Label.String=v_title;c.Label.FontSize=16;
+%colormap(jet(numel(c_scale)-1));
+colormap(jet);
+caxis([min(c_scale) max(c_scale)]);
+c=colorbar;c.Label.String=v_title;c.Label.FontSize=16;
 shading('flat');axis('square'); axis('tight');yticks(v_yticks);
 xlabel('Latitude','fontsize',16);ylabel('P/P_S','fontsize',16);
 set(gca,'xtick',v_xticks,'xticklabels',{'90S','60S','30S','0','30N','60N','90N'});
