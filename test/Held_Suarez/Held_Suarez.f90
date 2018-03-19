@@ -4,10 +4,11 @@ module Held_Suarez_mod
   use remap_mod
   implicit none
 
+  integer                            :: Laplace_order
   integer                            :: CP_EVERY, iwrite, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
-  logical                            :: wasprinted, uniform
+  logical                            :: uniform
   character (255)                    :: IC_file
 
   real(8)                            :: acceldim, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
@@ -468,13 +469,11 @@ contains
 
   subroutine apply_initial_conditions
     implicit none
-    integer :: k, l
+    integer :: d, k, l, p
 
-    wasprinted=.false.
     do l = level_start, level_end
        do k = 1, zlevels
           call apply_onescale (init_sol, l, k, -1, 1)
-          wasprinted=.false.
        end do
     end do
   end subroutine apply_initial_conditions
@@ -585,13 +584,21 @@ program Held_Suarez
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
+  Laplace_order = 4
   visc = 5.0d-5 ! Constant for viscosity
 
-  viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
-  viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
   viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = visc * dx_min**2/1.0d2 ! viscosity for rotational part of momentum equation
-  viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
+  viscosity_rotu = visc * dx_min**2 ! viscosity for rotational part of momentum equation
+  
+  if (Laplace_order.eq.2) then
+     viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
+     viscosity_temp = viscosity_mass ! viscosity for mass-weighted potential temperature equation
+     viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
+  else
+     viscosity_mass = visc * dx_min**4/1.0e5 ! viscosity for mass equation
+     viscosity_temp = viscosity_mass ! viscosity for mass-weighted potential temperature equation
+     viscosity = max (viscosity_divu, viscosity_rotu)
+  end if
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
@@ -644,6 +651,7 @@ program Held_Suarez
      if (remap .and. mod(istep, n_remap).eq.0 .and. istep.gt.1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
+     call  update_array_bdry (sol, NONE)
      call time_step (dt_write, aligned, set_thresholds)
      call time_step_cooling
      call stop_timing
@@ -726,35 +734,47 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   integer                                  :: id, idE, idNE, idN
   logical, optional                        :: type
 
+  integer                                  :: d, v
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
-  logical :: local_type
-
+  real(8), dimension(:), pointer           :: flx
+  logical                                  :: local_type
+  
+  interface
+     function grad_physics (scalar, dom, id, idE, idNE, idN, type)
+       use domain_mod
+       use Held_Suarez_mod
+       implicit none
+       real(8), dimension(1:EDGE)               :: grad_physics
+       real(8), dimension(:), pointer           :: scalar
+       type(Domain)                             :: dom
+       integer                                  :: id, idE, idNE, idN
+       logical                                  :: type
+     end function grad_physics
+  end interface
+  
   if (present(type)) then
      local_type = type
   else
      local_type = .false.
   end if
-
+  
   if (max(viscosity_mass, viscosity_temp).eq.0.0_8) then
      physics_scalar_flux = 0.0_8
   else
      ! Calculate gradients
-     if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-        grad(S_MASS,RT+1) = (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-        grad(S_MASS,DG+1) = (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-        grad(S_MASS,UP+1) = (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-
-        grad(S_TEMP,RT+1) = (temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-        grad(S_TEMP,DG+1) = (temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-        grad(S_TEMP,UP+1) = (temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-     else ! Gradient for southwest edges of hexagon W, SW, S
-        grad(S_MASS,RT+1) = -(mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-        grad(S_MASS,DG+1) = -(mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-        grad(S_MASS,UP+1) = -(mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
-
-        grad(S_TEMP,RT+1) = -(temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-        grad(S_TEMP,DG+1) = -(temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-        grad(S_TEMP,UP+1) = -(temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+     if (Laplace_order.eq.2) then
+        grad(S_MASS,:) = grad_physics (mass, dom, id, idE, idNE, idN, local_type)
+        grad(S_TEMP,:) = grad_physics (temp, dom, id, idE, idNE, idN, local_type)
+     elseif (Laplace_order.eq.4) then
+        d = dom%id+1
+        do v = S_MASS, S_TEMP
+           flx => Laplacian_scalar(v)%data(d)%elts
+           grad(v,:) = grad_physics (flx, dom, id, idE, idNE, idN, local_type)
+           nullify (flx)
+        end do
+     else
+        write(6,*) 'This order of Laplacian not supported'
+        stop
      end if
 
      ! Fluxes of physics
@@ -777,6 +797,28 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      end if
   end if
 end function physics_scalar_flux
+
+function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
+  use domain_mod
+  use Held_Suarez_mod
+  implicit none
+
+  real(8), dimension(1:EDGE)               :: grad_physics
+  real(8), dimension(:), pointer           :: scalar
+  type(Domain)                             :: dom
+  integer                                  :: id, idE, idNE, idN
+  logical                                  :: local_type
+  
+  if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
+     grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
+     grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
+     grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
+  else ! Gradient for southwest edges of hexagon W, SW, S
+     grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
+     grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
+     grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+  end if
+end function grad_physics
 
 function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the scalar trend

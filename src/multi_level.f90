@@ -49,6 +49,8 @@ contains
           ! Compute pressure, geopotential, Exner (compressible case), specific volume
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+             call apply_onescale_to_patch (cal_Laplacian_scalar,  grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+             !call apply_onescale_to_patch (cal_Laplacian_u,       grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
           end do
 
           ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case)
@@ -126,6 +128,8 @@ contains
 
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                call apply_onescale_to_patch (cal_Laplacian_scalar,  grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                !call apply_onescale_to_patch (cal_Laplacian_u,       grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
 
              do j = 1, grid(d)%lev(l)%length

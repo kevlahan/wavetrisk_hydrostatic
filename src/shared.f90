@@ -167,7 +167,7 @@ module shared_mod
   integer, parameter :: N_BDRY = 8                          ! number of boundary patches associated to each patch
   integer, dimension(:), allocatable :: n_domain            ! number of subdomains on each processor
 
-  ! thickness of boundary overlaps between lozanges (ghost points)
+  ! thickness of boundary overlaps between lozenges (ghost points or halo)
   integer, parameter :: BDRY_THICKNESS = 2
 
   integer, parameter :: FROZEN = 32

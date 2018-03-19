@@ -47,7 +47,8 @@ module domain_mod
      type(Float_Array) :: vort        ! vorticity
      type(Float_Array) :: bernoulli   ! Bernoulli function
      type(Float_Array) :: divu        ! divergence of velocity
-     type(Float_Array) :: qe          ! 
+     type(Float_Array) :: qe          !
+     type(Float_Array) :: Laplacian_u ! Laplacian of velocity
 
      type(Overl_Area_Array) :: overl_areas
      
@@ -63,7 +64,7 @@ module domain_mod
 
   type(Domain), dimension(:), allocatable, target        :: grid
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_save, trend, wav_coeff, trend_wav_coeff
-  type(Float_Field), dimension(:), allocatable, target   :: exner_fun, horiz_flux
+  type(Float_Field), dimension(:), allocatable, target   :: exner_fun, horiz_flux, Laplacian_scalar
 
   !note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
   !we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
