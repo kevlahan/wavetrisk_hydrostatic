@@ -972,7 +972,7 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   temp(id+1) = temp(id+1) - dt * k_T*(temp(id+1)-theta_equil*mass(id+1))
 
   do e = 1, EDGE
-    velo(id+1) = velo(id+1) - dt * k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
+    velo(EDGE*id+e) = velo(id+1) - dt * k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
   end do
 end subroutine euler_step_cooling
 
