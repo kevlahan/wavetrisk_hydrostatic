@@ -34,6 +34,18 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
+
+       do d = 1, size(grid)
+          mass => q(S_MASS,k)%data(d)%elts
+          temp => q(S_TEMP,k)%data(d)%elts
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+             !call apply_onescale_to_patch (cal_Laplacian_u,      grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
+          end do
+          nullify (mass, temp)
+       end do
+       call update_vector_bdry (Laplacian_scalar, level_end)
+          
        do d = 1, size(grid)
           mass      => q(S_MASS,k)%data(d)%elts
           temp      => q(S_TEMP,k)%data(d)%elts
@@ -45,14 +57,11 @@ contains
           divu      => grid(d)%divu%elts
           vort      => grid(d)%vort%elts
           qe        => grid(d)%qe%elts
-
-          ! Compute pressure, geopotential, Exner (compressible case), specific volume
+          
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
-             call apply_onescale_to_patch (cal_Laplacian_scalar,  grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
-             !call apply_onescale_to_patch (cal_Laplacian_u,       grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
           end do
-
+                    
           ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case)
           do j = 1, grid(d)%lev(level_end)%length
              call step1 (grid(d), grid(d)%lev(level_end)%elts(j), k)
@@ -112,6 +121,18 @@ contains
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do l = level_end-1, level_start, -1
           call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
+
+          do d = 1, size(grid)
+             mass => q(S_MASS,k)%data(d)%elts
+             temp => q(S_TEMP,k)%data(d)%elts
+             do j = 1, grid(d)%lev(level_end)%length
+                call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                !call apply_onescale_to_patch (cal_Laplacian_u,      grid(d), grid(d)%lev(l)%elts(j), k, 0, 0)
+             end do
+             nullify (mass, temp)
+          end do
+          call update_vector_bdry (Laplacian_scalar, l)
+       
           do d = 1, size(grid)
              mass      =>  q(S_MASS,k)%data(d)%elts
              velo      =>  q(S_VELO,k)%data(d)%elts
@@ -128,10 +149,8 @@ contains
 
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-                call apply_onescale_to_patch (cal_Laplacian_scalar,  grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-                !call apply_onescale_to_patch (cal_Laplacian_u,       grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
-
+             
              do j = 1, grid(d)%lev(l)%length
                 call step1 (grid(d), grid(d)%lev(l)%elts(j), k)
              end do

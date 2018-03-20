@@ -585,7 +585,7 @@ program Held_Suarez
 
   ! Set viscosity
   Laplace_order = 4
-  visc = 5.0d-5 ! Constant for viscosity
+  visc = 2.0d-4 ! Constant for viscosity
 
   viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
   viscosity_rotu = visc * dx_min**2 ! viscosity for rotational part of momentum equation
@@ -595,7 +595,7 @@ program Held_Suarez
      viscosity_temp = viscosity_mass ! viscosity for mass-weighted potential temperature equation
      viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   else
-     viscosity_mass = visc * dx_min**4/1.0e5 ! viscosity for mass equation
+     viscosity_mass = visc * dx_min**4/1.0e3 ! viscosity for mass equation
      viscosity_temp = viscosity_mass ! viscosity for mass-weighted potential temperature equation
      viscosity = max (viscosity_divu, viscosity_rotu)
   end if
