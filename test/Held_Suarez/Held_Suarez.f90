@@ -653,7 +653,7 @@ program Held_Suarez
      call start_timing
      call  update_array_bdry (sol, NONE)
      call time_step (dt_write, aligned, set_thresholds)
-     !call time_step_cooling
+     call time_step_cooling
      call stop_timing
 
      call set_surf_geopot
@@ -833,20 +833,8 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
-  integer :: id
-  real(8) :: eta, k_T, lon, lat, press, theta_equil
-
-  id = idx(i, j, offs, dims)
- 
-  call cart2sph (dom%node%elts(id+1), lon, lat) ! Latitude and longitude
-  
-  press = dom%press%elts(id+1)          ! Pressure
-  eta = press/dom%surf_press%elts(id+1) ! Normalized pressure
-
-  call cal_theta_eq (eta, lat, press, k_T, theta_equil)
-  
   physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = - k_T*(temp(id+1)-theta_equil*mass(id+1)) 
+  physics_scalar_source(S_TEMP) = 0.0_8
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -896,7 +884,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   
   ! Total physics for source term of velocity trend
   do e = 1, EDGE
-     physics_velo_source(e) =  diffusion(e) - k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
+     physics_velo_source(e) =  diffusion(e) !- k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
   end do
 end function physics_velo_source
 
@@ -968,7 +956,7 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY + 1)   :: offs
   integer, dimension(2,N_BDRY + 1) :: dims
 
-  integer :: id
+  integer :: e, id
   real(8) :: eta, k_T, lat, lon, press, theta_equil
 
   id = idx(i, j, offs, dims)
@@ -981,7 +969,11 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   call cal_theta_eq (eta, lat, press, k_T, theta_equil)
 
   ! Take Euler step for potential temperature and then form mass-weighted potential temperature
-  temp(id+1) = temp(id+1) - dt * k_T*(temp(id+1)-theta_equil*mass(id+1)) 
+  temp(id+1) = temp(id+1) - dt * k_T*(temp(id+1)-theta_equil*mass(id+1))
+
+  do e = 1, EDGE
+    velo(id+1) = velo(id+1) - dt * k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
+  end do
 end subroutine euler_step_cooling
 
 subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)
