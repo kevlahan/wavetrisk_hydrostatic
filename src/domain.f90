@@ -76,7 +76,7 @@ module domain_mod
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo
-  real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort
+  real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort, Laplacian_u
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
 contains
   subroutine init_Float_Field (self, pos)

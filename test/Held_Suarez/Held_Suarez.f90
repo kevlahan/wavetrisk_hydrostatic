@@ -588,20 +588,21 @@ program Held_Suarez
   visc = 2.0d-4 ! Constant for viscosity
 
   viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = visc * dx_min**2 ! viscosity for rotational part of momentum equation
+  viscosity_rotu = viscosity_divu!visc * dx_min**2 ! viscosity for rotational part of momentum equation
   
   if (Laplace_order.eq.2) then
      viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
      viscosity_temp = viscosity_mass ! viscosity for mass-weighted potential temperature equation
      viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   else
-     viscosity_mass = 5.0d13!visc * dx_min**4/1.0e3 ! viscosity for mass equation
+     viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
      viscosity_temp = viscosity_mass ! viscosity for mass-weighted potential temperature equation
      viscosity = max (viscosity_divu, viscosity_rotu)
   end if
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
-  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
+  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)
+  dt_init = 400.0_8
   if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/wave_speed, " dt_visc = ", 0.25_8*dx_min**2/viscosity
 
   if (rank .eq. 0) then
@@ -967,12 +968,11 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   eta = press/dom%surf_press%elts(id+1) ! Normalized pressure
 
   call cal_theta_eq (eta, lat, press, k_T, theta_equil)
-
-  ! Take Euler step for potential temperature and then form mass-weighted potential temperature
-  temp(id+1) = temp(id+1) - dt * k_T*(temp(id+1)-theta_equil*mass(id+1))
-
+  
+  ! Exact time integration
+  temp(id+1) = theta_equil*mass(id+1) + (temp(id+1)-theta_equil*mass(id+1))*exp(-dt*k_T)
   do e = 1, EDGE
-    velo(EDGE*id+e) = (1.0_8 - dt * k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b))) *  velo(EDGE*id+e)
+     velo(EDGE*id+e) = velo(EDGE*id+e)*exp(-dt*k_f*max(0.0_8, (eta-eta_b)/(1.0_8-eta_b))) 
   end do
 end subroutine euler_step_cooling
 

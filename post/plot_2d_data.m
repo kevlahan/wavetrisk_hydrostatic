@@ -2,9 +2,9 @@
 clear all; close all;
 
 machine   = 'if';
-t1        = 200; % Start time
-t2        = 1200; % End time
-itype     = 'temp'; % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
+t1        = 54; % Start time
+t2        = t1; % End time
+itype     = 'zonal'; % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
 lon_lat   = 0; % Plot longitude - latitude data
 zonal_avg = 1; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude

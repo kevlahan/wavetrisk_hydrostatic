@@ -15,9 +15,9 @@ contains
     initialized = .True.
   end subroutine init_ops_mod
 
-  subroutine step1 (dom, p, zlev)
+  subroutine step1 (dom, p, zlev, itype)
     type(Domain) :: dom
-    integer      :: p, zlev
+    integer      :: p, zlev, itype
 
     integer :: i, j, id,  n, e, s, w, ne, sw
     integer, dimension(0:N_BDRY) :: offs
@@ -177,39 +177,49 @@ contains
       idSW = id+SW
       idW  = id+W
 
-      u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
-      u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
+      if (itype.eq.0) then 
+         u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
+         u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
 
-      circ_LORT_SW =   u_prim_RT_SW + u_prim_UP_S  + u_prim_DG_SW
-      circ_UPLT_SW = -(u_prim_RT_W  + u_prim_DG_SW + u_prim_UP_SW)
+         circ_LORT_SW =   u_prim_RT_SW + u_prim_UP_S  + u_prim_DG_SW
+         circ_UPLT_SW = -(u_prim_RT_W  + u_prim_DG_SW + u_prim_UP_SW)
 
-      vort(TRIAG*idW+LORT+1) = circ_LORT_W/dom%triarea%elts(TRIAG*idW+LORT+1) 
-      vort(TRIAG*idS+UPLT+1) = circ_UPLT_S/dom%triarea%elts(TRIAG*idS+UPLT+1) 
+         vort(TRIAG*idW+LORT+1) = circ_LORT_W/dom%triarea%elts(TRIAG*idW+LORT+1) 
+         vort(TRIAG*idS+UPLT+1) = circ_UPLT_S/dom%triarea%elts(TRIAG*idS+UPLT+1) 
 
-      pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/( &
-           mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
-           mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
-           mass(id+1)*dom%areas%elts(id+1)%part(5))
+         pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/( &
+              mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
+              mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
+              mass(id+1)*dom%areas%elts(id+1)%part(5))
 
-      pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/( &
-           mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) + &
-           mass(id+1)*dom%areas%elts(id+1)%part(4) + &
-           mass(idW+1)*dom%areas%elts(idW+1)%part(6))
+         pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/( &
+              mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) + &
+              mass(id+1)*dom%areas%elts(id+1)%part(4) + &
+              mass(idW+1)*dom%areas%elts(idW+1)%part(6))
 
-      qe(EDGE*idW+RT+1)  = interp(pv_LORT_W , pv_UPLT_SW)
-      qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
-      qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
+         qe(EDGE*idW+RT+1)  = interp(pv_LORT_W , pv_UPLT_SW)
+         qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
+         qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
-      ! Mass and temperature fluxes
-      physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
+         ! Mass and temperature fluxes
+         physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
 
-      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(id+1), mass(idW+1))  + physics(S_MASS,RT+1)
-      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1), mass(idSW+1)) + physics(S_MASS,DG+1)
-      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(id+1), mass(idS+1))  + physics(S_MASS,UP+1)
+         h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(id+1), mass(idW+1))  + physics(S_MASS,RT+1)
+         h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(mass(id+1), mass(idSW+1)) + physics(S_MASS,DG+1)
+         h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(mass(id+1), mass(idS+1))  + physics(S_MASS,UP+1)
 
-      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(id+1), temp(idW+1))  + physics(S_TEMP,RT+1)
-      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1), temp(idSW+1)) + physics(S_TEMP,DG+1)
-      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(id+1), temp(idS+1))  + physics(S_TEMP,UP+1)
+         h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(id+1), temp(idW+1))  + physics(S_TEMP,RT+1)
+         h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1), temp(idSW+1)) + physics(S_TEMP,DG+1)
+         h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(id+1), temp(idS+1))  + physics(S_TEMP,UP+1)
+      else
+         h_mflux(EDGE*idW+RT+1)  = -(mass(idW+1) - mass(id+1))  /dom%len%elts(EDGE*idW+RT+1)
+         h_mflux(EDGE*idSW+DG+1) = -(mass(id+1)  - mass(idSW+1))/dom%len%elts(EDGE*idSW+DG+1)
+         h_mflux(EDGE*idS+UP+1)  = -(mass(idS+1) - mass(id+1))  /dom%len%elts(EDGE*idS+UP+1)
+
+         h_tflux(EDGE*idW+RT+1)  = -(temp(idW+1) - temp(id+1))  /dom%len%elts(EDGE*idW+RT+1)
+         h_tflux(EDGE*idSW+DG+1) = -(temp(id+1)  - temp(idSW+1))/dom%len%elts(EDGE*idSW+DG+1)
+         h_tflux(EDGE*idS+UP+1)  = -(temp(idS+1) - temp(id+1))  /dom%len%elts(EDGE*idS+UP+1)
+      end if
     end subroutine comp_ijmin
 
     subroutine comput
@@ -231,131 +241,142 @@ contains
            logical, optional                        :: type
          end function physics_scalar_flux
       end interface
-
+      
       idE  = id+E
       idN  = id+N
       idNE = id+NE
-      idS  = id+S
-      idSW = id+SW
-      idW  = id+W
 
-      ! Find the velocity on primal and dual grids
-      u_prim_RT    = velo(EDGE*id  +RT+1)*dom%len%elts(EDGE*id+RT+1)
-      u_dual_RT    = velo(EDGE*id  +RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
-      u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id+UP+1)
-      u_dual_UP    = velo(EDGE*id  +UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
-      u_prim_DG    = velo(EDGE*id  +DG+1)*dom%len%elts(EDGE*id+DG+1)
-      u_dual_DG    = velo(EDGE*id  +DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
-      u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW+RT+1)
-      u_dual_RT_W  = velo(EDGE*idW +RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
-      u_prim_UP_S  = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS+UP+1)
-      u_dual_UP_S  = velo(EDGE*idS +UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
-      u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
-      u_dual_DG_SW = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
-      u_prim_UP_E  = velo(EDGE*idE +UP+1)*dom%len%elts(EDGE*idE+UP+1)
-      u_prim_RT_N  = velo(EDGE*idN +RT+1)*dom%len%elts(EDGE*idN+RT+1)
-      u_prim_DG_W  = velo(EDGE*idW +DG+1)*dom%len%elts(EDGE*idW+DG+1)
-      u_prim_DG_S  = velo(EDGE*idS +DG+1)*dom%len%elts(EDGE*idS+DG+1)
+      if (itype.eq.0) then
+         idS  = id+S
+         idSW = id+SW
+         idW  = id+W
 
-      ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
-      ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
+         ! Find the velocity on primal and dual grids
+         u_prim_RT    = velo(EDGE*id  +RT+1)*dom%len%elts(EDGE*id+RT+1)
+         u_dual_RT    = velo(EDGE*id  +RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
+         u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id+UP+1)
+         u_dual_UP    = velo(EDGE*id  +UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
+         u_prim_DG    = velo(EDGE*id  +DG+1)*dom%len%elts(EDGE*id+DG+1)
+         u_dual_DG    = velo(EDGE*id  +DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
+         u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW+RT+1)
+         u_dual_RT_W  = velo(EDGE*idW +RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
+         u_prim_UP_S  = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS+UP+1)
+         u_dual_UP_S  = velo(EDGE*idS +UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
+         u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
+         u_dual_DG_SW = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
+         u_prim_UP_E  = velo(EDGE*idE +UP+1)*dom%len%elts(EDGE*idE+UP+1)
+         u_prim_RT_N  = velo(EDGE*idN +RT+1)*dom%len%elts(EDGE*idN+RT+1)
+         u_prim_DG_W  = velo(EDGE*idW +DG+1)*dom%len%elts(EDGE*idW+DG+1)
+         u_prim_DG_S  = velo(EDGE*idS +DG+1)*dom%len%elts(EDGE*idS+DG+1)
 
-      ! Sum contributions from all six edge velocities reconstructed at hexagon node x_i
-      ! u_i = 1/A_i sum_e (x_e-x_i) l_e (u_e,n_e), where n_e is the outward normal vector to the hexagon edge e,
-      ! l_e is the length of the hexagon edge (pedlen)
+         ! Calculate kinetic energy using Perot formula from equation (14) with approximate form (17) in Peixoto (2016)
+         ! which gives first order convergence in maximum norm with Heikes-Randall (1995) optimized grids
 
-      ! Coordinate of centroid of hexagon
-      ! hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
-      !                dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-      !                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
-      ! x_i = centroid(hex_nodes, 6)  ! Coordinate of hexagon centroid
+         ! Sum contributions from all six edge velocities reconstructed at hexagon node x_i
+         ! u_i = 1/A_i sum_e (x_e-x_i) l_e (u_e,n_e), where n_e is the outward normal vector to the hexagon edge e,
+         ! l_e is the length of the hexagon edge (pedlen)
 
-      ! x_i = dom%node%elts(id+1)  ! Coordinate of node (very close to centroid and faster to calculate)
+         ! Coordinate of centroid of hexagon
+         ! hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
+         !                dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
+         !                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
+         ! x_i = centroid(hex_nodes, 6)  ! Coordinate of hexagon centroid
 
-      ! ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
-      ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge
-      ! vel = vec_scale(u_dual_RT, vec_minus(x_e,x_i))
+         ! x_i = dom%node%elts(id+1)  ! Coordinate of node (very close to centroid and faster to calculate)
 
-      ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
-      ! vel = vec_plus(vel, vec_scale(u_dual_RT_W,  vec_minus(x_i,x_e)))
+         ! ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge
+         ! vel = vec_scale(u_dual_RT, vec_minus(x_e,x_i))
 
-      ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
-      ! vel = vec_plus(vel, vec_scale(u_dual_DG,    vec_minus(x_i,x_e)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_RT_W,  vec_minus(x_i,x_e)))
 
-      ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
-      ! vel = vec_plus(vel, vec_scale(u_dual_DG_SW, vec_minus(x_e,x_i)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_DG,    vec_minus(x_i,x_e)))
 
-      ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
-      ! vel = vec_plus(vel, vec_scale(u_dual_UP,    vec_minus(x_e,x_i)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_DG_SW, vec_minus(x_e,x_i)))
 
-      ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1))
-      ! vel = vec_plus(vel, vec_scale(u_dual_UP_S,  vec_minus(x_i,x_e)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_UP,    vec_minus(x_e,x_i)))
 
-      ! vel = vec_scale(dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_UP_S,  vec_minus(x_i,x_e)))
 
-      ! kinetic_energy = 0.5_8 * inner(vel,vel)
+         ! vel = vec_scale(dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
 
-      ! Formula from TRiSK ... not convergent!
-      kinetic_energy = &
-           (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
-           u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W &
-           )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
+         ! kinetic_energy = 0.5_8 * inner(vel,vel)
 
-      ! Interpolate geopotential from interfaces to level
-      Phi_k = interp(dom%geopot%elts(id+1), dom%adj_geopot%elts(id+1))
+         ! Formula from TRiSK ... not convergent!
+         kinetic_energy = &
+              (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
+              u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W &
+              )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
 
-      ! Bernoulli function
-      if (compressible) then 
-         bernoulli(id+1) = kinetic_energy + Phi_k
-      else 
-         bernoulli(id+1) = kinetic_energy + Phi_k + dom%press%elts(id+1)/ref_density
+         ! Interpolate geopotential from interfaces to level
+         Phi_k = interp(dom%geopot%elts(id+1), dom%adj_geopot%elts(id+1))
+
+         ! Bernoulli function
+         if (compressible) then 
+            bernoulli(id+1) = kinetic_energy + Phi_k
+         else 
+            bernoulli(id+1) = kinetic_energy + Phi_k + dom%press%elts(id+1)/ref_density
+         end if
+
+         ! Exner function in incompressible case from geopotential
+         if (.not. compressible) exner(id+1) = -Phi_k
+
+         circ_LORT   =   u_prim_RT    + u_prim_UP_E + u_prim_DG 
+         circ_UPLT   = -(u_prim_DG    + u_prim_UP   + u_prim_RT_N)
+         circ_LORT_W =   u_prim_RT_W  + u_prim_UP   + u_prim_DG_W
+         circ_UPLT_S = -(u_prim_RT    + u_prim_DG_S + u_prim_UP_S)
+
+         vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1) 
+         vort(TRIAG*id+UPLT+1) = circ_UPLT/dom%triarea%elts(TRIAG*id+UPLT+1)
+
+         pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/( &
+              mass(id+1)*dom%areas%elts(id+1)%part(1) + &
+              mass(idE+1)*dom%areas%elts(idE+1)%part(3) + &
+              mass(idNE+1)*dom%areas%elts(idNE+1)%part(5))
+
+         pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/( &
+              mass(id+1)*dom%areas%elts(id+1)%part(2) + &
+              mass(idNE+1)*dom%areas%elts(idNE+1)%part(4) + &
+              mass(idN+1)*dom%areas%elts(idN+1)%part(6))
+
+         pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/( &
+              mass(idW+1)*dom%areas%elts(idW+1)%part(1) + &
+              mass(id+1)*dom%areas%elts(id+1)%part(3) + &
+              mass(idN+1)*dom%areas%elts(idN+1)%part(5))
+
+         pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/( &
+              mass(idS+1)*dom%areas%elts(idS+1)%part(2) + &
+              mass(idE+1)*dom%areas%elts(idE+1)%part(4) + &
+              mass(id+1)*dom%areas%elts(id+1)%part(6))
+
+         qe(EDGE*id+RT+1) = interp(pv_UPLT_S, pv_LORT)
+         qe(EDGE*id+DG+1) = interp(pv_UPLT,   pv_LORT)
+         qe(EDGE*id+UP+1) = interp(pv_UPLT,   pv_LORT_W)
+
+         ! Mass and temperature fluxes
+         physics = physics_scalar_flux (dom, id, idE, idNE, idN)
+
+         h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1))  + physics(S_MASS,RT+1)
+         h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1)) + physics(S_MASS,DG+1)
+         h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1))  + physics(S_MASS,UP+1)
+
+         h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1))  + physics(S_TEMP,RT+1)
+         h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1)) + physics(S_TEMP,DG+1)
+         h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1))  + physics(S_TEMP,UP+1)
+      else
+         h_mflux(EDGE*id+RT+1) = (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1)
+         h_mflux(EDGE*id+DG+1) = (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+         h_mflux(EDGE*id+UP+1) = (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1)
+
+         h_tflux(EDGE*id+RT+1) = (temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*id+RT+1)
+         h_tflux(EDGE*id+DG+1) = (temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+         h_tflux(EDGE*id+UP+1) = (temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*id+UP+1)
       end if
-
-      ! Exner function in incompressible case from geopotential
-      if (.not. compressible) exner(id+1) = -Phi_k
-
-      circ_LORT   =   u_prim_RT    + u_prim_UP_E + u_prim_DG 
-      circ_UPLT   = -(u_prim_DG    + u_prim_UP   + u_prim_RT_N)
-      circ_LORT_W =   u_prim_RT_W  + u_prim_UP   + u_prim_DG_W
-      circ_UPLT_S = -(u_prim_RT    + u_prim_DG_S + u_prim_UP_S)
-
-      vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1) 
-      vort(TRIAG*id+UPLT+1) = circ_UPLT/dom%triarea%elts(TRIAG*id+UPLT+1)
-
-      pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/( &
-           mass(id+1)*dom%areas%elts(id+1)%part(1) + &
-           mass(idE+1)*dom%areas%elts(idE+1)%part(3) + &
-           mass(idNE+1)*dom%areas%elts(idNE+1)%part(5))
-
-      pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/( &
-           mass(id+1)*dom%areas%elts(id+1)%part(2) + &
-           mass(idNE+1)*dom%areas%elts(idNE+1)%part(4) + &
-           mass(idN+1)*dom%areas%elts(idN+1)%part(6))
-
-      pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/( &
-           mass(idW+1)*dom%areas%elts(idW+1)%part(1) + &
-           mass(id+1)*dom%areas%elts(id+1)%part(3) + &
-           mass(idN+1)*dom%areas%elts(idN+1)%part(5))
-
-      pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/( &
-           mass(idS+1)*dom%areas%elts(idS+1)%part(2) + &
-           mass(idE+1)*dom%areas%elts(idE+1)%part(4) + &
-           mass(id+1)*dom%areas%elts(id+1)%part(6))
-
-      qe(EDGE*id+RT+1) = interp(pv_UPLT_S, pv_LORT)
-      qe(EDGE*id+DG+1) = interp(pv_UPLT,   pv_LORT)
-      qe(EDGE*id+UP+1) = interp(pv_UPLT,   pv_LORT_W)
-
-      ! Mass and temperature fluxes
-      physics = physics_scalar_flux (dom, id, idE, idNE, idN)
-
-      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), mass(idE+1))  + physics(S_MASS,RT+1)
-      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), mass(idNE+1)) + physics(S_MASS,DG+1)
-      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), mass(idN+1))  + physics(S_MASS,UP+1)
-
-      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1))  + physics(S_TEMP,RT+1)
-      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1)) + physics(S_TEMP,DG+1)
-      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1))  + physics(S_TEMP,UP+1)
     end subroutine comput
   end subroutine step1
 
@@ -938,25 +959,16 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer                             :: d, id, v
-    real(8), dimension(S_MASS:S_TEMP,2*EDGE) :: scalar_flux
-    
+
+    integer                        :: d, id
+
     id = idx(i, j, offs, dims)
     d = dom%id+1
 
-    scalar_flux(S_MASS,:) = flux (mass, dom, i, j, zlev, offs, dims)
-    scalar_flux(S_TEMP,:) = flux (temp, dom, i, j, zlev, offs, dims)
-    
-    ! Laplacian from divergence of fluxes
-    do v = S_MASS, S_TEMP
-       Laplacian_scalar(v)%data(d)%elts(id+1)  = ( &
-            scalar_flux(v,1) - scalar_flux(v,4) + &
-            scalar_flux(v,5) - scalar_flux(v,2) + &
-            scalar_flux(v,3) - scalar_flux(v,6)) * dom%areas%elts(id+1)%hex_inv
-    end do
+    Laplacian_scalar(S_MASS)%data(d)%elts(id+1) = div(h_mflux, dom, i, j, offs, dims)
+    Laplacian_scalar(S_TEMP)%data(d)%elts(id+1) = div(h_tflux, dom, i, j, offs, dims)
   end subroutine cal_Laplacian_scalar
-  
+
   function flux (scalar, dom, i, j, zlev, offs, dims)
     ! Calculate flux
     implicit none
@@ -972,7 +984,7 @@ contains
 
     id = idx(i, j, offs, dims)
     d = dom%id+1
-    
+
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
     idN  = idx(i,   j+1, offs, dims)
@@ -1013,7 +1025,8 @@ contains
 
     id = idx(i, j, offs, dims)
     do e = 1, EDGE
-       dom%Laplacian_u%elts(EDGE*id+e) = grad_divu(e) - curl_rotu(e)
+       !dom%Laplacian_u%elts(EDGE*id+e) = grad_divu(e) - curl_rotu(e)
+       Laplacian_u(EDGE*id+e) = grad_divu(e) - curl_rotu(e)
     end do
   end subroutine cal_Laplacian_u
 
