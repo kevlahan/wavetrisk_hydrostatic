@@ -230,6 +230,32 @@ contains
           dq(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
           if (l .gt. level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l)  ! <= start non-blocking communicate dmass (l+1)
 
+       ! ! Calculate Laplacian(u)
+       ! do d = 1, size(grid)
+       !    velo => q(S_VELO,k)%data(d)%elts
+       !    divu => grid(d)%divu%elts
+       !    vort => grid(d)%vort%elts
+       !    Laplacian_u => wav_coeff(S_VELO,k)%data(d)%elts
+       !    do j = 1, grid(d)%lev(l)%length
+       !       call apply_onescale_to_patch (cal_Laplacian_u, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+       !    end do
+       !    nullify (velo, divu, vort, Laplacian_u)
+       ! end do
+       ! call update_bdry (wav_coeff(S_VELO,k), l)
+       
+       ! ! Calculate div(Laplacian(u)) and rot(Laplacian(u))
+       ! do d = 1, size(grid)
+       !    do j = 1, grid(d)%lev(l)%length
+       !       velo => wav_coeff(S_VELO,k)%data(d)%elts
+       !       divu => grid(d)%divu%elts
+       !       vort => grid(d)%vort%elts
+       !       call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+       !       call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+       !    end do
+       !    call apply_to_penta_d (post_vort, grid(d), l, k)
+       !    nullify (velo, divu, vort)
+       ! end do
+
           ! Velocity trend, source part
           do d = 1, size(grid)
              velo    => q(S_VELO,k)%data(d)%elts
