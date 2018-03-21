@@ -1,8 +1,8 @@
-max_level	5
+max_level	6
 zlevels         18
 threshold	0e-2
 optimize_grid	2    ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 dt_write 1440          ! minutes
-CP_EVERY 1
+CP_EVERY 10
 time_end 28800	     ! hours
 resume  -1

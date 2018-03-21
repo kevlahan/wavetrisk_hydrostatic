@@ -584,11 +584,11 @@ program Held_Suarez
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
-  Laplace_order = 4
-  visc = 2.0d-4 ! Constant for viscosity
+  Laplace_order = 2
+  visc = 5.0d-5 ! Constant for viscosity
 
   viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = viscosity_divu!visc * dx_min**2 ! viscosity for rotational part of momentum equation
+  viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
   
   if (Laplace_order.eq.2) then
      viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
@@ -602,7 +602,6 @@ program Held_Suarez
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)
-  dt_init = 400.0_8
   if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/wave_speed, " dt_visc = ", 0.25_8*dx_min**2/viscosity
 
   if (rank .eq. 0) then
