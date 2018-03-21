@@ -992,7 +992,7 @@ subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)
 
   theta_tropo = T_tropo * (press/ref_press)**(-kappa) ! Potential temperature at tropopause
 
-  theta_force  = T_mean - delta_T*ddsin**2 + delta_theta*(1.0_8 - ddsin**2)*log(press/ref_press)
+  theta_force  = T_mean - delta_T*ddsin**2 - delta_theta*(1.0_8 - ddsin**2)*log(press/ref_press)
   
   theta_equil = max(theta_tropo, theta_force) ! Equilibrium temperature
 end subroutine cal_theta_eq
