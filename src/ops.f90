@@ -211,14 +211,14 @@ contains
          h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(id+1), temp(idW+1))  + physics(S_TEMP,RT+1)
          h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1), temp(idSW+1)) + physics(S_TEMP,DG+1)
          h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(id+1), temp(idS+1))  + physics(S_TEMP,UP+1)
-      else
-         h_mflux(EDGE*idW+RT+1)  = -(mass(idW+1) - mass(id+1))  /dom%len%elts(EDGE*idW+RT+1)
-         h_mflux(EDGE*idSW+DG+1) = -(mass(id+1)  - mass(idSW+1))/dom%len%elts(EDGE*idSW+DG+1)
-         h_mflux(EDGE*idS+UP+1)  = -(mass(idS+1) - mass(id+1))  /dom%len%elts(EDGE*idS+UP+1)
+      else ! Flux of scalar gradients for fourth order Laplacian
+         h_mflux(EDGE*idW+RT+1)  = -(mass(idW+1) - mass(id+1))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+         h_mflux(EDGE*idSW+DG+1) = -(mass(id+1)  - mass(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+         h_mflux(EDGE*idS+UP+1)  = -(mass(idS+1) - mass(id+1))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
 
-         h_tflux(EDGE*idW+RT+1)  = -(temp(idW+1) - temp(id+1))  /dom%len%elts(EDGE*idW+RT+1)
-         h_tflux(EDGE*idSW+DG+1) = -(temp(id+1)  - temp(idSW+1))/dom%len%elts(EDGE*idSW+DG+1)
-         h_tflux(EDGE*idS+UP+1)  = -(temp(idS+1) - temp(id+1))  /dom%len%elts(EDGE*idS+UP+1)
+         h_tflux(EDGE*idW+RT+1)  = -(temp(idW+1) - temp(id+1))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+         h_tflux(EDGE*idSW+DG+1) = -(temp(id+1)  - temp(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+         h_tflux(EDGE*idS+UP+1)  = -(temp(idS+1) - temp(id+1))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
       end if
     end subroutine comp_ijmin
 
@@ -368,14 +368,14 @@ contains
          h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), temp(idE+1))  + physics(S_TEMP,RT+1)
          h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), temp(idNE+1)) + physics(S_TEMP,DG+1)
          h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), temp(idN+1))  + physics(S_TEMP,UP+1)
-      else
-         h_mflux(EDGE*id+RT+1) = (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1)
-         h_mflux(EDGE*id+DG+1) = (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)
-         h_mflux(EDGE*id+UP+1) = (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1)
+      else ! Flux of scalar gradients for fourth order Laplacian
+         h_mflux(EDGE*id+RT+1) = (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+         h_mflux(EDGE*id+DG+1) = (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+         h_mflux(EDGE*id+UP+1) = (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
 
-         h_tflux(EDGE*id+RT+1) = (temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*id+RT+1)
-         h_tflux(EDGE*id+DG+1) = (temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*id+DG+1)
-         h_tflux(EDGE*id+UP+1) = (temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*id+UP+1)
+         h_tflux(EDGE*id+RT+1) = (temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+         h_tflux(EDGE*id+DG+1) = (temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+         h_tflux(EDGE*id+UP+1) = (temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
       end if
     end subroutine comput
   end subroutine step1
@@ -968,46 +968,6 @@ contains
     Laplacian_scalar(S_MASS)%data(d)%elts(id+1) = div(h_mflux, dom, i, j, offs, dims)
     Laplacian_scalar(S_TEMP)%data(d)%elts(id+1) = div(h_tflux, dom, i, j, offs, dims)
   end subroutine cal_Laplacian_scalar
-
-  function flux (scalar, dom, i, j, zlev, offs, dims)
-    ! Calculate flux
-    implicit none
-    real(8), dimension(6)          :: flux
-    real(8), dimension(:), pointer :: scalar
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer               :: d, e, id, idE, idNE, idN, idW, idSW, idS
-    real(8), dimension(6) :: grad
-
-    id = idx(i, j, offs, dims)
-    d = dom%id+1
-
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
-
-    ! Gradients
-    grad(1) =  (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1)
-    grad(2) =  (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1)
-    grad(3) =  (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1)
-    grad(4) = -(scalar(idW+1) - scalar(id+1))  /dom%len%elts(EDGE*idW+RT+1)
-    grad(5) = -(scalar(id+1)  - scalar(idSW+1))/dom%len%elts(EDGE*idSW+DG+1)
-    grad(6) = -(scalar(idS+1) - scalar(id+1))  /dom%len%elts(EDGE*idS+UP+1)
-
-    ! Fluxes
-    do e = 1, EDGE
-       flux(e) = grad(e) * dom%pedlen%elts(EDGE*id+e)
-    end do
-    flux(4) = grad(4) * dom%pedlen%elts(EDGE*idW+RT+1)
-    flux(5) = grad(5) * dom%pedlen%elts(EDGE*idSW+DG+1)
-    flux(6) = grad(6) * dom%pedlen%elts(EDGE*idS+UP+1)
-  end function flux
 
   subroutine cal_Laplacian_u (dom, i, j, zlev, offs, dims)
     ! Calculate grad(divu) - curl(vort)
