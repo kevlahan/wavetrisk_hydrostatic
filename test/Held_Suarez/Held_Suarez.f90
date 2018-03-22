@@ -4,7 +4,6 @@ module Held_Suarez_mod
   use remap_mod
   implicit none
 
-  integer                            :: Laplace_order
   integer                            :: CP_EVERY, iwrite, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
@@ -584,24 +583,32 @@ program Held_Suarez
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
-  Laplace_order = 2
-  visc = 5.0d-5 ! Constant for viscosity
-
-  viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
+  Laplace_order = 1 ! Usual Laplacian diffusion
+  !Laplace_order = 2 ! Iterated Laplacian diffusion
   
-  if (Laplace_order.eq.2) then
-     viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
-     viscosity_temp = viscosity_mass ! viscosity for mass-weighted potential temperature equation
-     viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
-  else
+  if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
+     visc = 5.0d-5 ! Constant for viscosity
+     
+     viscosity_mass = visc * dx_min**2
+     viscosity_temp = viscosity_mass
+     viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
+     viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
+  elseif (Laplace_order.eq.2) then ! Second-order iterated Laplacian for diffusion
+     visc = 5.0d-5! Constant for viscosity
+     
      viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
-     viscosity_temp = viscosity_mass ! viscosity for mass-weighted potential temperature equation
-     viscosity = max (viscosity_divu, viscosity_rotu)
+     viscosity_temp = viscosity_mass
+     viscosity_divu = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
+     viscosity_rotu = viscosity_mass
+  else
+     write(6,*) 'Unsupported iterated Laplacian (only 1 or 2 supported)'
+     stop
   end if
-
+  viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
+  
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)
+  dt_init = 400.0_8
   if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/wave_speed, " dt_visc = ", 0.25_8*dx_min**2/viscosity
 
   if (rank .eq. 0) then
@@ -762,19 +769,16 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      physics_scalar_flux = 0.0_8
   else
      ! Calculate gradients
-     if (Laplace_order.eq.2) then
+     if (Laplace_order.eq.1) then
         grad(S_MASS,:) = grad_physics (mass, dom, id, idE, idNE, idN, local_type)
         grad(S_TEMP,:) = grad_physics (temp, dom, id, idE, idNE, idN, local_type)
-     elseif (Laplace_order.eq.4) then
+     elseif (Laplace_order.eq.2) then
         d = dom%id+1
         do v = S_MASS, S_TEMP
            flx => Laplacian_scalar(v)%data(d)%elts
            grad(v,:) = grad_physics (flx, dom, id, idE, idNE, idN, local_type)
            nullify (flx)
         end do
-     else
-        write(6,*) 'This order of Laplacian not supported'
-        stop
      end if
 
      ! Fluxes of physics
@@ -884,7 +888,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   
   ! Total physics for source term of velocity trend
   do e = 1, EDGE
-     physics_velo_source(e) =  diffusion(e) !- k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
+     physics_velo_source(e) =  diffusion(e) - k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
   end do
 end function physics_velo_source
 
@@ -970,9 +974,9 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   
   ! Exact time integration
   temp(id+1) = theta_equil*mass(id+1) + (temp(id+1)-theta_equil*mass(id+1))*exp(-dt*k_T)
-  do e = 1, EDGE
-     velo(EDGE*id+e) = velo(EDGE*id+e)*exp(-dt*k_f*max(0.0_8, (eta-eta_b)/(1.0_8-eta_b))) 
-  end do
+  ! do e = 1, EDGE
+  !    velo(EDGE*id+e) = velo(EDGE*id+e)*exp(-dt*k_f*max(0.0_8, (eta-eta_b)/(1.0_8-eta_b))) 
+  ! end do
 end subroutine euler_step_cooling
 
 subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)

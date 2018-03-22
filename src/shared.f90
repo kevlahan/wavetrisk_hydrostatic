@@ -290,7 +290,7 @@ module shared_mod
   integer, parameter :: DAY = 24*60*60
 
   ! simulation variables
-  integer :: istep, n_remap, resume
+  integer :: istep, n_remap, resume, Laplace_order
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
@@ -367,6 +367,7 @@ contains
     
     ! Physical parameters
     ! these parameters are typically reset in test case file, but are needed for compilation
+    Laplace_order = 1
     omega         = 7.292d-05
     grav_accel    = 9.80616_8
     radius        = 6371220.0_8
