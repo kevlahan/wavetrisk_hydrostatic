@@ -587,11 +587,9 @@ program Held_Suarez
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
   if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
-     visc = 5.0d-5 ! Constant for viscosity
-     
-     viscosity_mass = visc * dx_min**2
+     viscosity_mass = 1.0d-6* dx_min**2
      viscosity_temp = viscosity_mass
-     viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
+     viscosity_divu = 4.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
   elseif (Laplace_order.eq.2) then ! Second-order iterated Laplacian for diffusion
      visc = 5.0d-5! Constant for viscosity
@@ -599,7 +597,7 @@ program Held_Suarez
      viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
      viscosity_temp = viscosity_mass
      viscosity_divu = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
-     viscosity_rotu = viscosity_mass
+     viscosity_rotu = viscosity_divu
   else
      write(6,*) 'Unsupported iterated Laplacian (only 1 or 2 supported)'
      stop
