@@ -593,13 +593,13 @@ contains
 
     write (s_time, '(i4.4)') iwrite
 
-    command = 'ls -1 fort.1'//s_time//'* > tmp1' 
+    command = 'ls -1 fort.1'//s_time//'?? > tmp1' 
     call system (command)
 
     command = 'tar czf fort.1'//s_time//'.tgz -T tmp1 --remove-files &'
     call system (command)
 
-    command = 'ls -1 fort.2'//s_time //'* > tmp2' 
+    command = 'ls -1 fort.2'//s_time //'?? > tmp2' 
     call system (command)
 
     command = 'tar czf fort.2'//s_time//'.tgz -T tmp2 --remove-files &'

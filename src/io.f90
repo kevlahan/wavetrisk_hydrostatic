@@ -449,7 +449,7 @@ contains
        close (fid+22)
 
        write (s_time, '(i5)') fid/100
-       command = 'ls -1 fort.'//s_time//'* > tmp' 
+       command = 'ls -1 fort.'//s_time//'?? > tmp' 
        call system (command)
 
        command = 'tar czf fort.'//s_time//'.tgz -T tmp --remove-files &'
