@@ -32,10 +32,10 @@ contains
 
     d = dom%id+1
 
-    id   = idx(i, j, offs, dims)
-    idN  = idx(i, j + 1, offs, dims)
-    idE  = idx(i + 1, j, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
+    id   = idx(i,   j, offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
 
     x_i  = dom%node%elts(id+1)
     x_E  = dom%node%elts(idE+1)
@@ -355,13 +355,17 @@ contains
     end if
 
     if (istep.ne.0) then
-       tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
-       tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
-       tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
-    elseif (istep.eq.0) then
+       !tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
+       !tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
+       !tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
+    elseif (istep.eq.0) then
+       tol_mass = threshold * mass_scale
+       tol_temp = threshold * temp_scale
+       !tol_velo = threshold * velo_scale
+       tol_velo = 1.0d16 ! velocity is initially zero
        if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
           tol_mass = threshold**1.5_8 * mass_scale/5.0d1
           tol_temp = threshold**1.5_8 * temp_scale/5.0d1
@@ -587,13 +591,11 @@ program Held_Suarez
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
   if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
-     viscosity_mass = 1.0d-6* dx_min**2
+     viscosity_mass = 5.0d-5 * dx_min**2
      viscosity_temp = viscosity_mass
-     viscosity_divu = 4.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
+     viscosity_divu = 5.0e-5 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
   elseif (Laplace_order.eq.2) then ! Second-order iterated Laplacian for diffusion
-     visc = 5.0d-5! Constant for viscosity
-     
      viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
      viscosity_temp = viscosity_mass
      viscosity_divu = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
@@ -606,7 +608,7 @@ program Held_Suarez
   
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)
-  dt_init = 400.0_8
+  !dt_init = 400.0_8
   if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/wave_speed, " dt_visc = ", 0.25_8*dx_min**2/viscosity
 
   if (rank .eq. 0) then
@@ -933,13 +935,9 @@ subroutine time_step_cooling
         exner => exner_fun(k)%data(d)%elts
 
         ! Compute pressure, geopotential, Exner (compressible case), specific volume
-        do j = 1, grid(d)%lev(level_end)%length
-           call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
-        end do
-
-        ! Apply cooling step
         do p = 3, grid(d)%patch%length
-           call apply_onescale_to_patch (euler_step_cooling, grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (integrate_pressure_up, grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (euler_step_cooling,    grid(d), p-1, k, 0, 1)
         end do
         nullify (mass, temp, velo, dmass, dtemp, dvelo, exner)
      end do
