@@ -558,7 +558,7 @@ program Held_Suarez
   kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
   
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 50                               ! Vertical remap interval
+  n_remap        = 100                               ! Vertical remap interval
 
   ! Forcing parameters
   T_0            = 300.0_8            ! reference temperature
@@ -591,9 +591,9 @@ program Held_Suarez
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
   if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
-     viscosity_mass = 5.0d-5 * dx_min**2
+     viscosity_mass = 1.0d-6 * dx_min**2
      viscosity_temp = viscosity_mass
-     viscosity_divu = 5.0e-5 * dx_min**2 ! viscosity for divergent part of momentum equation
+     viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
   elseif (Laplace_order.eq.2) then ! Second-order iterated Laplacian for diffusion
      viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
@@ -928,18 +928,11 @@ subroutine time_step_cooling
      do d = 1, size(grid)
         mass => sol(S_MASS,k)%data(d)%elts
         temp => sol(S_TEMP,k)%data(d)%elts
-        velo => sol(S_VELO,k)%data(d)%elts
-        dmass => trend(S_MASS,k)%data(d)%elts
-        dtemp => trend(S_TEMP,k)%data(d)%elts
-        dvelo => trend(S_VELO,k)%data(d)%elts
-        exner => exner_fun(k)%data(d)%elts
-
-        ! Compute pressure, geopotential, Exner (compressible case), specific volume
         do p = 3, grid(d)%patch%length
-           call apply_onescale_to_patch (integrate_pressure_up, grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (cal_pressure,          grid(d), p-1, k, 0, 1)
            call apply_onescale_to_patch (euler_step_cooling,    grid(d), p-1, k, 0, 1)
         end do
-        nullify (mass, temp, velo, dmass, dtemp, dvelo, exner)
+        nullify (mass, temp)
      end do
      sol(:,k)%bdry_uptodate = .False.
   end do
@@ -970,9 +963,6 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   
   ! Exact time integration
   temp(id+1) = theta_equil*mass(id+1) + (temp(id+1)-theta_equil*mass(id+1))*exp(-dt*k_T)
-  ! do e = 1, EDGE
-  !    velo(EDGE*id+e) = velo(EDGE*id+e)*exp(-dt*k_f*max(0.0_8, (eta-eta_b)/(1.0_8-eta_b))) 
-  ! end do
 end subroutine euler_step_cooling
 
 subroutine cal_theta_eq (eta, lat, press, k_T, theta_equil)

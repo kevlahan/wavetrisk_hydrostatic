@@ -808,6 +808,34 @@ contains
     end if
   end subroutine integrate_pressure_up
 
+  subroutine cal_pressure (dom, i, j, zlev, offs, dims)
+    ! Integrate pressure up from surface to top layer
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx(i, j, offs, dims)
+
+    if (compressible) then ! Compressible case
+       if (zlev .eq. 1) then
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
+       else ! Interpolate mass=rho*dz to lower interface of current level
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(mass(id+1), dom%adj_mass%elts(id+1))
+       end if
+       dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressure calculation at next vertical level
+    else ! Incompressible case
+       if (zlev .eq. 1) then 
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*temp(id+1)
+       else ! Interpolate to lower interface of current level
+          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(dom%adj_temp%elts(id+1), temp(id+1))
+       end if
+       dom%adj_temp%elts(id+1) = temp(id+1)
+    end if
+  end subroutine cal_pressure
+
   subroutine du_source (dom, i, j, zlev, offs, dims)
     ! Edge integrated source (non gradient) terms in velocity trend
     ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
