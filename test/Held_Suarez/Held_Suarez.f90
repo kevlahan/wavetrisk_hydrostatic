@@ -362,15 +362,14 @@ contains
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
     elseif (istep.eq.0) then
-       tol_mass = threshold * mass_scale
-       tol_temp = threshold * temp_scale
-       !tol_velo = threshold * velo_scale
-       tol_velo = 1.0d16 ! velocity is initially zero
-       if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
-          tol_mass = threshold**1.5_8 * mass_scale/5.0d1
-          tol_temp = threshold**1.5_8 * temp_scale/5.0d1
-          tol_velo = threshold**1.5_8 * velo_scale/5.0d1
-       end if
+       tol_mass = 1.0d1!threshold * mass_scale
+       tol_temp = 3.0d3!threshold * temp_scale
+       tol_velo = 5.0d-1!threshold * velo_scale
+       ! if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
+       !    tol_mass = threshold**1.5_8 * mass_scale/5.0d1
+       !    tol_temp = threshold**1.5_8 * temp_scale/5.0d1
+       !    tol_velo = threshold**1.5_8 * velo_scale/5.0d1
+       ! end if
     end if
   end subroutine set_thresholds
 
@@ -558,7 +557,7 @@ program Held_Suarez
   kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
   
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 100                               ! Vertical remap interval
+  n_remap        = 50                               ! Vertical remap interval
 
   ! Forcing parameters
   T_0            = 300.0_8            ! reference temperature
@@ -591,7 +590,8 @@ program Held_Suarez
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
   if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
-     viscosity_mass = 1.0d-6 * dx_min**2
+     !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
+     viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
      viscosity_temp = viscosity_mass
      viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
