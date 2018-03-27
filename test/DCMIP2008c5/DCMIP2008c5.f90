@@ -571,8 +571,9 @@ program DCMIP2008c5
   specvoldim     = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
+  
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 20                               ! Vertical remap interval
+  n_remap        = 50                               ! Vertical remap interval
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
@@ -587,14 +588,27 @@ program DCMIP2008c5
   compressible = .true.  ! Compressible equations
   remap        = .true. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
-
+  
   ! Set viscosity
-  visc = 2.0d-4 ! Constant for viscosity
-
-  viscosity_mass = visc * dx_min**2 ! viscosity for mass equation
-  viscosity_temp = visc * dx_min**2 ! viscosity for mass-weighted potential temperature equation
-  viscosity_divu = visc * dx_min**2 ! viscosity for divergent part of momentum equation
-  viscosity_rotu = visc/1.0d2 * dx_min**2 ! viscosity for rotational part of momentum equation
+  Laplace_order = 1 ! Usual Laplacian diffusion
+  !Laplace_order = 2 ! Iterated Laplacian diffusion
+  
+  if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
+     !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
+     !viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
+     viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
+     viscosity_temp = viscosity_mass
+     viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
+     viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
+  elseif (Laplace_order.eq.2) then ! Second-order iterated Laplacian for diffusion
+     viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
+     viscosity_temp = viscosity_mass
+     viscosity_divu = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
+     viscosity_rotu = viscosity_divu
+  else
+     write(6,*) 'Unsupported iterated Laplacian (only 1 or 2 supported)'
+     stop
+  end if
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
@@ -729,35 +743,44 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   integer                                  :: id, idE, idNE, idN
   logical, optional                        :: type
 
+  integer                                  :: d, v
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
-  logical :: local_type
-
+  real(8), dimension(:), pointer           :: flx
+  logical                                  :: local_type
+  
+  interface
+     function grad_physics (scalar, dom, id, idE, idNE, idN, type)
+       use domain_mod
+       use DCMIP2008c5_mod
+       implicit none
+       real(8), dimension(1:EDGE)               :: grad_physics
+       real(8), dimension(:), pointer           :: scalar
+       type(Domain)                             :: dom
+       integer                                  :: id, idE, idNE, idN
+       logical                                  :: type
+     end function grad_physics
+  end interface
+  
   if (present(type)) then
      local_type = type
   else
      local_type = .false.
   end if
-
+  
   if (max(viscosity_mass, viscosity_temp).eq.0.0_8) then
      physics_scalar_flux = 0.0_8
   else
      ! Calculate gradients
-     if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-        grad(S_MASS,RT+1) = (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-        grad(S_MASS,DG+1) = (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-        grad(S_MASS,UP+1) = (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-
-        grad(S_TEMP,RT+1) = (temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-        grad(S_TEMP,DG+1) = (temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-        grad(S_TEMP,UP+1) = (temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-     else ! Gradient for southwest edges of hexagon W, SW, S
-        grad(S_MASS,RT+1) = -(mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-        grad(S_MASS,DG+1) = -(mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-        grad(S_MASS,UP+1) = -(mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
-
-        grad(S_TEMP,RT+1) = -(temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-        grad(S_TEMP,DG+1) = -(temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-        grad(S_TEMP,UP+1) = -(temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+     if (Laplace_order.eq.1) then
+        grad(S_MASS,:) = grad_physics (mass, dom, id, idE, idNE, idN, local_type)
+        grad(S_TEMP,:) = grad_physics (temp, dom, id, idE, idNE, idN, local_type)
+     elseif (Laplace_order.eq.2) then
+        d = dom%id+1
+        do v = S_MASS, S_TEMP
+           flx => Laplacian_scalar(v)%data(d)%elts
+           grad(v,:) = grad_physics (flx, dom, id, idE, idNE, idN, local_type)
+           nullify (flx)
+        end do
      end if
 
      ! Fluxes of physics
@@ -781,9 +804,31 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   end if
 end function physics_scalar_flux
 
+function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
+  use domain_mod
+  use DCMIP2008c5_mod
+  implicit none
+
+  real(8), dimension(1:EDGE)               :: grad_physics
+  real(8), dimension(:), pointer           :: scalar
+  type(Domain)                             :: dom
+  integer                                  :: id, idE, idNE, idN
+  logical                                  :: local_type
+  
+  if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
+     grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
+     grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
+     grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
+  else ! Gradient for southwest edges of hexagon W, SW, S
+     grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
+     grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
+     grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+  end if
+end function grad_physics
+
 function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the scalar trend
-  ! In this test case there is no scalar source term
+  ! Newton cooling to equilibrium potential temperature theta_equil
   use domain_mod
   use DCMIP2008c5_mod
   implicit none
@@ -794,7 +839,8 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
-  physics_scalar_source = 0.0_8
+  physics_scalar_source(S_MASS) = 0.0_8
+  physics_scalar_source(S_TEMP) = 0.0_8
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -805,28 +851,15 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   use ops_mod
   use DCMIP2008c5_mod
   implicit none
-
+  
   real(8), dimension(1:EDGE)     :: physics_velo_source
   type(Domain)                   :: dom
   integer                        :: i, j, zlev
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: e, id
-  real(8), dimension(1:EDGE) :: diffusion, friction, curl_rotu, grad_divu
-
-  interface
-     function velo_diffusion (dom, i, j, zlev, offs, dims)
-       use domain_mod
-       real(8), dimension(1:EDGE)     :: velo_diffusion
-       type(Domain)                   :: dom
-       integer                        :: i, j, zlev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
-     end function velo_diffusion
-  end interface
-
-  id = idx(i, j, offs, dims)
+  integer                      :: e
+    real(8), dimension(1:EDGE) :: diffusion,  curl_rotu, grad_divu
   
   if (max(viscosity_divu, viscosity_rotu).eq.0.0_8) then
      diffusion = 0.0_8
@@ -839,15 +872,9 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      end do
   end if
 
-  ! Calculate Rayleigh friction
-  do e = 1, EDGE 
-     friction(e) = -ray_friction*velo(EDGE*id+e)
-  end do
-
   ! Total physics for source term of velocity trend
   do e = 1, EDGE
-     physics_velo_source(e) = friction(e) + diffusion(e)
+     physics_velo_source(e) =  diffusion(e)
   end do
 end function physics_velo_source
-
 

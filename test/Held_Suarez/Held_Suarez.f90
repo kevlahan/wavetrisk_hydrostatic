@@ -591,7 +591,8 @@ program Held_Suarez
   
   if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
      !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
-     viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
+     !viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
+     viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
      viscosity_temp = viscosity_mass
      viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
@@ -857,19 +858,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                    :: e, id
-  real(8)                    :: eta, rayleigh_friction
-  real(8), dimension(1:EDGE) :: diffusion, friction, curl_rotu, grad_divu
-
-  interface
-     function velo_diffusion (dom, i, j, zlev, offs, dims)
-       use domain_mod
-       real(8), dimension(1:EDGE)     :: velo_diffusion
-       type(Domain)                   :: dom
-       integer                        :: i, j, zlev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
-     end function velo_diffusion
-  end interface
+  real(8)                    :: eta
+  real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
 
   id = idx(i, j, offs, dims)
   
