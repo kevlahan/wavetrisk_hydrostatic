@@ -34,7 +34,7 @@ ifeq ($(MACHINE),if)
   LIBS = -llapack
 else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
   VENDOR = gnu
-  LIBS =  -L/opt/sharcnet/mkl/10.3.9/mkl/lib/intel64/ -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
+  LIBS =  -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
 else ifeq ($(MACHINE),req)
   VENDOR = path
   LIBS = -llapack
