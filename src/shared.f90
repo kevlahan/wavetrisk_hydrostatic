@@ -5,10 +5,12 @@
 ! GRID STRUCTURE 
 !
 ! The icosahedron is divided into a network of ten regular lozange grids (with the exception of the poles), each lozange is then divided
-! into N_SUB_DOM = 2**(2*DOMAIN_LEVEL) regular sub-domains with the number of sub-domains on each processor given by n_domain(rank+1)).
+! into N_SUB_DOM = 4**DOMAIN_LEVEL regular sub-domains with the number of sub-domains on each processor given by n_domain(rank+1)).
 ! Therefore the maximum number of processors than can be used is 10*2**(2*DOMAIN_LEVEL).  The number of domains is set by the coarsest scale Jmin
-! and PATCH_LEVEL: Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1.  The size of patches is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then we use patches of size 4x4). 
+! and PATCH_LEVEL: Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1.  The size of patches is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then we use patches of size 4x4) and PATCH_LEVEL>=2.
 ! The larger PATCH_LEVEL is the fewer levels of tree structure must be traversed before reaching a uniform grid (which will in general contain inactive nodes).
+!
+! The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10 4**DOMAIN_LEVEL. 
 !
 ! There are two special nodes called POLEs. One connects the five lozange vertices at the top of the network and the other connects the 
 ! five lozange grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and South poles.
