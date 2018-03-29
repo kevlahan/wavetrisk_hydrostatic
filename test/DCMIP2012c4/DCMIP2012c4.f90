@@ -378,11 +378,11 @@ contains
        velo_scale = sync_max_d (norm_velo)
     end if
 
-    if (istep.ne.0) then
-       tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
-       tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
-       tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
-    elseif (istep.eq.0) then
+    ! if (istep.ne.0) then
+    !    tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
+    !    tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
+    !    tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
+    ! elseif (istep.eq.0) then
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
@@ -391,7 +391,7 @@ contains
           tol_temp = threshold**1.5_8 * temp_scale/5.0d1
           tol_velo = threshold**1.5_8 * velo_scale/5.0d1
        end if
-    end if
+    ! end if
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
@@ -602,7 +602,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 10                               ! Vertical remap interval
+  n_remap        = 50                               ! Vertical remap interval
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
@@ -615,7 +615,7 @@ program DCMIP2012c4
   adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
-  remap        = .false. ! Remap vertical coordinates (always remap when saving results)
+  remap        = .true. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
@@ -624,8 +624,8 @@ program DCMIP2012c4
   
   if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
      !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
-     !viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
-     viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
+     viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
+     !viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
      viscosity_temp = viscosity_mass
      viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
