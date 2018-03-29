@@ -297,13 +297,17 @@ contains
     integer                              :: d, i, id, j, k, p, v
     integer, parameter                   :: n_vars=7 ! Number of variables to save
 
+    real(8)                              :: N_zonal
+    real(8), parameter                   :: TT=200.0_8 ! shift for stable variance calculation
     real, dimension(:,:,:), allocatable  :: field2d_save, zonal_av
-    real(8), dimension(n_vars)            :: default_val
+    real(8), dimension(n_vars)           :: default_val
 
     character(5)                         :: s_time
     character(130)                       :: command
 
     type(Domain), dimension(:), allocatable, target :: old_grid
+
+    N_zonal = real(Nx(2)-Nx(1)+1)
 
     ! Save adapted grid
     allocate(old_grid(1:size(grid))); old_grid = grid
@@ -392,11 +396,14 @@ contains
     do k = 1, zlevels
        ! Mass density
        call project_onto_plane (sol(S_MASS,k), Nx, Ny, level_save, proj, 0.0_8)
-       zonal_av(k,:,1) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
+       zonal_av(k,:,1) = sum(field2d,DIM=1)/N_zonal
 
        ! Temperature
        call project_onto_plane (exner_fun(k), Nx, Ny, level_save, proj, 1.0_8)
-       zonal_av(k,:,2) = sum(field2d,DIM=1)/real(Nx(2)-Nx(1)+1)
+       zonal_av(k,:,2) = sum(field2d,DIM=1)/N_zonal
+
+       ! Variance of temperature (stable calculation)
+       zonal_av(k,:,5) = (sum((field2d-TT)**2,DIM=1) - sum(field2d-TT,DIM=1)**2/N_zonal)/(N_zonal-1)
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)

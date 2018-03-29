@@ -1,16 +1,18 @@
 % Plot 2d data from export_2d
 clear all; close all;
 
-machine   = 'if';
-t1        = 54; % Start time
-t2        = t1; % End time
-itype     = 'zonal'; % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
+machine   = 'mac';
+t1        = 63; % Start time
+t2        = t1 % End time
+itype     = 'temp_var'; % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press'
 lon_lat   = 0; % Plot longitude - latitude data
 zonal_avg = 1; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
 smooth    = 1; % smooth data over two points in each direction
 % limits for axis
 ax        = [90 200 25 75]; % DCMIP2012c4 vorticity day 7
+
+N = t2-t1+1; % number of samples
 
 file_base = 'fort.3';
 if (strcmp(machine,'if'))
@@ -19,7 +21,7 @@ elseif (strcmp(machine,'mac'))
     pathid = '/Users/kevlahan/hydro/';
 end
 
-s_ll = 0; s_zo = 0;
+s_ll = 0; s_zo = 0; s_var1 = 0; s_var2 = 0;
 for t = t1:t2
     % Extract files
     itime = num2str(t,'%04i');
@@ -36,13 +38,18 @@ for t = t1:t2
         %c_scale = 270:3:303; % DCMIP2008c5
         %c_scale = 220:10:320; % DCMIP2012c4
         c_scale = 160:20:300; % Held-Suarez
+        c_scale2 = 0:0.5:4; % Held-Suarez
         v_title = 'Temperature (K)';
         if (lon_lat)
             s_ll = s_ll+load([file_base itime '02']);
         end
         if (zonal_avg)
-            s_zo = s_zo+load([file_base itime '12']);
+            s_zo = s_zo + load([file_base itime '12']);
         end
+    elseif (strcmp(itype,'temp_var')) % Plot temperature variance
+        c_scale = -0.5:0.05:0.5; % Held-Suarez
+        v_title = 'Temperature variance (K^2)';
+        s_zo = s_zo + load([file_base itime '15']);
     elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
         %c_scale = -15:5:50; % DCMIP2008c5
         %c_scale = 0:2:20; % DCMIP2012c4
@@ -98,7 +105,7 @@ if (lon_lat)
 end
 
 if (zonal_avg)
-    s_zo = s_zo/(t2-t1+1); % Average
+    s_zo = s_zo/N; % Sample mean
     fprintf('Minimum value of variable %s = %8.4e\n',itype, min(min(s_zo)));
     fprintf('Maximum value of variable %s = %8.4e\n',itype, max(max(s_zo)));
     if (smooth)
