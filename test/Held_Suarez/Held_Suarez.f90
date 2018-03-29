@@ -364,7 +364,7 @@ contains
     elseif (istep.eq.0) then
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
-       tol_velo = 5.0d-1!threshold * velo_scale
+       tol_velo = threshold ! do not adapt initially since velocity is zero
        ! if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
        !    tol_mass = threshold**1.5_8 * mass_scale/5.0d1
        !    tol_temp = threshold**1.5_8 * temp_scale/5.0d1
