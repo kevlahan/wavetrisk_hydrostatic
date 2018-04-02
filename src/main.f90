@@ -556,6 +556,7 @@ contains
     call load_adapt_mpi (read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
         
     itime = nint(time*time_mult, 8)
+    resume = cp_idx ! to disable alignment for next step
 
     ! Do not override existing checkpoint archive
     write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
@@ -593,7 +594,8 @@ contains
 
     write (s_time, '(i4.4)') iwrite
 
-    command = 'ls -1 fort.1'//s_time//'?? > tmp1' 
+    command = 'ls -1 fort.1'//s_time//'?? > tmp1'
+    
     call system (command)
 
     command = 'tar czf fort.1'//s_time//'.tgz -T tmp1 --remove-files &'
