@@ -295,6 +295,7 @@ module shared_mod
   integer :: istep, n_remap, resume, Laplace_order
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
+  real(8) :: viscosity_divu, viscosity_rotu, viscosity_mass, viscosity_temp
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
   real(8), dimension(:), allocatable :: pressure_save
 
@@ -378,7 +379,11 @@ contains
     R_d           = 1.0_8
     c_p           = 1.0_8
     kappa         = R_d/c_p
-    ref_press     = 1000.0d2  
+    ref_press     = 1000.0d2
+    viscosity_divu = 0.0_8
+    viscosity_rotu = 0.0_8
+    viscosity_mass = 0.0_8
+    viscosity_temp = 0.0_8
   end subroutine init_shared_mod
 
   real(8) function eps()

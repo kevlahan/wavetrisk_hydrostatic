@@ -15,7 +15,7 @@ module DCMIP2008c5_mod
   real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
-  real(8)                            :: visc, viscosity_divu, viscosity_rotu, viscosity_mass, viscosity_temp, ray_friction
+  real(8)                            :: visc, ray_friction
 
   type(Float_Field)                  :: rel_vort 
 contains

@@ -14,8 +14,8 @@ module Held_Suarez_mod
   real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
-  real(8)                            :: visc, viscosity_divu, viscosity_rotu, viscosity_mass, viscosity_temp
-  real(8)                            ::  c_v, f0, delta_T, delta_theta, eta_b, k_a, k_f, k_s, T_0, T_mean, T_tropo
+  real(8)                            :: visc
+  real(8)                            :: c_v, f0, delta_T, delta_theta, eta_b, k_a, k_f, k_s, T_0, T_mean, T_tropo
 
   type(Float_Field)                  :: rel_vort 
 contains
