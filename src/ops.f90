@@ -327,7 +327,8 @@ contains
          if (.not. compressible) exner(id+1) = -Phi_k
 
          ! Calculate div(u) for velocity diffusion
-         divu(id+1) = (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id+1)%hex_inv 
+         if (viscosity_divu.ne.0.0_8) &
+              divu(id+1) = (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id+1)%hex_inv 
 
          circ_LORT   =   u_prim_RT    + u_prim_UP_E + u_prim_DG 
          circ_UPLT   = -(u_prim_DG    + u_prim_UP   + u_prim_RT_N)
@@ -689,52 +690,46 @@ contains
     dom%u_zonal%elts(id+1) = inner(vel, e_zonal)
     dom%v_merid%elts(id+1) = inner(vel, e_merid)
   end subroutine interp_vel_hex
+  
+  subroutine cal_surf_press (q)
+    implicit none
+    ! Compute surface pressure
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
 
-  subroutine integrate_pressure_down (dom, i, j, zlev, offs, dims)
-    ! Pressure is computed during downward integration from zlev=zlevels to zlev=1
+    integer :: d, k, mass_type, p
+
+    if (compressible) then
+       mass_type = S_MASS
+    else
+       mass_type = S_TEMP
+    end if
+
+    do d = 1, size(grid)
+       grid(d)%surf_press%elts = 0.0_8
+       do k = 1, zlevels
+          mass => q(mass_type,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (column_mass, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (mass)
+       end do
+       grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + press_infty
+    end do
+  end subroutine cal_surf_press
+  
+  subroutine column_mass (dom, i, j, zlev, offs, dims)
+    ! Sum up total mass over column id
     type (Domain)                  :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id_i
 
-    integer :: d, id
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
-
-    if (mass(id+1) .lt. 1d-6) then
-       write(6,*) 'Fatal error: a horizontal layer thickness is being squeezed to zero!'
-       write(6,'(3(A,i6,1x))') 'zlev = ', zlev, 'd = ', d, 'id = ', id
-       write(6,'(A,es11.4)') 'mass = ', mass(id+1)
-       stop
-    end if
-
-    if (compressible) then !compressible case
-       ! Integrate the pressure from top zlev down to bottom zlev; press_infty is user-set
-       if (zlev .eq. zlevels) then
-          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*mass(id+1)
-       else ! Interpolate mass to lower interface
-          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*interp(dom%adj_mass%elts(id+1), mass(id+1))
-       end if
-
-       ! Surface pressure is set (even at t=0) from downward numerical integration
-       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*mass(id+1)
-    else ! Incompressible case
-       ! Integrate the pressure from top zlev down to bottom zlev; press_infty is user-set
-       if (zlev .eq. zlevels) then !top zlev, it is an exception
-          dom%press%elts(id+1) = press_infty + 0.5_8*grav_accel*temp(id+1)
-       else !other layers equal to half of previous layer and half of current layer
-          dom%press%elts(id+1) = dom%press%elts(id+1) + grav_accel*interp(dom%adj_temp%elts(id+1), temp(id+1))
-       end if
-
-       ! Surface pressure is set (even at t=0) from downward numerical integration
-       if (zlev .eq. 1) dom%surf_press%elts(id+1) = dom%press%elts(id+1) + 0.5_8*grav_accel*temp(id+1)
-    end if
-
-    ! Quantities for vertical integration in next zlev down
-    dom%adj_mass%elts(id+1) = mass(id+1)
-    dom%adj_temp%elts(id+1) = temp(id+1)
-  end subroutine integrate_pressure_down
+    id_i = idx(i, j, offs, dims) + 1
+    
+    dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
+  end subroutine column_mass
 
   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
     ! Integrate pressure (compressible case)/Lagrange multiplier (incompressible case) and geopotential up from surface to top layer

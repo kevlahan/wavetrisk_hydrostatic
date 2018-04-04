@@ -21,7 +21,7 @@ contains
     allocate (grid(n_domain(rank+1)))
     allocate (sol(S_MASS:S_VELO,1:zlevels), sol_save(S_MASS:S_VELO,1:save_levels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
-    allocate (exner_fun(1:zlevels))
+    allocate (exner_fun(1:zlevels+1))
     allocate (horiz_flux(S_MASS:S_TEMP), Laplacian_scalar(S_MASS:S_TEMP))
 
     do k = 1, zlevels
@@ -31,7 +31,8 @@ contains
           call init_Float_Field(trend(v,k), POSIT(v))
        end do
     end do
-
+    call init_Float_Field(exner_fun(zlevels+1), AT_NODE)
+    
     do k = 1, save_levels
        do v = S_MASS, S_VELO
           call init_Float_Field(sol_save(v,k), POSIT(v))
@@ -329,6 +330,10 @@ contains
           call init(trend(S_VELO,k)%data(d),   grid(d)%node%length*EDGE); trend(S_VELO,k)%data(d)%elts = 0
           call init(trend(S_TEMP,k)%data(d),   grid(d)%node%length)
        end do
+    end do
+
+    do d = 1, size(grid)
+       call init(exner_fun(zlevels+1)%data(d),      grid(d)%node%length)
     end do
 
     do d = 1, size(grid)

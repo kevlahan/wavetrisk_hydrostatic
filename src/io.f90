@@ -314,18 +314,8 @@ contains
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
-
-    ! First integrate pressure down across all grid points in order to compute surface pressure on non-adapted grid
-    do k = zlevels, 1, -1
-       do d = 1, size(grid)
-          mass => sol(S_MASS,k)%data(d)%elts
-          temp => sol(S_TEMP,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
-          end do
-          nullify (mass, temp)
-       end do
-    end do
+    
+    call cal_surf_press (sol)
 
     ! Remap to pressure_save vertical levels for saving data
     call remap_save

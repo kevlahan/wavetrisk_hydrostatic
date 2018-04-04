@@ -14,20 +14,9 @@ contains
 
     call update_array_bdry (q, NONE)
 
-    ! First integrate pressure down across all grid points in order to compute surface pressure
-    do k = zlevels, 1, -1
-       do d = 1, size(grid)
-          mass => q(S_MASS,k)%data(d)%elts
-          temp => q(S_TEMP,k)%data(d)%elts
-
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
-          end do
-
-          nullify (mass, temp)
-       end do
-    end do
-
+    ! Compute surface pressure on all grids
+    call cal_surf_press (q)
+    
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Calculate trend on finest scale !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

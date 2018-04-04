@@ -29,7 +29,7 @@ contains
 
     type(Coord) :: x_i, x_E, x_N, x_NE
     integer     :: id, d, idN, idE, idNE
-    real(8)     :: rgrc, lev_press, pot_temp, p_top, p_bot
+    real(8)     :: column_mass, lev_press, pot_temp, p_top, p_bot
 
     d = dom%id+1
 
@@ -45,6 +45,7 @@ contains
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
+    column_mass = dom%surf_press%elts(id+1)/grav_accel
 
     ! Pressure at level zlev
     lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
@@ -54,8 +55,7 @@ contains
     eta_v = (eta - eta_0) * MATH_PI/2.0_8
 
     ! Mass/Area = rho*dz at level zlev
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = &
-         ((a_vert(zlev)-a_vert(zlev+1))*ref_press + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
 
     ! Horizontally uniform potential temperature
     pot_temp =  set_temp(x_i) * (lev_press/ref_press)**(-kappa)
@@ -180,7 +180,10 @@ contains
     ! Allocate vertical grid parameters
     if (allocated(a_vert)) deallocate(a_vert)
     if (allocated(b_vert)) deallocate(b_vert)
-    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+    if (allocated(a_vert_mass)) deallocate(a_vert_mass)
+    if (allocated(b_vert_mass)) deallocate(b_vert_mass)
+    allocate (a_vert(1:zlevels), b_vert(1:zlevels))
+    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
        do k = 1, zlevels+1
@@ -214,6 +217,10 @@ contains
 
        ! Set pressure at infinity
        press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+
+       ! Set mass coefficients
+       a_vert_mass = (a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press/grav_accel
+       b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
     end if
   end subroutine initialize_a_b_vert
 
@@ -251,6 +258,7 @@ contains
   end subroutine read_test_case_parameters
 
   subroutine write_and_export (iwrite, zlev)
+    use ops_mod
     implicit none
     integer :: iwrite, zlev
 
@@ -262,20 +270,9 @@ contains
 
     call pre_levelout
 
-    ! First integrate pressure down across all grid points in order to compute surface pressure
-    do k = zlevels, 1, -1
-       do d = 1, size(grid)
-          mass => sol(S_MASS,k)%data(d)%elts
-          temp => sol(S_TEMP,k)%data(d)%elts
-
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
-          end do
-
-          nullify (mass, temp)
-       end do
-    end do
-
+    ! Compute surface pressure
+    call cal_surf_press (sol)
+    
     do l = level_start, level_end
        minv = 1.0d63; maxv = -1.0d63
        u = 1000000+100*iwrite

@@ -216,7 +216,7 @@ contains
 
     do j = st + 1, PATCH_SIZE + en
        do i = st + 1, PATCH_SIZE + en
-          call routine(dom, p, i - 1, j - 1, zlev, offs, dims)
+          call routine (dom, p, i - 1, j - 1, zlev, offs, dims)
        end do
     end do
   end subroutine apply_onescale_to_patch2

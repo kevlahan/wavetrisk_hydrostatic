@@ -300,7 +300,7 @@ contains
        grid(d)%Laplacian_u%length = init_state(d)%n_edge
 
        do k = 1, zlevels
-          exner_fun(k)%data(d)%length      = num(AT_NODE)
+          exner_fun(k)%data(d)%length = num(AT_NODE)
           do v = S_MASS, S_VELO
              wav_coeff(v,k)%data(d)%length = num(POSIT(v))
              trend_wav_coeff(v,k)%data(d)%length = num(POSIT(v))
@@ -313,6 +313,7 @@ contains
              q4(v,k)%data(d)%length = num(POSIT(v))
           end do
        end do
+       exner_fun(zlevels+1)%data(d)%length = num(AT_NODE)
 
        do k = 1, save_levels
           do v = S_MASS, S_VELO
@@ -434,6 +435,9 @@ contains
           end do
        end do
     end do
+    do d = 1, size(grid)
+       deallocate (exner_fun(zlevels+1)%data(d)%elts)
+    end do
 
     do d = 1, size(grid)
        do v = S_MASS, S_TEMP
@@ -505,6 +509,7 @@ contains
           deallocate (trend(v,k)%data)
        end do
     end do
+    deallocate (exner_fun(zlevels+1)%data)
 
     do k = 1, save_levels
        do v = S_MASS, S_VELO

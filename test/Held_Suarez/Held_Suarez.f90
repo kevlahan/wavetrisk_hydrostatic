@@ -227,30 +227,20 @@ contains
   end subroutine read_test_case_parameters
 
   subroutine write_and_export (iwrite, zlev)
+    use ops_mod
     implicit none
     integer :: iwrite, zlev
 
     integer :: d, i, j, k, l, p, u
 
     if (rank.eq.0) write(6,*) 'Saving fields'
-
+    
     call update_array_bdry (sol, NONE)
 
     call pre_levelout
 
-    ! First integrate pressure down across all grid points in order to compute surface pressure
-    do k = zlevels, 1, -1
-       do d = 1, size(grid)
-          mass => sol(S_MASS,k)%data(d)%elts
-          temp => sol(S_TEMP,k)%data(d)%elts
-
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
-          end do
-
-          nullify (mass, temp)
-       end do
-    end do
+    ! Compute surface pressure
+    call cal_surf_press (sol)
 
     do l = level_start, level_end
        minv = 1.0d63; maxv = -1.0d63

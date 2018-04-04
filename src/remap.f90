@@ -33,9 +33,13 @@ contains
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
 
-    ! Remap on finest scale
-    call apply_onescale (remap_velocity, level_end, z_null, 0, 0)
-    call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
+    call apply_onescale (remap_eta,   level_end, z_null, 0, 1)
+    call apply_onescale (remap_theta, level_end, z_null, 0, 1)
+    call apply_onescale (remap_u,     level_end, z_null, 0, 0)
+    
+    ! ! Remap on finest scale
+    ! call apply_onescale (remap_velocity, level_end, z_null, 0, 0)
+    ! call apply_onescale (remap_scalars,  level_end, z_null, 0, 0)
 
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
@@ -55,8 +59,11 @@ contains
        call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
 
        ! Remap at level l (over-written if value available from restriction)
-       call apply_onescale (remap_velocity, l, z_null, 0, 0)
-       call apply_onescale (remap_scalars,  l, z_null, 0, 0)
+       call apply_onescale (remap_eta,   l, z_null, 0, 1)
+       call apply_onescale (remap_theta, l, z_null, 0, 1)
+       call apply_onescale (remap_u,     l, z_null, 0, 0)
+       !call apply_onescale (remap_velocity, l, z_null, 0, 0)
+       !call apply_onescale (remap_scalars,  l, z_null, 0, 0)
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
        do d = 1, size(grid)
@@ -76,10 +83,10 @@ contains
     sol%bdry_uptodate       = .False.
     wav_coeff%bdry_uptodate = .False.
     
-    ! Remap poles
-    do d = 1, size(grid)
-       call apply_to_pole_d (remap_scalars, grid(d), min_level-1, z_null, z_null, .True.)
-    end do
+    ! ! Remap poles
+    ! do d = 1, size(grid)
+    !    call apply_to_pole_d (remap_scalars, grid(d), min_level-1, z_null, z_null, .True.)
+    ! end do
     
     ! Re-adapt grid after remapping
     call WT_after_step (sol, wav_coeff, level_start-1)
@@ -117,7 +124,7 @@ contains
     ! Ensure boundary values are up to date
     call update_array_bdry (sol_save, NONE)
   end subroutine remap_save
-
+  
   subroutine remap_velocity (dom, i, j, zlev, offs, dims)
     ! Remap velocity to original vertical grid
     type (Domain)                   :: dom
@@ -297,19 +304,97 @@ contains
     end do
   end subroutine remap_scalars
 
-   subroutine remap_velocity_fv (dom, i, j, zlev, offs, dims)
-    ! Remap velocity to original grid using low order finite volume scheme
+  subroutine remap_eta (dom, i, j, znull, offs, dims)
+    ! Remap scalars to original grid using low order finite volume scheme
     type (Domain)                   :: dom
-    integer                         :: i, j, zlev
+    integer                         :: i, j, znull
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                          :: d, e, id, id_i, idE, idN, idNE, k, kb
-    real(8)                          :: mass_id, mass_idE, mass_idN, mass_idNE
-    real(8)                          :: new_pressure, p_surf, p_surf_E, p_surf_NE, p_surf_N
-    real(8), dimension (3)           :: mass_e
-    real(8), dimension (zlevels+1)   :: pressure
-    real(8), dimension (zlevels+1,3) :: integrated_flux
+    integer                          :: current_zlev, d, id, id_i, k, zlev
+    real(8)                          :: column_mass, cumul_mass_zlev, cumul_mass_target, new_cumul_mass, cumul_mass_upper
+    real(8), dimension (zlevels+1)   :: eta, cumul_mass
+
+    d    = dom%id + 1
+    id   = idx(i, j, offs, dims)
+    id_i = id + 1
+
+    ! Calculate cumulative mass and total mass of column
+    cumul_mass(1) = 0.0_8
+    do k = 1, zlevels
+       cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id_i)
+    end do
+    column_mass = cumul_mass(zlevels+1)
+
+    current_zlev = 1
+    exner_fun(1)%data(d)%elts(id_i) = 1.0_8
+    new_cumul_mass = 0.0_8
+    do k = 1, zlevels
+       ! Save old mass in trend
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+       
+       ! New mass
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * column_mass
+       cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
+
+       do zlev = current_zlev, zlevels
+          cumul_mass_upper = cumul_mass(zlev+1)
+          if (cumul_mass_target <= cumul_mass_upper) exit
+       end do
+
+       if (zlev > zlevels) zlev = zlevels
+       cumul_mass_zlev = cumul_mass(zlev)
+
+       current_zlev = zlev
+       new_cumul_mass = cumul_mass_target
+
+       ! New vertical coordinate (saved in exner_fun)
+       exner_fun(k+1)%data(d)%elts(id_i) = zlev + (cumul_mass_target - cumul_mass_zlev)/(cumul_mass_upper - cumul_mass_zlev)
+    end do
+  end subroutine remap_eta
+
+  subroutine remap_theta (dom, i, j, znull, offs, dims)
+    ! Remap mass weighted potential temperature to original grid using low order finite volume scheme
+    type (Domain)                   :: dom
+    integer                         :: i, j, znull
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: d, id, id_i, k, zlev
+    real(8) :: X
+    real(8), dimension(zlevels+1) :: cumul_temp, new_cumul_temp
+
+    d    = dom%id + 1
+    id   = idx(i, j, offs, dims)
+    id_i = id + 1
+
+    cumul_temp(1) = 0.0_8
+    do k = 1, zlevels
+       cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id_i)
+    end do
+
+    do k = 1, zlevels+1
+       X = exner_fun(k)%data(d)%elts(id_i) 
+       zlev = min(zlevels,floor(X))
+       X = X - zlev
+       new_cumul_temp(k) = cumul_temp(zlev) + X*sol(S_TEMP,zlev)%data(d)%elts(id_i)
+    end do
+
+    do k = 1, zlevels
+       sol(S_TEMP,k)%data(d)%elts(id_i) = new_cumul_temp(k+1) - new_cumul_temp(k)
+    end do
+  end subroutine remap_theta
+
+  subroutine remap_u (dom, i, j, znull, offs, dims)
+    ! Remap mass weighted potential temperature to original grid using low order finite volume scheme
+    type (Domain)                   :: dom
+    integer                         :: i, j, znull
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: d, e, id, idE, idN, idNE, id_i, k, zlev
+    real(8), dimension(EDGE) :: mass_e, X
+    real(8), dimension(zlevels+1,1:EDGE) :: massflux_cumul, massflux, new_massflux_cumul
 
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
@@ -319,131 +404,39 @@ contains
     idE  = idx(i+1, j,   offs, dims) + 1
     idNE = idx(i+1, j+1, offs, dims) + 1
 
-    ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
-    ! also calculate surface pressure at adjacent nodes needed to interpolate mass to edges
-    pressure(1) = press_infty
-    p_surf_E  = press_infty
-    p_surf_NE = press_infty
-    p_surf_N  = press_infty
-    do kb = 2, zlevels+1
-       pressure(kb) = pressure(kb-1) + grav_accel * sol(S_MASS,zlevels-kb+2)%data(d)%elts(id_i)
-       p_surf_E     = p_surf_E       + grav_accel * sol(S_MASS,zlevels-kb+2)%data(d)%elts(idE) 
-       p_surf_NE    = p_surf_NE      + grav_accel * sol(S_MASS,zlevels-kb+2)%data(d)%elts(idNE)
-       p_surf_N     = p_surf_N       + grav_accel * sol(S_MASS,zlevels-kb+2)%data(d)%elts(idN) 
-    end do
-    p_surf = pressure(zlevels+1)
-
-    ! Interpolate using the moving stencil centred at each interpolation point computed downward from top
-    integrated_flux = 0.0_8
-    do kb = 2, zlevels ! kb is lower interface on new grid
-       ! Pressure at lower interface on new vertical grid
-       new_pressure = a_vert(zlevels-kb+2)*ref_press + b_vert(zlevels-kb+2)*p_surf
-
-       ! Integrate temperature downwards to new pressure level
-       k = 2 ! k is lower interface on old grid
-       do while (pressure(k) .lt. new_pressure)
-          ! Interpolate mass on current vertical grid to edges 
-          mass_e(RT+1) = interp(sol(S_MASS,zlevels-k+2)%data(d)%elts(id_i), sol(S_MASS,zlevels-k+2)%data(d)%elts(idE))
-          mass_e(DG+1) = interp(sol(S_MASS,zlevels-k+2)%data(d)%elts(id_i), sol(S_MASS,zlevels-k+2)%data(d)%elts(idNE))
-          mass_e(UP+1) = interp(sol(S_MASS,zlevels-k+2)%data(d)%elts(id_i), sol(S_MASS,zlevels-k+2)%data(d)%elts(idN))
-
-          ! Mass fluxes
-          do e = 1, EDGE
-             integrated_flux(kb,e) = integrated_flux(kb,e) + mass_e(e) * sol(S_VELO,zlevels-k+2)%data(d)%elts(EDGE*id+e)
-          end do
-          k = k+1
-       end do
-       ! Add additional contribution from partial level from level kb to layer pressure by linearly interpolating the integrated flux
-       mass_e(RT+1) = interp(sol(S_MASS,zlevels-k+2)%data(d)%elts(id_i), sol(S_MASS,zlevels-k+2)%data(d)%elts(idE))
-       mass_e(DG+1) = interp(sol(S_MASS,zlevels-k+2)%data(d)%elts(id_i), sol(S_MASS,zlevels-k+2)%data(d)%elts(idNE))
-       mass_e(UP+1) = interp(sol(S_MASS,zlevels-k+2)%data(d)%elts(id_i), sol(S_MASS,zlevels-k+2)%data(d)%elts(idN))
+    massflux_cumul(1,:) = 0.0_8
+    do k = 1, zlevels
+       ! Interpolate old masses (stored in trend)
+       mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idE)
+       mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idNE)
+       mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idN)
        do e = 1, EDGE
-          integrated_flux(kb,e) = integrated_flux(kb,e) &
-               + (new_pressure-pressure(k-1))/(pressure(k)-pressure(k-1)) &
-               * mass_e(e) * sol(S_VELO,zlevels-k+2)%data(d)%elts(EDGE*id+e)
+          massflux(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e(e)
+          massflux_cumul(k+1,e) = massflux_cumul(k,e) + massflux(k,e)
        end do
     end do
 
-    ! Flux integrated over all vertical levels (does not change)
-    do k = 1, zlevels
-       mass_e(RT+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idE))
-       mass_e(DG+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idNE))
-       mass_e(UP+1) = interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idN))
+    do k = 1, zlevels+1
+       X(RT+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idE))
+       X(DG+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idNE))
+       X(UP+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idN))
        do e = 1, EDGE
-          integrated_flux(zlevels+1,e) = integrated_flux(zlevels+1,e) + mass_e(e) * sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+          zlev = min(zlevels,floor(X(e)))
+          X(e) = X(e) - zlev
+          new_massflux_cumul(k,e) = massflux_cumul(zlev,e) + X(e)*massflux(zlev,e)
        end do
     end do
-      
-    ! Velocity on new vertical grid
+
     do k = 1, zlevels
-       ! Remapped masses needed to interpolate mass at edges
-       mass_id   = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)   /grav_accel
-       mass_idE  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_E) /grav_accel
-       mass_idNE = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_NE)/grav_accel
-       mass_idN  = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf_N) /grav_accel
-
-       ! Interpolate remapped masses to edges
-       mass_e(RT+1) = interp(mass_id, mass_idE)
-       mass_e(DG+1) = interp(mass_id, mass_idNE)
-       mass_e(UP+1) = interp(mass_id, mass_idN)
-
-       ! Find velocity on new grid from mass flux
+       ! Interpolate new masses
+       mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE)
+       mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE)
+       mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idN)
        do e = 1, EDGE
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (integrated_flux(zlevels-k+2,e) - integrated_flux(zlevels-k+1,e)) / mass_e(e)
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
        end do
     end do
-  end subroutine remap_velocity_fv
-
-  subroutine remap_scalars_fv (dom, i, j, zlev, offs, dims)
-    ! Remap scalars to original grid using low order finite volume scheme
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                          :: d, e, id, id_i, k, kb
-    real(8)                          :: new_pressure, p_surf, m, P1, P2
-    real(8), dimension (zlevels+1)   :: integrated_temp, pressure
-
-    d    = dom%id + 1
-    id   = idx(i, j, offs, dims)
-    id_i = id + 1
-
-    ! Calculate pressure at interfaces of current vertical grid integrating from top down
-    pressure(1) = press_infty
-    do kb = 2, zlevels+1
-       pressure(kb) = pressure(kb-1) + grav_accel * sol(S_MASS,zlevels-kb+2)%data(d)%elts(id_i)
-    end do
-    p_surf = pressure(zlevels+1)
-    
-    ! Compute integrated temperature at each interface downward from top
-    integrated_temp = 0.0_8
-    do kb = 2, zlevels ! kb is lower interface on new grid
-       ! Pressure at lower interface on new vertical grid
-       new_pressure = a_vert(zlevels-kb+2)*ref_press + b_vert(zlevels-kb+2)*p_surf
-
-       ! Integrate temperature downwards to new pressure level
-       k = 2 ! k is lower interface on old grid
-       do while (pressure(k) .lt. new_pressure)
-          integrated_temp(kb) = integrated_temp(kb) + sol(S_TEMP,zlevels-k+2)%data(d)%elts(id_i)
-          k = k+1
-       end do
-       ! Add additional contribution from partial level from level kb to layer pressure by linearly interpolating integrated temperature
-       integrated_temp(kb) = integrated_temp(kb) &
-            + (new_pressure-pressure(k-1))/(pressure(k)-pressure(k-1)) * sol(S_TEMP,zlevels-k+2)%data(d)%elts(id_i)
-    end do
-
-    ! Temperature integrated over all vertical levels (does not change)
-    do k = 1, zlevels
-       integrated_temp(zlevels+1) = integrated_temp(zlevels+1) + sol(S_TEMP,k)%data(d)%elts(id_i)
-    end do
-
-    ! Scalars on new vertical grid
-    do k = 1, zlevels
-       sol(S_TEMP,k)%data(d)%elts(id_i) = integrated_temp(zlevels-k+2) - integrated_temp(zlevels-k+1)
-       sol(S_MASS,k)%data(d)%elts(id_i) = ((a_vert(k)-a_vert(k+1))*ref_press + (b_vert(k)-b_vert(k+1))*p_surf)/grav_accel
-    end do
-  end subroutine remap_scalars_fv
+  end subroutine remap_u
 
   subroutine remap_vars_save (dom, i, j, zlev, offs, dims)
     ! Non-conservative interpolation of solution to pressure_save pressure levels
