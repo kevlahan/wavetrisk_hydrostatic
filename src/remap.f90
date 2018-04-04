@@ -131,7 +131,11 @@ contains
        trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
 
        new_mass = a_vert_mass(k) + b_vert_mass(k) * column_mass
-       if (new_mass<0.0_8) return ! Do not try to remap pole excpet at coarsest level
+       if (new_mass<0.0_8) then
+          return ! Do not try to remap pole excpet at coarsest level
+       else
+          sol(S_MASS,k)%data(d)%elts(id_i) = new_mass
+       end if
        
        cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
 
