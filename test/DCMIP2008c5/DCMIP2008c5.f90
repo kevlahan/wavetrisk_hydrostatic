@@ -568,7 +568,7 @@ program DCMIP2008c5
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 0.8_8                            ! cfl number
+  cfl_num        = 1.0_8                            ! cfl number
   n_remap        = 20                               ! Vertical remap interval
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
@@ -590,12 +590,8 @@ program DCMIP2008c5
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
   if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
-     !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
-     !viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
-     !viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
      viscosity_mass = 0.0_8
      viscosity_temp = viscosity_mass
-!     viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_divu = 0.0_8
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
   elseif (Laplace_order.eq.2) then ! Second-order iterated Laplacian for diffusion
@@ -611,7 +607,8 @@ program DCMIP2008c5
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
-  if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/(wave_speed+u_0), " dt_visc = ", 0.25_8*dx_min**2/viscosity
+  if (rank.eq.0)                        write(6,'(1(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/(wave_speed+u_0)
+  if (rank.eq.0.and.viscosity.ne.0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", 0.25_8*dx_min**2/viscosity
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
