@@ -65,7 +65,7 @@ contains
        !call apply_onescale (remap_scalars, l, z_null, 0, 1)
        !call apply_onescale (remap_velo,    l, z_null, 0, 0)
        do d = 1, size(grid)
-          do j = 1, grid(d)%lev(level_end)%l
+          do j = 1, grid(d)%lev(l)%length
              call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null, 2)
           end do
        end do
