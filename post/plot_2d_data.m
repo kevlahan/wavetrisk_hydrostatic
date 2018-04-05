@@ -1,17 +1,24 @@
 % Plot 2d data from export_2d
 clear all; close all;
 
-machine   = 'mac';
-t1        = 2; % Start time
+machine   = 'if';
+t1        = 7; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'temp_var';
-lon_lat   = 0; % Plot longitude - latitude data
-zonal_avg = 1; % Plot zonally averaged data
+itype     = 'eddy_mom';
+
+lon_lat   = 1; % Plot longitude - latitude data
+zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
 smooth    = 1; % smooth data over two points in each direction
-% limits for axis
-%ax        = [90 200 25 75]; % DCMIP2012c4 vorticity day 7
+
+if (strcmp(itype,'temp_var')|strcmp(itype,'eddy_mom')|strcmp(itype,'eddy_ke')|strcmp(itype,'eddy_heat_flux'))
+    lon_lat = 0;
+    zonal_avg = 1;
+end
+
+% Axis limits
+%ax        = [90 200 25 75]; % DCMIP2012c4 
 ax        = [0 360 -90 90]; % DCMIP2008c5
 
 N = t2-t1+1; % number of samples
@@ -37,9 +44,9 @@ for t = t1:t2
     P_z = load([file_base itime '22']); % Pressure-based vertical coordinates
     
     if (strcmp(itype,'temp')) % Plot temperature
-        %c_scale = 270:3:303; % DCMIP2008c5
+        c_scale = 270:3:303; % DCMIP2008c5
         %c_scale = 220:10:320; % DCMIP2012c4
-        c_scale = 160:20:300; % Held-Suarez
+        %c_scale = 160:20:300; % Held-Suarez
         c_scale2 = 0:0.5:4; % Held-Suarez
         v_title = 'Temperature (K)';
         if (lon_lat)
@@ -53,9 +60,9 @@ for t = t1:t2
         v_title = 'Temperature variance (K^2)';
         s_zo = s_zo + load([file_base itime '13']);
     elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
-        %c_scale = -15:5:50; % DCMIP2008c5
+        c_scale = -15:5:50; % DCMIP2008c5
         %c_scale = 0:2:20; % DCMIP2012c4
-        c_scale = -30:5:30; % Held-Suarez
+        %c_scale = -30:5:30; % Held-Suarez
         v_title = 'Zonal velocity (m/s)';
         if (lon_lat)
             s_ll = s_ll+load([file_base itime '03']);
@@ -64,8 +71,8 @@ for t = t1:t2
             s_zo = s_zo+load([file_base itime '14']);
         end
     elseif (strcmp(itype,'merid')) % Plot meridional velocity data
-        %c_scale = -35:5:20;% DCMIP2008c5
-        c_scale = -5:1:5;% DCMIP2012c4
+        c_scale = -35:5:20;% DCMIP2008c5
+        %c_scale = -5:1:5;% DCMIP2012c4
         v_title = 'Meridional velocity (m/s)';
         if (lon_lat)
             s_ll = s_ll+load([file_base itime '04']);
