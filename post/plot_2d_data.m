@@ -1,25 +1,33 @@
 % Plot 2d data from export_2d
 clear all; close all;
 
+% Test case
+test = 'DCMIP2008c5';
+%test = 'DCMIP2008c12';
+%test = 'Held_Suarez';
+
 machine   = 'if';
-t1        = 7; % Start time
+t1        = 11; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'eddy_mom';
+itype     = 'zonal';
 
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
 smooth    = 1; % smooth data over two points in each direction
 
-if (strcmp(itype,'temp_var')|strcmp(itype,'eddy_mom')|strcmp(itype,'eddy_ke')|strcmp(itype,'eddy_heat_flux'))
+if (strcmp(itype,'temp_var')||strcmp(itype,'eddy_mom')||strcmp(itype,'eddy_ke')||strcmp(itype,'eddy_heat_flux'))
     lon_lat = 0;
     zonal_avg = 1;
 end
 
 % Axis limits
-%ax        = [90 200 25 75]; % DCMIP2012c4 
-ax        = [0 360 -90 90]; % DCMIP2008c5
+if (strcmp(test,'DCMIP2008c5'))
+    ax = [0 360 -90 90];
+elseif (strcmp(test,'DCMIP2008c12'))
+    ax = [90 200 25 75];
+end
 
 N = t2-t1+1; % number of samples
 
@@ -44,10 +52,14 @@ for t = t1:t2
     P_z = load([file_base itime '22']); % Pressure-based vertical coordinates
     
     if (strcmp(itype,'temp')) % Plot temperature
-        c_scale = 270:3:303; % DCMIP2008c5
-        %c_scale = 220:10:320; % DCMIP2012c4
-        %c_scale = 160:20:300; % Held-Suarez
-        c_scale2 = 0:0.5:4; % Held-Suarez
+        if (strcmp(test,'DCMIP2008c5'))
+            c_scale = 270:3:303;
+        elseif (strcmp(test,'DCMIP2008c12'))
+            c_scale = 220:10:320;
+        elseif (strcmp(test,'Held_Suarez'))
+            c_scale = 160:20:300;
+            c_scale2 = 0:0.5:4;
+        end
         v_title = 'Temperature (K)';
         if (lon_lat)
             s_ll = s_ll+load([file_base itime '02']);
@@ -60,9 +72,13 @@ for t = t1:t2
         v_title = 'Temperature variance (K^2)';
         s_zo = s_zo + load([file_base itime '13']);
     elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
-        c_scale = -15:5:50; % DCMIP2008c5
-        %c_scale = 0:2:20; % DCMIP2012c4
-        %c_scale = -30:5:30; % Held-Suarez
+        if (strcmp(test,'DCMIP2008c5'))
+            c_scale = -15:5:50; % DCMIP2008c5
+        elseif (strcmp(test,'DCMIP2008c12'))
+            c_scale = 0:2:20;   
+        elseif (strcmp(test,'Held_Suarez'))
+            c_scale = -30:5:30;
+        end
         v_title = 'Zonal velocity (m/s)';
         if (lon_lat)
             s_ll = s_ll+load([file_base itime '03']);
@@ -71,8 +87,11 @@ for t = t1:t2
             s_zo = s_zo+load([file_base itime '14']);
         end
     elseif (strcmp(itype,'merid')) % Plot meridional velocity data
-        c_scale = -35:5:20;% DCMIP2008c5
-        %c_scale = -5:1:5;% DCMIP2012c4
+        if (strcmp(test,'DCMIP2008c5'))
+            c_scale = -35:5:20;
+        elseif (strcmp(test,'DCMIP2008c12'))
+            c_scale = -5:1:5; 
+        end
         v_title = 'Meridional velocity (m/s)';
         if (lon_lat)
             s_ll = s_ll+load([file_base itime '04']);
@@ -81,8 +100,11 @@ for t = t1:t2
             s_zo = s_zo+load([file_base itime '15']);
         end
     elseif (strcmp(itype,'geopot')) % Plot geopotential data
-        %c_scale = 2400:100:3400; % DCMIP2008c5
-        c_scale = 750:100:1500; % DCMIP2012c4
+        if (strcmp(test,'DCMIP2008c5'))
+            c_scale = 2400:100:3400;
+        elseif (strcmp(test,'DCMIP2008c12'))
+            c_scale = 750:100:1500;
+        end
         v_title = 'Geopotential (m)';
         s_ll = s_ll+load([file_base itime '05']);
     elseif (strcmp(itype,'vort')) % Plot relative vorticity data
@@ -92,15 +114,22 @@ for t = t1:t2
         v_title = 'Relative vorticity';
     elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
         s_ll = s_ll+load([file_base itime '07']);
-        c_scale = 800:20:1030; % DCMIP2008c5
-        %c_scale = 930:10:1030; % DCMIP2012c4
+        if (strcmp(test,'DCMIP2008c5'))
+            c_scale = 800:20:1030;
+        elseif (strcmp(test,'DCMIP2008c12'))
+            c_scale = 930:10:1030;
+        end
         v_title = 'Surface pressure';
     elseif (strcmp(itype,'eddy_mom')) % Plot zonal eddy momentum flux
         c_scale = -10:20:100; % Held-Suarez
         v_title = 'Eddy momentum flux (m^2/s^2)';
         s_zo = s_zo+load([file_base itime '16']);
     elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
-        c_scale = 0:40:480; % Held-Suarez
+        if (strcmp(test,'DCMIP2008c5'))
+            c_scale = 0:5:100;
+        elseif (strcmp(test,'Held_Suares'))
+            c_scale = 0:40:480;
+        end
         v_title = 'Eddy kinetic energy (m^2/s^2)';
         s_zo = s_zo+load([file_base itime '17']);
     elseif (strcmp(itype,'eddy_heat_flux')) % Plot zonal eddy heat flux
