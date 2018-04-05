@@ -7,10 +7,10 @@ test = 'DCMIP2008c5';
 %test = 'Held_Suarez';
 
 machine   = 'if';
-t1        = 25; % Start time
+t1        = 30; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'temp_var';
+itype     = 'zonal';
 
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
@@ -147,10 +147,7 @@ if (lon_lat)
     s_ll = s_ll/(t2-t1+1); % Average
     fprintf('Minimum value of variable %s = %8.4e\n',itype, min(min(s_ll)));
     fprintf('Maximum value of variable %s = %8.4e\n',itype, max(max(s_ll)));
-    if (smooth)
-        s_ll = smooth2a(s_ll,2,2);
-    end
-    plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, shift)
+    plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift)
     axis(ax)
 end
 
@@ -158,10 +155,7 @@ if (zonal_avg)
     s_zo = s_zo/N; % Sample mean
     fprintf('Minimum value of variable %s = %8.4e\n',itype, min(min(s_zo)));
     fprintf('Maximum value of variable %s = %8.4e\n',itype, max(max(s_zo)));
-    if (smooth)
-        s_zo = smooth2a(s_zo,2,2);
-    end
-    plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, 0)
+    plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, smooth, 0)
 end
 
 

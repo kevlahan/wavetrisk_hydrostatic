@@ -1,4 +1,4 @@
-function plot_lon_lat_data(s, lon, lat, c_scale, v_title, shift)
+function plot_lon_lat_data(s, lon, lat, c_scale, v_title, smooth, shift)
 % Plot longitude-latitude data
 % Input:
 % s       = data
@@ -16,6 +16,9 @@ if shift % Shift left boundary to zero longitude
     axis([0 360 -90 90]);
     v_xticks = [0 30 60 90 120 150 180 210 240 270 300 330];
     lon = lon+180;
+end
+if (smooth)
+    s = smooth2a(s,2,2);
 end
 contourf(lon,lat,s,c_scale);
 colormap(jet(numel(c_scale)-1));caxis([min(c_scale) max(c_scale)]);c=colorbar;c.Label.String=v_title;c.Label.FontSize=16;
