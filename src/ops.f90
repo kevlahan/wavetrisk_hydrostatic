@@ -164,10 +164,6 @@ contains
       real(8) :: circ_LORT_SW, circ_UPLT_SW, u_prim_RT_SW, u_prim_UP_SW
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
 
-      integer :: d, k, klev
-      real(8), dimension(EDGE) :: mass_e, X
-      real(8), dimension(zlevels+1,1:EDGE) :: massflux_cumul, massflux, new_massflux_cumul
-
       interface
          function physics_scalar_flux (dom, id, idE, idNE, idN, type)
            use domain_mod
@@ -224,48 +220,6 @@ contains
          h_tflux(EDGE*idW+RT+1)  = -(temp(idW+1) - temp(id+1))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
          h_tflux(EDGE*idSW+DG+1) = -(temp(id+1)  - temp(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
          h_tflux(EDGE*idS+UP+1)  = -(temp(idS+1) - temp(id+1))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
-      elseif (itype.eq.2) then
-
-      elseif (itype.eq.3) then
-         d = dom%id+1
-         massflux_cumul(1,:) = 0.0_8
-         do k = 1, zlevels
-            if (exner_fun(k)%data(d)%elts(idW+1).eq.-1.0d13) return
-            if (exner_fun(k)%data(d)%elts(idSW+1).eq.-1.0d13) return
-            if (exner_fun(k)%data(d)%elts(idS+1).eq.-1.0d13) return
-            
-            ! Interpolate old masses (stored in trend)
-            mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id+1) + trend(S_MASS,k)%data(d)%elts(idW+RT+1)
-            mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id+1) + trend(S_MASS,k)%data(d)%elts(idSW+DG+1)
-            mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id+1) + trend(S_MASS,k)%data(d)%elts(idS+UP+1)
-
-            massflux(k,1) = sol(S_VELO,k)%data(d)%elts(EDGE*idW+RT+1)  * mass_e(1)
-            massflux(k,2) = sol(S_VELO,k)%data(d)%elts(EDGE*idSW+DG+1) * mass_e(2)
-            massflux(k,3) = sol(S_VELO,k)%data(d)%elts(EDGE*idS+UP+1)  * mass_e(3)
-            massflux_cumul(k+1,:) = massflux_cumul(k,:) + massflux(k,:)
-         end do
-
-         do k = 1, zlevels+1
-            X(RT+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id+1) + exner_fun(k)%data(d)%elts(idW+1))
-            X(DG+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id+1) + exner_fun(k)%data(d)%elts(idSW+1))
-            X(UP+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id+1) + exner_fun(k)%data(d)%elts(idS+1))
-            do e = 1, EDGE
-               klev = min(zlevels,floor(X(e)))
-               X(e) = X(e) - klev
-               new_massflux_cumul(k,e) = massflux_cumul(klev,e) + X(e)*massflux(klev,e)
-            end do
-         end do
-
-         do k = 1, zlevels
-            ! Interpolate new masses
-            mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id+1) + sol(S_MASS,k)%data(d)%elts(idW+1)
-            mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id+1) + sol(S_MASS,k)%data(d)%elts(idSW+1)
-            mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id+1) + sol(S_MASS,k)%data(d)%elts(idS+1)
-
-            sol(S_VELO,k)%data(d)%elts(EDGE*idW+RT+1)  = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
-            sol(S_VELO,k)%data(d)%elts(EDGE*idSW+DG+1) = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
-            sol(S_VELO,k)%data(d)%elts(EDGE*idS+UP+1)  = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
-         end do
       end if
     end subroutine comp_ijmin
 
@@ -277,15 +231,7 @@ contains
       real(8)                                  :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
       real(8)                                  :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
-
-      type (Coord), dimension(6) :: hex_nodes
-
-      integer                              :: current_klev, d, k, klev
-      real(8)                              :: column_mass, cumul_mass_klev, cumul_mass_target, cumul_mass_upper
-      real(8)                              :: new_cumul_mass,  new_mass
-      real(8), dimension(EDGE)             :: mass_e, X
-      real(8), dimension (zlevels+1)       :: cumul_mass, cumul_temp, new_cumul_temp
-      real(8), dimension(zlevels+1,1:EDGE) :: massflux_cumul, massflux, new_massflux_cumul
+      type (Coord), dimension(6)               :: hex_nodes
 
       interface
          function physics_scalar_flux (dom, id, idE, idNE, idN, type)
@@ -435,102 +381,6 @@ contains
          h_tflux(EDGE*id+RT+1) = (temp(idE+1) - temp(id+1))  /dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
          h_tflux(EDGE*id+DG+1) = (temp(id+1)  - temp(idNE+1))/dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
          h_tflux(EDGE*id+UP+1) = (temp(idN+1) - temp(id+1))  /dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-      elseif (itype.eq.2) then
-         d  = dom%id + 1
-         
-         cumul_mass(1) = 0.0_8
-         cumul_temp(1) = 0.0_8
-         do k = 1, zlevels
-            cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id+1)
-            cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id+1)
-         end do
-         column_mass = cumul_mass(zlevels+1)
-
-         do k = 1, zlevels
-            trend(S_MASS,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1)
-            new_mass = a_vert_mass(k) + b_vert_mass(k) * column_mass
-            if (new_mass<0.0_8) then
-               return ! Do not try to remap pole except at coarsest level
-            else
-               sol(S_MASS,k)%data(d)%elts(id+1) = new_mass
-            end if
-         end do
-
-         current_klev = 1
-         new_cumul_mass = 0.0_8
-         exner_fun(1)%data(d)%elts(id+1) = 1.0_8
-         do k = 1, zlevels
-            sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * column_mass
-            cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id+1)
-
-            do klev = current_klev, zlevels
-               cumul_mass_upper = cumul_mass(klev+1)
-               if (cumul_mass_target <= cumul_mass_upper) exit
-            end do
-
-            if (klev > zlevels) klev = zlevels
-            cumul_mass_klev = cumul_mass(klev)
-
-            current_klev = klev
-            new_cumul_mass = cumul_mass_target
-
-            ! New vertical coordinate (saved in exner_fun)
-            exner_fun(k+1)%data(d)%elts(id+1) = klev + (cumul_mass_target - cumul_mass_klev)/(cumul_mass_upper - cumul_mass_klev)
-         end do
-
-         ! Remap theta
-         do k = 1, zlevels+1
-            X(1) = exner_fun(k)%data(d)%elts(id+1)
-            klev = min(zlevels, floor(X(1)))
-            X(1) = X(1) - klev
-            new_cumul_temp(k) = cumul_temp(klev) + X(1)*sol(S_TEMP,klev)%data(d)%elts(id+1)
-         end do
-
-         do k = 1, zlevels
-            sol(S_TEMP,k)%data(d)%elts(id+1) = new_cumul_temp(k+1) - new_cumul_temp(k)
-         end do
-      elseif (itype.eq.3) then
-         d = dom%id+1
-         massflux_cumul(1,:) = 0.0_8
-
-         do k = 1, zlevels
-            if (exner_fun(k)%data(d)%elts(idE+1).eq.-1.0d13) return
-            if (exner_fun(k)%data(d)%elts(idNE+1).eq.-1.0d13) return
-            if (exner_fun(k)%data(d)%elts(idN+1).eq.-1.0d13) return
-            
-            ! Interpolate old masses (stored in trend)
-            mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id+1) + trend(S_MASS,k)%data(d)%elts(idE+1)
-            mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id+1) + trend(S_MASS,k)%data(d)%elts(idNE+1)
-            mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id+1) + trend(S_MASS,k)%data(d)%elts(idN+1)
-
-            do e = 1, EDGE
-               massflux(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e(e)
-               massflux_cumul(k+1,e) = massflux_cumul(k,e) + massflux(k,e)
-            end do
-         end do
-
-         do k = 1, zlevels+1
-            X(RT+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id+1) + exner_fun(k)%data(d)%elts(idE+1))
-            X(DG+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id+1) + exner_fun(k)%data(d)%elts(idNE+1))
-            X(UP+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id+1) + exner_fun(k)%data(d)%elts(idN+1))
-           
-            do e = 1, EDGE
-               klev = min(zlevels,floor(X(e)))
-               X(e) = X(e) - klev
-               new_massflux_cumul(k,e) = massflux_cumul(klev,e) + X(e)*massflux(klev,e)
-            end do
-         end do
-
-         do k = 1, zlevels
-            ! Interpolate new masses
-            mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id+1) + sol(S_MASS,k)%data(d)%elts(idE+1)
-            mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id+1) + sol(S_MASS,k)%data(d)%elts(idNE+1)
-            mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id+1) + sol(S_MASS,k)%data(d)%elts(idN+1)
-
-            do e = 1, EDGE
-               sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
-            end do
-         end do
       end if
     end subroutine comput
   end subroutine step1

@@ -16,7 +16,7 @@ contains
 
     external :: set_thresholds
     
-    integer   :: d, j, k, l, p
+    integer   :: d, j, k, l
 
     if (rank.eq.0) write(6,*) "Remapping vertical coordinates"
 
@@ -30,19 +30,8 @@ contains
     end do
 
     ! Remap on finest level
-    ! call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
-    ! call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
-
-    do d = 1, size(grid)
-       do j = 1, grid(d)%lev(level_end)%length
-          call step1 (grid(d), grid(d)%lev(level_end)%elts(j), z_null, 2)
-       end do
-    end do
-    do d = 1, size(grid)
-       do j = 1, grid(d)%lev(level_end)%length
-          call step1 (grid(d), grid(d)%lev(level_end)%elts(j), z_null, 3)
-       end do
-    end do
+    call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
+    call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
 
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
@@ -62,18 +51,8 @@ contains
        call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
 
        ! Remap at level l (over-written if value available from restriction)
-       !call apply_onescale (remap_scalars, l, z_null, 0, 1)
-       !call apply_onescale (remap_velo,    l, z_null, 0, 0)
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(l)%length
-             call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null, 2)
-          end do
-       end do
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(l)%length
-             call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null, 3)
-          end do
-       end do
+       call apply_onescale (remap_scalars, l, z_null, 0, 1)
+       call apply_onescale (remap_velo,    l, z_null, 0, 0)
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
        do d = 1, size(grid)
