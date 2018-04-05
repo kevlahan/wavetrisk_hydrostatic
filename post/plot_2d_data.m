@@ -7,10 +7,10 @@ test = 'DCMIP2008c5';
 %test = 'Held_Suarez';
 
 machine   = 'if';
-t1        = 11; % Start time
+t1        = 25; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'zonal';
+itype     = 'temp_var';
 
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
@@ -121,7 +121,7 @@ for t = t1:t2
         end
         v_title = 'Surface pressure';
     elseif (strcmp(itype,'eddy_mom')) % Plot zonal eddy momentum flux
-        c_scale = -10:20:100; % Held-Suarez
+        c_scale = -100:20:100; % Held-Suarez
         v_title = 'Eddy momentum flux (m^2/s^2)';
         s_zo = s_zo+load([file_base itime '16']);
     elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
@@ -150,7 +150,7 @@ if (lon_lat)
     if (smooth)
         s_ll = smooth2a(s_ll,2,2);
     end
-    plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, 1)
+    plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, shift)
     axis(ax)
 end
 
