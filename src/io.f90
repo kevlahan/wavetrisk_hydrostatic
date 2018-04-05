@@ -397,11 +397,9 @@ contains
        do ix = Nx(1), Nx(2)
           Tprime(ix,:) = field2d(ix,:) - zonal_av(k,:,2)
        end do
-       ! Eddy heat flux
-       zonal_av(k,:,3) = sum(Tprime*vprime,DIM=1)/N_zonal
 
        ! Variance of temperature (stable calculation)
-       zonal_av(k,:,4) = (sum((field2d-TT)**2,DIM=1) - sum(field2d-TT,DIM=1)**2/N_zonal)/(N_zonal-1)
+       zonal_av(k,:,3) = (sum((field2d-TT)**2,DIM=1) - sum(field2d-TT,DIM=1)**2/N_zonal)/(N_zonal-1)
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
@@ -414,24 +412,30 @@ contains
 
        ! Zonal velocity
        call project_uzonal_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
-       zonal_av(k,:,5) = sum(field2d,DIM=1)/N_zonal
+       zonal_av(k,:,4) = sum(field2d,DIM=1)/N_zonal
+       
        ! Peturbation zonal velocity
        do ix = Nx(1), Nx(2)
-          uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,5)
+          uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,4)
        end do
        
        ! Meridional velocity
        call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
-       zonal_av(k,:,6) = sum(field2d,DIM=1)/N_zonal
+       zonal_av(k,:,5) = sum(field2d,DIM=1)/N_zonal
+       
        ! Peturbation meridional velocity
        do ix = Nx(1), Nx(2)
-          vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,6)
+          vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,5)
        end do
        
        ! Eddy momentum flux
-       zonal_av(k,:,7) = sum(uprime*vprime,DIM=1)/N_zonal
+       zonal_av(k,:,6) = sum(uprime*vprime,DIM=1)/N_zonal
+       
        ! Eddy kinetic energy
-       zonal_av(k,:,8) = sum(0.5_8*(uprime*uprime+vprime*vprime),DIM=1)/N_zonal
+       zonal_av(k,:,7) = sum(0.5_8*(uprime*uprime+vprime*vprime),DIM=1)/N_zonal
+
+        ! Eddy heat flux
+       zonal_av(k,:,8) = sum(Tprime*vprime,DIM=1)/N_zonal
     end do
     
     if (rank .eq. 0) then

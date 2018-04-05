@@ -5,9 +5,9 @@ module remap_mod
   use wavelet_mod
   implicit none
   
-  integer, parameter          :: order = 3
-  integer, dimension(1:order) :: stencil
-  real(8), parameter :: ex_val = -1.0d13
+  integer                             :: order
+  integer, dimension (:), allocatable :: stencil
+  real(8), parameter                  :: ex_val = -1.0d13
 contains
   subroutine remap_vertical_coordinates (set_thresholds)
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
@@ -79,8 +79,18 @@ contains
   subroutine remap_save 
     ! Remap the Lagrangian layers to pressure levels given by pressure_save array
     integer            :: d, j, k, l, p
+    integer, parameter :: order_default = 7 ! order must be odd
 
     if (rank.eq.0) write(6,*) "Remapping vertical coordinates for saving"
+    
+    ! Set order of Newton interpolation
+    order = min(zlevels+1, order_default)
+    if (allocated(stencil)) deallocate(stencil)
+    allocate(stencil(1:order))
+    if (zlevels+1.lt.3) then
+       write(6,*) "Cannot remap fewer than 3 vertical levels"
+       stop
+    end if
 
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
@@ -241,8 +251,6 @@ contains
     real(8), dimension (zlevels)      :: pressure, mass_interp, temp_interp
     real(8), dimension (EDGE,zlevels) :: velo_interp
 
-    stencil = 0
-
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
     id_i = id + 1
@@ -264,7 +272,7 @@ contains
     ! Interpolate using the moving stencil centred at each interpolation point computed downward from top
     do k = 1, save_levels
        ! Find index of pressure on old vertical grid closest to pressure_save on new grid
-       dmin = 1.0d16
+       dmin = 1d16
        do kk = 1, zlevels
           diff = abs(pressure(kk)-pressure_save(k))
           if (diff.lt.dmin) then
@@ -303,10 +311,10 @@ contains
     real(8),                   intent(in) :: xd
 
     real(8), dimension(order,order) :: interp_diff
-    integer                         :: mi, ni
+    integer                         ::  mi, ni
 
     ! Construct interpolating polynomial by calculating Newton differences
-    interp_diff(1,1:order) = yv 
+    interp_diff(1,1:order) = yv ! zeroth order finite differences for x_0 thru x_6
     do mi = 1, order-1
        do ni = 0, (order-1)-mi
           interp_diff(mi+1,ni+1) = (interp_diff(mi,ni+2)-interp_diff(mi,ni+1))/(xv(ni+mi+1)-xv(ni+1))
