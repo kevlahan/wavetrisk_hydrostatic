@@ -295,13 +295,12 @@ contains
     real(8), dimension(2)               :: lon_lat_range
 
     integer                              :: d, i, id, j, k, p, v, ix
-    integer, parameter                   :: n_vars=8 ! Number of variables to save
+    integer, parameter                   :: nvar_save=7, nvar_zonal=8 ! Number of variables to save
 
     real(8)                              :: N_zonal
     real(8), parameter                   :: TT=200.0_8 ! shift for stable variance calculation
     real, dimension(:,:,:), allocatable  :: field2d_save, zonal_av
     real, dimension(:,:),   allocatable  :: uprime, vprime, Tprime
-    real(8), dimension(n_vars)           :: default_val
 
     character(5)                         :: s_time
     character(130)                       :: command
@@ -346,8 +345,8 @@ contains
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
     allocate (uprime(Nx(1):Nx(2),Ny(1):Ny(2)), vprime(Nx(1):Nx(2),Ny(1):Ny(2)), Tprime(Nx(1):Nx(2),Ny(1):Ny(2)))
-    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),n_vars*save_levels))
-    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),n_vars))
+    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
+    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
 
     do k = 1, save_levels
        ! Mass density
@@ -399,10 +398,10 @@ contains
           Tprime(ix,:) = field2d(ix,:) - zonal_av(k,:,2)
        end do
        ! Eddy heat flux
-       zonal_av(k,:,8) = sum(Tprime*vprime,DIM=1)/N_zonal
+       zonal_av(k,:,3) = sum(Tprime*vprime,DIM=1)/N_zonal
 
        ! Variance of temperature (stable calculation)
-       zonal_av(k,:,5) = (sum((field2d-TT)**2,DIM=1) - sum(field2d-TT,DIM=1)**2/N_zonal)/(N_zonal-1)
+       zonal_av(k,:,4) = (sum((field2d-TT)**2,DIM=1) - sum(field2d-TT,DIM=1)**2/N_zonal)/(N_zonal-1)
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
@@ -415,29 +414,29 @@ contains
 
        ! Zonal velocity
        call project_uzonal_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
-       zonal_av(k,:,3) = sum(field2d,DIM=1)/N_zonal
+       zonal_av(k,:,5) = sum(field2d,DIM=1)/N_zonal
        ! Peturbation zonal velocity
        do ix = Nx(1), Nx(2)
-          uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,3)
+          uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,5)
        end do
        
        ! Meridional velocity
        call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
-       zonal_av(k,:,4) = sum(field2d,DIM=1)/N_zonal
+       zonal_av(k,:,6) = sum(field2d,DIM=1)/N_zonal
        ! Peturbation meridional velocity
        do ix = Nx(1), Nx(2)
-          vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,4)
+          vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,6)
        end do
        
        ! Eddy momentum flux
-       zonal_av(k,:,6) = sum(uprime*vprime,DIM=1)/N_zonal
+       zonal_av(k,:,7) = sum(uprime*vprime,DIM=1)/N_zonal
        ! Eddy kinetic energy
-       zonal_av(k,:,7) = sum(0.5_8*(uprime*uprime+vprime*vprime),DIM=1)/N_zonal
+       zonal_av(k,:,8) = sum(0.5_8*(uprime*uprime+vprime*vprime),DIM=1)/N_zonal
     end do
     
     if (rank .eq. 0) then
        ! Solution at level zlev
-       do v = 1, n_vars*save_levels
+       do v = 1, nvar_save*save_levels
           open (fid+v, recl=32768)
           do i = Ny(1), Ny(2)
              write (fid+v,'(2047(E15.6, 1X))') field2d_save(:,i,v)
@@ -446,7 +445,7 @@ contains
        end do
 
        ! Zonal average of solution over all vertical levels
-       do v = 1, n_vars-1
+       do v = 1, nvar_zonal
           open (fid+v+10, recl=32768)
           do k = zlevels,1,-1
              write (fid+v+10,'(2047(E15.6, 1X))') zonal_av(k,:,v)
