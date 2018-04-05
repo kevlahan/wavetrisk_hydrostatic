@@ -30,9 +30,20 @@ contains
     end do
 
     ! Remap on finest level
-    call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
-    call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
-    
+    ! call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
+    ! call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
+
+    do d = 1, size(grid)
+       do j = 1, grid(d)%lev(level_end)%length
+          call step1 (grid(d), grid(d)%lev(level_end)%elts(j), z_null, 2)
+       end do
+    end do
+    do d = 1, size(grid)
+       do j = 1, grid(d)%lev(level_end)%length
+          call step1 (grid(d), grid(d)%lev(level_end)%elts(j), z_null, 3)
+       end do
+    end do
+
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
        call update_array_bdry (sol, l+1)
@@ -49,10 +60,15 @@ contains
           end do
        end do
        call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
-
+       
        ! Remap at level l (over-written if value available from restriction)
-       call apply_onescale (remap_scalars, l, z_null, 0, 1)
-       call apply_onescale (remap_velo,    l, z_null, 0, 0)
+       !call apply_onescale (remap_scalars, l, z_null, 0, 1)
+       !call apply_onescale (remap_velo,    l, z_null, 0, 0)
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(l)%length
+             call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null, 3)
+          end do
+       end do
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
        do d = 1, size(grid)
@@ -108,7 +124,7 @@ contains
     integer                          :: current_zlev, d, id, id_i, k, zlev
     real(8)                          :: column_mass, cumul_mass_zlev, cumul_mass_target, new_cumul_mass, cumul_mass_upper, X
     real(8)                          :: new_mass
-    real(8), dimension (zlevels+1)   :: eta, cumul_mass, cumul_temp, new_cumul_temp
+    real(8), dimension (zlevels+1)   :: cumul_mass, cumul_temp, new_cumul_temp
 
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
@@ -123,20 +139,20 @@ contains
     end do
     column_mass = cumul_mass(zlevels+1)
     
+    do k = 1, zlevels
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+       new_mass = a_vert_mass(k) + b_vert_mass(k) * column_mass
+       if (new_mass<0.0_8) then
+          return ! Do not try to remap pole except at coarsest level
+       else
+          sol(S_MASS,k)%data(d)%elts(id_i) = new_mass
+       end if
+    end do
+
     current_zlev = 1
     exner_fun(1)%data(d)%elts(id_i) = 1.0_8
     new_cumul_mass = 0.0_8
     do k = 1, zlevels
-       ! Save old mass in trend
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
-
-       new_mass = a_vert_mass(k) + b_vert_mass(k) * column_mass
-       if (new_mass<0.0_8) then
-          return ! Do not try to remap pole excpet at coarsest level
-       else
-          sol(S_MASS,k)%data(d)%elts(id_i) = new_mass
-       end if
-       
        cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
 
        do zlev = current_zlev, zlevels
@@ -188,15 +204,15 @@ contains
 
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels
+       if (exner_fun(k)%data(d)%elts(idE+1).eq.-1.0d13) return
+       if (exner_fun(k)%data(d)%elts(idNE+1).eq.-1.0d13) return
+       if (exner_fun(k)%data(d)%elts(idN+1).eq.-1.0d13) return
+
        ! Interpolate old masses (stored in trend)
        mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idE)
        mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idNE)
        mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idN)
-
-       if (exner_fun(k)%data(d)%elts(idE).eq.ex_val)  mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i)
-       if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id_i)
-       if (exner_fun(k)%data(d)%elts(idN).eq.ex_val)  mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id_i)
-       
+          
        do e = 1, EDGE
           massflux(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e(e)
           massflux_cumul(k+1,e) = massflux_cumul(k,e) + massflux(k,e)
@@ -207,10 +223,6 @@ contains
        X(RT+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idE))
        X(DG+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idNE))
        X(UP+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idN))
-
-       if (exner_fun(k)%data(d)%elts(idE).eq.ex_val) X(RT+1) = exner_fun(k)%data(d)%elts(id_i)
-       if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) X(DG+1) = exner_fun(k)%data(d)%elts(id_i)
-       if (exner_fun(k)%data(d)%elts(idN).eq.ex_val) X(UP+1) = exner_fun(k)%data(d)%elts(id_i)
        
        do e = 1, EDGE
           zlev = min(zlevels,floor(X(e)))
