@@ -123,10 +123,12 @@
 
 ! CALCULATIONS ON ADAPTED GRID
 !
-! Fields are calculated and operators are applied on the ENTIRE grid (including at nodes where the result can be obtained by  restriction 
-! indicated by mask=8, 12) and the results are then over-written by correct values.  This means that some operations could produce intermediate over-flows, inf/NaN, or invalid indices
-! due to incorrect values at these nodes or their neighbours.  Functions and subroutines should take this into account.  Similarly, circulation, vorticity and
-! qe are first computed incorrectly at pentagon points in step1 and then corrected in post_step1.
+! By default fields are calculated and operators are applied on the ENTIRE grid (including at nodes where the result can be obtained by  restriction 
+! indicated by mask=12 and adjacent zone nodes indicated by mask=8) and the results are then over-written by correct values.  
+! (Note that the solution in the adjacent zone at fine scale j+1 are found from values at coarse scale j so the values calculated at scale j+1 are not actually used.)
+! This means that some operations on the entire grid could produce intermediate overflows, inf/NaN, or invalid indices ue to incorrect values at these nodes or their neighbours.
+! Functions and subroutines should take this into account.  Similarly, circulation, vorticity and qe are first computed incorrectly at pentagon points
+! in step1 and then corrected in post_step1.
 
 module shared_mod
   use param_mod
