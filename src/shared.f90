@@ -116,11 +116,17 @@
 ! %elts(EDGE*id+e+1)  - the three grid element edges RT, DG, UP, where e = 0,1,2 (e.g. velocities, fluxes)
 ! %elts(TRIAG*id+t+1) - the two grid element triangles LORT, UPLT, where t = 0,1 (e.g. circulation)
 
-
 ! DATA OUTPUT
 !
 ! Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual. 
 ! The full state of the simulation is saved in io.f90/dump_adapt_mpi and read in again by io.f90/load_adapt_mpi.
+
+! CALCULATIONS ON ADAPTED GRID
+!
+! Fields are calculated and operators are applied on the ENTIRE grid (including at nodes where the result can be obtained by  restriction 
+! indicated by mask=8, 12) and the results are then over-written by correct values.  This means that some operations could produce intermediate over-flows, inf/NaN, or invalid indices
+! due to incorrect values at these nodes or their neighbours.  Functions and subroutines should take this into account.  Similarly, circulation, vorticity and
+! qe are first computed incorrectly at pentagon points in step1 and then corrected in post_step1.
 
 module shared_mod
   use param_mod
