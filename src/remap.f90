@@ -195,11 +195,10 @@ contains
     idN  = idx(i,   j+1, offs, dims) + 1
     idE  = idx(i+1, j,   offs, dims) + 1
     idNE = idx(i+1, j+1, offs, dims) + 1
-
-    if (exner_fun(k)%data(d)%elts(id_i).eq.ex_val) return
     
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels
+       if (exner_fun(k)%data(d)%elts(id_i).eq.ex_val) return
        if (exner_fun(k)%data(d)%elts(idE).eq.ex_val) return
        if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) return
        if (exner_fun(k)%data(d)%elts(idN).eq.ex_val) return
