@@ -29,6 +29,11 @@ contains
        end do
     end do
 
+    ! Remap poles
+    do d = 1, size(grid)
+       call apply_to_pole_d (remap_scalars, grid(d), min_level-1, z_null, z_null, .True.)
+    end do
+    
     ! Remap on finest level
     call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
     call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
@@ -198,14 +203,14 @@ contains
 
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels
-       if (exner_fun(k)%data(d)%elts(idE+1).eq.-1.0d13) return
-       if (exner_fun(k)%data(d)%elts(idNE+1).eq.-1.0d13) return
-       if (exner_fun(k)%data(d)%elts(idN+1).eq.-1.0d13) return
-
        ! Interpolate old masses (stored in trend)
        mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idE)
        mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idNE)
        mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idN)
+       
+       if (exner_fun(k)%data(d)%elts(idE).eq.ex_val)  mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i)
+       if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id_i)
+       if (exner_fun(k)%data(d)%elts(idN).eq.ex_val)  mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id_i)
           
        do e = 1, EDGE
           massflux(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e(e)

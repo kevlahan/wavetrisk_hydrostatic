@@ -189,8 +189,8 @@ contains
     call extend(dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))
     call extend(dom%I_u_wgt, EDGE*num, Iu_Wgt(0.0_8))
     call extend(dom%R_F_wgt, num, RF_Wgt(0.0_8))
-    call extend(dom%mask_n, num, 0)
-    call extend(dom%mask_e, EDGE*num, 0)
+    call extend(dom%mask_n, num, ZERO)
+    call extend(dom%mask_e, EDGE*num, ZERO)
 
     call apply_interscale_to_patch3(set_WT_wgts, dom, p, c, z_null, 0, 0)
     call apply_interscale_to_patch3(set_RF_wgts, dom, p, c, z_null, 0, 0)
@@ -263,7 +263,7 @@ contains
     ! children of patch `p_par` are connected to neighbours on same level if they exist
     !        and temporary boundaries are removed
     !        considers the case that not all four children are present
-    ! \update: still used to connect old patches to new patches (new patches already connected now)
+    ! update: still used to connect old patches to new patches (new patches already connected now)
 
     children = dom%patch%elts(p_par+1)%children
     do c = 1, N_CHDRN
