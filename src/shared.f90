@@ -194,6 +194,9 @@ module shared_mod
   ! label for adjacent nodes  in position (space) only 
   integer, parameter :: ADJSPACE = 14
 
+  ! label nodes needed for trisk operators 
+  integer, parameter :: TRSK = 12
+
   ! label for nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
   integer, parameter :: CONSIST = 4
 

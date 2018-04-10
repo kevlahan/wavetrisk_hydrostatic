@@ -29,7 +29,7 @@ contains
     else
        call adapt (set_thresholds)
     end if
-    call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
   end subroutine adapt_grid
 
   subroutine adapt (set_thresholds)
@@ -75,7 +75,7 @@ contains
     end do
 
     call comm_masks_mpi (NONE)
-
+    
     if (refine()) call post_refine
     call complete_masks
 
