@@ -66,7 +66,6 @@ contains
 
     do l = level_start, level_end
        call apply_onescale (mask_adj_space2, l, z_null, 0, 1)
-       !call apply_onescale (mask_trisk, l, z_null, 0, 1)
     end do
     call comm_masks_mpi (NONE)
 

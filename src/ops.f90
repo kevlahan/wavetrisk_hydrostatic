@@ -279,7 +279,7 @@ contains
            logical, optional                        :: type
          end function physics_scalar_flux
       end interface
-      
+
       idE  = id+E
       idN  = id+N
       idNE = id+NE

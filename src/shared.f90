@@ -194,11 +194,11 @@ module shared_mod
   ! label for adjacent zone nodes in either position (space) or scale
   integer, parameter :: ADJZONE = 8
 
-  ! label nodes needed for trisk operators 
-  integer, parameter :: TRSK = 6
-
   ! label for nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
   integer, parameter :: CONSIST = 4
+
+  ! label nodes needed for trisk operators 
+  integer, parameter :: TRSK = 2
 
   integer, parameter :: NODE = 3
 
