@@ -31,6 +31,7 @@ contains
 
     ! Remap on finest level
     call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
+    call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
 
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
@@ -51,34 +52,19 @@ contains
 
        ! Remap at level l (over-written if value available from restriction)
        call apply_onescale (remap_scalars, l, z_null, 0, 1)
+       call apply_onescale (remap_velo,    l, z_null, 0, 0)
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
        do d = 1, size(grid)
           do k = 1, zlevels
              mass => sol(S_MASS,k)%data(d)%elts
              temp => sol(S_TEMP,k)%data(d)%elts
+             velo => sol(S_VELO,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
              call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 0)
-             nullify (mass, temp, wc_m, wc_t)
-          end do
-       end do
-    end do
-
-    ! Remap velocity
-    call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
-    do l = level_end-1, level_start-1, -1
-       call update_array_bdry (sol, l+1)
-
-       ! Remap at level l (over-written if value available from restriction)
-       call apply_onescale (remap_velo,    l, z_null, 0, 0)
-
-       ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
-       do d = 1, size(grid)
-          do k = 1, zlevels
-             velo => sol(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
-             nullify (velo)
+             call apply_interscale_d (restrict_velo,   grid(d), l, k, 0, 0)
+             nullify (mass, temp, velo, wc_m, wc_t)
           end do
        end do
     end do
@@ -148,7 +134,7 @@ contains
     column_mass = cumul_mass(zlevels+1)
     
     do k = 1, zlevels
-      trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
        new_mass = a_vert_mass(k) + b_vert_mass(k) * column_mass
        if (new_mass<0.0_8) then
           return ! Do not try to remap pole except at coarsest level
@@ -212,14 +198,14 @@ contains
 
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels
+       if (exner_fun(k)%data(d)%elts(idE+1).eq.-1.0d13) return
+       if (exner_fun(k)%data(d)%elts(idNE+1).eq.-1.0d13) return
+       if (exner_fun(k)%data(d)%elts(idN+1).eq.-1.0d13) return
+
        ! Interpolate old masses (stored in trend)
        mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idE)
        mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idNE)
        mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idN)
-
-       if (exner_fun(k)%data(d)%elts(idE).eq.ex_val)  mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i)
-       if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id_i)
-       if (exner_fun(k)%data(d)%elts(idN).eq.ex_val)  mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id_i)
           
        do e = 1, EDGE
           massflux(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e(e)
@@ -231,10 +217,6 @@ contains
        X(RT+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idE))
        X(DG+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idNE))
        X(UP+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idN))
-
-       if (exner_fun(k)%data(d)%elts(idE).eq.ex_val)  X(RT+1) = exner_fun(k)%data(d)%elts(id_i) 
-       if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) X(DG+1) = exner_fun(k)%data(d)%elts(id_i) 
-       if (exner_fun(k)%data(d)%elts(idN).eq.ex_val)  X(UP+1) = exner_fun(k)%data(d)%elts(id_i) 
        
        do e = 1, EDGE
           zlev = min(zlevels,floor(X(e)))
@@ -248,11 +230,9 @@ contains
        mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE)
        mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE)
        mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idN)
-       
        if (exner_fun(k)%data(d)%elts(idE).eq.ex_val)  mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id_i)
        if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id_i)
        if (exner_fun(k)%data(d)%elts(idN).eq.ex_val)  mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id_i)
-       
        do e = 1, EDGE
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
        end do
