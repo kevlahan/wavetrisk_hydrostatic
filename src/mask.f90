@@ -53,27 +53,18 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     integer :: e, id
 
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) .eq. FROZEN) return
 
-    call set_adj_mask (dom%mask_n%elts(id+1), tol_mass)
-    call set_adj_mask (dom%mask_n%elts(id+1), tol_temp)
+    if(dom%mask_n%elts(id+1) > ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
     do e = 1, EDGE
-       call set_adj_mask (dom%mask_e%elts(EDGE*id+e), tol_velo)
+       if (dom%mask_e%elts(EDGE*id+e) > ADJZONE) dom%mask_e%elts(EDGE*id+e) = ADJZONE
     end do
   end subroutine mask_adj
-
-  subroutine set_adj_mask (mask,tol) 
-    ! Add adjacent and higher points to mask
-    integer, intent(inout) :: mask
-    real(8), intent(in)    :: tol
-
-    if (mask .gt. ADJZONE) mask = ADJZONE
-  end subroutine set_adj_mask
   
   subroutine mask_active (wavelet)
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wavelet
