@@ -606,21 +606,6 @@ contains
             + massE*dom%areas%elts(idE+1)%part(4) &
             + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
-       ! pv_LORT = (dom%coriolis%elts(TRIAG*id+1) + circ_LORT)/ &          
-       !      (mass(idE+1)*dom%areas%elts(idE+1)%part(3) + &
-       !      mass(id+1)*sum(dom%areas%elts(id+1)%part(1:2)) + &
-       !      mass(idN+1)*dom%areas%elts(idN+1)%part(6))
-
-       ! pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-       !      (mass(idW+1)*dom%areas%elts(idW+1)%part(1) &
-       !      + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-       !      + mass(idN+1)*dom%areas%elts(idN+1)%part(5))
-
-       ! pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-       !      (mass(idS+1)*dom%areas%elts(idS+1)%part(2) &
-       !      + mass(idE+1)*dom%areas%elts(idE+1)%part(4) &
-       !      + mass(id+1)*dom%areas%elts(id+1)%part(6))
-
        pv_UPLT = pv_LORT
 
        qe(EDGE*id+RT+1) = interp(pv_LORT, pv_UPLT_S)
