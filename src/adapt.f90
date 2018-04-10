@@ -42,7 +42,7 @@ contains
 
     ! Set all masks>ADJZONE to ADJZONE 
     call mask_adjacent
-    call comm_masks_mpi(NONE)
+    call comm_masks_mpi (NONE)
     
     if (adapt_trend) then 
        if (istep.eq.0) then ! Also adapt on variables when initializing
@@ -55,19 +55,19 @@ contains
        call set_thresholds (1)
        call mask_active (wav_coeff)
     end if
+    call comm_masks_mpi (NONE)
     
     do l = level_end-1, level_start, -1
        call apply_interscale (mask_active_nodes, l, z_null,  0, 1)
        call apply_interscale (mask_active_edges, l, z_null, -1, 1)
        call comm_masks_mpi (l)
     end do
-    
     call comm_masks_mpi (NONE)
 
     do l = level_start, level_end
        call apply_onescale (mask_adj_space2, l, z_null, 0, 1)
+       !call apply_onescale (mask_trisk, l, z_null, 0, 1)
     end do
-
     call comm_masks_mpi (NONE)
 
     ! needed if bdry is only 2 layers for scenario:
@@ -76,7 +76,6 @@ contains
     do l = level_start, min(level_end, max_level-1)
        call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
     end do
-
     call comm_masks_mpi (NONE)
     
     if (refine()) call post_refine

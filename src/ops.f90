@@ -279,7 +279,7 @@ contains
            logical, optional                        :: type
          end function physics_scalar_flux
       end interface
-
+      
       idE  = id+E
       idN  = id+N
       idNE = id+NE
@@ -470,7 +470,7 @@ contains
     real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
     real(8) :: massE, massNE, massN, massW, massSW, massS
-
+    
     massE  = mass(idE+1)
     massNE = mass(idNE+1) 
     massN  = mass(idN+1)
