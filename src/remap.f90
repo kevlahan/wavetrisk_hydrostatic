@@ -198,9 +198,9 @@ contains
 
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels
-       if (exner_fun(k)%data(d)%elts(idE+1).eq.-1.0d13) return
-       if (exner_fun(k)%data(d)%elts(idNE+1).eq.-1.0d13) return
-       if (exner_fun(k)%data(d)%elts(idN+1).eq.-1.0d13) return
+       if (exner_fun(k)%data(d)%elts(idE).eq.ex_val) return
+       if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) return
+       if (exner_fun(k)%data(d)%elts(idN).eq.ex_val) return
 
        ! Interpolate old masses (stored in trend)
        mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idE)
@@ -230,9 +230,11 @@ contains
        mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE)
        mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE)
        mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idN)
+       
        if (exner_fun(k)%data(d)%elts(idE).eq.ex_val)  mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id_i)
        if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id_i)
        if (exner_fun(k)%data(d)%elts(idN).eq.ex_val)  mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id_i)
+       
        do e = 1, EDGE
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
        end do
