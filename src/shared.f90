@@ -185,17 +185,17 @@ module shared_mod
   ! label for active nodes
   integer, parameter :: TOLRNZ = 16
 
+   ! label for adjacent nodes  in position (space) only 
+  integer, parameter :: ADJSPACE = 14
+
   ! label for nodes whose flux can be obtained by restriction from fine level
   integer, parameter :: RESTRCT = 12
 
   ! label for adjacent zone nodes in either position (space) or scale
   integer, parameter :: ADJZONE = 8
 
-  ! label for adjacent nodes  in position (space) only 
-  integer, parameter :: ADJSPACE = 14
-
   ! label nodes needed for trisk operators 
-  integer, parameter :: TRSK = 12
+  integer, parameter :: TRSK = 6
 
   ! label for nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
   integer, parameter :: CONSIST = 4

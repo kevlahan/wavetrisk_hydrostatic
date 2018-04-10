@@ -28,22 +28,14 @@ contains
     end do
   end subroutine set_masks
 
-   subroutine mask_adjacent
-    integer :: d, j, k, l, v
+  subroutine mask_adjacent
+    implicit none
+    integer :: k, l
 
     do k = 1, zlevels
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (mask_adj, grid(d), grid(d)%lev(level_end)%elts(j), k, -1, 2)
-          end do
-       end do
-    
+       call apply_onescale (mask_adj, level_end, k, -1, 2)
        do l = level_end-1, level_start, -1
-          do d = 1, size(grid)
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (mask_adj, grid(d), grid(d)%lev(l)%elts(j), k, -1, 2)
-             end do
-          end do
+          call apply_onescale (mask_adj, l, k, -1, 2)
        end do
     end do
   end subroutine mask_adjacent

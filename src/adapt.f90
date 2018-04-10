@@ -40,7 +40,10 @@ contains
        call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
+    ! Set all masks>ADJZONE to ADJZONE 
     call mask_adjacent
+    call comm_masks_mpi(NONE)
+    
     if (adapt_trend) then 
        if (istep.eq.0) then ! Also adapt on variables when initializing
           call set_thresholds (1)
