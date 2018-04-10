@@ -60,9 +60,9 @@ contains
 
     if (dom%mask_n%elts(id+1) .eq. FROZEN) return
 
-    if(dom%mask_n%elts(id+1) .ge. ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
+    if(dom%mask_n%elts(id+1) .gt. ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) dom%mask_e%elts(EDGE*id+e) = ADJZONE
+       if (dom%mask_e%elts(EDGE*id+e) .gt. ADJZONE) dom%mask_e%elts(EDGE*id+e) = ADJZONE
     end do
   end subroutine mask_adj
   
