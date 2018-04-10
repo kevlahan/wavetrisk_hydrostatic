@@ -181,13 +181,21 @@ contains
       idSW = id+SW
       idW  = id+W
 
-      massW = mass(idW+1); if(dom%mask_n%elts(idW+1)==ZERO) massW=mass(id+1)
-      massSW = mass(idSW+1); if(dom%mask_n%elts(idSW+1)==ZERO) massSW=mass(id+1)
-      massS = mass(idS+1); if(dom%mask_n%elts(idS+1)==ZERO) massS=mass(id+1)
+      massW  = mass(idW+1);  if(massW==1.0_8)  massW=mass(id+1)
+      massSW = mass(idSW+1); if(massSW==1.0_8) massSW=mass(id+1)
+      massS  = mass(idS+1);  if(massS==1.0_8)  massS=mass(id+1)
       
-      tempW = temp(idW+1); if(dom%mask_n%elts(idW+1)==ZERO) tempW=temp(id+1)
-      tempSW = temp(idSW+1); if(dom%mask_n%elts(idSW+1)==ZERO) tempSW=temp(id+1)
-      tempS = temp(idS+1); if(dom%mask_n%elts(idS+1)==ZERO) tempS=temp(id+1)
+      tempW  = temp(idW+1);  if(massW==1.0_8)  tempW=temp(id+1)
+      tempSW = temp(idSW+1); if(massSW==1.0_8) tempSW=temp(id+1)
+      tempS  = temp(idS+1);  if(massS==1.0_8)  tempS=temp(id+1)
+
+      ! massW  = mass(idW+1);  if(dom%mask_n%elts(idW+1)==ZERO)  massW=mass(id+1)
+      ! massSW = mass(idSW+1); if(dom%mask_n%elts(idSW+1)==ZERO) massSW=mass(id+1)
+      ! massS  = mass(idS+1);  if(dom%mask_n%elts(idS+1)==ZERO)  massS=mass(id+1)
+      
+      ! tempW  = temp(idW+1);  if(dom%mask_n%elts(idW+1)==ZERO)  tempW=temp(id+1)
+      ! tempSW = temp(idSW+1); if(dom%mask_n%elts(idSW+1)==ZERO) tempSW=temp(id+1)
+      ! tempS  = temp(idS+1);  if(dom%mask_n%elts(idS+1)==ZERO)  tempS=temp(id+1)
 
       if (itype.eq.0) then 
          u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
@@ -264,14 +272,23 @@ contains
       idSW = id+SW
       idW  = id+W
 
-      massE = mass(idE+1); if(dom%mask_n%elts(idE+1)==ZERO) massE=mass(id+1)
-      massNE = mass(idNE+1); if(dom%mask_n%elts(idNE+1)==ZERO) massNE=mass(id+1)
-      massN = mass(idN+1); if(dom%mask_n%elts(idN+1)==ZERO) massN=mass(id+1)
-      massW = mass(idW+1); if(dom%mask_n%elts(idW+1)==ZERO) massW=mass(id+1)
+      massE  = mass(idE+1);  if(massE==1.0_8)  massE=mass(id+1)
+      massNE = mass(idNE+1); if(massNE==1.0_8) massNE=mass(id+1)
+      massN  = mass(idN+1);  if(massN==1.0_8)  massN=mass(id+1)
+      massW  = mass(idW+1);  if(massW==1.0_8)  massW=mass(id+1)
 
-      tempE = temp(idE+1); if(dom%mask_n%elts(idE+1)==ZERO) tempE=temp(id+1)
-      tempNE = temp(idNE+1); if(dom%mask_n%elts(idNE+1)==ZERO) tempNE=temp(id+1)
-      tempN = temp(idN+1); if(dom%mask_n%elts(idN+1)==ZERO) tempN=temp(id+1)
+      tempE  = temp(idE+1);  if(massE==1.0_8)  tempE=temp(id+1)
+      tempNE = temp(idNE+1); if(massNE==1.0_8) tempNE=temp(id+1)
+      tempN  = temp(idN+1);  if(massN==1.0_8)  tempN=temp(id+1)
+
+      ! massE  = mass(idE+1);  if(dom%mask_n%elts(idE+1)==ZERO)  massE=mass(id+1)
+      ! massNE = mass(idNE+1); if(dom%mask_n%elts(idNE+1)==ZERO) massNE=mass(id+1)
+      ! massN  = mass(idN+1);  if(dom%mask_n%elts(idN+1)==ZERO)  massN=mass(id+1)
+      ! massW  = mass(idW+1);  if(dom%mask_n%elts(idW+1)==ZERO)  massW=mass(id+1)
+
+      ! tempE  = temp(idE+1);  if(dom%mask_n%elts(idE+1)==ZERO)  tempE=temp(id+1)
+      ! tempNE = temp(idNE+1); if(dom%mask_n%elts(idNE+1)==ZERO) tempNE=temp(id+1)
+      ! tempN  = temp(idN+1);  if(dom%mask_n%elts(idN+1)==ZERO)  tempN=temp(id+1)
 
       if (itype.eq.0) then
          ! Find the velocity on primal and dual grids
@@ -422,12 +439,19 @@ contains
 
     real(8) :: massE, massNE, massN, massW, massSW, massS
 
-    massE = mass(idE+1); if(dom%mask_n%elts(idE+1)==ZERO) massE=mass(id+1)
-    massNE = mass(idNE+1); if(dom%mask_n%elts(idNE+1)==ZERO) massNE=mass(id+1)
-    massN = mass(idN+1); if(dom%mask_n%elts(idN+1)==ZERO) massN=mass(id+1)
-    massW = mass(idW+1); if(dom%mask_n%elts(idW+1)==ZERO) massW=mass(id+1)
-    massSW = mass(idSW+1); if(dom%mask_n%elts(idSW+1)==ZERO) massSW=mass(id+1)
-    massS = mass(idS+1); if(dom%mask_n%elts(idS+1)==ZERO) massS=mass(id+1)
+    massE = mass(idE+1); if(massE==1.0_8) massE=mass(id+1)
+    massNE = mass(idNE+1); if(massNE==1.0_8) massNE=mass(id+1)
+    massN = mass(idN+1); if(massN==1.0_8) massN=mass(id+1)
+    massW = mass(idW+1); if(massW==1.0_8) massW=mass(id+1)
+    massSW = mass(idSW+1); if(massSW==1.0_8) massSW=mass(id+1)
+    massS = mass(idS+1); if(massS==1.0_8) massS=mass(id+1)
+
+    ! massE = mass(idE+1); if(dom%mask_n%elts(idE+1)==ZERO) massE=mass(id+1)
+    ! massNE = mass(idNE+1); if(dom%mask_n%elts(idNE+1)==ZERO) massNE=mass(id+1)
+    ! massN = mass(idN+1); if(dom%mask_n%elts(idN+1)==ZERO) massN=mass(id+1)
+    ! massW = mass(idW+1); if(dom%mask_n%elts(idW+1)==ZERO) massW=mass(id+1)
+    ! massSW = mass(idSW+1); if(dom%mask_n%elts(idSW+1)==ZERO) massSW=mass(id+1)
+    ! massS = mass(idS+1); if(dom%mask_n%elts(idS+1)==ZERO) massS=mass(id+1)
     
     if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
        id   = idx( 0,  0, offs, dims)
@@ -1016,7 +1040,7 @@ contains
          integer, dimension(2,N_BDRY+1)    :: dims
        end function physics_scalar_source
     end interface
-
+   
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
     id = idx(i, j, offs, dims)
