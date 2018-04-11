@@ -124,6 +124,8 @@ contains
     id   = idx(i, j, offs, dims)
     id_i = id + 1
 
+    if (dom%mask_n%elts(id_i).eq.ZERO) return
+    
     ! Calculate cumulative mass and total mass of column
     cumul_mass(1) = 0.0_8
     cumul_temp(1) = 0.0_8
@@ -132,21 +134,15 @@ contains
        cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id_i)
     end do
     column_mass = cumul_mass(zlevels+1)
-    
-    do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
-       new_mass = a_vert_mass(k) + b_vert_mass(k) * column_mass
-       if (new_mass<0.0_8) then
-          return ! Do not try to remap pole except at coarsest level
-       else
-          sol(S_MASS,k)%data(d)%elts(id_i) = new_mass
-       end if
-    end do
 
     current_zlev = 1
     exner_fun(1)%data(d)%elts(id_i) = 1.0_8
     new_cumul_mass = 0.0_8
     do k = 1, zlevels
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+       
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * column_mass
+       
        cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
 
        do zlev = current_zlev, zlevels
@@ -192,13 +188,18 @@ contains
     id   = idx(i, j, offs, dims)
     id_i = id + 1
 
+    if (dom%mask_n%elts(id_i).eq.ZERO) return ! do not remap inactive nodes
+
     idN  = idx(i,   j+1, offs, dims) + 1
     idE  = idx(i+1, j,   offs, dims) + 1
     idNE = idx(i+1, j+1, offs, dims) + 1
     
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels
-       if (exner_fun(k)%data(d)%elts(id_i).eq.ex_val) return
+       if (exner_fun(k)%data(d)%elts(id_i).eq.ex_val) then
+          write(6,*) 'hi'
+          return
+       end if
        if (exner_fun(k)%data(d)%elts(idE).eq.ex_val) return
        if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) return
        if (exner_fun(k)%data(d)%elts(idN).eq.ex_val) return
@@ -231,10 +232,6 @@ contains
        mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE)
        mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE)
        mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idN)
-       
-       if (exner_fun(k)%data(d)%elts(idE).eq.ex_val)  mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id_i)
-       if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id_i)
-       if (exner_fun(k)%data(d)%elts(idN).eq.ex_val)  mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id_i)
        
        do e = 1, EDGE
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
