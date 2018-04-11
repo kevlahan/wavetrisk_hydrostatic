@@ -244,7 +244,7 @@ contains
     end do
   end subroutine apply_interscale
 
-   subroutine apply_interscale_d2 (routine, dom, l, zlev, st, en)
+  subroutine apply_interscale_d2 (routine, dom, l, zlev, st, en)
     external     :: routine
     type(Domain) :: dom
     integer      :: en, l, st, zlev
@@ -328,7 +328,7 @@ contains
     end do
   end subroutine apply_interscale_to_patch2
 
-   subroutine apply_interscale_to_patch22 (routine, dom, p_par, zlev, st, en)
+  subroutine apply_interscale_to_patch22 (routine, dom, p_par, zlev, st, en)
     external     :: routine
     type(Domain) :: dom
     integer      :: en, p_par, st, zlev

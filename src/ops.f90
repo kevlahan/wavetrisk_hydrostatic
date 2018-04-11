@@ -163,9 +163,7 @@ contains
       integer :: idS, idSW, idW
       real(8) :: circ_LORT_SW, circ_UPLT_SW, u_prim_RT_SW, u_prim_UP_SW
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
-
-      real(8) :: massW, massS, massSW
-      real(8) :: tempW, tempS, tempSW
+      real(8) :: massW, massS, massSW, tempW, tempS, tempSW
 
       interface
          function physics_scalar_flux (dom, id, idE, idNE, idN, type)
@@ -266,9 +264,7 @@ contains
       real(8)                                  :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
       type (Coord), dimension(6)               :: hex_nodes
-
-      real(8) :: massE, massN, massNE, massW
-      real(8) :: tempE, tempN, tempNE
+      real(8) :: massE, massN, massNE, massW, tempE, tempN, tempNE
 
       interface
          function physics_scalar_flux (dom, id, idE, idNE, idN, type)

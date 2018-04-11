@@ -7,7 +7,6 @@ module remap_mod
   
   integer                             :: order
   integer, dimension (:), allocatable :: stencil
-  real(8), parameter                  :: ex_val = -1.0d13
 contains
   subroutine remap_vertical_coordinates (set_thresholds)
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
@@ -23,12 +22,6 @@ contains
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
     
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          exner_fun(k)%data(d)%elts = ex_val
-       end do
-    end do
-
     ! Remap on finest level
     call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
     call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
@@ -115,35 +108,34 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                          :: current_zlev, d, id, id_i, k, zlev
+    integer                          :: current_zlev, d, id, k, zlev
     real(8)                          :: column_mass, cumul_mass_zlev, cumul_mass_target, new_cumul_mass, cumul_mass_upper, X
     real(8)                          :: new_mass
     real(8), dimension (zlevels+1)   :: cumul_mass, cumul_temp, new_cumul_temp
 
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
-    id_i = id + 1
 
-    if (dom%mask_n%elts(id_i).eq.ZERO) return
+    if (dom%mask_n%elts(id+1).eq.ZERO) return
     
     ! Calculate cumulative mass and total mass of column
     cumul_mass(1) = 0.0_8
     cumul_temp(1) = 0.0_8
     do k = 1, zlevels
-       cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id_i)
-       cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id_i)
+       cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id+1)
+       cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id+1)
     end do
     column_mass = cumul_mass(zlevels+1)
 
     current_zlev = 1
-    exner_fun(1)%data(d)%elts(id_i) = 1.0_8
+    exner_fun(1)%data(d)%elts(id+1) = 1.0_8
     new_cumul_mass = 0.0_8
     do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+       trend(S_MASS,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1)
        
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * column_mass
+       sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * column_mass
        
-       cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
+       cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id+1)
 
        do zlev = current_zlev, zlevels
           cumul_mass_upper = cumul_mass(zlev+1)
@@ -157,19 +149,19 @@ contains
        new_cumul_mass = cumul_mass_target
 
        ! New vertical coordinate (saved in exner_fun)
-       exner_fun(k+1)%data(d)%elts(id_i) = zlev + (cumul_mass_target - cumul_mass_zlev)/(cumul_mass_upper - cumul_mass_zlev)
+       exner_fun(k+1)%data(d)%elts(id+1) = zlev + (cumul_mass_target - cumul_mass_zlev)/(cumul_mass_upper - cumul_mass_zlev)
     end do
 
     ! Remap theta
     do k = 1, zlevels+1
-       X = exner_fun(k)%data(d)%elts(id_i)
+       X = exner_fun(k)%data(d)%elts(id+1)
        zlev = min(zlevels,floor(X))
        X = X - zlev
-       new_cumul_temp(k) = cumul_temp(zlev) + X*sol(S_TEMP,zlev)%data(d)%elts(id_i)
+       new_cumul_temp(k) = cumul_temp(zlev) + X*sol(S_TEMP,zlev)%data(d)%elts(id+1)
     end do
 
     do k = 1, zlevels
-       sol(S_TEMP,k)%data(d)%elts(id_i) = new_cumul_temp(k+1) - new_cumul_temp(k)
+       sol(S_TEMP,k)%data(d)%elts(id+1) = new_cumul_temp(k+1) - new_cumul_temp(k)
     end do
   end subroutine remap_scalars
 
@@ -180,35 +172,33 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, idE, idN, idNE, id_i, k, zlev
+    integer :: d, e, id, idE, idN, idNE, k, zlev
     real(8), dimension(EDGE) :: mass_e, X
     real(8), dimension(zlevels+1,1:EDGE) :: massflux_cumul, massflux, new_massflux_cumul
 
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
-    id_i = id + 1
 
-    if (dom%mask_n%elts(id_i).eq.ZERO) return ! do not remap inactive nodes
-
-    idN  = idx(i,   j+1, offs, dims) + 1
-    idE  = idx(i+1, j,   offs, dims) + 1
-    idNE = idx(i+1, j+1, offs, dims) + 1
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
     
+    if (dom%mask_n%elts(id+1).eq.ZERO &
+         .or.dom%mask_e%elts(EDGE*id+RT+1).eq.ZERO &
+         .or.dom%mask_e%elts(EDGE*id+DG+1).eq.ZERO &
+         .or.dom%mask_e%elts(EDGE*id+UP+1).eq.ZERO) return ! do not remap inactive nodes
+
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels
-       if (exner_fun(k)%data(d)%elts(id_i).eq.ex_val) then
-          write(6,*) 'hi'
-          return
-       end if
-       if (exner_fun(k)%data(d)%elts(idE).eq.ex_val) return
-       if (exner_fun(k)%data(d)%elts(idNE).eq.ex_val) return
-       if (exner_fun(k)%data(d)%elts(idN).eq.ex_val) return
-
        ! Interpolate old masses (stored in trend)
-       mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idE)
-       mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idNE)
-       mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idN)
-          
+       mass_e(RT+1) = interp(trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idE+1))
+       mass_e(DG+1) = interp(trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idNE+1))
+       mass_e(UP+1) = interp(trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idN+1))
+
+       if (dom%mask_n%elts(idE+1).eq.ZERO)  mass_e(RT+1) = trend(S_MASS,k)%data(d)%elts(id+1)
+       if (dom%mask_n%elts(idNE+1).eq.ZERO) mass_e(DG+1) = trend(S_MASS,k)%data(d)%elts(id+1)
+       if (dom%mask_n%elts(idN+1).eq.ZERO)  mass_e(UP+1) = trend(S_MASS,k)%data(d)%elts(id+1)
+
        do e = 1, EDGE
           massflux(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e(e)
           massflux_cumul(k+1,e) = massflux_cumul(k,e) + massflux(k,e)
@@ -216,10 +206,14 @@ contains
     end do
 
     do k = 1, zlevels+1
-       X(RT+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idE))
-       X(DG+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idNE))
-       X(UP+1) = 0.5_8*(exner_fun(k)%data(d)%elts(id_i) + exner_fun(k)%data(d)%elts(idN))
-       
+       X(RT+1) = interp(exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idE+1))
+       X(DG+1) = interp(exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idNE+1))
+       X(UP+1) = interp(exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idN+1))
+
+       if (dom%mask_n%elts(idE+1).eq.ZERO)  X(RT+1) = exner_fun(k)%data(d)%elts(id+1)
+       if (dom%mask_n%elts(idNE+1).eq.ZERO) X(DG+1) = exner_fun(k)%data(d)%elts(id+1)
+       if (dom%mask_n%elts(idN+1).eq.ZERO)  X(UP+1) = exner_fun(k)%data(d)%elts(id+1)
+
        do e = 1, EDGE
           zlev = min(zlevels,floor(X(e)))
           X(e) = X(e) - zlev
@@ -229,10 +223,14 @@ contains
 
     do k = 1, zlevels
        ! Interpolate new masses
-       mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idE)
-       mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idNE)
-       mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idN)
-       
+       mass_e(RT+1) = interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idE+1))
+       mass_e(DG+1) = interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idNE+1))
+       mass_e(UP+1) = interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idN+1))
+
+       if (dom%mask_n%elts(idE+1).eq.ZERO)  mass_e(RT+1) = sol(S_MASS,k)%data(d)%elts(id+1)
+       if (dom%mask_n%elts(idNE+1).eq.ZERO) mass_e(DG+1) = sol(S_MASS,k)%data(d)%elts(id+1)
+       if (dom%mask_n%elts(idN+1).eq.ZERO)  mass_e(UP+1) = sol(S_MASS,k)%data(d)%elts(id+1)
+
        do e = 1, EDGE
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
        end do
@@ -246,27 +244,26 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                           :: d, e, id, id_i, k, kc, kk, m
+    integer                           :: d, e, id, k, kc, kk, m
     real(8)                           :: diff, dmin
     real(8), dimension (zlevels)      :: pressure, mass_interp, temp_interp
     real(8), dimension (EDGE,zlevels) :: velo_interp
 
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
-    id_i = id + 1
 
     do k = 1, zlevels
-       mass_interp(k) = sol(S_MASS,k)%data(d)%elts(id_i)
-       temp_interp(k) = sol(S_TEMP,k)%data(d)%elts(id_i)
+       mass_interp(k) = sol(S_MASS,k)%data(d)%elts(id+1)
+       temp_interp(k) = sol(S_TEMP,k)%data(d)%elts(id+1)
        do e = 1, EDGE
           velo_interp(e,k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) 
        end do
     end do
 
     ! Calculate pressure at each vertical level
-    pressure(1) = dom%surf_press%elts(id_i) - 0.5_8*grav_accel*sol(S_MASS,1)%data(d)%elts(id_i)
+    pressure(1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
     do k = 2, zlevels
-       pressure(k) = pressure(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k-1)%data(d)%elts(id_i))
+       pressure(k) = pressure(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
     end do
 
     ! Interpolate using the moving stencil centred at each interpolation point computed downward from top
@@ -291,8 +288,8 @@ contains
        end if
 
        ! Interpolate mass and temperature
-       sol_save(S_MASS,k)%data(d)%elts(id_i) = Newton_interp(pressure(stencil), mass_interp(stencil), pressure_save(k))
-       sol_save(S_TEMP,k)%data(d)%elts(id_i) = Newton_interp(pressure(stencil), temp_interp(stencil), pressure_save(k))
+       sol_save(S_MASS,k)%data(d)%elts(id+1) = Newton_interp(pressure(stencil), mass_interp(stencil), pressure_save(k))
+       sol_save(S_TEMP,k)%data(d)%elts(id+1) = Newton_interp(pressure(stencil), temp_interp(stencil), pressure_save(k))
        
        ! Interpolate velocity
        do e = 1, EDGE
