@@ -229,13 +229,13 @@ contains
          qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
          ! Mass and temperature fluxes
-         if(dom%mask_n%elts(idW+1)==ZERO)  massW=mass(id+1)
-         if(dom%mask_n%elts(idSW+1)==ZERO) massSW=mass(id+1)
-         if(dom%mask_n%elts(idS+1)==ZERO)  massS=mass(id+1)
+         if(massW==1.0_8)  massW=mass(id+1)
+         if(massSW==1.0_8) massSW=mass(id+1)
+         if(massS==1.0_8)  massS=mass(id+1)
 
-         if(dom%mask_n%elts(idW+1)==ZERO)  tempW=temp(id+1)
-         if(dom%mask_n%elts(idSW+1)==ZERO) tempSW=temp(id+1)
-         if(dom%mask_n%elts(idS+1)==ZERO)  tempS=temp(id+1)
+         if(massW==1.0_8)  tempW=temp(id+1)
+         if(massSW==1.0_8) tempSW=temp(id+1)
+         if(massS==1.0_8)  tempS=temp(id+1)
 
          physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
 
@@ -426,14 +426,14 @@ contains
          qe(EDGE*id+UP+1) = interp(pv_UPLT,   pv_LORT_W)
 
          ! Mass and temperature fluxes
-         if(dom%mask_n%elts(idE+1)==ZERO)  massE=mass(id+1)
-         if(dom%mask_n%elts(idNE+1)==ZERO) massNE=mass(id+1)
-         if(dom%mask_n%elts(idN+1)==ZERO)  massN=mass(id+1)
-         if(dom%mask_n%elts(idW+1)==ZERO)  massW=mass(id+1)
+         if(massE==1.0_8)  massE=mass(id+1)
+         if(massNE==1.0_8) massNE=mass(id+1)
+         if(massN==1.0_8)  massN=mass(id+1)
+         if(massW==1.0_8)  massW=mass(id+1)
 
-         if(dom%mask_n%elts(idE+1)==ZERO)  tempE=temp(id+1)
-         if(dom%mask_n%elts(idNE+1)==ZERO) tempNE=temp(id+1)
-         if(dom%mask_n%elts(idN+1)==ZERO)  tempN=temp(id+1)
+         if(massE==1.0_8)  tempE=temp(id+1)
+         if(massNE==1.0_8) tempNE=temp(id+1)
+         if(massN==1.0_8)  tempN=temp(id+1)
          
          physics = physics_scalar_flux (dom, id, idE, idNE, idN)
          

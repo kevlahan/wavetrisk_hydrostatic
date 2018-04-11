@@ -103,11 +103,7 @@ contains
           do d = 1, n_domain(rank+1)
              velo => scaling(S_VELO,k)%data(d)%elts
              wc_u => wavelet(S_VELO,k)%data(d)%elts
-             if (present(l_start0)) then
-                call apply_interscale_d2 (IWT_reconstruct_outer_velo, grid(d), l, z_null, 0, 1) ! needs val
-             else
-                call apply_interscale_d2 (IWT_reconstruct_outer_velo, grid(d), l, z_null, 0, 1) ! needs val
-             end if
+             call apply_interscale_d2 (IWT_reconstruct_outer_velo, grid(d), l, z_null, 0, 1) ! needs val
              call apply_to_penta_d (IWT_reconstruct_velo_penta, grid(d), l, z_null)
              nullify (velo, wc_u)
           end do
