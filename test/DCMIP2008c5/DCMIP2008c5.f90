@@ -568,8 +568,8 @@ program DCMIP2008c5
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 1.0_8                            ! cfl number
-  n_remap        = 10                             ! Vertical remap interval
+  cfl_num        = 0.8_8                            ! cfl number
+  n_remap        = 10                               ! Vertical remap interval
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
