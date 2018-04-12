@@ -328,42 +328,42 @@ contains
          ! u_i = 1/A_i sum_e (x_e-x_i) l_e (u_e,n_e), where n_e is the outward normal vector to the hexagon edge e,
          ! l_e is the length of the hexagon edge (pedlen)
 
-         ! Coordinate of centroid of hexagon
-         hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
-                        dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-                        dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
-         !x_i = centroid(hex_nodes, 6)  ! Coordinate of hexagon centroid
+         ! ! Coordinate of centroid of hexagon
+         ! hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
+         !                dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
+         !                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
+         ! !x_i = centroid(hex_nodes, 6)  ! Coordinate of hexagon centroid
 
-         x_i = dom%node%elts(id+1)  ! Coordinate of node (very close to centroid and faster to calculate)
+         ! x_i = dom%node%elts(id+1)  ! Coordinate of node (very close to centroid and faster to calculate)
 
-         ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
-         x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge
-         vel = vec_scale(u_dual_RT, vec_minus(x_e,x_i))
+         ! ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1)) ! mid point of hexagon edge
+         ! vel = vec_scale(u_dual_RT, vec_minus(x_e,x_i))
 
-         x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
-         vel = vec_plus(vel, vec_scale(u_dual_RT_W,  vec_minus(x_i,x_e)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_RT_W,  vec_minus(x_i,x_e)))
 
-         x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
-         vel = vec_plus(vel, vec_scale(u_dual_DG,    vec_minus(x_i,x_e)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_DG,    vec_minus(x_i,x_e)))
 
-         x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
-         vel = vec_plus(vel, vec_scale(u_dual_DG_SW, vec_minus(x_e,x_i)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_DG_SW, vec_minus(x_e,x_i)))
 
-         x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
-         vel = vec_plus(vel, vec_scale(u_dual_UP,    vec_minus(x_e,x_i)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_UP,    vec_minus(x_e,x_i)))
 
-         x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1))
-         vel = vec_plus(vel, vec_scale(u_dual_UP_S,  vec_minus(x_i,x_e)))
+         ! x_e =  mid_pt(dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1))
+         ! vel = vec_plus(vel, vec_scale(u_dual_UP_S,  vec_minus(x_i,x_e)))
 
-         vel = vec_scale(dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
+         ! vel = vec_scale(dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
 
-         kinetic_energy = 0.5_8 * inner(vel,vel)
+         ! kinetic_energy = 0.5_8 * inner(vel,vel)
 
          ! Formula from TRiSK ... not convergent!
-         ! kinetic_energy = &
-         !      (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
-         !      u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W &
-         !      )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
+         kinetic_energy = &
+              (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
+              u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W &
+              )* (1.0_8/4.0_8)*dom%areas%elts(id+1)%hex_inv
 
          ! Interpolate geopotential from interfaces to level
          Phi_k = interp(dom%geopot%elts(id+1), dom%adj_geopot%elts(id+1))
