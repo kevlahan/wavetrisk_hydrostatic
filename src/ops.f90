@@ -535,7 +535,7 @@ contains
        areaS3 = dom%areas%elts(id+1)%part(3)
     end if
 
-    if(massSW==1.0d8) then
+    if(massSW==1.0_8) then
        massSW = mass(id+1)
        areaSW1 = dom%areas%elts(id+1)%part(1)
        areaSW2 = dom%areas%elts(id+1)%part(2)
