@@ -163,7 +163,7 @@ contains
       integer :: idS, idSW, idW
       real(8) :: circ_LORT_SW, circ_UPLT_SW, u_prim_RT_SW, u_prim_UP_SW
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
-      real(8) :: massW, massS, massSW, tempW, tempS, tempSW
+      real(8) :: massW, massS, massSW, tempW, tempS, tempSW, areaW6, areaSW1, areaSW2, areaS3
 
       interface
          function physics_scalar_flux (dom, id, idE, idNE, idN, type)
@@ -182,9 +182,15 @@ contains
       massW  = mass(idW+1)
       massSW = mass(idSW+1)
       massS  = mass(idS+1)
+
       tempW  = temp(idW+1)
       tempSW = temp(idSW+1)
       tempS  = temp(idS+1)
+      
+      areaS3  = dom%areas%elts(idS+1)%part(3)
+      areaSW1 = dom%areas%elts(idSW+1)%part(1)
+      areaSW2 = dom%areas%elts(idSW+1)%part(2)
+      areaW6  = dom%areas%elts(idW+1)%part(6)
       
       ! if(massW==1.0_8)  massW=mass(id+1)
       ! if(massSW==1.0_8) massSW=mass(id+1)
@@ -194,14 +200,20 @@ contains
       ! if(massSW==1.0_8) tempSW=temp(id+1)
       ! if(massS==1.0_8)  tempS=temp(id+1)
 
-      if(dom%mask_n%elts(idW+1)==ZERO)  massW=mass(id+1)
-      if(dom%mask_n%elts(idSW+1)==ZERO) massSW=mass(id+1)
-      if(dom%mask_n%elts(idS+1)==ZERO)  massS=mass(id+1)
+      if(massW==1.0_8)  then
+         massW = mass(id+1)
+         areaW6 = dom%areas%elts(id+1)%part(6)
+      end if
+      if(massSW==1.0_8) then
+         massSW = mass(id+1)
+         areaSW1 = dom%areas%elts(id+1)%part(1)
+         areaSW2 = dom%areas%elts(id+1)%part(2)
+      end if
+      if(massS==1.0_8)  then
+         massS = mass(id+1)
+         areaS3 = dom%areas%elts(id+1)%part(3)
+      end if
       
-      if(dom%mask_n%elts(idW+1)==ZERO)  tempW=temp(id+1)
-      if(dom%mask_n%elts(idSW+1)==ZERO) tempSW=temp(id+1)
-      if(dom%mask_n%elts(idS+1)==ZERO)  tempS=temp(id+1)
-
       if (itype.eq.0) then 
          u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
          u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
@@ -213,27 +225,23 @@ contains
          vort(TRIAG*idS+UPLT+1) = circ_UPLT_S/dom%triarea%elts(TRIAG*idS+UPLT+1) 
 
          pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/( &
-              massSW*dom%areas%elts(idSW+1)%part(1) + &
-              massS*dom%areas%elts(idS+1)%part(3) + &
-              mass(id+1)*dom%areas%elts(id+1)%part(5))
+              massSW*areaSW1 + massS*areaS3 + mass(id+1)*dom%areas%elts(id+1)%part(5))
 
          pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/( &
-              massSW*dom%areas%elts(idSW+1)%part(2) + &
-              mass(id+1)*dom%areas%elts(id+1)%part(4) + &
-              massW*dom%areas%elts(idW+1)%part(6))
+              massSW*areaSW2 + mass(id+1)*dom%areas%elts(id+1)%part(4) + massW*areaW6)
          
          qe(EDGE*idW+RT+1)  = interp(pv_LORT_W , pv_UPLT_SW)
          qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
          qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
          ! Mass and temperature fluxes
-         if(massW==1.0_8)  massW=mass(id+1)
-         if(massSW==1.0_8) massSW=mass(id+1)
-         if(massS==1.0_8)  massS=mass(id+1)
+         ! if(massW==1.0_8)  massW=mass(id+1)
+         ! if(massSW==1.0_8) massSW=mass(id+1)
+         ! if(massS==1.0_8)  massS=mass(id+1)
 
-         if(massW==1.0_8)  tempW=temp(id+1)
-         if(massSW==1.0_8) tempSW=temp(id+1)
-         if(massS==1.0_8)  tempS=temp(id+1)
+         ! if(massW==1.0_8)  tempW=temp(id+1)
+         ! if(massSW==1.0_8) tempSW=temp(id+1)
+         ! if(massS==1.0_8)  tempS=temp(id+1)
 
          physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
 
@@ -264,7 +272,8 @@ contains
       real(8)                                  :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
       type (Coord), dimension(6)               :: hex_nodes
-      real(8) :: massE, massN, massNE, massW, tempE, tempN, tempNE
+      real(8) :: massE, massN, massNE, massW, massS, tempE, tempN, tempNE
+      real(8) :: areaE3, areaE4, areaNE4, areaNE5, areaN6, areaW1, areaN5, areaS2
 
       interface
          function physics_scalar_flux (dom, id, idE, idNE, idN, type)
@@ -284,30 +293,51 @@ contains
       idW  = id+W
 
       massE  = mass(idE+1)
-      massNE = mass(idNE+1)
       massN  = mass(idN+1)
+      massNE = mass(idNE+1)
+      massS  = mass(idS+1)
       massW  = mass(idW+1)
+
       tempE  = temp(idE+1)
       tempNE = temp(idNE+1)
       tempN  = temp(idN+1)
-
-      ! if(massE==1.0_8)  massE=mass(id+1)
-      ! if(massNE==1.0_8) massNE=mass(id+1)
-      ! if(massN==1.0_8)  massN=mass(id+1)
-      ! if(massW==1.0_8)  massW=mass(id+1)
       
-      ! if(massE==1.0_8)  tempE=temp(id+1)
-      ! if(massNE==1.0_8) tempNE=temp(id+1)
-      ! if(massN==1.0_8)  tempN=temp(id+1)
+      areaE3  = dom%areas%elts(idE+1)%part(3)
+      areaE4  = dom%areas%elts(idE+1)%part(4)
+      areaNE4 = dom%areas%elts(idNE+1)%part(4)
+      areaNE5 = dom%areas%elts(idNE+1)%part(5)
+      areaN6  = dom%areas%elts(idN+1)%part(6)
+      areaW1  = dom%areas%elts(idW+1)%part(1)
+      areaN5  = dom%areas%elts(idN+1)%part(5)
+      areaS2  = dom%areas%elts(idS+1)%part(2)
       
-      if(dom%mask_n%elts(idE+1)==ZERO)  massE=mass(id+1)
-      if(dom%mask_n%elts(idNE+1)==ZERO) massNE=mass(id+1)
-      if(dom%mask_n%elts(idN+1)==ZERO)  massN=mass(id+1)
-      if(dom%mask_n%elts(idW+1)==ZERO)  massW=mass(id+1)
-
-      if(dom%mask_n%elts(idE+1)==ZERO)  tempE=temp(id+1)
-      if(dom%mask_n%elts(idNE+1)==ZERO) tempNE=temp(id+1)
-      if(dom%mask_n%elts(idN+1)==ZERO)  tempN=temp(id+1)
+      if(massE==1.0_8)  then
+         massE = mass(id+1)
+         areaE3 = dom%areas%elts(id+1)%part(3)
+         areaE4 = dom%areas%elts(id+1)%part(4)
+      end if
+      
+      if(massNE==1.0_8) then
+         massNE = mass(id+1)
+         areaNE4 = dom%areas%elts(id+1)%part(4)
+         areaNE5 = dom%areas%elts(id+1)%part(5)
+      end if
+      
+      if(massN==1.0_8) then
+         massN = mass(id+1)
+         areaN5 = dom%areas%elts(id+1)%part(5)
+         areaN6 = dom%areas%elts(id+1)%part(6)
+      end if
+      
+      if(massW==1.0_8)  then
+         massW = mass(id+1)
+         areaW1 = dom%areas%elts(id+1)%part(1)
+      end if
+      
+      if(massS==1.0_8)  then
+         massS = mass(id+1)
+         areaS2 = dom%areas%elts(id+1)%part(2)
+      end if
 
       if (itype.eq.0) then
          ! Find the velocity on primal and dual grids
@@ -398,38 +428,20 @@ contains
          vort(TRIAG*id+UPLT+1) = circ_UPLT/dom%triarea%elts(TRIAG*id+UPLT+1)
 
          pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/( &
-              mass(id+1)*dom%areas%elts(id+1)%part(1) + &
-              massE*dom%areas%elts(idE+1)%part(3) + &
-              massNE*dom%areas%elts(idNE+1)%part(5))
+              mass(id+1)*dom%areas%elts(id+1)%part(1) + massE*areaE3 + massNE*areaNE5)
 
          pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/( &
-              mass(id+1)*dom%areas%elts(id+1)%part(2) + &
-              massNE*dom%areas%elts(idNE+1)%part(4) + &
-              massN*dom%areas%elts(idN+1)%part(6))
+              mass(id+1)*dom%areas%elts(id+1)%part(2) + massNE*areaNE4 + massN*areaN6)
 
          pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/( &
-              massW*dom%areas%elts(idW+1)%part(1) + &
-              mass(id+1)*dom%areas%elts(id+1)%part(3) + &
-              massN*dom%areas%elts(idN+1)%part(5))
+              massW*areaW1 + mass(id+1)*dom%areas%elts(id+1)%part(3) + massN*areaN5)
 
          pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/( &
-              mass(idS+1)*dom%areas%elts(idS+1)%part(2) + &
-              massE*dom%areas%elts(idE+1)%part(4) + &
-              mass(id+1)*dom%areas%elts(id+1)%part(6))
+              massS*areaS2 + massE*areaE4 + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
          qe(EDGE*id+RT+1) = interp(pv_UPLT_S, pv_LORT)
          qe(EDGE*id+DG+1) = interp(pv_UPLT,   pv_LORT)
          qe(EDGE*id+UP+1) = interp(pv_UPLT,   pv_LORT_W)
-
-         ! Mass and temperature fluxes
-         ! if(massE==1.0_8)  massE=mass(id+1)
-         ! if(massNE==1.0_8) massNE=mass(id+1)
-         ! if(massN==1.0_8)  massN=mass(id+1)
-         ! if(massW==1.0_8)  massW=mass(id+1)
-
-         ! if(massE==1.0_8)  tempE=temp(id+1)
-         ! if(massNE==1.0_8) tempNE=temp(id+1)
-         ! if(massN==1.0_8)  tempN=temp(id+1)
          
          physics = physics_scalar_flux (dom, id, idE, idNE, idN)
          
@@ -466,6 +478,7 @@ contains
     real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
     real(8) :: massE, massNE, massN, massW, massSW, massS
+    real(8) :: areaE3, areaE4, areaN5, areaN6, areaNE4, areaNE5, areaS2, areaS3, areaSW1, areaSW2, areaW1, areaW6
     
     massE  = mass(idE+1)
     massNE = mass(idNE+1) 
@@ -474,19 +487,59 @@ contains
     massSW = mass(idSW+1)
     massS  = mass(idS+1)
 
-    if(dom%mask_n%elts(idE+1)==ZERO) massE=mass(id+1)
-    if(dom%mask_n%elts(idNE+1)==ZERO) massNE=mass(id+1)
-    if(dom%mask_n%elts(idN+1)==ZERO) massN=mass(id+1)
-    if(dom%mask_n%elts(idW+1)==ZERO) massW=mass(id+1)
-    if(dom%mask_n%elts(idSW+1)==ZERO) massSW=mass(id+1)
-    if(dom%mask_n%elts(idS+1)==ZERO) massS=mass(id+1)
+    areaE3 = dom%areas%elts(idE+1)%part(3)
+    areaE4 = dom%areas%elts(idE+1)%part(4)
+    
+    areaN5 = dom%areas%elts(idN+1)%part(5)
+    areaN6 = dom%areas%elts(idN+1)%part(6)
+    
+    areaNE4 = dom%areas%elts(idNE+1)%part(4)
+    areaNE5 = dom%areas%elts(idNE+1)%part(5)
 
-    ! if(massE==1.0_8) massE=mass(id+1)
-    ! if(massNE==1.0_8) massNE=mass(id+1)
-    !if(massN==1.0_8) massN=mass(id+1)
-    ! if(massW==1.0_8) massW=mass(id+1)
-    !if(massSW==1.0_8) massSW=mass(id+1)
-    !  if(massS==1.0_8) massS=mass(id+1)
+    areaS2 = dom%areas%elts(idS+1)%part(2)
+    areaS3 = dom%areas%elts(idS+1)%part(3)
+     
+    areaSW1 = dom%areas%elts(idSW+1)%part(1)
+    areaSW2 = dom%areas%elts(idSW+1)%part(2)
+
+    areaW1 = dom%areas%elts(idW+1)%part(1)
+    areaW6 = dom%areas%elts(idW+1)%part(6)
+
+    if(massE==1.0_8) then
+       massE=mass(id+1)
+       areaE3 = dom%areas%elts(id+1)%part(3)
+       areaE4 = dom%areas%elts(id+1)%part(4)
+    end if
+    
+    if(massNE==1.0_8) then
+       massNE = mass(id+1)
+       areaNE4 = dom%areas%elts(id+1)%part(4)
+       areaNE5 = dom%areas%elts(id+1)%part(5)
+    end if
+    
+    if(massN==1.0_8) then
+       massN=mass(id+1)
+       areaN5 = dom%areas%elts(id+1)%part(5)
+       areaN6 = dom%areas%elts(id+1)%part(6)
+    end if
+    
+    if(massW==1.0_8) then
+       massW = mass(id+1)
+       areaW1 = dom%areas%elts(id+1)%part(1)
+       areaW6 = dom%areas%elts(id+1)%part(6)
+    end if
+    
+    if(massS==1.0_8) then
+       massS = mass(id+1)
+       areaS2 = dom%areas%elts(idS+1)%part(2)
+       areaS3 = dom%areas%elts(id+1)%part(3)
+    end if
+
+    if(massSW==1.0d8) then
+       massSW = mass(id+1)
+       areaSW1 = dom%areas%elts(id+1)%part(1)
+       areaSW2 = dom%areas%elts(id+1)%part(2)
+    end if
     
     if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
        id   = idx( 0,  0, offs, dims)
@@ -508,19 +561,13 @@ contains
        vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+1) + circ_LORT_SW)/ &
-            (massW*dom%areas%elts(idW+1)%part(6) &
-            + mass(id+1)*sum(dom%areas%elts(id+1)%part(4:5)) &
-            + massS*dom%areas%elts(idS+1)%part(3))
+            (massW*areaW6 + mass(id+1)*sum(dom%areas%elts(id+1)%part(4:5)) + massS*areaS3)
 
        pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-            (massW*dom%areas%elts(idW+1)%part(1) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-            + massN*dom%areas%elts(idN+1)%part(5))
+            (massW*areaW1 + mass(id+1)*dom%areas%elts(id+1)%part(3) + massN*areaN5)
 
        pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-            (massS*dom%areas%elts(idS+1)%part(2) &
-            + massE*dom%areas%elts(idE+1)%part(4) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(6))
+            (massS*areaS2 + massE*areaE4 + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
        pv_UPLT_SW = pv_LORT_SW
 
@@ -548,19 +595,13 @@ contains
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-            (massSW*dom%areas%elts(idSW+1)%part(1) + &
-            massS*dom%areas%elts(idS+1)%part(3) + &
-            mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
+            (massSW*areaSW1 + massS*areaS3 + mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/ &
-            (mass(id+1)*dom%areas%elts(id+1)%part(1) &
-            + massE*dom%areas%elts(idE+1)%part(3) &
-            + massNE*dom%areas%elts(idNE+1)%part(5))
+            (mass(id+1)*dom%areas%elts(id+1)%part(1) + massE*areaE3 + massNE*areaNE5)
 
        pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            (massSW*dom%areas%elts(idSW+1)%part(2) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(4) &
-            + massW*dom%areas%elts(idW+1)%part(6))
+            (massSW*areaSW2 + mass(id+1)*dom%areas%elts(id+1)%part(4) + massW*areaW6)
 
        pv_UPLT_S = pv_LORT_SW
 
@@ -588,19 +629,13 @@ contains
        vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
 
        pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            (massSW*dom%areas%elts(idSW+1)%part(2) &
-            + mass(id+1)*sum(dom%areas%elts(id+1)%part(3:4)) &
-            + massW*dom%areas%elts(idW+1)%part(6))
+            (massSW*areaSW2 + mass(id+1)*sum(dom%areas%elts(id+1)%part(3:4)) + massW*areaW6)
 
        pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/ &
-            (mass(id+1)*dom%areas%elts(id+1)%part(2) &
-            + massNE*dom%areas%elts(idNE+1)%part(4) &
-            + massN*dom%areas%elts(idN+1)%part(6))
+            (mass(id+1)*dom%areas%elts(id+1)%part(2) + massNE*areaNE4 + massN*areaN6)
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-            (massSW*dom%areas%elts(idSW+1)%part(1) &
-            + massS*dom%areas%elts(idS+1)%part(3) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(5))
+            (massSW*areaSW1 + massS*areaS3 + mass(id+1)*dom%areas%elts(id+1)%part(5))
 
        pv_LORT_W = pv_UPLT_SW
 
@@ -627,19 +662,15 @@ contains
        vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+1) + circ_LORT)/ &          
-            (massE*dom%areas%elts(idE+1)%part(3) + &
-            mass(id+1)*sum(dom%areas%elts(id+1)%part(1:2)) + &
-            massN*dom%areas%elts(idN+1)%part(6))
+            (massE*areaE3 + mass(id+1)*sum(dom%areas%elts(id+1)%part(1:2)) + massN*areaN6)
 
        pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-            (massW*dom%areas%elts(idW+1)%part(1) &
+            (massW*areaW1 &
             + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-            + massN*dom%areas%elts(idN+1)%part(5))
+            + massN*areaN5)
 
        pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-            (massS*dom%areas%elts(idS+1)%part(2) &
-            + massE*dom%areas%elts(idE+1)%part(4) &
-            + mass(id+1)*dom%areas%elts(id+1)%part(6))
+            (massS*areaS2 + massE*areaE4 + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
        pv_UPLT = pv_LORT
 
