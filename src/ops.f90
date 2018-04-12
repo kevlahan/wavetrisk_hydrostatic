@@ -202,15 +202,18 @@ contains
 
       if(massW==1.0_8)  then
          massW = mass(id+1)
+         tempW = temp(id+1)
          areaW6 = dom%areas%elts(id+1)%part(6)
       end if
       if(massSW==1.0_8) then
          massSW = mass(id+1)
+         tempSW = temp(id+1)
          areaSW1 = dom%areas%elts(id+1)%part(1)
          areaSW2 = dom%areas%elts(id+1)%part(2)
       end if
       if(massS==1.0_8)  then
          massS = mass(id+1)
+         tempS = temp(id+1)
          areaS3 = dom%areas%elts(id+1)%part(3)
       end if
       
@@ -313,18 +316,21 @@ contains
       
       if(massE==1.0_8)  then
          massE = mass(id+1)
+         tempE = temp(id+1)
          areaE3 = dom%areas%elts(id+1)%part(3)
          areaE4 = dom%areas%elts(id+1)%part(4)
       end if
       
       if(massNE==1.0_8) then
          massNE = mass(id+1)
+         tempNE = temp(id+1)
          areaNE4 = dom%areas%elts(id+1)%part(4)
          areaNE5 = dom%areas%elts(id+1)%part(5)
       end if
       
       if(massN==1.0_8) then
          massN = mass(id+1)
+         tempN = temp(id+1)
          areaN5 = dom%areas%elts(id+1)%part(5)
          areaN6 = dom%areas%elts(id+1)%part(6)
       end if
