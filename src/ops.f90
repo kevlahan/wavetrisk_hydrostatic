@@ -332,7 +332,7 @@ contains
          hex_nodes = (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1), &
                         dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
                         dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /)
-         x_i = centroid(hex_nodes, 6)  ! Coordinate of hexagon centroid
+         !x_i = centroid(hex_nodes, 6)  ! Coordinate of hexagon centroid
 
          x_i = dom%node%elts(id+1)  ! Coordinate of node (very close to centroid and faster to calculate)
 
