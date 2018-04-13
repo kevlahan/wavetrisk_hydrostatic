@@ -116,7 +116,7 @@ contains
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
 
-    if (sol(S_MASS,1)%data(d)%elts(id+1).eq.1.0_8) return
+    if (dom%mask_n%elts(id+1).eq.ZERO) return
     
     ! Calculate cumulative mass and total mass of column
     cumul_mass(1) = 0.0_8
@@ -182,13 +182,11 @@ contains
     idN  = idx(i,   j+1, offs, dims)
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
-
-    if (sol(S_MASS,1)%data(d)%elts(id+1).eq.1.0_8) return
     
-    ! if (dom%mask_n%elts(id+1).eq.ZERO &
-    !      .or.dom%mask_e%elts(EDGE*id+RT+1).eq.ZERO &
-    !      .or.dom%mask_e%elts(EDGE*id+DG+1).eq.ZERO &
-    !      .or.dom%mask_e%elts(EDGE*id+UP+1).eq.ZERO) return ! do not remap inactive nodes
+    if (dom%mask_n%elts(id+1).eq.ZERO &
+         .or.dom%mask_e%elts(EDGE*id+RT+1).eq.ZERO &
+         .or.dom%mask_e%elts(EDGE*id+DG+1).eq.ZERO &
+         .or.dom%mask_e%elts(EDGE*id+UP+1).eq.ZERO) return ! do not remap inactive nodes
 
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels
