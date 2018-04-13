@@ -289,9 +289,7 @@ contains
        dom%R_F_wgt%elts(id_enc(3)+1)%enc = wgt(1:3)
        dom%R_F_wgt%elts(id_enc(4)+1)%enc = wgt(4:6)
     end if
-
   contains
-
     function interp_F_wgts (e, k1, ije_lcsd, endpt_o, ije, stencil)
       real(8), dimension(6)    :: interp_F_wgts
       integer                  :: e, k1
@@ -308,7 +306,7 @@ contains
 
       id_tri = tri_idx(ije_lcsd(1), ije_lcsd(2), adj_tri(:,-k1+2,ije_lcsd(3) + 1), offs, dims)
 
-      call local_coord(dom%ccentre%elts(id_tri+1), &
+      call local_coord (dom%ccentre%elts(id_tri+1), &
            dom%ccentre%elts(id_tri+1), dom%midpt%elts(ed_idx(0, 0, &
            ije_lcsd, offs, dims) + 1), x, y)
 
@@ -482,7 +480,7 @@ contains
     end if
   end subroutine compute_velo_wavelets_penta
 
-  subroutine init_wavelets()
+  subroutine init_wavelets
     integer :: d, i, k, num, v
 
     do k = 1, zlevels
@@ -1348,12 +1346,12 @@ contains
     coord2local = (/inner(c, x), inner(c, y)/)
   end function coord2local
 
-  subroutine init_wavelet_mod()
+  subroutine init_wavelet_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
-    call init_shared_mod()
-    call init_domain_mod()
+    call init_shared_mod
+    call init_domain_mod
 
     Iu_Base_Wgt = (/16.0, -1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 1.0, 1.0/)/16.0
     initialized = .True.
