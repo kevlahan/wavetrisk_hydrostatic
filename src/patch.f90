@@ -35,15 +35,15 @@ module patch_mod
      real(4), dimension(3) :: enc
   end type RF_Wgt
 contains
-  subroutine init_patch_mod()
+  subroutine init_patch_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
-    call init_shared_mod()
+    call init_shared_mod
     initialized = .True.
   end subroutine init_patch_mod
 
-  subroutine init_Patch(self, elts_start, level, chdrn, neigh)
+  subroutine init_Patch (self, elts_start, level, chdrn, neigh)
     type(Patch) :: self
     integer     :: elts_start, chdrn, level, neigh
 
@@ -52,7 +52,7 @@ contains
     self%deleted = .False.
   end subroutine init_Patch
 
-  subroutine init_Bdry_Patch(self, elts_start, side, neigh)
+  subroutine init_Bdry_Patch (self, elts_start, side, neigh)
     type(Bdry_Patch) :: self
     integer          :: elts_start, neigh, side
 
