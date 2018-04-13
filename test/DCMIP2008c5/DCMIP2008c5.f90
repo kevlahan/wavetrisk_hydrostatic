@@ -514,6 +514,7 @@ program DCMIP2008c5
   integer                      :: d, ierr, k, l, v, zlev
   integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
   integer, parameter           :: len_cmd_archive = 11 + 4 + 4
+  real(8)                      :: dt_cfl, dt_visc
   character(len_cmd_files)     :: cmd_files
   character(len_cmd_archive)   :: cmd_archive
   character(8+8+29+14)         :: command
@@ -580,7 +581,7 @@ program DCMIP2008c5
 
   ! Set logical switches
   adapt_trend  = .false. ! Adapt on trend or on variables
-  adapt_dt     = .true.  ! Adapt time step
+  adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true. ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
@@ -605,10 +606,16 @@ program DCMIP2008c5
   end if
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
-  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
-  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
-  if (rank.eq.0)                        write(6,'(1(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/(wave_speed+u_0)
-  if (rank.eq.0.and.viscosity.ne.0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", 0.25_8*dx_min**2/viscosity
+  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
+  dt_cfl = cfl_num*dx_min/(wave_speed+u_0)
+  if (viscosity.ne.0.0_8) then
+     dt_visc = 0.25_8*dx_min**2/viscosity
+     dt_init = min(dt_cfl, dt_visc)
+  else
+     dt_init = dt_cfl
+  end if
+  if (rank.eq.0)                        write(6,'(1(A,es10.4,1x))') "dt_cfl = ", dt_cfl
+  if (rank.eq.0.and.viscosity.ne.0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
 
   if (rank .eq. 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
