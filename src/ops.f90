@@ -175,6 +175,8 @@ contains
          end function physics_scalar_flux
       end interface
 
+      if (mass(id+1)==1.0_8) return
+      
       idS  = id+S
       idSW = id+SW
       idW  = id+W
@@ -272,7 +274,9 @@ contains
            logical, optional                        :: type
          end function physics_scalar_flux
       end interface
-
+      
+      if (mass(id+1)==1.0_8) return
+      
       idE  = id+E
       idN  = id+N
       idNE = id+NE
@@ -421,6 +425,8 @@ contains
     real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
     real(8) :: massE, massNE, massN, massW, massSW, massS
+
+    if (mass(id+1)==1.0_8) return
     
     massE  = mass(idE+1)
     massNE = mass(idNE+1) 
@@ -782,6 +788,8 @@ contains
 
     id = idx(i, j, offs, dims)
 
+    if (mass(id+1)==1.0_8) return
+
     if (compressible) then ! Compressible case
        if (zlev .eq. 1) then
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
@@ -853,6 +861,8 @@ contains
 
     id = idx(i, j, offs, dims)
 
+    if (mass(id+1)==1.0_8) return
+
     if (compressible) then ! Compressible case
        if (zlev .eq. 1) then
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
@@ -893,6 +903,8 @@ contains
     real(8), dimension (3) :: Qperp_e, physics
 
     id = idx(i, j, offs, dims)
+
+    if (mass(id+1)==1.0_8) return
 
     ! Calculate Q_perp
     Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
@@ -1012,6 +1024,8 @@ contains
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
     id = idx(i, j, offs, dims)
+
+    if (mass(id+1)==1.0_8) return
 
     dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
     dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
@@ -1142,6 +1156,8 @@ contains
     idE  = idx(i+1, j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
+
+    if (mass(id+1).eq.1.0_8) return
 
     ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
     ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature

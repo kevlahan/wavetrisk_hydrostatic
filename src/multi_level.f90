@@ -124,6 +124,7 @@ contains
 
        ! Velocity trend, source part
        do d = 1, size(grid)
+          mass    =>  q(S_MASS,k)%data(d)%elts
           velo    =>  q(S_VELO,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
           h_mflux => horiz_flux(S_MASS)%data(d)%elts
@@ -135,7 +136,7 @@ contains
              call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
           end do
 
-          nullify (velo, dvelo, h_mflux, divu, qe, vort)
+          nullify (mass, velo, dvelo, h_mflux, divu, qe, vort)
        end do
 
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -245,6 +246,7 @@ contains
 
           ! Velocity trend, source part
           do d = 1, size(grid)
+             mass    => q(S_MASS,k)%data(d)%elts
              velo    => q(S_VELO,k)%data(d)%elts
              dvelo   => dq(S_VELO,k)%data(d)%elts
              h_mflux => horiz_flux(S_MASS)%data(d)%elts

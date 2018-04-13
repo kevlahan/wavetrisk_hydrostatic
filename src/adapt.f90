@@ -303,7 +303,7 @@ contains
     check_child_required = .False.
   end function check_child_required
 
-   subroutine init_multi_level_mod
+  subroutine init_multi_level_mod
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
