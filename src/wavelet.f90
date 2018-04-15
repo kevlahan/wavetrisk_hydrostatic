@@ -720,6 +720,11 @@ contains
     id2W_chd  = idx(i_chd-2, j_chd,   offs_chd, dims_chd)
     id2NE_chd = idx(i_chd+2, j_chd+2, offs_chd, dims_chd)
 
+     if (dom%mask_n%elts(idE_chd+1) .ge. ADJZONE) then
+       wc_m(idE_chd+1) = mass(idE_chd+1) - Interp_node(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+       wc_t(idE_chd+1) = temp(idE_chd+1) - Interp_node(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+    end if
+
     if (dom%mask_n%elts(idNE_chd+1) .ge. ADJZONE) then
        wc_m(idNE_chd+1) = mass(idNE_chd+1) - Interp_node(dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
        wc_t(idNE_chd+1) = temp(idNE_chd+1) - Interp_node(dom, temp, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
@@ -728,11 +733,6 @@ contains
     if (dom%mask_n%elts(idN_chd+1) .ge. ADJZONE) then
        wc_m(idN_chd+1) = mass(idN_chd+1) - Interp_node(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
        wc_t(idN_chd+1) = temp(idN_chd+1) - Interp_node(dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
-    end if
-
-    if (dom%mask_n%elts(idE_chd+1) .ge. ADJZONE) then
-       wc_m(idE_chd+1) = mass(idE_chd+1) - Interp_node(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
-       wc_t(idE_chd+1) = temp(idE_chd+1) - Interp_node(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
     end if
   end subroutine compute_scalar_wavelets
 

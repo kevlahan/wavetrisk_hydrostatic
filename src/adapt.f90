@@ -52,7 +52,8 @@ contains
     ! Set all current masks > ADJZONE to at least ADJZONE for next time step
     call mask_adjacent
     call comm_masks_mpi (NONE)
-    
+
+    ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then 
        if (istep.eq.0) then ! Also adapt on variables when initializing
           call set_thresholds (1)
@@ -66,17 +67,33 @@ contains
     end if
     call comm_masks_mpi (NONE)
     
+    ! Add neighbouring parent wavelet nodes/edges
     do l = level_end-1, level_start, -1
-       call apply_interscale (mask_active_nodes, l, z_null,  0, 1)
-       call apply_interscale (mask_active_edges, l, z_null, -1, 1)
+       call apply_interscale (mask_active_parent_nodes, l, z_null,  0, 1)
+       call apply_interscale (mask_active_parent_edges, l, z_null, -1, 1)
        call comm_masks_mpi (l)
     end do
-    call comm_masks_mpi (NONE)
 
+    ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
-       call apply_onescale (mask_adj_space2, l, z_null, 0, 1)
+       call apply_onescale (mask_adj_space, l, z_null, 0, 1)
+    end do
+
+    ! Add neighbouring wavelets at finer scale
+    do l = level_end-1, level_start, -1
+       call apply_interscale (mask_adj_scale, l, z_null, 0, 1)
     end do
     call comm_masks_mpi (NONE)
+    
+    ! Ensure that perfect reconstruction criteria for active wavelets are satisfied
+    do l = level_end-1, level_start, -1
+       call apply_interscale (mask_perfect_scalar, l, z_null,  0, 0)
+       call apply_interscale (mask_perfect_velo,   l, z_null,  0, 0)
+       do d = 1, size(grid)
+          call apply_to_penta_d (mask_perfect_velo_penta, grid(d), l, z_null)
+       end do
+       call comm_masks_mpi (l)
+    end do
 
     ! needed if bdry is only 2 layers for scenario:
     ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
