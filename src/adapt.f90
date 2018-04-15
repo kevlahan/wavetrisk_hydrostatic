@@ -11,6 +11,7 @@ module adapt_mod
 
 contains
   subroutine init_adapt_mod
+    implicit none
     logical :: initialized = .False.
     if (initialized) return ! initialize only once
     call init_comm_mod
@@ -20,6 +21,7 @@ contains
   end subroutine init_adapt_mod
 
   subroutine adapt_grid (set_thresholds)
+    implicit none
     external :: set_thresholds
 
     if (adapt_trend) then
@@ -33,14 +35,21 @@ contains
   end subroutine adapt_grid
 
   subroutine adapt (set_thresholds)
+    implicit none
     external :: set_thresholds
     integer :: k, l, d
 
+    ! Ensure all nodes and edges at coarsest scales are active
+    do l = level_start-1, level_start
+       call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, TOLRNZ)
+    end do
+
+    ! Initialize all other nodes and edges to ZERO
     do l = level_start+1, level_end
        call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
-    ! Set all masks>ADJZONE to ADJZONE 
+    ! Set all current masks > ADJZONE to at least ADJZONE for next time step
     call mask_adjacent
     call comm_masks_mpi (NONE)
     

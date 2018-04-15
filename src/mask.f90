@@ -28,6 +28,24 @@ contains
     end do
   end subroutine set_masks
 
+  subroutine check_masks (dom, p, i, j, zlev, offs, dims, mask)
+    ! Checks if some nodes or edges have value mask
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev, mask
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: e, id
+
+    id = idx(i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1)==mask) write(6,*) 'hi1'
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e)==mask) write(6,*) 'hi2'
+    end do
+  end subroutine check_masks
+
   subroutine mask_adjacent
     implicit none
     integer :: k, l
@@ -91,6 +109,7 @@ contains
   end subroutine mask_active
   
   subroutine mask_tol (dom, i, j, zlev, offs, dims)
+    ! Set active wavelets (determines which grid points are active at adjacent finer scale)
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -139,27 +158,27 @@ contains
     id2NE_chd = idx(i_chd+2, j_chd+2, offs_chd, dims_chd)
 
     if (dom%mask_n%elts(idNE_chd+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_n%elts(idE_chd+1),   ADJZONE)
-       call set_at_least (dom%mask_n%elts(id_chd+1),    ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2E_chd+1),  ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2NE_chd+1), ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2S_chd+1),  ADJZONE)
+       call set_at_least (dom%mask_n%elts(idE_chd+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(id_chd+1),    TRSK)
+       call set_at_least (dom%mask_n%elts(id2E_chd+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(id2NE_chd+1), TRSK)
+       call set_at_least (dom%mask_n%elts(id2S_chd+1),  TRSK)
     end if
 
     if (dom%mask_n%elts(idNE_chd+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_n%elts(idN_chd+1),   ADJZONE)
-       call set_at_least (dom%mask_n%elts(id_chd+1),    ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2N_chd+1),  ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2W_chd+1),  ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2NE_chd+1), ADJZONE)
+       call set_at_least (dom%mask_n%elts(idN_chd+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(id_chd+1),    TRSK)
+       call set_at_least (dom%mask_n%elts(id2N_chd+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(id2W_chd+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(id2NE_chd+1), TRSK)
     end if
 
     if (dom%mask_e%elts(idNE_chd+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_n%elts(idNE_chd+1),  ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2NE_chd+1), ADJZONE)
-       call set_at_least (dom%mask_n%elts(id_chd+1),    ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2E_chd+1),  ADJZONE)
-       call set_at_least (dom%mask_n%elts(id2N_chd+1),  ADJZONE)
+       call set_at_least (dom%mask_n%elts(idNE_chd+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(id2NE_chd+1), TRSK)
+       call set_at_least (dom%mask_n%elts(id_chd+1),    TRSK)
+       call set_at_least (dom%mask_n%elts(id2E_chd+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(id2N_chd+1),  TRSK)
     end if
   end subroutine mask_perfect_scalar
 
@@ -188,46 +207,46 @@ contains
        id2 = idx(i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
 
        if (dom%mask_e%elts(EDGE*id2+e) .ge. ADJZONE .or. dom%mask_e%elts(EDGE*id1+e) .ge. ADJZONE) then
-          call set_at_least (dom%mask_e%elts(EDGE*id2+e), ADJZONE)
+          call set_at_least (dom%mask_e%elts(EDGE*id2+e), TRSK)
           call mask_outer_velo (dom, i_par, j_par, e - 1, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
        end if
     end do
 
     ! Inner
     if (dom%mask_e%elts(EDGE*idE_chd+UP+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_e%elts(EDGE*idE_chd+UP+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*id_chd+RT+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*id_chd+DG+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*idE_chd+UP+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id_chd+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id_chd+DG+1), TRSK)
     end if
     
     if (dom%mask_e%elts(EDGE*idE_chd+DG+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_e%elts(EDGE*idE_chd+DG+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*idE_chd+RT+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*idE2_chd+UP+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*idE_chd+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idE_chd+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idE2_chd+UP+1), TRSK)
     end if
 
     if (dom%mask_e%elts(EDGE*idNE_chd+RT+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_e%elts(EDGE*idNE_chd+RT+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*idNE_chd+DG+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*idN2E_chd+UP+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*idNE_chd+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idNE_chd+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idN2E_chd+UP+1), TRSK)
     end if
     
     if (dom%mask_e%elts(EDGE*idN_chd+RT+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_e%elts(EDGE*idN_chd+RT+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*id_chd+UP+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*id_chd+DG+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*idN_chd+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id_chd+UP+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id_chd+DG+1), TRSK)
     end if
     
     if (dom%mask_e%elts(EDGE*idN_chd+DG+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_e%elts(EDGE*idN_chd+DG+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*idN_chd+UP+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*idN2_chd+RT+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*idN_chd+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idN_chd+UP+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idN2_chd+RT+1), TRSK)
     end if
     
     if (dom%mask_e%elts(EDGE*idNE_chd+UP+1) .ge. ADJZONE) then
-       call set_at_least (dom%mask_e%elts(EDGE*idNE_chd+UP+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*idNE_chd+DG+1), ADJZONE)
-       call set_at_least (dom%mask_e%elts(EDGE*id2NE_chd+RT+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*idNE_chd+UP+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idNE_chd+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id2NE_chd+RT+1), TRSK)
     end if
   end subroutine mask_perfect_velo
 
@@ -252,8 +271,8 @@ contains
        idN_chd = idx(0, LAST,   offs_chd, dims_chd)
 
        if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
-          call set_at_least (dom%mask_e%elts(idx( 0, PATCH_SIZE, offs, dims)*EDGE + UP + 1), ADJZONE)
-          call set_at_least (dom%mask_e%elts(idx(-1, PATCH_SIZE, offs, dims)*EDGE + RT + 1), ADJZONE)
+          call set_at_least (dom%mask_e%elts(idx( 0, PATCH_SIZE, offs, dims)*EDGE + UP + 1), TRSK)
+          call set_at_least (dom%mask_e%elts(idx(-1, PATCH_SIZE, offs, dims)*EDGE + RT + 1), TRSK)
        end if
     else
        if (c .eq. IPLUSJMINUS) then
@@ -261,8 +280,8 @@ contains
           idE_chd = idx(LAST, 0, offs_chd, dims_chd)
 
           if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
-             call set_at_least (dom%mask_e%elts(idx(PATCH_SIZE, 0, offs, dims)*EDGE + RT + 1), ADJZONE)
-             call set_at_least (dom%mask_e%elts(idx(PATCH_SIZE,-1, offs, dims)*EDGE + UP + 1), ADJZONE)
+             call set_at_least (dom%mask_e%elts(idx(PATCH_SIZE, 0, offs, dims)*EDGE + RT + 1), TRSK)
+             call set_at_least (dom%mask_e%elts(idx(PATCH_SIZE,-1, offs, dims)*EDGE + UP + 1), TRSK)
           end if
        end if
     end if
@@ -275,11 +294,11 @@ contains
 
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
        call mask_penta_corr (dom, offs, dims, offs_chd, dims_chd, 1)
-       call set_at_least (dom%mask_e%elts(EDGE*idN_chd+UP+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*idN_chd+UP+1), TRSK)
     end if
     if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
        call mask_penta_corr (dom, offs, dims, offs_chd, dims_chd, 2)
-       call set_at_least (dom%mask_e%elts(EDGE*idE_chd+RT+1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(EDGE*idE_chd+RT+1), TRSK)
     end if
   end subroutine mask_perfect_velo_penta
 
@@ -291,19 +310,19 @@ contains
     integer                        :: itype
 
     if (itype.eq.1) then
-       call set_at_least (dom%mask_e%elts(idx(0, -1, offs, dims)*EDGE + UP + 1), ADJZONE) 
-       call set_at_least (dom%mask_e%elts(idx(-1, -1, offs, dims)*EDGE + 1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(idx(0, -1, offs, dims)*EDGE + UP + 1), TRSK) 
+       call set_at_least (dom%mask_e%elts(idx(-1, -1, offs, dims)*EDGE + 1), TRSK)
        call set_at_least (dom%mask_e%elts(ed_idx(end_pt(1,1,UP+1), end_pt(2,1,UP+1), &
-            hex_sides(:,hex_s_offs(UP+1) + 0 + 1), offs, dims) + 1), ADJZONE)
+            hex_sides(:,hex_s_offs(UP+1) + 0 + 1), offs, dims) + 1), TRSK)
        call set_at_least (dom%mask_e%elts(ed_idx(opp_no(1,2,UP+1), opp_no(2,2,UP+1), &
-            hex_sides(:,hex_s_offs(UP+1) + 1 + 1), offs, dims) + 1), ADJZONE)
+            hex_sides(:,hex_s_offs(UP+1) + 1 + 1), offs, dims) + 1), TRSK)
     elseif (itype.eq.2) then
-       call set_at_least (dom%mask_e%elts(idx(-1, -1, offs, dims)*EDGE + 1), ADJZONE) 
-       call set_at_least (dom%mask_e%elts(idx(-1, 0, offs, dims)*EDGE + RT + 1), ADJZONE)
+       call set_at_least (dom%mask_e%elts(idx(-1, -1, offs, dims)*EDGE + 1), TRSK) 
+       call set_at_least (dom%mask_e%elts(idx(-1, 0, offs, dims)*EDGE + RT + 1), TRSK)
        call set_at_least (dom%mask_e%elts(ed_idx(opp_no(1,1,RT+1), opp_no(2,1,RT+1), &
-            hex_sides(:,hex_s_offs(RT+1) + 1 + 1), offs, dims) + 1), ADJZONE) 
+            hex_sides(:,hex_s_offs(RT+1) + 1 + 1), offs, dims) + 1), TRSK) 
        call set_at_least (dom%mask_e%elts(ed_idx(end_pt(1,1,RT+1), end_pt(2,1,RT+1), &
-            hex_sides(:,hex_s_offs(RT+1) + 2 + 1), offs, dims) + 1), ADJZONE)
+            hex_sides(:,hex_s_offs(RT+1) + 2 + 1), offs, dims) + 1), TRSK)
     end if
   end subroutine mask_penta_corr
 
@@ -344,43 +363,43 @@ contains
 
     ide = idx(i_chd+end_pt(1,2,e+1),j_chd+end_pt(2,2,e+1),offs_chd,dims_chd)
     
-    call set_at_least (dom%mask_e%elts(idx(i,j,offs,dims)*EDGE+e+1), ADJZONE)
+    call set_at_least (dom%mask_e%elts(idx(i,j,offs,dims)*EDGE+e+1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 2 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 2 + 1), offs, dims) + 1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 3 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 3 + 1), offs, dims) + 1), TRSK)
          
     call set_at_least (dom%mask_e%elts(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 5 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 5 + 1), offs, dims) + 1), TRSK)
          
     call set_at_least (dom%mask_e%elts(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 0 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 0 + 1), offs, dims) + 1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + opp_no(1,1,e+1), j + opp_no(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims) + 1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 2 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 2 + 1), offs, dims) + 1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 3 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 3 + 1), offs, dims) + 1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + opp_no(1,1,e+1), j + opp_no(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 4 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 4 + 1), offs, dims) + 1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + opp_no(1,2,e+1), j + opp_no(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 4 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 4 + 1), offs, dims) + 1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 5 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 5 + 1), offs, dims) + 1), TRSK)
          
     call set_at_least (dom%mask_e%elts(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 0 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 0 + 1), offs, dims) + 1), TRSK)
     
     call set_at_least (dom%mask_e%elts(ed_idx(i + opp_no(1,2,e+1), j + opp_no(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims) + 1), ADJZONE)
+         hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims) + 1), TRSK)
   end subroutine mask_outer_velo
 
   subroutine mask_active_edges (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -553,7 +572,7 @@ contains
     idNE_par = idx(i_par+1, j_par+1, offs_par, dims_par)
 
     if (dom%mask_n%elts(id_par+1) .ge. TOLRNZ) then
-       ! Nearest neighbour nodes in same cell at finer scale
+       ! Nearest neighbour nodes in same cell
        call set_at_least (dom%mask_n%elts(id_chd+1),    ADJZONE)
        call set_at_least (dom%mask_n%elts(idE_chd+1),   ADJZONE)
        call set_at_least (dom%mask_n%elts(idNE_chd+1),  ADJZONE)
