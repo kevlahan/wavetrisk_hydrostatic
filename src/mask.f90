@@ -40,9 +40,9 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1)==mask) write(6,*) 'hi1'
+    if (dom%mask_n%elts(id+1)==mask) write(6,*) 'node ', id, ' has value ', mask
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e)==mask) write(6,*) 'hi2'
+       if (dom%mask_e%elts(EDGE*id+e)==mask) write(6,*) 'edge ', id, e, ' has value ', mask
     end do
   end subroutine check_masks
 
