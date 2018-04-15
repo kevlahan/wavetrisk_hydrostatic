@@ -115,6 +115,8 @@
 ! %elts(id+1)         - the one grid element hexagon node (e.g. masses)
 ! %elts(EDGE*id+e+1)  - the three grid element edges RT, DG, UP, where e = 0,1,2 (e.g. velocities, fluxes)
 ! %elts(TRIAG*id+t+1) - the two grid element triangles LORT, UPLT, where t = 0,1 (e.g. circulation)
+!
+! Wavelet coefficients are stored at the SAME nodes/edges as the nodes/edges they characterize.
 
 ! DATA OUTPUT
 !
