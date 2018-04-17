@@ -32,11 +32,11 @@ contains
 
     call comp_offs3 (dom, p, offs, dims)
 
-    S_bdry = (dom%patch%elts(p+1)%neigh(SOUTH) .lt. 0)
-    if (S_bdry) S_bdry = (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(SOUTH)+1)%side .gt. 0)
+    S_bdry = (dom%patch%elts(p+1)%neigh(SOUTH) < 0)
+    if (S_bdry) S_bdry = (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(SOUTH)+1)%side > 0)
 
-    W_bdry = (dom%patch%elts(p+1)%neigh(WEST)  .lt. 0)
-    if (W_bdry) W_bdry = (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(WEST)+1)%side .gt. 0)
+    W_bdry = (dom%patch%elts(p+1)%neigh(WEST)  < 0)
+    if (W_bdry) W_bdry = (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(WEST)+1)%side > 0)
 
     id = offs(0)
 
@@ -96,8 +96,8 @@ contains
     e = offs(EAST) + (dims(1,EAST)-PATCH_SIZE)*LAST
     call comput
 
-    if (dom%patch%elts(p+1)%neigh(NORTH) .lt. 0) then ! Neighbour is boundary
-       if (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(NORTH)+1)%side .gt. 0) then ! Domain boundary
+    if (dom%patch%elts(p+1)%neigh(NORTH) < 0) then ! Neighbour is boundary
+       if (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(NORTH)+1)%side > 0) then ! Domain boundary
           id = offs(0)+PATCH_SIZE*LAST + offs(NORTH) ! id + n
           s =                                   - offs(NORTH) ! relative to current id
           w = offs(NORTHWEST)                   - offs(NORTH) 
@@ -131,8 +131,8 @@ contains
        end if
     end if
 
-    if (dom%patch%elts(p+1)%neigh(EAST) .lt. 0) then ! neighbour is boundary
-       if (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(EAST)+1)%side .le. 0) return ! not domain bdry
+    if (dom%patch%elts(p+1)%neigh(EAST) < 0) then ! neighbour is boundary
+       if (dom%bdry_patch%elts(-dom%patch%elts(p+1)%neigh(EAST)+1)%side <= 0) return ! not domain bdry
        id = offs(0) + LAST + offs(EAST) ! id + n
        w  =                - offs(EAST) ! relative to current id
        s  = offs(SOUTHEAST)- offs(EAST) 
@@ -152,14 +152,15 @@ contains
        end do
 
        id = offs(0) + LAST + offs(EAST) + LAST*dims(1,EAST)
-       n  = offs(NORTHEAST) + LAST*(PATCH_SIZE-dims(1,EAST)) - offs(EAST)
-       w  =                - offs(EAST) + LAST*(PATCH_SIZE-dims(1,EAST))
+       n  =   offs(NORTHEAST) + LAST*(PATCH_SIZE-dims(1,EAST)) - offs(EAST)
+       w  = - offs(EAST)      + LAST*(PATCH_SIZE-dims(1,EAST))
        sw = w-PATCH_SIZE
        ne = n+e
        call comput
     end if
   contains
     subroutine comp_ijmin
+      implicit none
       integer :: idS, idSW, idW
       real(8) :: circ_LORT_SW, circ_UPLT_SW, u_prim_RT_SW, u_prim_UP_SW
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
@@ -177,9 +178,9 @@ contains
 
       if (mass(id+1)==1.0_8) return
       
-      idS  = id+S
-      idSW = id+SW
       idW  = id+W
+      idSW = id+SW
+      idS  = id+S
 
       massW  = mass(idW+1)
       massSW = mass(idSW+1)
@@ -201,7 +202,7 @@ contains
          tempS=temp(id+1)
       end if
 
-      if (itype.eq.0) then 
+      if (itype==0) then 
          u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
          u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
 
@@ -243,7 +244,7 @@ contains
          h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(temp(id+1), tempW)  + physics(S_TEMP,RT+1)
          h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp(temp(id+1), tempSW) + physics(S_TEMP,DG+1)
          h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp(temp(id+1), tempS)  + physics(S_TEMP,UP+1)
-      elseif (itype.eq.1) then ! Flux of scalar gradients for fourth order Laplacian
+      elseif (itype==1) then ! Flux of scalar gradients for fourth order Laplacian
          h_mflux(EDGE*idW+RT+1)  = -(mass(idW+1) - mass(id+1))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
          h_mflux(EDGE*idSW+DG+1) = -(mass(id+1)  - mass(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
          h_mflux(EDGE*idS+UP+1)  = -(mass(idS+1) - mass(id+1))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
@@ -274,7 +275,7 @@ contains
            logical, optional                        :: type
          end function physics_scalar_flux
       end interface
-      
+
       if (mass(id+1)==1.0_8) return
       
       idE  = id+E
@@ -291,6 +292,10 @@ contains
       tempE  = temp(idE+1)
       tempNE = temp(idNE+1)
       tempN  = temp(idN+1)
+
+      if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idW+RT+1)==ZERO) write(6,*) 'hi1'
+      if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idSW+DG+1)==ZERO) write(6,*) 'hi2'
+      if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idS+UP+1)==ZERO) write(6,*) 'hi3'
       
       if (massE==1.0_8)  then
          massE  = mass(id+1)
@@ -306,7 +311,7 @@ contains
       end if
       if (massW==1.0_8)  massW  = mass(id+1)
 
-      if (itype.eq.0) then
+      if (itype==0) then
          ! Find the velocity on primal and dual grids
          u_prim_RT    = velo(EDGE*id  +RT+1)*dom%len%elts(EDGE*id+RT+1)
          u_dual_RT    = velo(EDGE*id  +RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
@@ -399,7 +404,7 @@ contains
          h_tflux(EDGE*id+RT+1) = u_dual_RT * interp(temp(id+1), tempE)  + physics(S_TEMP,RT+1)
          h_tflux(EDGE*id+DG+1) = u_dual_DG * interp(temp(id+1), tempNE) + physics(S_TEMP,DG+1)
          h_tflux(EDGE*id+UP+1) = u_dual_UP * interp(temp(id+1), tempN)  + physics(S_TEMP,UP+1)
-      elseif (itype.eq.1) then ! Flux of scalar gradients for fourth order Laplacian
+      elseif (itype==1) then ! Flux of scalar gradients for fourth order Laplacian
          h_mflux(EDGE*id+RT+1) = (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
          h_mflux(EDGE*id+DG+1) = (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
          h_mflux(EDGE*id+UP+1) = (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
@@ -442,7 +447,7 @@ contains
     if (massSW==1.0_8) massSW = mass(id+1)
     if (massS==1.0_8)  massS  = mass(id+1)
     
-    if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
+    if (c == IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
        id   = idx( 0,  0, offs, dims)
        idSW = idx(-1, -1, offs, dims)
        idW  = idx(-1,  0, offs, dims)
@@ -482,7 +487,7 @@ contains
        qe(EDGE*idS+UP+1) = interp(pv_UPLT_S, pv_LORT_SW)
     end if
 
-    if (c .eq. IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
+    if (c == IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
        id   = idx(PATCH_SIZE,    0, offs, dims)
        idSW = idx(PATCH_SIZE-1, -1, offs, dims)
        idS  = idx(PATCH_SIZE,   -1, offs, dims)
@@ -522,7 +527,7 @@ contains
        qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
-    if (c .eq. IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+    if (c == IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
        id   = idx( 0, PATCH_SIZE,   offs, dims)
        idSW = idx(-1, PATCH_SIZE-1, offs, dims)
        idW  = idx(-1, PATCH_SIZE,   offs, dims)
@@ -562,7 +567,7 @@ contains
        qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
-    if (c .eq. IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
+    if (c == IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
        id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
        idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
        idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
@@ -613,7 +618,7 @@ contains
     real(8) ::  circ_LORT, circ_LORT_SW, circ_UPLT_SW
     real(8) :: u_prim_DG_SW, u_prim_RT, u_prim_RT_N, u_prim_RT_SW,  u_prim_RT_W, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
-    if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS (SW corner of lozenge) combined to form pentagon
+    if (c == IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS (SW corner of lozenge) combined to form pentagon
        id   = idx( 0,  0, offs, dims)
        idS  = idx( 0, -1, offs, dims)
        idSW = idx(-1, -1, offs, dims)
@@ -629,7 +634,7 @@ contains
        vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
     end if
 
-    if (c .eq. IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (SE corner of lozenge) combined to form pentagon
+    if (c == IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (SE corner of lozenge) combined to form pentagon
        id   = idx(PATCH_SIZE,    0, offs, dims)
        idS  = idx(PATCH_SIZE,   -1, offs, dims)
        idSW = idx(PATCH_SIZE-1, -1, offs, dims)
@@ -644,7 +649,7 @@ contains
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
     end if
 
-    if (c .eq. IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (NW corner of lozenge) combined to form pentagon
+    if (c == IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (NW corner of lozenge) combined to form pentagon
        id   = idx( 0, PATCH_SIZE,   offs, dims)
        idSW = idx(-1, PATCH_SIZE-1, offs, dims)
        idW  = idx(-1, PATCH_SIZE,   offs, dims)
@@ -659,7 +664,7 @@ contains
        vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
     end if
 
-    if (c .eq. IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (NE corner of lozenge) combined to form pentagon
+    if (c == IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (NE corner of lozenge) combined to form pentagon
        id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
        idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
 
@@ -791,16 +796,16 @@ contains
     if (mass(id+1)==1.0_8) return
 
     if (compressible) then ! Compressible case
-       if (zlev .eq. 1) then
+       if (zlev == 1) then
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
        else ! Interpolate mass=rho*dz to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(mass(id+1), dom%adj_mass%elts(id+1))
        end if
        dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressure calculation at next vertical level
 
-       if (zlev .eq. zlevels) then !top zlev, purely diagnostic
+       if (zlev == zlevels) then !top zlev, purely diagnostic
           err = abs((dom%press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)) - press_infty)/dom%surf_press%elts(id+1)
-          if (err .gt. 1e-10_8) then
+          if (err > 1e-10_8) then
              write(6,*) 'Warning: upward integration of pressure not resulting in zero at top interface'
              write(6,*) '(observed pressure - pressure_infty)/P_Surface =', err
              stop
@@ -814,22 +819,22 @@ contains
        spec_vol = kappa * temp(id+1)/mass(id+1) * exner(id+1) / dom%press%elts(id+1)
 
        ! Find geopotential at upper interface of current level using (18) in DYNAMICO
-       if (zlev .eq. 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
+       if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
           dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1) 
        else
           dom%adj_geopot%elts(id+1) = dom%geopot%elts(id+1)
        end if
        dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel*mass(id+1)*spec_vol
     else ! Incompressible case
-       if (zlev .eq. 1) then 
+       if (zlev == 1) then 
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*temp(id+1)
        else ! Interpolate to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(dom%adj_temp%elts(id+1), temp(id+1))
        end if
        dom%adj_temp%elts(id+1) = temp(id+1)
 
-       if (zlev .eq. zlevels) then !top zlev, purely diagnostic
-          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1) - press_infty).gt. 1e-10_8) then
+       if (zlev == zlevels) then !top zlev, purely diagnostic
+          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1) - press_infty)> 1e-10_8) then
              print *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
              write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1)
              write(6,'(A,es15.8)') "Press_infty = ", press_infty
@@ -841,7 +846,7 @@ contains
        ! Find geopotential at interfaces using (18) in DYNAMICO
        ! Note: since mu is associated with the kinematic mass = inert mass (not the gravitational mass defined by the buyoancy)
        ! we divide by the constant reference density. This is the Boussinesq approximation.
-       if (zlev .eq. 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
+       if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
           dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1) 
        else
           dom%adj_geopot%elts(id+1) = dom%geopot%elts(id+1)
@@ -864,14 +869,14 @@ contains
     if (mass(id+1)==1.0_8) return
 
     if (compressible) then ! Compressible case
-       if (zlev .eq. 1) then
+       if (zlev == 1) then
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
        else ! Interpolate mass=rho*dz to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(mass(id+1), dom%adj_mass%elts(id+1))
        end if
        dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressure calculation at next vertical level
     else ! Incompressible case
-       if (zlev .eq. 1) then 
+       if (zlev == 1) then 
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*temp(id+1)
        else ! Interpolate to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp(dom%adj_temp%elts(id+1), temp(id+1))
@@ -1157,7 +1162,7 @@ contains
     idN  = idx(i,   j+1, offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
 
-    if (mass(id+1).eq.1.0_8) return
+    if (mass(id+1)==1.0_8) return
 
     ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
     ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
@@ -1281,10 +1286,10 @@ contains
     offs(0) = dom%patch%elts(p+1)%elts_start
     do i = 1, N_BDRY
        n = dom%patch%elts(p+1)%neigh(i)
-       if (n .gt. 0) then ! regular patch
+       if (n > 0) then ! regular patch
           offs(i)  = dom%patch%elts(n+1)%elts_start
           dims(:,i) = PATCH_SIZE
-       else if (n .lt. 0) then
+       else if (n < 0) then
           offs(i)  = dom%bdry_patch%elts(-n+1)%elts_start
           dims(:,i) = sides_dims(:,abs(dom%bdry_patch%elts(-n+1)%side)+1)
        end if
@@ -1369,9 +1374,9 @@ contains
 
   !   id   = idx(i, j, offs, dims)
 
-  !   if (zlev.eq.1) then 
+  !   if (zlev==1) then 
   !      v_mflux(id+1) = 0.0_8                   - dmass(id+1) - div(h_mflux, dom, i, j, offs, dims) ! Flux is zero at surface
-  !   elseif (zlev.eq.zlevels) then ! Flux is zero at upper interface of top level
+  !   elseif (zlev==zlevels) then ! Flux is zero at upper interface of top level
   !      v_mflux(id+1) = 0.0_8
   !   else
   !      v_mflux(id+1) = dom%adj_mass%elts(id+1) - dmass(id+1) - div(h_mflux, dom, i, j, offs, dims)
@@ -1396,7 +1401,7 @@ contains
   !   ! Non-mass weighted vertical velocity at upper interface
   !   velo = v_mflux(id+1)/mass(id+1)
 
-  !   if (zlev.eq.1) then ! No vertical flux through lower interface of bottom level
+  !   if (zlev==1) then ! No vertical flux through lower interface of bottom level
   !      dom%vert_velo%elts(id+1) = interp(velo, 0.0_8)
   !   else
   !      dom%vert_velo%elts(id+1) = interp(velo, dom%adj_vflux%elts(id+1))
@@ -1457,7 +1462,7 @@ contains
   !    ! Assume free slip boundary conditions at top and bottom of vertical layers (i.e. velocity at top interface and surface equals
   !    ! velocity at adjacent full level)
 
-  !    if (zlev.eq.1) then ! surface
+  !    if (zlev==1) then ! surface
   !       ! Horizontal velocities at edges interpolated at upper interface
   !       do e = 1, EDGE
   !          v_star(e) = interp(velo(EDGE*id+e), adj_velo_up(EDGE*id+e))
@@ -1476,7 +1481,7 @@ contains
   !       do e = 1, EDGE
   !          dom%adj_velo%elts(EDGE*id+e) = v_star(e)
   !       end do
-  !    elseif (zlev.eq.zlevels) then ! top level
+  !    elseif (zlev==zlevels) then ! top level
   !       dvelo(EDGE*id+RT+1) = dvelo(EDGE*id+RT+1) + interp(dom%vert_velo%elts(id+1), dom%vert_velo%elts(idE+1))  * &
   !            (velo(EDGE*id+RT+1) - dom%adj_velo%elts(EDGE*id+RT+1))
 

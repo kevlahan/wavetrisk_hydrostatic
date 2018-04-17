@@ -376,29 +376,56 @@ contains
   end subroutine mask_penta_corr
 
   subroutine mask_trisk (dom, i, j, zlev, offs, dims)
+    ! Add additional nodes and edgs required for TRISK operator stencils
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN
+    integer :: id, idE, idNE, idN, idNW, idW, idSW, idS, idSE
 
     id   = idx(i,   j,   offs, dims)
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
+    idNW = idx(i-1, j+1, offs, dims)
     idN  = idx(i,   j+1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idSE = idx(i+1, j-1, offs, dims)
     
-    ! Mask for divergence
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
+        ! Flux divergence stencil
        call set_at_least (dom%mask_n%elts(idE+1),  TRSK)
        call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
        call set_at_least (dom%mask_n%elts(idN+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK) 
 
+       ! Kinetic energy and circulation stencil
        call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), TRSK)
        call set_at_least (dom%mask_e%elts(EDGE*id+DG+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK) 
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
+
+       ! Potential vorticity stencil
+       call set_at_least (dom%mask_n%elts(idW+1), TRSK)
+
+       ! Qperp stencil
+       call set_at_least (dom%mask_e%elts(EDGE*idNW+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idSE+DG+1), TRSK)
     end if
+
+    ! if (dom%mask_e%elts(idW+RT+1) >= ADJZONE) then
+    !    call set_at_least (dom%mask_n%elts(idW+1),  TRSK)
+    !    call set_at_least (dom%mask_n%elts(idS+1),  TRSK)
+    ! end if
+
+    !  if (dom%mask_e%elts(idSW+DG+1) >= ADJZONE) then
+    !     call set_at_least (dom%mask_n%elts(idSW+1),  TRSK)
+    !     call set_at_least (dom%mask_n%elts(idS+1),  TRSK)
+    !  end if
   end subroutine mask_trisk
 
   subroutine mask_adj_parent_nodes (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)

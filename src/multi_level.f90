@@ -8,6 +8,7 @@ module multi_level_mod
 contains
   subroutine trend_ml (q, dq)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
+    implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
 
     integer :: d, j, k, l, p
@@ -23,7 +24,7 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
-       if (Laplace_order.eq.2) then ! Find grad(scalars) for second order Laplacian
+       if (Laplace_order==2) then ! Find grad(scalars) for second order Laplacian
           do d = 1, size(grid)
              mass    => q(S_MASS,k)%data(d)%elts
              temp    => q(S_TEMP,k)%data(d)%elts
@@ -70,7 +71,7 @@ contains
           nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, divu, exner, vort, qe)
        end do
 
-       if (level_start .lt. level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
+       if (level_start < level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
 
        ! Compute scalar trends at finest level
        do d = 1, size(grid)
@@ -90,12 +91,12 @@ contains
 
        dq(:,k)%bdry_uptodate    = .False.
        horiz_flux%bdry_uptodate = .False.
-       if (level_start .lt. level_end) then
+       if (level_start < level_end) then
           call update_vector_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
           call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), level_end) ! <= start non-blocking communicate dmass (l+1)
        end if
        
-       if (Laplace_order.eq.2) then ! Calculate Laplacian(u)
+       if (Laplace_order==2) then ! Calculate Laplacian(u)
           do d = 1, size(grid)
              velo => q(S_VELO,k)%data(d)%elts
              divu => grid(d)%divu%elts
@@ -145,7 +146,7 @@ contains
        do l = level_end-1, level_start, -1
           call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
 
-          if (Laplace_order.eq.2) then ! Find grad(scalars) for second order Laplacian
+          if (Laplace_order==2) then ! Find grad(scalars) for second order Laplacian
              do d = 1, size(grid)
                 mass    => q(S_MASS,k)%data(d)%elts
                 temp    => q(S_TEMP,k)%data(d)%elts
@@ -215,9 +216,9 @@ contains
           end do
 
           dq(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
-          if (l .gt. level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l)  ! <= start non-blocking communicate dmass (l+1)
+          if (l > level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l)  ! <= start non-blocking communicate dmass (l+1)
 
-          if (Laplace_order.eq.2) then ! Second-order order diffusion of velocity
+          if (Laplace_order==2) then ! Second-order order diffusion of velocity
              do d = 1, size(grid) ! Calculate Laplacian(u)
                 velo => q(S_VELO,k)%data(d)%elts
                 divu => grid(d)%divu%elts
@@ -279,6 +280,7 @@ contains
   end subroutine trend_ml
  
   subroutine cpt_or_restr_Bernoulli_Exner (dom, l)
+    implicit none
     type(Domain) :: dom
     integer      :: l
 
@@ -290,7 +292,7 @@ contains
        restrict = .False.
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .gt. 0) restrict(c) = .True.
+          if (p_chd > 0) restrict(c) = .True.
        end do
        do c = 1, N_CHDRN
           if (restrict(c)) then
@@ -302,6 +304,7 @@ contains
 
   subroutine Bernoulli_Exner_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute or restrict Bernoulli and Exner functions
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -312,13 +315,14 @@ contains
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    if (dom%mask_n%elts(id_par+1) .ge. RESTRCT) then
+    if (dom%mask_n%elts(id_par+1) >= RESTRCT) then
        bernoulli(id_par+1) = bernoulli(id_chd+1)
        exner(id_par+1)     = exner(id_chd+1)
     end if
   end subroutine Bernoulli_Exner_cpt_restr
 
   subroutine cpt_or_restr_du_source (dom, l)
+    implicit none
     type(Domain) :: dom
     integer      :: l
 
@@ -328,13 +332,14 @@ contains
        p_par = dom%lev(l)%elts(j)
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .eq. 0) call apply_onescale_to_patch (du_source, dom, p_par, z_null, 0, 0)
+          if (p_chd == 0) call apply_onescale_to_patch (du_source, dom, p_par, z_null, 0, 0)
        end do
        call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
     end do
   end subroutine cpt_or_restr_du_source
 
   subroutine du_source_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
     type(Domain)                     :: dom
     integer                          :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
@@ -349,24 +354,25 @@ contains
     idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
     idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
 
-    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. ADJZONE) then
+    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) < ADJZONE) then
        call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
     end if
 
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) then
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) then
        dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
     end if
 
-    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) then
+    if (dom%mask_e%elts(DG+EDGE*id_chd+1) >= ADJZONE) then
        dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
     end if
 
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) then
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) then
        dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
     end if
   end subroutine du_source_cpt_restr
 
   subroutine cpt_or_restr_physics_velo_source (dom, l)
+    implicit none
     type(Domain) :: dom
     integer      :: l
     
@@ -387,7 +393,7 @@ contains
        p_par = dom%lev(l)%elts(j)
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .eq. 0) then
+          if (p_chd == 0) then
              call apply_onescale_to_patch (physics_velo_source, dom, p_par, z_null, 0, 0)
           end if
        end do
@@ -396,6 +402,7 @@ contains
   end subroutine cpt_or_restr_physics_velo_source
 
   subroutine source_physics_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
     type(Domain)                     :: dom
     integer                          :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
@@ -415,14 +422,14 @@ contains
        end subroutine physics_velo_source
     end interface
 
-    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
+    id_par   = idx(i_par, j_par, offs_par, dims_par)
 
-    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
-    idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
+    id_chd   = idx(i_chd,   j_chd,   offs_chd, dims_chd)
+    idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
 
-    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) .lt. ADJZONE) then
+    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) < ADJZONE) then
        call physics_velo_source (dom, i_par, j_par, zlev, offs_par, dims_par)
     end if
 
@@ -434,17 +441,18 @@ contains
     u_prim_UP    = dvelo(EDGE*id_chd+UP+1)*dom%len%elts(EDGE*id_chd+UP+1)
     u_prim_UP_N  = dvelo(EDGE*idN_chd+UP+1)*dom%len%elts(EDGE*idN_chd+UP+1)
     
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) &
          dvelo(EDGE*id_par+RT+1) = (u_prim_RT + u_prim_RT_E)/dom%len%elts(EDGE*id_par+RT+1)
 
-    if (dom%mask_e%elts(DG+EDGE*id_chd+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(DG+EDGE*id_chd+1) >= ADJZONE) &
          dvelo(EDGE*id_par+DG+1) = (u_prim_DG + u_prim_DG_NE)/dom%len%elts(EDGE*id_par+DG+1)
 
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) .ge. ADJZONE) &
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) &
          dvelo(EDGE*id_par+UP+1) = (u_prim_UP + u_prim_UP_N)/dom%len%elts(EDGE*id_par+UP+1)
   end subroutine source_physics_cpt_restr
 
   subroutine cpt_or_restr_flux (dom, l)
+    implicit none
     type(Domain) :: dom
     integer      :: l
 
@@ -456,18 +464,17 @@ contains
        restrict = .False.
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd .gt. 0) restrict(c) = .True.
+          if (p_chd > 0) restrict(c) = .True.
        end do
        do c = 1, N_CHDRN
-          if (restrict(c)) then
-             call apply_interscale_to_patch3 (flux_cpt_restr, dom, p_par, c, z_null, 0, 1)
-          end if
+          if (restrict(c))  call apply_interscale_to_patch3 (flux_cpt_restr, dom, p_par, c, z_null, 0, 1)
        end do
     end do
   end subroutine cpt_or_restr_flux
 
   subroutine flux_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute flux restriction of mass and potential temperature by summing coarse, corrective and small fluxes
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -479,37 +486,39 @@ contains
     id_chd   = idx(i_chd, j_chd, offs_chd, dims_chd)
     id_par   = idx(i_par, j_par, offs_par, dims_par)
 
-    if (i_chd .ge. PATCH_SIZE .or. j_chd .ge. PATCH_SIZE) return
+    if (i_chd >= PATCH_SIZE .or. j_chd >= PATCH_SIZE) return
 
     call flux_restr (dmass, h_mflux)
     call flux_restr (dtemp, h_tflux)
   contains
     subroutine flux_restr (dscalar, h_flux)
+      implicit none
       real(8), dimension(:), pointer :: dscalar, h_flux
 
       real(8), dimension(4) :: sm_flux
 
-      if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) .ge. RESTRCT) then
+      if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) >= RESTRCT) then
          sm_flux = interp_flux(h_flux, dom, i_chd, j_chd, offs_chd, dims_chd)
       end if
 
-      if (dom%mask_e%elts(EDGE*id_par+RT+1) .ge. RESTRCT) then
+      if (dom%mask_e%elts(EDGE*id_par+RT+1) >= RESTRCT) then
          h_flux(EDGE*id_par+RT+1) = &
               complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, RT, offs_chd, dims_chd)
       end if
 
-      if (dom%mask_e%elts(EDGE*id_par+DG+1) .ge. RESTRCT) then
+      if (dom%mask_e%elts(EDGE*id_par+DG+1) >= RESTRCT) then
          h_flux(EDGE*id_par+DG+1) = &
               complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, DG, offs_chd, dims_chd)
       end if
 
-      if (dom%mask_e%elts(EDGE*id_par+UP+1) .ge. RESTRCT) then
+      if (dom%mask_e%elts(EDGE*id_par+UP+1) >= RESTRCT) then
          h_flux(EDGE*id_par+UP+1) = &
               complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
       end if
     end subroutine flux_restr
 
     function complete_coarse_flux (dscalar, flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
+      implicit none
       real(8)                        :: complete_coarse_flux
       real(8), dimension(:), pointer :: dscalar, flux
       integer                        :: i_par, j_par, i_chd, j_chd
@@ -521,15 +530,15 @@ contains
       real(8)                :: p_flux, c_flux
       real(8), dimension(4)  :: sm_flux
 
-      if (e .eq. RT) then
+      if (e == RT) then
          p_flux = part_coarse_flux (dscalar, flux, dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
          c_flux = coarse_flux(dscalar, dom, i_par, j_par, i_chd+1, j_chd, RT)
          complete_coarse_flux = p_flux + c_flux + sm_flux(1) + sm_flux(2)
-      elseif (e .eq. DG) then
+      elseif (e == DG) then
          p_flux = part_coarse_flux (dscalar, flux, dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd)
          c_flux = coarse_flux(dscalar, dom, i_par, j_par, i_chd+1, j_chd+1, DG)
          complete_coarse_flux = p_flux + c_flux + sm_flux(2) + sm_flux(3)
-      elseif (e .eq. UP) then
+      elseif (e == UP) then
          p_flux = part_coarse_flux (dscalar, flux, dom, i_chd, j_chd+1, UP, offs_chd, dims_chd)
          c_flux = coarse_flux(dscalar, dom, i_par, j_par, i_chd, j_chd+1, UP)
          complete_coarse_flux = p_flux + c_flux + sm_flux(3) + sm_flux(4)
@@ -537,6 +546,7 @@ contains
     end function complete_coarse_flux
 
     function coarse_flux (dscalar, dom, i_par, j_par, i_chd, j_chd, e)
+      implicit none
       real(8)                        :: coarse_flux
       real(8), dimension(:), pointer :: dscalar
       integer                        :: i_par, j_par, i_chd, j_chd, e
@@ -575,6 +585,7 @@ contains
     end function coarse_flux
 
     subroutine get_indices (dom, i, j, e, offs, dims, id)
+      implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, e
       integer, dimension(N_BDRY+1)   :: offs
@@ -613,6 +624,7 @@ contains
     end subroutine get_indices
 
     function interp_flux (flux, dom, i, j, offs, dims)
+      implicit none
       real(8), dimension(4)          :: interp_flux
       real(8), dimension(:), pointer :: flux
       integer                        ::  i, j
@@ -645,6 +657,7 @@ contains
     end function interp_flux
 
     function part_coarse_flux (dscalar, flux, dom, i, j, e, offs, dims)
+      implicit none
       real(8)                        :: part_coarse_flux
       real(8), dimension(:), pointer :: dscalar, flux
       integer                        :: i, j, e
@@ -678,6 +691,7 @@ contains
   end subroutine flux_cpt_restr
 
   subroutine post_refine
+    implicit none
     integer :: d, p
 
     level_end = sync_max(level_end)
@@ -756,7 +770,7 @@ contains
   !         nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, vort, qe)
   !      end do
 
-  !      if (level_start .lt. level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
+  !      if (level_start < level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
 
   !      ! Compute vertically integrated horizontal mass flux (stored in integr_horiz_flux)
   !      if (.not. lagrangian_vertical) then
@@ -795,7 +809,7 @@ contains
 
   !      dq(:,k)%bdry_uptodate    = .False.
   !      horiz_flux%bdry_uptodate = .False.
-  !      if (level_start .lt. level_end) then
+  !      if (level_start < level_end) then
   !         call update_vector_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
   !         call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), level_end) ! <= start non-blocking communicate dmass (l+1)
   !      end if
@@ -881,7 +895,7 @@ contains
   !         end do
 
   !         dq(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
-  !         if (l .gt. level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l)  ! <= start non-blocking communicate dmass (l+1)
+  !         if (l > level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l)  ! <= start non-blocking communicate dmass (l+1)
 
   !         ! Velocity trend, source part
   !         do d = 1, size(grid)

@@ -8,6 +8,7 @@ module wavelet_mod
 contains
   subroutine forward_wavelet_transform (scaling, wavelet)
     ! Forward wavelet transform
+    implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
 
     integer :: k, l, d
@@ -63,6 +64,7 @@ contains
 
   subroutine inverse_wavelet_transform (wavelet, scaling, l_start0)
     ! Inverse wavelet transform
+    implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
     integer, optional                                             :: l_start0
 
@@ -139,6 +141,7 @@ contains
   end subroutine inverse_wavelet_transform
 
   function velo_interp_penta_corr (dom, offs, dims, offs_chd, dims_chd)
+    implicit none
     real(8), dimension(2)          :: velo_interp_penta_corr
     type(Domain)                   :: dom
     integer, dimension(N_BDRY+1)   :: offs, offs_chd
@@ -171,6 +174,7 @@ contains
   end function velo_interp_penta_corr
 
   subroutine basic_F_restr_wgt (dom, i_par, j_par, e, offs_par, dims_par, i0, j0, offs, dims, typ)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, e, i0, j0
     integer, dimension(N_BDRY+1)   :: offs_par
@@ -291,6 +295,7 @@ contains
     end if
   contains
     function interp_F_wgts (e, k1, ije_lcsd, endpt_o, ije, stencil)
+      implicit none
       real(8), dimension(6)    :: interp_F_wgts
       integer                  :: e, k1
       integer, dimension(3,16) :: ije
@@ -327,6 +332,7 @@ contains
     end function interp_F_wgts
 
     function coords_to_row_perp (coords, x, y)
+      implicit none
       real(8), dimension(6)     :: coords_to_row_perp
       type(Coord), dimension(2) :: coords
       type(Coord)               :: x, y
@@ -341,6 +347,7 @@ contains
     end function coords_to_row_perp
 
     function coords_to_row (ije0, x, y)
+      implicit none
       real(8), dimension(6) :: coords_to_row
       integer, dimension(3) :: ije0
       type(Coord)           :: x, y
@@ -367,6 +374,7 @@ contains
 
   subroutine compute_velo_wavelets (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute velocity wavelet coefficients (except at pentagons)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -409,6 +417,7 @@ contains
 
   subroutine compute_velo_wavelets_penta (dom, p, c, offs, dims, zlev)
     ! Compute velocity wavelet coefficients at pentagons
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, c, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -473,6 +482,7 @@ contains
   end subroutine compute_velo_wavelets_penta
 
   subroutine init_wavelets
+    implicit none
     integer :: d, i, k, num, v
 
     do k = 1, zlevels
@@ -509,6 +519,7 @@ contains
   end subroutine init_wavelets
 
   subroutine get_overl_areas (dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par, offs_chd, dims_chd, e, area, typ)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: e, i_par, j_par, i_chd, j_chd
     integer, dimension(2)          :: typ
@@ -580,6 +591,7 @@ contains
   end subroutine get_overl_areas
 
   subroutine normalize2 (q, u, v)
+    implicit none
     real(8), dimension(2) :: q
     real(8)               :: nrm, u, v
 
@@ -590,6 +602,7 @@ contains
 
   subroutine IWT_prolong_scalar__fast (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Prolong scalars at fine points existing at coarse scale by undoing lifting
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -611,6 +624,7 @@ contains
 
   subroutine IWT_prolong_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Prolong scalars at fine points existing at coarse scale by undoing lifting
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -629,6 +643,7 @@ contains
 
   function prolong (scalar, wavelet, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     ! Prolongation at fine points existing at coarse scale by undoing lifting
+    implicit none
     real(8)                        :: prolong
     real(8)                        :: scalar
     real(8), dimension(:), pointer :: wavelet
@@ -684,6 +699,7 @@ contains
 
   subroutine compute_scalar_wavelets (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute wavelet coefficients for mass and potential temperature
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -719,6 +735,7 @@ contains
 
   subroutine IWT_reconstruct_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Reconstruct scalars at fine nodes not existing at coarse scale
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
