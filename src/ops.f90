@@ -291,7 +291,7 @@ contains
       tempE  = temp(idE+1)
       tempNE = temp(idNE+1)
       tempN  = temp(idN+1)
-
+      
       if (massE==1.0_8)  then
          massE  = mass(id+1)
          tempE  = temp(id+1)

@@ -1087,16 +1087,16 @@ contains
          ! dom%areas%elts(idS+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)) * dom%areas%elts(id+1)%hex_inv
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
-       outl = nint(active_level%data(dom%id+1)%elts(id+1))
+       outl = nint(active_level%data(d)%elts(id+1))
     else
        outl = 0
     end if
 
-    if (dom%mask_n%elts(id+1) .gt. 0) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        write (fid,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
-            dom%ccentre%elts(TRIAG*id   +LORT+1), dom%ccentre%elts(TRIAG*id   +UPLT+1), &
-            dom%ccentre%elts(TRIAG*idW  +LORT+1), dom%ccentre%elts(TRIAG*idSW +UPLT+1), &
-            dom%ccentre%elts(TRIAG*idSW +LORT+1), dom%ccentre%elts(TRIAG*idS  +UPLT+1), &
+            dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
+            dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
+            dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
             outv, dom%mask_n%elts(id+1), outl
        where (minv .gt. outv) minv = outv
        where (maxv .lt. outv) maxv = outv
@@ -1746,7 +1746,7 @@ contains
     end do
 
     do l = level_end-1, level_start, -1
-       call apply_interscale(restrict_level, l, z_null, 0, 1)
+       call apply_interscale (restrict_level, l, z_null, 0, 1)
     end do
   end subroutine pre_levelout
 
@@ -1757,9 +1757,9 @@ contains
     integer :: d
 
     do d = 1, size(grid)
-       deallocate(active_level%data(d)%elts)
+       deallocate (active_level%data(d)%elts)
     end do
-    deallocate(active_level%data)
+    deallocate (active_level%data)
   end subroutine post_levelout
 
   subroutine restrict_level (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -1769,12 +1769,13 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer :: id_par, id_chd
+    integer :: d, id_par, id_chd
+
+    d = dom%id+1
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    if (dom%mask_n%elts(id_chd+1) .ge. ADJZONE) &
-         active_level%data(dom%id+1)%elts(id_par+1) = active_level%data(dom%id+1)%elts(id_chd+1)
+    if (dom%mask_n%elts(id_chd+1) >= ADJZONE) active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
   end subroutine restrict_level
 end module io_mod

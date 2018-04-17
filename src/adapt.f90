@@ -50,12 +50,12 @@ contains
     end do
 
     ! Set all current masks > ADJZONE to at least ADJZONE for next time step
-    call mask_adjacent
+    call mask_adjacent_initial
     call comm_masks_mpi (NONE)
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then 
-       if (istep.eq.0) then ! Also adapt on variables when initializing
+       if (istep==0) then ! Also adapt on variables when initializing
           call set_thresholds (1)
           call mask_active (wav_coeff)
        end if
@@ -69,24 +69,35 @@ contains
     
     ! Add neighbouring parent wavelet nodes/edges
     do l = level_end-1, level_start, -1
-       call apply_interscale (mask_active_parent_nodes, l, z_null,  0, 1)
-       call apply_interscale (mask_active_parent_edges, l, z_null, -1, 1)
+       call apply_interscale (mask_adj_parent_nodes, l, z_null,  0, 1)
+       call apply_interscale (mask_adj_parent_edges, l, z_null, -1, 1)
        call comm_masks_mpi (l)
     end do
 
     ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
-       call apply_onescale (mask_adj_space, l, z_null, 0, 1)
+       call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
     end do
 
     ! Add neighbouring wavelets at finer scale
     do l = level_end-1, level_start, -1
-       call apply_interscale (mask_adj_scale, l, z_null, 0, 1)
+       call apply_interscale (mask_adj_children, l, z_null, 0, 1)
     end do
     call comm_masks_mpi (NONE)
-    
+
+    ! needed if bdry is only 2 layers for scenario:
+    ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
+    ! => patch needed (contains flux for corrective part of R_F)
+    do l = level_start+1, min(level_end, max_level-1)
+       call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
+    end do
+    call comm_masks_mpi (NONE)
+
+    ! Ensure consistency of adjacent zones for nodes and edges
+    call  mask_adj_nodes_edges
+
     ! Ensure that perfect reconstruction criteria for active wavelets are satisfied
-    do l = level_end-1, level_start, -1
+    do l = level_end-1, level_start-1, -1
        call apply_interscale (mask_perfect_scalar, l, z_null,  0, 0)
        call apply_interscale (mask_perfect_velo,   l, z_null,  0, 0)
        do d = 1, size(grid)
@@ -95,17 +106,15 @@ contains
        call comm_masks_mpi (l)
     end do
 
-    ! needed if bdry is only 2 layers for scenario:
-    ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
-    ! => patch needed (contains flux for corrective part of R_F)
-    do l = level_start, min(level_end, max_level-1)
-       call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
-    
+    ! Determine whether any new patches are required
     if (refine()) call post_refine
-    call complete_masks
 
+    ! Add nodes and edges required for TRISK operators
+    do l = level_start+1, level_end
+       call apply_onescale (mask_trisk, l, z_null, 0, 1)
+    end do
+
+    ! Set insignificant wavelet coefficients to zero
     do k = 1, zlevels
        do l = level_start+1, level_end
           call apply_onescale (compress, l, k, 0, 1)
@@ -142,23 +151,24 @@ contains
   end subroutine compress
 
   logical function refine()
+    ! Determines where new patches are needed
     logical :: required
     integer :: c, d, did_refine, old_n_patch, p_chd, p_par
 
-    !  using tol masks call refine patch where necessary
+    !  Using tol masks call refine patch where necessary
     did_refine = FALSE
     do d = 1, size(grid)
        old_n_patch = grid(d)%patch%length
        do p_par = 2, grid(d)%patch%length
           do c = 1, N_CHDRN
              p_chd = grid(d)%patch%elts(p_par)%children(c)
-             required = check_child_required(grid(d), p_par - 1, c - 1)
-             if (p_chd .gt. 0) then
-             else if (required) then ! new patch required
-                if (grid(d)%patch%elts(p_par)%level .eq. max_level) then
+             required = check_child_required (grid(d), p_par - 1, c - 1)
+             if (p_chd > 0) then
+             else if (required) then ! New patch required
+                if (grid(d)%patch%elts(p_par)%level == max_level) then
                    max_level_exceeded = .True.
                 else
-                   call refine_patch1(grid(d), p_par - 1, c - 1)
+                   call refine_patch1 (grid(d), p_par - 1, c - 1)
                    did_refine = TRUE
                 end if
              end if
@@ -167,13 +177,13 @@ contains
        do p_par = 2, old_n_patch
           do c = 1, N_CHDRN
              p_chd = grid(d)%patch%elts(p_par)%children(c)
-             if (p_chd+1 .gt. old_n_patch) then
-                call refine_patch2(grid(d), p_par - 1, c - 1)
+             if (p_chd+1 > old_n_patch) then
+                call refine_patch2 (grid(d), p_par - 1, c - 1)
              end if
           end do
        end do
     end do
-    refine = sync_max(did_refine) .eq. TRUE
+    refine = sync_max(did_refine) == TRUE
     return
   end function refine
 
@@ -186,16 +196,16 @@ contains
     integer                        :: j, i, id, e
 
     ! TODO set FILLED_AND_FROZEN in `remove_inside_patches` to save work here
-    if (dom%patch%elts(p+1)%active .eq. FILLED_AND_FROZEN) return
+    if (dom%patch%elts(p+1)%active == FILLED_AND_FROZEN) return
 
     dom%patch%elts(p+1)%active = 0
     call get_offs_Domain(dom, p, offs, dims)
     do j = 1, PATCH_SIZE
        do i = 1, PATCH_SIZE
           id = idx(i-1, j-1, offs, dims)
-          if (dom%mask_n%elts(id+1) .ge. ADJZONE) dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
+          if (dom%mask_n%elts(id+1) >= ADJZONE) dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
           do e = 1, EDGE
-             if (dom%mask_e%elts(EDGE*id+e) .ge. ADJZONE) &
+             if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) &
                   dom%patch%elts(p+1)%active = dom%patch%elts(p+1)%active + 1
           end do
        end do
@@ -212,13 +222,13 @@ contains
     get_child_and_neigh_patches = 0
     get_child_and_neigh_patches(1) = dom%patch%elts(p_par+1)%children(c)
     n = dom%patch%elts(p_par+1)%neigh(c) ! side
-    if (n .gt. 0) then
+    if (n > 0) then
        get_child_and_neigh_patches(2) = dom%patch%elts(n+1)%children(modulo((c+1)-1,4)+1) 
        get_child_and_neigh_patches(3) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
     endif
 
     n = dom%patch%elts(p_par+1)%neigh(c+4) ! corner
-    if (n .gt. 0) then
+    if (n > 0) then
        get_child_and_neigh_patches(4) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
     endif
   end function get_child_and_neigh_patches
@@ -232,7 +242,7 @@ contains
     integer, dimension(4) :: cn
 
     ! do not fill up children + remove if any child or neighbour patch is missing
-    if (product(dom%patch%elts(p_par+1)%neigh)*product(dom%patch%elts(p_par+1)%children) .eq. 0) then
+    if (product(dom%patch%elts(p_par+1)%neigh)*product(dom%patch%elts(p_par+1)%children) == 0) then
        check_children_fillup = -1e8 ! for now make removing imposible for this case
        return
     end if
@@ -249,9 +259,8 @@ contains
     check_children_fillup = dble(active)/dble(N_CHDRN*5*DOF_PER_PATCH)
   end function check_children_fillup
 
-
   function remove_inside_patches()
-    ! removes patches that are not required because they are far enough away from the locally finest level
+    ! Removes patches that are not required because they are far enough away from the locally finest level
     logical :: remove_inside_patches
     
     integer               :: d, k, p, l, c, c1
@@ -270,16 +279,16 @@ contains
        do d = 1, size(grid)
           p = grid(d)%lev(l)%elts(k)
           children_fullness = 0
-          ! the patch has 4 children including first neighbours 16
+          ! Patch has 4 children including first neighbours 16
           do c = 1, N_CHDRN
-             ! allways do one child with 3 adjacent neighbours (2 on side 1 on corner)
+             ! Always do one child with 3 adjacent neighbours (2 on side 1 on corner)
              chdrn = get_child_and_neigh_patches(grid(d), p, c)
              do c1 = 1, N_CHDRN
                 children_fullness = children_fullness + check_children_fillup(grid(d), chdrn(c1))
              end do
           end do
           children_fullness = children_fullness/16.0_8
-          if (children_fullness .gt. FILLUP_THRESHOLD) then
+          if (children_fullness > FILLUP_THRESHOLD) then
              do c = 1, N_CHDRN
                 chdrn = get_child_and_neigh_patches(grid(d), p, c)
                 do c1 = 1, N_CHDRN
@@ -316,9 +325,9 @@ contains
        do i0 = st + 1, PATCH_SIZE/2 + en
           i = i0 - 1 + chd_offs(1,c+1)
           id = idx(i, j, offs, dims)
-          required = dom%mask_n%elts(id+1) .ge. ADJSPACE
+          required = dom%mask_n%elts(id+1) >= ADJSPACE
           do e = 1, EDGE
-             required = required .or. dom%mask_e%elts(EDGE*id+e) .ge. RESTRCT
+             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT
           end do
           if (required) then
              check_child_required = .True.
@@ -373,7 +382,7 @@ contains
           p_par = grid(d)%lev(level_start)%elts(j)
           do c = 1, N_CHDRN
              p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-             if (p_chd .eq. 0) then
+             if (p_chd == 0) then
                 call refine_patch (grid(d), p_par, c - 1)
              end if
           end do
@@ -390,7 +399,7 @@ contains
     integer :: old_level_start
     
     old_level_start = level_start
-    do while (level_start .lt. l)
+    do while (level_start < l)
        call fill_up_level
     end do
     call inverse_wavelet_transform (wav_coeff, sol, old_level_start)
