@@ -176,8 +176,6 @@ contains
          end function physics_scalar_flux
       end interface
 
-      if (mass(id+1)==1.0_8) return
-      
       idW  = id+W
       idSW = id+SW
       idS  = id+S
@@ -280,8 +278,6 @@ contains
          end function physics_scalar_flux
       end interface
 
-      if (mass(id+1)==1.0_8) return
-      
       idE  = id+E
       idN  = id+N
       idNE = id+NE
@@ -297,9 +293,9 @@ contains
       tempNE = temp(idNE+1)
       tempN  = temp(idN+1)
 
-      if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idW+RT+1)==ZERO) write(6,*) 'hi1'
-      if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idSW+DG+1)==ZERO) write(6,*) 'hi2'
-      if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idS+UP+1)==ZERO) write(6,*) 'hi3'
+      ! if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idW+RT+1)==ZERO) write(6,*) 'hi1'
+      ! if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idSW+DG+1)==ZERO) write(6,*) 'hi2'
+      ! if (dom%mask_n%elts(id+1)>=ADJZONE.and.dom%mask_e%elts(EDGE*idS+UP+1)==ZERO) write(6,*) 'hi3'
       
       if (massE==1.0_8)  then
          massE  = mass(id+1)
@@ -313,7 +309,7 @@ contains
          massN  = mass(id+1)
          tempN  = temp(id+1)
       end if
-      if (massW==1.0_8)  massW  = mass(id+1)
+      if (massW==1.0_8)  massW = mass(id+1)
 
       if (itype==0) then
          ! Find the velocity on primal and dual grids
@@ -434,24 +430,8 @@ contains
     real(8)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW
     real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
-    real(8) :: massE, massNE, massN, massW, massSW, massS
+    real(8) :: massE, massN, massNE, massS, massSW, massW
 
-    if (mass(id+1)==1.0_8) return
-    
-    massE  = mass(idE+1)
-    massNE = mass(idNE+1) 
-    massN  = mass(idN+1)
-    massW  = mass(idW+1) 
-    massSW = mass(idSW+1)
-    massS  = mass(idS+1)
-
-    if (massE==1.0_8)  massE  = mass(id+1)
-    if (massNE==1.0_8) massNE = mass(id+1)
-    if (massN==1.0_8)  massN  = mass(id+1)
-    if (massW==1.0_8)  massW  = mass(id+1)
-    if (massSW==1.0_8) massSW = mass(id+1)
-    if (massS==1.0_8)  massS  = mass(id+1)
-    
     if (c == IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
        id   = idx( 0,  0, offs, dims)
        idSW = idx(-1, -1, offs, dims)
@@ -459,7 +439,17 @@ contains
        idS  = idx( 0, -1, offs, dims)
        idN  = idx( 0,  1, offs, dims)
        idE  = idx( 1,  0, offs, dims)
-
+       
+       massE  = mass(idE+1)
+       massN  = mass(idN+1)
+       massS  = mass(idS+1)
+       massW  = mass(idW+1)
+       
+       if (massE==1.0_8)  massE  = mass(id+1)
+       if (massN==1.0_8)  massN  = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
+       
        u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW +RT+1)
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) 
        u_prim_UP_S  = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS +UP+1)
@@ -499,6 +489,18 @@ contains
        idW  = idx(PATCH_SIZE-1,  0, offs, dims)
        idE  = idx(PATCH_SIZE+1,  0, offs, dims)
        idNE = idx(PATCH_SIZE+1,  1, offs, dims)
+
+       massE  = mass(idE+1)
+       massNE = mass(idNE+1)
+       massS  = mass(idS+1)
+       massSW = mass(idSW+1)
+       massW  = mass(idW+1)
+
+       if (massE==1.0_8)  massE  = mass(id+1)
+       if (massNE==1.0_8) massNE = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massSW==1.0_8) massSW = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
 
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
@@ -540,6 +542,18 @@ contains
        idN  = idx( 0, PATCH_SIZE+1, offs, dims)
        idNE = idx( 1, PATCH_SIZE+1, offs, dims)
 
+       massN  = mass(idN+1)
+       massNE = mass(idNE+1)
+       massS  = mass(idS+1)
+       massSW = mass(idSW+1)
+       massW  = mass(idW+1)
+
+       if (massN==1.0_8)  massN  = mass(id+1)
+       if (massNE==1.0_8) massNE = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massSW==1.0_8) massSW = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
+
        u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id  +UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
        u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
@@ -578,6 +592,16 @@ contains
        idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
        idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
        idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
+
+       massE = mass(idE+1)
+       massN = mass(idN+1)
+       massS = mass(idS+1)
+       massW = mass(idW+1)
+
+       if (massE==1.0_8) massE = mass(id+1)
+       if (massN==1.0_8) massN  = mass(id+1)
+       if (massS==1.0_8) massS  = mass(id+1)
+       if (massW==1.0_8) massW  = mass(id+1)
 
        u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id +RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+DG+1)
@@ -802,8 +826,6 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (mass(id+1)==1.0_8) return
-
     if (compressible) then ! Compressible case
        if (zlev == 1) then
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
@@ -876,8 +898,6 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (mass(id+1)==1.0_8) return
-
     if (compressible) then ! Compressible case
        if (zlev == 1) then
           dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
@@ -919,8 +939,6 @@ contains
     real(8), dimension (3) :: Qperp_e, physics
 
     id = idx(i, j, offs, dims)
-
-    if (mass(id+1)==1.0_8) return
 
     ! Calculate Q_perp
     Qperp_e = Qperp_Gassmann (dom, i, j, z_null, offs, dims)
@@ -1050,7 +1068,7 @@ contains
 
     Qperp_Gassmann(DG+1) = &
          ! Adjacent neighbour edges (Gassmann rule 1)
-         h_mflux(EDGE*idN+RT+1) * qe(EDGE*id+ UP+1)*wgt2(5) + &
+         h_mflux(EDGE*idN+RT+1) * qe(EDGE*id +UP+1)*wgt2(5) + &
          h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +RT+1)*wgt2(1) + &
          h_mflux(EDGE*id +UP+1) * qe(EDGE*idN+RT+1)*wgt1(1) + &
          h_mflux(EDGE*id +RT+1) * qe(EDGE*idE+UP+1)*wgt1(5) + &
@@ -1127,8 +1145,6 @@ contains
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
     id = idx(i, j, offs, dims)
-
-    if (mass(id+1)==1.0_8) return
 
     dmass(id+1) = - div(h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
     dtemp(id+1) = - div(h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
@@ -1264,8 +1280,6 @@ contains
     idE  = idx(i+1, j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
-
-    if (mass(id+1)==1.0_8) return
 
     ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
     ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
