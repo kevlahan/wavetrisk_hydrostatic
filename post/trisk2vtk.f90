@@ -89,8 +89,10 @@ program trisk2vtk
         CALL system(command)
 
         ! Delete un-needed file
-        command = '\rm ' // trim(file_base) // s_time // '00'
-        CALL system(command)
+        if (trim(file_type) .eq. "primal") then
+           command = '\rm ' // trim(file_base) // s_time // '00'
+           CALL system(command)
+        end if
      end if
 
      ! Loop through all scales
