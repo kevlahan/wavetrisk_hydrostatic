@@ -383,17 +383,22 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN, idNW, idW, idSW, idS, idSE
+    integer :: id, idE, idNE, idN, idNW, idW, idSW, idS, idSE, idN2E, id2E, id2NE, id2N2E, id2N
 
-    id   = idx(i,   j,   offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-    idNW = idx(i-1, j+1, offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
-    idSE = idx(i+1, j-1, offs, dims)
+    id     = idx(i,   j,   offs, dims)
+    idE    = idx(i+1, j,   offs, dims)
+    idNE   = idx(i+1, j+1, offs, dims)
+    idNW   = idx(i-1, j+1, offs, dims)
+    idN    = idx(i,   j+1, offs, dims)
+    idW    = idx(i-1, j,   offs, dims)
+    idSW   = idx(i-1, j-1, offs, dims)
+    idS    = idx(i,   j-1, offs, dims)
+    idSE   = idx(i+1, j-1, offs, dims)
+    idN2E  = idx(i+2, j+1, offs, dims)
+    id2E   = idx(i+2, j,   offs, dims)
+    id2NE  = idx(i,   j+2, offs, dims)
+    id2NE  = idx(i+1, j+2, offs, dims)
+    id2N2E = idx(i+2, j+2, offs, dims)
     
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
         ! Flux divergence stencil
@@ -411,10 +416,6 @@ contains
 
        ! Potential vorticity stencil
        call set_at_least (dom%mask_n%elts(idW+1), TRSK)
-
-       ! Qperp stencil
-       call set_at_least (dom%mask_e%elts(EDGE*idNW+RT+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*idSE+DG+1), TRSK)
     end if
 
     ! if (dom%mask_e%elts(idW+RT+1) >= ADJZONE) then
@@ -426,6 +427,76 @@ contains
     !     call set_at_least (dom%mask_n%elts(idSW+1),  TRSK)
     !     call set_at_least (dom%mask_n%elts(idS+1),  TRSK)
     !  end if
+
+    ! Qperp stencil (Gassmann)
+    if (dom%mask_e%elts(EDGE*id+RT+1) >= ADJZONE) then
+       call set_at_least (dom%mask_n%elts(id2E+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idN2E+1), TRSK)
+       call set_at_least (dom%mask_n%elts(idNE+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idN+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(idW+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(idSW+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idS+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(idSE+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idE+1),   TRSK)
+
+       call set_at_least (dom%mask_e%elts(EDGE*idE+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idE+DG+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idE+UP+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),   TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),   TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idS+DG+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idSE+UP+1), TRSK)
+    end if
+
+    if (dom%mask_e%elts(EDGE*id+DG+1) >= ADJZONE) then
+       call set_at_least (dom%mask_n%elts(idE+1),    TRSK)
+       call set_at_least (dom%mask_n%elts(idN2E+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(id2N2E+1), TRSK)
+       call set_at_least (dom%mask_n%elts(id2NE+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idN+1),    TRSK)
+       call set_at_least (dom%mask_n%elts(idW+1),    TRSK)
+       call set_at_least (dom%mask_n%elts(idSW+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(idS+1),    TRSK)
+       call set_at_least (dom%mask_n%elts(idNE+1),   TRSK)
+
+       call set_at_least (dom%mask_e%elts(EDGE*idE+UP+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idNE+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idNE+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idNE+UP+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idN+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),   TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),   TRSK)
+    end if
+
+    if (dom%mask_e%elts(EDGE*id+UP+1) >= ADJZONE) then
+       call set_at_least (dom%mask_n%elts(idE+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(idNE+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(id2NE+1), TRSK)
+       call set_at_least (dom%mask_n%elts(id2N+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idNW+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idW+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(idSW+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idS+1),   TRSK)
+       call set_at_least (dom%mask_n%elts(idN+1),   TRSK)
+
+       call set_at_least (dom%mask_e%elts(EDGE*idN+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idN+DG+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idN+UP+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idNW+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idW+DG+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),   TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),   TRSK)
+    end if
   end subroutine mask_trisk
 
   subroutine mask_adj_parent_nodes (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)

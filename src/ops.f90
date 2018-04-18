@@ -181,6 +181,10 @@ contains
       idW  = id+W
       idSW = id+SW
       idS  = id+S
+      
+      ! if (dom%mask_n%elts(idS+1)==ZERO) write(6,*) 'hi1'
+      ! if (dom%mask_n%elts(idSW+1)==ZERO) write(6,*) 'hi2'
+      ! if (dom%mask_n%elts(idW+1)==ZERO) write(6,*) 'hi3'
 
       massW  = mass(idW+1)
       massSW = mass(idSW+1)
@@ -418,6 +422,7 @@ contains
 
   subroutine post_step1 (dom, p, c, offs, dims, zlev)
     ! Correct values for vorticity and qe at pentagon points
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, c, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -609,6 +614,7 @@ contains
 
   subroutine post_vort (dom, p, c, offs, dims, zlev)
     ! Correct values for vorticity at pentagon points (used in diffusion time step)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, c, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -680,7 +686,8 @@ contains
   end subroutine post_vort
 
   subroutine interp_vel_hex (dom, i, j, zlev, offs, dims)
-    ! Interpolate velocity to hexagon nodes in Cartesian coordinates; uses Perot formula as also used for kinetic energy 
+    ! Interpolate velocity to hexagon nodes in Cartesian coordinates; uses Perot formula as also used for kinetic energy
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -769,6 +776,7 @@ contains
 
   subroutine column_mass (dom, i, j, zlev, offs, dims)
     ! Sum up total mass over column id
+    implicit none
     type (Domain)                  :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -783,6 +791,7 @@ contains
 
   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
     ! Integrate pressure (compressible case)/Lagrange multiplier (incompressible case) and geopotential up from surface to top layer
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -857,6 +866,7 @@ contains
 
   subroutine cal_pressure (dom, i, j, zlev, offs, dims)
     ! Integrate pressure up from surface to top layer
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -888,6 +898,7 @@ contains
   subroutine du_source (dom, i, j, zlev, offs, dims)
     ! Edge integrated source (non gradient) terms in velocity trend
     ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
+    implicit none
     type(Domain),                   intent(in) :: dom
     integer,                        intent(in) :: i, j, zlev
     integer, dimension(N_BDRY+1),   intent(in) :: offs
@@ -912,7 +923,7 @@ contains
     if (mass(id+1)==1.0_8) return
 
     ! Calculate Q_perp
-    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
+    Qperp_e = Qperp_Gassmann (dom, i, j, z_null, offs, dims)
 
     ! Calculate physics
     physics = physics_velo_source (dom, i, j, z_null, offs, dims)
@@ -923,7 +934,8 @@ contains
   end subroutine du_source
 
   function Qperp (dom, i, j, zlev, offs, dims)
-    ! Compute energy-conserving edge integrated Qperp and add it to dvelo [Aechtner thesis page 44]
+    ! Compute energy-conserving edge integrated Qperp [Aechtner thesis page 44]
+    implicit none
     real(8), dimension(3)          :: Qperp
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -990,8 +1002,93 @@ contains
          h_mflux(EDGE*idW+DG+1)  * interp(qe(EDGE*idW+DG+1),  qe(EDGE*id+UP+1))*wgt2(5)
   end function Qperp
 
+  function Qperp_Gassmann (dom, i, j, zlev, offs, dims)
+    ! Compute energy-conserving edge integrated Qperp using Gassmann (2018) formula
+    implicit none
+    real(8), dimension(3)          :: Qperp_Gassmann
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer               :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
+    real(8), dimension(5) :: wgt1, wgt2
+
+    id   = idx(i, j, offs, dims)
+
+    idNW = idx(i-1, j+1, offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idSW = idx(i-1, j-1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idSE = idx(i+1, j-1, offs, dims)
+
+    wgt1 = get_weights(dom, id,  0)
+    wgt2 = get_weights(dom, idE, 3)
+
+    Qperp_Gassmann(RT+1) = &
+         ! Adjacent neighbour edges (Gassmann rule 1)
+         h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +DG+1)*wgt2(5) + &
+         h_mflux(EDGE*idS+DG+1) * qe(EDGE*idS+UP+1)*wgt2(1) + &
+         h_mflux(EDGE*id +DG+1) * qe(EDGE*idE+UP+1)*wgt1(1) + &
+         h_mflux(EDGE*idS+UP+1) * qe(EDGE*idS+DG+1)*wgt1(5) + &
+
+         ! Second neighbour edges (Gassmann rule 2)
+         h_mflux(EDGE*idE +DG+1) * qe(EDGE*idE+UP+1)*wgt2(4) + &
+         h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+DG+1)*wgt2(2) + &
+         h_mflux(EDGE*id  +UP+1) * qe(EDGE*id +DG+1)*wgt1(2) + &         
+         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idS+UP+1)*wgt1(4) + &         
+
+         ! Third neighbour edges (Gassmann rule 3 = TRSK)
+         h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1), qe(EDGE*id+RT+1))*wgt1(3) + &
+         h_mflux(EDGE*idE+RT+1)  * interp(qe(EDGE*idE+RT+1), qe(EDGE*id+RT+1))*wgt2(3)
+
+    wgt1 = get_weights(dom, id,   1)
+    wgt2 = get_weights(dom, idNE, 4)
+
+    Qperp_Gassmann(DG+1) = &
+         ! Adjacent neighbour edges (Gassmann rule 1)
+         h_mflux(EDGE*idN+RT+1) * qe(EDGE*id+ UP+1)*wgt2(5) + &
+         h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +RT+1)*wgt2(1) + &
+         h_mflux(EDGE*id +UP+1) * qe(EDGE*idN+RT+1)*wgt1(1) + &
+         h_mflux(EDGE*id +RT+1) * qe(EDGE*idE+UP+1)*wgt1(5) + &
+
+         ! Second neighbour edges (Gassmann rule 2)
+         h_mflux(EDGE*idNE+UP+1) * qe(EDGE*idN+RT+1)*wgt2(4) + &
+         h_mflux(EDGE*idNE+RT+1) * qe(EDGE*idE+UP+1)*wgt2(2) + &
+         h_mflux(EDGE*idW +RT+1) * qe(EDGE*id +UP+1)*wgt1(2) + &
+         h_mflux(EDGE*idS +UP+1) * qe(EDGE*id +RT+1)*wgt1(4) + &
+
+         ! Third neighbour edges (Gassmann rule 3 = TRSK)
+         h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+DG+1))*wgt1(3) + &
+         h_mflux(EDGE*idNE+DG+1) * interp(qe(EDGE*idNE+DG+1), qe(EDGE*id+DG+1))*wgt2(3)
+
+    wgt1 = get_weights(dom, id,  2)
+    wgt2 = get_weights(dom, idN, 5)
+
+    Qperp_Gassmann(UP+1) = &
+         ! Adjacent neighbour edges (Gassmann rule 1)
+         h_mflux(EDGE*idN+RT+1)  * qe(EDGE*id +DG+1)*wgt2(1) + &
+         h_mflux(EDGE*idW+DG+1)  * qe(EDGE*idW+RT+1)*wgt2(5) + &
+         h_mflux(EDGE*id +DG+1)  * qe(EDGE*idN+RT+1)*wgt1(5) + &
+         h_mflux(EDGE*idW+RT+1)  * qe(EDGE*idW+DG+1)*wgt1(1) + &
+
+         ! Second neighbour edges (Gassmann rule 2)
+         h_mflux(EDGE*idN+DG+1)  * qe(EDGE*idN+RT+1)*wgt2(2) + &         
+         h_mflux(EDGE*idNW+RT+1) * qe(EDGE*idW+DG+1)*wgt2(4) + &
+         h_mflux(EDGE*id+RT+1)   * qe(EDGE*id +DG+1)*wgt1(4) + &
+         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idW+RT+1)*wgt1(2) + &
+         
+         ! Third neighbour edges (Gassmann rule 3 = TRSK)
+         h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
+         h_mflux(EDGE*idN+UP+1)  * interp(qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3)
+  end function Qperp_Gassmann
+
   function get_weights(dom, id, offs)
     ! Weights for Qperp computation [Aechtner thesis page 44]
+    implicit none
     type(Domain) :: dom
     integer      :: id, offs
 
@@ -1007,6 +1104,7 @@ contains
   end function get_weights
 
   subroutine scalar_trend (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -1078,6 +1176,7 @@ contains
     ! Gradient of a scalar at nodes x_i
     ! output is at edges
     ! If type = .true. then compute the gradient at the southwest edges of the hexagon
+    implicit none
     real(8), dimension(3)          :: gradi_e
     real(8), dimension(:), pointer :: scalar
     type(Domain)                   :: dom
@@ -1100,6 +1199,7 @@ contains
   function curlv_e (curlu, dom, i, j, offs, dims)
     ! Curl of vorticity given at triangle circumcentres x_v used in calculating curl(curl(u))
     ! output is at edges x_e
+    implicit none
     real(8), dimension(3)          :: curlv_e
     real(8), dimension(:), pointer :: curlu
     type(Domain)                   :: dom
@@ -1120,6 +1220,7 @@ contains
 
   function div (hflux, dom, i, j, offs, dims)
     ! Divergence at nodes x_i given horizontal fluxes at edges x_e
+    implicit none
     real(8)                         :: div
     real(8), dimension(:), pointer  :: hflux
     type(Domain)                    :: dom
@@ -1140,6 +1241,7 @@ contains
 
   function interp (e1, e2)
     ! Centred average interpolation of quantities e1 and e2
+    implicit none
     real(8) :: interp
     real(8) :: e1, e2
 
@@ -1148,6 +1250,7 @@ contains
 
   subroutine du_grad (dom, i, j, zlev, offs, dims)
     ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
+    implicit none
     type(Domain)                     :: dom
     integer                          :: i, j, zlev
     integer, dimension(N_BDRY + 1)   :: offs
@@ -1193,6 +1296,7 @@ contains
   end subroutine du_grad
 
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -1217,6 +1321,7 @@ contains
   end subroutine cal_divu
 
   subroutine cal_vort (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -1240,6 +1345,7 @@ contains
   end subroutine cal_vort
 
   subroutine sum_mass_temp (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -1254,6 +1360,7 @@ contains
   end subroutine sum_mass_temp
 
   subroutine sum_dmassdtemp (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain) dom
     integer i
     integer j
@@ -1274,8 +1381,8 @@ contains
     totalabsdtemp = totalabsdtemp + abs(dtemp(id+1)/dom%areas%elts(id+1)%hex_inv)
   end subroutine sum_dmassdtemp
 
-
   subroutine comp_offs3 (dom, p, offs, dims)
+    implicit none
     type(Domain)                 :: dom
     integer                      :: p 
     integer, dimension(0:N_BDRY) :: offs
@@ -1310,6 +1417,7 @@ contains
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
     ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
+    implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
