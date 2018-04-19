@@ -432,7 +432,9 @@ contains
 
     real(8) :: massE, massN, massNE, massS, massSW, massW
 
-    if (c == IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
+    ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idSW+DG+1) = 0 in this case
+    if (c == IJMINUS) then
        id   = idx( 0,  0, offs, dims)
        idSW = idx(-1, -1, offs, dims)
        idW  = idx(-1,  0, offs, dims)
@@ -482,7 +484,9 @@ contains
        qe(EDGE*idS+UP+1) = interp(pv_UPLT_S, pv_LORT_SW)
     end if
 
-    if (c == IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
+    ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idS+UP+1) = 0 in this case
+    if (c == IPLUSJMINUS) then 
        id   = idx(PATCH_SIZE,    0, offs, dims)
        idSW = idx(PATCH_SIZE-1, -1, offs, dims)
        idS  = idx(PATCH_SIZE,   -1, offs, dims)
@@ -534,7 +538,9 @@ contains
        qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
-    if (c == IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+    ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idW+RT+1) = 0 in this case
+    if (c == IMINUSJPLUS) then
        id   = idx( 0, PATCH_SIZE,   offs, dims)
        idSW = idx(-1, PATCH_SIZE-1, offs, dims)
        idW  = idx(-1, PATCH_SIZE,   offs, dims)
@@ -586,7 +592,9 @@ contains
        qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
-    if (c == IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
+    ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*id+DG+1) = 0 in this case
+    if (c == IJPLUS) then 
        id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
        idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
        idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
@@ -1043,26 +1051,36 @@ contains
     idS  = idx(i,   j-1, offs, dims)
     idSE = idx(i+1, j-1, offs, dims)
 
+    ! RT edge
     wgt1 = get_weights(dom, id,  0)
     wgt2 = get_weights(dom, idE, 3)
-
+    
     Qperp_Gassmann(RT+1) = &
          ! Adjacent neighbour edges (Gassmann rule 1)
-         h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +DG+1)*wgt2(5) + &
-         h_mflux(EDGE*idS+DG+1) * qe(EDGE*idS+UP+1)*wgt2(1) + &
          h_mflux(EDGE*id +DG+1) * qe(EDGE*idE+UP+1)*wgt1(1) + &
          h_mflux(EDGE*idS+UP+1) * qe(EDGE*idS+DG+1)*wgt1(5) + &
-
+         h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +DG+1)*wgt2(5) + &
+         h_mflux(EDGE*idS+DG+1) * qe(EDGE*idS+UP+1)*wgt2(1) + &
+         
          ! Second neighbour edges (Gassmann rule 2)
+         h_mflux(EDGE*id  +UP+1) * qe(EDGE*id +DG+1)*wgt1(2) + &                  
+         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idS+UP+1)*wgt1(4) + &
          h_mflux(EDGE*idE +DG+1) * qe(EDGE*idE+UP+1)*wgt2(4) + &
-         h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+DG+1)*wgt2(2) + &
-         h_mflux(EDGE*id  +UP+1) * qe(EDGE*id +DG+1)*wgt1(2) + &         
-         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idS+UP+1)*wgt1(4) + &         
+         h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+UP+1)*wgt1(4)
 
-         ! Third neighbour edges (Gassmann rule 3 = TRSK)
-         h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1), qe(EDGE*id+RT+1))*wgt1(3) + &
-         h_mflux(EDGE*idE+RT+1)  * interp(qe(EDGE*idE+RT+1), qe(EDGE*id+RT+1))*wgt2(3)
+    if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
+       Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*interp(qe(EDGE*idW+RT+1),qe(EDGE*id+RT+1))*wgt1(3)
+    else ! Pentagon, second neighbour edge (Gassmann rule 2)
+       Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*qe(EDGE*idS+UP+1)*wgt1(3)
+    end if
 
+    if (dom%pedlen%elts(EDGE*idSE+UP+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
+       Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idE+RT+1)*interp(qe(EDGE*idE+RT+1),qe(EDGE*id+RT+1))*wgt2(3)
+    else ! Pentagon, second neighbour edge (Gassmann rule 2)
+       Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idE+RT+1)*qe(EDGE*idS+DG+1)*wgt2(3)
+    end if
+
+    ! DG edge - no modification required for pentagons since TRSK rule edges have zero flux in pentagon case
     wgt1 = get_weights(dom, id,   1)
     wgt2 = get_weights(dom, idNE, 4)
 
@@ -1083,6 +1101,7 @@ contains
          h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+DG+1))*wgt1(3) + &
          h_mflux(EDGE*idNE+DG+1) * interp(qe(EDGE*idNE+DG+1), qe(EDGE*id+DG+1))*wgt2(3)
 
+    ! UP edge
     wgt1 = get_weights(dom, id,  2)
     wgt2 = get_weights(dom, idN, 5)
 
@@ -1097,11 +1116,19 @@ contains
          h_mflux(EDGE*idN+DG+1)  * qe(EDGE*idN+RT+1)*wgt2(2) + &         
          h_mflux(EDGE*idNW+RT+1) * qe(EDGE*idW+DG+1)*wgt2(4) + &
          h_mflux(EDGE*id+RT+1)   * qe(EDGE*id +DG+1)*wgt1(4) + &
-         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idW+RT+1)*wgt1(2) + &
+         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idW+RT+1)*wgt1(2)
          
-         ! Third neighbour edges (Gassmann rule 3 = TRSK)
-         h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
-         h_mflux(EDGE*idN+UP+1)  * interp(qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3)
+    if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3 = TRSK)
+       Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*interp(qe(EDGE*idS+UP+1),qe(EDGE*id+UP+1))*wgt1(3)
+    else ! Pentagon, second neighbour edge (Gassmann rule 2)
+       Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*qe(EDGE*idW+RT+1)*wgt1(3)
+    end if
+
+    if (dom%pedlen%elts(EDGE*idNW+RT+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
+       Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idN+UP+1)*interp(qe(EDGE*idN+UP+1),qe(EDGE*id+UP+1))*wgt2(3)
+    else ! Pentagon, second neighbour edge (Gassmann rule 2)
+       Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idN+UP+1)*qe(EDGE*idW+DG+1)*wgt2(3)
+    end if
   end function Qperp_Gassmann
 
   function get_weights(dom, id, offs)
