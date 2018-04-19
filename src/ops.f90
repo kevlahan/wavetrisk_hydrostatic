@@ -1057,17 +1057,21 @@ contains
     
     Qperp_Gassmann(RT+1) = &
          ! Adjacent neighbour edges (Gassmann rule 1)
-         h_mflux(EDGE*id +DG+1) * qe(EDGE*idE+UP+1)*wgt1(1) + &
-         h_mflux(EDGE*idS+UP+1) * qe(EDGE*idS+DG+1)*wgt1(5) + &
          h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +DG+1)*wgt2(5) + &
          h_mflux(EDGE*idS+DG+1) * qe(EDGE*idS+UP+1)*wgt2(1) + &
-         
-         ! Second neighbour edges (Gassmann rule 2)
-         h_mflux(EDGE*id  +UP+1) * qe(EDGE*id +DG+1)*wgt1(2) + &                  
-         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idS+UP+1)*wgt1(4) + &
-         h_mflux(EDGE*idE +DG+1) * qe(EDGE*idE+UP+1)*wgt2(4) + &
-         h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+UP+1)*wgt1(4)
+         h_mflux(EDGE*id +DG+1) * qe(EDGE*idE+UP+1)*wgt1(1) + &
+         h_mflux(EDGE*idS+UP+1) * qe(EDGE*idS+DG+1)*wgt1(5) + &
 
+         ! Second neighbour edges (Gassmann rule 2)
+         h_mflux(EDGE*idE +DG+1) * qe(EDGE*idE+UP+1)*wgt2(4) + &
+         h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+DG+1)*wgt2(2) + &
+         h_mflux(EDGE*id  +UP+1) * qe(EDGE*id +DG+1)*wgt1(2) + &         
+         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idS+UP+1)*wgt1(4)       
+
+         ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
+         ! h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1), qe(EDGE*id+RT+1))*wgt1(3) + &
+         ! h_mflux(EDGE*idE+RT+1)  * interp(qe(EDGE*idE+RT+1), qe(EDGE*id+RT+1))*wgt2(3)
+        
     if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*interp(qe(EDGE*idW+RT+1),qe(EDGE*id+RT+1))*wgt1(3)
     else ! Pentagon, second neighbour edge (Gassmann rule 2)
@@ -1111,13 +1115,17 @@ contains
          h_mflux(EDGE*idW+DG+1)  * qe(EDGE*idW+RT+1)*wgt2(5) + &
          h_mflux(EDGE*id +DG+1)  * qe(EDGE*idN+RT+1)*wgt1(5) + &
          h_mflux(EDGE*idW+RT+1)  * qe(EDGE*idW+DG+1)*wgt1(1) + &
-
+         
          ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*idN+DG+1)  * qe(EDGE*idN+RT+1)*wgt2(2) + &         
          h_mflux(EDGE*idNW+RT+1) * qe(EDGE*idW+DG+1)*wgt2(4) + &
          h_mflux(EDGE*id+RT+1)   * qe(EDGE*id +DG+1)*wgt1(4) + &
-         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idW+RT+1)*wgt1(2)
+         h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idW+RT+1)*wgt1(2) 
          
+         ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
+         ! h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
+         ! h_mflux(EDGE*idN+UP+1)  * interp(qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3)
+    
     if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3 = TRSK)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*interp(qe(EDGE*idS+UP+1),qe(EDGE*id+UP+1))*wgt1(3)
     else ! Pentagon, second neighbour edge (Gassmann rule 2)
