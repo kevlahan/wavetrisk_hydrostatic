@@ -225,14 +225,6 @@ contains
          qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
          ! Mass and temperature fluxes
-         if(massW==1.0_8)  massW=mass(id+1)
-         if(massSW==1.0_8) massSW=mass(id+1)
-         if(massS==1.0_8)  massS=mass(id+1)
-
-         if(massW==1.0_8)  tempW=temp(id+1)
-         if(massSW==1.0_8) tempSW=temp(id+1)
-         if(massS==1.0_8)  tempS=temp(id+1)
-
          physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
 
          h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(id+1), massW)  + physics(S_MASS,RT+1)
