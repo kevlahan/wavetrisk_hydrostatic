@@ -116,7 +116,7 @@ contains
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1).eq.ZERO) return
+    if (dom%mask_n%elts(id+1) < ADJZONE) return
     
     ! Calculate cumulative mass and total mass of column
     cumul_mass(1) = 0.0_8
