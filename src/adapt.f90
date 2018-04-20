@@ -109,11 +109,6 @@ contains
     ! Determine whether any new patches are required
     if (refine()) call post_refine
 
-    ! Add nodes and edges required for TRISK operators
-    do l = level_start+1, level_end
-       call apply_onescale (mask_trisk, l, z_null, 0, 1)
-    end do
-
     ! Set insignificant wavelet coefficients to zero
     do k = 1, zlevels
        do l = level_start+1, level_end
