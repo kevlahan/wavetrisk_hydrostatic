@@ -179,26 +179,26 @@ contains
       idW  = id+W
       idSW = id+SW
       idS  = id+S
-      
+
       massW  = mass(idW+1)
       massSW = mass(idSW+1)
       massS  = mass(idS+1)
       tempW  = temp(idW+1)
       tempSW = temp(idSW+1)
       tempS  = temp(idS+1)
-      
-      ! if (massW==1.0_8)  then
-      !    massW=mass(id+1)
-      !    tempW=temp(id+1)
-      ! end if
-      ! if (massSW==1.0_8) then
-      !    massSW=mass(id+1)
-      !    tempSW=temp(id+1)
-      ! end if
-      ! if (massS==1.0_8) then
-      !    massS=mass(id+1)
-      !    tempS=temp(id+1)
-      ! end if
+
+      if (massW==1.0_8)  then
+         massW=mass(id+1)
+         tempW=temp(id+1)
+      end if
+      if (massSW==1.0_8) then
+         massSW=mass(id+1)
+         tempSW=temp(id+1)
+      end if
+      if (massS==1.0_8) then
+         massS=mass(id+1)
+         tempS=temp(id+1)
+      end if
 
       if (itype==0) then 
          u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
@@ -219,7 +219,7 @@ contains
               massSW*dom%areas%elts(idSW+1)%part(2) + &
               mass(id+1)*dom%areas%elts(id+1)%part(4) + &
               massW*dom%areas%elts(idW+1)%part(6))
-         
+
          qe(EDGE*idW+RT+1)  = interp(pv_LORT_W , pv_UPLT_SW)
          qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
          qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
@@ -281,19 +281,19 @@ contains
       tempNE = temp(idNE+1)
       tempN  = temp(idN+1)
 
-      ! if (massE==1.0_8)  then
-      !    massE  = mass(id+1)
-      !    tempE  = temp(id+1)
-      ! end if
-      ! if (massNE==1.0_8) then
-      !    massNE = mass(id+1)
-      !    tempNE = temp(id+1)
-      ! end if
-      ! if (massN==1.0_8)  then
-      !    massN  = mass(id+1)
-      !    tempN  = temp(id+1)
-      ! end if
-      ! if (massW==1.0_8)  massW = mass(id+1)
+      if (massE==1.0_8)  then
+         massE  = mass(id+1)
+         tempE  = temp(id+1)
+      end if
+      if (massNE==1.0_8) then
+         massNE = mass(id+1)
+         tempNE = temp(id+1)
+      end if
+      if (massN==1.0_8)  then
+         massN  = mass(id+1)
+         tempN  = temp(id+1)
+      end if
+      if (massW==1.0_8)  massW = mass(id+1)
 
       if (itype==0) then
          ! Find the velocity on primal and dual grids
@@ -371,7 +371,7 @@ contains
 
          ! Mass and temperature fluxes
          physics = physics_scalar_flux (dom, id, idE, idNE, idN)
-         
+
          h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), massE)  + physics(S_MASS,RT+1)
          h_mflux(EDGE*id+DG+1) = u_dual_DG * interp(mass(id+1), massNE) + physics(S_MASS,DG+1)
          h_mflux(EDGE*id+UP+1) = u_dual_UP * interp(mass(id+1), massN)  + physics(S_MASS,UP+1)
@@ -391,8 +391,9 @@ contains
     end subroutine comput
   end subroutine step1
 
-   subroutine post_step1 (dom, p, c, offs, dims, zlev)
+  subroutine post_step1 (dom, p, c, offs, dims, zlev)
     ! Correct values for vorticity and qe at pentagon points
+    implicit none
     type(Domain)                   :: dom
     integer                        :: p, c, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -404,13 +405,27 @@ contains
     real(8)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW
     real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
-    if (c .eq. IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
+    real(8) :: massE, massN, massNE, massS, massSW, massW
+
+    ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idSW+DG+1) = 0 in this case
+    if (c == IJMINUS) then
        id   = idx( 0,  0, offs, dims)
        idSW = idx(-1, -1, offs, dims)
        idW  = idx(-1,  0, offs, dims)
        idS  = idx( 0, -1, offs, dims)
        idN  = idx( 0,  1, offs, dims)
        idE  = idx( 1,  0, offs, dims)
+
+       massE  = mass(idE+1)
+       massN  = mass(idN+1)
+       massS  = mass(idS+1)
+       massW  = mass(idW+1)
+
+       if (massE==1.0_8)  massE  = mass(id+1)
+       if (massN==1.0_8)  massN  = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
 
        u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW +RT+1)
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) 
@@ -424,18 +439,18 @@ contains
        vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+1) + circ_LORT_SW)/ &
-            (mass(idW+1)*dom%areas%elts(idW+1)%part(6) &
+            (massW*dom%areas%elts(idW+1)%part(6) &
             + mass(id+1)*sum(dom%areas%elts(id+1)%part(4:5)) &
-            + mass(idS+1)*dom%areas%elts(idS+1)%part(3))
+            + massS*dom%areas%elts(idS+1)%part(3))
 
        pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-            (mass(idW+1)*dom%areas%elts(idW+1)%part(1) &
+            (massW*dom%areas%elts(idW+1)%part(1) &
             + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-            + mass(idN+1)*dom%areas%elts(idN+1)%part(5))
+            + massN*dom%areas%elts(idN+1)%part(5))
 
        pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-            (mass(idS+1)*dom%areas%elts(idS+1)%part(2) &
-            + mass(idE+1)*dom%areas%elts(idE+1)%part(4) &
+            (massS*dom%areas%elts(idS+1)%part(2) &
+            + massE*dom%areas%elts(idE+1)%part(4) &
             + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
        pv_UPLT_SW = pv_LORT_SW
@@ -444,13 +459,27 @@ contains
        qe(EDGE*idS+UP+1) = interp(pv_UPLT_S, pv_LORT_SW)
     end if
 
-    if (c .eq. IPLUSJMINUS) then ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
+    ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idS+UP+1) = 0 in this case
+    if (c == IPLUSJMINUS) then 
        id   = idx(PATCH_SIZE,    0, offs, dims)
        idSW = idx(PATCH_SIZE-1, -1, offs, dims)
        idS  = idx(PATCH_SIZE,   -1, offs, dims)
        idW  = idx(PATCH_SIZE-1,  0, offs, dims)
        idE  = idx(PATCH_SIZE+1,  0, offs, dims)
        idNE = idx(PATCH_SIZE+1,  1, offs, dims)
+
+       massE  = mass(idE+1)
+       massNE = mass(idNE+1)
+       massS  = mass(idS+1)
+       massSW = mass(idSW+1)
+       massW  = mass(idW+1)
+
+       if (massE==1.0_8)  massE  = mass(id+1)
+       if (massNE==1.0_8) massNE = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massSW==1.0_8) massSW = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
 
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
@@ -464,19 +493,19 @@ contains
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-            (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) + &
-            mass(idS+1)*dom%areas%elts(idS+1)%part(3) + &
+            (massSW*dom%areas%elts(idSW+1)%part(1) + &
+            massS*dom%areas%elts(idS+1)%part(3) + &
             mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/ &
-            ( mass(id+1)*dom%areas%elts(id+1)%part(1) &
-            + mass(idE+1)*dom%areas%elts(idE+1)%part(3) &
-            + mass(idNE+1)*dom%areas%elts(idNE+1)%part(5))
+            (mass(id+1)*dom%areas%elts(id+1)%part(1) &
+            + massE*dom%areas%elts(idE+1)%part(3) &
+            + massNE*dom%areas%elts(idNE+1)%part(5))
 
        pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            ( mass(idSW+1)*dom%areas%elts(idSW+1)%part(2) &
+            (massSW*dom%areas%elts(idSW+1)%part(2) &
             + mass(id+1)*dom%areas%elts(id+1)%part(4) &
-            + mass(idW+1)*dom%areas%elts(idW+1)%part(6))
+            + massW*dom%areas%elts(idW+1)%part(6))
 
        pv_UPLT_S = pv_LORT_SW
 
@@ -484,13 +513,27 @@ contains
        qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
-    if (c .eq. IMINUSJPLUS) then ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+    ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idW+RT+1) = 0 in this case
+    if (c == IMINUSJPLUS) then
        id   = idx( 0, PATCH_SIZE,   offs, dims)
        idSW = idx(-1, PATCH_SIZE-1, offs, dims)
        idW  = idx(-1, PATCH_SIZE,   offs, dims)
        idS  = idx( 0, PATCH_SIZE-1, offs, dims)
        idN  = idx( 0, PATCH_SIZE+1, offs, dims)
        idNE = idx( 1, PATCH_SIZE+1, offs, dims)
+
+       massN  = mass(idN+1)
+       massNE = mass(idNE+1)
+       massS  = mass(idS+1)
+       massSW = mass(idSW+1)
+       massW  = mass(idW+1)
+
+       if (massN==1.0_8)  massN  = mass(id+1)
+       if (massNE==1.0_8) massNE = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massSW==1.0_8) massSW = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
 
        u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id  +UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
@@ -504,18 +547,18 @@ contains
        vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
 
        pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-            (mass(idSW+1)*dom%areas%elts(idSW  +1)%part(2) &
+            (massSW*dom%areas%elts(idSW+1)%part(2) &
             + mass(id+1)*sum(dom%areas%elts(id+1)%part(3:4)) &
-            + mass(idW+1)*dom%areas%elts(idW+1)%part(6))
+            + massW*dom%areas%elts(idW+1)%part(6))
 
        pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/ &
             (mass(id+1)*dom%areas%elts(id+1)%part(2) &
-            + mass(idNE+1)*dom%areas%elts(idNE+1)%part(4) &
-            + mass(idN+1)*dom%areas%elts(idN+1)%part(6))
+            + massNE*dom%areas%elts(idNE+1)%part(4) &
+            + massN*dom%areas%elts(idN+1)%part(6))
 
        pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-            (mass(idSW+1)*dom%areas%elts(idSW+1)%part(1) &
-            + mass(idS+1)*dom%areas%elts(idS+1)%part(3) &
+            (massSW*dom%areas%elts(idSW+1)%part(1) &
+            + massS*dom%areas%elts(idS+1)%part(3) &
             + mass(id+1)*dom%areas%elts(id+1)%part(5))
 
        pv_LORT_W = pv_UPLT_SW
@@ -524,12 +567,24 @@ contains
        qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
     end if
 
-    if (c .eq. IJPLUS) then ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
+    ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*id+DG+1) = 0 in this case
+    if (c == IJPLUS) then 
        id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
        idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
        idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
        idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
        idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
+
+       massE = mass(idE+1)
+       massN = mass(idN+1)
+       massS = mass(idS+1)
+       massW = mass(idW+1)
+
+       if (massE==1.0_8) massE = mass(id+1)
+       if (massN==1.0_8) massN  = mass(id+1)
+       if (massS==1.0_8) massS  = mass(id+1)
+       if (massW==1.0_8) massW  = mass(id+1)
 
        u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id +RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+DG+1)
@@ -543,18 +598,18 @@ contains
        vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+1) + circ_LORT)/ &          
-            (mass(idE+1)*dom%areas%elts(idE+1)%part(3) + &
+            (massE*dom%areas%elts(idE+1)%part(3) + &
             mass(id+1)*sum(dom%areas%elts(id+1)%part(1:2)) + &
-            mass(idN+1)*dom%areas%elts(idN+1)%part(6))
+            massN*dom%areas%elts(idN+1)%part(6))
 
        pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-            (mass(idW+1)*dom%areas%elts(idW+1)%part(1) &
+            (massW*dom%areas%elts(idW+1)%part(1) &
             + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-            + mass(idN+1)*dom%areas%elts(idN+1)%part(5))
+            + massN*dom%areas%elts(idN+1)%part(5))
 
        pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-            (mass(idS+1)*dom%areas%elts(idS+1)%part(2) &
-            + mass(idE+1)*dom%areas%elts(idE+1)%part(4) &
+            (massS*dom%areas%elts(idS+1)%part(2) &
+            + massE*dom%areas%elts(idE+1)%part(4) &
             + mass(id+1)*dom%areas%elts(id+1)%part(6))
 
        pv_UPLT = pv_LORT
@@ -563,234 +618,6 @@ contains
        qe(EDGE*id+UP+1) = interp(pv_UPLT, pv_LORT_W)
     end if
   end subroutine post_step1
-  
-  ! subroutine post_step1 (dom, p, c, offs, dims, zlev)
-  !   ! Correct values for vorticity and qe at pentagon points
-  !   implicit none
-  !   type(Domain)                   :: dom
-  !   integer                        :: p, c, zlev
-  !   integer, dimension(N_BDRY+1)   :: offs
-  !   integer, dimension(2,N_BDRY+1) :: dims
-
-  !   integer                      :: id, idS, idW, idSW, idN, idE, idNE
-  !   real(8)                      :: pv_LORT_W, pv_UPLT_S, pv_LORT, pv_UPLT, pv_LORT_SW, pv_UPLT_SW, pv 
-  !   real(8)                      :: circ_LORT, circ_LORT_SW, circ_UPLT_SW, circ_LORT_W, circ_UPLT, circ_UPLT_S
-  !   real(8)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW
-  !   real(8)                      :: u_prim_UP, u_prim_UP_S, u_prim_UP_SW
-
-  !   real(8) :: massE, massN, massNE, massS, massSW, massW
-
-  !   ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
-  !   ! Note that pedlen(EDGE*idSW+DG+1) = 0 in this case
-  !   if (c == IJMINUS) then
-  !      id   = idx( 0,  0, offs, dims)
-  !      idSW = idx(-1, -1, offs, dims)
-  !      idW  = idx(-1,  0, offs, dims)
-  !      idS  = idx( 0, -1, offs, dims)
-  !      idN  = idx( 0,  1, offs, dims)
-  !      idE  = idx( 1,  0, offs, dims)
-       
-  !      massE  = mass(idE+1)
-  !      massN  = mass(idN+1)
-  !      massS  = mass(idS+1)
-  !      massW  = mass(idW+1)
-       
-  !      if (massE==1.0_8)  massE  = mass(id+1)
-  !      if (massN==1.0_8)  massN  = mass(id+1)
-  !      if (massS==1.0_8)  massS  = mass(id+1)
-  !      if (massW==1.0_8)  massW  = mass(id+1)
-       
-  !      u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW +RT+1)
-  !      u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) 
-  !      u_prim_UP_S  = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS +UP+1)
-
-  !      circ_LORT_SW = u_prim_UP_S - u_prim_RT_W + u_prim_RT_SW
-  !      circ_LORT_W  = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
-  !      circ_UPLT_S  = vort(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1)
-
-  !      vort(TRIAG*idSW+LORT+1) = circ_LORT_SW/dom%triarea%elts(TRIAG*idSW+LORT+1)
-  !      vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
-
-  !      pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+1) + circ_LORT_SW)/ &
-  !           (massW*dom%areas%elts(idW+1)%part(6) &
-  !           + mass(id+1)*sum(dom%areas%elts(id+1)%part(4:5)) &
-  !           + massS*dom%areas%elts(idS+1)%part(3))
-
-  !      pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-  !           (massW*dom%areas%elts(idW+1)%part(1) &
-  !           + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-  !           + massN*dom%areas%elts(idN+1)%part(5))
-
-  !      pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-  !           (massS*dom%areas%elts(idS+1)%part(2) &
-  !           + massE*dom%areas%elts(idE+1)%part(4) &
-  !           + mass(id+1)*dom%areas%elts(id+1)%part(6))
-
-  !      pv_UPLT_SW = pv_LORT_SW
-
-  !      qe(EDGE*idW+RT+1) = interp(pv_LORT_W, pv_UPLT_SW)
-  !      qe(EDGE*idS+UP+1) = interp(pv_UPLT_S, pv_LORT_SW)
-  !   end if
-
-  !   ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
-  !   ! Note that pedlen(EDGE*idS+UP+1) = 0 in this case
-  !   if (c == IPLUSJMINUS) then 
-  !      id   = idx(PATCH_SIZE,    0, offs, dims)
-  !      idSW = idx(PATCH_SIZE-1, -1, offs, dims)
-  !      idS  = idx(PATCH_SIZE,   -1, offs, dims)
-  !      idW  = idx(PATCH_SIZE-1,  0, offs, dims)
-  !      idE  = idx(PATCH_SIZE+1,  0, offs, dims)
-  !      idNE = idx(PATCH_SIZE+1,  1, offs, dims)
-
-  !      massE  = mass(idE+1)
-  !      massNE = mass(idNE+1)
-  !      massS  = mass(idS+1)
-  !      massSW = mass(idSW+1)
-  !      massW  = mass(idW+1)
-
-  !      if (massE==1.0_8)  massE  = mass(id+1)
-  !      if (massNE==1.0_8) massNE = mass(id+1)
-  !      if (massS==1.0_8)  massS  = mass(id+1)
-  !      if (massSW==1.0_8) massSW = mass(id+1)
-  !      if (massW==1.0_8)  massW  = mass(id+1)
-
-  !      u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
-  !      u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
-  !      u_prim_RT    = velo(EDGE*id  +RT+1)*dom%len%elts(EDGE*id  +RT+1)
-
-  !      circ_LORT_SW = - u_prim_RT + u_prim_RT_SW + u_prim_DG_SW 
-  !      circ_LORT    = vort(TRIAG*id+LORT+1)*dom%triarea%elts(TRIAG*id+LORT+1)
-  !      circ_UPLT_SW = vort(TRIAG*idSW+UPLT+1)*dom%triarea%elts(TRIAG*idSW+UPLT+1)
-
-  !      vort(TRIAG*idSW+LORT+1) = circ_LORT_SW/dom%triarea%elts(TRIAG*idSW+LORT+1)
-  !      vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
-
-  !      pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-  !           (massSW*dom%areas%elts(idSW+1)%part(1) + &
-  !           massS*dom%areas%elts(idS+1)%part(3) + &
-  !           mass(id+1)*sum(dom%areas%elts(id+1)%part(5:6)))
-
-  !      pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT)/ &
-  !           (mass(id+1)*dom%areas%elts(id+1)%part(1) &
-  !           + massE*dom%areas%elts(idE+1)%part(3) &
-  !           + massNE*dom%areas%elts(idNE+1)%part(5))
-
-  !      pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-  !           (massSW*dom%areas%elts(idSW+1)%part(2) &
-  !           + mass(id+1)*dom%areas%elts(id+1)%part(4) &
-  !           + massW*dom%areas%elts(idW+1)%part(6))
-
-  !      pv_UPLT_S = pv_LORT_SW
-
-  !      qe(EDGE*id  +RT+1) = interp(pv_UPLT_S,  pv_LORT)
-  !      qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
-  !   end if
-
-  !   ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
-  !   ! Note that pedlen(EDGE*idW+RT+1) = 0 in this case
-  !   if (c == IMINUSJPLUS) then
-  !      id   = idx( 0, PATCH_SIZE,   offs, dims)
-  !      idSW = idx(-1, PATCH_SIZE-1, offs, dims)
-  !      idW  = idx(-1, PATCH_SIZE,   offs, dims)
-  !      idS  = idx( 0, PATCH_SIZE-1, offs, dims)
-  !      idN  = idx( 0, PATCH_SIZE+1, offs, dims)
-  !      idNE = idx( 1, PATCH_SIZE+1, offs, dims)
-
-  !      massN  = mass(idN+1)
-  !      massNE = mass(idNE+1)
-  !      massS  = mass(idS+1)
-  !      massSW = mass(idSW+1)
-  !      massW  = mass(idW+1)
-
-  !      if (massN==1.0_8)  massN  = mass(id+1)
-  !      if (massNE==1.0_8) massNE = mass(id+1)
-  !      if (massS==1.0_8)  massS  = mass(id+1)
-  !      if (massSW==1.0_8) massSW = mass(id+1)
-  !      if (massW==1.0_8)  massW  = mass(id+1)
-
-  !      u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id  +UP+1)
-  !      u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
-  !      u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
-
-  !      circ_UPLT_SW = u_prim_UP - u_prim_DG_SW - u_prim_UP_SW
-  !      circ_UPLT    = vort(TRIAG*id+UPLT+1)*dom%triarea%elts(TRIAG*id+UPLT+1)
-  !      circ_LORT_SW = vort(TRIAG*idSW+LORT+1)*dom%triarea%elts(TRIAG*idSW+LORT+1)
-
-  !      vort(TRIAG*idSW+UPLT+1) = circ_UPLT_SW/dom%triarea%elts(TRIAG*idSW+UPLT+1)  
-  !      vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
-
-  !      pv_UPLT_SW = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_UPLT_SW)/ &
-  !           (massSW*dom%areas%elts(idSW+1)%part(2) &
-  !           + mass(id+1)*sum(dom%areas%elts(id+1)%part(3:4)) &
-  !           + massW*dom%areas%elts(idW+1)%part(6))
-
-  !      pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT)/ &
-  !           (mass(id+1)*dom%areas%elts(id+1)%part(2) &
-  !           + massNE*dom%areas%elts(idNE+1)%part(4) &
-  !           + massN*dom%areas%elts(idN+1)%part(6))
-
-  !      pv_LORT_SW = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_LORT_SW)/ &
-  !           (massSW*dom%areas%elts(idSW+1)%part(1) &
-  !           + massS*dom%areas%elts(idS+1)%part(3) &
-  !           + mass(id+1)*dom%areas%elts(id+1)%part(5))
-
-  !      pv_LORT_W = pv_UPLT_SW
-
-  !      qe(EDGE*id  +UP+1) = interp(pv_LORT_W,  pv_UPLT)
-  !      qe(EDGE*idSW+DG+1) = interp(pv_LORT_SW, pv_UPLT_SW)
-  !   end if
-
-  !   ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
-  !   ! Note that pedlen(EDGE*id+DG+1) = 0 in this case
-  !   if (c == IJPLUS) then 
-  !      id  = idx(PATCH_SIZE,   PATCH_SIZE,   offs, dims)
-  !      idN = idx(PATCH_SIZE,   PATCH_SIZE+1, offs, dims)
-  !      idE = idx(PATCH_SIZE+1, PATCH_SIZE,   offs, dims)
-  !      idS = idx(PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
-  !      idW = idx(PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
-
-  !      massE = mass(idE+1)
-  !      massN = mass(idN+1)
-  !      massS = mass(idS+1)
-  !      massW = mass(idW+1)
-
-  !      if (massE==1.0_8) massE = mass(id+1)
-  !      if (massN==1.0_8) massN  = mass(id+1)
-  !      if (massS==1.0_8) massS  = mass(id+1)
-  !      if (massW==1.0_8) massW  = mass(id+1)
-
-  !      u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id +RT+1)
-  !      u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+DG+1)
-  !      u_prim_UP   = velo(EDGE*id +UP+1)*dom%len%elts(EDGE*id +UP+1)
-
-  !      circ_LORT   = u_prim_RT - u_prim_RT_N - u_prim_UP
-  !      circ_LORT_W = vort(TRIAG*idW+LORT+1)*dom%triarea%elts(TRIAG*idW+LORT+1)
-  !      circ_UPLT_S = vort(TRIAG*idS+UPLT+1)*dom%triarea%elts(TRIAG*idS+UPLT+1)
-
-  !      vort(TRIAG*id+LORT+1) = circ_LORT/dom%triarea%elts(TRIAG*id+LORT+1)
-  !      vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
-
-  !      pv_LORT = (dom%coriolis%elts(TRIAG*id+1) + circ_LORT)/ &          
-  !           (massE*dom%areas%elts(idE+1)%part(3) + &
-  !           mass(id+1)*sum(dom%areas%elts(id+1)%part(1:2)) + &
-  !           massN*dom%areas%elts(idN+1)%part(6))
-
-  !      pv_LORT_W = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_LORT_W)/ &
-  !           (massW*dom%areas%elts(idW+1)%part(1) &
-  !           + mass(id+1)*dom%areas%elts(id+1)%part(3) &
-  !           + massN*dom%areas%elts(idN+1)%part(5))
-
-  !      pv_UPLT_S = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_UPLT_S)/ &
-  !           (massS*dom%areas%elts(idS+1)%part(2) &
-  !           + massE*dom%areas%elts(idE+1)%part(4) &
-  !           + mass(id+1)*dom%areas%elts(id+1)%part(6))
-
-  !      pv_UPLT = pv_LORT
-
-  !      qe(EDGE*id+RT+1) = interp(pv_LORT, pv_UPLT_S)
-  !      qe(EDGE*id+UP+1) = interp(pv_UPLT, pv_LORT_W)
-  !   end if
-  ! end subroutine post_step1
 
   subroutine post_vort (dom, p, c, offs, dims, zlev)
     ! Correct values for vorticity at pentagon points (used in diffusion time step)
@@ -1198,28 +1025,28 @@ contains
     idSW = idx(i-1, j-1, offs, dims)
     idS  = idx(i,   j-1, offs, dims)
     idSE = idx(i+1, j-1, offs, dims)
-    
+
     ! RT edge
     wgt1 = get_weights(dom, id,  0)
     wgt2 = get_weights(dom, idE, 3)
-    
+
     Qperp_Gassmann(RT+1) = &
-         ! Adjacent neighbour edges (Gassmann rule 1)
+                                ! Adjacent neighbour edges (Gassmann rule 1)
          h_mflux(EDGE*id +DG+1) * qe(EDGE*idE+UP+1)*wgt1(1) + &
          h_mflux(EDGE*idS+UP+1) * qe(EDGE*idS+DG+1)*wgt1(5) + &
          h_mflux(EDGE*idS+DG+1) * qe(EDGE*idS+UP+1)*wgt2(1) + &
          h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +DG+1)*wgt2(5) + &
-
-         ! Second neighbour edges (Gassmann rule 2)
+         
+                                ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*id  +UP+1) * qe(EDGE*id +DG+1)*wgt1(2) + &
          h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idS+UP+1)*wgt1(4) + &
          h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+DG+1)*wgt2(2) + &
          h_mflux(EDGE*idE +DG+1) * qe(EDGE*idE+UP+1)*wgt2(4)
-         
-         ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
-         ! h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1), qe(EDGE*id+RT+1))*wgt1(3) + &
-         ! h_mflux(EDGE*idE+RT+1)  * interp(qe(EDGE*idE+RT+1), qe(EDGE*id+RT+1))*wgt2(3)
-        
+
+    ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
+    ! h_mflux(EDGE*idW+RT+1)  * interp(qe(EDGE*idW+RT+1), qe(EDGE*id+RT+1))*wgt1(3) + &
+    ! h_mflux(EDGE*idE+RT+1)  * interp(qe(EDGE*idE+RT+1), qe(EDGE*id+RT+1))*wgt2(3)
+
     if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*interp(qe(EDGE*idW+RT+1),qe(EDGE*id+RT+1))*wgt1(3)
     else ! Pentagon, second neighbour edge (Gassmann rule 2)
@@ -1237,19 +1064,19 @@ contains
     wgt2 = get_weights(dom, idNE, 4)
 
     Qperp_Gassmann(DG+1) = &
-         ! Adjacent neighbour edges (Gassmann rule 1)
+                                ! Adjacent neighbour edges (Gassmann rule 1)
          h_mflux(EDGE*id +UP+1) * qe(EDGE*idN+RT+1)*wgt1(1) + &
          h_mflux(EDGE*id +RT+1) * qe(EDGE*idE+UP+1)*wgt1(5) + &
          h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +RT+1)*wgt2(1) + &
          h_mflux(EDGE*idN+RT+1) * qe(EDGE*id +UP+1)*wgt2(5) + &
-
-         ! Second neighbour edges (Gassmann rule 2)
+         
+                                ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*idW +RT+1) * qe(EDGE*id +UP+1)*wgt1(2) + &
          h_mflux(EDGE*idS +UP+1) * qe(EDGE*id +RT+1)*wgt1(4) + &
          h_mflux(EDGE*idNE+RT+1) * qe(EDGE*idE+UP+1)*wgt2(2) + &
          h_mflux(EDGE*idNE+UP+1) * qe(EDGE*idN+RT+1)*wgt2(4) + &
-        
-         ! Third neighbour edges (Gassmann rule 3 = TRSK)
+         
+                                ! Third neighbour edges (Gassmann rule 3 = TRSK)
          h_mflux(EDGE*idSW+DG+1) * interp(qe(EDGE*idSW+DG+1), qe(EDGE*id+DG+1))*wgt1(3) + &
          h_mflux(EDGE*idNE+DG+1) * interp(qe(EDGE*idNE+DG+1), qe(EDGE*id+DG+1))*wgt2(3)
 
@@ -1258,22 +1085,22 @@ contains
     wgt2 = get_weights(dom, idN, 5)
 
     Qperp_Gassmann(UP+1) = &
-         ! Adjacent neighbour edges (Gassmann rule 1)
+                                ! Adjacent neighbour edges (Gassmann rule 1)
          h_mflux(EDGE*idW+RT+1)  * qe(EDGE*idW+DG+1)*wgt1(1) + &
          h_mflux(EDGE*id +DG+1)  * qe(EDGE*idN+RT+1)*wgt1(5) + &
          h_mflux(EDGE*idN+RT+1)  * qe(EDGE*id +DG+1)*wgt2(1) + &
          h_mflux(EDGE*idW+DG+1)  * qe(EDGE*idW+RT+1)*wgt2(5) + &
-                 
-         ! Second neighbour edges (Gassmann rule 2)
+         
+                                ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idW+RT+1)*wgt1(2) + &
          h_mflux(EDGE*id+RT+1)   * qe(EDGE*id +DG+1)*wgt1(4) + &
          h_mflux(EDGE*idN+DG+1)  * qe(EDGE*idN+RT+1)*wgt2(2) + &         
          h_mflux(EDGE*idNW+RT+1) * qe(EDGE*idW+DG+1)*wgt2(4)
-                 
-         ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
-         ! h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
-         ! h_mflux(EDGE*idN+UP+1)  * interp(qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3)
-    
+
+    ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
+    ! h_mflux(EDGE*idS+UP+1)  * interp(qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
+    ! h_mflux(EDGE*idN+UP+1)  * interp(qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3)
+
     if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3 = TRSK)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*interp(qe(EDGE*idS+UP+1),qe(EDGE*id+UP+1))*wgt1(3)
     else ! Pentagon, second neighbour edge (Gassmann rule 2)
@@ -1324,7 +1151,7 @@ contains
          integer, dimension(2,N_BDRY+1)    :: dims
        end function physics_scalar_source
     end interface
-   
+
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
     id = idx(i, j, offs, dims)
