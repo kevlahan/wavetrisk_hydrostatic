@@ -106,6 +106,15 @@ contains
        call comm_masks_mpi (l)
     end do
 
+    ! Add nodes and edges required for TRISK operators
+    do l = level_start+1, level_end
+       call apply_onescale (mask_trsk, l, z_null, 0, 1)
+    end do
+
+    do l = level_start+1, level_end
+       call apply_onescale (mask_remap, l, z_null, 0, 0)
+    end do
+
     ! Determine whether any new patches are required
     if (refine()) call post_refine
 
