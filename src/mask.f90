@@ -388,7 +388,7 @@ contains
     id   = idx(i,   j,   offs, dims)
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
-    idNE = idx(i,   j+1, offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
 
     if (dom%mask_e%elts(EDGE*id+RT+1) >= TRSK) then
        call set_at_least (dom%mask_n%elts(id+1),  TRSK)
