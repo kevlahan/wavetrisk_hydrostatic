@@ -32,7 +32,7 @@ endif
 ifeq ($(MACHINE),if)
   VENDOR = gnu
   LIBS = -llapack
-else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
+else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
   # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163
   VENDOR = gnu
   LIBS =  -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
