@@ -502,17 +502,7 @@ contains
        call set_at_least (dom%mask_e%elts(EDGE*idNW+RT+1), TRSK)
        call set_at_least (dom%mask_e%elts(EDGE*idW+DG+1), TRSK)
 
-    ! if (dom%mask_e%elts(idW+RT+1) >= ADJZONE) then
-    !    call set_at_least (dom%mask_n%elts(idW+1), TRSK)
-    !    call set_at_least (dom%mask_n%elts(idS+1), TRSK)
-    ! end if
-
-    !  if (dom%mask_e%elts(idSW+DG+1) >= ADJZONE) then
-    !     call set_at_least (dom%mask_n%elts(idSW+1), TRSK)
-    !     call set_at_least (dom%mask_n%elts(idS+1), TRSK)
-    !  end if
-
-    ! Qperp stencil (Gassmann)
+       ! Qperp stencil (Gassmann)
        call set_at_least (dom%mask_n%elts(id2E+1),  TRSK)
        call set_at_least (dom%mask_n%elts(idN2E+1), TRSK)
        call set_at_least (dom%mask_n%elts(idNE+1),  TRSK)
