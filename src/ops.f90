@@ -424,10 +424,10 @@ contains
        massS  = mass(idS+1)
        massW  = mass(idW+1)
        
-       ! if (massE==1.0_8)  massE  = mass(id+1)
-       ! if (massN==1.0_8)  massN  = mass(id+1)
-       ! if (massS==1.0_8)  massS  = mass(id+1)
-       ! if (massW==1.0_8)  massW  = mass(id+1)
+       if (massE==1.0_8)  massE  = mass(id+1)
+       if (massN==1.0_8)  massN  = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
        
        u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW +RT+1)
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) 
@@ -477,11 +477,11 @@ contains
        massSW = mass(idSW+1)
        massW  = mass(idW+1)
 
-       ! if (massE==1.0_8)  massE  = mass(id+1)
-       ! if (massNE==1.0_8) massNE = mass(id+1)
-       ! if (massS==1.0_8)  massS  = mass(id+1)
-       ! if (massSW==1.0_8) massSW = mass(id+1)
-       ! if (massW==1.0_8)  massW  = mass(id+1)
+       if (massE==1.0_8)  massE  = mass(id+1)
+       if (massNE==1.0_8) massNE = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massSW==1.0_8) massSW = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
 
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
@@ -531,11 +531,11 @@ contains
        massSW = mass(idSW+1)
        massW  = mass(idW+1)
 
-       ! if (massN==1.0_8)  massN  = mass(id+1)
-       ! if (massNE==1.0_8) massNE = mass(id+1)
-       ! if (massS==1.0_8)  massS  = mass(id+1)
-       ! if (massSW==1.0_8) massSW = mass(id+1)
-       ! if (massW==1.0_8)  massW  = mass(id+1)
+       if (massN==1.0_8)  massN  = mass(id+1)
+       if (massNE==1.0_8) massNE = mass(id+1)
+       if (massS==1.0_8)  massS  = mass(id+1)
+       if (massSW==1.0_8) massSW = mass(id+1)
+       if (massW==1.0_8)  massW  = mass(id+1)
 
        u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id  +UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
@@ -583,10 +583,10 @@ contains
        massS = mass(idS+1)
        massW = mass(idW+1)
 
-       ! if (massE==1.0_8) massE = mass(id+1)
-       ! if (massN==1.0_8) massN  = mass(id+1)
-       ! if (massS==1.0_8) massS  = mass(id+1)
-       ! if (massW==1.0_8) massW  = mass(id+1)
+       if (massE==1.0_8) massE = mass(id+1)
+       if (massN==1.0_8) massN  = mass(id+1)
+       if (massS==1.0_8) massS  = mass(id+1)
+       if (massW==1.0_8) massW  = mass(id+1)
 
        u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id +RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+DG+1)
@@ -630,7 +630,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, idN, idS, idSW, idW
-    real(8) ::  circ_LORT, circ_LORT_SW, circ_UPLT_SW
+    real(8) :: circ_LORT, circ_LORT_SW, circ_UPLT_SW
     real(8) :: u_prim_DG_SW, u_prim_RT, u_prim_RT_N, u_prim_RT_SW,  u_prim_RT_W, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
     if (c == IJMINUS) then ! Parts 4, 5 of hexagon IJMINUS (SW corner of lozenge) combined to form pentagon
@@ -926,7 +926,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! Calculate Q_perp
-    Qperp_e = Qperp_gassmann (dom, i, j, z_null, offs, dims)
+    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
     ! Calculate physics
     physics = physics_velo_source (dom, i, j, z_null, offs, dims)
