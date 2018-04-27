@@ -31,7 +31,7 @@ contains
     else
        call adapt (set_thresholds)
     end if
-    if (level_end .gt. level_start) call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    if (level_end > level_start) call inverse_wavelet_transform (wav_coeff, sol, level_start)
   end subroutine adapt_grid
 
   subroutine adapt (set_thresholds)

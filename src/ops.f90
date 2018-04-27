@@ -187,18 +187,18 @@ contains
       tempSW = temp(idSW+1)
       tempS  = temp(idS+1)
       
-      ! if (massW==1.0_8)  then
-      !    massW=mass(id+1)
-      !    tempW=temp(id+1)
-      ! end if
-      ! if (massSW==1.0_8) then
-      !    massSW=mass(id+1)
-      !    tempSW=temp(id+1)
-      ! end if
-      ! if (massS==1.0_8) then
-      !    massS=mass(id+1)
-      !    tempS=temp(id+1)
-      ! end if
+      if (massW==1.0_8)  then
+         massW=mass(id+1)
+         tempW=temp(id+1)
+      end if
+      if (massSW==1.0_8) then
+         massSW=mass(id+1)
+         tempSW=temp(id+1)
+      end if
+      if (massS==1.0_8) then
+         massS=mass(id+1)
+         tempS=temp(id+1)
+      end if
 
       if (itype==0) then 
          u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
@@ -225,14 +225,6 @@ contains
          qe(EDGE*idS+UP+1)  = interp(pv_LORT_SW, pv_UPLT_S)
 
          ! Mass and temperature fluxes
-         ! if(massW==1.0_8)  massW=mass(id+1)
-         ! if(massSW==1.0_8) massSW=mass(id+1)
-         ! if(massS==1.0_8)  massS=mass(id+1)
-
-         ! if(massW==1.0_8)  tempW=temp(id+1)
-         ! if(massSW==1.0_8) tempSW=temp(id+1)
-         ! if(massS==1.0_8)  tempS=temp(id+1)
-
          physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
 
          h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp(mass(id+1), massW)  + physics(S_MASS,RT+1)
@@ -290,20 +282,20 @@ contains
       tempNE = temp(idNE+1)
       tempN  = temp(idN+1)
 
-      ! if (massE==1.0_8)  then
-      !    massE  = mass(id+1)
-      !    tempE  = temp(id+1)
-      ! end if
-      ! if (massNE==1.0_8) then
-      !    massNE = mass(id+1)
-      !    tempNE = temp(id+1)
-      ! end if
-      ! if (massN==1.0_8)  then
-      !    massN  = mass(id+1)
-      !    tempN  = temp(id+1)
-      ! end if
-      ! if (massW==1.0_8)  massW = mass(id+1)
-      ! if (massS==1.0_8)  massS = mass(id+1)
+      if (massE==1.0_8)  then
+         massE = mass(id+1)
+         tempE = temp(id+1)
+      end if
+      if (massNE==1.0_8) then
+         massNE = mass(id+1)
+         tempNE = temp(id+1)
+      end if
+      if (massN==1.0_8)  then
+         massN = mass(id+1)
+         tempN = temp(id+1)
+      end if
+      if (massW==1.0_8)  massW = mass(id+1)
+      if (massS==1.0_8)  massS = mass(id+1)
 
       if (itype==0) then
          ! Find the velocity on primal and dual grids
@@ -380,15 +372,6 @@ contains
          qe(EDGE*id+UP+1) = interp(pv_UPLT,   pv_LORT_W)
 
          ! Mass and temperature fluxes
-         ! if(massE==1.0_8)  massE=mass(id+1)
-         ! if(massNE==1.0_8) massNE=mass(id+1)
-         ! if(massN==1.0_8)  massN=mass(id+1)
-         ! if(massW==1.0_8)  massW=mass(id+1)
-
-         ! if(massE==1.0_8)  tempE=temp(id+1)
-         ! if(massNE==1.0_8) tempNE=temp(id+1)
-         ! if(massN==1.0_8)  tempN=temp(id+1)
-         
          physics = physics_scalar_flux (dom, id, idE, idNE, idN)
          
          h_mflux(EDGE*id+RT+1) = u_dual_RT * interp(mass(id+1), massE)  + physics(S_MASS,RT+1)
