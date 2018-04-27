@@ -120,7 +120,7 @@ contains
        call apply_onescale (mask_remap, l, z_null, -1, 1)
     end do
     call comm_masks_mpi (NONE)
-
+    
     ! Set insignificant wavelet coefficients to zero
     do k = 1, zlevels
        do l = level_start, level_end
