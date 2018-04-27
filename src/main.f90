@@ -14,7 +14,6 @@ module main_mod
   use smooth_mod
 
   implicit none
-  
   integer(8)                         :: itime
   integer                            :: cp_idx
   integer, dimension(:), allocatable :: node_level_start, edge_level_start
@@ -27,6 +26,7 @@ module main_mod
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
   subroutine init_main_mod
+    implicit none
     call init_arch_mod
     call init_domain_mod
     call init_comm_mod
@@ -42,21 +42,22 @@ contains
   end subroutine init_main_mod
 
   subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
+    implicit none
     external :: apply_init_cond, set_thresholds, custom_dump, custom_load
     
     character(20+4+4) :: command
     integer           :: k, d, stage, ierr
 
-    if (min_level .gt. max_level) then
-       if (rank .eq. 0) write(*,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
+    if (min_level > max_level) then
+       if (rank == 0) write(*,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
             '<', min_level, '. Setting max_level to', min_level
        max_level = min_level
     end if
 
-    if (resume .ge. 0) then
+    if (resume >= 0) then
        cp_idx = resume
        write(command, '(A,I4.4,A)')  "tar -xzf checkpoint_" , cp_idx , ".tgz"
-       if (rank .eq. 0) call system (command)
+       if (rank == 0) call system (command)
        call barrier ! make sure all files are extracted before everyone starts reading them
     end if
 
@@ -65,15 +66,15 @@ contains
     call init_comm_mpi
     call init_geometry
 
-    if (optimize_grid .eq. XU_GRID) call smooth_Xu (1d6*eps())
-    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid
+    if (optimize_grid == XU_GRID) call smooth_Xu (1d6*eps())
+    if (optimize_grid == HR_GRID) call read_HR_optim_grid
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
     call precompute_geometry
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
-    if (rank .eq. 0) write(6,*) 'Make level J_min =', min_level, '...'
+    if (rank == 0) write(6,*) 'Make level J_min =', min_level, '...'
 
     call init_wavelets
     call init_masks
@@ -83,13 +84,13 @@ contains
     call apply_interscale (mask_adj_children, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
     call record_init_state (ini_st)
-    if (time_end .gt. 0.0_8) time_mult = huge(itime)/2/time_end
-    if (stage .eq. 0) return
+    if (time_end > 0.0_8) time_mult = huge(itime)/2/time_end
+    if (stage == 0) return
 
     call init_RK_mem
 
-    if (resume .ge. 0) then
-       if (rank .eq. 0) write(6,*) 'Resuming from checkpoint', resume
+    if (resume >= 0) then
+       if (rank == 0) write(6,*) 'Resuming from checkpoint', resume
     else
        call apply_init_cond
        call forward_wavelet_transform (sol, wav_coeff)
@@ -99,14 +100,14 @@ contains
        end if
 
        dt_init = cpt_dt_mpi()
-       do while (level_end .lt. max_level)
-          if (rank .eq. 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
+       do while (level_end < max_level)
+          if (rank == 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
           call adapt (set_thresholds)
 
-          if (rank .eq. 0) write(6,*) 'Initialize solution on level', level_end
+          if (rank == 0) write(6,*) 'Initialize solution on level', level_end
 
           call apply_init_cond
           
@@ -122,21 +123,21 @@ contains
           do k = 1, zlevels
              n_active = n_active + (/ &
                   sum((/(count( &
-                  abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) .gt. tol_mass &
+                  abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) > tol_mass &
                   .or. &
-                  abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) .gt. tol_temp ), &
+                  abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) > tol_temp ), &
                   d = 1, n_domain(rank+1)) /)), &
                   
-                  sum((/(count(abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d):grid(d)%midpt%length)) .gt. tol_velo), &
+                  sum((/(count(abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d):grid(d)%midpt%length)) > tol_velo), &
                   d = 1, n_domain(rank+1)) /)) &
                   /)
           end do
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
-          if (rank.eq.0) write(6,'(A,i2,1x,2(A,i8,1x))') &
+          if (rank==0) write(6,'(A,i2,1x,2(A,i8,1x))') &
                'Level = ', level_end, 'number of active nodes = ',n_active(AT_NODE), 'number of active edges = ', n_active(AT_EDGE)
 
-          if (n_active(AT_NODE) .eq. 0 .and. n_active(AT_EDGE) .eq. 0) exit !--No active nodes at this scale
+          if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit !--No active nodes at this scale
        end do
 
        cp_idx = 0
@@ -148,6 +149,7 @@ contains
   end subroutine initialize
 
   subroutine record_init_state (init_state)
+    implicit none
     type(Initial_State), dimension(:), allocatable :: init_state
     
     integer :: d, i, v
@@ -185,8 +187,8 @@ contains
     ! Match certain times exactly
     idt    = nint(dt*time_mult, 8)
     ialign = nint(align_time*time_mult, 8)
-    if (ialign.gt.0 .and. cp_idx.ne.resume .and. istep.ne.1) then
-       aligned = (modulo(itime+idt,ialign) .lt. modulo(itime,ialign))
+    if (ialign>0 .and. cp_idx.ne.resume .and. istep.ne.1) then
+       aligned = (modulo(itime+idt,ialign) < modulo(itime,ialign))
     else
        resume = NONE ! Set unequal cp_idx => only first step after resume is protected from alignment
        aligned = .False.
@@ -196,64 +198,15 @@ contains
 
     call RK34_opt (trend_ml, dt)
 
-    if (min_level .lt. max_level) call adapt_grid (set_thresholds)
+    if (min_level < max_level) call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
     
     itime = itime + idt
     time  = itime/time_mult
   end subroutine time_step
 
-  ! subroutine time_step_physics
-  !   ! Euler time step to diffuse solution
-  !   implicit none
-  !   integer :: d, k, p
-
-  !   call trend_physics (sol, trend)
-    
-  !   do k = 1, zlevels
-  !      do d = 1, size(grid)
-  !         mass => sol(S_MASS,k)%data(d)%elts
-  !         temp => sol(S_TEMP,k)%data(d)%elts
-  !         velo => sol(S_VELO,k)%data(d)%elts
-  !         dmass => trend(S_MASS,k)%data(d)%elts
-  !         dtemp => trend(S_TEMP,k)%data(d)%elts
-  !         dvelo => trend(S_VELO,k)%data(d)%elts
-
-  !         do p = 3, grid(d)%patch%length
-  !            call apply_onescale_to_patch (euler_step_physics, grid(d), p-1, k, 0, 1)
-  !         end do
-  !         nullify (mass, temp, velo, dmass, dtemp, dvelo)
-  !      end do
-  !      sol(:,k)%bdry_uptodate = .False.
-  !   end do
-  ! end subroutine time_step_physics
-  
-  ! subroutine euler_step_physics (dom, i, j, zlev, offs, dims)
-  !   ! Euler time step
-  !   implicit none
-  !   type(Domain)                     :: dom
-  !   integer                          :: i, j, zlev
-  !   integer, dimension(N_BDRY + 1)   :: offs
-  !   integer, dimension(2,N_BDRY + 1) :: dims
-
-  !   integer :: e, id, theta
-
-  !   id = idx(i, j, offs, dims)
-
-  !   ! Potential temperature at previous time step
-  !   theta = temp(id+1)/mass(id+1)
-
-  !   mass(id+1) = mass(id+1) + dt * dmass(id+1)
-
-  !   ! Take Euler step for potential temperature and then form mass-weighted potential temperature
-  !   temp(id+1) = (theta + dt*dtemp(id+1)) * mass(id+1)
-    
-  !   do e = 1, EDGE
-  !      velo(EDGE*id+e) = velo(EDGE*id+e) + dt*dvelo(EDGE*id+e)
-  !   end do
-  ! end subroutine euler_step_physics
-
   subroutine reset (init_state)
+    implicit none
     type(Initial_State), dimension (:), allocatable :: init_state
     integer                                         :: k, l, d, v, i
     integer, dimension (AT_NODE:AT_EDGE)            :: num
@@ -346,6 +299,7 @@ contains
   end subroutine reset
 
   subroutine restart_full (set_thresholds, custom_load)
+    implicit none
     external           :: set_thresholds, custom_load
     
     integer            :: i, d, k, r, l, v
@@ -536,15 +490,15 @@ contains
     call comm_communication_mpi 
     call init_geometry 
 
-    if (optimize_grid .eq. XU_GRID) call smooth_Xu (1d6*eps())
-    if (optimize_grid .eq. HR_GRID) call read_HR_optim_grid 
+    if (optimize_grid == XU_GRID) call smooth_Xu (1d6*eps())
+    if (optimize_grid == HR_GRID) call read_HR_optim_grid 
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
     call precompute_geometry 
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
-    if (rank .eq. 0) write(*,*) 'Make level J_min =', min_level, '...'
+    if (rank == 0) write(*,*) 'Make level J_min =', min_level, '...'
     call init_wavelets 
     call init_masks 
     call add_second_level 
@@ -556,7 +510,7 @@ contains
 
     call init_RK_mem
 
-    if (rank .eq. 0) write (6,*) 'Reloading from checkpoint', cp_idx
+    if (rank == 0) write (6,*) 'Reloading from checkpoint', cp_idx
 
     call load_adapt_mpi (read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
         
@@ -571,7 +525,7 @@ contains
 
     call barrier ! do not delete files before everyone has read them
 
-    if (rank .eq. 0) call system (command)
+    if (rank == 0) call system (command)
     if (adapt_trend) trend_wav_coeff = wav_coeff
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     call adapt_grid (set_thresholds)
@@ -579,6 +533,7 @@ contains
   end subroutine restart_full
 
   function write_checkpoint (custom_dump)
+    implicit none
     integer  :: write_checkpoint
     external :: custom_dump
     
@@ -592,6 +547,7 @@ contains
   end function write_checkpoint
 
   subroutine compress_files (iwrite)
+    implicit none
     integer :: iwrite
 
     character(4)   :: s_time
