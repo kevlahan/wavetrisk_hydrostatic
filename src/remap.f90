@@ -156,6 +156,7 @@ contains
     do k = 1, zlevels+1
        X = exner_fun(k)%data(d)%elts(id+1)
        zlev = min(zlevels,floor(X))
+       if (zlev<1) return
        X = X - zlev
        new_cumul_temp(k) = cumul_temp(zlev) + X*sol(S_TEMP,zlev)%data(d)%elts(id+1)
     end do
@@ -206,6 +207,7 @@ contains
 
        do e = 1, EDGE
           zlev = min(zlevels,floor(X(e)))
+          if (zlev<1) return
           X(e) = X(e) - zlev
           new_massflux_cumul(k,e) = massflux_cumul(zlev,e) + X(e)*massflux(zlev,e)
        end do
