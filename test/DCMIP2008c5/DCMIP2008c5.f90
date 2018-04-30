@@ -1,9 +1,10 @@
 module DCMIP2008c5_mod
-  ! DCMIP2008 test case 5 parameters
+  ! DCMIP2008c5 test case 5 parameters
   use main_mod
   use remap_mod
   implicit none
 
+  character (255), parameter         :: test_case = 'DCMIP2008c5'
   integer                            :: CP_EVERY, iwrite, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
@@ -529,7 +530,7 @@ program DCMIP2008c5
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
   ! Read test case parameters
-  call read_test_case_parameters ("DCMIP2008c5.in")
+  call read_test_case_parameters (test_case//".in")
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -645,7 +646,7 @@ program DCMIP2008c5
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
 
-  open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
+  open(unit=12, file=test_case//"_log", action='WRITE', form='FORMATTED')
   if (rank .eq. 0) then
      write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9)') &
           ' time [h] = ', time/3600.0_8, &

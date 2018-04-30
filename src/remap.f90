@@ -15,9 +15,9 @@ contains
 
     external :: set_thresholds
     
-    integer   :: d, j, k, l
+    integer :: d, j, k, l
 
-    if (rank.eq.0) write(6,*) "Remapping vertical coordinates"
+    if (rank == 0) write(6,*) "Remapping vertical coordinates"
 
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
@@ -74,7 +74,7 @@ contains
     integer            :: d, j, k, l, p
     integer, parameter :: order_default = 7 ! order must be odd
 
-    if (rank.eq.0) write(6,*) "Remapping vertical coordinates for saving"
+    if (rank == 0) write(6,*) "Remapping vertical coordinates for saving"
     
     ! Set order of Newton interpolation
     order = min(zlevels+1, order_default)
@@ -172,8 +172,8 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, idE, idN, idNE, k, zlev
-    real(8), dimension(EDGE) :: mass_e, X
+    integer                              :: d, e, id, idE, idN, idNE, k, zlev
+    real(8), dimension(EDGE)             :: mass_e, X
     real(8), dimension(zlevels+1,1:EDGE) :: massflux_cumul, massflux, new_massflux_cumul
 
     d    = dom%id + 1

@@ -112,7 +112,7 @@ contains
 
      ! Add nodes and edges required for TRISK operators
     do l = level_start, level_end
-       call apply_onescale (mask_trsk, l, z_null, 0, 1)
+       call apply_onescale (mask_trsk, l, z_null, 0, 0)
     end do
     call comm_masks_mpi (NONE)
 
