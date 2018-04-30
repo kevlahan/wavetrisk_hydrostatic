@@ -187,18 +187,18 @@ contains
       tempSW = temp(idSW+1)
       tempS  = temp(idS+1)
       
-      if (massW==1.0_8)  then
-         massW=mass(id+1)
-         tempW=temp(id+1)
-      end if
-      if (massSW==1.0_8) then
-         massSW=mass(id+1)
-         tempSW=temp(id+1)
-      end if
-      if (massS==1.0_8) then
-         massS=mass(id+1)
-         tempS=temp(id+1)
-      end if
+      ! if (massW==1.0_8)  then
+      !    massW=mass(id+1)
+      !    tempW=temp(id+1)
+      ! end if
+      ! if (massSW==1.0_8) then
+      !    massSW=mass(id+1)
+      !    tempSW=temp(id+1)
+      ! end if
+      ! if (massS==1.0_8) then
+      !    massS=mass(id+1)
+      !    tempS=temp(id+1)
+      ! end if
 
       if (itype==0) then 
          u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
@@ -282,20 +282,20 @@ contains
       tempNE = temp(idNE+1)
       tempN  = temp(idN+1)
 
-      if (massE==1.0_8)  then
-         massE = mass(id+1)
-         tempE = temp(id+1)
-      end if
-      if (massNE==1.0_8) then
-         massNE = mass(id+1)
-         tempNE = temp(id+1)
-      end if
-      if (massN==1.0_8)  then
-         massN = mass(id+1)
-         tempN = temp(id+1)
-      end if
-      if (massW==1.0_8)  massW = mass(id+1)
-      if (massS==1.0_8)  massS = mass(id+1)
+      ! if (massE==1.0_8)  then
+      !    massE = mass(id+1)
+      !    tempE = temp(id+1)
+      ! end if
+      ! if (massNE==1.0_8) then
+      !    massNE = mass(id+1)
+      !    tempNE = temp(id+1)
+      ! end if
+      ! if (massN==1.0_8)  then
+      !    massN = mass(id+1)
+      !    tempN = temp(id+1)
+      ! end if
+      ! if (massW==1.0_8)  massW = mass(id+1)
+      ! if (massS==1.0_8)  massS = mass(id+1)
 
       if (itype==0) then
          ! Find the velocity on primal and dual grids
@@ -424,10 +424,10 @@ contains
        massS  = mass(idS+1)
        massW  = mass(idW+1)
        
-       if (massE==1.0_8)  massE  = mass(id+1)
-       if (massN==1.0_8)  massN  = mass(id+1)
-       if (massS==1.0_8)  massS  = mass(id+1)
-       if (massW==1.0_8)  massW  = mass(id+1)
+       ! if (massE==1.0_8)  massE  = mass(id+1)
+       ! if (massN==1.0_8)  massN  = mass(id+1)
+       ! if (massS==1.0_8)  massS  = mass(id+1)
+       ! if (massW==1.0_8)  massW  = mass(id+1)
        
        u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW +RT+1)
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) 
@@ -477,11 +477,11 @@ contains
        massSW = mass(idSW+1)
        massW  = mass(idW+1)
 
-       if (massE==1.0_8)  massE  = mass(id+1)
-       if (massNE==1.0_8) massNE = mass(id+1)
-       if (massS==1.0_8)  massS  = mass(id+1)
-       if (massSW==1.0_8) massSW = mass(id+1)
-       if (massW==1.0_8)  massW  = mass(id+1)
+       ! if (massE==1.0_8)  massE  = mass(id+1)
+       ! if (massNE==1.0_8) massNE = mass(id+1)
+       ! if (massS==1.0_8)  massS  = mass(id+1)
+       ! if (massSW==1.0_8) massSW = mass(id+1)
+       ! if (massW==1.0_8)  massW  = mass(id+1)
 
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
@@ -531,11 +531,11 @@ contains
        massSW = mass(idSW+1)
        massW  = mass(idW+1)
 
-       if (massN==1.0_8)  massN  = mass(id+1)
-       if (massNE==1.0_8) massNE = mass(id+1)
-       if (massS==1.0_8)  massS  = mass(id+1)
-       if (massSW==1.0_8) massSW = mass(id+1)
-       if (massW==1.0_8)  massW  = mass(id+1)
+       ! if (massN==1.0_8)  massN  = mass(id+1)
+       ! if (massNE==1.0_8) massNE = mass(id+1)
+       ! if (massS==1.0_8)  massS  = mass(id+1)
+       ! if (massSW==1.0_8) massSW = mass(id+1)
+       ! if (massW==1.0_8)  massW  = mass(id+1)
 
        u_prim_UP    = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id  +UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
@@ -583,10 +583,10 @@ contains
        massS = mass(idS+1)
        massW = mass(idW+1)
 
-       if (massE==1.0_8) massE = mass(id+1)
-       if (massN==1.0_8) massN  = mass(id+1)
-       if (massS==1.0_8) massS  = mass(id+1)
-       if (massW==1.0_8) massW  = mass(id+1)
+       ! if (massE==1.0_8) massE = mass(id+1)
+       ! if (massN==1.0_8) massN  = mass(id+1)
+       ! if (massS==1.0_8) massS  = mass(id+1)
+       ! if (massW==1.0_8) massW  = mass(id+1)
 
        u_prim_RT   = velo(EDGE*id +RT+1)*dom%len%elts(EDGE*id +RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+DG+1)
