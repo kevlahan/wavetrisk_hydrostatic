@@ -1,4 +1,4 @@
-module DCMIP2008c5_mode
+module DCMIP2008c5_mod
   ! DCMIP2008c5 test case 5 parameters
   use main_mod
   use remap_mod

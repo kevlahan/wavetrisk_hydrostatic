@@ -142,7 +142,7 @@ contains
 
        cp_idx = 0
        call write_load_conn(0)
-       ierr = dump_adapt_mpi(write_mt_wc, write_u_wc, cp_idx, custom_dump)
+       ierr = dump_adapt_mpi(cp_idx, custom_dump)
     end if
     dt_init = cpt_dt_mpi()
     call restart_full (set_thresholds, custom_load)
@@ -512,7 +512,7 @@ contains
 
     if (rank == 0) write (6,*) 'Reloading from checkpoint', cp_idx
 
-    call load_adapt_mpi (read_mt_wc_and_mask, read_u_wc_and_mask, cp_idx, custom_load)
+    call load_adapt_mpi (cp_idx, custom_load)
         
     itime = nint(time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
@@ -543,7 +543,7 @@ contains
     
     cp_idx = cp_idx + 1
     call write_load_conn (cp_idx)
-    write_checkpoint = dump_adapt_mpi (write_mt_wc, write_u_wc, cp_idx, custom_dump)
+    write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
   end function write_checkpoint
 
   subroutine compress_files (iwrite)

@@ -1249,24 +1249,6 @@ contains
     end do
   end subroutine write_velo
 
-  subroutine read_u_wc_and_mask (dom, p, i, j, offs, dims, fid)
-    !read in wavelet coefficients of velocity (JEMF: not mask though??)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: fid, i, j, p
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: e, id, k
-
-    id = idx(i, j, offs, dims)
-    do k = 1, zlevels
-       do e = 1, EDGE
-          read(fid,*) wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)
-       end do
-    end do
-  end subroutine read_u_wc_and_mask
-
   subroutine write_scalar (dom, p, i, j, zlev, offs, dims, fid)
     implicit none
     type(Domain)                   :: dom
@@ -1301,51 +1283,11 @@ contains
     end do
   end subroutine read_scalar
 
-  subroutine read_mt_wc_and_mask (dom, p, i, j, offs, dims, fid)
-    !read in wavelet coefficients of mass and potential temperature (not mask though??)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: fid, p, i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id, k, v
-
-    id = idx(i, j, offs, dims)
-
-    do k = 1, zlevels
-       write(0,*) 'reading k', k, 'id', id
-       do v = S_MASS, S_TEMP
-          read(fid,*) wav_coeff(v,k)%data(dom%id+1)%elts(id+1)
-       end do
-    end do
-  end subroutine read_mt_wc_and_mask
-
-  subroutine write_mt_wc (dom, p, i, j, offs, dims, fid)
-    ! Write wavelet coefficients of mass and potential temperature
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: fid, p, i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id, k, v
-
-    id = idx(i, j, offs, dims)
-
-    do k = 1, zlevels
-       write(0,*) 'writing k', k, 'id', id
-       do v = S_MASS, S_TEMP
-          write (fid,*) wav_coeff(v,k)%data(dom%id+1)%elts(id+1)
-       end do
-    end do
-  end subroutine write_mt_wc
-
-  function dump_adapt_mpi (node_out_rout, edge_out_rout, id, custom_dump)
+  function dump_adapt_mpi (id, custom_dump)
     ! One file per domain
     implicit none
     integer  :: dump_adapt_mpi
-    external :: node_out_rout, edge_out_rout, custom_dump
+    external :: custom_dump
     integer  :: id
 
     character(5+4+1+5) :: filename_no, filename_ed, fname_gr
@@ -1458,10 +1400,10 @@ contains
     end do
   end function dump_adapt_mpi
 
-  subroutine load_adapt_mpi (node_in_rout, edge_in_rout, id, custom_load)
+  subroutine load_adapt_mpi (id, custom_load)
     ! One file per domain
     implicit none
-    external                             :: node_in_rout, edge_in_rout, custom_load
+    external                             :: custom_load
     integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid !ASCII, fid_ed 
     integer                              :: id
 
@@ -1556,18 +1498,10 @@ contains
     wav_coeff%bdry_uptodate = .False.
   end subroutine load_adapt_mpi
 
-  subroutine default_dump (fid)
-    integer :: fid
-  end subroutine default_dump
-
-  subroutine default_load (fid)
-    integer :: fid
-  end subroutine default_load
-
   subroutine proj_xz_plane (cin, cout)
     implicit none
-    type(Coord)          :: cin
-    real(8), intent(out) :: cout(2)
+    type(Coord)                        :: cin
+    real(8), dimension(2), intent(out) :: cout
 
     if (cin%y .gt. 0) then
        cout = (/cin%x-radius, cin%z/)
@@ -1603,8 +1537,8 @@ contains
     integer                        :: d_HR, p, d_glo, d_sub, fid, loz
     character(19+1)                :: filename
 
-    maxerror = 0.0
-    l2error = 0.0
+    maxerror = 0.0_8
+    l2error = 0.0_8
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
     call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
