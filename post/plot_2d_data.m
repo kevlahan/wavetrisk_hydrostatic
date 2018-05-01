@@ -1,16 +1,16 @@
 % Plot 2d data from export_2d
-clear all; close all;
+clear; close all;
 
 % Test case
 test = 'DCMIP2008c5';
 %test = 'DCMIP2008c12';
 %test = 'Held_Suarez';
 
-machine   = 'if';
-t1        = 30; % Start time
+machine   = 'mac';
+t1        = 2; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'zonal';
+itype     = 'temp';
 
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
@@ -31,7 +31,7 @@ end
 
 N = t2-t1+1; % number of samples
 
-file_base = 'fort.3';
+file_base = [test '.3'];
 if (strcmp(machine,'if'))
     pathid = '/net/if/1/home/kevlahan/data/jobs/DCMIP2008c5/';
 elseif (strcmp(machine,'mac'))

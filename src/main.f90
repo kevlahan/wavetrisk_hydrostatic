@@ -41,12 +41,13 @@ contains
     time_mult = 1.0_8
   end subroutine init_main_mod
 
-  subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load)
+  subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load, test_case)
     implicit none
-    external :: apply_init_cond, set_thresholds, custom_dump, custom_load
+    external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
+    character(*) :: test_case
     
-    character(20+4+4) :: command
-    integer           :: k, d, stage, ierr
+    character(255) :: command
+    integer        :: k, d, stage, ierr
 
     if (min_level > max_level) then
        if (rank == 0) write(*,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
@@ -56,7 +57,7 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
-       write(command, '(A,I4.4,A)')  "tar -xzf checkpoint_" , cp_idx , ".tgz"
+       write(command, '(A,I4.4,A)')  'tar xzf '//trim(test_case)//'_checkpoint_' , cp_idx , ".tgz"
        if (rank == 0) call system (command)
        call barrier ! make sure all files are extracted before everyone starts reading them
     end if
@@ -66,7 +67,7 @@ contains
     call init_comm_mpi
     call init_geometry
 
-    if (optimize_grid == XU_GRID) call smooth_Xu (1d6*eps())
+    if (optimize_grid == XU_GRID) call smooth_Xu (1.0d6*eps())
     if (optimize_grid == HR_GRID) call read_HR_optim_grid
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
@@ -145,7 +146,7 @@ contains
        ierr = dump_adapt_mpi(cp_idx, custom_dump)
     end if
     dt_init = cpt_dt_mpi()
-    call restart_full (set_thresholds, custom_load)
+    call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
   subroutine record_init_state (init_state)
@@ -298,16 +299,16 @@ contains
     end do
   end subroutine reset
 
-  subroutine restart_full (set_thresholds, custom_load)
+  subroutine restart_full (set_thresholds, custom_load, test_case)
     implicit none
-    external           :: set_thresholds, custom_load
+    external     :: set_thresholds, custom_load
+    character(*) :: test_case
     
     integer            :: i, d, k, r, l, v
     integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
-    integer, parameter :: len_cmd_archive = 11 + 4 + 4
     character(len_cmd_files) :: cmd_files
-    character(len_cmd_archive) :: cmd_archive
-    character(8+len_cmd_archive+15+len_cmd_files+34+len_cmd_archive+1+len_cmd_files+4) :: command
+    character(255) :: cmd_archive
+    character(255) :: command
 
     ! deallocate init_RK_mem allocations
     do k = 1, zlevels
@@ -518,10 +519,10 @@ contains
     resume = cp_idx ! to disable alignment for next step
 
     ! Do not override existing checkpoint archive
-    write(cmd_files, '(A,I4.4,A,I4.4)') "{grid,coef}.", cp_idx , "_????? conn.", cp_idx
-    write(cmd_archive, '(A,I4.4,A)') "checkpoint_" , cp_idx, ".tgz"
-    write(command, '(A,A,A,A,A,A,A,A,A)') "if [ -e ", cmd_archive, " ]; then rm -f ", cmd_files, &
-         "; else tar c --remove-files -z -f ", cmd_archive, " ", cmd_files, "; fi"
+    write(cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+    write(cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
+    write(command, '(A,A,A,A,A,A,A,A,A)') 'if [ -e ', trim(cmd_archive), ' ]; then rm -f ', cmd_files, &
+         '; else tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files, '; fi'
 
     call barrier ! do not delete files before everyone has read them
 
@@ -546,26 +547,27 @@ contains
     write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
   end function write_checkpoint
 
-  subroutine compress_files (iwrite)
+  subroutine compress_files (iwrite, test_case)
     implicit none
-    integer :: iwrite
+    integer      :: iwrite
+    character(*) :: test_case
 
     character(4)   :: s_time
     character(130) :: command
 
     write (s_time, '(i4.4)') iwrite
 
-    command = 'ls -1 fort.1'//s_time//'?? > tmp1'
+    command = 'ls -1 '//trim(test_case)//'.1'//s_time//'?? > tmp1'
     
     call system (command)
 
-    command = 'tar czf fort.1'//s_time//'.tgz -T tmp1 --remove-files &'
+    command = 'tar czf '//trim(test_case)//'.1'//s_time//'.tgz -T tmp1 --remove-files &'
     call system (command)
 
-    command = 'ls -1 fort.2'//s_time //'?? > tmp2' 
+    command = 'ls -1 '//trim(test_case)//'.2'//s_time //'?? > tmp2' 
     call system (command)
 
-    command = 'tar czf fort.2'//s_time//'.tgz -T tmp2 --remove-files &'
+    command = 'tar czf '//trim(test_case)//'.2'//s_time//'.tgz -T tmp2 --remove-files &'
     call system (command)
   end subroutine compress_files
 end module main_mod

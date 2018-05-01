@@ -4,7 +4,7 @@ module DCMIP2008c5_mod
   use remap_mod
   implicit none
 
-  character(255), parameter          :: test_case = "DCMIP2008c5"               
+  character(*), parameter            :: test_case = "DCMIP2008c5"               
   integer                            :: CP_EVERY, iwrite, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
@@ -142,7 +142,7 @@ contains
           b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
     else
-       if (zlevels.eq.18) then
+       if (zlevels==18) then
           !a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
           a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
                0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
@@ -151,7 +151,7 @@ contains
           b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
                0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
                0.953189_8, 0.985056_8, 1.0_8 /)
-       elseif (zlevels.eq.26) then
+       elseif (zlevels==26) then
           !a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
           a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
                0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
@@ -160,7 +160,7 @@ contains
           b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
                0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
                0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
-       elseif (zlevels.eq.49) then
+       elseif (zlevels==49) then
           a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
                0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
                0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
@@ -200,9 +200,9 @@ contains
 
   subroutine read_test_case_parameters (filename)
     implicit none
-    character(*)   :: filename
-    integer        :: fid = 500
-    character(255) :: varname
+    character(*)       :: filename
+    integer, parameter :: fid = 500
+    character(255)     :: varname
     
     open(unit=fid, file=filename, action='READ')
     read(fid,*) varname, max_level
@@ -214,7 +214,7 @@ contains
     read(fid,*) varname, time_end
     read(fid,*) varname, resume
 
-    if (rank.eq.0) then
+    if (rank==0) then
        write(*,'(A,i3)')     "max_level        = ", max_level
        write(*,'(A,i3)')     "zlevels          = ", zlevels
        write(*,'(A,es10.4)') "threshold        = ", threshold
@@ -235,9 +235,10 @@ contains
     implicit none
     integer :: iwrite, zlev
 
-    integer :: d, i, j, k, l, p, u
+    integer      :: d, i, j, k, l, p, u
+    character(7) :: var_file
 
-    if (rank.eq.0) write(6,*) 'Saving fields'
+    if (rank == 0) write(6,*) 'Saving fields'
 
     call update_array_bdry (sol, NONE)
 
@@ -279,24 +280,29 @@ contains
        ! Calculate vorticity at hexagon points (stored in adj_mass)
        call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
 
-       Call write_level_mpi (write_primal, u+l, l, zlev, .True.)
+       Call write_level_mpi (write_primal, u+l, l, zlev, .True., test_case)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
           maxv(i) =  sync_max_d( maxv(i))
        end do
-       if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-       if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+       if (rank == 0) then
+          write (var_file, '(i7)') u
+          open(unit=50, file=trim(test_case)//'.'//var_file)
+          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+          close(50)
+       end if
        u = 2000000+100*iwrite
-       call write_level_mpi (write_dual, u+l, l, zlev, .False.)
+       call write_level_mpi (write_dual, u+l, l, zlev, .False., test_case)
     end do
 
     call post_levelout
     call barrier
-    if (rank .eq. 0) call compress_files (iwrite)
+    if (rank == 0) call compress_files (iwrite, test_case)
 
     ! Save 2D projection
-    call export_2d (cart2sph2, 3000000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    call export_2d (cart2sph2, 3000000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds, test_case)
     !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
   end subroutine write_and_export
 
@@ -325,7 +331,7 @@ contains
     integer :: l, k
 
     ! Set thresholds dynamically (trend or sol must be known)
-    if (itype.eq.0) then ! Adapt on trend
+    if (itype==0) then ! Adapt on trend
        norm_mass_trend = 0.0_8
        norm_temp_trend = 0.0_8
        norm_velo_trend = 0.0_8
@@ -353,11 +359,11 @@ contains
        tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
        tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
        tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
-    elseif (istep.eq.0) then
+    elseif (istep==0) then
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
-       if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
+       if (adapt_trend .and. itype==1) then ! Re-scale trend threshold for variables
           tol_mass = threshold**1.5_8 * mass_scale/5.0d1
           tol_temp = threshold**1.5_8 * temp_scale/5.0d1
           tol_velo = threshold**1.5_8 * velo_scale/5.0d1
@@ -377,7 +383,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! Maximum trends
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        do k = 1, zlevels
           norm_mass_trend = max(norm_mass_trend, abs(trend(S_MASS,k)%data(dom%id+1)%elts(id+1)))
           norm_temp_trend = max(norm_temp_trend, abs(trend(S_TEMP,k)%data(dom%id+1)%elts(id+1)))
@@ -400,7 +406,7 @@ contains
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        do k = 1, zlevels
           norm_mass = max(norm_mass, abs(sol(S_MASS,k)%data(d)%elts(id+1)))
           norm_temp = max(norm_temp, abs(sol(S_TEMP,k)%data(d)%elts(id+1)))
@@ -424,7 +430,7 @@ contains
     d = dom%id+1
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
           norm_mass_trend = norm_mass_trend + trend(S_MASS,k)%data(d)%elts(id+1)**2
@@ -449,7 +455,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
           norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
@@ -591,12 +597,12 @@ program DCMIP2008c5
   Laplace_order = 1 ! Usual Laplacian diffusion
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
-  if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
+  if (Laplace_order==1) then ! Usual Laplacian diffusion
      viscosity_mass = 0.0_8
      viscosity_temp = viscosity_mass
      viscosity_divu = 0.0_8
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
-  elseif (Laplace_order.eq.2) then ! Second-order iterated Laplacian for diffusion
+  elseif (Laplace_order==2) then ! Second-order iterated Laplacian for diffusion
      viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
      viscosity_temp = viscosity_mass
      viscosity_divu = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
@@ -615,10 +621,10 @@ program DCMIP2008c5
   else
      dt_init = dt_cfl
   end if
-  if (rank.eq.0)                        write(6,'(1(A,es10.4,1x))') "dt_cfl = ", dt_cfl
-  if (rank.eq.0.and.viscosity.ne.0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
+  if (rank==0)                        write(6,'(1(A,es10.4,1x))') "dt_cfl = ", dt_cfl
+  if (rank==0.and.viscosity.ne.0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
 
-  if (rank .eq. 0) then
+  if (rank == 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
      write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
      write(6,'(A,es10.4)') 'Viscosity_divu   = ', viscosity_divu
@@ -630,24 +636,24 @@ program DCMIP2008c5
   call initialize_a_b_vert
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, 1, set_thresholds, dump, load)
+  call initialize (apply_initial_conditions, 1, set_thresholds, dump, load, test_case)
 
   allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2;  call set_surf_geopot 
 
   call sum_total_mass (.True.)
 
-  if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
+  if (rank == 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
   call barrier
 
-  if (rank .eq. 0) write(6,*) 'Write initial values and grid'
+  if (rank == 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite, zlev)
 
-  if (resume.le.0) iwrite = 0
+  if (resume<=0) iwrite = 0
   total_cpu_time = 0.0_8
 
   open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED')
-  if (rank .eq. 0) then
+  if (rank == 0) then
      write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9)') &
           ' time [h] = ', time/3600.0_8, &
           '  mass tol = ', tol_mass, &
@@ -657,12 +663,12 @@ program DCMIP2008c5
           '  dof = ', sum(n_active)
   end if
 
-  do while (time .lt. time_end)
+  do while (time < time_end)
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     if (remap .and. mod(istep, n_remap).eq.0 .and. istep.gt.1) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
@@ -672,7 +678,7 @@ program DCMIP2008c5
      timing = get_timing()
      total_cpu_time = total_cpu_time + timing
 
-     if (rank .eq. 0) then
+     if (rank == 0) then
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2)') &
              ' time [h] = ', time/60.0_8**2, &
              ' dt [s] = ', dt, &
@@ -703,14 +709,14 @@ program DCMIP2008c5
 
         ! Let all cpus exit gracefully if NaN has been produced
         ierr = sync_max (ierr)
-        if (ierr .eq. 1) then ! NaN
+        if (ierr == 1) then ! NaN
            write (0,*) "NaN when writing checkpoint"
            call finalize
            stop
         end if
 
         ! Restart after checkpoint and load balance
-        call restart_full (set_thresholds, load)
+        call restart_full (set_thresholds, load, test_case)
         call print_load_balance
 
         call barrier
@@ -718,7 +724,7 @@ program DCMIP2008c5
      call sum_total_mass (.False.)
   end do
 
-  if (rank .eq. 0) then
+  if (rank == 0) then
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
      close (12)
      close (1011)
@@ -770,14 +776,14 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      local_type = .false.
   end if
   
-  if (max(viscosity_mass, viscosity_temp).eq.0.0_8) then
+  if (max(viscosity_mass, viscosity_temp)==0.0_8) then
      physics_scalar_flux = 0.0_8
   else
      ! Calculate gradients
-     if (Laplace_order.eq.1) then
+     if (Laplace_order==1) then
         grad(S_MASS,:) = grad_physics (mass, dom, id, idE, idNE, idN, local_type)
         grad(S_TEMP,:) = grad_physics (temp, dom, id, idE, idNE, idN, local_type)
-     elseif (Laplace_order.eq.2) then
+     elseif (Laplace_order==2) then
         d = dom%id+1
         do v = S_MASS, S_TEMP
            flx => Laplacian_scalar(v)%data(d)%elts
@@ -864,7 +870,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer                      :: e
     real(8), dimension(1:EDGE) :: diffusion,  curl_rotu, grad_divu
   
-  if (max(viscosity_divu, viscosity_rotu).eq.0.0_8) then
+  if (max(viscosity_divu, viscosity_rotu)==0.0_8) then
      diffusion = 0.0_8
   else
      ! Calculate Laplacian of velocity

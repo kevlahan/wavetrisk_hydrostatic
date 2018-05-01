@@ -37,41 +37,6 @@ contains
     next_fid = next_fid + 1
   end function get_fid
 
-  subroutine write_dual (dom, p, i, j, zlev, offs, dims, fid)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev, fid
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                   :: d, id, idE, idN, idNE
-    integer, dimension(TRIAG) :: leveldual
-    real(8), dimension(TRIAG) :: relvort
-
-    d = dom%id + 1
-
-    id   = idx(i,     j,     offs, dims)
-    idE  = idx(i + 1, j,     offs, dims)
-    idN  = idx(i,     j + 1, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
-
-    relvort = get_vort (dom, i, j, offs, dims)
-
-    if (maxval(dom%mask_n%elts((/id, idE, idNE/)+1)) .ge. ADJZONE) then
-       ! avoid segfault if pre_levelout not used
-       if (allocated(active_level%data)) leveldual(LORT+1) = maxval(active_level%data(d)%elts((/id, idE, idNE/)+1))
-
-       write (fid,'(9(E14.5E2,1X), E14.5E2, 1X, I3)') dom%node%elts((/id, idE, idNE/)+1), relvort(LORT+1), leveldual(LORT+1)
-    end if
-
-    if (maxval(dom%mask_n%elts((/id, idNE, idN/)+1)) .ge. ADJZONE) then
-       ! avoid segfault if pre_levelout not used
-       if (allocated(active_level%data)) leveldual(UPLT+1) = maxval(active_level%data(d)%elts((/id, idNE, idN/)+1))
-
-       write (fid,'(9(E14.5E2,1X), E14.5E2, 1X, I3)') dom%node%elts((/id, idNE, idN/)+1), relvort(UPLT+1), leveldual(UPLT+1)
-    end if
-  end subroutine write_dual
-
   subroutine vort_extrema (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
@@ -285,16 +250,18 @@ contains
     only_coriolis = (dom%coriolis%elts(TRIAG*id+t+1)/dom%triarea%elts(TRIAG*id+t+1))**2
   end function only_coriolis
 
-  subroutine export_2d (proj, fid, Nx, Ny, lon_lat_range, set_thresholds)
+  subroutine export_2d (proj, fid, Nx, Ny, lon_lat_range, set_thresholds, test_case)
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
     ! save zonal average and horizontal grid at vertical level zlevel
     implicit none
-    external                            :: proj, set_thresholds
-    integer, dimension(2)               :: Nx, Ny
-    integer                             :: fid
-    real(8), dimension(2)               :: lon_lat_range
-
+    external               :: proj, set_thresholds
+    integer, dimension(2)  :: Nx, Ny
+    integer                :: fid
+    real(8), dimension(2)  :: lon_lat_range
+    character(*)           :: test_case
+    
     integer                              :: d, i, id, j, k, p, v, ix
+    integer, parameter                   :: funit = 400
     integer, parameter                   :: nvar_save=7, nvar_zonal=8 ! Number of variables to save
 
     real(8)                              :: N_zonal
@@ -303,6 +270,7 @@ contains
     real, dimension(:,:),   allocatable  :: uprime, vprime, Tprime
 
     character(5)                         :: s_time
+    character(7)                         :: var_file
     character(130)                       :: command
 
     type(Domain), dimension(:), allocatable, target :: old_grid
@@ -438,47 +406,52 @@ contains
        zonal_av(k,:,8) = sum(Tprime*vprime,DIM=1)/N_zonal
     end do
     
-    if (rank .eq. 0) then
+    if (rank == 0) then
        ! Solution at level zlev
        do v = 1, nvar_save*save_levels
-          open (fid+v, recl=32768)
+          write (var_file, '(i7)') fid+v
+          open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768)
           do i = Ny(1), Ny(2)
-             write (fid+v,'(2047(E15.6, 1X))') field2d_save(:,i,v)
+             write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
           end do
-          close (fid+v)
+          close (funit)
        end do
 
        ! Zonal average of solution over all vertical levels
        do v = 1, nvar_zonal
-          open (fid+v+10, recl=32768)
+          write (var_file, '(i7)') fid+v+10
+          open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768)
           do k = zlevels,1,-1
-             write (fid+v+10,'(2047(E15.6, 1X))') zonal_av(k,:,v)
+             write (funit,'(2047(E15.6, 1X))') zonal_av(k,:,v)
           end do
-          close (fid+v+10)
+          close (funit)
        end do
        
        ! Coordinates
        
        ! Longitude values
-       open (fid+20, recl=32768) 
-       write (fid+20,'(2047(E15.6, 1X))') (-180.0_8+dx_export*(i-1)/MATH_PI*180.0_8, i=1,Nx(2)-Nx(1)+1)
-       close (fid+20)
+       write (var_file, '(i7)') fid+20
+       open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768) 
+       write (funit,'(2047(E15.6, 1X))') (-180.0_8+dx_export*(i-1)/MATH_PI*180.0_8, i=1,Nx(2)-Nx(1)+1)
+       close (funit)
 
        ! Latitude values
-       open (fid+21, recl=32768) 
-       write (fid+21,'(2047(E15.6, 1X))') (-90.0_8+dy_export*(i-1)/MATH_PI*180.0_8, i=1,Ny(2)-Ny(1)+1)
-       close (fid+21)
+       write (var_file, '(i7)') fid+21
+       open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768) 
+       write (funit,'(2047(E15.6, 1X))') (-90.0_8+dy_export*(i-1)/MATH_PI*180.0_8, i=1,Ny(2)-Ny(1)+1)
+       close (funit)
 
        ! Pressure vertical coordinates
-       open (fid+22, recl=32768) 
-       write (fid+22,'(2047(E15.6, 1X))') (a_vert(k)*ref_press/ref_surf_press + b_vert(k), k=zlevels+1,2,-1)
-       close (fid+22)
+       write (var_file, '(i7)') fid+22
+       open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768) 
+       write (funit,'(2047(E15.6, 1X))') (a_vert(k)*ref_press/ref_surf_press + b_vert(k), k=zlevels+1,2,-1)
+       close (funit)
 
        write (s_time, '(i5)') fid/100
-       command = 'ls -1 fort.'//s_time//'?? > tmp' 
+       command = 'ls -1 '//trim(test_case)//'.'//s_time//'?? > tmp' 
        call system (command)
 
-       command = 'tar czf fort.'//s_time//'.tgz -T tmp --remove-files &'
+       command = 'tar czf '//trim(test_case)//'.'//s_time//'.tgz -T tmp --remove-files &'
        call system (command)
     end if
     deallocate (field2d, field2d_save, zonal_av)
@@ -1042,15 +1015,15 @@ contains
          ) * dom%areas%elts(id+1)%hex_inv
    end subroutine vort_triag_to_hex
 
-  subroutine write_primal (dom, p, i, j, zlev, offs, dims, fid)
+  subroutine write_primal (dom, p, i, j, zlev, offs, dims, funit)
     ! Write primal grid for vertical level zlev
     implicit none
     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
+    integer                        :: p, i, j, zlev, funit
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: d, fid, id, idW, idSW, idS, outl
+    integer                       :: d, id, idW, idSW, idS, outl
     real(4), dimension(N_VAR_OUT) :: outv
     real(8), dimension(2)         :: vel_latlon
 
@@ -1093,15 +1066,50 @@ contains
     end if
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       write (fid,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
+       write (funit,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
             dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
             dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
             dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
             outv, dom%mask_n%elts(id+1), outl
-       where (minv .gt. outv) minv = outv
-       where (maxv .lt. outv) maxv = outv
+       where (minv > outv) minv = outv
+       where (maxv < outv) maxv = outv
     end if
   end subroutine write_primal
+
+   subroutine write_dual (dom, p, i, j, zlev, offs, dims, funit)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev, funit
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                   :: d, id, idE, idN, idNE
+    integer, dimension(TRIAG) :: leveldual
+    real(8), dimension(TRIAG) :: relvort
+
+    d = dom%id + 1
+
+    id   = idx(i,   j,   offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+
+    relvort = get_vort (dom, i, j, offs, dims)
+
+    if (maxval(dom%mask_n%elts((/id, idE, idNE/)+1)) >= ADJZONE) then
+       ! avoid segfault if pre_levelout not used
+       if (allocated(active_level%data)) leveldual(LORT+1) = maxval(active_level%data(d)%elts((/id, idE, idNE/)+1))
+
+       write (funit,'(9(E14.5E2,1X), E14.5E2, 1X, I3)') dom%node%elts((/id, idE, idNE/)+1), relvort(LORT+1), leveldual(LORT+1)
+    end if
+
+    if (maxval(dom%mask_n%elts((/id, idNE, idN/)+1)) >= ADJZONE) then
+       ! avoid segfault if pre_levelout not used
+       if (allocated(active_level%data)) leveldual(UPLT+1) = maxval(active_level%data(d)%elts((/id, idNE, idN/)+1))
+
+       write (funit,'(9(E14.5E2,1X), E14.5E2, 1X, I3)') dom%node%elts((/id, idNE, idN/)+1), relvort(UPLT+1), leveldual(UPLT+1)
+    end if
+  end subroutine write_dual
 
   subroutine zonal_meridional_vel (dom, i, j, offs, dims, zlev, vel_latlon)
     ! Finds lat-lon velocity (with components in zonal and meridional directions) given index information of node
