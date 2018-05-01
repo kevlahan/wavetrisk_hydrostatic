@@ -1,9 +1,10 @@
-module DCMIP2008c5_mod
+module DCMIP2008c5_mode
   ! DCMIP2008c5 test case 5 parameters
   use main_mod
   use remap_mod
   implicit none
 
+  character(255), parameter          :: test_case = "DCMIP2008c5"               
   integer                            :: CP_EVERY, iwrite, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
@@ -299,23 +300,23 @@ contains
     !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
   end subroutine write_and_export
 
-  subroutine DCMIP2008c5_dump (fid)
+  subroutine dump (fid)
     implicit none
     integer :: fid
     
     write(fid) itime
     write(fid) iwrite
     write(fid) tol_mass, tol_temp, tol_velo
-  end subroutine DCMIP2008c5_dump
+  end subroutine dump
 
-  subroutine DCMIP2008c5_load (fid)
+  subroutine load (fid)
     implicit none
     integer :: fid
     
     read(fid) itime
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
-  end subroutine DCMIP2008c5_load
+  end subroutine load
 
   subroutine set_thresholds (itype)
     implicit none
@@ -529,7 +530,7 @@ program DCMIP2008c5
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
   ! Read test case parameters
-  call read_test_case_parameters ("DCMIP2008c5.in")
+  call read_test_case_parameters (trim(test_case)//".in")
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -629,7 +630,7 @@ program DCMIP2008c5
   call initialize_a_b_vert
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, 1, set_thresholds, DCMIP2008c5_dump, DCMIP2008c5_load)
+  call initialize (apply_initial_conditions, 1, set_thresholds, dump, load)
 
   allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2;  call set_surf_geopot 
@@ -645,7 +646,7 @@ program DCMIP2008c5
   if (resume.le.0) iwrite = 0
   total_cpu_time = 0.0_8
 
-  open(unit=12, file='DCMIP2008c5_log', action='WRITE', form='FORMATTED')
+  open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED')
   if (rank .eq. 0) then
      write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9)') &
           ' time [h] = ', time/3600.0_8, &
@@ -698,7 +699,7 @@ program DCMIP2008c5
 
         if (modulo(iwrite,CP_EVERY) .ne. 0) cycle ! Do not write checkpoint
 
-        ierr = write_checkpoint (DCMIP2008c5_dump)
+        ierr = write_checkpoint (dump)
 
         ! Let all cpus exit gracefully if NaN has been produced
         ierr = sync_max (ierr)
@@ -709,7 +710,7 @@ program DCMIP2008c5
         end if
 
         ! Restart after checkpoint and load balance
-        call restart_full (set_thresholds, DCMIP2008c5_load)
+        call restart_full (set_thresholds, load)
         call print_load_balance
 
         call barrier
