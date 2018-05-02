@@ -581,7 +581,7 @@ program DCMIP2008c5
   pressure_save  = (/700.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
-  adapt_trend  = .false. ! Adapt on trend or on variables
+  adapt_trend  = .true. ! Adapt on trend or on variables
   adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true. ! Remap vertical coordinates (always remap when saving results)
