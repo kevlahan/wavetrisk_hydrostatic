@@ -184,8 +184,7 @@ contains
     idN  = idx(i,   j+1, offs, dims)
     
     ! Do not remap inactive nodes
-    if (dom%mask_n%elts(id+1)<TRSK .or. dom%mask_n%elts(idE+1)<TRSK .or. &
-         dom%mask_n%elts(idNE+1)<TRSK .or. dom%mask_n%elts(idN+1)<TRSK .or. &
+    if (dom%mask_n%elts(id+1)<TRSK  &
          dom%mask_e%elts(EDGE*id+RT+1)<TRSK .or. dom%mask_e%elts(EDGE*id+DG+1)<TRSK .or. dom%mask_e%elts(EDGE*id+UP+1)<TRSK) return 
 
     massflux_cumul(1,:) = 0.0_8
@@ -207,7 +206,7 @@ contains
        X(UP+1) = interp(exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idN+1))
 
        do e = 1, EDGE
-          zlev = min(zlevels,floor(X(e)))
+          zlev = min(zlevels,floor(X(e))) ; if (zlev<1) return
           X(e) = X(e) - zlev
           new_massflux_cumul(k,e) = massflux_cumul(zlev,e) + X(e)*massflux(zlev,e)
        end do
