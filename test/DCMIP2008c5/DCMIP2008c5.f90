@@ -355,7 +355,7 @@ contains
        velo_scale = sync_max_d (norm_velo)
     end if
 
-    if (istep.ne.0) then
+    if (istep\=0) then
        tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
        tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
        tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
@@ -518,16 +518,10 @@ program DCMIP2008c5
   use DCMIP2008c5_mod
   implicit none
 
-  integer                      :: d, ierr, k, l, v, zlev
-  integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
-  integer, parameter           :: len_cmd_archive = 11 + 4 + 4
-  real(8)                      :: dt_cfl, dt_visc
-  character(len_cmd_files)     :: cmd_files
-  character(len_cmd_archive)   :: cmd_archive
-  character(8+8+29+14)         :: command
-  character(9+len_cmd_archive) :: command1
-  character(6+len_cmd_files)   :: command2
-  logical                      :: aligned, remap, write_init
+  integer        :: d, ierr, k, l, v, zlev
+  real(8)        :: dt_cfl, dt_visc
+  character(255) :: command
+  logical        :: aligned, remap, write_init
 
   ! Initialize grid etc
   call init_main_mod 
@@ -615,14 +609,14 @@ program DCMIP2008c5
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
   dt_cfl = cfl_num*dx_min/(wave_speed+u_0)
-  if (viscosity.ne.0.0_8) then
+  if (viscosity\=0.0_8) then
      dt_visc = 0.25_8*dx_min**2/viscosity
      dt_init = min(dt_cfl, dt_visc)
   else
      dt_init = dt_cfl
   end if
-  if (rank==0)                        write(6,'(1(A,es10.4,1x))') "dt_cfl = ", dt_cfl
-  if (rank==0.and.viscosity.ne.0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
+  if (rank==0)                      write(6,'(1(A,es10.4,1x))') "dt_cfl = ", dt_cfl
+  if (rank==0.and.viscosity\=0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
 
   if (rank == 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -703,7 +697,7 @@ program DCMIP2008c5
 
         call sum_total_mass (.False.)
 
-        if (modulo(iwrite,CP_EVERY) .ne. 0) cycle ! Do not write checkpoint
+        if (modulo(iwrite,CP_EVERY) \= 0) cycle ! Do not write checkpoint
 
         ierr = write_checkpoint (dump)
 
@@ -725,10 +719,8 @@ program DCMIP2008c5
   end do
 
   if (rank == 0) then
-     write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
      close (12)
-     close (1011)
-     close (8450)
+     write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
      command = '\rm tmp tmp1 tmp2'; call system (command)
   end if
 
