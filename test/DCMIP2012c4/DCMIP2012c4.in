@@ -1,6 +1,6 @@
 max_level	8
-zlevels         30
-threshold	2e-2
+zlevels         26
+threshold	8e-1
 optimize_grid	2    ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 dt_write 1440          ! minutes
 CP_EVERY 10
