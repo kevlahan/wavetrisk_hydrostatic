@@ -179,12 +179,13 @@ contains
     d    = dom%id + 1
     id   = idx(i, j, offs, dims)
 
-    idN  = idx(i,   j+1, offs, dims)
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
-
+    idN  = idx(i,   j+1, offs, dims)
+    
     ! Do not remap inactive nodes
-    if (dom%mask_n%elts(id+1)<TRSK .or. &
+    if (dom%mask_n%elts(id+1)<TRSK .or. dom%mask_n%elts(idE+1)<TRSK .or. &
+         dom%mask_n%elts(idNE+1)<TRSK .or. dom%mask_n%elts(idN+1)<TRSK .or. &
          dom%mask_e%elts(EDGE*id+RT+1)<TRSK .or. dom%mask_e%elts(EDGE*id+DG+1)<TRSK .or. dom%mask_e%elts(EDGE*id+UP+1)<TRSK) return 
 
     massflux_cumul(1,:) = 0.0_8
