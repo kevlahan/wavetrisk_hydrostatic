@@ -184,7 +184,8 @@ contains
     idNE = idx(i+1, j+1, offs, dims)
 
     ! Do not remap inactive nodes
-    if (dom%mask_e%elts(EDGE*id+RT+1)<TRSK .or. dom%mask_e%elts(EDGE*id+DG+1)<TRSK .or. dom%mask_e%elts(EDGE*id+UP+1)<TRSK) return 
+    if (dom%mask_n%elts(id+1)<TRSK .or. &
+         dom%mask_e%elts(EDGE*id+RT+1)<TRSK .or. dom%mask_e%elts(EDGE*id+DG+1)<TRSK .or. dom%mask_e%elts(EDGE*id+UP+1)<TRSK) return 
 
     massflux_cumul(1,:) = 0.0_8
     do k = 1, zlevels

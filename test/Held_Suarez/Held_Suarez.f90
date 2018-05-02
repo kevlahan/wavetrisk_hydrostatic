@@ -4,6 +4,7 @@ module Held_Suarez_mod
   use remap_mod
   implicit none
 
+  character(*), parameter            :: test_case = "Held_Suarez"
   integer                            :: CP_EVERY, iwrite, N_node
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
@@ -28,7 +29,7 @@ contains
 
     type(Coord) :: x_i, x_E, x_N, x_NE
     integer     :: id, d, idN, idE, idNE
-    real(8)     :: eta, k_T, lev_press, p_top, p_bot, pot_temp, lon, lat, r
+    real(8)     :: column_mass, eta, k_T, lev_press, p_top, p_bot, pot_temp, lon, lat, r
 
     d = dom%id+1
 
@@ -46,14 +47,14 @@ contains
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
+    column_mass = dom%surf_press%elts(id+1)/grav_accel
 
     ! Pressure at level zlev
     lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
 
     ! Mass/Area = rho*dz at level zlev
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = &
-         ((a_vert(zlev)-a_vert(zlev+1))*ref_press + (b_vert(zlev)-b_vert(zlev+1))*dom%surf_press%elts(id+1))/grav_accel
-
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
+    
     ! Initial potential temperature to equilibrium value
     eta = lev_press/dom%surf_press%elts(id+1)
     call cal_theta_eq (eta, lat, lev_press, k_T, pot_temp)
@@ -120,7 +121,10 @@ contains
     ! Allocate vertical grid parameters
     if (allocated(a_vert)) deallocate(a_vert)
     if (allocated(b_vert)) deallocate(b_vert)
-    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+    if (allocated(a_vert_mass)) deallocate(a_vert_mass)
+    if (allocated(b_vert_mass)) deallocate(b_vert_mass)
+    allocate (a_vert(1:zlevels), b_vert(1:zlevels))
+    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
        do k = 1, zlevels+1
@@ -129,19 +133,7 @@ contains
           b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
     else
-       if (zlevels.eq.30) then
-          a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
-               0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
-               0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
-               0.155995160341263, 0.14416541159153, 0.130248308181763, 0.113875567913055, 0.0946138575673103, &
-               0.0753444507718086, 0.0576589405536652, 0.0427346378564835, 0.0316426791250706, 0.0252212174236774, &
-               0.0191967375576496, 0.0136180268600583, 0.00853108894079924, 0.00397881818935275, 0.0, 0.0 /)
-          b_vert = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0393548272550106, &
-               0.0856537595391273, 0.140122056007385, 0.204201176762581, 0.279586911201477, 0.368274360895157,  &
-               0.47261056303978, 0.576988518238068, 0.672786951065063, 0.753628432750702, 0.813710987567902, &
-               0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
-               0.985112190246582, 1.0 /)
-       elseif (zlevels.eq.18) then
+       if (zlevels==18) then
           !a_vert=(/0.0_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
           a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
                0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
@@ -150,7 +142,7 @@ contains
           b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
                0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
                0.953189_8, 0.985056_8, 1.0_8 /)
-       elseif (zlevels.eq.26) then
+       elseif (zlevels==26) then
           !a_vert=(/0.0_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
           a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
                0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
@@ -159,7 +151,7 @@ contains
           b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
                0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
                0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
-       elseif (zlevels.eq.49) then
+       elseif (zlevels==49) then
           a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
                0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
                0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
@@ -190,9 +182,13 @@ contains
 
        ! Set pressure at infinity
        press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+
+       ! Set mass coefficients
+       b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
+       a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
     end if
   end subroutine initialize_a_b_vert
-
+  
   subroutine read_test_case_parameters (filename)
     implicit none
     character(*)   :: filename
@@ -209,7 +205,7 @@ contains
     read(fid,*) varname, time_end
     read(fid,*) varname, resume
 
-    if (rank.eq.0) then
+    if (rank==0) then
        write(*,'(A,i3)')     "max_level        = ", max_level
        write(*,'(A,i3)')     "zlevels          = ", zlevels
        write(*,'(A,es10.4)') "threshold        = ", threshold
@@ -227,14 +223,14 @@ contains
   end subroutine read_test_case_parameters
 
   subroutine write_and_export (iwrite, zlev)
-    use ops_mod
     implicit none
     integer :: iwrite, zlev
 
-    integer :: d, i, j, k, l, p, u
+    integer      :: d, i, j, k, l, p, u
+    character(7) :: var_file
 
-    if (rank.eq.0) write(6,*) 'Saving fields'
-    
+    if (rank == 0) write(6,*) 'Saving fields'
+
     call update_array_bdry (sol, NONE)
 
     call pre_levelout
@@ -263,9 +259,10 @@ contains
        do d = 1, size(grid)
           velo => sol(S_VELO,zlev)%data(d)%elts
           vort => grid(d)%vort%elts
+          grid(d)%adj_mass%elts = 100.0_8
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), zlev,    0, 0)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), l, zlev)
           nullify (velo, vort)
@@ -274,44 +271,49 @@ contains
        ! Calculate vorticity at hexagon points (stored in adj_mass)
        call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
 
-       Call write_level_mpi (write_primal, u+l, l, zlev, .True.)
+       Call write_level_mpi (write_primal, u+l, l, zlev, .True., test_case)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
           maxv(i) =  sync_max_d( maxv(i))
        end do
-       if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-       if (rank .eq. 0) write(u,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+       if (rank == 0) then
+          write (var_file, '(i7)') u
+          open(unit=50, file=trim(test_case)//'.'//var_file)
+          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+          close(50)
+       end if
        u = 2000000+100*iwrite
-       call write_level_mpi (write_dual, u+l, l, zlev, .False.)
+       call write_level_mpi (write_dual, u+l, l, zlev, .False., test_case)
     end do
 
     call post_levelout
     call barrier
-    if (rank .eq. 0) call compress_files (iwrite)
+    if (rank == 0) call compress_files (iwrite, test_case)
 
     ! Save 2D projection
-    call export_2d (cart2sph2, 3000000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    call export_2d (cart2sph2, 3000000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds, test_case)
     !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
   end subroutine write_and_export
-
-  subroutine Held_Suarez_dump (fid)
+  
+  subroutine dump (fid)
     implicit none
     integer :: fid
     
     write(fid) itime
     write(fid) iwrite
     write(fid) tol_mass, tol_temp, tol_velo
-  end subroutine Held_Suarez_dump
+  end subroutine dump
 
-  subroutine Held_Suarez_load (fid)
+  subroutine load (fid)
     implicit none
     integer :: fid
     
     read(fid) itime
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
-  end subroutine Held_Suarez_load
+  end subroutine load
 
   subroutine set_thresholds (itype)
     implicit none
@@ -320,7 +322,7 @@ contains
     integer :: l, k
 
     ! Set thresholds dynamically (trend or sol must be known)
-    if (itype.eq.0) then ! Adapt on trend
+    if (itype==0) then ! Adapt on trend
        norm_mass_trend = 0.0_8
        norm_temp_trend = 0.0_8
        norm_velo_trend = 0.0_8
@@ -344,22 +346,22 @@ contains
        velo_scale = sync_max_d (norm_velo)
     end if
 
-    if (istep.ne.0) then
-       !tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
-       !tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
-       !tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
+    if (istep >= 1) then
+       ! tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
+       ! tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
+       ! tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
-    elseif (istep.eq.0) then
-       tol_mass = threshold * mass_scale
-       tol_temp = threshold * temp_scale
-       tol_velo = threshold ! do not adapt initially since velocity is zero
-       ! if (adapt_trend .and. itype.eq.1) then ! Re-scale trend threshold for variables
-       !    tol_mass = threshold**1.5_8 * mass_scale/5.0d1
-       !    tol_temp = threshold**1.5_8 * temp_scale/5.0d1
-       !    tol_velo = threshold**1.5_8 * velo_scale/5.0d1
-       ! end if
+    else
+       tol_mass = 1.0d16!threshold !* mass_scale
+       tol_temp = 1.0d16!threshold !* temp_scale
+       tol_velo = 1.0d16!threshold ! do not adapt initially since velocity is zero
+        if (adapt_trend .and. itype==1) then ! Re-scale trend threshold for variables
+          tol_mass = 1.0d16!threshold!**1.5_8 * mass_scale/5.0d1
+          tol_temp = 1.0d16!threshold!**1.5_8 * temp_scale/5.0d1
+          tol_velo = 1.0d16!threshold!**1.5_8 * velo_scale/5.0d1
+       end if
     end if
   end subroutine set_thresholds
 
@@ -375,7 +377,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! Maximum trends
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        do k = 1, zlevels
           norm_mass_trend = max(norm_mass_trend, abs(trend(S_MASS,k)%data(dom%id+1)%elts(id+1)))
           norm_temp_trend = max(norm_temp_trend, abs(trend(S_TEMP,k)%data(dom%id+1)%elts(id+1)))
@@ -398,7 +400,7 @@ contains
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        do k = 1, zlevels
           norm_mass = max(norm_mass, abs(sol(S_MASS,k)%data(d)%elts(id+1)))
           norm_temp = max(norm_temp, abs(sol(S_TEMP,k)%data(d)%elts(id+1)))
@@ -422,7 +424,7 @@ contains
     d = dom%id+1
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
           norm_mass_trend = norm_mass_trend + trend(S_MASS,k)%data(d)%elts(id+1)**2
@@ -447,7 +449,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) .ge. ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
           norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
@@ -508,15 +510,9 @@ program Held_Suarez
   use Held_Suarez_mod
   implicit none
 
-  integer                      :: d, ierr, k, l, v, zlev
-  integer, parameter           :: len_cmd_files = 12 + 4 + 12 + 4
-  integer, parameter           :: len_cmd_archive = 11 + 4 + 4
-  character(len_cmd_files)     :: cmd_files
-  character(len_cmd_archive)   :: cmd_archive
-  character(8+8+29+14)         :: command
-  character(9+len_cmd_archive) :: command1
-  character(6+len_cmd_files)   :: command2
-  logical                      :: aligned, remap, write_init
+  integer        :: d, ierr, k, l, v, zlev
+  character(255) :: command
+  logical        :: aligned, remap, write_init
 
   ! Initialize random number generator
   call random_seed
@@ -528,7 +524,7 @@ program Held_Suarez
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
   ! Read test case parameters
-  call read_test_case_parameters ("Held_Suarez.in")
+  call read_test_case_parameters (trim(test_case)//".in")
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -547,7 +543,7 @@ program Held_Suarez
   kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
   
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 50                               ! Vertical remap interval
+  n_remap        = 10                               ! Vertical remap interval
 
   ! Forcing parameters
   T_0            = 300.0_8            ! reference temperature
@@ -569,7 +565,7 @@ program Held_Suarez
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
-  adapt_trend  = .false. ! Adapt on trend or on variables
+  adapt_trend  = .true. ! Adapt on trend or on variables
   adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true. ! Remap vertical coordinates (always remap when saving results)
@@ -579,14 +575,14 @@ program Held_Suarez
   Laplace_order = 1 ! Usual Laplacian diffusion
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
-  if (Laplace_order.eq.1) then ! Usual Laplacian diffusion
-     !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
-     !viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
-     viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
+  if (Laplace_order==1) then ! Usual Laplacian diffusion
+     viscosity_mass = 0.0_8
+     viscosity_divu = 0.0_8
+     !viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
+     !viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_temp = viscosity_mass
-     viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
-  elseif (Laplace_order.eq.2) then ! Second-order iterated Laplacian for diffusion
+  elseif (Laplace_order==2) then ! Second-order iterated Laplacian for diffusion
      viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
      viscosity_temp = viscosity_mass
      viscosity_divu = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
@@ -600,9 +596,9 @@ program Held_Suarez
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
   dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)
   !dt_init = 400.0_8
-  if (rank.eq.0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/wave_speed, " dt_visc = ", 0.25_8*dx_min**2/viscosity
+  if (rank==0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/wave_speed, " dt_visc = ", 0.25_8*dx_min**2/viscosity
 
-  if (rank .eq. 0) then
+  if (rank == 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
      write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
      write(6,'(A,es10.4)') 'Viscosity_divu   = ', viscosity_divu
@@ -614,24 +610,24 @@ program Held_Suarez
   call initialize_a_b_vert
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, 1, set_thresholds, Held_Suarez_dump, Held_Suarez_load)
+  call initialize (apply_initial_conditions, 1, set_thresholds, dump, load, test_case)
 
   allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2;  call set_surf_geopot 
 
   call sum_total_mass (.True.)
 
-  if (rank .eq. 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
+  if (rank == 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
   call barrier
 
-  if (rank .eq. 0) write(6,*) 'Write initial values and grid'
+  if (rank == 0) write(6,*) 'Write initial values and grid'
   call write_and_export (iwrite, zlev)
 
-  if (resume.le.0) iwrite = 0
+  if (resume<=0) iwrite = 0
   total_cpu_time = 0.0_8
 
-  open(unit=12, file='Held_Suarez_log', action='WRITE', form='FORMATTED')
-  if (rank .eq. 0) then
+  open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED')
+  if (rank == 0) then
      write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9)') &
           ' time [h] = ', time/3600.0_8, &
           '  mass tol = ', tol_mass, &
@@ -641,15 +637,15 @@ program Held_Suarez
           '  dof = ', sum(n_active)
   end if
 
-  do while (time .lt. time_end)
+  do while (time < time_end)
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     if (remap .and. mod(istep, n_remap).eq.0 .and. istep.gt.1) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
-     call  update_array_bdry (sol, NONE)
+     call update_array_bdry (sol, NONE)
      call time_step (dt_write, aligned, set_thresholds)
      call time_step_cooling
      call stop_timing
@@ -658,7 +654,7 @@ program Held_Suarez
      timing = get_timing()
      total_cpu_time = total_cpu_time + timing
 
-     if (rank .eq. 0) then
+     if (rank == 0) then
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2)') &
              ' time [h] = ', time/60.0_8**2, &
              ' dt [s] = ', dt, &
@@ -683,20 +679,20 @@ program Held_Suarez
 
         call sum_total_mass (.False.)
 
-        if (modulo(iwrite,CP_EVERY) .ne. 0) cycle ! Do not write checkpoint
+        if (modulo(iwrite,CP_EVERY) /= 0) cycle ! Do not write checkpoint
 
-        ierr = write_checkpoint (Held_Suarez_dump)
+        ierr = write_checkpoint (dump)
 
         ! Let all cpus exit gracefully if NaN has been produced
         ierr = sync_max (ierr)
-        if (ierr .eq. 1) then ! NaN
+        if (ierr == 1) then ! NaN
            write (0,*) "NaN when writing checkpoint"
            call finalize
            stop
         end if
 
         ! Restart after checkpoint and load balance
-        call restart_full (set_thresholds, Held_Suarez_load)
+        call restart_full (set_thresholds, load, test_case)
         call print_load_balance
 
         call barrier
@@ -704,11 +700,9 @@ program Held_Suarez
      call sum_total_mass (.False.)
   end do
 
-  if (rank .eq. 0) then
-     write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
+  if (rank == 0) then
      close (12)
-     close (1011)
-     close (8450)
+     write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
      command = '\rm tmp tmp1 tmp2'; call system (command)
   end if
 
@@ -756,14 +750,14 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      local_type = .false.
   end if
   
-  if (max(viscosity_mass, viscosity_temp).eq.0.0_8) then
+  if (max(viscosity_mass, viscosity_temp)==0.0_8) then
      physics_scalar_flux = 0.0_8
   else
      ! Calculate gradients
-     if (Laplace_order.eq.1) then
+     if (Laplace_order==1) then
         grad(S_MASS,:) = grad_physics (mass, dom, id, idE, idNE, idN, local_type)
         grad(S_TEMP,:) = grad_physics (temp, dom, id, idE, idNE, idN, local_type)
-     elseif (Laplace_order.eq.2) then
+     elseif (Laplace_order==2) then
         d = dom%id+1
         do v = S_MASS, S_TEMP
            flx => Laplacian_scalar(v)%data(d)%elts
@@ -853,7 +847,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   id = idx(i, j, offs, dims)
   
-  if (max(viscosity_divu, viscosity_rotu).eq.0.0_8) then
+  if (max(viscosity_divu, viscosity_rotu)==0.0_8) then
      diffusion = 0.0_8
   else
      ! Calculate Laplacian of velocity
@@ -890,19 +884,8 @@ subroutine time_step_cooling
      end subroutine euler_step_cooling
   end interface
 
-  ! First integrate pressure down across all grid points in order to compute surface pressure
-  do k = zlevels, 1, -1
-     do d = 1, size(grid)
-        mass => sol(S_MASS,k)%data(d)%elts
-        temp => sol(S_TEMP,k)%data(d)%elts
-
-        do p = 3, grid(d)%patch%length
-           call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
-        end do
-
-        nullify (mass, temp)
-     end do
-  end do
+  ! Compute curent surface pressure
+  call cal_surf_press (sol)
 
   do k = 1, zlevels
      do d = 1, size(grid)

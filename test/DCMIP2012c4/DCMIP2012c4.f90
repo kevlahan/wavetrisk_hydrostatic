@@ -382,11 +382,11 @@ contains
        velo_scale = sync_max_d (norm_velo)
     end if
 
-    ! if (istep/=0) then
-    !    tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
-    !    tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
-    !    tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
-    ! elseif (istep==0) then
+    if (istep/=0) then
+       tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
+       tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
+       tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
+    elseif (istep==0) then
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
@@ -395,9 +395,9 @@ contains
           tol_temp = threshold**1.5_8 * temp_scale/5.0d1
           tol_velo = threshold**1.5_8 * velo_scale/5.0d1
        end if
-    ! end if
+    end if
   end subroutine set_thresholds
-
+  
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
