@@ -355,7 +355,7 @@ contains
        velo_scale = sync_max_d (norm_velo)
     end if
 
-    if (istep\=0) then
+    if (istep/=0) then
        tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
        tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
        tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
@@ -609,14 +609,14 @@ program DCMIP2008c5
 
   ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
   dt_cfl = cfl_num*dx_min/(wave_speed+u_0)
-  if (viscosity\=0.0_8) then
+  if (viscosity/=0.0_8) then
      dt_visc = 0.25_8*dx_min**2/viscosity
      dt_init = min(dt_cfl, dt_visc)
   else
      dt_init = dt_cfl
   end if
   if (rank==0)                      write(6,'(1(A,es10.4,1x))') "dt_cfl = ", dt_cfl
-  if (rank==0.and.viscosity\=0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
+  if (rank==0.and.viscosity/=0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
 
   if (rank == 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -697,7 +697,7 @@ program DCMIP2008c5
 
         call sum_total_mass (.False.)
 
-        if (modulo(iwrite,CP_EVERY) \= 0) cycle ! Do not write checkpoint
+        if (modulo(iwrite,CP_EVERY) /= 0) cycle ! Do not write checkpoint
 
         ierr = write_checkpoint (dump)
 
