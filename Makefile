@@ -32,10 +32,16 @@ endif
 ifeq ($(MACHINE),if)
   VENDOR = gnu
   LIBS = -llapack
-else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
-  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163
+else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
+  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163                                                               
   VENDOR = gnu
   LIBS =  -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
+else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
+  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163                                                               
+ VENDOR = gnu
+ LIBS = ${MKLROOT}/lib/intel64/libmkl_scalapack_ilp64.a -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_gf_ilp64.a ${MKLROOT}/lib/\
+intel64/libmkl_sequential.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_ilp64.a -Wl,--end-gro\
+up -lpthread -lm -ldl
 else ifeq ($(MACHINE),req)
   VENDOR = path
   LIBS = -llapack
