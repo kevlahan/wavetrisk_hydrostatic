@@ -610,7 +610,7 @@ program DCMIP2012c4
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
-  adapt_trend  = .true. ! Adapt on trend or on variables
+  adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true. ! Remap vertical coordinates (always remap when saving results)
@@ -620,14 +620,14 @@ program DCMIP2012c4
   Laplace_order = 1 ! Usual Laplacian diffusion
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
-  if (Laplace_order==1) then ! Usual Laplacian diffusion
+  if (Laplace_order == 1) then ! Usual Laplacian diffusion
+     !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
      !viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
-     !viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
-     viscosity_mass = 0.0_8
-     viscosity_divu = 0.0_8
+     viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
+     viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_temp = viscosity_mass
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
-  elseif (Laplace_order==2) then ! Second-order iterated Laplacian for diffusion
+  elseif (Laplace_order == 2) then ! Second-order iterated Laplacian for diffusion
      viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
      viscosity_temp = viscosity_mass
      viscosity_divu = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
