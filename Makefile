@@ -18,8 +18,8 @@ SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
 INTEL_FLAGS = -fpe0 -traceback -module $(BUILD_DIR) # -fpe0 -traceback -check bounds
-GNU_FLAGS = -J$(BUILD_DIR) -fbacktrace -fcheck=all
-
+#GNU_FLAGS = -J$(BUILD_DIR) -fbacktrace -fcheck=all
+GNU_FLAGS = -fdefault-integer-8 -m64 -I${MKLROOT}/include
 
 SYSTEM = $(shell uname -a | cut -c 1-6 -)
 ifeq ($(SYSTEM),Darwin)
@@ -32,10 +32,14 @@ endif
 ifeq ($(MACHINE),if)
   VENDOR = gnu
   LIBS = -llapack
-else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
+else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
   # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163
   VENDOR = gnu
   LIBS =  -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
+else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
+  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163
+ VENDOR = gnu
+ LIBS = ${MKLROOT}/lib/intel64/libmkl_scalapack_ilp64.a -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_gf_ilp64.a ${MKLROOT}/lib/intel64/libmkl_sequential.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_ilp64.a -Wl,--end-group -lpthread -lm -ldl
 else ifeq ($(MACHINE),req)
   VENDOR = path
   LIBS = -llapack
