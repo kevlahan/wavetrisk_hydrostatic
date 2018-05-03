@@ -155,7 +155,7 @@ contains
     ! Remap theta
     do k = 1, zlevels+1
        X = exner_fun(k)%data(d)%elts(id+1)
-       zlev = min(zlevels,floor(X))
+       zlev = min(zlevels,floor(X)) ; if (zlev<1) return
        X = X - zlev
        new_cumul_temp(k) = cumul_temp(zlev) + X*sol(S_TEMP,zlev)%data(d)%elts(id+1)
     end do
