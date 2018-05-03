@@ -44,7 +44,7 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
            ${MKLROOT}/lib/intel64/libmkl_core.a \
            ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_ilp64.a \
            -Wl,--end-group -lpthread -lm -ldl
-  FLAGS  = -fdefault-integer-8 -m64 -I${MKLROOT}/include
+  FLAGS  =  $(OPTIM) -fdefault-integer-8 -m64 -I${MKLROOT}/include
 else ifeq ($(MACHINE),gpc)
   F90    = ifort
   MPIF90 = mpif90
