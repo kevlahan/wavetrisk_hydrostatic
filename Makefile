@@ -1,13 +1,12 @@
-TEST_CASE = DCMIP2008c5
 # options: ser mpi mpi-lb
-ARCH = mpi-lb
-PARAM = param_J4
-GEOM = sphere
-ARRAYS = dyn_array
+TEST_CASE  = DCMIP2008c5
+OPTIM      = -O2
+ARCH       = mpi-lb
+PARAM      = param_J4
+GEOM       = sphere
+ARRAYS     = dyn_array
+BUILD_DIR  = build
 
-BUILD_DIR = build
-OPTIM_FLAGS = -O2
-MPIF90 = mpif90
 PREFIX = .
 
 vpath %.f90 src
@@ -17,10 +16,6 @@ SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
       multi_level.f90 adapt.f90 smooth.f90  time_integr.f90 remap.f90 io.f90  main.f90
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
-INTEL_FLAGS = -fpe0 -traceback -module $(BUILD_DIR) # -fpe0 -traceback -check bounds
-#GNU_FLAGS = -J$(BUILD_DIR) -fbacktrace -fcheck=all
-GNU_FLAGS = -fdefault-integer-8 -m64 -I${MKLROOT}/include
-
 SYSTEM = $(shell uname -a | cut -c 1-6 -)
 ifeq ($(SYSTEM),Darwin)
   MACHINE = mac
@@ -28,41 +23,43 @@ else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
 endif
 
-# lapack/mkl used only to solve 6x6 eq. sys.
+# lapack/mkl used only to solve 6x6 linear system
 ifeq ($(MACHINE),if)
-  VENDOR = gnu
-  LIBS = -llapack
+  F90    = gfortran	
+  MPIF90 = mpif90
+  LIBS   = -llapack
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
-  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163
-  VENDOR = gnu
-  LIBS =  -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
+  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163                                                               
+  F90    = gfortran	
+  MPIF90 = mpif90
+  LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
-  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163
- VENDOR = gnu
- LIBS = ${MKLROOT}/lib/intel64/libmkl_scalapack_ilp64.a -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_gf_ilp64.a ${MKLROOT}/lib/intel64/libmkl_sequential.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_ilp64.a -Wl,--end-group -lpthread -lm -ldl
-else ifeq ($(MACHINE),req)
-  VENDOR = path
-  LIBS = -llapack
+  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163                                                               
+  F90    = gfortran
+  MPIF90 = mpif90
+  LIBS   = ${MKLROOT}/lib/intel64/libmkl_scalapack_ilp64.a -Wl,--start-group \
+           ${MKLROOT}/lib/intel64/libmkl_gf_ilp64.a ${MKLROOT}/lib/intel64/libmkl_sequential.a \
+           ${MKLROOT}/lib/intel64/libmkl_core.a \
+           ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_ilp64.a \
+           -Wl,--end-group -lpthread -lm -ldl
+  FLAGS  = -fdefault-integer-8 -m64 -I${MKLROOT}/include
 else ifeq ($(MACHINE),gpc)
-  VENDOR = intel
-  LIBS = -mkl
+  F90    = ifort
+  MPIF90 = mpif90
+  LIBS   = -mkl
+  FLAGS  = $(OPTIM) -fpe0 -traceback -module $(BUILD_DIR) # -fpe0 -traceback -check bounds	
 else ifeq ($(MACHINE),mac)
-  VENDOR = gnu
-  #LIBS = -llapack -lf77blas -lcblas -latlas
-  LIBS = -llapack 	
+  F90    = gfortran
+  MPIF90 = mpif90
+  LIBS   = -llapack
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else # try gfortran and liblapack as default
-  VENDOR = gnu
-  LIBS = -llapack 
-endif
-
-ifeq ($(VENDOR),gnu)
-    FLAGS = $(OPTIM_FLAGS) $(GNU_FLAGS)
-    F90 = gfortran
-else ifeq ($(VENDOR),intel)
-    FLAGS = $(OPTIM_FLAGS) $(INTEL_FLAGS)
-    F90 = ifort
-else # default puts all mod files in current directory
-    FLAGS = $(OPTIM_FLAGS)
+  F90    = gfortran
+  MPIF90 = mpif90
+  LIBS   = -llapack
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 endif
 
 LIBMETIS = -lmetis
@@ -81,7 +78,6 @@ $(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
 	$(LINKER) $(FLAGS) -o $@ $^ $(LIBS)
 
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
-	echo "config : $(SYSTEM) $(MACHINE) $(VENDOR) $(LIBS)"
 	$(COMPILER) -c $< -o $@ $(FLAGS) 
 
 clean:
