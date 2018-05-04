@@ -615,7 +615,7 @@ program DCMIP2008c5
   else
      dt_init = dt_cfl
   end if
-  if (rank==0)                      write(6,'(1(A,es10.4,1x))') "dt_cfl = ", dt_cfl
+  if (rank==0)                      write(6,'(1(A,es10.4,1x))') "dt_cfl = ",  dt_cfl
   if (rank==0.and.viscosity/=0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
 
   if (rank == 0) then

@@ -621,12 +621,12 @@ program DCMIP2012c4
   ! Set viscosity
   Laplace_order = 1 ! Usual Laplacian diffusion
   !Laplace_order = 2 ! Iterated Laplacian diffusion
-  
+
   if (Laplace_order == 1) then ! Usual Laplacian diffusion
      !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
      !viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
-     viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
-     viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
+     !viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
+     !viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_temp = viscosity_mass
      viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
   elseif (Laplace_order == 2) then ! Second-order iterated Laplacian for diffusion
