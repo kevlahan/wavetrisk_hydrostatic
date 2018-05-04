@@ -637,7 +637,7 @@ program DCMIP2012c4
   specvoldim     = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num        = 0.8_8                            ! cfl number
+  cfl_num        = 0.7_8                            ! cfl number
   n_remap        = 10                               ! Vertical remap interval
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
