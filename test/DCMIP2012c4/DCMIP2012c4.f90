@@ -43,7 +43,7 @@ contains
     x_E  = dom%node%elts(idE+1)
     x_N  = dom%node%elts(idN+1)
     x_NE = dom%node%elts(idNE+1)
-    
+
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
     column_mass = dom%surf_press%elts(id+1)/grav_accel
@@ -57,7 +57,7 @@ contains
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
-   
+
     ! Potential temperature
     pot_temp =  set_temp(x_i) * (lev_press/ref_press)**(-kappa)
 
@@ -72,11 +72,11 @@ contains
     implicit none
     real(8)     :: set_temp
     type(Coord) :: x_i
-    
+
     real(8) :: lon, lat, Tmean
 
     call cart2sph (x_i, lon, lat)
-    
+
     if (eta>=eta_t) then
        Tmean = T_0*eta**(R_d*Gamma_T/grav_accel)
     else
@@ -87,7 +87,7 @@ contains
          (2.0_8*cos(eta_v)**1.5*(-2.0_8*sin(lat)**6*(cos(lat)**2+1.0_8/3.0_8) + 10.0_8/63.0_8) + &
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2+2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function set_temp
- 
+
   subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
     ! Initialize surface geopotential after restart
     implicit none
@@ -105,13 +105,13 @@ contains
     ! Surfaced geopotential
     dom%surf_geopot%elts(id+1) = surf_geopot_fun(x_i)
   end subroutine set_surfgeopot
- 
+
   function geopot_fun (x_i)
     ! Geopotential
     implicit none
     type(Coord) :: x_i
     real(8)     :: geopot_fun
-    
+
     real(8) :: lon, lat, phi_mean, rgrc
 
     ! Find latitude and longitude from Cartesian coordinates
@@ -136,7 +136,7 @@ contains
     delta_phi = R_d * delta_T*((log(eta/eta_t) + 137.0_8/60.0_8)*eta_t**5 - 5.0_8*eta_t**4*eta + 5.0_8*eta_t**3*eta**2 &
          - 10.0_8/3.0_8 * eta_t**2*eta**3 + 5.0_8/4.0_8*eta_t*eta**4 - eta**5/5.0_8)
   end function delta_phi
-  
+
   function surf_geopot_fun (x_i)
     ! Surface geopotential
     implicit none
@@ -170,7 +170,7 @@ contains
 
     ! Great circle distance
     rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
-    
+
     u = u_0*cos(eta_v)**1.5*sin(2.0_8*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
@@ -194,7 +194,23 @@ contains
           b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
     else
-       if (zlevels==30) then
+       if (zlevels==18) then
+          a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+               0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
+               0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
+               0.0_8, 0.0_8 /)
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
+               0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
+               0.953189_8, 0.985056_8, 1.0_8 /)
+       elseif (zlevels==26) then
+          a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
+               0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
+               0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
+               0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
+               0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
+               0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
+       elseif (zlevels==30) then
           a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
                0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
                0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
@@ -206,6 +222,24 @@ contains
                0.47261056303978, 0.576988518238068, 0.672786951065063, 0.753628432750702, 0.813710987567902, &
                0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
                0.985112190246582, 1.0 /)
+       elseif (zlevels==49) then
+          a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
+               0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
+               0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
+               0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
+               0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
+               0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
+               0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
+               0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
+               0.0_8, 0.0_8 /)
+          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
+               0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
+               0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
+               0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
+               0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
+               0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
+               0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
+               0.9851122_8, 1.0_8/)
        else
           write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
           stop
@@ -231,10 +265,11 @@ contains
     character(*)   :: filename
     integer        :: fid = 500
     character(255) :: varname
-    
+
     open(unit=fid, file=filename, action='READ')
     read(fid,*) varname, max_level
     read(fid,*) varname, zlevels
+    read(fid,*) varname, adapt_trend
     read(fid,*) varname, threshold 
     read(fid,*) varname, optimize_grid 
     read(fid,*) varname, dt_write
@@ -245,6 +280,7 @@ contains
     if (rank==0) then
        write(*,'(A,i3)')     "max_level        = ", max_level
        write(*,'(A,i3)')     "zlevels          = ", zlevels
+       write(*,'(A,L1)')     "adapt_trend      = ", adapt_trend
        write(*,'(A,es10.4)') "threshold        = ", threshold
        write(*,'(A,i2)')     "optimize_grid    = ", optimize_grid 
        write(*,'(A,es10.4)') "dt_write         = ", dt_write
@@ -337,7 +373,7 @@ contains
   subroutine dump (fid)
     implicit none
     integer :: fid
-    
+
     write(fid) itime
     write(fid) iwrite
     write(fid) tol_mass, tol_temp, tol_velo
@@ -346,7 +382,7 @@ contains
   subroutine load (fid)
     implicit none
     integer :: fid
-    
+
     read(fid) itime
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
@@ -398,7 +434,7 @@ contains
        end if
     end if
   end subroutine set_thresholds
-  
+
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
@@ -494,7 +530,7 @@ contains
        end do
     endif
   end subroutine l2_vars
-  
+
   subroutine apply_initial_conditions
     implicit none
     integer :: k, l
@@ -518,7 +554,7 @@ contains
        end do
     end do
   end subroutine set_surf_geopot
-  
+
   subroutine sum_total_mass (initialgo)
     ! Total mass over all vertical layers
     implicit none
@@ -612,7 +648,6 @@ program DCMIP2012c4
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
-  adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
@@ -781,7 +816,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
   real(8), dimension(:), pointer           :: flx
   logical                                  :: local_type
-  
+
   interface
      function grad_physics (scalar, dom, id, idE, idNE, idN, type)
        use domain_mod
@@ -794,13 +829,13 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
        logical                                  :: type
      end function grad_physics
   end interface
-  
+
   if (present(type)) then
      local_type = type
   else
      local_type = .false.
   end if
-  
+
   if (max(viscosity_mass, viscosity_temp)==0.0_8) then
      physics_scalar_flux = 0.0_8
   else
@@ -848,7 +883,7 @@ function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
   type(Domain)                             :: dom
   integer                                  :: id, idE, idNE, idN
   logical                                  :: local_type
-  
+
   if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
@@ -885,7 +920,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   use ops_mod
   use DCMIP2012c4_mod
   implicit none
-  
+
   real(8), dimension(1:EDGE)     :: physics_velo_source
   type(Domain)                   :: dom
   integer                        :: i, j, zlev
@@ -893,8 +928,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                      :: e
-    real(8), dimension(1:EDGE) :: diffusion,  curl_rotu, grad_divu
-  
+  real(8), dimension(1:EDGE) :: diffusion,  curl_rotu, grad_divu
+
   if (max(viscosity_divu, viscosity_rotu)==0.0_8) then
      diffusion = 0.0_8
   else
