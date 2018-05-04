@@ -43,7 +43,7 @@ contains
     x_E  = dom%node%elts(idE+1)
     x_N  = dom%node%elts(idN+1)
     x_NE = dom%node%elts(idNE+1)
-
+    
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
     column_mass = dom%surf_press%elts(id+1)/grav_accel
@@ -57,8 +57,8 @@ contains
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
-
-    ! Horizontally uniform potential temperature
+   
+    ! Potential temperature
     pot_temp =  set_temp(x_i) * (lev_press/ref_press)**(-kappa)
 
     ! Mass-weighted potential temperature
@@ -68,10 +68,11 @@ contains
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
 
-  function set_temp(x_i)
+  function set_temp (x_i)
     implicit none
-    real(8) :: set_temp
+    real(8)     :: set_temp
     type(Coord) :: x_i
+    
     real(8) :: lon, lat, Tmean
 
     call cart2sph (x_i, lon, lat)
@@ -220,8 +221,8 @@ contains
        press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
 
        ! Set mass coefficients
-       a_vert_mass = (a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press/grav_accel
        b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
+       a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
     end if
   end subroutine initialize_a_b_vert
 
@@ -517,7 +518,7 @@ contains
        end do
     end do
   end subroutine set_surf_geopot
-
+  
   subroutine sum_total_mass (initialgo)
     ! Total mass over all vertical layers
     implicit none
@@ -546,6 +547,7 @@ program DCMIP2012c4
   implicit none
 
   integer        :: d, ierr, k, l, v, zlev
+  real(8)        :: dt_cfl, dt_visc
   character(255) :: command
   logical        :: aligned, remap, write_init
 
@@ -613,7 +615,7 @@ program DCMIP2012c4
   adapt_trend  = .false. ! Adapt on trend or on variables
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
-  remap        = .true. ! Remap vertical coordinates (always remap when saving results)
+  remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity
@@ -638,9 +640,16 @@ program DCMIP2012c4
   end if
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
 
-  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
-  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)  
-  if (rank==0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/(wave_speed+u_0), " dt_visc = ", 0.25_8*dx_min**2/viscosity
+  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
+  dt_cfl = cfl_num*dx_min/(wave_speed+u_0)
+  if (viscosity/=0.0_8) then
+     dt_visc = 0.25_8*dx_min**2/viscosity
+     dt_init = min(dt_cfl, dt_visc)
+  else
+     dt_init = dt_cfl
+  end if
+  if (rank==0)                      write(6,'(1(A,es10.4,1x))') "dt_cfl = ",  dt_cfl
+  if (rank==0.and.viscosity/=0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
 
   if (rank == 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -709,7 +718,7 @@ program DCMIP2012c4
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES15.9,1x))')  &
-             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error,  timing
+             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, timing
      end if
 
      if (aligned) then
