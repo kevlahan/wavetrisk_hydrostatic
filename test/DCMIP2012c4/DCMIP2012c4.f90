@@ -84,7 +84,7 @@ contains
     end if
 
     set_temp = Tmean + 0.75_8 * eta*MATH_PI*u_0/R_d * sin(eta_v) * sqrt(cos(eta_v)) * &
-         (2.0_8*cos(eta_v)**1.5*(-2.0_8*sin(lat)**6*(cos(lat)**2+1.0_8/3.0_8) + 10.0_8/63.0_8) + &
+         (2.0_8*u_0*cos(eta_v)**1.5*(-2.0_8*sin(lat)**6*(cos(lat)**2+1.0_8/3.0_8) + 10.0_8/63.0_8) + &
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2+2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function set_temp
 
