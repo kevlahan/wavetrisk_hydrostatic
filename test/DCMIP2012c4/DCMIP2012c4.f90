@@ -5,7 +5,7 @@ module DCMIP2012c4_mod
   implicit none
 
   character(*), parameter            :: test_case = "DCMIP2012c4"      
-  integer                            :: CP_EVERY, iwrite, N_node
+  integer                            :: CP_EVERY, iwrite, N_node, save_zlev
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
   logical                            :: wasprinted, uniform
@@ -54,6 +54,7 @@ contains
     ! Normalized pressure
     eta = lev_press/dom%surf_press%elts(id+1)
     eta_v = (eta - eta_0) * MATH_PI/2.0_8
+    if (zlev==save_zlev) write(6,*) eta_v, lev_press
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
@@ -582,7 +583,7 @@ program DCMIP2012c4
   use DCMIP2012c4_mod
   implicit none
 
-  integer        :: d, ierr, k, l, v, zlev
+  integer        :: d, ierr, k, l, v
   real(8)        :: dt_cfl, dt_visc
   character(255) :: command
   logical        :: aligned, remap, write_init
@@ -642,7 +643,7 @@ program DCMIP2012c4
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
-  zlev           = 8 ! about 820 hPa
+  save_zlev      = 4 ! about 867 hPa
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = level_end                                  ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
@@ -709,7 +710,7 @@ program DCMIP2012c4
   call barrier
 
   if (rank == 0) write(6,*) 'Write initial values and grid'
-  call write_and_export (iwrite, zlev)
+  call write_and_export (iwrite, save_zlev)
 
   if (resume <= 0) iwrite = 0
   total_cpu_time = 0.0_8
@@ -761,7 +762,7 @@ program DCMIP2012c4
 
         ! Save fields
         if (remap) call remap_vertical_coordinates (set_thresholds)
-        call write_and_export (iwrite, zlev)
+        call write_and_export (iwrite, save_zlev)
 
         call sum_total_mass (.False.)
 
