@@ -7,10 +7,11 @@ test_case = 'DCMIP2012c4';
 %test_case = 'Held_Suarez';
 
 machine   = 'if';
-t1        = 43; % Start time
+%machine   = 'mac';
+t1        = 0; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'vort';
+itype     = 'zonal';
 
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
@@ -26,7 +27,7 @@ end
 if (strcmp(test_case,'DCMIP2008c5'))
     ax = [0 360 -90 90];
 elseif (strcmp(test_case,'DCMIP2012c4'))
-    if (strcmp(itype,'temp'))
+    if (strcmp(itype,'temp')||strcmp(itype,'surf_press'))
         ax = [45 360 0 90];
     else
         %ax = [120 270 25 75];
@@ -117,8 +118,8 @@ for t = t1:t2
          if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = -3e-5:1e-5:6e-5;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            %c_scale = -3e-5:1e-5:6e-5;
-            c_scale = -1e-5:0.25e-5:3e-5;
+            c_scale = -3e-5:1e-5:6e-5;
+            %c_scale = -1e-5:0.25e-5:3e-5;
         end
                 v_title = 'Relative vorticity';
     elseif (strcmp(itype,'surf_press')) % Plot surface pressure data

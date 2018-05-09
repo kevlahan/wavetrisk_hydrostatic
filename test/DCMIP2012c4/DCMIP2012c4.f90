@@ -166,15 +166,12 @@ contains
     ! Zonal latitude-dependent wind
     implicit none
     real(8) :: lon, lat, u, v
-    real(8) :: r, rgrc
-
-    call random_number(r)  ! Add random perturbation
-    !r = 0.0_8
+    real(8) :: rgrc
 
     ! Great circle distance
     rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
-    u = u_0*cos(eta_v)**1.5*sin(2.0_8*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2) + 5.0d-4*r  ! Zonal velocity component
+    u = u_0*cos(eta_v)**1.5*sin(2.0_8*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
@@ -611,7 +608,7 @@ program DCMIP2012c4
   u_p            = 1.0_8         ! maximum perturbation to zonal wind
   R_pert         = radius/10.0_8 ! 
   T_0            = 288.0_8       ! temperature in Kelvin
-  gamma_T        = 0.005         ! temperature lapse rate
+  gamma_T        = 5.0d-3        ! temperature lapse rate
   delta_T        = 4.8d5         ! empirical temperature difference
   eta_0          = 0.252_8       ! value of eta at reference level (level of the jet)
   eta_t          = 0.2_8         ! value of eta at the tropopause
