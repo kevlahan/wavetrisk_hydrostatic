@@ -54,7 +54,6 @@ contains
     ! Normalized pressure
     eta = lev_press/dom%surf_press%elts(id+1)
     eta_v = (eta - eta_0) * MATH_PI/2.0_8
-    if (zlev==save_zlev) write(6,*) eta_v, lev_press
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
