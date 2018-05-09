@@ -166,12 +166,15 @@ contains
     ! Zonal latitude-dependent wind
     implicit none
     real(8) :: lon, lat, u, v
-    real(8) :: rgrc
+    real(8) :: r, rgrc
+
+    call random_number(r)  ! Add random perturbation
+    !r = 0.0_8
 
     ! Great circle distance
     rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
-    u = u_0*cos(eta_v)**1.5*sin(2.0_8*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2)  ! Zonal velocity component
+    u = u_0*cos(eta_v)**1.5*sin(2.0_8*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2) + 5.0d-4*r  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
