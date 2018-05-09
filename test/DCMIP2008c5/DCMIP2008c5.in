@@ -1,5 +1,6 @@
 max_level	6
 zlevels         26
+adapt_trend     .true.
 threshold	8e-1
 optimize_grid	2    ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 dt_write 240          ! minutes

@@ -207,6 +207,7 @@ contains
     open(unit=fid, file=filename, action='READ')
     read(fid,*) varname, max_level
     read(fid,*) varname, zlevels
+    read(fid,*) varname, adapt_trend
     read(fid,*) varname, threshold 
     read(fid,*) varname, optimize_grid 
     read(fid,*) varname, dt_write
@@ -217,6 +218,7 @@ contains
     if (rank==0) then
        write(*,'(A,i3)')     "max_level        = ", max_level
        write(*,'(A,i3)')     "zlevels          = ", zlevels
+       write(*,'(A,L1)')     "adapt_trend      = ", adapt_trend
        write(*,'(A,es10.4)') "threshold        = ", threshold
        write(*,'(A,i2)')     "optimize_grid    = ", optimize_grid 
        write(*,'(A,es10.4)') "dt_write         = ", dt_write
@@ -581,7 +583,6 @@ program DCMIP2008c5
   pressure_save  = (/700.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
-  adapt_trend  = .true. ! Adapt on trend or on variables
   adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true. ! Remap vertical coordinates (always remap when saving results)
