@@ -299,10 +299,10 @@ contains
     do d = 1, size(grid)
        velo => sol_save(S_VELO,1)%data(d)%elts
        vort => grid(d)%vort%elts
-       do j = 1, grid(d)%lev(level_end)%length
-          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
+       do j = 1, grid(d)%lev(level_save)%length
+          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
        end do
-       call apply_to_penta_d (post_vort, grid(d), level_end, z_null)
+       call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
        nullify (velo, vort)
     end do
     
