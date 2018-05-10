@@ -236,8 +236,8 @@ contains
     real(8), dimension (zlevels)      :: pressure, mass_interp, temp_interp
     real(8), dimension (EDGE,zlevels) :: velo_interp
 
-    d    = dom%id + 1
-    id   = idx(i, j, offs, dims)
+    d  = dom%id + 1
+    id = idx(i, j, offs, dims)
 
     do k = 1, zlevels
        mass_interp(k) = sol(S_MASS,k)%data(d)%elts(id+1)
@@ -259,14 +259,14 @@ contains
        dmin = 1d16
        do kk = 1, zlevels
           diff = abs(pressure(kk)-pressure_save(k))
-          if (diff.lt.dmin) then
+          if (diff < dmin) then
              kc = kk
              dmin = diff
           end if
        end do
 
        ! Set interpolation stencil based on pressure_save
-       if (kc .lt. (order-1)/2+1) then
+       if (kc < (order-1)/2+1) then
           stencil = (/ (m, m = 1, order) /)
        else if (kc .gt. zlevels-(order-1)/2) then
           stencil = (/ (m, m = zlevels-(order-1), zlevels) /)

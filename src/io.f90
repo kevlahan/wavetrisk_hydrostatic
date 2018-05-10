@@ -288,21 +288,21 @@ contains
     ! Remap to pressure_save vertical levels for saving data
     call remap_save
 
-    ! Calculate temperature (store in exner_fun)
+    ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     call update_vector_bdry (exner_fun, NONE)
     
-    ! Calculate geopotential (stored in adj_geopot)
+    ! Calculate geopotential at first interpolated saved vertical levels (saved in adj_geopot)
     call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
 
-    ! Calculate vorticity
+    ! Calculate vorticity at first interpolated saved vertical level
     do d = 1, size(grid)
-       velo => sol(S_VELO,level_save)%data(d)%elts
+       velo => sol_save(S_VELO,1)%data(d)%elts
        vort => grid(d)%vort%elts
        do j = 1, grid(d)%lev(level_end)%length
-          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
+          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 1)
        end do
-       call apply_to_penta_d (post_vort, grid(d), level_end, k)
+       call apply_to_penta_d (post_vort, grid(d), level_end, z_null)
        nullify (velo, vort)
     end do
     
@@ -942,12 +942,13 @@ contains
        pressure(k) = pressure(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
     end do
 
+    ! Temperature at all vertical levels (saved in exner_fun)
     do k = 1, zlevels
        exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) &
             * (pressure(k)/ref_press)**kappa
     end do
     
-    ! temperature at save levels (use horiz_flux variable)
+    ! temperature at save levels (saved in horiz_flux)
     do k = 1, save_levels
        horiz_flux(k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
             (pressure_save(k)/ref_press)**kappa
@@ -975,7 +976,7 @@ contains
     dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/grav_accel
 
     k = 1
-    do while (pressure_upper .gt. pressure_save(1))
+    do while (pressure_upper > pressure_save(1))
        dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
             R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_upper))
        

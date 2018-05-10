@@ -366,9 +366,9 @@ contains
     if (rank == 0) call compress_files (iwrite, test_case)
 
     ! Save 2D projection
-    !call export_2d (cart2sph2, 3000000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds, test_case)
-    call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
-         set_thresholds, test_case)
+    call export_2d (cart2sph2, 3000000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds, test_case)
+    !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
+    !     set_thresholds, test_case)
   end subroutine write_and_export
 
   subroutine dump (fid)
