@@ -36,15 +36,11 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
   LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
-  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163                                                               
+  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163                                                                                                             
   F90    = gfortran
   MPIF90 = mpif90
-  LIBS   = ${MKLROOT}/lib/intel64/libmkl_scalapack_ilp64.a -Wl,--start-group \
-           ${MKLROOT}/lib/intel64/libmkl_gf_ilp64.a ${MKLROOT}/lib/intel64/libmkl_sequential.a \
-           ${MKLROOT}/lib/intel64/libmkl_core.a \
-           ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_ilp64.a \
-           -Wl,--end-group -lpthread -lm -ldl
-  FLAGS  =  $(OPTIM) -fdefault-integer-8 -m64 -I${MKLROOT}/include
+  LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all -I${MKLROOT}/include
 else ifeq ($(MACHINE),gpc)
   F90    = ifort
   MPIF90 = mpif90
