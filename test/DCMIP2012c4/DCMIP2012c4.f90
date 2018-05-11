@@ -332,10 +332,9 @@ contains
        do d = 1, size(grid)
           velo => sol(S_VELO,save_zlev)%data(d)%elts
           vort => grid(d)%vort%elts
-          grid(d)%adj_mass%elts = 100.0_8
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), save_zlev,    0, 0)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), save_zlev, 0, 0)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null,   -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), l, save_zlev)
           nullify (velo, vort)
@@ -344,7 +343,7 @@ contains
        ! Calculate vorticity at hexagon points (stored in adj_mass)
        call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
 
-       Call write_level_mpi (write_primal, u+l, l, save_zlev, .True., test_case)
+       call write_level_mpi (write_primal, u+l, l, save_zlev, .True., test_case)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
@@ -644,7 +643,7 @@ program DCMIP2012c4
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
-  level_save     = level_end                                  ! resolution level at which to save lat-lon data
+  level_save     = max_level                                  ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
@@ -797,7 +796,9 @@ program DCMIP2012c4
 
   call finalize
 end program DCMIP2012c4
+
 subroutine set_save_level
+  ! Determines closest vertical level to desired pressure
   use DCMIP2012c4_mod
   implicit none
   integer :: zlev

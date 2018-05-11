@@ -5,7 +5,7 @@ module Held_Suarez_mod
   implicit none
 
   character(*), parameter            :: test_case = "Held_Suarez"
-  integer                            :: CP_EVERY, iwrite, N_node
+  integer                            :: CP_EVERY, iwrite, N_node, save_zlev
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
   logical                            :: uniform
@@ -224,9 +224,9 @@ contains
     close(fid)
   end subroutine read_test_case_parameters
 
-  subroutine write_and_export (iwrite, zlev)
+subroutine write_and_export (iwrite)
     implicit none
-    integer :: iwrite, zlev
+    integer :: iwrite
 
     integer      :: d, i, j, k, l, p, u
     character(7) :: var_file
@@ -244,8 +244,8 @@ contains
        minv = 1.0d63; maxv = -1.0d63
        u = 1000000+100*iwrite
 
-       ! Calculate pressure, exner and geopotential at vertical level zlev and scale l
-       do k = 1, zlev
+       ! Calculate pressure, exner and geopotential at vertical level save_zlev and scale l
+       do k = 1, save_zlev
           do d = 1, size(grid)
              mass  => sol(S_MASS,k)%data(d)%elts
              temp  => sol(S_TEMP,k)%data(d)%elts
@@ -257,23 +257,22 @@ contains
           end do
        end do
 
-       ! Calculate zonal and meridional velocities and vorticity for vertical level zlev
+       ! Calculate zonal and meridional velocities and vorticity for vertical level save_zlev
        do d = 1, size(grid)
-          velo => sol(S_VELO,zlev)%data(d)%elts
+          velo => sol(S_VELO,save_zlev)%data(d)%elts
           vort => grid(d)%vort%elts
-          grid(d)%adj_mass%elts = 100.0_8
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), zlev,    0, 0)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), save_zlev, 0, 0)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null,   -1, 1)
           end do
-          call apply_to_penta_d (post_vort, grid(d), l, zlev)
+          call apply_to_penta_d (post_vort, grid(d), l, save_zlev)
           nullify (velo, vort)
        end do
 
        ! Calculate vorticity at hexagon points (stored in adj_mass)
        call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
 
-       Call write_level_mpi (write_primal, u+l, l, zlev, .True., test_case)
+       call write_level_mpi (write_primal, u+l, l, save_zlev, .True., test_case)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
@@ -287,7 +286,7 @@ contains
           close(50)
        end if
        u = 2000000+100*iwrite
-       call write_level_mpi (write_dual, u+l, l, zlev, .False., test_case)
+       call write_level_mpi (write_dual, u+l, l, save_zlev, .False., test_case)
     end do
 
     call post_levelout
@@ -296,9 +295,10 @@ contains
 
     ! Save 2D projection
     call export_2d (cart2sph2, 3000000+100*iwrite, (/-96, 96/), (/-48, 48/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds, test_case)
-    !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds)
+    !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
+    !     set_thresholds, test_case)
   end subroutine write_and_export
-  
+    
   subroutine dump (fid)
     implicit none
     integer :: fid
@@ -561,9 +561,8 @@ program Held_Suarez
   specvoldim     = (R_d*T_mean)/ref_press               ! specific volume scale
   wave_speed     = sqrt(gamma*ref_press*specvoldim)      ! acoustic wave speed
   
-  zlev           = 8 ! about 820 hPa
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
-  level_save     = level_end                                  ! resolution level at which to save lat-lon data
+  level_save     = max_level                                  ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
   ! Set logical switches
@@ -577,8 +576,6 @@ program Held_Suarez
   !Laplace_order = 2 ! Iterated Laplacian diffusion
   
   if (Laplace_order==1) then ! Usual Laplacian diffusion
-     viscosity_mass = 0.0_8
-     viscosity_divu = 0.0_8
      !viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
      !viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
      viscosity_temp = viscosity_mass
@@ -610,6 +607,9 @@ program Held_Suarez
   ! Initialize vertical grid
   call initialize_a_b_vert
 
+  ! Determine vertical level to save
+  call set_save_level
+  
   ! Initialize variables
   call initialize (apply_initial_conditions, 1, set_thresholds, dump, load, test_case)
 
@@ -622,7 +622,7 @@ program Held_Suarez
   call barrier
 
   if (rank == 0) write(6,*) 'Write initial values and grid'
-  call write_and_export (iwrite, zlev)
+  call write_and_export (iwrite)
 
   if (resume<=0) iwrite = 0
   total_cpu_time = 0.0_8
@@ -676,7 +676,7 @@ program Held_Suarez
 
         ! Save fields
         if (remap) call remap_vertical_coordinates (set_thresholds)
-        call write_and_export (iwrite, zlev)
+        call write_and_export (iwrite)
 
         call sum_total_mass (.False.)
 
@@ -709,6 +709,26 @@ program Held_Suarez
 
   call finalize
 end program Held_Suarez
+
+subroutine set_save_level
+  ! Determines closest vertical level to desired pressure
+  use Held_Suarez_mod
+  implicit none
+  integer :: zlev
+  real(8) :: dpress, lev_press, save_press
+
+  dpress = 1.0d16; save_zlev = 0
+  do zlev = 1, zlevels
+     lev_press = 0.5_8*ref_press*(a_vert(zlev)+a_vert(zlev+1) + b_vert(zlev)+b_vert(zlev+1))
+     if (abs(lev_press-pressure_save(1)) < dpress) then
+        dpress = abs(lev_press-pressure_save(1))
+        save_zlev = zlev
+        save_press = lev_press
+     end if
+  end do
+  if (rank==0) write(6,'(A,i2,A,f5.1,A)') "Saving level ", save_zlev, " Approximate pressure = ", save_press/1.0d2, " hPa"
+  if (rank==0) write(6,*) ' '
+end subroutine set_save_level
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
