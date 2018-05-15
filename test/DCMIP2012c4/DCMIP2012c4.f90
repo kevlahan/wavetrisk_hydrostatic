@@ -396,31 +396,23 @@ contains
     integer :: l, k
 
     ! Set thresholds dynamically (trend or sol must be known)
-    if (itype==0) then ! Adapt on trend
-       norm_mass_trend = 0.0_8
-       norm_temp_trend = 0.0_8
-       norm_velo_trend = 0.0_8
-       do l = level_start, level_end
-          call apply_onescale (linf_trend, l, z_null, 0, 0)
-       end do
+    norm_mass = 0.0_8
+    norm_temp = 0.0_8
+    norm_velo = 0.0_8
+    do l = level_start, level_end
+       call apply_onescale (linf_vars, l, z_null, 0, 0)
+    end do
+    mass_scale = sync_max_d (norm_mass)
+    temp_scale = sync_max_d (norm_temp)
+    velo_scale = sync_max_d (norm_velo)
 
-       mass_scale = sync_max_d (norm_mass_trend)
-       temp_scale = sync_max_d (norm_temp_trend)
-       velo_scale = sync_max_d (norm_velo_trend)
-    else ! Adapt on variables
-       norm_mass = 0.0_8
-       norm_temp = 0.0_8
-       norm_velo = 0.0_8
-       do l = level_start, level_end
-          call apply_onescale (linf_vars, l, z_null, 0, 0)
-       end do
-
-       mass_scale = sync_max_d (norm_mass)
-       temp_scale = sync_max_d (norm_temp)
-       velo_scale = sync_max_d (norm_velo)
+    if (adapt_trend .and. itype==0) then
+       mass_scale = mass_scale / dt
+       temp_scale = temp_scale / dt
+       velo_scale = velo_scale / dt
     end if
-
-    if (istep/=0) then
+       
+    if (istep/=0) then ! Change threshold gradually
        tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
        tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
        tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
@@ -428,11 +420,6 @@ contains
        tol_mass = threshold * mass_scale
        tol_temp = threshold * temp_scale
        tol_velo = threshold * velo_scale
-       if (adapt_trend .and. itype==1) then ! Re-scale trend threshold for variables
-          tol_mass = threshold**1.5_8 * mass_scale/5.0d1
-          tol_temp = threshold**1.5_8 * temp_scale/5.0d1
-          tol_velo = threshold**1.5_8 * velo_scale/5.0d1
-       end if
     end if
   end subroutine set_thresholds
 

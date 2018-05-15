@@ -100,7 +100,7 @@ contains
           call forward_wavelet_transform (trend, trend_wav_coeff)
        end if
 
-       dt_init = cpt_dt_mpi()
+       dt = cpt_dt_mpi()
        do while (level_end < max_level)
           if (rank == 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
@@ -145,7 +145,7 @@ contains
        call write_load_conn(0)
        ierr = dump_adapt_mpi(cp_idx, custom_dump)
     end if
-    dt_init = cpt_dt_mpi()
+    dt = cpt_dt_mpi()
     call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
@@ -304,11 +304,10 @@ contains
     external     :: set_thresholds, custom_load
     character(*) :: test_case
     
-    integer            :: i, d, k, r, l, v
-    integer, parameter :: len_cmd_files = 12 + 4 + 12 + 4
+    integer                  :: i, d, k, r, l, v
+    integer, parameter       :: len_cmd_files = 12 + 4 + 12 + 4
     character(len_cmd_files) :: cmd_files
-    character(255) :: cmd_archive
-    character(255) :: command
+    character(255)           :: cmd_archive, command
 
     ! deallocate init_RK_mem allocations
     do k = 1, zlevels
