@@ -16,10 +16,10 @@ contains
 
     recommended_level_start = level_start
     do l = level_start, level_end
-       if (rank .eq. 0) write(*,'(A,I2,I9)') 'lev', l, n_active_nodes(l), n_active_edges(l)
+       if (rank == 0) write(*,'(A,I2,I9)') 'lev', l, n_active_nodes(l), n_active_edges(l)
     end do
 
-    if (rank .eq. 0) write(*,'(A,I9)') 'total', sum(n_active(AT_NODE:AT_EDGE))
+    if (rank == 0) write(*,'(A,I9)') 'total', sum(n_active(AT_NODE:AT_EDGE))
 
     write_active_per_level = recommended_level_start
   end function write_active_per_level
@@ -69,7 +69,7 @@ contains
     call comm_communication
   end subroutine comm_communication_mpi
 
-  subroutine comm_masks_mpi(l)
+  subroutine comm_masks_mpi (l)
     implicit none
     integer :: l
     call comm_masks
@@ -103,14 +103,16 @@ contains
     implicit none
     external :: get, set
     integer  :: l
+    
     call comm_nodes9 (get, set) ! communicate inside domain
   end subroutine comm_nodes9_mpi
 
   subroutine comm_nodes3_mpi (get, set, l)
     implicit none
-    external :: get, set
-    integer  :: l
-    type(Coord) get
+    external    :: get, set
+    integer     :: l
+    type(Coord) :: get
+    
     call comm_nodes3 (get, set) ! communicate inside domain
   end subroutine comm_nodes3_mpi
 
@@ -265,7 +267,7 @@ contains
   subroutine stop_timing
   end subroutine stop_timing
 
-  function get_timing()
+  function get_timing ()
     implicit none
     real(8) :: get_timing
     get_timing = 0.0_8
