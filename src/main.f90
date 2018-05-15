@@ -188,7 +188,7 @@ contains
     ! Match certain times exactly
     idt    = nint(dt*time_mult, 8)
     ialign = nint(align_time*time_mult, 8)
-    if (ialign>0 .and. cp_idx.ne.resume .and. istep.ne.1) then
+    if (ialign>0 .and. cp_idx /= resume .and. istep /= 1) then
        aligned = (modulo(itime+idt,ialign) < modulo(itime,ialign))
     else
        resume = NONE ! Set unequal cp_idx => only first step after resume is protected from alignment
