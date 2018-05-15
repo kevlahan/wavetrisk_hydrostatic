@@ -412,15 +412,9 @@ contains
        velo_scale = velo_scale / dt
     end if
        
-    if (istep/=0) then ! Change threshold gradually
-       tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
-       tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
-       tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
-    elseif (istep==0) then
-       tol_mass = threshold * mass_scale
-       tol_temp = threshold * temp_scale
-       tol_velo = threshold * velo_scale
-    end if
+    tol_mass = threshold * mass_scale
+    tol_temp = threshold * temp_scale
+    tol_velo = threshold * velo_scale
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
