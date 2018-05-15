@@ -145,7 +145,6 @@ contains
        call write_load_conn(0)
        ierr = dump_adapt_mpi(cp_idx, custom_dump)
     end if
-    dt = cpt_dt_mpi()
     call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
@@ -528,6 +527,7 @@ contains
     if (rank == 0) call system (command)
     if (adapt_trend) trend_wav_coeff = wav_coeff
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+    dt = cpt_dt_mpi()
     call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
