@@ -286,7 +286,6 @@ contains
     call cal_surf_press (sol)
 
     ! Remap to pressure_save vertical levels for saving data
-    !call remap_save
     sol_save = sol
     call apply_onescale (interp_save, level_save, z_null, 0, 1)
 
@@ -331,7 +330,7 @@ contains
        do d = 1, size(grid)
           velo => sol_save(S_VELO,k)%data(d)%elts
           do j = 1, grid(d)%lev(level_save)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 0)
           end do
           nullify (velo)
        end do
@@ -1198,7 +1197,7 @@ contains
     ! Find longitude and latitude coordinates of node
     call cart2sph (co_node, lon, lat)
 
-    e_zonal = Coord (-sin(lon),          cos(lon),           0.0)    ! Zonal direction
+    e_zonal = Coord (-sin(lon),           cos(lon),             0.0_8) ! Zonal direction
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
     ! Least squares overdetermined matrix 
