@@ -4,9 +4,6 @@ module remap_mod
   use time_integr_mod
   use wavelet_mod
   implicit none
-  
-  integer                             :: order
-  integer, dimension (:), allocatable :: stencil
 contains
   subroutine remap_vertical_coordinates (set_thresholds)
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
