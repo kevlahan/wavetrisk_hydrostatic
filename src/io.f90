@@ -288,7 +288,7 @@ contains
     ! Remap to pressure_save vertical levels for saving data
     !call remap_save
     sol_save = sol
-    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    call apply_onescale (interp_save, level_save, z_null, 0, 1)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, -1, 1)
@@ -1022,8 +1022,8 @@ contains
     sol_save(S_MASS,1)%data(d)%elts(id+1) = sol(S_MASS,k+1)%data(d)%elts(id+1) + dpressure *  sol(S_MASS,k)%data(d)%elts(id+1)
     sol_save(S_TEMP,1)%data(d)%elts(id+1) = sol(S_TEMP,k+1)%data(d)%elts(id+1) + dpressure *  sol(S_TEMP,k)%data(d)%elts(id+1)
     do e = 1, EDGE
-       sol_save(S_VELO,1)%data(d)%elts(EDGE*id+e) = sol_save(S_VELO,k+1)%data(d)%elts(EDGE*id+e) &
-            + dpressure * sol_save(S_VELO,k)%data(d)%elts(EDGE*id+e)
+       sol_save(S_VELO,1)%data(d)%elts(EDGE*id+e) = sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e) &
+            + dpressure * sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
     end do
   end subroutine interp_save
   
