@@ -406,10 +406,11 @@ contains
     temp_scale = sync_max_d (norm_temp)
     velo_scale = sync_max_d (norm_velo)
 
+    ! Rescale using dt_new to avoid some artificially small time steps when saving data
     if (adapt_trend .and. itype==0) then
-       mass_scale = mass_scale / dt
-       temp_scale = temp_scale / dt
-       velo_scale = velo_scale / dt
+       mass_scale = mass_scale / dt_new
+       temp_scale = temp_scale / dt_new
+       velo_scale = velo_scale / dt_new
     end if
        
     tol_mass = threshold * mass_scale

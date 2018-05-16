@@ -978,7 +978,7 @@ contains
                 d_e = dom%len%elts(EDGE*id+e) ! Triangle edge length
                 do k = 1, zlevels
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
-                   if (v_e.ne.0.0_8) dt_loc = min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
+                   if (v_e /= 0.0_8) dt_loc = min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
                 end do
                 dt_loc = min (dt_loc, C_visc*d_e**2/viscosity)
              end if
