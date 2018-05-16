@@ -272,7 +272,7 @@ contains
           vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), save_zlev, 0, 0)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null,   -1, 1)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null,   -1, 0)
           end do
           call apply_to_penta_d (post_vort, grid(d), l, save_zlev)
           nullify (velo, vort)

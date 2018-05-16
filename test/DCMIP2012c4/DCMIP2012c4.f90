@@ -334,7 +334,7 @@ contains
           vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), save_zlev, 0, 0)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null,   -1, 1)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null,   -1, 0)
           end do
           call apply_to_penta_d (post_vort, grid(d), l, save_zlev)
           nullify (velo, vort)
@@ -399,6 +399,7 @@ contains
     norm_mass = 0.0_8
     norm_temp = 0.0_8
     norm_velo = 0.0_8
+
     do l = level_start, level_end
        call apply_onescale (linf_vars, l, z_null, 0, 0)
     end do
@@ -505,10 +506,10 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
-          norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
-          norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
+          norm_mass = norm_mass + sol(S_MASS,k)%data(d)%elts(id+1)**2
+          norm_temp = norm_temp + sol(S_TEMP,k)%data(d)%elts(id+1)**2
           do e = 1, EDGE
-             norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+             norm_velo  = norm_velo + sol(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
           end do
        end do
     endif
@@ -629,6 +630,8 @@ program DCMIP2012c4
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
+  if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to level ", level_save, " for saving 2D data" 
+
   ! Set logical switches
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
@@ -665,8 +668,8 @@ program DCMIP2012c4
   else
      dt_init = dt_cfl
   end if
-  if (rank==0)                      write(6,'(1(A,es10.4,1x))') "dt_cfl = ",  dt_cfl
-  if (rank==0.and.viscosity/=0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
+  if (rank==0)                      write(6,'(A,es10.4,1x,/)') "dt_cfl = ",  dt_cfl
+  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x,/)')" dt_visc = ", dt_visc
 
   if (rank == 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -690,7 +693,7 @@ program DCMIP2012c4
 
   call sum_total_mass (.True.)
 
-  if (rank == 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
+  if (rank == 0) write (6,'(/,A,3(ES12.4,1x),/)') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
   call barrier
 
   if (rank == 0) write(6,*) 'Write initial values and grid'
