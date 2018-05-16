@@ -16,7 +16,7 @@ module Held_Suarez_mod
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
   real(8)                            :: visc
-  real(8)                            :: c_v, f0, delta_T, delta_theta, eta_b, k_a, k_f, k_s, T_0, T_mean, T_tropo
+  real(8)                            :: c_v, f0, delta_T, delta_theta, eta_b, k_a, k_f, k_s, T_0, T_mean, T_tropo, u_0
 
   type(Float_Field)                  :: rel_vort 
 contains
@@ -324,47 +324,25 @@ subroutine write_and_export (iwrite)
     integer :: l, k
 
     ! Set thresholds dynamically (trend or sol must be known)
-    if (itype==0) then ! Adapt on trend
-       norm_mass_trend = 0.0_8
-       norm_temp_trend = 0.0_8
-       norm_velo_trend = 0.0_8
-       do l = level_start, level_end
-          call apply_onescale (linf_trend, l, z_null, 0, 0)
-       end do
+    norm_mass = 0.0_8
+    norm_temp = 0.0_8
+    norm_velo = 0.0_8
+    do l = level_start, level_end
+       call apply_onescale (linf_vars, l, z_null, 0, 0)
+    end do
+    mass_scale = sync_max_d (norm_mass)
+    temp_scale = sync_max_d (norm_temp)
+    velo_scale = sync_max_d (norm_velo)
 
-       mass_scale = sync_max_d (norm_mass_trend)
-       temp_scale = sync_max_d (norm_temp_trend)
-       velo_scale = sync_max_d (norm_velo_trend)
-    else ! Adapt on variables
-       norm_mass = 0.0_8
-       norm_temp = 0.0_8
-       norm_velo = 0.0_8
-       do l = level_start, level_end
-          call apply_onescale (linf_vars, l, z_null, 0, 0)
-       end do
-
-       mass_scale = sync_max_d (norm_mass)
-       temp_scale = sync_max_d (norm_temp)
-       velo_scale = sync_max_d (norm_velo)
+    if (adapt_trend .and. itype==0) then
+       mass_scale = mass_scale / dt_new
+       temp_scale = temp_scale / dt_new
+       velo_scale = velo_scale / dt_new
     end if
-
-    if (istep >= 1) then
-       ! tol_mass = 0.99_8*tol_mass + 0.01_8*threshold * mass_scale
-       ! tol_temp = 0.99_8*tol_temp + 0.01_8*threshold * temp_scale
-       ! tol_velo = 0.99_8*tol_velo + 0.01_8*threshold * velo_scale
-       tol_mass = threshold * mass_scale
-       tol_temp = threshold * temp_scale
-       tol_velo = threshold * velo_scale
-    else
-       tol_mass = 1.0d16!threshold !* mass_scale
-       tol_temp = 1.0d16!threshold !* temp_scale
-       tol_velo = 1.0d16!threshold ! do not adapt initially since velocity is zero
-        if (adapt_trend .and. itype==1) then ! Re-scale trend threshold for variables
-          tol_mass = 1.0d16!threshold!**1.5_8 * mass_scale/5.0d1
-          tol_temp = 1.0d16!threshold!**1.5_8 * temp_scale/5.0d1
-          tol_velo = 1.0d16!threshold!**1.5_8 * velo_scale/5.0d1
-       end if
-    end if
+       
+    tol_mass = threshold * mass_scale
+    tol_temp = threshold * temp_scale
+    tol_velo = threshold * velo_scale
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
@@ -454,10 +432,10 @@ subroutine write_and_export (iwrite)
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
-          norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
-          norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
+          norm_mass = norm_mass + sol(S_MASS,k)%data(d)%elts(id+1)**2
+          norm_temp = norm_temp + sol(S_TEMP,k)%data(d)%elts(id+1)**2
           do e = 1, EDGE
-             norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+             norm_velo  = norm_velo + sol(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
           end do
        end do
     endif
@@ -512,7 +490,8 @@ program Held_Suarez
   use Held_Suarez_mod
   implicit none
 
-  integer        :: d, ierr, k, l, v, zlev
+  integer        :: d, ierr, k, l, v
+  real(8)        :: dt_cfl, dt_visc
   character(255) :: command
   logical        :: aligned, remap, write_init
 
@@ -565,6 +544,8 @@ program Held_Suarez
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
+  if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to level ", level_save, " for saving 2D data" 
+
   ! Set logical switches
   adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
@@ -591,11 +572,17 @@ program Held_Suarez
   end if
   viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
   
-  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)  
-  dt_init = min(cfl_num*dx_min/wave_speed, 0.25_8*dx_min**2/viscosity)
-  !dt_init = 400.0_8
-  if (rank==0) write(6,'(2(A,es10.4,1x))') "dt_cfl = ", cfl_num*dx_min/wave_speed, " dt_visc = ", 0.25_8*dx_min**2/viscosity
-
+  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
+  dt_cfl = cfl_num*dx_min/(wave_speed+u_0)
+  if (viscosity/=0.0_8) then
+     dt_visc = 0.25_8*dx_min**2/viscosity
+     dt_init = min(dt_cfl, dt_visc)
+  else
+     dt_init = dt_cfl
+  end if
+  if (rank==0)                      write(6,'(A,es10.4,1x,/)') "dt_cfl = ",  dt_cfl
+  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x,/)')" dt_visc = ", dt_visc
+  
   if (rank == 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
      write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
@@ -618,7 +605,7 @@ program Held_Suarez
 
   call sum_total_mass (.True.)
 
-  if (rank == 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
+  if (rank == 0) write (6,'(/,A,3(ES12.4,1x),/)') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
   call barrier
 
   if (rank == 0) write(6,*) 'Write initial values and grid'

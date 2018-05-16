@@ -344,9 +344,9 @@ contains
     velo_scale = sync_max_d (norm_velo)
 
     if (adapt_trend .and. itype==0) then
-       mass_scale = mass_scale / dt
-       temp_scale = temp_scale / dt
-       velo_scale = velo_scale / dt
+       mass_scale = mass_scale / dt_new
+       temp_scale = temp_scale / dt_new
+       velo_scale = velo_scale / dt_new
     end if
        
     tol_mass = threshold * mass_scale
@@ -441,10 +441,10 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
-          norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
-          norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
+          norm_mass = norm_mass + sol(S_MASS,k)%data(d)%elts(id+1)**2
+          norm_temp = norm_temp + sol(S_TEMP,k)%data(d)%elts(id+1)**2
           do e = 1, EDGE
-             norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+             norm_velo  = norm_velo + sol(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
           end do
        end do
     endif
@@ -562,6 +562,8 @@ program DCMIP2008c5
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/700.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
+  if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to level ", level_save, " for saving 2D data" 
+
   ! Set logical switches
   adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
@@ -594,8 +596,8 @@ program DCMIP2008c5
   else
      dt_init = dt_cfl
   end if
-  if (rank==0)                      write(6,'(1(A,es10.4,1x))') "dt_cfl = ",  dt_cfl
-  if (rank==0.and.viscosity/=0.0_8) write(6,'(1(A,es10.4,1x))')" dt_visc = ", dt_visc
+  if (rank==0)                      write(6,'(A,es10.4,1x,/)') "dt_cfl = ",  dt_cfl
+  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x,/)')" dt_visc = ", dt_visc
 
   if (rank == 0) then
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
@@ -619,7 +621,7 @@ program DCMIP2008c5
 
   call sum_total_mass (.True.)
 
-  if (rank == 0) write (6,'(A,3(ES12.4,1x))') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
+  if (rank == 0) write (6,'(/,A,3(ES12.4,1x),/)') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
   call barrier
 
   if (rank == 0) write(6,*) 'Write initial values and grid'
