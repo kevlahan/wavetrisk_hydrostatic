@@ -527,7 +527,7 @@ contains
     if (rank == 0) call system (command)
     if (adapt_trend) trend_wav_coeff = wav_coeff
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-    dt = cpt_dt_mpi()
+    dt_new = cpt_dt_mpi()
     call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
