@@ -100,7 +100,7 @@ contains
           call forward_wavelet_transform (trend, trend_wav_coeff)
        end if
 
-       dt = cpt_dt_mpi()
+       dt_new = cpt_dt_mpi()
        do while (level_end < max_level)
           if (rank == 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
