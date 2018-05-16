@@ -286,10 +286,12 @@ contains
     call cal_surf_press (sol)
 
     ! Remap to pressure_save vertical levels for saving data
-    call remap_save
+    !call remap_save
+    sol_save = sol
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
-    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    call apply_onescale (cal_temp, level_save, z_null, -1, 1)
     call update_vector_bdry (exner_fun, NONE)
     
     ! Calculate geopotential at first interpolated saved vertical levels (saved in adj_geopot)
@@ -300,7 +302,7 @@ contains
        velo => sol_save(S_VELO,1)%data(d)%elts
        vort => grid(d)%vort%elts
        do j = 1, grid(d)%lev(level_save)%length
-          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
+          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_save)%elts(j), z_null, 0, 0)
        end do
        call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
        nullify (velo, vort)
@@ -990,6 +992,41 @@ contains
          + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
 
+  subroutine interp_save (dom, i, j, zlev, offs, dims)
+    ! Linear interpolation to save levels
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: p, i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, d, e, k
+    real(8) :: pressure_lower, pressure_upper, dpressure
+
+    d = dom%id + 1
+    id = idx(i, j, offs, dims)
+
+    ! Integrate geopotential upwards from surface
+    pressure_lower = dom%surf_press%elts(id+1)
+    pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
+
+    k = 1
+    do while (pressure_upper > pressure_save(1))
+       k = k+1
+       pressure_lower = pressure_upper
+       pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id+1)
+    end do
+    
+    dpressure =  (pressure_lower-pressure_save(1))/(pressure_lower-pressure_upper)
+    
+    sol_save(S_MASS,1)%data(d)%elts(id+1) = sol(S_MASS,k+1)%data(d)%elts(id+1) + dpressure *  sol(S_MASS,k)%data(d)%elts(id+1)
+    sol_save(S_TEMP,1)%data(d)%elts(id+1) = sol(S_TEMP,k+1)%data(d)%elts(id+1) + dpressure *  sol(S_TEMP,k)%data(d)%elts(id+1)
+    do e = 1, EDGE
+       sol_save(S_VELO,1)%data(d)%elts(EDGE*id+e) = sol_save(S_VELO,k+1)%data(d)%elts(EDGE*id+e) &
+            + dpressure * sol_save(S_VELO,k)%data(d)%elts(EDGE*id+e)
+    end do
+  end subroutine interp_save
+  
   subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
     ! Approximate vorticity at hexagon points
     implicit none
