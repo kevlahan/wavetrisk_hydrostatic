@@ -286,8 +286,9 @@ contains
     call cal_surf_press (sol)
 
     ! Remap to pressure_save vertical levels for saving data
-    sol_save = sol
+    sol_save = sol(:,1:save_levels)
     call apply_onescale (interp_save, level_save, z_null, 0, 1)
+    call update_array_bdry (sol_save, level_save)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, -1, 1)
@@ -1005,17 +1006,15 @@ contains
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    ! Integrate geopotential upwards from surface
+    ! Find pressure at current levels (not interfaces)
+    k = 0
     pressure_lower = dom%surf_press%elts(id+1)
-    pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
-
-    k = 1
+    pressure_upper = pressure_lower - 0.5_8*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
     do while (pressure_upper > pressure_save(1))
        k = k+1
        pressure_lower = pressure_upper
-       pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id+1)
+       pressure_upper = pressure_lower - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k+1)%data(d)%elts(id+1))
     end do
-    
     dpressure =  (pressure_lower-pressure_save(1))/(pressure_lower-pressure_upper)
     
     sol_save(S_MASS,1)%data(d)%elts(id+1) = sol(S_MASS,k+1)%data(d)%elts(id+1) + dpressure *  sol(S_MASS,k)%data(d)%elts(id+1)
