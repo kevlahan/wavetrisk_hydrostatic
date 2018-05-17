@@ -1,22 +1,22 @@
 % Plot 2d data from export_2d
-clear; close all;
+clear; %close all;
 
 % Test case
 test_case = 'DCMIP2012c4';
-%test_case = 'DCMIP2008c12';
+%test_case = 'DCMIP2008c5';
 %test_case = 'Held_Suarez';
 
 machine   = 'if';
 %machine   = 'mac';
-t1        = 0; % Start time
+t1        = 19; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'zonal';
+itype     = 'temp';
 
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
 shift     = 1; % shift left boundary to zero longitude
-smooth    = 1; % smooth data over two points in each direction
+smooth    = 0; % smooth data over two points in each direction
 
 if (strcmp(itype,'temp_var')||strcmp(itype,'eddy_mom')||strcmp(itype,'eddy_ke')||strcmp(itype,'eddy_heat_flux'))
     lon_lat = 0;
@@ -30,8 +30,9 @@ elseif (strcmp(test_case,'DCMIP2012c4'))
     if (strcmp(itype,'temp')||strcmp(itype,'surf_press'))
         ax = [45 360 0 90];
     else
-        %ax = [120 270 25 75];
-        ax = [90 200 25 75];
+        ax = [120 270 25 75];
+        %ax = [0 360 25 75];
+        %ax = [90 200 25 75];
     end
 end
 
@@ -81,7 +82,7 @@ for t = t1:t2
         if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = -15:5:50; 
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            c_scale = 0:2:20;   
+            c_scale = -60:5:60;   
         elseif (strcmp(test_case,'Held_Suarez'))
             c_scale = -30:5:30;
         end
@@ -118,16 +119,17 @@ for t = t1:t2
          if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = -3e-5:1e-5:6e-5;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            c_scale = -3e-5:1e-5:6e-5;
-            %c_scale = -1e-5:0.25e-5:3e-5;
+            %c_scale = -3e-5:1e-5:6e-5;
+            c_scale = -10e-5:5e-5:40e-5;
         end
-                v_title = 'Relative vorticity';
+        v_title = 'Relative vorticity';
     elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
         s_ll = s_ll+load([file_base itime '07']);
         if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = 800:20:1030;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            c_scale = 930:10:1030;
+            %c_scale = 930:10:1030;
+            c_scale = 992:2:1006;
         end
         v_title = 'Surface pressure';
     elseif (strcmp(itype,'eddy_mom')) % Plot zonal eddy momentum flux
@@ -155,16 +157,16 @@ end
 % Plot data
 if (lon_lat)
     s_ll = s_ll/(t2-t1+1); % Average
-    fprintf('Minimum value of variable %s = %8.4e\n',itype, min(min(s_ll)));
-    fprintf('Maximum value of variable %s = %8.4e\n',itype, max(max(s_ll)));
-    plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift)
+    fprintf('Minimum value of variable %s = %8.4e\n', itype, min(min(s_ll)));
+    fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_ll)));
+    figure;plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift)
     axis(ax)
 end
 
 if (zonal_avg)
     s_zo = s_zo/N; % Sample mean
-    fprintf('Minimum value of variable %s = %8.4e\n',itype, min(min(s_zo)));
-    fprintf('Maximum value of variable %s = %8.4e\n',itype, max(max(s_zo)));
+    fprintf('Minimum value of variable %s = %8.4e\n', itype, min(min(s_zo)));
+    fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_zo)));
     plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, smooth, 0)
 end
 

@@ -18,14 +18,17 @@ if shift % Shift left boundary to zero longitude
     lon = lon+180;
 end
 if (smooth)
-    s = smooth2a(s,2,2);
+    s = smooth2a(s,5,5);
 end
 contourf(lon,lat,s,c_scale);
+
 colormap(jet(numel(c_scale)-1));caxis([min(c_scale) max(c_scale)]);c=colorbar;c.Label.String=v_title;c.Label.FontSize=16;
 axis('equal'); 
 set(gca,'ytick',v_yticks,'yticklabels',{'90S','60S','30S','0','30N','60N','90N'});
 if (shift)
-    set(gca,'xtick',v_xticks,'xticklabels',{'0', ' ', '60E', ' ', '120E', ' ', '180', ' ', '120W', ' ', '60W', ' '});
+    %set(gca,'xtick',v_xticks,'xticklabels',{'0', ' ', '60E', ' ', '120E', ' ', '180', ' ', '120W', ' ', '60W', ' '});
+    set(gca,'xtick',v_xticks,'xticklabels',{'0', '30 ', '60', '90 ', '120', '150 ', '180', ...
+        '210 ', '240', '270 ', '300', '330'});
 end
 xlabel('Longitude','fontsize',16);ylabel('Latitude','fontsize',16);set(gca,'FontSize',16);
 
