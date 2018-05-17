@@ -310,7 +310,7 @@ module shared_mod
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8) :: viscosity_divu, viscosity_rotu, viscosity_mass, viscosity_temp
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
-  real(8), dimension(:), allocatable :: pressure_save
+  real(8), dimension(:), target, allocatable :: pressure_save
 
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs

@@ -8,15 +8,15 @@ module io_mod
   use multi_level_mod
   use remap_mod
   implicit none
-  
-  integer, parameter                  :: N_VAR_OUT = 7
-  integer, dimension(2,4)             :: HR_offs
-  real(8)                             :: dx_export, dy_export, kx_export, ky_export, vmin, vmax
-  real(8), dimension(N_VAR_OUT)       :: minv, maxv
-  real, dimension(:), pointer         :: interp_var
-  real, dimension(:,:), allocatable   :: field2d
-  integer                             :: next_fid
-  type(Float_Field)                   :: active_level
+
+  integer, parameter                   :: N_VAR_OUT = 7
+  integer, dimension(2,4)              :: HR_offs
+  real(8)                              :: dx_export, dy_export, kx_export, ky_export, vmin, vmax
+  real(8), dimension(N_VAR_OUT)        :: minv, maxv
+  real(8), pointer                     :: press_save
+  real(4), dimension(:,:), allocatable :: field2d
+  integer                              :: next_fid
+  type(Float_Field)                    :: active_level
   data HR_offs /0,0, 1,0, 1,1, 0,1/
 contains
   subroutine init_io_mod
@@ -259,7 +259,7 @@ contains
     integer                :: fid
     real(8), dimension(2)  :: lon_lat_range
     character(*)           :: test_case
-    
+
     integer                              :: d, i, id, j, k, p, v, ix
     integer, parameter                   :: funit = 400
     integer, parameter                   :: nvar_save=7, nvar_zonal=8 ! Number of variables to save
@@ -282,34 +282,16 @@ contains
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
-    
+
     call cal_surf_press (sol)
 
     ! Remap to pressure_save vertical levels for saving data
     sol_save = sol(:,1:save_levels)
-    call apply_onescale (interp_save, level_save, z_null, 0, 1)
-    call update_array_bdry (sol_save, level_save)
+    call apply_onescale (interp_save, level_save, z_null, -1, 2)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
-    call apply_onescale (cal_temp, level_save, z_null, -1, 1)
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     call update_vector_bdry (exner_fun, NONE)
-    
-    ! Calculate geopotential at first interpolated saved vertical levels (saved in adj_geopot)
-    call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
-
-    ! Calculate vorticity at first interpolated saved vertical level
-    do d = 1, size(grid)
-       velo => sol_save(S_VELO,1)%data(d)%elts
-       vort => grid(d)%vort%elts
-       do j = 1, grid(d)%lev(level_save)%length
-          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_save)%elts(j), z_null, 0, 0)
-       end do
-       call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
-       nullify (velo, vort)
-    end do
-    
-    ! Calculate vorticity at hexagon points (stored in adj_mass)
-    call apply_onescale (vort_triag_to_hex, level_save, z_null, 0, 1)
 
     dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
@@ -327,24 +309,34 @@ contains
        call project_onto_plane (horiz_flux(k), Nx, Ny, level_save, proj, 0.0_8)
        field2d_save(:,:,2+k-1) = field2d
 
-       ! Zonal and meridional velocities
+       ! Calculate zonal and meridional velocities and vorticity
        do d = 1, size(grid)
           velo => sol_save(S_VELO,k)%data(d)%elts
+          vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(level_save)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 0)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
           end do
-          nullify (velo)
+          call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
+          nullify (velo, vort)
        end do
+
+       ! Zonal velocity
        call project_uzonal_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
        field2d_save(:,:,3+k-1) = field2d
+
+       ! Meridional velocity
        call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
        field2d_save(:,:,4+k-1) = field2d
 
        ! Geopotential
+       press_save => pressure_save(k)
+       call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
        call project_geopot_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
        field2d_save(:,:,5+k-1) = field2d
 
        ! Vorticity
+       call apply_onescale (vort_triag_to_hex, level_save, z_null, 0, 1)
        call project_vorticity_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
        field2d_save(:,:,6+k-1) = field2d
 
@@ -383,31 +375,31 @@ contains
        ! Zonal velocity
        call project_uzonal_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
        zonal_av(k,:,4) = sum(field2d,DIM=1)/N_zonal
-       
+
        ! Peturbation zonal velocity
        do ix = Nx(1), Nx(2)
           uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,4)
        end do
-       
+
        ! Meridional velocity
        call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
        zonal_av(k,:,5) = sum(field2d,DIM=1)/N_zonal
-       
+
        ! Peturbation meridional velocity
        do ix = Nx(1), Nx(2)
           vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,5)
        end do
-       
+
        ! Eddy momentum flux
        zonal_av(k,:,6) = sum(uprime*vprime,DIM=1)/N_zonal
-       
+
        ! Eddy kinetic energy
        zonal_av(k,:,7) = sum(0.5_8*(uprime*uprime+vprime*vprime),DIM=1)/N_zonal
 
-        ! Eddy heat flux
+       ! Eddy heat flux
        zonal_av(k,:,8) = sum(Tprime*vprime,DIM=1)/N_zonal
     end do
-    
+
     if (rank == 0) then
        ! Solution at level zlev
        do v = 1, nvar_save*save_levels
@@ -428,9 +420,9 @@ contains
           end do
           close (funit)
        end do
-       
+
        ! Coordinates
-       
+
        ! Longitude values
        write (var_file, '(i7)') fid+20
        open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768) 
@@ -479,7 +471,7 @@ contains
     real(8), dimension(2)          :: cC, cN, cE, cNE
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     field2d = default_val
     do d = 1, size(grid)
        do jj = 1, grid(d)%lev(l)%length
@@ -536,7 +528,7 @@ contains
     real(8), dimension(2)          :: cC, cN, cE, cNE
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     field2d = default_val
     do d = 1, size(grid)
        do jj = 1, grid(d)%lev(l)%length
@@ -593,7 +585,7 @@ contains
     real(8), dimension(2)          :: cC, cN, cE, cNE
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     field2d = default_val
     do d = 1, size(grid)
        do jj = 1, grid(d)%lev(l)%length
@@ -650,7 +642,7 @@ contains
     real(8), dimension(2)          :: cC, cN, cE, cNE
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     field2d = default_val
     do d = 1, size(grid)
        do jj = 1, grid(d)%lev(l)%length
@@ -707,7 +699,7 @@ contains
     real(8), dimension(2)          :: cC, cN, cE, cNE
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     field2d = default_val
     do d = 1, size(grid)
        do jj = 1, grid(d)%lev(l)%length
@@ -764,7 +756,7 @@ contains
     real(8), dimension(2)          :: cC, cN, cE, cNE
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     field2d = default_val
     do d = 1, size(grid)
        do jj = 1, grid(d)%lev(l)%length
@@ -920,7 +912,7 @@ contains
     implicit none
     type(Coord)                        :: cin
     real(8), dimension(2), intent(out) :: cout
-    
+
     call cart2sph (cin, cout(1), cout(2))
   end subroutine cart2sph2
 
@@ -949,7 +941,7 @@ contains
        exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) &
             * (pressure(k)/ref_press)**kappa
     end do
-    
+
     ! temperature at save levels (saved in horiz_flux)
     do k = 1, save_levels
        horiz_flux(k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
@@ -978,10 +970,10 @@ contains
     dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/grav_accel
 
     k = 1
-    do while (pressure_upper > pressure_save(1))
+    do while (pressure_upper > press_save)
        dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
             R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_upper))
-       
+
        k = k+1
        pressure_lower = pressure_upper
        pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id+1)
@@ -989,42 +981,55 @@ contains
 
     ! Add additional contribution up to pressure level pressure_save
     dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) &
-         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
+         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(press_save))
   end subroutine cal_geopot
 
   subroutine interp_save (dom, i, j, zlev, offs, dims)
     ! Linear interpolation to save levels
+    ! Assumes variables have been remapped to original vertical grid                                                                                                 
     implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, d, e, k
-    real(8) :: pressure_lower, pressure_upper, dpressure
+    integer :: id, d, e, k, kk
+    real(8) :: dpressure, pressure_lower, pressure_upper, spress
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    ! Find pressure at current levels (not interfaces)
-    k = 0
-    pressure_lower = dom%surf_press%elts(id+1)
-    pressure_upper = pressure_lower - 0.5_8*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
-    do while (pressure_upper > pressure_save(1))
-       k = k+1
-       pressure_lower = pressure_upper
-       pressure_upper = pressure_lower - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k+1)%data(d)%elts(id+1))
+    spress = 0.0_8
+    do k = 1, zlevels
+       spress = spress + sol(S_MASS,k)%data(d)%elts(id+1)
     end do
-    dpressure =  (pressure_lower-pressure_save(1))/(pressure_lower-pressure_upper)
-    
-    sol_save(S_MASS,1)%data(d)%elts(id+1) = sol(S_MASS,k+1)%data(d)%elts(id+1) + dpressure *  sol(S_MASS,k)%data(d)%elts(id+1)
-    sol_save(S_TEMP,1)%data(d)%elts(id+1) = sol(S_TEMP,k+1)%data(d)%elts(id+1) + dpressure *  sol(S_TEMP,k)%data(d)%elts(id+1)
-    do e = 1, EDGE
-       sol_save(S_VELO,1)%data(d)%elts(EDGE*id+e) = sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e) &
-            + dpressure * sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+    spress = press_infty + grav_accel*spress
+
+    do kk = 1, save_levels
+       ! Find pressure at current levels (not interfaces)                                                                                                            
+       pressure_lower = spress
+       pressure_upper = 0.5_8*(a_vert(1)+a_vert(2))*ref_press + 0.5_8*(b_vert(1)+b_vert(2))*spress
+       k = 1
+       do while (pressure_upper > pressure_save(kk))
+          k = k+1
+          pressure_lower = pressure_upper
+          pressure_upper = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*spress
+       end do
+       if (k==1) return ! Skip incorrect values for pentagons
+       dpressure =  (pressure_save(kk)-pressure_upper)/(pressure_lower-pressure_upper)
+
+       ! Linear interpolation                                                                                                                                        
+       sol_save(S_MASS,kk)%data(d)%elts(id+1) = sol(S_MASS,k+1)%data(d)%elts(id+1) + &
+            dpressure * (sol(S_MASS,k)%data(d)%elts(id+1) - sol(S_MASS,k+1)%data(d)%elts(id+1))
+       sol_save(S_TEMP,kk)%data(d)%elts(id+1) = sol(S_TEMP,k+1)%data(d)%elts(id+1) + &
+            dpressure * (sol(S_TEMP,k)%data(d)%elts(id+1) - sol(S_TEMP,k+1)%data(d)%elts(id+1))
+       do e = 1, EDGE
+          sol_save(S_VELO,kk)%data(d)%elts(EDGE*id+e) = sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e)  + &
+               dpressure * (sol(S_VELO,k)%data(d)%elts(EDGE*id+e) - sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e))
+       end do
     end do
   end subroutine interp_save
-  
+
   subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
     ! Approximate vorticity at hexagon points
     implicit none
@@ -1049,7 +1054,7 @@ contains
          dom%areas%elts(id+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
          dom%areas%elts(id+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)    &
          ) * dom%areas%elts(id+1)%hex_inv
-   end subroutine vort_triag_to_hex
+  end subroutine vort_triag_to_hex
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, funit)
     ! Write primal grid for vertical level zlev
@@ -1088,12 +1093,12 @@ contains
 
     ! Vorticity at hexagon points
     outv(7) =  dom%adj_mass%elts(id+1)
-         ! (dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1) + &
-         ! dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1) + &
-         ! dom%areas%elts(idW+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1) + &
-         ! dom%areas%elts(idSW+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
-         ! dom%areas%elts(idSW+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
-         ! dom%areas%elts(idS+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)) * dom%areas%elts(id+1)%hex_inv
+    ! (dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1) + &
+    ! dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1) + &
+    ! dom%areas%elts(idW+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1) + &
+    ! dom%areas%elts(idSW+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
+    ! dom%areas%elts(idSW+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
+    ! dom%areas%elts(idS+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)) * dom%areas%elts(id+1)%hex_inv
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
        outl = nint(active_level%data(d)%elts(id+1))
@@ -1112,7 +1117,7 @@ contains
     end if
   end subroutine write_primal
 
-   subroutine write_dual (dom, p, i, j, zlev, offs, dims, funit)
+  subroutine write_dual (dom, p, i, j, zlev, offs, dims, funit)
     implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev, funit
