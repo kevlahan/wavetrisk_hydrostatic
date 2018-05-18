@@ -8,10 +8,10 @@ test_case = 'DCMIP2012c4';
 
 machine   = 'if';
 %machine   = 'mac';
-t1        = 19; % Start time
+t1        = 60; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'temp';
+itype     = 'merid';
 
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data
@@ -31,8 +31,8 @@ elseif (strcmp(test_case,'DCMIP2012c4'))
         ax = [45 360 0 90];
     else
         ax = [120 270 25 75];
-        %ax = [0 360 25 75];
         %ax = [90 200 25 75];
+        %ax = [0 360 25 75];
     end
 end
 
@@ -62,7 +62,7 @@ for t = t1:t2
         if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = 270:3:303;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            c_scale = 220:10:320;
+            c_scale = 220:10:310;
         elseif (strcmp(test_case,'Held_Suarez'))
             c_scale = 160:20:300;
             c_scale2 = 0:0.5:4;
@@ -97,7 +97,7 @@ for t = t1:t2
         if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = -35:5:20;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            c_scale = -5:1:5; 
+            c_scale = -35:5:35; 
         end
         v_title = 'Meridional velocity (m/s)';
         if (lon_lat)
@@ -119,8 +119,13 @@ for t = t1:t2
          if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = -3e-5:1e-5:6e-5;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            %c_scale = -3e-5:1e-5:6e-5;
-            c_scale = -10e-5:5e-5:40e-5;
+            if (t<=48)
+                c_scale = -3e-5:1e-5:6e-5;
+                ax = [90 200 25 75];
+            else
+                c_scale = -10e-5:5e-5:40e-5;
+                ax = [120 270 25 75];
+            end
         end
         v_title = 'Relative vorticity';
     elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
@@ -128,8 +133,7 @@ for t = t1:t2
         if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = 800:20:1030;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            %c_scale = 930:10:1030;
-            c_scale = 992:2:1006;
+            c_scale = 930:10:1030;
         end
         v_title = 'Surface pressure';
     elseif (strcmp(itype,'eddy_mom')) % Plot zonal eddy momentum flux
