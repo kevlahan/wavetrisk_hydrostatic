@@ -636,11 +636,10 @@ program DCMIP2012c4
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
-  Laplace_order = 1
+  Laplace_order = 0
 
   ! Set viscosities according to Jablonowski and Williamson (2006) Table 3 (GME with icosahedral grid)
   if (Laplace_order == 1) then ! Usual Laplacian diffusion
-     viscosity_mass = 0.0_8
      if (max_level == 4) then
         visc = 2.0d6
      elseif (max_level == 5) then
@@ -654,11 +653,11 @@ program DCMIP2012c4
      elseif (max_level == 9) then
         visc = 3.0d3
      end if
+     viscosity_mass = visc
      viscosity_temp = visc
      viscosity_divu = visc
      viscosity_rotu = visc
   elseif (Laplace_order == 2) then ! Second-order iterated Laplacian for diffusion
-     viscosity_mass = 0.0_8
      if (max_level == 4) then
         visc = 5.0d16
      elseif (max_level == 5) then
@@ -672,6 +671,7 @@ program DCMIP2012c4
      elseif (max_level == 9) then
         visc = 1.2d12
      end if
+     viscosity_mass = visc
      viscosity_temp = visc
      viscosity_divu = visc
      viscosity_rotu = visc
@@ -689,10 +689,11 @@ program DCMIP2012c4
   else
      dt_init = dt_cfl
   end if
-  if (rank==0)                      write(6,'(A,es10.4,1x,/)') "dt_cfl = ",  dt_cfl
-  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x,/)')" dt_visc = ", dt_visc
+  if (rank==0)                      write(6,'(A,es10.4,1x,/)') "dt_cfl  = ", dt_cfl
+  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x,/)') "dt_visc = ", dt_visc
 
   if (rank == 0) then
+     write(6,'(A,i1)') 'Laplace order = ', Laplace_order
      write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
      write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
      write(6,'(A,es10.4)') 'Viscosity_divu   = ', viscosity_divu
