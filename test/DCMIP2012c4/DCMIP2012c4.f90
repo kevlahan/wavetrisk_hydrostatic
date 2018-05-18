@@ -16,7 +16,6 @@ module DCMIP2012c4_mod
   real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
-  real(8)                            :: visc, ray_friction
   real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, R_pert, u_p, u_0
 
   type(Float_Field)                  :: rel_vort 
@@ -34,10 +33,10 @@ contains
 
     d = dom%id+1
 
-    id   = idx(i, j, offs, dims)
-    idN  = idx(i, j + 1, offs, dims)
-    idE  = idx(i + 1, j, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
+    id   = idx(i,   j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
 
     x_i  = dom%node%elts(id+1)
     x_E  = dom%node%elts(idE+1)
@@ -567,7 +566,7 @@ program DCMIP2012c4
   implicit none
 
   integer        :: d, ierr, k, l, v
-  real(8)        :: dt_cfl, dt_visc
+  real(8)        :: dt_cfl, dt_visc, visc
   character(255) :: command
   logical        :: aligned, remap, write_init
 
@@ -624,8 +623,6 @@ program DCMIP2012c4
   cfl_num        = 0.7_8                            ! cfl number
   n_remap        = 10                               ! Vertical remap interval
 
-  ray_friction   = 0.0_8                            ! Rayleigh friction
-
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
@@ -638,23 +635,47 @@ program DCMIP2012c4
   remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
-  ! Set viscosity
-  Laplace_order = 1 ! Usual Laplacian diffusion
-  !Laplace_order = 2 ! Iterated Laplacian diffusion
+  ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
+  Laplace_order = 1
 
+  ! Set viscosities according to Jablonowski and Williamson (2006) Table 3 (GME with icosahedral grid)
   if (Laplace_order == 1) then ! Usual Laplacian diffusion
-     !viscosity_mass = 1.0d-6 * dx_min**2 ! stable for J=5
-     !viscosity_mass = 5.0d-5 * dx_min**2 ! stable for J=6
-     !viscosity_mass = 2.0d-4 * dx_min**2 ! stable for J=7
-     !viscosity_divu = 2.0e-4 * dx_min**2 ! viscosity for divergent part of momentum equation
-     viscosity_temp = viscosity_mass
-     viscosity_rotu = viscosity_divu/1.0d2!visc * dx_min**2 ! viscosity for rotational part of momentum equation
+     viscosity_mass = 0.0_8
+     if (max_level == 4) then
+        visc = 2.0d6
+     elseif (max_level == 5) then
+        visc = 1.5d6
+     elseif (max_level == 6) then
+        visc = 1.0d6
+     elseif (max_level == 7) then
+        visc = 2.0d5
+     elseif (max_level == 8) then
+        visc = 2.5d4
+     elseif (max_level == 9) then
+        visc = 3.0d3
+     end if
+     viscosity_temp = visc
+     viscosity_divu = visc
+     viscosity_rotu = visc
   elseif (Laplace_order == 2) then ! Second-order iterated Laplacian for diffusion
-     viscosity_mass = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
-     viscosity_temp = viscosity_mass
-     viscosity_divu = 1.0d14!visc * dx_min**4/1.0e3 ! viscosity for mass equation
-     viscosity_rotu = viscosity_divu
-  else
+     viscosity_mass = 0.0_8
+     if (max_level == 4) then
+        visc = 5.0d16
+     elseif (max_level == 5) then
+        visc = 6.0d15
+     elseif (max_level == 6) then
+        visc = 1.0d15
+     elseif (max_level == 7) then
+        visc = 1.2d14
+     elseif (max_level == 8) then
+        visc = 1.2d13
+     elseif (max_level == 9) then
+        visc = 1.2d12
+     end if
+     viscosity_temp = visc
+     viscosity_divu = visc
+     viscosity_rotu = visc
+  elseif (Laplace_order /= 0) then
      write(6,*) 'Unsupported iterated Laplacian (only 1 or 2 supported)'
      stop
   end if
