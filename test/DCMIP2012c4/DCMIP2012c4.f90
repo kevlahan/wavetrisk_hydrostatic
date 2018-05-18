@@ -645,7 +645,8 @@ program DCMIP2012c4
      elseif (max_level == 5) then
         visc = 1.5d6
      elseif (max_level == 6) then
-        visc = 1.0d6
+        !visc = 1.0d6
+        visc = 5.0d-5 * dx_min**2 ! stable for J=6
      elseif (max_level == 7) then
         visc = 2.0d5
      elseif (max_level == 8) then
