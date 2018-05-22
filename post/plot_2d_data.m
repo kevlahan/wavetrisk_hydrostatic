@@ -8,10 +8,10 @@ test_case = 'DCMIP2012c4';
 
 machine   = 'if';
 %machine   = 'mac';
-t1        = 60; % Start time
+t1        = 16; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'merid';
+itype     = 'temp';
 
 lon_lat   = 1; % Plot longitude - latitude data
 zonal_avg = 0; % Plot zonally averaged data

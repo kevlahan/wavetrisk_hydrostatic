@@ -18,7 +18,7 @@ if shift % Shift left boundary to zero longitude
     lon = lon+180;
 end
 if (smooth)
-    s = smooth2a(s,5,5);
+    s = smooth2a(s,2,2);
 end
 contourf(lon,lat,s,c_scale);
 

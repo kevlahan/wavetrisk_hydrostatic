@@ -94,15 +94,15 @@ contains
        if (rank == 0) write(6,*) 'Resuming from checkpoint', resume
     else
        call apply_init_cond
+       
+       call trend_ml (sol, trend)
+       
        call forward_wavelet_transform (sol, wav_coeff)
-       if (adapt_trend) then
-          call trend_ml (sol, trend)
-          call forward_wavelet_transform (trend, trend_wav_coeff)
-       end if
+       call forward_wavelet_transform (trend, trend_wav_coeff)
 
        dt_new = cpt_dt_mpi()
        do while (level_end < max_level)
-          if (rank == 0) write(*,*) 'Initial refine. Level', level_end, ' -> ', level_end+1
+          if (rank == 0) write(*,*) 'Initial refinement Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
@@ -114,11 +114,9 @@ contains
           
           call forward_wavelet_transform (sol, wav_coeff)
 
-          if (adapt_trend) then
-             call trend_ml (sol, trend)
-             call forward_wavelet_transform (trend, trend_wav_coeff)
-          end if
-                    
+          call trend_ml (sol, trend)
+          call forward_wavelet_transform (trend, trend_wav_coeff)
+
           !--Check whether there are any active nodes at this scale
           n_active = 0
           do k = 1, zlevels
@@ -142,9 +140,10 @@ contains
        end do
 
        cp_idx = 0
-       call write_load_conn(0)
-       ierr = dump_adapt_mpi(cp_idx, custom_dump)
+       call write_load_conn (0)
+       ierr = dump_adapt_mpi (cp_idx, custom_dump)
     end if
+
     call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
@@ -525,10 +524,9 @@ contains
     call barrier ! do not delete files before everyone has read them
 
     if (rank == 0) call system (command)
-    if (adapt_trend) trend_wav_coeff = wav_coeff
-    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-    dt_new = cpt_dt_mpi()
-    call adapt_grid (set_thresholds)
+    call adapt_restart
+    call inverse_wavelet_transform (wav_coeff,         sol, level_start-1)
+    call inverse_wavelet_transform (trend_wav_coeff, trend, level_start-1)
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
 

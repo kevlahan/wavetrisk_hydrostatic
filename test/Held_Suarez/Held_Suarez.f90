@@ -207,6 +207,7 @@ contains
     read(fid,*) varname, resume
 
     if (rank==0) then
+       write(*,'(A,i3)')     "min_level        = ", min_level
        write(*,'(A,i3)')     "max_level        = ", max_level
        write(*,'(A,i3)')     "zlevels          = ", zlevels
        write(*,'(A,L1)')     "adapt_trend      = ", adapt_trend
@@ -262,10 +263,10 @@ subroutine write_and_export (iwrite)
           velo => sol(S_VELO,save_zlev)%data(d)%elts
           vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), save_zlev, 0, 0)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null,   -1, 0)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 0)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
           end do
-          call apply_to_penta_d (post_vort, grid(d), l, save_zlev)
+          call apply_to_penta_d (post_vort, grid(d), l, z_null)
           nullify (velo, vort)
        end do
 
@@ -544,7 +545,7 @@ program Held_Suarez
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
-  if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to level ", level_save, " for saving 2D data" 
+  if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to resolution level ", level_save, " for saving 2D data" 
 
   ! Set logical switches
   adapt_dt     = .false.  ! Adapt time step
@@ -713,7 +714,7 @@ subroutine set_save_level
         save_press = lev_press
      end if
   end do
-  if (rank==0) write(6,'(A,i2,A,f5.1,A)') "Saving level ", save_zlev, " Approximate pressure = ", save_press/1.0d2, " hPa"
+  if (rank==0) write(6,'(A,i2,A,f5.1,A)') "Saving vertical level ", save_zlev, " Approximate pressure = ", save_press/1.0d2, " hPa"
   if (rank==0) write(6,*) ' '
 end subroutine set_save_level
 

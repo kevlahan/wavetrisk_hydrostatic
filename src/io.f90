@@ -1312,6 +1312,7 @@ contains
 
     do v = S_MASS, S_TEMP
        write(fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
+       write(fid) trend(v,zlev)%data(d)%elts(id+1) ! for pole`
     end do
   end subroutine write_scalar
 
@@ -1329,6 +1330,7 @@ contains
 
     do v = S_MASS, S_TEMP
        read(fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
+       read(fid) trend(v,zlev)%data(d)%elts(id+1) ! for pole
     end do
   end subroutine read_scalar
 
@@ -1349,7 +1351,11 @@ contains
     fid_no   = id+1000000
     fid_grid = id+3000000
 
-    call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), NONE)
+    call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:),       NONE)
+    call update_array_bdry (trend_wav_coeff(S_MASS:S_TEMP,:), NONE)
+
+    call trend_ml (sol, trend)
+    call forward_wavelet_transform (trend, trend_wav_coeff)
 
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -1357,6 +1363,13 @@ contains
           temp => sol(S_TEMP,k)%data(d)%elts
           wc_m => wav_coeff(S_MASS,k)%data(d)%elts
           wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+          call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+          nullify (mass, temp, wc_m, wc_t)
+
+          mass => trend(S_MASS,k)%data(d)%elts
+          temp => trend(S_TEMP,k)%data(d)%elts
+          wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
+          wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
           call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
           nullify (mass, temp, wc_m, wc_t)
        end do
@@ -1391,6 +1404,8 @@ contains
           do v = S_MASS, S_VELO
              write (fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
+             write (fid_no) (trend(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
+                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
           end do
        end do
 
@@ -1420,6 +1435,8 @@ contains
 
                 do v = S_MASS, S_VELO
                    write (fid_no) (wav_coeff(v,k)%data(d)%elts(i), i = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
+                   write (fid_no) (trend_wav_coeff(v,k)%data(d)%elts(i), i = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
                 end do
              end do
@@ -1481,6 +1498,8 @@ contains
           do v = S_MASS, S_VELO
              read (fid_no(d)) (sol(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
+             read (fid_no(d)) (trend(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
+                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
           end do
 
           do i = MULT(S_VELO) * grid(d)%patch%elts(1+1)%elts_start+1, &
@@ -1508,6 +1527,8 @@ contains
              do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    read (fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
+                   read (fid_no(d)) (trend_wav_coeff(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
                 end do
 
@@ -1540,7 +1561,8 @@ contains
        close(fid_no(d)); close(fid_grid(d))
     end do
 
-    wav_coeff%bdry_uptodate = .False.
+    wav_coeff%bdry_uptodate       = .False.
+    trend_wav_coeff%bdry_uptodate = .False.
   end subroutine load_adapt_mpi
 
   subroutine proj_xz_plane (cin, cout)

@@ -631,7 +631,7 @@ program DCMIP2012c4
   if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to resolution level ", level_save, " for saving 2D data" 
 
   ! Set logical switches
-  adapt_dt     = .true.  ! Adapt time step
+  adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
@@ -718,6 +718,7 @@ program DCMIP2012c4
   call sum_total_mass (.True.)
 
   if (rank == 0) write (6,'(/,A,3(ES12.4,1x),/)') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
+  
   call barrier
 
   if (rank == 0) write(6,*) 'Write initial values and grid'

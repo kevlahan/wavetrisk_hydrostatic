@@ -173,11 +173,11 @@ contains
        do v = S_MASS, S_TEMP
           call extend(trend(v,k)%data(d), num, 0.0_8)
           call extend(wav_coeff(v,k)%data(d), num, 0.0_8)
-          if (adapt_trend) call extend(trend_wav_coeff(v,k)%data(d), num, 0.0_8)
+          call extend(trend_wav_coeff(v,k)%data(d), num, 0.0_8)
        end do
        call extend(trend(S_VELO,k)%data(d), num*EDGE, 0.0_8)
        call extend(wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
-       if (adapt_trend) call extend(trend_wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
+       call extend(trend_wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
     end do
     call extend(exner_fun(zlevels+1)%data(d), num, 0.0_8)
     
