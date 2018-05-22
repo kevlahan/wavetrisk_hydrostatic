@@ -1428,7 +1428,6 @@ contains
                 p_chd = grid(d)%patch%elts(p_par+1)%children(c)
 
                 if (p_chd > 0) then
-
                    child_required(c) = check_child_required(grid(d), p_par, c-1)
                    grid(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
 
@@ -1523,18 +1522,14 @@ contains
 
              read (fid_grid(d)) child_required
              do c = 1, N_CHDRN
-                if (child_required(c)) then
-                   call refine_patch1 (grid(d), p_par, c-1)
-                end if
+                if (child_required(c)) call refine_patch1 (grid(d), p_par, c-1)
              end do
           end do
 
           do p_par = 2, old_n_patch
              do c = 1, N_CHDRN
                 p_chd = grid(d)%patch%elts(p_par)%children(c)
-                if (p_chd+1 > old_n_patch) then
-                   call refine_patch2 (grid(d), p_par - 1, c - 1)
-                end if
+                if (p_chd+1 > old_n_patch) call refine_patch2 (grid(d), p_par - 1, c - 1)
              end do
           end do
        end do

@@ -243,7 +243,7 @@ contains
        do d = 1, size(grid)
           do v = S_MASS, S_VELO
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
-             if (n_new .gt. 0) then
+             if (n_new > 0) then
                 call extend(q1(v,k)%data(d),  n_new, dble(3-v))
                 call extend(q2(v,k)%data(d),  n_new, dble(3-v))
                 call extend(q3(v,k)%data(d),  n_new, dble(3-v))
@@ -270,7 +270,7 @@ contains
     
     if (present(l_start0)) then
        l_start = l_start0
-       if (max_level .gt. min_level) then
+       if (max_level > min_level) then
           do k = 1, zlevels
              do d = 1, size(grid)
                 velo => sol(S_VELO,k)%data(d)%elts
