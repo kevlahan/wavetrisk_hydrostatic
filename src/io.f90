@@ -51,9 +51,9 @@ contains
     idN = idx(i,   j+1, offs, dims)
     idE = idx(i+1, j,   offs, dims)
 
-    if ( dom%mask_e%elts(id*EDGE+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(id*EDGE+UP+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(idN*EDGE+RT+1) .ge. ADJZONE) then
+    if ( dom%mask_e%elts(id*EDGE+DG+1)  >= ADJZONE .or. &
+         dom%mask_e%elts(id*EDGE+UP+1)  >= ADJZONE .or. &
+         dom%mask_e%elts(idN*EDGE+RT+1) >= ADJZONE) then
 
        vort = dom%vort%elts(id*TRIAG+UPLT+1)
        vmin = min(vmin, vort)
@@ -61,9 +61,9 @@ contains
 
     end if
 
-    if ( dom%mask_e%elts(id*EDGE+DG+1)  .ge. ADJZONE .or. &
-         dom%mask_e%elts(idE*EDGE+UP+1) .ge. ADJZONE .or. &
-         dom%mask_e%elts(id*EDGE+RT+1)  .ge. ADJZONE) then
+    if ( dom%mask_e%elts(id*EDGE+DG+1)  >= ADJZONE .or. &
+         dom%mask_e%elts(idE*EDGE+UP+1) >= ADJZONE .or. &
+         dom%mask_e%elts(id*EDGE+RT+1)  >= ADJZONE) then
 
        vort = dom%vort%elts(id*TRIAG+LORT+1)
        vmin = min(vmin, vort)
@@ -89,7 +89,7 @@ contains
 
     tot_mass = integrate_hex (mu, level_start, k)
 
-    if (rank .eq. 0) write(fid,'(E16.9, I3, 2(1X, I9), 7(1X, E16.8), 1X, F16.7)') &
+    if (rank == 0) write(fid,'(E16.9, I3, 2(1X, I9), 7(1X, E16.8), 1X, F16.7)') &
          time, level_end, n_active, tot_mass, get_timing()
   end subroutine write_step
 
@@ -121,15 +121,15 @@ contains
        do c = SOUTHEAST, NORTHWEST, 2
           if (.not. grid(d)%pole_master(c/2-2) .or. .not. grid(d)%penta(c)) cycle
           p = 1
-          do while (grid(d)%patch%elts(p+1)%level .lt. l)
+          do while (grid(d)%patch%elts(p+1)%level < l)
              p = grid(d)%patch%elts(p+1)%children(c-4)
-             if (p .eq. 0) then
+             if (p == 0) then
                 write(6,*) "ERROR(rank=", rank, "):integrate_hex: level incomplete"
                 return
              end if
           end do
           call get_offs_Domain (grid(d), p, offs, dims)
-          if (c .eq. NORTHWEST) then
+          if (c == NORTHWEST) then
              s = s + fun(grid(d), 0, PATCH_SIZE, k, offs, dims)/ &
                   grid(d)%areas%elts(idx(0,PATCH_SIZE,offs,dims)+1)%hex_inv
           else
@@ -493,13 +493,13 @@ contains
                 valE  = field%data(d)%elts(idE+1)
                 valNE = field%data(d)%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -550,13 +550,13 @@ contains
                 valE  = grid(d)%adj_geopot%elts(idE+1)
                 valNE = grid(d)%adj_geopot%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -607,13 +607,13 @@ contains
                 valE  = grid(d)%surf_press%elts(idE+1)/1.0d2
                 valNE = grid(d)%surf_press%elts(idNE+1)/1.0d2
 
-                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -664,13 +664,13 @@ contains
                 valE  = grid(d)%adj_mass%elts(idE+1)
                 valNE = grid(d)%adj_mass%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -721,13 +721,13 @@ contains
                 valE  = grid(d)%u_zonal%elts(idE+1)
                 valNE = grid(d)%u_zonal%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -778,13 +778,13 @@ contains
                 valE  = grid(d)%v_merid%elts(idE+1)
                 valNE = grid(d)%v_merid%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) .lt. sqrt(1.0d-15)) then
+                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -816,9 +816,9 @@ contains
     call fix_boundary (c(1), a(1), b(1), fixed(3))
     call interp_tri_to_2d (a, b, c, val)
 
-    if (sum(abs(fixed)) .gt. 1) write(0,*) 'ALARM'
+    if (sum(abs(fixed)) > 1) write(0,*) 'ALARM'
 
-    if (sum(fixed) .ne. 0) then
+    if (sum(fixed) /= 0) then
        a(1) = a(1) - sum(fixed)*MATH_PI*2.0_8
        b(1) = b(1) - sum(fixed)*MATH_PI*2.0_8
        c(1) = c(1) - sum(fixed)*MATH_PI*2.0_8
@@ -840,15 +840,15 @@ contains
     maxx = max(max(a(1), b(1)), c(1))
     miny = min(min(a(2), b(2)), c(2))
     maxy = max(max(a(2), b(2)), c(2))
-    if (maxx-minx .gt. MATH_PI/2.0_8) then
+    if (maxx-minx > MATH_PI/2.0_8) then
        write(0,*) 'ERROR(rank', rank, '):io-333 "export"'
        return
     end if
 
     do id_x = floor(kx_export*minx), ceiling(kx_export*maxx)
-       if (id_x .lt. lbound(field2d,1) .or. id_x .gt. ubound(field2d,1)) cycle
+       if (id_x < lbound(field2d,1) .or. id_x > ubound(field2d,1)) cycle
        do id_y = floor(ky_export*miny), ceiling(ky_export*maxy)
-          if (id_y .lt. lbound(field2d,2) .or. id_y .gt. ubound(field2d,2)) cycle
+          if (id_y < lbound(field2d,2) .or. id_y > ubound(field2d,2)) cycle
           ll = (/dx_export*id_x, dy_export*id_y/)
           call interp_tria (ll, a, b, c, val, ival, inside)
           if (inside) field2d(id_x,id_y) = ival
@@ -867,9 +867,9 @@ contains
     real(8), dimension(3) :: bc
 
     bc = bary_coord(ll, coord1, coord2, coord3)
-    inside = (0.0 .lt. bc(1) .and. bc(1) .lt. 1.0_8 .and. &
-         0.0 .lt. bc(2) .and. bc(2) .lt. 1.0_8 .and. &
-         0.0 .lt. bc(3) .and. bc(3) .lt. 1.0_8)
+    inside = (0.0 < bc(1) .and. bc(1) < 1.0_8 .and. &
+         0.0 < bc(2) .and. bc(2) < 1.0_8 .and. &
+         0.0 < bc(3) .and. bc(3) < 1.0_8)
     if (inside) ival = sum(values*bc)
   end subroutine interp_tria
 
@@ -899,10 +899,10 @@ contains
     integer, intent(out)   :: fixed
 
     fixed = 0
-    if (a .lt. -MATH_PI/2.0_8 .and. (b .gt. MATH_PI/2.0_8 .and. c .gt. MATH_PI/2.0_8)) then
+    if (a < -MATH_PI/2.0_8 .and. (b > MATH_PI/2.0_8 .and. c > MATH_PI/2.0_8)) then
        a = a + MATH_PI*2.0_8
        fixed = 1
-    elseif (a .gt. MATH_PI/2.0_8 .and. (b .lt. -MATH_PI/2.0_8 .and. c .lt. -MATH_PI/2.0_8)) then
+    elseif (a > MATH_PI/2.0_8 .and. (b < -MATH_PI/2.0_8 .and. c < -MATH_PI/2.0_8)) then
        a = a - MATH_PI*2.0_8
        fixed = -1
     end if
@@ -1333,6 +1333,7 @@ contains
   end subroutine read_scalar
 
   function dump_adapt_mpi (id, custom_dump)
+    ! Save data in check point files for restart
     ! One file per domain
     implicit none
     integer  :: dump_adapt_mpi
@@ -1348,7 +1349,7 @@ contains
     fid_no   = id+1000000
     fid_grid = id+3000000
 
-    call update_array_bdry(wav_coeff(S_MASS:S_TEMP,:), NONE)
+    call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), NONE)
 
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -1362,14 +1363,14 @@ contains
     end do
 
     do d = 1, size(grid)
-       write(filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
-       write(fname_gr,    '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
+       write (filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
+       write (fname_gr,    '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
 
-       open(unit=fid_no,   file=filename_no, form="UNFORMATTED", action='WRITE')
-       open(unit=fid_grid, file=fname_gr,    form="UNFORMATTED", action='WRITE')
+       open (unit=fid_no,   file=filename_no, form="UNFORMATTED", action='WRITE')
+       open (unit=fid_grid, file=fname_gr,    form="UNFORMATTED", action='WRITE')
 
-       write(fid_no) istep
-       write(fid_no) time
+       write (fid_no) istep
+       write (fid_no) time
 
        call custom_dump (fid_no)
 
@@ -1379,16 +1380,16 @@ contains
           do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
                MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
 
-             if (sol(S_VELO,k)%data(d)%elts(i) .ne. sol(S_VELO,k)%data(d)%elts(i)) then
-                write(*,*) d, i, 'writeout NaN scal'
+             if (sol(S_VELO,k)%data(d)%elts(i) /= sol(S_VELO,k)%data(d)%elts(i)) then
+                write (6,*) d, i, 'Wrote out NaN velocity'
                 dump_adapt_mpi = 1
-                close(fid_no); close(fid_grid);
+                close (fid_no); close(fid_grid)
                 return
              end if
           end do
 
           do v = S_MASS, S_VELO
-             write(fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
+             write (fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
           end do
        end do
@@ -1400,7 +1401,7 @@ contains
              if (grid(d)%patch%elts(p_par+1)%deleted) then
                 do c = 1, N_CHDRN
                    p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-                   if (p_chd .gt. 0) grid(d)%patch%elts(p_chd+1)%deleted = .True.
+                   if (p_chd > 0) grid(d)%patch%elts(p_chd+1)%deleted = .True.
                 end do
                 cycle
              end if
@@ -1409,17 +1410,16 @@ contains
                 do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                      MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
 
-                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) .ne. wav_coeff(S_VELO,k)%data(d)%elts(i)) then
-                      write(0,*) grid(d)%patch%elts(p_par+1)%level, 'writeout NaN wav'
+                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) /= wav_coeff(S_VELO,k)%data(d)%elts(i)) then
+                      write (0,*) grid(d)%patch%elts(p_par+1)%level, 'Wrote out NaN velocity wavelet'
                       dump_adapt_mpi = 1
-                      close(fid_no); close(fid_grid);
+                      close (fid_no); close(fid_grid);
                       return
                    end if
                 end do
 
                 do v = S_MASS, S_VELO
-                   write(fid_no) (wav_coeff(v,k)%data(d)%elts(i),  &
-                        i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                   write (fid_no) (wav_coeff(v,k)%data(d)%elts(i), i = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
                 end do
              end do
@@ -1427,7 +1427,7 @@ contains
              do c = 1, N_CHDRN
                 p_chd = grid(d)%patch%elts(p_par+1)%children(c)
 
-                if (p_chd .gt. 0) then
+                if (p_chd > 0) then
 
                    child_required(c) = check_child_required(grid(d), p_par, c-1)
                    grid(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
@@ -1439,27 +1439,28 @@ contains
                 else
                    child_required(c) = .False.
                 end if
-
              end do
-             write(fid_grid) child_required
+             write (fid_grid) child_required
           end do
-          if (l+1 .le. max_level) grid(d)%lev(l+1)%length = p_lev
+          if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev
        end do
-       close(fid_no); close(fid_grid)
+       close (fid_no); close (fid_grid)
     end do
   end function dump_adapt_mpi
 
   subroutine load_adapt_mpi (id, custom_load)
+    ! Read data from check point files for restart
     ! One file per domain
     implicit none
     external                             :: custom_load
-    integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid !ASCII, fid_ed 
+    integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid ! ASCII, fid_ed 
     integer                              :: id
 
     character(5+4+1+5)          :: filename_no, filename_ed, fname_gr
     integer                     :: c, d, i, j, k, l, v, old_n_patch, p_par, p_chd
     logical, dimension(N_CHDRN) :: child_required
 
+    ! Loop over domains at coarsest scale
     do d = 1, size(grid)
        fid_no(d)   = id*1000 + 1000000 + d
        fid_grid(d) = id*1000 + 3000000 + d
@@ -1476,7 +1477,7 @@ contains
        call custom_load (fid_no(d))
 
        do k = 1, zlevels
-          call apply_to_pole_d (read_scalar, grid(d), min_level-1, k, fid_no(d), .True.)
+          call apply_to_pole_d (read_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
 
           do v = S_MASS, S_VELO
              read (fid_no(d)) (sol(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
@@ -1486,7 +1487,7 @@ contains
           do i = MULT(S_VELO) * grid(d)%patch%elts(1+1)%elts_start+1, &
                MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
 
-             if (sol(S_VELO,k)%data(d)%elts(i) .ne. sol(S_VELO,k)%data(d)%elts(i)) then
+             if (sol(S_VELO,k)%data(d)%elts(i) /= sol(S_VELO,k)%data(d)%elts(i)) then
                 write (0,*) d, i, 'Attempt reading in NaN scal -> corrupted checkpoint', id
                 stop
              end if
@@ -1494,10 +1495,11 @@ contains
        end do
     end do
 
+    ! Load finer scales if present, looping over each domain
     l = 1
-    do while (level_end .gt. l) ! new level was added -> proceed to it
+    do while (level_end > l) ! New level was added -> proceed to it
        l = level_end 
-       if (rank .eq. 0) write (6,*) 'loading level', l
+       if (rank == 0) write (6,*) 'loading level', l
 
        do d = 1, size(grid)
           old_n_patch = grid(d)%patch%length
@@ -1506,14 +1508,13 @@ contains
 
              do k = 1, zlevels
                 do v = S_MASS, S_VELO
-                   read (fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), &
-                        i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
+                   read (fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
                 end do
 
                 do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                      MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
-                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) .ne. wav_coeff(S_VELO,k)%data(d)%elts(i)) then
+                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) /= wav_coeff(S_VELO,k)%data(d)%elts(i)) then
                       write (0,*) d, i, 'Attempt reading in NaN wav -> corrupted checkpoint', id
                       stop
                    end if
@@ -1531,7 +1532,7 @@ contains
           do p_par = 2, old_n_patch
              do c = 1, N_CHDRN
                 p_chd = grid(d)%patch%elts(p_par)%children(c)
-                if (p_chd+1 .gt. old_n_patch) then
+                if (p_chd+1 > old_n_patch) then
                    call refine_patch2 (grid(d), p_par - 1, c - 1)
                 end if
              end do
@@ -1552,7 +1553,7 @@ contains
     type(Coord)                        :: cin
     real(8), dimension(2), intent(out) :: cout
 
-    if (cin%y .gt. 0) then
+    if (cin%y > 0) then
        cout = (/cin%x-radius, cin%z/)
     else
        cout = (/cin%x+radius, cin%z/)
@@ -1597,10 +1598,10 @@ contains
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
 
-    if (rank .eq. 0) write(6,'(A,2(es12.4,1x))') 'Grid quality before optimization:', maxerror, l2error
+    if (rank == 0) write(6,'(A,2(es12.4,1x))') 'Grid quality before optimization:', maxerror, l2error
 
     fid = get_fid()
-    if (level_start .ne. level_end) then
+    if (level_start /= level_end) then
        write(0,*) level_end, level_start
        write(0,*) "Reading HR grid points for `level_start` unequal `level_end` not implemented"
        return
@@ -1614,7 +1615,7 @@ contains
        loz = dom_id_from_HR_id(d_HR)
        do d_sub = 1, N_SUB_DOM
           d_glo = loz*N_SUB_DOM + sub_dom_id_from_HR_sub_id(d_sub)
-          if (owner(d_glo+1) .eq. rank) &
+          if (owner(d_glo+1) == rank) &
                call get_offs_Domain(grid(loc_id(d_glo+1)+1), p, offs, dims)
           call coord_from_file(d_glo, PATCH_LEVEL, fid, offs, dims, (/0, 0/))
        end do
@@ -1638,7 +1639,7 @@ contains
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
-    if (rank .eq. 0) write(*,'(A,2(es12.4,1x))') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
+    if (rank == 0) write(*,'(A,2(es12.4,1x))') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
   end subroutine read_HR_optim_grid
 
   function dom_id_from_HR_id (d_HR)
@@ -1700,9 +1701,9 @@ contains
     d_loc = loc_id(d_glo+1)
     do k = 1, 4
        ij = ij0 + HR_offs(:,k)*2**(l-1)
-       if (l .eq. 1) then
+       if (l == 1) then
           ! if domain on other process still read to get to correct position in file
-          if (owner(d_glo+1) .eq. rank) then
+          if (owner(d_glo+1) == rank) then
              read(fid,*) node
              call zrotate(node, node_r, -0.5_8)  ! icosahedron orientation good for tsunami
              grid(d_loc+1)%node%elts(idx(ij(1), ij(2), offs, dims)+1) = project_on_sphere(node_r)
