@@ -277,6 +277,7 @@ contains
     read(fid,*) varname, resume
 
     if (rank==0) then
+       write(*,'(A,i3)')     "min_level        = ", min_level
        write(*,'(A,i3)')     "max_level        = ", max_level
        write(*,'(A,i3)')     "zlevels          = ", zlevels
        write(*,'(A,L1)')     "adapt_trend      = ", adapt_trend
@@ -627,7 +628,7 @@ program DCMIP2012c4
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
 
-  if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to level ", level_save, " for saving 2D data" 
+  if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to resolution level ", level_save, " for saving 2D data" 
 
   ! Set logical switches
   adapt_dt     = .true.  ! Adapt time step
@@ -646,7 +647,7 @@ program DCMIP2012c4
         visc = 1.5d6
      elseif (max_level == 6) then
         !visc = 1.0d6
-        visc = 5.0d-5 * dx_min**2 ! stable for J=6
+        visc = 1.0d-5 * dx_min**2 ! 1.2e5
      elseif (max_level == 7) then
         visc = 2.0d5
      elseif (max_level == 8) then
@@ -822,7 +823,7 @@ subroutine set_save_level
         save_press = lev_press
      end if
   end do
-  if (rank==0) write(6,'(A,i2,A,f5.1,A)') "Saving level ", save_zlev, " Approximate pressure = ", save_press/1.0d2, " hPa"
+  if (rank==0) write(6,'(A,i2,A,f5.1,A)') "Saving vertical level ", save_zlev, " Approximate pressure = ", save_press/1.0d2, " hPa"
   if (rank==0) write(6,*) ' '
 end subroutine set_save_level
 
