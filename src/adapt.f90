@@ -20,28 +20,51 @@ contains
     initialized = .True.
   end subroutine init_adapt_mod
 
-  subroutine adapt_grid (set_thresholds)
+  subroutine adapt_grid (set_thresholds, type)
+    ! Grid adaptation during time stepping
     implicit none
-    external :: set_thresholds
+    external          :: set_thresholds
+    logical, optional :: type
 
-    call trend_ml (sol, trend)
-    call forward_wavelet_transform (trend, trend_wav_coeff)
+    logical :: local_type
+
+    if (present(type)) then
+       local_type = type
+    else
+       local_type = .true.
+    end if
 
     if (adapt_trend) then
-       call adapt (set_thresholds)
-    else
-       call adapt (set_thresholds)
+       call trend_ml (sol, trend)
+       call forward_wavelet_transform (trend, trend_wav_coeff)
     end if
+
+    ! Find significant wavelets, adaptive grid and all masks
+    call adapt (set_thresholds, local_type)
+    
     if (level_end > level_start) then
-       call inverse_wavelet_transform (wav_coeff, sol, level_start)
+       call inverse_wavelet_transform (wav_coeff,       sol,   level_start)
        call inverse_wavelet_transform (trend_wav_coeff, trend, level_start)
     end if
-  end subroutine adapt_grid
+  end subroutine adapt_grid 
 
-  subroutine adapt (set_thresholds)
+  subroutine adapt (set_thresholds, type)
+    ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
+    ! Assumes that trend wavelets have been calculated
+    ! Does NOT transform solution and trend wavelets back onto adaptive grid
     implicit none
-    external :: set_thresholds
+    external           :: set_thresholds
+    logical, optional  :: type ! Recalculate thresholds
+    
     integer :: k, l, d
+    logical :: local_type
+
+    ! Recalculate thresholds?
+    if (present(type)) then
+       local_type = type
+    else
+       local_type = .true.
+    end if
 
     ! Ensure all nodes and edges at coarsest scales are active
     do l = level_start-1, level_start
@@ -60,13 +83,13 @@ contains
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then 
        if (istep==0) then ! Also adapt on variables when initializing
-          call set_thresholds (1)
+          if (local_type) call set_thresholds (1)
           call mask_active (wav_coeff)
        end if
-       call set_thresholds (0)
+       if (local_type) call set_thresholds (0)
        call mask_active (trend_wav_coeff)
     else
-       call set_thresholds (1)
+       if (local_type) call set_thresholds (1)
        call mask_active (wav_coeff)
     end if
     call comm_masks_mpi (NONE)
@@ -135,98 +158,6 @@ contains
     wav_coeff%bdry_uptodate = .False.
     trend_wav_coeff%bdry_uptodate = .False.
   end subroutine adapt
-
-  subroutine adapt_restart
-    ! Determine adaptive masks on restart using preset tolerances
-    implicit none
-    integer :: k, l, d
-
-    ! Ensure all nodes and edges at coarsest scales are active
-    do l = level_start-1, level_start
-       call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, TOLRNZ)
-    end do
-
-    ! Initialize all other nodes and edges to ZERO
-    do l = level_start+1, level_end
-       call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
-    end do
-
-    ! Set all current masks > ADJZONE to at least ADJZONE for next time step
-    call mask_adjacent_initial
-    call comm_masks_mpi (NONE)
-
-    ! Make nodes and edges with significant wavelet coefficients active
-    if (adapt_trend) then 
-       call mask_active (trend_wav_coeff)
-    else
-       call mask_active (wav_coeff)
-    end if
-    call comm_masks_mpi (NONE)
-    
-    ! Add neighbouring parent wavelet nodes/edges
-    do l = level_end-1, level_start, -1
-       call apply_interscale (mask_adj_parent_nodes, l, z_null,  0, 1)
-       call apply_interscale (mask_adj_parent_edges, l, z_null, -1, 1)
-       call comm_masks_mpi (l)
-    end do
-
-    ! Add nearest neighbour wavelets of active nodes and edges at same scale
-    do l = level_start, level_end
-       call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
-    end do
-
-    ! Add neighbouring wavelets at finer scale
-    do l = level_end-1, level_start, -1
-       call apply_interscale (mask_adj_children, l, z_null, 0, 1)
-    end do
-    call comm_masks_mpi (NONE)
-
-    ! Ensure consistency of adjacent zones for nodes and edges
-    call mask_adj_nodes_edges
-    call comm_masks_mpi (NONE)
-    
-    ! Ensure that perfect reconstruction criteria for active wavelets are satisfied
-    do l = level_end-1, level_start-1, -1
-       call apply_interscale (mask_perfect_scalar, l, z_null, 0, 0)
-       call apply_interscale (mask_perfect_velo,   l, z_null, 0, 0)
-       do d = 1, size(grid)
-          call apply_to_penta_d (mask_perfect_velo_penta, grid(d), l, z_null)
-       end do
-       call comm_masks_mpi (l)
-    end do
-
-    ! needed if bdry is only 2 layers for scenario:
-    ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
-    ! => patch needed (contains flux for corrective part of R_F)
-    do l = level_start+1, min(level_end, max_level-1)
-       call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
-    
-    ! Determine whether any new patches are required
-    if (refine()) call post_refine
-
-     ! Add nodes and edges required for TRISK operators
-    do l = level_start, level_end
-       call apply_onescale (mask_trsk, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
-
-    do l = level_start, level_end
-       call apply_onescale (mask_remap, l, z_null, -1, 1)
-    end do
-    call comm_masks_mpi (NONE)
-    
-    ! Set insignificant wavelet coefficients to zero
-    do k = 1, zlevels
-       do l = level_start, level_end
-          call apply_onescale (compress, l, k, 0, 1)
-       end do
-    end do
-
-    wav_coeff%bdry_uptodate = .False.
-    trend_wav_coeff%bdry_uptodate = .False.
-  end subroutine adapt_restart
 
   subroutine compress (dom, i, j, zlev, offs, dims)
     implicit none

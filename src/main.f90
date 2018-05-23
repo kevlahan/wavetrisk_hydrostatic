@@ -524,7 +524,7 @@ contains
     call barrier ! do not delete files before everyone has read them
 
     if (rank == 0) call system (command)
-    call adapt_restart
+    call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff,         sol, level_start-1)
     call inverse_wavelet_transform (trend_wav_coeff, trend, level_start-1)
     dt_new = cpt_dt_mpi()
