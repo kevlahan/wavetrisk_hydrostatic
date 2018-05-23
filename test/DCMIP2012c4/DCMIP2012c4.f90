@@ -621,8 +621,8 @@ program DCMIP2012c4
   specvoldim     = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
-  cfl_num        = 0.7_8                            ! cfl number
-  n_remap        = 10                               ! Vertical remap interval
+  cfl_num        = 1.0_8                            ! cfl number
+  n_remap        = 5                               ! Vertical remap interval
 
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
@@ -631,7 +631,7 @@ program DCMIP2012c4
   if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to resolution level ", level_save, " for saving 2D data" 
 
   ! Set logical switches
-  adapt_dt     = .false.  ! Adapt time step
+  adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
