@@ -52,7 +52,7 @@ contains
 
     if (adapt_trend) then
        call trend_fun (sol, trend)
-       call WT_after_step (trend, trend_wav_coeff, level_start-1)
+       call forward_wavelet_transform (trend, trend_wav_coeff)
     end if
   end subroutine RK34_opt
 
@@ -130,7 +130,7 @@ contains
 
     if (adapt_trend) then
        call trend_fun (sol, trend)
-       call WT_after_step (trend, trend_wav_coeff, level_start-1)
+       call forward_wavelet_transform (trend, trend_wav_coeff)
     end if
   end subroutine RK45_opt
 
