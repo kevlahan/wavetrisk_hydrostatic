@@ -19,7 +19,7 @@ contains
 
     integer :: d, k, v, start
 
-    call trend_fun (sol, trend)
+     if (.not. adapt_trend) call trend_fun (sol, trend)
     call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine euler
@@ -34,7 +34,7 @@ contains
   
     call manage_RK_mem
 
-    call trend_fun (sol, trend) 
+    if (.not. adapt_trend) call trend_fun (sol, trend) 
     call RK_sub_step1 (sol, trend, 1.0_8, dt/2.0_8, q1)
     call WT_after_step (q1, wav_coeff)
 
@@ -49,6 +49,11 @@ contains
     call trend_fun (q3, trend) 
     call RK_sub_step1 (q3, trend, 1.0_8, dt/2.0_8, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
+
+    if (adapt_trend) then
+       call trend_fun (sol, trend)
+       call WT_after_step (trend, trend_wav_coeff, level_start-1)
+    end if
   end subroutine RK34_opt
 
   subroutine RK4 (trend_fun, dt)
@@ -61,7 +66,7 @@ contains
   
     call manage_RK_mem
 
-    call trend_fun (sol, trend) 
+    if (.not. adapt_trend) call trend_fun (sol, trend) 
     call RK_sub_step1 (sol, trend, 1.0_8, dt/4.0_8, q1)
     call WT_after_step (q1, wav_coeff)
 
@@ -76,6 +81,11 @@ contains
     call trend_fun (q1, trend) 
     call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
+
+    if (adapt_trend) then
+       call trend_fun (sol, trend)
+       call forward_wavelet_transform (trend, trend_wav_coeff)
+    end if
   end subroutine RK4
 
   subroutine RK45_opt (trend_fun, dt)
@@ -98,7 +108,7 @@ contains
 
     call manage_RK_mem
 
-    call trend_fun (sol, trend) 
+     if (.not. adapt_trend) call trend_fun (sol, trend) 
     call RK_sub_step1 (sol, trend, alpha(1,1), dt*beta(1,1), q1)
     call WT_after_step (q1, wav_coeff)
 
@@ -117,6 +127,11 @@ contains
     call trend_fun (q4, dq1)
     call RK_sub_step4 (sol, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), dt*beta(4:5,5), sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
+
+    if (adapt_trend) then
+       call trend_fun (sol, trend)
+       call WT_after_step (trend, trend_wav_coeff, level_start-1)
+    end if
   end subroutine RK45_opt
 
     subroutine init_time_integr_mod

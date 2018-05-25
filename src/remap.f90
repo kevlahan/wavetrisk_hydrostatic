@@ -63,6 +63,10 @@ contains
         
     ! Re-adapt grid after remapping
     call WT_after_step (sol, wav_coeff, level_start-1)
+    if (adapt_trend) then ! Find trend wavelets on new vertical grid
+       call trend_ml (sol, trend)
+       call forward_wavelet_transform (trend, trend_wav_coeff)
+    end if
     call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 

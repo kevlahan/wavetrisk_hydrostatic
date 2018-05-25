@@ -198,6 +198,7 @@ contains
     call RK34_opt (trend_ml, dt)
 
     if (min_level < max_level) call adapt_grid (set_thresholds)
+    
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
     
     itime = itime + idt

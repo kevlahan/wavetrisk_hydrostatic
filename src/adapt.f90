@@ -16,6 +16,7 @@ contains
     if (initialized) return ! initialize only once
     call init_comm_mod
     call init_refine_patch_mod
+
     max_level_exceeded = .False.
     initialized = .True.
   end subroutine init_adapt_mod
@@ -33,18 +34,13 @@ contains
     else
        local_type = .true.
     end if
-
-    if (adapt_trend) then
-       call trend_ml (sol, trend)
-       call forward_wavelet_transform (trend, trend_wav_coeff)
-    end if
-
+    
     ! Find significant wavelets, adaptive grid and all masks
     call adapt (set_thresholds, local_type)
     
     if (level_end > level_start) then
-       call inverse_wavelet_transform (wav_coeff,       sol,   level_start)
-       call inverse_wavelet_transform (trend_wav_coeff, trend, level_start)
+       call inverse_wavelet_transform (wav_coeff, sol, level_start)
+       if (adapt_trend) call inverse_wavelet_transform (trend_wav_coeff, trend, level_start)
     end if
   end subroutine adapt_grid 
 

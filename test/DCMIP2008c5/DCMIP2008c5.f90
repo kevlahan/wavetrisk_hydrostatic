@@ -503,7 +503,7 @@ program DCMIP2008c5
   implicit none
 
   integer        :: d, ierr, k, l, v
-  real(8)        :: dt_cfl, dt_visc
+  real(8)        :: dt_cfl, dt_visc, max_change
   character(255) :: command
   logical        :: aligned, remap, write_init
 
@@ -555,7 +555,7 @@ program DCMIP2008c5
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
   
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 10                               ! Vertical remap interval
+  max_change     = 7.0d-1                           ! maximum allowable relative change in mass before vertical remap
 
   ray_friction   = 0.0_8                            ! Rayleigh friction
 
@@ -647,7 +647,7 @@ program DCMIP2008c5
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
@@ -658,7 +658,7 @@ program DCMIP2008c5
      total_cpu_time = total_cpu_time + timing
 
      if (rank == 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2)') &
+         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2,A,ES8.2)') &
              ' time [h] = ', time/60.0_8**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
@@ -667,8 +667,9 @@ program DCMIP2008c5
              ' Jmax = ', level_end, &
              '  dof = ', sum(n_active), &
              ' mass error = ', mass_error, &
+             ' change level = ', change_mass, &
              ' cpu = ', timing
-
+       
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES15.9,1x))')  &
              time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, timing
      end if

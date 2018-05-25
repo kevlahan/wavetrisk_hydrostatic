@@ -492,7 +492,7 @@ program Held_Suarez
   implicit none
 
   integer        :: d, ierr, k, l, v
-  real(8)        :: dt_cfl, dt_visc
+  real(8)        :: dt_cfl, dt_visc, max_change
   character(255) :: command
   logical        :: aligned, remap, write_init
 
@@ -525,7 +525,7 @@ program Held_Suarez
   kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
   
   cfl_num        = 0.8_8                            ! cfl number
-  n_remap        = 10                               ! Vertical remap interval
+  max_change     = 7.0d-1                           ! maximum allowable relative change in mass before vertical remap
 
   ! Forcing parameters
   T_0            = 300.0_8            ! reference temperature
@@ -631,7 +631,7 @@ program Held_Suarez
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
      call update_array_bdry (sol, NONE)
@@ -644,7 +644,7 @@ program Held_Suarez
      total_cpu_time = total_cpu_time + timing
 
      if (rank == 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2)') &
+         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2,A,ES8.2)') &
              ' time [h] = ', time/60.0_8**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
@@ -653,6 +653,7 @@ program Held_Suarez
              ' Jmax = ', level_end, &
              '  dof = ', sum(n_active), &
              ' mass error = ', mass_error, &
+             ' change level = ', change_mass, &
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES15.9,1x))')  &

@@ -567,7 +567,7 @@ program DCMIP2012c4
   implicit none
 
   integer        :: d, ierr, k, l, v
-  real(8)        :: dt_cfl, dt_visc, visc
+  real(8)        :: dt_cfl, dt_visc, max_change, visc
   character(255) :: command
   logical        :: aligned, remap, write_init
 
@@ -622,7 +622,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
   cfl_num        = 1.0_8                            ! cfl number
-  n_remap        = 5                               ! Vertical remap interval
+  max_change     = 7.0d-1                           ! maximum allowable relative change in mass before vertical remap
 
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
@@ -631,7 +631,7 @@ program DCMIP2012c4
   if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to resolution level ", level_save, " for saving 2D data" 
 
   ! Set logical switches
-  adapt_dt     = .true.  ! Adapt time step
+  adapt_dt     = .false.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
@@ -743,7 +743,7 @@ program DCMIP2012c4
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
@@ -754,7 +754,7 @@ program DCMIP2012c4
      total_cpu_time = total_cpu_time + timing
 
      if (rank == 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2)') &
+        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2,A,ES8.2)') &
              ' time [h] = ', time/60.0_8**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', tol_mass, &
@@ -763,6 +763,7 @@ program DCMIP2012c4
              ' Jmax = ', level_end, &
              '  dof = ', sum(n_active), &
              ' mass error = ', mass_error, &
+             ' change level = ', change_mass, &
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES15.9,1x))')  &
