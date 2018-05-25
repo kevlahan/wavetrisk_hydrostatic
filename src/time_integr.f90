@@ -19,9 +19,14 @@ contains
 
     integer :: d, k, v, start
 
-     if (.not. adapt_trend) call trend_fun (sol, trend)
+    if (.not. adapt_trend) call trend_fun (sol, trend)
     call RK_sub_step1 (sol, trend, 1.0_8, dt, sol)
+
     call WT_after_step (sol, wav_coeff, level_start-1)
+    if (adapt_trend) then
+       call trend_fun (sol, trend)
+       call WT_after_step (trend, trend_wav_coeff, level_start-1)
+    end if
   end subroutine euler
   
   subroutine RK34_opt (trend_fun, dt)
@@ -52,7 +57,7 @@ contains
 
     if (adapt_trend) then
        call trend_fun (sol, trend)
-       call forward_wavelet_transform (trend, trend_wav_coeff)
+       call WT_after_step (trend, trend_wav_coeff, level_start-1)
     end if
   end subroutine RK34_opt
 
@@ -84,7 +89,7 @@ contains
 
     if (adapt_trend) then
        call trend_fun (sol, trend)
-       call forward_wavelet_transform (trend, trend_wav_coeff)
+       call WT_after_step (trend, trend_wav_coeff, level_start-1)
     end if
   end subroutine RK4
 
@@ -130,7 +135,7 @@ contains
 
     if (adapt_trend) then
        call trend_fun (sol, trend)
-       call forward_wavelet_transform (trend, trend_wav_coeff)
+       call WT_after_step (trend, trend_wav_coeff, level_start-1)
     end if
   end subroutine RK45_opt
 
