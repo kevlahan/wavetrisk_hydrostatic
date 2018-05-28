@@ -976,7 +976,6 @@ contains
        do k = 1, zlevels
           col_mass = col_mass + sol(S_MASS,k)%data(d)%elts(id+1)
        end do
-       col_mass = col_mass/grav_accel
        do k = 1, zlevels
           init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
           change_loc = max (change_loc, abs(sol(S_MASS,k)%data(d)%elts(id+1)-init_mass)/init_mass)
