@@ -985,7 +985,8 @@ contains
           if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
              if (adapt_dt) then
-                d_e = dom%len%elts(EDGE*id+e) ! Triangle edge length
+                !d_e = dom%len%elts(EDGE*id+e) ! Triangle edge length
+                d_e = dx_min ! Use average edge length
                 do k = 1, zlevels
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
                    if (v_e /= 0.0_8) dt_loc = min(dt_loc, cfl_num*d_e/(v_e+wave_speed))

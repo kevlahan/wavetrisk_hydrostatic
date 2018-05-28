@@ -631,7 +631,7 @@ program DCMIP2012c4
   if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to resolution level ", level_save, " for saving 2D data" 
 
   ! Set logical switches
-  adapt_dt     = .false.  ! Adapt time step
+  adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
