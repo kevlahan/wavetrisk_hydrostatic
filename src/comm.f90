@@ -960,7 +960,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: C_visc, csq, d_e, init_mass, v_e, viscosity
+    real(8) :: C_visc, col_mass, d_e, init_mass, v_e, viscosity
 
     C_visc = 0.25_8
     
@@ -972,8 +972,13 @@ contains
        n_active_nodes(l) = n_active_nodes(l) + 1
 
        ! Find change in mass for this node
+       col_mass = 0.0_8
        do k = 1, zlevels
-          init_mass = a_vert_mass(k) + b_vert_mass(k)*dom%surf_press%elts(id+1)/grav_accel
+          col_mass = col_mass + sol(S_MASS,k)%data(d)%elts(id+1)
+       end do
+       col_mass = col_mass/grav_accel
+       do k = 1, zlevels
+          init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
           change_loc = max (change_loc, abs(sol(S_MASS,k)%data(d)%elts(id+1)-init_mass)/init_mass)
        end do
 
