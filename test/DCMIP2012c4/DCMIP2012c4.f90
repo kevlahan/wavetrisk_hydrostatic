@@ -403,9 +403,15 @@ contains
     do l = level_start, level_end
        call apply_onescale (linf_vars, l, z_null, 0, 0)
     end do
-    mass_scale = sync_max_d (norm_mass) / Tdim
-    temp_scale = sync_max_d (norm_temp) / Tdim
-    velo_scale = sync_max_d (norm_velo) / Tdim
+    mass_scale = sync_max_d (norm_mass) 
+    temp_scale = sync_max_d (norm_temp) 
+    velo_scale = sync_max_d (norm_velo) 
+    
+    if (adapt_trend .and. itype==0) then
+       mass_scale = mass_scale / Tdim
+       temp_scale = temp_scale / Tdim
+       velo_scale = velo_scale / Tdim
+    end if
 
     tol_mass = threshold * mass_scale
     tol_temp = threshold * temp_scale
