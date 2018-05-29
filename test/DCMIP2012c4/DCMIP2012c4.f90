@@ -401,15 +401,11 @@ contains
     norm_velo = 0.0_8
 
     do l = level_start, level_end
-       if (adapt_trend .and. itype==0) then
-          call apply_onescale (linf_trend, l, z_null, 0, 0)
-       else
-          call apply_onescale (linf_vars,  l, z_null, 0, 0)
-       end if
+       call apply_onescale (linf_vars, l, z_null, 0, 0)
     end do
-    mass_scale = sync_max_d (norm_mass)
-    temp_scale = sync_max_d (norm_temp)
-    velo_scale = sync_max_d (norm_velo)
+    mass_scale = sync_max_d (norm_mass) / Tdim
+    temp_scale = sync_max_d (norm_temp) / Tdim
+    velo_scale = sync_max_d (norm_velo) / Tdim
 
     tol_mass = threshold * mass_scale
     tol_temp = threshold * temp_scale
@@ -608,7 +604,7 @@ program DCMIP2012c4
   Ldim           = sqrt(d2)                         ! horizontal length scale
   Hdim           = h_0                              ! vertical length scale
   Udim           = u_0                              ! velocity scale
-  Tdim           = Hdim/Udim                        ! time scale
+  Tdim           = DAY                              ! time scale
   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
 
   acceldim       = Udim**2/Hdim                     ! acceleration scale
