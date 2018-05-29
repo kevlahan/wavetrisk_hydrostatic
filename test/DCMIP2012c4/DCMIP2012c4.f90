@@ -401,19 +401,16 @@ contains
     norm_velo = 0.0_8
 
     do l = level_start, level_end
-       call apply_onescale (linf_vars, l, z_null, 0, 0)
+       if (adapt_trend .and. itype==0) then
+          call apply_onescale (linf_trend, l, z_null, 0, 0)
+       else
+          call apply_onescale (linf_vars,  l, z_null, 0, 0)
+       end if
     end do
     mass_scale = sync_max_d (norm_mass)
     temp_scale = sync_max_d (norm_temp)
     velo_scale = sync_max_d (norm_velo)
 
-    ! Rescale using dt_new to avoid some artificially small time steps when saving data
-    if (adapt_trend .and. itype==0) then
-       mass_scale = mass_scale / dt_new
-       temp_scale = temp_scale / dt_new
-       velo_scale = velo_scale / dt_new
-    end if
-       
     tol_mass = threshold * mass_scale
     tol_temp = threshold * temp_scale
     tol_velo = threshold * velo_scale
@@ -621,8 +618,9 @@ program DCMIP2012c4
   specvoldim     = (R_d*Tempdim)/pdim               ! specific volume scale
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*pdim*specvoldim)      ! acoustic wave speed
+  
   cfl_num        = 1.0_8                            ! cfl number
-  max_change     = 7.0d-1                           ! maximum allowable relative change in mass before vertical remap
+  max_change     = 2.0d-2                           ! maximum allowable relative change in mass before vertical remap
 
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
