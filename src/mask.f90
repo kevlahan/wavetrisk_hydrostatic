@@ -107,6 +107,7 @@ contains
              end do
              nullify (wc_m, wc_t, wc_u)
           end do
+          call comm_masks_mpi(l)
        end do
     end do
   end subroutine mask_active

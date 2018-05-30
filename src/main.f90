@@ -43,6 +43,7 @@ contains
 
   subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load, test_case)
     implicit none
+    real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
     external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
     character(*) :: test_case
     
@@ -75,7 +76,7 @@ contains
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
-    if (rank == 0) write(6,*) 'Make level J_min =', min_level, '...'
+    if (rank == 0) write(6,'(A,i2,A,/)') 'Make level J_min = ', min_level, ' ...'
 
     call init_wavelets
     call init_masks
@@ -99,15 +100,15 @@ contains
        call trend_ml (sol, trend)
        call forward_wavelet_transform (trend, trend_wav_coeff)
 
-       dt_new = cpt_dt_mpi()
+       if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid -------------'
        do while (level_end < max_level)
-          if (rank == 0) write(6,*) 'Initial refinement Level', level_end, ' -> ', level_end+1
+          if (rank == 0) write(6,'(A,i2,A,i2)') 'Initial refinement Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
           call adapt (set_thresholds)
 
-          if (rank == 0) write(6,'(A,i2,/)') 'Initialize solution on level ', level_end
+          if (rank == 0) write(6,'(A,i2)') 'Initialize solution on level ', level_end
 
           call apply_init_cond
           
@@ -117,20 +118,40 @@ contains
           call forward_wavelet_transform (trend, trend_wav_coeff)
 
           !--Check whether there are any active nodes at this scale
-          call cpt_active_mpi (level_end-1)
-
-          if (rank==0) write(6,'(A,i2,1x,2(A,i8,1x),/)') &
+          n_active = 0
+          do k = 1, zlevels
+             do d = 1, size(grid)
+                if (adapt_trend) then
+                   wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
+                   wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
+                   wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
+                else
+                   wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+                   wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+                   wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+                end if
+                n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= tol_mass(k) .or. &
+                                                abs(wc_t(node_level_start(d):grid(d)%node%length))  >= tol_temp(k)), &
+                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= tol_velo(k)) /)
+                nullify (wc_m, wc_t, wc_u)
+             end do
+          end do
+          ! Sum results over all ranks
+          n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))
+          
+          if (rank == 0) write(6,'(A,i2,1x,2(A,i8,1x),/)') &
                'Level = ', level_end, 'number of active nodes = ',n_active(AT_NODE), 'number of active edges = ', n_active(AT_EDGE)
 
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit !--No active nodes at this scale
        end do
+       if (rank == 0) write(6,'(/,A,/)') '--------- Finished adapting initial grid ---------'
 
        cp_idx = 0
        call write_load_conn (0)
        ierr = dump_adapt_mpi (cp_idx, custom_dump)
     end if
-    call adapt (set_thresholds)
-    dt_new = cpt_dt_mpi() ; if (rank==0) write(6,'(A,i8)') 'dof = ', sum(n_active)
+
+    if (rank == 0) write(6,'(A,i6,/)') 'Restarting from initial checkpoint ', cp_idx
     call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
@@ -484,7 +505,7 @@ contains
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
-    if (rank == 0) write(*,*) 'Make level J_min =', min_level, '...'
+    if (rank == 0) write(6,'(A,i2,A)') 'Make level J_min = ', min_level, ' ...'
     call init_wavelets 
     call init_masks 
     call add_second_level 

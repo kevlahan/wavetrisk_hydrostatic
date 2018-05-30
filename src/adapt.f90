@@ -38,10 +38,8 @@ contains
     ! Find significant wavelets, adaptive grid and all masks
     call adapt (set_thresholds, local_type)
     
-    if (level_end > level_start) then
-       call inverse_wavelet_transform (wav_coeff, sol, level_start)
-       if (adapt_trend) call inverse_wavelet_transform (trend_wav_coeff, trend, level_start)
-    end if
+    call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    if (adapt_trend) call inverse_wavelet_transform (trend_wav_coeff, trend, level_start)
   end subroutine adapt_grid
 
   subroutine adapt (set_thresholds, type)
@@ -102,12 +100,6 @@ contains
        call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
     end do
 
-    ! Add neighbouring wavelets at finer scale
-    do l = level_end-1, level_start, -1
-       call apply_interscale (mask_adj_children, l, z_null, 0, 1)
-    end do
-    call comm_masks_mpi (NONE)
-
     ! Ensure consistency of adjacent zones for nodes and edges
     call mask_adj_nodes_edges
     call comm_masks_mpi (NONE)
@@ -132,8 +124,14 @@ contains
     
     ! Determine whether any new patches are required
     if (refine()) call post_refine
+    
+    ! Add neighbouring wavelets at finer scale
+    do l = level_end-1, level_start, -1
+       call apply_interscale (mask_adj_children, l, z_null, 0, 1)
+    end do
+    call comm_masks_mpi (NONE)
 
-     ! Add nodes and edges required for TRISK operators
+    ! Add nodes and edges required for TRISK operators
     do l = level_start, level_end
        call apply_onescale (mask_trsk, l, z_null, 0, 0)
     end do
@@ -146,7 +144,7 @@ contains
     
     ! Set insignificant wavelet coefficients to zero
     do k = 1, zlevels
-       do l = level_start, level_end
+       do l = level_start+1, level_end
           call apply_onescale (compress, l, k, 0, 1)
        end do
     end do
@@ -162,21 +160,22 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: e, id, k, v
+    integer :: d, e, id, k, v
 
+    d = dom%id+1
     id = idx(i, j, offs, dims)
     
     if (dom%mask_n%elts(id+1) < ADJZONE) then
        do v = S_MASS, S_TEMP
-          wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
-          trend_wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
+          wav_coeff(v,zlev)%data(d)%elts(id+1) = 0.0_8
+          trend_wav_coeff(v,zlev)%data(d)%elts(id+1) = 0.0_8
        end do
     end if
     
     do e = 1, EDGE
        if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) then
-          wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
-          trend_wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
+          wav_coeff(S_VELO,zlev)%data(d)%elts(EDGE*id+e) = 0.0_8
+          trend_wav_coeff(S_VELO,zlev)%data(d)%elts(EDGE*id+e) = 0.0_8
        end if
     end do
   end subroutine compress

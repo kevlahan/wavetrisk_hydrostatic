@@ -998,27 +998,6 @@ contains
     end if
   end subroutine min_dt
 
-  subroutine count_active (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: d, e, id, l
-
-    id = idx(i, j, offs, dims)
-    d  = dom%id + 1
-    l  = dom%level%elts(id+1)
-
-    if (dom%mask_n%elts(id+1) == TOLRNZ) then
-       n_active_nodes(l) = n_active_nodes(l) + 1
-       do e = 1, EDGE
-          if (dom%mask_e%elts(EDGE*id+e) == TOLRNZ) n_active_edges(l) = n_active_edges(l) + 1
-       end do
-    end if
-  end subroutine count_active
-
   function domain_load (dom)
     implicit none
     integer      :: domain_load
