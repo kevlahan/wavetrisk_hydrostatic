@@ -1615,7 +1615,7 @@ contains
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
 
-    if (rank == 0) write(6,'(A,2(es12.4,1x))') 'Grid quality before optimization:', maxerror, l2error
+    if (rank == 0) write(6,'(/,A,2(es12.4,1x))') 'Grid quality before optimization:', maxerror, l2error
 
     fid = get_fid()
     if (level_start /= level_end) then
@@ -1656,7 +1656,7 @@ contains
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
-    if (rank == 0) write(*,'(A,2(es12.4,1x))') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
+    if (rank == 0) write(*,'(A,2(es12.4,1x),/)') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
   end subroutine read_HR_optim_grid
 
   function dom_id_from_HR_id (d_HR)

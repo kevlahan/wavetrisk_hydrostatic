@@ -42,7 +42,7 @@ contains
        call inverse_wavelet_transform (wav_coeff, sol, level_start)
        if (adapt_trend) call inverse_wavelet_transform (trend_wav_coeff, trend, level_start)
     end if
-  end subroutine adapt_grid 
+  end subroutine adapt_grid
 
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
@@ -78,10 +78,10 @@ contains
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then 
-       if (istep==0) then ! Also adapt on variables when initializing
-          if (local_type) call set_thresholds (1)
-          call mask_active (wav_coeff)
-       end if
+       ! if (istep==0) then ! Also adapt on variables when initializing
+       !    if (local_type) call set_thresholds (1)
+       !    call mask_active (wav_coeff)
+       ! end if
        if (local_type) call set_thresholds (0)
        call mask_active (trend_wav_coeff)
     else

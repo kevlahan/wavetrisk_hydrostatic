@@ -127,7 +127,7 @@ contains
 
     if (rank == 0) then
        write(6,'(A,1x,i9,1x,f10.1,1x,i9)') 'min load, average load, max load:', load_min, load_avg, load_max
-       write(6,'(A,1x,f10.2)') 'relative imbalance (1=perfect balance)', rel_imbalance
+       write(6,'(A,1x,f10.2,/)') 'relative imbalance (1=perfect balance)', rel_imbalance
     end if
   end subroutine print_load_balance
 
@@ -1203,6 +1203,20 @@ contains
     level_end = n_level_glo
   end function cpt_dt_mpi
 
+  subroutine cpt_active_mpi (l)
+    implicit none
+    integer               :: l
+    
+    integer, dimension(2) :: n_active_loc, n_active_glo
+
+    n_active_nodes = 0
+    n_active_edges = 0
+    call apply_onescale (count_active, l, z_null, 0, 0)
+    n_active_loc = (/n_active_nodes(l), n_active_edges(l)/)
+    call MPI_Allreduce (n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    n_active = n_active_glo
+  end subroutine cpt_active_mpi
+    
   function sync_max (val)
     integer :: sync_max
     integer :: val
