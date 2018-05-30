@@ -119,18 +119,35 @@ contains
 
           !--Check whether there are any active nodes at this scale
           n_active = 0
+          call set_thresholds (1)
           do k = 1, zlevels
              n_active = n_active + (/ &
                   sum((/(count( &
-                  abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) > tol_mass &
+                  abs(wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) > tol_mass(k) &
                   .or. &
-                  abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) > tol_temp ), &
+                  abs(wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) > tol_temp(k) ), &
                   d = 1, n_domain(rank+1)) /)), &
                   
-                  sum((/(count(abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d):grid(d)%midpt%length)) > tol_velo), &
+                  sum((/(count(abs(wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d):grid(d)%midpt%length)) > tol_velo(k)), &
                   d = 1, n_domain(rank+1)) /)) &
                   /)
           end do
+          if (adapt_trend) then
+             call set_thresholds (1)
+             do k = 1, zlevels
+                n_active = n_active + (/ &
+                     sum((/(count( &
+                     abs(trend_wav_coeff(S_MASS,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) > tol_mass(k) &
+                     .or. &
+                     abs(trend_wav_coeff(S_TEMP,k)%data(d)%elts(node_level_start(d):grid(d)%node%length)) > tol_temp(k) ), &
+                     d = 1, n_domain(rank+1)) /)), &
+                     
+                     sum((/(count(abs(trend_wav_coeff(S_VELO,k)%data(d)%elts(edge_level_start(d):grid(d)%midpt%length)) &
+                     > tol_velo(k)), &
+                     d = 1, n_domain(rank+1)) /)) &
+                     /)
+             end do
+          end if
           n_active(AT_NODE) = sync_max(n_active(AT_NODE))
           n_active(AT_EDGE) = sync_max(n_active(AT_EDGE))
           if (rank==0) write(6,'(A,i2,1x,2(A,i8,1x))') &

@@ -14,7 +14,6 @@ module DCMIP2012c4_mod
   real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, T_0
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
   real(8)                            :: norm_mass, norm_temp, norm_velo
-  real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
   real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, R_pert, u_p, u_0
 
@@ -396,26 +395,21 @@ contains
     integer :: l, k
 
     ! Set thresholds dynamically (trend or sol must be known)
-    norm_mass = 0.0_8
-    norm_temp = 0.0_8
-    norm_velo = 0.0_8
-
-    do l = level_start, level_end
-       call apply_onescale (linf_vars, l, z_null, 0, 0)
+    do k = 1, zlevels
+       norm_mass = 0.0_8
+       norm_temp = 0.0_8
+       norm_velo = 0.0_8
+       do l = level_start, level_end
+          if (adapt_trend .and. itype==0) then
+             call apply_onescale (linf_trend, l, k, 0, 0)
+          else
+             call apply_onescale (linf_vars,  l, k, 0, 0)
+          end if
+       end do
+          tol_mass(k) = threshold * sync_max_d (norm_mass) 
+          tol_temp(k) = threshold * sync_max_d (norm_temp) 
+          tol_velo(k) = threshold * sync_max_d (norm_velo)
     end do
-    mass_scale = sync_max_d (norm_mass) 
-    temp_scale = sync_max_d (norm_temp) 
-    velo_scale = sync_max_d (norm_velo) 
-    
-    if (adapt_trend .and. itype==0) then
-       mass_scale = mass_scale / Tdim
-       temp_scale = temp_scale / Tdim
-       velo_scale = velo_scale / Tdim
-    end if
-
-    tol_mass = threshold * mass_scale
-    tol_temp = threshold * temp_scale
-    tol_velo = threshold * velo_scale
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
@@ -425,18 +419,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, e, k
+    integer :: id, e
 
     id = idx(i, j, offs, dims)
 
     ! Maximum trends
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do k = 1, zlevels
-          norm_mass = max(norm_mass, abs(trend(S_MASS,k)%data(dom%id+1)%elts(id+1)))
-          norm_temp = max(norm_temp, abs(trend(S_TEMP,k)%data(dom%id+1)%elts(id+1)))
-          do e = 1, EDGE
-             norm_velo  = max(norm_velo, abs(trend(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
-          end do
+       norm_mass = max(norm_mass, abs(trend(S_MASS,zlev)%data(dom%id+1)%elts(id+1)))
+       norm_temp = max(norm_temp, abs(trend(S_TEMP,zlev)%data(dom%id+1)%elts(id+1)))
+       do e = 1, EDGE
+          norm_velo  = max(norm_velo, abs(trend(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e)))
        end do
     end if
   end subroutine linf_trend
@@ -448,18 +440,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, e, k
+    integer :: d, id, e
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do k = 1, zlevels
-          norm_mass = max(norm_mass, abs(sol(S_MASS,k)%data(d)%elts(id+1)))
-          norm_temp = max(norm_temp, abs(sol(S_TEMP,k)%data(d)%elts(id+1)))
-          do e = 1, EDGE
-             norm_velo  = max(norm_velo, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
-          end do
+       norm_mass = max(norm_mass, abs(sol(S_MASS,zlev)%data(d)%elts(id+1)))
+       norm_temp = max(norm_temp, abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)))
+       do e = 1, EDGE
+          norm_velo  = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
        end do
     end if
   end subroutine linf_vars
@@ -471,20 +461,18 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, k
+    integer :: d, e, id
 
     id = idx(i, j, offs, dims)
     d = dom%id+1
-
+    
     ! L2 norms of trends
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
-       do k = 1, zlevels
-          norm_mass = norm_mass + trend(S_MASS,k)%data(d)%elts(id+1)**2
-          norm_temp = norm_temp + trend(S_TEMP,k)%data(d)%elts(id+1)**2
-          do e = 1, EDGE
-             norm_velo = norm_velo + trend(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
-          end do
+       norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
+       norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
+       do e = 1, EDGE
+          norm_velo = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end do
     endif
   end subroutine l2_trend
@@ -496,7 +484,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, k
+    integer :: d, e, id
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
@@ -504,12 +492,10 @@ contains
     ! L2 norms of trends
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
-       do k = 1, zlevels
-          norm_mass = norm_mass + sol(S_MASS,k)%data(d)%elts(id+1)**2
-          norm_temp = norm_temp + sol(S_TEMP,k)%data(d)%elts(id+1)**2
-          do e = 1, EDGE
-             norm_velo  = norm_velo + sol(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
-          end do
+       norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
+       norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
+       do e = 1, EDGE
+          norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end do
     endif
   end subroutine l2_vars
@@ -578,6 +564,10 @@ program DCMIP2012c4
 
   ! Read test case parameters
   call read_test_case_parameters (trim(test_case)//".in")
+
+  allocate (tol_mass(1:zlevels))
+  allocate (tol_temp(1:zlevels))
+  allocate (tol_velo(1:zlevels))
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -717,7 +707,7 @@ program DCMIP2012c4
 
   call sum_total_mass (.True.)
 
-  if (rank == 0) write (6,'(/,A,3(ES12.4,1x),/)') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
+!  if (rank == 0) write (6,'(/,A,3(ES12.4,1x),/)') 'Thresholds for mass, temperature, velocity:', tol_mass, tol_temp, tol_velo
   
   call barrier
 
@@ -731,9 +721,9 @@ program DCMIP2012c4
   if (rank == 0) then
      write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9)') &
           ' time [h] = ', time/3600.0_8, &
-          '  mass tol = ', tol_mass, &
-          ' temp tol = ', tol_temp, &
-          ' velo tol = ', tol_velo, &
+          '  mass tol = ', sum(tol_mass)/zlevels, &
+          ' temp tol = ', sum(tol_temp)/zlevels, &
+          ' velo tol = ', sum(tol_velo)/zlevels, &
           ' Jmax =', level_end, &
           '  dof = ', sum(n_active)
   end if
@@ -757,9 +747,9 @@ program DCMIP2012c4
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,A,ES8.2,1x,A,ES8.2,A,ES8.2)') &
              ' time [h] = ', time/60.0_8**2, &
              ' dt [s] = ', dt, &
-             '  mass tol = ', tol_mass, &
-             ' temp tol = ', tol_temp, &
-             ' velo tol = ', tol_velo, &
+             '  mass tol = ', sum(tol_mass)/zlevels, &
+             ' temp tol = ', sum(tol_temp)/zlevels, &
+             ' velo tol = ', sum(tol_velo)/zlevels, &
              ' Jmax = ', level_end, &
              '  dof = ', sum(n_active), &
              ' mass error = ', mass_error, &
@@ -767,7 +757,8 @@ program DCMIP2012c4
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,2(ES15.9,1x))')  &
-             time/3600.0_8, dt, tol_mass, tol_temp, tol_velo, level_end, sum(n_active), mass_error, timing
+             time/3600.0_8, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/zlevels, &
+             level_end, sum(n_active), mass_error, timing
      end if
 
      if (aligned) then
