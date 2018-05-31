@@ -410,9 +410,9 @@ contains
        end do
 
        ! Avoid using very small norms
-       norm_mass = max (sync_max_d(norm_mass), norm_mass_def(k))
-       norm_temp = max (sync_max_d(norm_temp), norm_temp_def(k))
-       norm_velo = max (sync_max_d(norm_velo), norm_velo_def(k))
+       ! norm_mass = max (sync_max_d(norm_mass), norm_mass_def(k))
+       ! norm_temp = max (sync_max_d(norm_temp), norm_temp_def(k))
+       ! norm_velo = max (sync_max_d(norm_velo), norm_velo_def(k))
        ! norm_mass = sync_max_d(norm_mass)
        ! norm_temp = sync_max_d(norm_temp)
        ! norm_velo = sync_max_d(norm_velo)
@@ -563,7 +563,7 @@ program DCMIP2012c4
   use DCMIP2012c4_mod
   implicit none
 
-  integer        :: d, ierr, k, l, v
+  integer        :: d, ierr, k, l, n_remap, v
   real(8)        :: dt_cfl, dt_visc, max_change, visc
   character(255) :: command
   logical        :: aligned, remap, write_init
@@ -627,6 +627,7 @@ program DCMIP2012c4
   
   cfl_num        = 1.0_8                            ! cfl number
   max_change     = 2.0d-2                           ! maximum allowable relative change in mass before vertical remap
+  n_remap        = 5                                ! interval for remapping
 
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
@@ -765,7 +766,8 @@ program DCMIP2012c4
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     !if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
