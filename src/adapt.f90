@@ -100,6 +100,23 @@ contains
        call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
     end do
 
+    ! needed if bdry is only 2 layers for scenario:
+    ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
+    ! => patch needed (contains flux for corrective part of R_F)
+    do l = level_start+1, min(level_end, max_level-1)
+       call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
+    end do
+    call comm_masks_mpi (NONE)
+    
+    ! Determine whether any new patches are required (i.e. refine grid)
+    if (refine()) call post_refine
+    
+    ! Add neighbouring wavelets at finer scale
+    do l = level_end-1, level_start, -1
+       call apply_interscale (mask_adj_children, l, z_null, 0, 1)
+    end do
+    call comm_masks_mpi (NONE)
+
     ! Ensure consistency of adjacent zones for nodes and edges
     call mask_adj_nodes_edges
     call comm_masks_mpi (NONE)
@@ -113,23 +130,6 @@ contains
        end do
        call comm_masks_mpi (l)
     end do
-
-    ! needed if bdry is only 2 layers for scenario:
-    ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
-    ! => patch needed (contains flux for corrective part of R_F)
-    do l = level_start+1, min(level_end, max_level-1)
-       call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
-    
-    ! Determine whether any new patches are required
-    if (refine()) call post_refine
-    
-    ! Add neighbouring wavelets at finer scale
-    do l = level_end-1, level_start, -1
-       call apply_interscale (mask_adj_children, l, z_null, 0, 1)
-    end do
-    call comm_masks_mpi (NONE)
 
     ! Add nodes and edges required for TRISK operators
     do l = level_start, level_end
