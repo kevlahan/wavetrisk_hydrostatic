@@ -402,20 +402,11 @@ contains
        norm_temp = 0.0_8
        norm_velo = 0.0_8
        do l = level_start, level_end
-          if (adapt_trend .and. itype==0) then
-             call apply_onescale (linf_trend, l, k, 0, 0)
-          else
-             call apply_onescale (linf_vars,  l, k, 0, 0)
-          end if
+          call apply_onescale (linf_vars,  l, k, 0, 0)
        end do
-
-       ! Avoid using very small norms
-       ! norm_mass = max (sync_max_d(norm_mass), norm_mass_def(k))
-       ! norm_temp = max (sync_max_d(norm_temp), norm_temp_def(k))
-       ! norm_velo = max (sync_max_d(norm_velo), norm_velo_def(k))
-       ! norm_mass = sync_max_d(norm_mass)
-       ! norm_temp = sync_max_d(norm_temp)
-       ! norm_velo = sync_max_d(norm_velo)
+       norm_mass = sync_max_d(norm_mass)
+       norm_temp = sync_max_d(norm_temp)
+       norm_velo = sync_max_d(norm_velo)
 
        tol_mass(k) = threshold * norm_mass
        tol_temp(k) = threshold * norm_temp
