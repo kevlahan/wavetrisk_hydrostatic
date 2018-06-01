@@ -1355,7 +1355,7 @@ contains
     call update_array_bdry (trend_wav_coeff(S_MASS:S_TEMP,:), NONE)
 
     call trend_ml (sol, trend)
-    call WT_after_step (trend, trend_wav_coeff, level_start-1)
+    call forward_wavelet_transform (trend, trend_wav_coeff)
 
     do k = 1, zlevels
        do d = 1, size(grid)

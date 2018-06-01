@@ -94,26 +94,26 @@ contains
     if (resume >= 0) then
        if (rank == 0) write(6,*) 'Resuming from checkpoint', resume
     else
+       if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid -------------'
+
        call apply_init_cond
        call forward_wavelet_transform (sol, wav_coeff)
-
        call trend_ml (sol, trend)
        call forward_wavelet_transform (trend, trend_wav_coeff)
 
-       if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid -------------'
        do while (level_end < max_level)
           if (rank == 0) write(6,'(A,i2,A,i2)') 'Initial refinement Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
-          call adapt (set_thresholds)
-
           if (rank == 0) write(6,'(A,i2)') 'Initialize solution on level ', level_end
 
-          call apply_init_cond
-          
-          call forward_wavelet_transform (sol, wav_coeff)
+          dt_new = cpt_dt_mpi()
+          call adapt (set_thresholds)
 
+          call apply_init_cond
+         
+          call forward_wavelet_transform (sol, wav_coeff)
           call trend_ml (sol, trend)
           call forward_wavelet_transform (trend, trend_wav_coeff)
 
@@ -145,6 +145,11 @@ contains
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit !--No active nodes at this scale
        end do
        if (rank == 0) write(6,'(/,A,/)') '--------- Finished adapting initial grid ---------'
+
+       dt_new = cpt_dt_mpi()
+       call adapt (set_thresholds)
+       dt_new = cpt_dt_mpi()
+       if (rank==0) write(6,'(A,i8)') 'Initial dof = ', sum(n_active)
 
        cp_idx = 0
        call write_load_conn (0)
@@ -534,8 +539,7 @@ contains
 
     if (rank == 0) call system (command)
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
-    call inverse_wavelet_transform (wav_coeff,         sol, level_start-1)
-    call inverse_wavelet_transform (trend_wav_coeff, trend, level_start-1)
+    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
 

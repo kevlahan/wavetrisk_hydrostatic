@@ -402,15 +402,21 @@ contains
        norm_temp = 0.0_8
        norm_velo = 0.0_8
        do l = level_start, level_end
-          call apply_onescale (linf_vars,  l, k, 0, 0)
+          call apply_onescale (linf_trend, l, k, 0, 0)
        end do
        norm_mass = sync_max_d(norm_mass)
        norm_temp = sync_max_d(norm_temp)
        norm_velo = sync_max_d(norm_velo)
 
-       tol_mass(k) = threshold * norm_mass
-       tol_temp(k) = threshold * norm_temp
-       tol_velo(k) = threshold * norm_velo
+       if (istep /= 0) then
+          tol_mass(k) = 0.95*tol_mass(k) + 0.05*threshold * norm_mass
+          tol_temp(k) = 0.95*tol_temp(k) + 0.05*threshold * norm_temp
+          tol_velo(k) = 0.95*tol_velo(k) + 0.05*threshold * norm_velo
+       else
+          tol_mass(k) = threshold * norm_mass
+          tol_temp(k) = threshold * norm_temp
+          tol_velo(k) = threshold * norm_velo
+       end if
     end do
   end subroutine set_thresholds
 

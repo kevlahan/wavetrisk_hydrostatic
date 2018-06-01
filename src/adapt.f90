@@ -37,9 +37,7 @@ contains
     
     ! Find significant wavelets, adaptive grid and all masks
     call adapt (set_thresholds, local_type)
-    
     call inverse_wavelet_transform (wav_coeff, sol, level_start)
-    if (adapt_trend) call inverse_wavelet_transform (trend_wav_coeff, trend, level_start)
   end subroutine adapt_grid
 
   subroutine adapt (set_thresholds, type)
@@ -76,10 +74,6 @@ contains
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then 
-       ! if (istep==0) then ! Also adapt on variables when initializing
-       !    if (local_type) call set_thresholds (1)
-       !    call mask_active (wav_coeff)
-       ! end if
        if (local_type) call set_thresholds (0)
        call mask_active (trend_wav_coeff)
     else
@@ -121,7 +115,7 @@ contains
     call mask_adj_nodes_edges
     call comm_masks_mpi (NONE)
     
-    ! Ensure that perfect reconstruction criteria for active wavelets are satisfied
+    ! ! Ensure that perfect reconstruction criteria for active wavelets are satisfied
     do l = level_end-1, level_start-1, -1
        call apply_interscale (mask_perfect_scalar, l, z_null, 0, 0)
        call apply_interscale (mask_perfect_velo,   l, z_null, 0, 0)
