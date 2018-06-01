@@ -13,7 +13,7 @@ module DCMIP2012c4_mod
 
   real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, T_0
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, Udim, pdim, R_ddim, specvoldim
-  real(8)                            :: norm_mass, norm_temp, norm_velo, norm_mass_trend, norm_temp_trend, norm_velo_trend
+  real(8)                            :: norm_mass, norm_temp, norm_velo
   real(8)                            :: mass_scale, temp_scale, velo_scale, mass_scale_trend, temp_scale_trend, velo_scale_trend
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
   real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, R_pert, u_p, u_0
@@ -399,7 +399,6 @@ contains
     norm_mass = 0.0_8
     norm_temp = 0.0_8
     norm_velo = 0.0_8
-
     do l = level_start, level_end
        call apply_onescale (linf_vars, l, z_null, 0, 0)
     end do
@@ -433,10 +432,10 @@ contains
     ! Maximum trends
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        do k = 1, zlevels
-          norm_mass_trend = max(norm_mass_trend, abs(trend(S_MASS,k)%data(dom%id+1)%elts(id+1)))
-          norm_temp_trend = max(norm_temp_trend, abs(trend(S_TEMP,k)%data(dom%id+1)%elts(id+1)))
+          norm_mass = max(norm_mass, abs(trend(S_MASS,k)%data(dom%id+1)%elts(id+1)))
+          norm_temp = max(norm_temp, abs(trend(S_TEMP,k)%data(dom%id+1)%elts(id+1)))
           do e = 1, EDGE
-             norm_velo_trend  = max(norm_velo_trend, abs(trend(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
+             norm_velo  = max(norm_velo, abs(trend(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)))
           end do
        end do
     end if
@@ -481,10 +480,10 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        do k = 1, zlevels
-          norm_mass_trend = norm_mass_trend + trend(S_MASS,k)%data(d)%elts(id+1)**2
-          norm_temp_trend = norm_temp_trend + trend(S_TEMP,k)%data(d)%elts(id+1)**2
+          norm_mass = norm_mass + trend(S_MASS,k)%data(d)%elts(id+1)**2
+          norm_temp = norm_temp + trend(S_TEMP,k)%data(d)%elts(id+1)**2
           do e = 1, EDGE
-             norm_velo_trend  = norm_velo_trend + trend(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
+             norm_velo  = norm_velo + trend(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
           end do
        end do
     endif
