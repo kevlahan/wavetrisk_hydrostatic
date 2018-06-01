@@ -294,7 +294,6 @@ module shared_mod
   integer :: save_levels ! number of vertical levels to save
   integer :: level_start, level_end, level_save
 
-  real(8) :: change_mass
   real(8) :: threshold ! threshold level on wavelet coefficients for grid adaptation
 
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
@@ -306,7 +305,7 @@ module shared_mod
   integer, parameter :: DAY = 24*60*60
 
   ! simulation variables
-  integer :: istep, resume, Laplace_order
+  integer :: istep, n_remap, resume, Laplace_order
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8) :: viscosity_divu, viscosity_rotu, viscosity_mass, viscosity_temp
@@ -369,6 +368,7 @@ contains
     
     resume        = NONE
     istep         = 0
+    n_remap       = 10
     time          = 0.0_8
     optimize_grid = NO_OPTIM
     threshold     = 0.0_8

@@ -7,7 +7,7 @@ module mask_mod
   use wavelet_mod
 
   implicit none
-  real(8), dimension(:), allocatable :: tol_mass, tol_temp, tol_velo
+  real(8) :: tol_velo, tol_mass, tol_temp
 contains
   subroutine set_masks (dom, p, i, j, zlev, offs, dims, mask)
     ! Sets all nodes and edges to value mask unless node is FROZEN
@@ -21,7 +21,7 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) == FROZEN) return
+    if (dom%mask_n%elts(id+1) .eq. FROZEN) return
 
     dom%mask_n%elts(id+1) = mask
     do e = 1, EDGE
@@ -96,6 +96,7 @@ contains
           end do
           nullify (wc_m, wc_t, wc_u)
        end do
+       call comm_masks_mpi (level_end)
 
        do l = level_end-1, level_start, -1
           do d = 1, size(grid)
@@ -107,7 +108,7 @@ contains
              end do
              nullify (wc_m, wc_t, wc_u)
           end do
-          call comm_masks_mpi(l)
+          call comm_masks_mpi (l)
        end do
     end do
   end subroutine mask_active
@@ -126,10 +127,10 @@ contains
 
     if (dom%mask_n%elts(id+1) == FROZEN) return
 
-    call set_active_mask (dom%mask_n%elts(id+1), wc_m(id+1), tol_mass(zlev))
-    call set_active_mask (dom%mask_n%elts(id+1), wc_t(id+1), tol_temp(zlev))
+    call set_active_mask (dom%mask_n%elts(id+1), wc_m(id+1), tol_mass)
+    call set_active_mask (dom%mask_n%elts(id+1), wc_t(id+1), tol_temp)
     do e = 1, EDGE
-       call set_active_mask (dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), tol_velo(zlev))
+       call set_active_mask (dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), tol_velo)
     end do
   end subroutine mask_tol
 
@@ -1159,6 +1160,9 @@ contains
     if (initialized) return ! initialize only once
     call init_domain_mod
     call init_comm_mod
+    tol_velo = 0.0_8
+    tol_mass = 0.0_8
+    tol_temp = 0.0_8
     initialized = .True.
   end subroutine init_mask_mod
 

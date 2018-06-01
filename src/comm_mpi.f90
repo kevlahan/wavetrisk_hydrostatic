@@ -127,7 +127,7 @@ contains
 
     if (rank == 0) then
        write(6,'(A,1x,i9,1x,f10.1,1x,i9)') 'min load, average load, max load:', load_min, load_avg, load_max
-       write(6,'(A,1x,f10.2,/)') 'relative imbalance (1=perfect balance)', rel_imbalance
+       write(6,'(A,1x,f10.2)') 'relative imbalance (1=perfect balance)', rel_imbalance
     end if
   end subroutine print_load_balance
 
@@ -1169,33 +1169,26 @@ contains
     
     integer               :: l, ierror, n_level_glo
     integer, dimension(2) :: n_active_loc, n_active_glo
-    real(8)               :: loc_max, loc_min, glo_max, glo_min
+    real(8)               :: loc_min, glo_min
 
     if (adapt_dt) then
-       dt_loc = 1.0d16
+       dt_loc = 1d16
     else
        dt_loc = dt_init
     end if
-    change_loc = 0.0_8
     n_active_nodes = 0
     n_active_edges = 0
+
     do l = level_start, level_end
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
 
-    loc_max = change_loc
-    call MPI_Allreduce (loc_max, glo_max, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    change_mass = glo_max
-
-    if (adapt_dt) then
-       loc_min = dt_loc
-       call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-       cpt_dt_mpi = glo_min
-    else
-       cpt_dt_mpi = dt_loc
-    end if
+    loc_min = dt_loc
+    call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    cpt_dt_mpi = glo_min
     
     n_active_loc = (/sum(n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end))/)
+
     call MPI_Allreduce (n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
     n_active = n_active_glo
 

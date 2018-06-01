@@ -41,7 +41,8 @@ contains
     time_mult = 1.0_8
   end subroutine init_main_mod
 
-  subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load, test_case)
+
+subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load, test_case)
     implicit none
     real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
     external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
@@ -130,9 +131,9 @@ contains
                    wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
                    wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 end if
-                n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= tol_mass(k) .or. &
-                                                abs(wc_t(node_level_start(d):grid(d)%node%length))  >= tol_temp(k)), &
-                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= tol_velo(k)) /)
+                n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= tol_mass .or. &
+                                                abs(wc_t(node_level_start(d):grid(d)%node%length))  >= tol_temp), &
+                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= tol_velo) /)
                 nullify (wc_m, wc_t, wc_u)
              end do
           end do
@@ -159,6 +160,7 @@ contains
     if (rank == 0) write(6,'(A,i6,/)') 'Restarting from initial checkpoint ', cp_idx
     call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
+
 
   subroutine record_init_state (init_state)
     implicit none
@@ -211,7 +213,6 @@ contains
     call RK34_opt (trend_ml, dt)
 
     if (min_level < max_level) call adapt_grid (set_thresholds)
-    
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
     
     itime = itime + idt
@@ -510,7 +511,7 @@ contains
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
-    if (rank == 0) write(6,'(A,i2,A)') 'Make level J_min = ', min_level, ' ...'
+    if (rank == 0) write(*,*) 'Make level J_min =', min_level, '...'
     call init_wavelets 
     call init_masks 
     call add_second_level 
@@ -522,7 +523,7 @@ contains
 
     call init_RK_mem
 
-    if (rank == 0) write (6,'(A,i5,/)') 'Reloading from checkpoint ', cp_idx
+    if (rank == 0) write (6,*) 'Reloading from checkpoint', cp_idx
 
     call load_adapt_mpi (cp_idx, custom_load)
         
@@ -539,7 +540,8 @@ contains
 
     if (rank == 0) call system (command)
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
-    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+    call inverse_wavelet_transform (wav_coeff,         sol, level_start-1)
+    call inverse_wavelet_transform (trend_wav_coeff, trend, level_start-1)
     dt_new = cpt_dt_mpi()
   end subroutine restart_full
 

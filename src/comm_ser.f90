@@ -227,7 +227,6 @@ contains
     else
        dt_loc = dt_init
     end if
-    change_mass = 0.0_8
     
     n_active_nodes = 0
     n_active_edges = 0
