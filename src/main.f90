@@ -131,9 +131,9 @@ subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, cust
                    wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
                    wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 end if
-                n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= tol_mass .or. &
-                                                abs(wc_t(node_level_start(d):grid(d)%node%length))  >= tol_temp), &
-                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= tol_velo) /)
+                n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= tol_mass(k) .or. &
+                                                abs(wc_t(node_level_start(d):grid(d)%node%length))  >= tol_temp(k)), &
+                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= tol_velo(k)) /)
                 nullify (wc_m, wc_t, wc_u)
              end do
           end do

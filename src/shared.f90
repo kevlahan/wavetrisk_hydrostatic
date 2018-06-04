@@ -294,6 +294,7 @@ module shared_mod
   integer :: save_levels ! number of vertical levels to save
   integer :: level_start, level_end, level_save
 
+  real(8) :: change_mass
   real(8) :: threshold ! threshold level on wavelet coefficients for grid adaptation
 
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)

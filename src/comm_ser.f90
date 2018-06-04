@@ -231,8 +231,9 @@ contains
     n_active_nodes = 0
     n_active_edges = 0
     do l = level_start, level_end
-       call apply_onescale(min_dt, l, z_null, 0, 0)
+       call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
+    change_mass = change_loc
     n_active = (/ sum(n_active_nodes), sum(n_active_edges) /)
     cpt_dt_mpi = dt_loc
   end function cpt_dt_mpi
@@ -260,6 +261,13 @@ contains
     
     sum_real = val
   end function sum_real
+
+  function sum_int (val)
+    integer :: sum_int
+    integer :: val
+
+    sum_int = val
+  end function sum_int
 
   subroutine start_timing
   end subroutine start_timing

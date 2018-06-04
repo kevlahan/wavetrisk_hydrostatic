@@ -102,7 +102,6 @@ contains
        call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
     end do
 
-
     ! needed if bdry is only 2 layers for scenario:
     ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
     ! => patch needed (contains flux for corrective part of R_F)
