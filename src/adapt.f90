@@ -146,8 +146,21 @@ contains
     
     ! Set insignificant wavelet coefficients to zero
     do k = 1, zlevels
-       do l = level_start, level_end
-          call apply_onescale (compress, l, k, 0, 1)
+       do l = level_start+1, level_end
+          do d = 1, size(grid)
+             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+             call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
+             nullify (wc_m, wc_t, wc_u)
+             if (adapt_trend) then
+                wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
+                wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
+                wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
+                call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
+                nullify (wc_m, wc_t, wc_u)
+             end if
+          end do
        end do
     end do
 
@@ -167,17 +180,12 @@ contains
     id = idx(i, j, offs, dims)
     
     if (dom%mask_n%elts(id+1) < ADJZONE) then
-       do v = S_MASS, S_TEMP
-          wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
-          trend_wav_coeff(v,zlev)%data(dom%id+1)%elts(id+1) = 0.0_8
-       end do
+       wc_m(id+1) = 0.0_8
+       wc_t(id+1) = 0.0_8
     end if
     
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) then
-          wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
-          trend_wav_coeff(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+e) = 0.0_8
-       end if
+       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
     end do
   end subroutine compress
 
