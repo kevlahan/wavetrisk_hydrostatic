@@ -452,10 +452,10 @@ contains
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       norm_mass = max(norm_mass, abs(sol(S_MASS,k)%data(d)%elts(id+1)))
-       norm_temp = max(norm_temp, abs(sol(S_TEMP,k)%data(d)%elts(id+1)))
+       norm_mass = max(norm_mass, abs(sol(S_MASS,zlev)%data(d)%elts(id+1)))
+       norm_temp = max(norm_temp, abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)))
        do e = 1, EDGE
-          norm_velo  = max(norm_velo, abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e)))
+          norm_velo  = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
        end do
     end if
   end subroutine linf_vars
