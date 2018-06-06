@@ -366,8 +366,8 @@ contains
     if (rank == 0) call compress_files (iwrite, test_case)
 
     ! Save 2D projection
-    call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-256, 256/), (/2.0_8*MATH_PI, MATH_PI/), &
-         set_thresholds, test_case)
+    !call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-256, 256/), (/2.0_8*MATH_PI, MATH_PI/), &
+    !     set_thresholds, test_case)
     !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
     !     set_thresholds, test_case)
   end subroutine write_and_export
@@ -424,19 +424,17 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, e, k
+    integer :: d, id, e
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
     ! Maximum trends
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do k = 1, zlevels
-          norm_mass = max(norm_mass, abs(trend(S_MASS,k)%data(d)%elts(id+1)))
-          norm_temp = max(norm_temp, abs(trend(S_TEMP,k)%data(d)%elts(id+1)))
-          do e = 1, EDGE
-             norm_velo  = max(norm_velo, abs(trend(S_VELO,k)%data(d)%elts(EDGE*id+e)))
-          end do
+       norm_mass = max(norm_mass, abs(trend(S_MASS,zlev)%data(d)%elts(id+1)))
+       norm_temp = max(norm_temp, abs(trend(S_TEMP,zlev)%data(d)%elts(id+1)))
+       do e = 1, EDGE
+          norm_velo  = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
        end do
     end if
   end subroutine linf_trend
@@ -448,7 +446,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, e, k
+    integer :: d, id, e
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
@@ -471,7 +469,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, k
+    integer :: d, e, id
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
@@ -479,12 +477,10 @@ contains
     ! L2 norms of trends
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
-       do k = 1, zlevels
-          norm_mass = norm_mass + trend(S_MASS,k)%data(d)%elts(id+1)**2
-          norm_temp = norm_temp + trend(S_TEMP,k)%data(d)%elts(id+1)**2
-          do e = 1, EDGE
-             norm_velo  = norm_velo + trend(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
-          end do
+       norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
+       norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
+       do e = 1, EDGE
+          norm_velo  = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end do
     endif
   end subroutine l2_trend
@@ -496,7 +492,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, k
+    integer :: d, e, id
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
@@ -504,12 +500,10 @@ contains
     ! L2 norms of trends
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
-       do k = 1, zlevels
-          norm_mass = norm_mass + sol(S_MASS,k)%data(d)%elts(id+1)**2
-          norm_temp = norm_temp + sol(S_TEMP,k)%data(d)%elts(id+1)**2
-          do e = 1, EDGE
-             norm_velo  = norm_velo + sol(S_VELO,k)%data(d)%elts(EDGE*id+e)**2
-          end do
+       norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
+       norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
+       do e = 1, EDGE
+          norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end do
     endif
   end subroutine l2_vars
@@ -627,7 +621,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 0.8_8                                      ! cfl number
+  cfl_num        = 0.7_8                                      ! cfl number
   n_remap        = 5                                          ! Vertical remap interval
   max_change     = 0.1_8                                      ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
