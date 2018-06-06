@@ -390,25 +390,28 @@ contains
     read(fid) tol_mass, tol_temp, tol_velo
   end subroutine load
 
-  subroutine set_thresholds (itype)
+  subroutine set_thresholds
     implicit none
-    integer, optional :: itype
 
     integer :: l, k
-    logical, parameter :: default_tol = .true.
+    logical, parameter :: default_tol = .false.
 
     ! Set thresholds dynamically (trend or sol must be known)
     if (default_tol) then
-       tol_mass = threshold *  norm_mass_def
-       tol_temp = threshold *  norm_temp_def
-       tol_velo = threshold *  norm_velo_def
+       tol_mass = threshold * norm_mass_def
+       tol_temp = threshold * norm_temp_def
+       tol_velo = threshold * norm_velo_def
     else
        do k = 1, zlevels
           norm_mass = 0.0_8
           norm_temp = 0.0_8
           norm_velo = 0.0_8
           do l = level_start, level_end
-             call apply_onescale (linf_trend, l, k, 0, 0)
+             if (adapt_trend) then
+                call apply_onescale (linf_trend, l, k, 0, 0)
+             else
+                call apply_onescale (linf_vars, l, k, 0, 0)
+             end if
           end do
           tol_mass(k) = threshold * sync_max_d (norm_mass)
           tol_temp(k) = threshold * sync_max_d (norm_temp)
@@ -433,10 +436,11 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        norm_mass = max(norm_mass, abs(trend(S_MASS,zlev)%data(d)%elts(id+1)))
        norm_temp = max(norm_temp, abs(trend(S_TEMP,zlev)%data(d)%elts(id+1)))
-       do e = 1, EDGE
-          norm_velo  = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
-       end do
     end if
+
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+    end do
   end subroutine linf_trend
 
   subroutine linf_vars (dom, i, j, zlev, offs, dims)
@@ -454,10 +458,11 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        norm_mass = max(norm_mass, abs(sol(S_MASS,zlev)%data(d)%elts(id+1)))
        norm_temp = max(norm_temp, abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)))
-       do e = 1, EDGE
-          norm_velo  = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
-       end do
     end if
+
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+    end do
   end subroutine linf_vars
 
   subroutine l2_trend (dom, i, j, zlev, offs, dims)
@@ -728,18 +733,18 @@ program DCMIP2012c4
 
   call sum_total_mass (.True.)
 
-  if (rank == 0) then
-     write (6,'(/,A)') 'Default mean thresholds for mass, temp, velo'
-     do k = 1, zlevels
-        write(6,'(i3,1x,3(es10.4,1x))') &
-             k, threshold*norm_mass_def(k), threshold*norm_temp_def(k), threshold*norm_velo_def(k)
-     end do
-     write (6,'(/,A)') 'Actual mean thresholds for mass, temp, velo'
-     do k = 1, zlevels
-        write(6,'(i3,1x,3(es10.4,1x))') &
-             k, tol_mass(k), tol_temp(k), tol_velo(k)
-     end do
-  end if
+  ! if (rank == 0) then
+  !    write (6,'(/,A)') 'Default mean thresholds for mass, temp, velo'
+  !    do k = 1, zlevels
+  !       write(6,'(i3,1x,3(es10.4,1x))') &
+  !            k, threshold*norm_mass_def(k), threshold*norm_temp_def(k), threshold*norm_velo_def(k)
+  !    end do
+  !    write (6,'(/,A)') 'Actual mean thresholds for mass, temp, velo'
+  !    do k = 1, zlevels
+  !       write(6,'(i3,1x,3(es10.4,1x))') &
+  !            k, tol_mass(k), tol_temp(k), tol_velo(k)
+  !    end do
+  ! end if
 
   call barrier
 

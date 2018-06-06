@@ -66,6 +66,8 @@ contains
        local_type = .true.
     end if
 
+    if (local_type) call set_thresholds
+
     ! Ensure all nodes and edges at coarsest scales are active
     do l = level_start-1, level_start
        call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, TOLRNZ)
@@ -81,11 +83,9 @@ contains
     call comm_masks_mpi (NONE)
 
     ! Make nodes and edges with significant wavelet coefficients active
-    if (adapt_trend) then 
-       if (local_type) call set_thresholds (0)
+    if (adapt_trend) then
        call mask_active (trend_wav_coeff)
     else
-       if (local_type) call set_thresholds (1)
        call mask_active (wav_coeff)
     end if
     call comm_masks_mpi (NONE)
