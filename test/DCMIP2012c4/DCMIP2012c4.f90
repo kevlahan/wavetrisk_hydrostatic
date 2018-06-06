@@ -394,7 +394,7 @@ contains
     implicit none
 
     integer :: l, k
-    logical, parameter :: default_tol = .false.
+    logical, parameter :: default_tol = .true.
 
     ! Set thresholds dynamically (trend or sol must be known)
     if (default_tol) then
