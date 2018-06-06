@@ -41,59 +41,33 @@ contains
     time_mult = 1.0_8
   end subroutine init_main_mod
 
-
-subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, custom_load, test_case)
+  subroutine initialize (apply_init_cond, set_thresholds, custom_dump, custom_load, test_case)
     implicit none
     real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
     external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
     character(*) :: test_case
     
     character(255) :: command
-    integer        :: k, d, stage, ierr
+    integer        :: k, d, ierr
 
     if (min_level > max_level) then
-       if (rank == 0) write(*,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
+       if (rank == 0) write(6,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
             '<', min_level, '. Setting max_level to', min_level
        max_level = min_level
     end if
 
     if (resume >= 0) then
+       if (rank == 0) write(6,'(A,i6)') 'Resuming from checkpoint ', resume
        cp_idx = resume
        write(command, '(A,I4.4,A)')  'tar xzf '//trim(test_case)//'_checkpoint_' , cp_idx , ".tgz"
        if (rank == 0) call system (command)
        call barrier ! make sure all files are extracted before everyone starts reading them
     end if
 
-    call distribute_grid (resume)
-    call init_grid
-    call init_comm_mpi
-    call init_geometry
-
-    if (optimize_grid == XU_GRID) call smooth_Xu (1.0d6*eps())
-    if (optimize_grid == HR_GRID) call read_HR_optim_grid
-
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call precompute_geometry
-
-    allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
-
-    if (rank == 0) write(6,'(A,i2,A,/)') 'Make level J_min = ', min_level, ' ...'
-
-    call init_wavelets
-    call init_masks
-    call add_second_level
-
-    call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale (mask_adj_children, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
-
-    call record_init_state (ini_st)
-    if (time_end > 0.0_8) time_mult = huge(itime)/2/time_end
-    if (stage == 0) return
-
-    call init_RK_mem
+    call init_structures
 
     if (resume >= 0) then
-       if (rank == 0) write(6,*) 'Resuming from checkpoint', resume
+       if (rank == 0) write(6,'(A,i6)') 'Resuming from checkpoint ', resume
     else
        if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid -------------'
 
@@ -152,15 +126,13 @@ subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, cust
        dt_new = cpt_dt_mpi()
        if (rank==0) write(6,'(A,i8)') 'Initial dof = ', sum(n_active)
 
-       cp_idx = 0
-       call write_load_conn (0)
-       ierr = dump_adapt_mpi (cp_idx, custom_dump)
+       cp_idx = -1
+       ierr = write_checkpoint (custom_dump)
     end if
 
     if (rank == 0) write(6,'(A,i6,/)') 'Restarting from initial checkpoint ', cp_idx
     call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
-
 
   subroutine record_init_state (init_state)
     implicit none
@@ -317,12 +289,118 @@ subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, cust
     external     :: set_thresholds, custom_load
     character(*) :: test_case
     
-    integer                  :: i, d, k, r, l, v
     integer, parameter       :: len_cmd_files = 12 + 4 + 12 + 4
     character(len_cmd_files) :: cmd_files
     character(255)           :: cmd_archive, command
 
-    ! deallocate init_RK_mem allocations
+    ! Deallocate all dynamic arrays and variables
+    call deallocate_structures
+
+    call init_structures
+
+    if (rank == 0) write (6,*) 'Reloading from checkpoint', cp_idx
+
+    call load_adapt_mpi (cp_idx, custom_load)
+        
+    itime = nint(time*time_mult, 8)
+    resume = cp_idx ! to disable alignment for next step
+
+    ! Do not override existing checkpoint archive
+    write(cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+    write(cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
+    write(command, '(A,A,A,A,A,A,A,A,A)') 'if [ -e ', trim(cmd_archive), ' ]; then rm -f ', cmd_files, &
+         '; else tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files, '; fi'
+
+    call barrier ! do not delete files before everyone has read them
+
+    if (rank == 0) call system (command)
+    istep = 0
+    call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
+    call inverse_wavelet_transform (wav_coeff,         sol, level_start-1)
+    call inverse_wavelet_transform (trend_wav_coeff, trend, level_start-1)
+    dt_new = cpt_dt_mpi()
+  end subroutine restart_full
+
+  function write_checkpoint (custom_dump)
+    implicit none
+    integer  :: write_checkpoint
+    external :: custom_dump
+    
+    external :: custom_load
+
+    character (38+4+22+4+6) :: command
+    
+    cp_idx = cp_idx + 1
+    call write_load_conn (cp_idx)
+    write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
+  end function write_checkpoint
+
+  subroutine compress_files (iwrite, test_case)
+    implicit none
+    integer      :: iwrite
+    character(*) :: test_case
+
+    character(4)   :: s_time
+    character(130) :: command
+
+    write (s_time, '(i4.4)') iwrite
+
+    command = 'ls -1 '//trim(test_case)//'.1'//s_time//'?? > tmp1'
+    
+    call system (command)
+
+    command = 'tar czf '//trim(test_case)//'.1'//s_time//'.tgz -T tmp1 --remove-files &'
+    call system (command)
+
+    command = 'ls -1 '//trim(test_case)//'.2'//s_time //'?? > tmp2' 
+    call system (command)
+
+    command = 'tar czf '//trim(test_case)//'.2'//s_time//'.tgz -T tmp2 --remove-files &'
+    call system (command)
+  end subroutine compress_files
+
+  subroutine init_structures
+    ! Initialize dynamical arrays and structures
+    implicit none
+
+    level_start = min_level
+    level_end = level_start
+    
+    call distribute_grid (resume)
+    call init_grid
+    call init_comm_mpi
+    call init_geometry
+
+    if (optimize_grid == XU_GRID) call smooth_Xu (1.0d6*eps())
+    if (optimize_grid == HR_GRID) call read_HR_optim_grid
+
+    call comm_nodes3_mpi (get_coord, set_coord, NONE)
+    call precompute_geometry
+
+    allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
+
+    if (rank == 0) write(6,'(A,i2,A,/)') 'Make level J_min = ', min_level, ' ...'
+
+    call init_wavelets
+    call init_masks
+    call add_second_level
+
+    call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
+    call apply_interscale (mask_adj_children, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
+
+    call record_init_state (ini_st)
+    if (time_end > 0.0_8) time_mult = huge(itime)/2/time_end
+
+    call init_RK_mem
+  end subroutine init_structures
+
+  subroutine deallocate_structures
+    ! Deallocate dynamic arrays and structures for clean restart
+    implicit none
+
+    integer :: d, i, k, l, v, r
+
+     ! deallocate init_RK_mem allocations
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
           do v = S_MASS, S_VELO
@@ -490,96 +568,7 @@ subroutine initialize (apply_init_cond, stage, set_thresholds, custom_dump, cust
     end do
 
     deallocate (grid, sol, sol_save, trend, exner_fun, horiz_flux, Laplacian_scalar)
-
-    ! init_shared_mod
-    level_start = min_level
-    level_end = level_start
-
-    call distribute_grid (cp_idx)
     deallocate (n_active_edges, n_active_nodes)
-
-    call init_grid 
-    call init_comm 
-    call comm_communication_mpi 
-    call init_geometry 
-
-    if (optimize_grid == XU_GRID) call smooth_Xu (1d6*eps())
-    if (optimize_grid == HR_GRID) call read_HR_optim_grid 
-
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call precompute_geometry 
-
-    allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
-
-    if (rank == 0) write(*,*) 'Make level J_min =', min_level, '...'
-    call init_wavelets 
-    call init_masks 
-    call add_second_level 
-
-    call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale (mask_adj_children, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
-
-    call record_init_state (ini_st)
-
-    call init_RK_mem
-
-    if (rank == 0) write (6,*) 'Reloading from checkpoint', cp_idx
-
-    call load_adapt_mpi (cp_idx, custom_load)
-        
-    itime = nint(time*time_mult, 8)
-    resume = cp_idx ! to disable alignment for next step
-
-    ! Do not override existing checkpoint archive
-    write(cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
-    write(cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
-    write(command, '(A,A,A,A,A,A,A,A,A)') 'if [ -e ', trim(cmd_archive), ' ]; then rm -f ', cmd_files, &
-         '; else tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files, '; fi'
-
-    call barrier ! do not delete files before everyone has read them
-
-    if (rank == 0) call system (command)
-    call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
-    call inverse_wavelet_transform (wav_coeff,         sol, level_start-1)
-    call inverse_wavelet_transform (trend_wav_coeff, trend, level_start-1)
-    dt_new = cpt_dt_mpi()
-  end subroutine restart_full
-
-  function write_checkpoint (custom_dump)
-    implicit none
-    integer  :: write_checkpoint
-    external :: custom_dump
-    
-    external :: custom_load
-
-    character (38+4+22+4+6) :: command
-    
-    cp_idx = cp_idx + 1
-    call write_load_conn (cp_idx)
-    write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
-  end function write_checkpoint
-
-  subroutine compress_files (iwrite, test_case)
-    implicit none
-    integer      :: iwrite
-    character(*) :: test_case
-
-    character(4)   :: s_time
-    character(130) :: command
-
-    write (s_time, '(i4.4)') iwrite
-
-    command = 'ls -1 '//trim(test_case)//'.1'//s_time//'?? > tmp1'
-    
-    call system (command)
-
-    command = 'tar czf '//trim(test_case)//'.1'//s_time//'.tgz -T tmp1 --remove-files &'
-    call system (command)
-
-    command = 'ls -1 '//trim(test_case)//'.2'//s_time //'?? > tmp2' 
-    call system (command)
-
-    command = 'tar czf '//trim(test_case)//'.2'//s_time//'.tgz -T tmp2 --remove-files &'
-    call system (command)
-  end subroutine compress_files
+    deallocate (send_lengths, send_offsets, recv_lengths, recv_offsets, req, stat_ray)
+  end subroutine deallocate_structures
 end module main_mod

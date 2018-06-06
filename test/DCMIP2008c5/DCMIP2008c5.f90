@@ -615,7 +615,7 @@ program DCMIP2008c5
   call set_save_level
   
   ! Initialize variables
-  call initialize (apply_initial_conditions, 1, set_thresholds, dump, load, test_case)
+  call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
 
   allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2;  call set_surf_geopot 

@@ -278,17 +278,17 @@ contains
     read(fid,*) varname, resume
 
     if (rank==0) then
-       write(*,'(A,i3)')     "min_level        = ", min_level
-       write(*,'(A,i3)')     "max_level        = ", max_level
-       write(*,'(A,i3)')     "zlevels          = ", zlevels
-       write(*,'(A,L1)')     "adapt_trend      = ", adapt_trend
-       write(*,'(A,es10.4)') "threshold        = ", threshold
-       write(*,'(A,i2)')     "optimize_grid    = ", optimize_grid 
-       write(*,'(A,es10.4)') "dt_write         = ", dt_write
-       write(*,'(A,i6)')     "CP_EVERY         = ", CP_EVERY
-       write(*,'(A,es10.4)') "time_end         = ", time_end 
-       write(*,'(A,i6)')     "resume           = ", resume
-       write(*,*) ' '
+       write(6,'(A,i3)')     "min_level        = ", min_level
+       write(6,'(A,i3)')     "max_level        = ", max_level
+       write(6,'(A,i3)')     "zlevels          = ", zlevels
+       write(6,'(A,L1)')     "adapt_trend      = ", adapt_trend
+       write(6,'(A,es10.4)') "threshold        = ", threshold
+       write(6,'(A,i2)')     "optimize_grid    = ", optimize_grid 
+       write(6,'(A,es10.4)') "dt_write         = ", dt_write
+       write(6,'(A,i6)')     "CP_EVERY         = ", CP_EVERY
+       write(6,'(A,es10.4)') "time_end         = ", time_end 
+       write(6,'(A,i6)')     "resume           = ", resume
+       write(6,*) ' '
     end if
     dt_write = dt_write * 60.0_8
     time_end = time_end * 60.0_8**2
@@ -627,7 +627,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 1.0_8                                      ! cfl number
+  cfl_num        = 0.8_8                                      ! cfl number
   n_remap        = 5                                          ! Vertical remap interval
   max_change     = 0.1_8                                      ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
@@ -729,7 +729,7 @@ program DCMIP2012c4
   call set_save_level
    
   ! Initialize variables
-  call initialize (apply_initial_conditions, 1, set_thresholds, dump, load, test_case)
+  call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
 
   allocate (n_patch_old(size(grid)), n_node_old(size(grid)))
   n_patch_old = 2;  call set_surf_geopot 
