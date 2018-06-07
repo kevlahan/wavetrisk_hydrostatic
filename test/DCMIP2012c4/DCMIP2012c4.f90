@@ -624,7 +624,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 0.7_8                                      ! cfl number
+  cfl_num        = 1.5_8                                      ! cfl number
   n_remap        = 5                                          ! Vertical remap interval
   max_change     = 0.1_8                                      ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save

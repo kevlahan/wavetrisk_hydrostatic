@@ -145,24 +145,26 @@ contains
     call comm_masks_mpi (NONE)
     
     ! Set insignificant wavelet coefficients to zero
-    do k = 1, zlevels
-       do l = level_start+1, level_end
-          do d = 1, size(grid)
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
-             nullify (wc_m, wc_t, wc_u)
-             if (adapt_trend) then
-                wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
-                wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
-                wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
+    if (local_type) then
+       do k = 1, zlevels
+          do l = level_start+1, level_end
+             do d = 1, size(grid)
+                wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+                wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+                wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
                 nullify (wc_m, wc_t, wc_u)
-             end if
+                if (adapt_trend) then
+                   wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
+                   wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
+                   wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
+                   call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
+                   nullify (wc_m, wc_t, wc_u)
+                end if
+             end do
           end do
        end do
-    end do
+    end if
 
     wav_coeff%bdry_uptodate = .False.
     trend_wav_coeff%bdry_uptodate = .False.

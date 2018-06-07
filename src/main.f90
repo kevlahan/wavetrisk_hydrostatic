@@ -182,7 +182,7 @@ contains
     if (aligned) idt = ialign - modulo(itime,ialign)
     dt = idt/time_mult ! Modify time step
 
-    call RK34_opt (trend_ml, dt)
+    call RK45_opt (trend_ml, dt)
 
     if (min_level < max_level) call adapt_grid (set_thresholds)
     dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
