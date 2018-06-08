@@ -383,7 +383,7 @@ contains
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
   end subroutine load
-
+ 
   subroutine set_thresholds
     implicit none
 
@@ -430,13 +430,13 @@ contains
     id = idx(i, j, offs, dims)
 
     ! Maximum trends
-    if (dom%mask_n%elts(id+1) >= TOLRNZ) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        norm_mass = max(norm_mass, abs(trend(S_MASS,zlev)%data(d)%elts(id+1)))
        norm_temp = max(norm_temp, abs(trend(S_TEMP,zlev)%data(d)%elts(id+1)))
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= TOLRNZ) norm_velo = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
     end do
   end subroutine linf_trend
 
@@ -452,13 +452,13 @@ contains
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= TOLRNZ) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        norm_mass = max(norm_mass, abs(sol(S_MASS,zlev)%data(d)%elts(id+1)))
        norm_temp = max(norm_temp, abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)))
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= TOLRNZ) norm_velo = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
     end do
   end subroutine linf_vars
 
@@ -475,7 +475,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) >= TOLRNZ) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
@@ -498,7 +498,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) >= TOLRNZ) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
        N_node = N_node + 1
        norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
