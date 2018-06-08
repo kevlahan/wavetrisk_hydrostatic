@@ -7,7 +7,8 @@ module mask_mod
   use wavelet_mod
 
   implicit none
-  real(8), dimension(:), allocatable :: tol_mass, tol_temp, tol_velo
+  real(8), dimension(:),   allocatable :: tol_mass, tol_temp
+  real(8), dimension(:,:), allocatable :: tol_velo
 contains
   subroutine set_masks (dom, p, i, j, zlev, offs, dims, mask)
     ! Sets all nodes and edges to value mask unless node is FROZEN
@@ -130,7 +131,7 @@ contains
     call set_active_mask (dom%mask_n%elts(id+1), wc_m(id+1), tol_mass(zlev))
     call set_active_mask (dom%mask_n%elts(id+1), wc_t(id+1), tol_temp(zlev))
     do e = 1, EDGE
-       call set_active_mask (dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), tol_velo(zlev))
+       call set_active_mask (dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), tol_velo(e,zlev))
     end do
   end subroutine mask_tol
 

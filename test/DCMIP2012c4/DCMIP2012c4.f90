@@ -14,7 +14,8 @@ module DCMIP2012c4_mod
   real(8)                            :: c_v, h_0, lat_c, lon_c, N_freq, T_0
   real(8)                            :: dPdim, Pdim, R_ddim, specvoldim
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, dTempdim, Udim
-  real(8)                            :: norm_mass, norm_temp, norm_velo
+  real(8)                            :: norm_mass, norm_temp
+  real(8), dimension(1:EDGE)         :: norm_velo
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
   real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, R_pert, u_p, u_0
   real(8), dimension(:), allocatable :: norm_mass_def, norm_temp_def, norm_velo_def
@@ -387,30 +388,40 @@ contains
   subroutine set_thresholds
     implicit none
 
-    integer :: l, k
+    integer :: e, l, k
     logical, parameter :: default_tol = .false.
 
     ! Set thresholds dynamically (trend or sol must be known)
     if (default_tol) then
        tol_mass = threshold * norm_mass_def
        tol_temp = threshold * norm_temp_def
-       tol_velo = threshold * norm_velo_def
+       do e = 1, EDGE
+          tol_velo(e,:) = threshold * norm_velo_def(e)
+       end do
     else
        do k = 1, zlevels
           norm_mass = 0.0_8
           norm_temp = 0.0_8
           norm_velo = 0.0_8
           do l = level_start, level_end
-             call apply_onescale (linf_vars, l, k, 0, 0)
-           end do
+             if (adapt_trend) then
+                call apply_onescale (linf_trend, l, k, 0, 0)
+             else
+                call apply_onescale (linf_vars, l, k, 0, 0)
+             end if
+          end do
           tol_mass(k) = threshold * sync_max_d (norm_mass)
           tol_temp(k) = threshold * sync_max_d (norm_temp)
-          tol_velo(k) = threshold * sync_max_d (norm_velo)
+          do e = 1, EDGE
+             tol_velo(e,k) = threshold * sync_max_d (norm_velo(e))
+          end do
        end do
     end if
     tol_mass = maxval(tol_mass)
     tol_temp = maxval(tol_temp)
-    tol_velo = maxval(tol_velo)
+    do e = 1, EDGE
+       tol_velo(e,:) = maxval(tol_velo(e,:))
+    end do
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
@@ -432,7 +443,8 @@ contains
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo(e) = &
+            max(norm_velo(e), abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
     end do
   end subroutine linf_trend
 
@@ -454,7 +466,7 @@ contains
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo(e) = max(norm_velo(e), abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
     end do
   end subroutine linf_vars
 
@@ -476,7 +488,7 @@ contains
        norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
        do e = 1, EDGE
-          norm_velo  = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+          norm_velo(e)  = norm_velo(e) + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end do
     endif
   end subroutine l2_trend
@@ -499,7 +511,7 @@ contains
        norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
        do e = 1, EDGE
-          norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+          norm_velo(e)  = norm_velo(e) + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end do
     endif
   end subroutine l2_vars
@@ -571,7 +583,7 @@ program DCMIP2012c4
 
   allocate (tol_mass(1:zlevels), norm_mass_def(1:zlevels))
   allocate (tol_temp(1:zlevels), norm_temp_def(1:zlevels))
-  allocate (tol_velo(1:zlevels), norm_velo_def(1:zlevels))
+  allocate (tol_velo(1:EDGE,1:zlevels), norm_velo_def(1:zlevels))
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -733,7 +745,7 @@ program DCMIP2012c4
           ' time [h] = ', time/3600.0_8, &
           '  mass tol = ', sum(tol_mass)/zlevels, &
           ' temp tol = ', sum(tol_temp)/zlevels, &
-          ' velo tol = ', sum(tol_velo)/zlevels, &
+          ' velo tol = ', sum(tol_velo)/(EDGE*zlevels), &
           ' Jmax =', level_end, &
           '  dof = ', sum(n_active)
   end if
@@ -760,7 +772,7 @@ program DCMIP2012c4
              ' dt [s] = ', dt, &
              '  mass tol = ', sum(tol_mass)/zlevels, &
              ' temp tol = ', sum(tol_temp)/zlevels, &
-             ' velo tol = ', sum(tol_velo)/zlevels, &
+             ' velo tol = ', sum(tol_velo)/(EDGE*zlevels), &
              ' Jmax = ', level_end, &
              '  dof = ', sum(n_active), &
              ' change level = ', change_mass, &
@@ -768,7 +780,7 @@ program DCMIP2012c4
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/3600.0_8, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/zlevels, &
+             time/3600.0_8, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/(EDGE*zlevels), &
              level_end, sum(n_active), change_mass, mass_error, timing
      end if
 
