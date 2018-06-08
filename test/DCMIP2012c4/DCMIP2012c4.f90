@@ -11,7 +11,7 @@ module DCMIP2012c4_mod
   logical                            :: wasprinted, uniform
   character (255)                    :: IC_file
 
-  real(8)                            :: c_v, d2, h_0, lat_c, lon_c, N_freq, T_0
+  real(8)                            :: c_v, h_0, lat_c, lon_c, N_freq, T_0
   real(8)                            :: dPdim, Pdim, R_ddim, specvoldim
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, dTempdim, Udim
   real(8)                            :: norm_mass, norm_temp, norm_velo
@@ -364,12 +364,6 @@ contains
     call post_levelout
     call barrier
     if (rank == 0) call compress_files (iwrite, test_case)
-
-    ! Save 2D projection
-    !call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-256, 256/), (/2.0_8*MATH_PI, MATH_PI/), &
-    !     set_thresholds, test_case)
-    !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
-    !     set_thresholds, test_case)
   end subroutine write_and_export
 
   subroutine dump (fid)
@@ -418,6 +412,9 @@ contains
           tol_velo(k) = threshold * sync_max_d (norm_velo)
        end do
     end if
+    tol_mass = maxval(tol_mass)
+    tol_temp = maxval(tol_temp)
+    tol_velo = maxval(tol_velo)
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
@@ -433,13 +430,13 @@ contains
     id = idx(i, j, offs, dims)
 
     ! Maximum trends
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= TOLRNZ) then
        norm_mass = max(norm_mass, abs(trend(S_MASS,zlev)%data(d)%elts(id+1)))
        norm_temp = max(norm_temp, abs(trend(S_TEMP,zlev)%data(d)%elts(id+1)))
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       if (dom%mask_e%elts(EDGE*id+e) >= TOLRNZ) norm_velo = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
     end do
   end subroutine linf_trend
 
@@ -455,13 +452,13 @@ contains
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= TOLRNZ) then
        norm_mass = max(norm_mass, abs(sol(S_MASS,zlev)%data(d)%elts(id+1)))
        norm_temp = max(norm_temp, abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)))
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       if (dom%mask_e%elts(EDGE*id+e) >= TOLRNZ) norm_velo = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
     end do
   end subroutine linf_vars
 
@@ -478,7 +475,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= TOLRNZ) then
        N_node = N_node + 1
        norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
@@ -501,7 +498,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= TOLRNZ) then
        N_node = N_node + 1
        norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
@@ -608,10 +605,10 @@ program DCMIP2012c4
   N_freq         = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
 
   ! Dimensional scaling
-  Ldim           = sqrt(d2)                         ! horizontal length scale
   Hdim           = h_0                              ! vertical length scale
   Udim           = u_0                              ! velocity scale
   Tdim           = DAY                              ! time scale
+  Ldim           = Udim*Tdim                        ! length scale
   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
   dTempdim       = 3.0d1                            ! temperature scale for tolerances
   Pdim           = ref_surf_press                   ! pressure scale
@@ -808,6 +805,12 @@ program DCMIP2012c4
         call sum_total_mass (.False.)
 
         if (modulo(iwrite,CP_EVERY) /= 0) cycle ! Do not write checkpoint
+
+        ! Save projection on plane 
+        call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-256, 256/), (/2.0_8*MATH_PI, MATH_PI/), &
+            set_thresholds, test_case)
+        !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
+        !     set_thresholds, test_case)
 
         ierr = write_checkpoint (dump)
 
