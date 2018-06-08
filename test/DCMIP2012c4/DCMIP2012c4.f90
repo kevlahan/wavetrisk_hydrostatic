@@ -405,7 +405,7 @@ contains
           norm_velo = 0.0_8
           do l = level_start, level_end
              if (adapt_trend) then
-                call apply_onescale (linf_trend, l, k, 0, 0)
+                call apply_onescale (linf_vars, l, k, 0, 0)
              else
                 call apply_onescale (linf_vars, l, k, 0, 0)
              end if
@@ -420,7 +420,7 @@ contains
     tol_mass = maxval(tol_mass)
     tol_temp = maxval(tol_temp)
     do e = 1, EDGE
-       tol_velo(e,:) = maxval(tol_velo(e,:))
+       tol_velo(e,:) = maxval(tol_velo)
     end do
   end subroutine set_thresholds
 
