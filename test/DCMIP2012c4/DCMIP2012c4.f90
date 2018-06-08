@@ -401,12 +401,8 @@ contains
           norm_temp = 0.0_8
           norm_velo = 0.0_8
           do l = level_start, level_end
-             if (adapt_trend) then
-                call apply_onescale (linf_trend, l, k, 0, 0)
-             else
-                call apply_onescale (linf_vars, l, k, 0, 0)
-             end if
-          end do
+             call apply_onescale (linf_vars, l, k, 0, 0)
+           end do
           tol_mass(k) = threshold * sync_max_d (norm_mass)
           tol_temp(k) = threshold * sync_max_d (norm_temp)
           tol_velo(k) = threshold * sync_max_d (norm_velo)
@@ -713,12 +709,6 @@ program DCMIP2012c4
   end do
   norm_velo_def = Udim
 
-  if (adapt_trend) then
-     norm_mass_def = norm_mass_def/day
-     norm_temp_def = norm_temp_def/day
-     norm_velo_def = norm_velo_def/day
-  end if
-
   ! Determine vertical level to save
   call set_save_level
    
@@ -729,19 +719,6 @@ program DCMIP2012c4
   n_patch_old = 2;  call set_surf_geopot 
 
   call sum_total_mass (.True.)
-
-  ! if (rank == 0) then
-  !    write (6,'(/,A)') 'Default mean thresholds for mass, temp, velo'
-  !    do k = 1, zlevels
-  !       write(6,'(i3,1x,3(es10.4,1x))') &
-  !            k, threshold*norm_mass_def(k), threshold*norm_temp_def(k), threshold*norm_velo_def(k)
-  !    end do
-  !    write (6,'(/,A)') 'Actual mean thresholds for mass, temp, velo'
-  !    do k = 1, zlevels
-  !       write(6,'(i3,1x,3(es10.4,1x))') &
-  !            k, tol_mass(k), tol_temp(k), tol_velo(k)
-  !    end do
-  ! end if
 
   call barrier
 
