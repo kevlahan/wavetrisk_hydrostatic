@@ -14,8 +14,7 @@ module DCMIP2012c4_mod
   real(8)                            :: c_v, h_0, lat_c, lon_c, N_freq, T_0
   real(8)                            :: dPdim, Pdim, R_ddim, specvoldim
   real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, dTempdim, Udim
-  real(8)                            :: norm_mass, norm_temp
-  real(8), dimension(1:EDGE)         :: norm_velo
+  real(8)                            :: norm_mass, norm_temp, norm_velo
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
   real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, R_pert, u_p, u_0
   real(8), dimension(:), allocatable :: norm_mass_def, norm_temp_def, norm_velo_def
@@ -395,9 +394,7 @@ contains
     if (default_tol) then
        tol_mass = threshold * norm_mass_def
        tol_temp = threshold * norm_temp_def
-       do e = 1, EDGE
-          tol_velo(e,:) = threshold * norm_velo_def(e)
-       end do
+       tol_velo = threshold * norm_velo_def
     else
        do k = 1, zlevels
           norm_mass = 0.0_8
@@ -412,16 +409,12 @@ contains
           end do
           tol_mass(k) = threshold * sync_max_d (norm_mass)
           tol_temp(k) = threshold * sync_max_d (norm_temp)
-          do e = 1, EDGE
-             tol_velo(e,k) = threshold * sync_max_d (norm_velo(e))
-          end do
+          tol_velo(k) = threshold * sync_max_d (norm_velo)
        end do
     end if
     tol_mass = maxval(tol_mass)
     tol_temp = maxval(tol_temp)
-    do e = 1, EDGE
-       tol_velo(e,:) = maxval(tol_velo)
-    end do
+    tol_velo = maxval(tol_velo)
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
@@ -443,8 +436,7 @@ contains
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo(e) = &
-            max(norm_velo(e), abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
     end do
   end subroutine linf_trend
 
@@ -466,7 +458,7 @@ contains
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo(e) = max(norm_velo(e), abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
     end do
   end subroutine linf_vars
 
@@ -488,7 +480,7 @@ contains
        norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
        do e = 1, EDGE
-          norm_velo(e)  = norm_velo(e) + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+          norm_velo  = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end do
     endif
   end subroutine l2_trend
@@ -511,7 +503,7 @@ contains
        norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
        do e = 1, EDGE
-          norm_velo(e)  = norm_velo(e) + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+          norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end do
     endif
   end subroutine l2_vars
@@ -583,7 +575,7 @@ program DCMIP2012c4
 
   allocate (tol_mass(1:zlevels), norm_mass_def(1:zlevels))
   allocate (tol_temp(1:zlevels), norm_temp_def(1:zlevels))
-  allocate (tol_velo(1:EDGE,1:zlevels), norm_velo_def(1:zlevels))
+  allocate (tol_velo(1:zlevels), norm_velo_def(1:zlevels))
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -629,7 +621,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 1.5_8                                      ! cfl number
+  cfl_num        = 1.0_8                                      ! cfl number
   n_remap        = 5                                          ! Vertical remap interval
   max_change     = 0.1_8                                      ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
@@ -645,7 +637,7 @@ program DCMIP2012c4
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
-  Laplace_order = 0
+  Laplace_order = 1
 
   ! Set viscosities according to Jablonowski and Williamson (2006) Table 3 (GME with icosahedral grid)
   if (Laplace_order == 1) then ! Usual Laplacian diffusion
@@ -663,6 +655,7 @@ program DCMIP2012c4
      elseif (max_level == 9) then
         visc = 3.0d3
      end if
+      visc = 2.0d-4 * dx_min**2
      viscosity_mass = visc
      viscosity_temp = visc
      viscosity_divu = visc

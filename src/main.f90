@@ -107,7 +107,7 @@ contains
                 end if
                 n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= tol_mass(k) .or. &
                                                 abs(wc_t(node_level_start(d):grid(d)%node%length))  >= tol_temp(k)), &
-                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= tol_velo(1,k)) /)
+                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= tol_velo(k)) /)
                 nullify (wc_m, wc_t, wc_u)
              end do
           end do
