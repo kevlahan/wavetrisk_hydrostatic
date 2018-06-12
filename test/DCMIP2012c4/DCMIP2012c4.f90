@@ -402,7 +402,7 @@ contains
           norm_velo = 0.0_8
           do l = level_start, level_end
              if (adapt_trend) then
-                call apply_onescale (linf_vars, l, k, 0, 0)
+                call apply_onescale (linf_trend, l, k, 0, 0)
              else
                 call apply_onescale (linf_vars, l, k, 0, 0)
              end if
