@@ -621,7 +621,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 1.0_8                                      ! cfl number
+  cfl_num        = 1.5_8                                      ! cfl number
   n_remap        = 5                                          ! Vertical remap interval
   max_change     = 0.1_8                                      ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
@@ -637,7 +637,7 @@ program DCMIP2012c4
   uniform      = .false. ! Type of vertical grid
 
   ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
-  Laplace_order = 1
+  Laplace_order = 0
 
   ! Set viscosities according to Jablonowski and Williamson (2006) Table 3 (GME with icosahedral grid)
   if (Laplace_order == 1) then ! Usual Laplacian diffusion
@@ -655,7 +655,7 @@ program DCMIP2012c4
      elseif (max_level == 9) then
         visc = 3.0d3
      end if
-      visc = 2.0d-4 * dx_min**2
+     visc = 2.0d-4 * dx_min**2
      viscosity_mass = visc
      viscosity_temp = visc
      viscosity_divu = visc
@@ -713,6 +713,12 @@ program DCMIP2012c4
      norm_temp_def(k) = (a_vert_mass(k) + b_vert_mass(k)*Pdim/grav_accel)*dTempdim
   end do
   norm_velo_def = Udim
+
+  if (adapt_trend) then
+     norm_mass_def = norm_mass_def/DAY
+     norm_temp_def = norm_temp_def/DAY
+     norm_velo_def = norm_velo_def/DAY
+  end if
 
   ! Determine vertical level to save
   call set_save_level
