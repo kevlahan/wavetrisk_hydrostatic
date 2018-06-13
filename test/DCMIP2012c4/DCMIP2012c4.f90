@@ -560,7 +560,7 @@ program DCMIP2012c4
   implicit none
 
   integer        :: d, ierr, k, l, v
-  real(8)        :: dt_cfl, dt_visc, max_change, visc
+  real(8)        :: dt_cfl, dt_visc, max_change, P_k, P_top, visc
   character(255) :: command
   logical        :: aligned, remap, write_init
 
@@ -576,6 +576,7 @@ program DCMIP2012c4
   allocate (tol_mass(1:zlevels), norm_mass_def(1:zlevels))
   allocate (tol_temp(1:zlevels), norm_temp_def(1:zlevels))
   allocate (tol_velo(1:zlevels), norm_velo_def(1:zlevels))
+  allocate (viscosity_divu(1:zlevels))
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -636,75 +637,7 @@ program DCMIP2012c4
   remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
 
-  ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
-  Laplace_order = 0
-
-  ! Set viscosities according to Jablonowski and Williamson (2006) Table 3 (GME with icosahedral grid)
-  if (Laplace_order == 1) then ! Usual Laplacian diffusion
-     if (max_level == 4) then
-        visc = 2.0d6
-     elseif (max_level == 5) then
-        visc = 1.5d6
-     elseif (max_level == 6) then
-        !visc = 1.0d6
-        visc = 1.0d-5 * dx_min**2 ! 1.2e5
-     elseif (max_level == 7) then
-        visc = 2.0d5
-     elseif (max_level == 8) then
-        visc = 2.5d4
-     elseif (max_level == 9) then
-        visc = 3.0d3
-     end if
-     visc = 2.0d-4 * dx_min**2
-     viscosity_mass = visc
-     viscosity_temp = visc
-     viscosity_divu = visc
-     viscosity_rotu = visc
-  elseif (Laplace_order == 2) then ! Second-order iterated Laplacian for diffusion
-     if (max_level == 4) then
-        visc = 5.0d16
-     elseif (max_level == 5) then
-        visc = 6.0d15
-     elseif (max_level == 6) then
-        visc = 1.0d15
-     elseif (max_level == 7) then
-        visc = 1.2d14
-     elseif (max_level == 8) then
-        visc = 1.2d13
-     elseif (max_level == 9) then
-        visc = 1.2d12
-     end if
-     viscosity_mass = visc
-     viscosity_temp = visc
-     viscosity_divu = visc
-     viscosity_rotu = visc
-  elseif (Laplace_order /= 0) then
-     write(6,*) 'Unsupported iterated Laplacian (only 1 or 2 supported)'
-     stop
-  end if
-  viscosity = max (viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu)
-
-  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
-  dt_cfl = cfl_num*dx_min/(wave_speed+u_0)
-  if (viscosity/=0.0_8) then
-     dt_visc = 0.25_8*dx_min**2/viscosity
-     dt_init = min(dt_cfl, dt_visc)
-  else
-     dt_init = dt_cfl
-  end if
-  if (rank==0)                      write(6,'(A,es10.4,1x,/)') "dt_cfl  = ", dt_cfl
-  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x,/)') "dt_visc = ", dt_visc
-
-  if (rank == 0) then
-     write(6,'(A,i1)') 'Laplace order = ', Laplace_order
-     write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
-     write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
-     write(6,'(A,es10.4)') 'Viscosity_divu   = ', viscosity_divu
-     write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
-     write(6,'(A,es10.4)') ' '
-  end if
-
-  ! Initialize vertical grid
+   ! Initialize vertical grid
   call initialize_a_b_vert
 
   ! Set default trend norms based on dimensional scalings
@@ -720,6 +653,48 @@ program DCMIP2012c4
      norm_velo_def = norm_velo_def/DAY
   end if
 
+  ! Time step based on wave speed, initial velocity at finest scale
+  dt_cfl = cfl_num*dx_min/(wave_speed+u_0+u_p)
+  
+  ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
+  Laplace_order = 1
+
+  ! Set viscosities according to Jablonowski and Williamson (2006) Table 3 (GME with icosahedral grid)
+  if (Laplace_order == 1) then ! Usual Laplacian diffusion
+     viscosity_mass = 0.0_8
+     viscosity_temp = 0.0_8
+     P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
+     do k = 1, zlevels
+        P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
+        viscosity_divu(k) = dx_min**2/dt_cfl * max(1.0_8, 8.0_8*(1.0_8 + tanh(log(P_top/P_k))))/128.0_8
+        write(6,'(i2,1x,es10.4)') k, viscosity_divu(k)
+     end do
+     viscosity_rotu = 0.0_8
+  elseif (Laplace_order /= 0) then
+     write(6,*) 'Unsupported iterated Laplacian (only 0 or 1 supported)'
+     stop
+  end if
+  viscosity = max (viscosity_mass, viscosity_temp, maxval(viscosity_divu), viscosity_rotu)
+
+  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
+  if (viscosity/=0.0_8) then
+     dt_visc = 0.25_8*dx_min**2/viscosity
+     dt_init = min(dt_cfl, dt_visc)
+  else
+     dt_init = dt_cfl
+  end if
+  if (rank==0)                      write(6,'(A,es10.4,1x,/)') "dt_cfl  = ", dt_cfl
+  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x,/)') "dt_visc = ", dt_visc
+
+  if (rank == 0) then
+     write(6,'(A,i1)') 'Laplace order = ', Laplace_order
+     write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
+     write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
+     write(6,'(A,es10.4)') 'Viscosity_divu   = ', sum(viscosity_divu)/zlevels
+     write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
+     write(6,'(A,es10.4)') ' '
+  end if
+ 
   ! Determine vertical level to save
   call set_save_level
    
@@ -983,14 +958,14 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer                      :: e
   real(8), dimension(1:EDGE) :: diffusion,  curl_rotu, grad_divu
 
-  if (max(viscosity_divu, viscosity_rotu)==0.0_8) then
+  if (max(maxval(viscosity_divu), viscosity_rotu)==0.0_8) then
      diffusion = 0.0_8
   else
      ! Calculate Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
      do e = 1, EDGE 
-        diffusion(e) = viscosity_divu * grad_divu(e) - viscosity_rotu * curl_rotu(e)
+        diffusion(e) = viscosity_divu(zlev) * grad_divu(e) - viscosity_rotu * curl_rotu(e)
      end do
   end if
 

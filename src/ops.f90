@@ -291,7 +291,7 @@ contains
          if (.not. compressible) exner(id+1) = -Phi_k
 
          ! Calculate div(u) for velocity diffusion
-         if (viscosity_divu/=0.0_8) &
+         if (maxval(viscosity_divu)/=0.0_8) &
               divu(id+1) = (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id+1)%hex_inv 
 
          circ_LORT   =   u_prim_RT    + u_prim_UP_E + u_prim_DG 
@@ -837,7 +837,7 @@ contains
     Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
     ! Calculate physics
-    physics = physics_velo_source (dom, i, j, z_null, offs, dims)
+    physics = physics_velo_source (dom, i, j, zlev, offs, dims)
 
     do e = 1, EDGE 
        dvelo(EDGE*id+e) = - Qperp_e(e) + physics(e)*dom%len%elts(EDGE*id+e)

@@ -309,14 +309,14 @@ module shared_mod
   integer :: istep, n_remap, resume, Laplace_order
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
-  real(8) :: viscosity_divu, viscosity_rotu, viscosity_mass, viscosity_temp
+  real(8) :: viscosity_rotu, viscosity_mass, viscosity_temp
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
   real(8), dimension(:), target, allocatable :: pressure_save
 
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
 
-  real(8), dimension (:), allocatable :: a_vert, b_vert, a_vert_mass, b_vert_mass
+  real(8), dimension (:), allocatable :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu
 
   logical :: adapt_dt, adapt_trend, compressible, lagrangian_vertical 
 contains
@@ -394,7 +394,6 @@ contains
     c_p           = 1.0_8
     kappa         = R_d/c_p
     ref_press     = 1000.0d2
-    viscosity_divu = 0.0_8
     viscosity_rotu = 0.0_8
     viscosity_mass = 0.0_8
     viscosity_temp = 0.0_8

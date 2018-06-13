@@ -134,7 +134,7 @@ contains
           vort    => grid(d)%vort%elts
           
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
+             call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
           end do
 
           nullify (mass, velo, dvelo, h_mflux, divu, qe, vort)
@@ -255,7 +255,7 @@ contains
              divu    => grid(d)%divu%elts
              vort    => grid(d)%vort%elts
 
-             call cpt_or_restr_du_source (grid(d), l)
+             call cpt_or_restr_du_source (grid(d), k, l)
              nullify (velo, dvelo, h_mflux, divu, qe, vort)
           end do
           dq(S_VELO,k)%bdry_uptodate = .False.
@@ -321,10 +321,10 @@ contains
     end if
   end subroutine Bernoulli_Exner_cpt_restr
 
-  subroutine cpt_or_restr_du_source (dom, l)
+  subroutine cpt_or_restr_du_source (dom, zlev, l)
     implicit none
     type(Domain) :: dom
-    integer      :: l
+    integer      :: zlev, l
 
     integer :: c, j, p_par, p_chd
 
@@ -332,9 +332,9 @@ contains
        p_par = dom%lev(l)%elts(j)
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd == 0) call apply_onescale_to_patch (du_source, dom, p_par, z_null, 0, 0)
+          if (p_chd == 0) call apply_onescale_to_patch (du_source, dom, p_par, zlev, 0, 0)
        end do
-       call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
+       call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), zlev, 0, 0)
     end do
   end subroutine cpt_or_restr_du_source
 
@@ -371,10 +371,10 @@ contains
     end if
   end subroutine du_source_cpt_restr
 
-  subroutine cpt_or_restr_physics_velo_source (dom, l)
+  subroutine cpt_or_restr_physics_velo_source (dom, zlev, l)
     implicit none
     type(Domain) :: dom
-    integer      :: l
+    integer      :: zlev, l
     
     integer :: c, j, p_par, p_chd
 
@@ -394,7 +394,7 @@ contains
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
           if (p_chd == 0) then
-             call apply_onescale_to_patch (physics_velo_source, dom, p_par, z_null, 0, 0)
+             call apply_onescale_to_patch (physics_velo_source, dom, p_par, zlev, 0, 0)
           end if
        end do
        call apply_interscale_to_patch (source_physics_cpt_restr, dom, dom%lev(l)%elts(j), z_null, 0, 0)
