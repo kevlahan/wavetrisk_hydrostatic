@@ -667,7 +667,7 @@ program DCMIP2012c4
      do k = 1, zlevels
         P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
         viscosity_divu(k) = dx_min**2/dt_cfl * max(1.0_8, 8.0_8*(1.0_8 + tanh(log(P_top/P_k))))/128.0_8
-        write(6,'(i2,1x,es10.4)') k, viscosity_divu(k)
+        if (rank==0) write(6,'(i2,1x,es10.4)') k, viscosity_divu(k)
      end do
      viscosity_rotu = 0.0_8
   elseif (Laplace_order /= 0) then
