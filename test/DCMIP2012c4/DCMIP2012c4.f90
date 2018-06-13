@@ -44,6 +44,7 @@ contains
     x_N  = dom%node%elts(idN+1)
     x_NE = dom%node%elts(idNE+1)
 
+
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
     column_mass = dom%surf_press%elts(id+1)/grav_accel
@@ -388,7 +389,7 @@ contains
     implicit none
 
     integer :: e, l, k
-    logical, parameter :: default_tol = .false.
+    logical, parameter :: default_tol = .true.
 
     ! Set thresholds dynamically (trend or sol must be known)
     if (default_tol) then

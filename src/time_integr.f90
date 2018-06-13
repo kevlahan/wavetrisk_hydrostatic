@@ -306,7 +306,7 @@ contains
              wc_m => wav(S_MASS,k)%data(d)%elts
              wc_t => wav(S_TEMP,k)%data(d)%elts
              wc_u => wav(S_VELO,k)%data(d)%elts
-             call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
+             call apply_onescale_d (compress, grid(d), l, k, 0, 1)
              nullify (wc_m, wc_t, wc_u)
           end do
           wav(:,k)%bdry_uptodate = .False.
