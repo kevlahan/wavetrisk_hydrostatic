@@ -19,47 +19,11 @@ contains
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
     
-    ! Remap on finest level
-    call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
-    call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
-
-    ! Remap scalars at coarser levels
-    do l = level_end-1, level_start-1, -1
-       call update_array_bdry (sol, l+1)
-
-       ! Compute scalar wavelet coefficients
-       do d = 1, size(grid)
-          do k = 1, zlevels
-             mass => sol(S_MASS,k)%data(d)%elts
-             temp => sol(S_TEMP,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-             nullify (wc_m, wc_t, mass, temp)
-          end do
-       end do
-       call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
-
-       ! Remap at level l (over-written if value available from restriction)
+    do l = level_start, level_end
        call apply_onescale (remap_scalars, l, z_null, 0, 1)
        call apply_onescale (remap_velo,    l, z_null, 0, 0)
-
-       ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
-       do d = 1, size(grid)
-          do k = 1, zlevels
-             mass => sol(S_MASS,k)%data(d)%elts
-             temp => sol(S_TEMP,k)%data(d)%elts
-             velo => sol(S_VELO,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 0)
-             call apply_interscale_d (restrict_velo,   grid(d), l, k, 0, 0)
-             nullify (mass, temp, velo, wc_m, wc_t)
-          end do
-       end do
     end do
     sol%bdry_uptodate       = .False.
-    wav_coeff%bdry_uptodate = .False.
         
     ! Re-adapt grid after remapping
     call WT_after_step (sol, wav_coeff, level_start-1)
