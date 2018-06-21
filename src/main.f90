@@ -305,11 +305,14 @@ contains
     itime = nint(time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
 
-    ! Do not override existing checkpoint archive
+    ! Make checkpoint archive
     write(cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
     write(cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
-    write(command, '(A,A,A,A,A,A,A,A,A)') 'if [ -e ', trim(cmd_archive), ' ]; then rm -f ', cmd_files, &
-         '; else tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files, '; fi'
+    ! Do not overwrite existing checkpoint archive
+    !write(command, '(A,A,A,A,A,A,A,A,A)') 'if [ -e ', trim(cmd_archive), ' ]; then rm -f ', cmd_files, &
+    !     '; else tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files, '; fi'
+    ! Overwrite existing checkpoint archive
+    write(command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files
 
     call barrier ! do not delete files before everyone has read them
 
