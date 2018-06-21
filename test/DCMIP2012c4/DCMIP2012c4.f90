@@ -384,14 +384,15 @@ contains
     read(fid) iwrite
     read(fid) tol_mass, tol_temp, tol_velo
   end subroutine load
- 
+
   subroutine set_thresholds
     implicit none
 
-    integer :: e, l, k
-    logical, parameter :: default_tol = .true.
+    integer                       :: e, l, k
+    logical, parameter            :: default_tol = .false.
+    real(8), dimension(1:zlevels) :: tol_mass_new, tol_temp_new, tol_velo_new
 
-    ! Set thresholds dynamically (trend or sol must be known)
+    ! Set thresholds dynamically (trend or sol must be known)                                                                                                         
     if (default_tol) then
        tol_mass = threshold * norm_mass_def
        tol_temp = threshold * norm_temp_def
@@ -405,17 +406,23 @@ contains
              if (adapt_trend) then
                 call apply_onescale (linf_trend, l, k, 0, 0)
              else
-                call apply_onescale (linf_vars, l, k, 0, 0)
+                call apply_onescale (linf_vars,  l, k, 0, 0)
              end if
           end do
-          tol_mass(k) = threshold * sync_max_d (norm_mass)
-          tol_temp(k) = threshold * sync_max_d (norm_temp)
-          tol_velo(k) = threshold * sync_max_d (norm_velo)
+          tol_mass_new(k) = threshold * sync_max_d (norm_mass)
+          tol_temp_new(k) = threshold * sync_max_d (norm_temp)
+          tol_velo_new(k) = threshold * sync_max_d (norm_velo)
        end do
     end if
-    tol_mass = maxval(tol_mass)
-    tol_temp = maxval(tol_temp)
-    tol_velo = maxval(tol_velo)
+    if (istep /= 0) then
+       tol_mass = 0.99_8*tol_mass + 0.01_8*tol_mass_new
+       tol_temp = 0.99_8*tol_temp + 0.01_8*tol_temp_new
+       tol_velo = 0.99_8*tol_velo + 0.01_8*tol_velo_new
+    else
+       tol_mass = tol_mass_new
+       tol_temp = tol_temp_new
+       tol_velo = tol_velo_new
+    end if
   end subroutine set_thresholds
 
   subroutine linf_trend (dom, i, j, zlev, offs, dims)
@@ -578,6 +585,9 @@ program DCMIP2012c4
   allocate (tol_temp(1:zlevels), norm_temp_def(1:zlevels))
   allocate (tol_velo(1:zlevels), norm_velo_def(1:zlevels))
   allocate (viscosity_divu(1:zlevels))
+  tol_mass = 0.0_8 ; tol_temp = 0.0_8 ; tol_velo = 0.0_8
+  norm_mass_def = 0.0_8 ; norm_temp_def = 0.0_8 ; norm_velo_def = 0.0_8
+  viscosity_divu = 0.0_8
 
   ! Average minimum grid size and maximum wavenumber
   dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
@@ -658,7 +668,7 @@ program DCMIP2012c4
   dt_cfl = cfl_num*dx_min/(wave_speed+u_0+u_p)
   
   ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
-  Laplace_order = 1
+  Laplace_order = 0
 
   ! Set viscosities according to Jablonowski and Williamson (2006) Table 3 (GME with icosahedral grid)
   if (Laplace_order == 1) then ! Usual Laplacian diffusion

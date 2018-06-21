@@ -891,7 +891,7 @@ contains
   end subroutine mask_adj_children
 
   subroutine mask_adj_nodes_edges
-    ! Add neigbhour edges of active nodes and vice versa (ensure consistency of node and edge adjacent zones)
+    ! Add neighbour edges of active nodes and vice versa (ensure consistency of node and edge adjacent zones)
     implicit none
     integer :: l
 
