@@ -8,7 +8,7 @@ module DCMIP2012c4_mod
   integer                            :: CP_EVERY, iwrite, N_node, save_zlev
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
-  logical                            :: uniform, wasprinted
+  logical                            :: wasprinted, uniform
   character (255)                    :: IC_file
 
   real(8)                            :: c_v, h_0, lat_c, lon_c, N_freq, T_0
@@ -392,7 +392,7 @@ contains
     logical, parameter            :: default_tol = .false.
     real(8), dimension(1:zlevels) :: tol_mass_new, tol_temp_new, tol_velo_new
 
-    ! Set thresholds dynamically (trend or sol must be known)                                                                                                        
+    ! Set thresholds dynamically (trend or sol must be known)                                                                                                         
     if (default_tol) then
        tol_mass = threshold * norm_mass_def
        tol_temp = threshold * norm_temp_def
@@ -413,15 +413,15 @@ contains
           tol_temp_new(k) = threshold * sync_max_d (norm_temp)
           tol_velo_new(k) = threshold * sync_max_d (norm_velo)
        end do
-       ! if (istep == 0 .or. noadapt) then
-          tol_mass = tol_mass_new
-          tol_temp = tol_temp_new
-          tol_velo = tol_velo_new
-       ! else
-       !    tol_mass = 0.99_8*tol_mass + 0.01_8*tol_mass_new
-       !    tol_temp = 0.99_8*tol_temp + 0.01_8*tol_temp_new
-       !    tol_velo = 0.99_8*tol_velo + 0.01_8*tol_velo_new
-       ! end if
+    end if
+    if (istep /= 0) then
+       tol_mass = 0.99_8*tol_mass + 0.01_8*tol_mass_new
+       tol_temp = 0.99_8*tol_temp + 0.01_8*tol_temp_new
+       tol_velo = 0.99_8*tol_velo + 0.01_8*tol_velo_new
+    else
+       tol_mass = tol_mass_new
+       tol_temp = tol_temp_new
+       tol_velo = tol_velo_new
     end if
   end subroutine set_thresholds
 
@@ -568,7 +568,7 @@ program DCMIP2012c4
   implicit none
 
   integer        :: d, ierr, k, l, v
-  real(8)        :: dt_cfl, dt_visc, max_change, P_k, P_top, threshold_adapt, time_adapt, visc
+  real(8)        :: dt_cfl, dt_visc, max_change, P_k, P_top, visc
   character(255) :: command
   logical        :: aligned, remap, write_init
 
@@ -639,8 +639,6 @@ program DCMIP2012c4
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
-  time_adapt     = 170.0d0                                    ! time at which to start adapting (hours)
-  threshold_adapt = threshold; threshold = 1.0d16
 
   if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to resolution level ", level_save, " for saving 2D data" 
 
@@ -742,11 +740,10 @@ program DCMIP2012c4
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
-     !if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     !if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
-     if (time/60**2 >= time_adapt) threshold = threshold_adapt
      call time_step (dt_write, aligned, set_thresholds)
      call stop_timing
 
@@ -768,7 +765,7 @@ program DCMIP2012c4
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/60**2, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/(EDGE*zlevels), &
+             time/3600.0_8, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/(EDGE*zlevels), &
              level_end, sum(n_active), change_mass, mass_error, timing
      end if
 
