@@ -61,9 +61,9 @@ contains
     sol%bdry_uptodate       = .False.
     wav_coeff%bdry_uptodate = .False.
         
-    ! Re-adapt grid after remapping
+    ! Interpolate back onto adapted grid
     call WT_after_step (sol, wav_coeff, level_start-1)
-    call adapt_grid (set_thresholds)
+    !call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
   subroutine remap_scalars (dom, i, j, z_null, offs, dims)
