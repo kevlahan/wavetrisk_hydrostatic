@@ -389,7 +389,8 @@ contains
     implicit none
 
     integer                       :: e, l, k
-    logical, parameter            :: default_tol = .false.
+    logical, parameter            :: default_tol = .false., inf = .true.
+    real(8)                       :: mass_scale, temp_scale, velo_scale
     real(8), dimension(1:zlevels) :: tol_mass_new, tol_temp_new, tol_velo_new
 
     ! Set thresholds dynamically (trend or sol must be known)                                                                                                         
@@ -404,14 +405,31 @@ contains
           norm_velo = 0.0_8
           do l = level_start, level_end
              if (adapt_trend) then
-                call apply_onescale (linf_trend, l, k, 0, 0)
+                if (inf) then
+                   call apply_onescale (linf_trend, l, k, 0, 0)
+                else
+                   call apply_onescale (l2_trend, l, k, 0, 0)
+                end if
              else
-                call apply_onescale (linf_vars,  l, k, 0, 0)
+                 if (inf) then
+                    call apply_onescale (linf_vars, l, k, 0, 0)
+                 else
+                    call apply_onescale (l2_vars, l, k, 0, 0)
+                 end if
              end if
           end do
-          tol_mass_new(k) = threshold * sync_max_d (norm_mass)
-          tol_temp_new(k) = threshold * sync_max_d (norm_temp)
-          tol_velo_new(k) = threshold * sync_max_d (norm_velo)
+          if (inf) then ! Linf norm
+             mass_scale = sync_max_d (norm_mass)
+             temp_scale = sync_max_d (norm_temp)
+             velo_scale = sync_max_d (norm_velo)
+          else ! L2 norm
+             mass_scale = sqrt(sync_max_d (norm_mass)/N_node)
+             temp_scale = sqrt(sync_max_d (norm_temp)/N_node)
+             velo_scale = sqrt(sync_max_d (norm_velo)/(3*N_node))
+          end if
+          tol_mass_new(k) = threshold * mass_scale
+          tol_temp_new(k) = threshold * temp_scale
+          tol_velo_new(k) = threshold * velo_scale
        end do
     end if
     if (istep /= 0) then
@@ -635,7 +653,7 @@ program DCMIP2012c4
   
   cfl_num        = 1.5_8                                      ! cfl number
   n_remap        = 5                                          ! Vertical remap interval
-  max_change     = 5.0d-3                                     ! max relative change in vertical layer thickness before remap
+  max_change     = 5d-2                                     ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
@@ -740,13 +758,13 @@ program DCMIP2012c4
      n_patch_old = grid(:)%patch%length
      n_node_old = grid(:)%node%length
 
-     !if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
-     if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     if (remap .and. change_mass >= max_change .and. istep>1) call remap_vertical_coordinates (set_thresholds)
+     !if (remap .and. mod(istep, n_remap)==0 .and. istep>1) call remap_vertical_coordinates (set_thresholds)
 
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
      call stop_timing
-
+    
      call set_surf_geopot
      timing = get_timing()
      total_cpu_time = total_cpu_time + timing
