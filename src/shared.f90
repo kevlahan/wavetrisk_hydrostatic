@@ -306,11 +306,12 @@ module shared_mod
   integer, parameter :: DAY = 24*60*60
 
   ! simulation variables
-  integer :: istep, n_remap, resume, Laplace_order
+  integer :: istep, resume, Laplace_order
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8) :: viscosity_rotu, viscosity_mass, viscosity_temp
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
+  real(8) :: max_change
   real(8), dimension(:), target, allocatable :: pressure_save
 
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
@@ -318,7 +319,7 @@ module shared_mod
 
   real(8), dimension (:), allocatable :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu
 
-  logical :: adapt_dt, adapt_trend, compressible, lagrangian_vertical 
+  logical :: adapt_dt, adapt_trend, compressible, lagrangian_vertical, remap
 contains
   subroutine init_shared_mod
     logical :: initialized = .False.
@@ -365,14 +366,15 @@ contains
     adapt_dt            = .true.
     adapt_trend         = .false.
     initialized         = .true.
+    remap               = .true.
     lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates
     
     resume        = NONE
     istep         = 0
-    n_remap       = 10
     time          = 0.0_8
     optimize_grid = NO_OPTIM
     threshold     = 0.0_8
+    max_change    = 0.0_8
     cfl_num       = 1.0_8
     min_level     = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level     = min_level

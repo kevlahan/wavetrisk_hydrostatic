@@ -14,8 +14,6 @@ contains
     
     integer :: d, j, k, l
 
-    if (rank == 0) write(6,*) "Remapping vertical coordinates"
-
     ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
     
@@ -63,7 +61,6 @@ contains
         
     ! Interpolate back onto adapted grid
     call WT_after_step (sol, wav_coeff, level_start-1)
-    !call adapt_grid (set_thresholds)
   end subroutine remap_vertical_coordinates
 
   subroutine remap_scalars (dom, i, j, z_null, offs, dims)

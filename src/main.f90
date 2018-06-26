@@ -173,7 +173,7 @@ contains
     ! Match certain times exactly
     idt    = nint(dt*time_mult, 8)
     ialign = nint(align_time*time_mult, 8)
-    if (ialign>0 .and. cp_idx /= resume .and. istep /= 1) then
+    if (ialign > 0 .and. cp_idx /= resume .and. istep /= 1) then
        aligned = (modulo(itime+idt,ialign) < modulo(itime,ialign))
     else
        resume = NONE ! Set unequal cp_idx => only first step after resume is protected from alignment
@@ -182,10 +182,17 @@ contains
     if (aligned) idt = ialign - modulo(itime,ialign)
     dt = idt/time_mult ! Modify time step
 
+    ! Take time step
     call RK45_opt (trend_ml, dt)
 
+    ! Adapt grid
     if (min_level < max_level) call adapt_grid (set_thresholds)
-    dt_new = cpt_dt_mpi() ! Set new time step and count active nodes
+
+    ! Set new time step, find change in vertical levels and count active nodes
+    dt_new = cpt_dt_mpi() 
+
+    ! If necessary, remap vertical coordinates
+    if (remap .and. change_mass >= max_change) call remap_vertical_coordinates (set_thresholds)
     
     itime = itime + idt
     time  = itime/time_mult
