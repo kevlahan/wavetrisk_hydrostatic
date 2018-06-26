@@ -42,8 +42,7 @@ contains
     ! Find significant wavelets, adaptive grid and all masks
     call adapt (set_thresholds, local_type)
     
-    call inverse_wavelet_transform (wav_coeff,       sol,   level_start)
-    call inverse_wavelet_transform (trend_wav_coeff, trend, level_start)
+    call inverse_wavelet_transform (wav_coeff, sol, level_start)
   end subroutine adapt_grid 
 
   subroutine adapt (set_thresholds, type)
@@ -107,27 +106,10 @@ contains
     ! Determine whether any new patches are required
     if (refine()) call post_refine
 
-    ! Add neighbouring wavelets at finer scale
-    do l = level_end-1, level_start, -1
-       call apply_interscale (mask_adj_children, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
+    ! Add nearest neghbours in scale and ensure node/edge masks are consistent
+    call complete_masks
 
-    ! Ensure consistency of adjacent zones for nodes and edges
-    call mask_adj_nodes_edges
-    call comm_masks_mpi (NONE)
-    
-    ! Ensure that perfect reconstruction criteria for active wavelets are satisfied
-    do l = level_end-1, level_start-1, -1
-       call apply_interscale (mask_perfect_scalar, l, z_null, 0, 0)
-       call apply_interscale (mask_perfect_velo,   l, z_null, 0, 0)
-       do d = 1, size(grid)
-          call apply_to_penta_d (mask_perfect_velo_penta, grid(d), l, z_null)
-       end do
-       call comm_masks_mpi (l)
-    end do
-
-     ! Add nodes and edges required for TRISK operators
+    ! Add nodes and edges required for TRISK operators
     do l = level_start, level_end
        call apply_onescale (mask_trsk, l, z_null, 0, 0)
     end do
