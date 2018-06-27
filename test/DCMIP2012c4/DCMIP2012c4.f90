@@ -5,7 +5,7 @@ module DCMIP2012c4_mod
   implicit none
 
   character(*), parameter            :: test_case = "DCMIP2012c4"      
-  integer                            :: CP_EVERY, iwrite, N_node, save_zlev
+  integer                            :: CP_EVERY, iwrite, N_edge, N_node, save_zlev
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
   logical                            :: wasprinted, uniform
@@ -391,7 +391,7 @@ contains
     integer                       :: e, l, k
     real(8)                       :: mass_scale, temp_scale, velo_scale
     real(8), dimension(1:zlevels) :: tol_mass_new, tol_temp_new, tol_velo_new
-    logical, parameter            :: default_tol = .false., inf = .true.
+    logical                       :: default_tol = .false.
 
     ! Set thresholds dynamically (trend or sol must be known)                                                                                                         
     if (default_tol) then
@@ -401,33 +401,33 @@ contains
     else
        do k = 1, zlevels
           N_node = 0
+          N_edge = 0
           norm_mass = 0.0_8
           norm_temp = 0.0_8
           norm_velo = 0.0_8
           do l = level_start, level_end
              if (adapt_trend) then
-                if (inf) then
-                   call apply_onescale (linf_trend, l, k, 0, 0)
-                else
-                   call apply_onescale (l2_trend, l, k, 0, 0)
-                end if
+                call apply_onescale (l1_trend, l, k, 0, 0)
              else
-                 if (inf) then
-                    call apply_onescale (linf_vars, l, k, 0, 0)
-                 else
-                    call apply_onescale (l2_vars, l, k, 0, 0)
-                 end if
+                call apply_onescale (l1_vars,  l, k, 0, 0)
              end if
           end do
-          if (inf) then ! Linf norm
-             mass_scale = sync_max_d (norm_mass)
-             temp_scale = sync_max_d (norm_temp)
-             velo_scale = sync_max_d (norm_velo)
-          else ! L2 norm
-             mass_scale = sqrt(sync_max_d (norm_mass)/N_node)
-             temp_scale = sqrt(sync_max_d (norm_temp)/N_node)
-             velo_scale = sqrt(sync_max_d (norm_velo)/(3*N_node))
-          end if
+
+          ! Linf
+          ! mass_scale = sync_max_d (norm_mass)
+          ! temp_scale = sync_max_d (norm_temp)
+          ! velo_scale = sync_max_d (norm_velo)
+
+          ! L2
+          ! mass_scale = sqrt(sync_max_d (norm_mass)/N_node)
+          ! temp_scale = sqrt(sync_max_d (norm_temp)/N_node)
+          ! velo_scale = sqrt(sync_max_d (norm_velo)/N_edge)
+
+          ! L1
+          mass_scale = sync_max_d(norm_mass)/N_node
+          temp_scale = sync_max_d(norm_temp)/N_node
+          velo_scale = sync_max_d(norm_velo)/N_edge
+
           tol_mass_new(k) = threshold * mass_scale
           tol_temp_new(k) = threshold * temp_scale
           tol_velo_new(k) = threshold * velo_scale
@@ -506,11 +506,42 @@ contains
        N_node = N_node + 1
        norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
-       do e = 1, EDGE
-          norm_velo  = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
-       end do
     endif
+
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+          N_edge = N_edge + 1
+          norm_velo  = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+       end if
+    end do
   end subroutine l2_trend
+
+  subroutine l1_trend (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, e, id
+
+    d = dom%id+1
+    id = idx(i, j, offs, dims)
+
+    ! L1 norms of trends
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+       N_node = N_node + 1
+       norm_mass = norm_mass + abs(trend(S_MASS,zlev)%data(d)%elts(id+1))
+       norm_temp = norm_temp + abs(trend(S_TEMP,zlev)%data(d)%elts(id+1))
+    endif
+
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+          N_edge = N_edge + 1
+          norm_velo = norm_velo + abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e))
+       end if
+    end do
+  end subroutine l1_trend
 
   subroutine l2_vars (dom, i, j, zlev, offs, dims)
     implicit none
@@ -529,11 +560,42 @@ contains
        N_node = N_node + 1
        norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
        norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
-       do e = 1, EDGE
-          norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
-       end do
     endif
+
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+          N_edge = N_edge + 1
+          norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+       end if
+    end do
   end subroutine l2_vars
+
+  subroutine l1_vars (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, e, id
+
+    d = dom%id+1
+    id = idx(i, j, offs, dims)
+
+    ! L1 norms of trends
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+       N_node = N_node + 1
+       norm_mass = norm_mass + abs(sol(S_MASS,zlev)%data(d)%elts(id+1))
+       norm_temp = norm_temp + abs(sol(S_TEMP,zlev)%data(d)%elts(id+1))
+    endif
+
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+          N_edge = N_edge + 1
+          norm_velo  = norm_velo + abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e))
+       end if
+    end do
+  end subroutine l1_vars
   
   subroutine apply_initial_conditions
     implicit none
@@ -652,8 +714,8 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 1.5_8                                      ! cfl number
-  max_change     = 5.0d-3                                     ! max relative change in vertical layer thickness before remap
+  cfl_num        = 1.0_8                                      ! cfl number
+  max_change     = 2.0d-3                                     ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid

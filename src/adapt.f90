@@ -130,88 +130,12 @@ contains
                 wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
                 nullify (wc_m, wc_t, wc_u)
-                if (adapt_trend) then
-                   wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
-                   wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
-                   wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
-                   call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
-                   nullify (wc_m, wc_t, wc_u)
-                end if
              end do
           end do
        end do
     end if
-
     wav_coeff%bdry_uptodate = .False.
-    trend_wav_coeff%bdry_uptodate = .False.
   end subroutine adapt
-
-  subroutine adapt_old (set_thresholds)
-    external :: set_thresholds
-    integer :: k, l, d
-
-    do l = level_start+1, level_end
-       call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
-    end do
-
-    call mask_adjacent
-
-    call set_thresholds
-    
-    if (adapt_trend) then
-       call mask_active (trend_wav_coeff)
-    else
-       call mask_active (wav_coeff)
-    end if
-    
-    do l = level_end-1, level_start, -1
-       call apply_interscale (mask_active_nodes, l, z_null,  0, 1)
-       call apply_interscale (mask_active_edges, l, z_null, -1, 1)
-       call comm_masks_mpi (l)
-    end do
-    
-    call comm_masks_mpi (NONE)
-
-    do l = level_start, level_end
-       call apply_onescale (mask_adj_space2, l, z_null, 0, 1)
-    end do
-
-    call comm_masks_mpi (NONE)
-
-    ! needed if bdry is only 2 layers for scenario:
-    ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
-    ! => patch needed (contains flux for corrective part of R_F)
-    do l = level_start, min(level_end, max_level-1)
-       call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
-    end do
-
-    call comm_masks_mpi (NONE)
-
-    if (refine()) call post_refine
-    call complete_masks
-
-    do k = 1, zlevels
-       do l = level_start+1, level_end
-          do d = 1, size(grid)
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
-             nullify (wc_m, wc_t, wc_u)
-             if (adapt_trend) then
-                wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
-                wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
-                wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
-                call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
-                nullify (wc_m, wc_t, wc_u)
-             end if
-          end do
-       end do
-    end do
-
-    wav_coeff%bdry_uptodate = .False.
-    if (adapt_trend) trend_wav_coeff%bdry_uptodate = .False.
-  end subroutine adapt_old
 
   subroutine compress (dom, i, j, zlev, offs, dims)
     implicit none
