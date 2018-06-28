@@ -107,7 +107,27 @@ contains
     if (refine()) call post_refine
 
     ! Add nearest neghbours in scale and ensure node/edge masks are consistent
-    call complete_masks
+    !call complete_masks
+
+    ! Add neighbouring wavelets at finer scale                                                                                         
+    do l = level_end-1, level_start, -1
+       call apply_interscale (mask_adj_children, l, z_null, 0, 0)
+    end do
+    call comm_masks_mpi (NONE)
+
+    ! Ensure consistency of adjacent zones for nodes and edges                                                                         
+    call mask_adj_nodes_edges
+    call comm_masks_mpi (NONE)
+
+    ! Ensure that perfect reconstruction criteria for active wavelets are satisfied                                                    
+    do l = level_end-1, level_start-1, -1
+       call apply_interscale (mask_perfect_scalar, l, z_null, 0, 0)
+       call apply_interscale (mask_perfect_velo,   l, z_null, 0, 0)
+       do d = 1, size(grid)
+          call apply_to_penta_d (mask_perfect_velo_penta, grid(d), l, z_null)
+       end do
+       call comm_masks_mpi (l)
+    end do
 
     ! Add nodes and edges required for TRISK operators
     do l = level_start, level_end
