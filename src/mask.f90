@@ -896,25 +896,25 @@ contains
     integer :: l
 
     do l = level_end-1, level_start, -1
-       call apply_onescale (mask_e_if_both_n, l+1, z_null, 0, 0)
+       call apply_onescale (mask_e_if_both_n, l+1, z_null, 0, 1)
     end do
 
     call comm_masks_mpi (NONE)
 
     do l = level_end-1, level_start+1, -1
-       call apply_interscale (mask_e_consist, l, z_null, 0, 0)
+       call apply_interscale (mask_e_consist, l, z_null, 0, 1)
        call comm_masks_mpi (l+1)
        call apply_interscale (mask_e_consist2, l, z_null, 0, 0)
        call comm_masks_mpi (l)
     end do
 
     if (level_start < level_end) then
-       call apply_interscale (mask_e_consist, level_start, z_null, 0, 0)
+       call apply_interscale (mask_e_consist, level_start, z_null, 0, 1)
        call comm_masks_mpi (level_start+1)
     end if
 
     do l = level_end-1, level_start+1, -1
-       call apply_onescale (mask_n_if_all_e, l+1, z_null, 0, 0)
+       call apply_onescale (mask_n_if_all_e, l+1, z_null, 0, 1)
        call apply_interscale (prolong_node_adjzone, l, z_null, 0, 1)
     end do
 
