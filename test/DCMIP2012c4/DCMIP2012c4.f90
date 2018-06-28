@@ -395,9 +395,9 @@ contains
 
     ! Set thresholds dynamically (trend or sol must be known)                                                                                                         
     if (default_tol) then
-       tol_mass = threshold * norm_mass_def
-       tol_temp = threshold * norm_temp_def
-       tol_velo = threshold * norm_velo_def
+       tol_mass_new = threshold * norm_mass_def
+       tol_temp_new = threshold * norm_temp_def
+       tol_velo_new = threshold * norm_velo_def
     else
        do k = 1, zlevels
           N_node = 0
