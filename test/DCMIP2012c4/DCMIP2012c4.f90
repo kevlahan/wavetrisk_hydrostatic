@@ -407,9 +407,9 @@ contains
           norm_velo = 0.0_8
           do l = level_start, level_end
              if (adapt_trend) then
-                call apply_onescale (l1_trend, l, k, 0, 0)
+                call apply_onescale (l2_trend, l, k, 0, 0)
              else
-                call apply_onescale (l1_vars,  l, k, 0, 0)
+                call apply_onescale (l2_vars,  l, k, 0, 0)
              end if
           end do
 
@@ -419,14 +419,14 @@ contains
           ! velo_scale = sync_max_d (norm_velo)
 
           ! L2
-          ! mass_scale = sqrt(sync_max_d (norm_mass)/N_node)
-          ! temp_scale = sqrt(sync_max_d (norm_temp)/N_node)
-          ! velo_scale = sqrt(sync_max_d (norm_velo)/N_edge)
+          mass_scale = sqrt(sync_max_d (norm_mass)/N_node)
+          temp_scale = sqrt(sync_max_d (norm_temp)/N_node)
+          velo_scale = sqrt(sync_max_d (norm_velo)/N_edge)
 
           ! L1
-          mass_scale = sync_max_d(norm_mass)/N_node
-          temp_scale = sync_max_d(norm_temp)/N_node
-          velo_scale = sync_max_d(norm_velo)/N_edge
+          ! mass_scale = sync_max_d(norm_mass)/N_node
+          ! temp_scale = sync_max_d(norm_temp)/N_node
+          ! velo_scale = sync_max_d(norm_velo)/N_edge
 
           tol_mass_new(k) = threshold * mass_scale
           tol_temp_new(k) = threshold * temp_scale

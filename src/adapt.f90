@@ -130,11 +130,17 @@ contains
                 wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
                 nullify (wc_m, wc_t, wc_u)
+                wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
+                wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
+                wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
+                call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
+                nullify (wc_m, wc_t, wc_u)
              end do
           end do
        end do
     end if
     wav_coeff%bdry_uptodate = .False.
+    trend_wav_coeff%bdry_uptodate = .False.
   end subroutine adapt
 
   subroutine compress (dom, i, j, zlev, offs, dims)
