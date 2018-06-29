@@ -1185,7 +1185,7 @@ contains
     end do
 
     loc_max = change_loc
-    call MPI_Allreduce (loc_max, glo_max, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (loc_max, glo_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
     change_mass = glo_max
 
     if (adapt_dt) then
