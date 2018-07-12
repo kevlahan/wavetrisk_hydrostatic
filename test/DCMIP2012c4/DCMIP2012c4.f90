@@ -715,7 +715,7 @@ program DCMIP2012c4
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
   cfl_num        = 1.0_8                                      ! cfl number
-  max_change     = 2.0d-3                                     ! max relative change in vertical layer thickness before remap
+  max_change     = 1.0d-1                                     ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
