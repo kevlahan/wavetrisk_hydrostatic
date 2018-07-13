@@ -126,8 +126,8 @@ contains
     rel_imbalance = dble(load_max)/load_avg
 
     if (rank == 0) then
-       write(6,'(A,1x,i9,1x,f10.1,1x,i9)') 'min load, average load, max load:', load_min, load_avg, load_max
-       write(6,'(A,1x,f10.2)') 'relative imbalance (1=perfect balance)', rel_imbalance
+       write(6,'(/,A,i9,A,f10.1,A,i9)') 'Min load  =', load_min, ' average load = ', load_avg, ' max load = ', load_max
+       write(6,'(A,1x,f10.2)') 'Relative imbalance (1=perfect balance)', rel_imbalance
     end if
   end subroutine print_load_balance
 

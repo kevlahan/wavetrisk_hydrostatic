@@ -304,7 +304,7 @@ contains
     integer      :: d, i, j, k, l, p, u
     character(7) :: var_file
 
-    if (rank == 0) write(6,*) 'Saving fields'
+    if (rank == 0) write(6,'(/,A,/)') 'Saving fields'
 
     call update_array_bdry (sol, NONE)
 
@@ -804,18 +804,9 @@ program DCMIP2012c4
 
   if (resume <= 0) iwrite = 0
   total_cpu_time = 0.0_8
-
-  open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED')
-  if (rank == 0) then
-     write (6,'(A,ES12.6,3(A,ES10.4),A,I2,A,I9)') &
-          ' time [h] = ', time/3600.0_8, &
-          '  mass tol = ', sum(tol_mass)/zlevels, &
-          ' temp tol = ', sum(tol_temp)/zlevels, &
-          ' velo tol = ', sum(tol_velo)/(EDGE*zlevels), &
-          ' Jmax =', level_end, &
-          '  dof = ', sum(n_active)
-  end if
-
+  
+  open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  
   do while (time < time_end)
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
@@ -831,7 +822,7 @@ program DCMIP2012c4
 
      if (rank == 0) then
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,3(A,ES8.2,1x))') &
-             ' time [h] = ', time/60.0_8**2, &
+             'time [h] = ', time/60.0_8**2, &
              ' dt [s] = ', dt, &
              '  mass tol = ', sum(tol_mass)/zlevels, &
              ' temp tol = ', sum(tol_temp)/zlevels, &
@@ -843,7 +834,7 @@ program DCMIP2012c4
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/3600.0_8, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/(EDGE*zlevels), &
+             time/3600, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/(EDGE*zlevels), &
              level_end, sum(n_active), change_mass, mass_error, timing
      end if
 
@@ -876,9 +867,6 @@ program DCMIP2012c4
 
         ! Restart after checkpoint and load balance
         call restart_full (set_thresholds, load, test_case)
-        call print_load_balance
-
-        call barrier
      end if
      call sum_total_mass (.False.)
   end do

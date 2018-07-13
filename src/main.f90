@@ -81,8 +81,6 @@ contains
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
-          if (rank == 0) write(6,'(A,i2)') 'Initialize solution on level ', level_end
-
           dt_new = cpt_dt_mpi()
           call adapt (set_thresholds)
 
@@ -115,22 +113,20 @@ contains
           n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))
           
           if (rank == 0) write(6,'(A,i2,1x,2(A,i8,1x),/)') &
-               'Level = ', level_end, 'number of active nodes = ',n_active(AT_NODE), 'number of active edges = ', n_active(AT_EDGE)
+               'Level = ', level_end, 'number of active node wavelets = ',n_active(AT_NODE), &
+               'number of active edge wavelets = ', n_active(AT_EDGE)
 
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit !--No active nodes at this scale
        end do
-       if (rank == 0) write(6,'(/,A,/)') '--------- Finished adapting initial grid ---------'
+       if (rank == 0) write(6,'(A,/)') '--------- Finished adapting initial grid ---------'
 
-       dt_new = cpt_dt_mpi()
        call adapt (set_thresholds)
-       dt_new = cpt_dt_mpi()
-       if (rank==0) write(6,'(A,i8)') 'Initial dof = ', sum(n_active)
+       dt_new = cpt_dt_mpi() ; if (rank==0) write(6,'(A,i8,/)') 'Initial number of dof = ', sum(n_active)
 
        cp_idx = -1
        ierr = write_checkpoint (custom_dump)
     end if
 
-    if (rank == 0) write(6,'(A,i6,/)') 'Restarting from initial checkpoint ', cp_idx
     call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
@@ -300,35 +296,53 @@ contains
     character(len_cmd_files) :: cmd_files
     character(255)           :: cmd_archive, command
 
+    if (rank == 0) then
+       write (6,'(A,/)') &
+            '*************************************************** Begin Restart ***************************************************'
+       write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
+    end if
+
     ! Deallocate all dynamic arrays and variables
     call deallocate_structures
-
     call init_structures
 
-    if (rank == 0) write (6,*) 'Reloading from checkpoint', cp_idx
-
+    ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load)
         
     itime = nint(time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
 
     ! Make checkpoint archive
-    write(cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
-    write(cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
-    ! Do not overwrite existing checkpoint archive
-    !write(command, '(A,A,A,A,A,A,A,A,A)') 'if [ -e ', trim(cmd_archive), ' ]; then rm -f ', cmd_files, &
-    !     '; else tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files, '; fi'
+    write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+    write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
+   
     ! Overwrite existing checkpoint archive
-    write(command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files
+    write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files
 
-    call barrier ! do not delete files before everyone has read them
+    call barrier ! Do not delete files before everyone has read them
 
     if (rank == 0) call system (command)
     istep = 0
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
-    call inverse_wavelet_transform (wav_coeff,         sol, level_start-1)
+    call inverse_wavelet_transform (wav_coeff,       sol,   level_start-1)
     call inverse_wavelet_transform (trend_wav_coeff, trend, level_start-1)
+
+    call print_load_balance
+    call barrier
+
     dt_new = cpt_dt_mpi()
+    
+    if (rank == 0) then
+       write (6,'(/,A,ES12.6,3(A,ES10.4),A,I2,A,I9,/)') &
+            'time [h] = ', time/3600, &
+            '  mass tol = ', sum(tol_mass)/zlevels, &
+            ' temp tol = ', sum(tol_temp)/zlevels, &
+            ' velo tol = ', sum(tol_velo)/(EDGE*zlevels), &
+            ' Jmax =', level_end, &
+            '  dof = ', sum(n_active)
+       write(6,'(A,/)') &
+            '**************************************************** End Restart ****************************************************'
+    end if
   end subroutine restart_full
 
   function write_checkpoint (custom_dump)
@@ -339,8 +353,11 @@ contains
     external :: custom_load
 
     character (38+4+22+4+6) :: command
-    
+
     cp_idx = cp_idx + 1
+
+    if (rank == 0) write(6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/3600
+    
     call write_load_conn (cp_idx)
     write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
   end function write_checkpoint
@@ -389,7 +406,7 @@ contains
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
-    if (rank == 0) write(6,'(A,i2,A,/)') 'Make level J_min = ', min_level, ' ...'
+    if (rank == 0) write(6,'(A,i2,A)') 'Make level J_min = ', min_level, ' ...'
 
     call init_wavelets
     call init_masks

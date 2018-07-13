@@ -1354,9 +1354,6 @@ contains
     call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:),       NONE)
     call update_array_bdry (trend_wav_coeff(S_MASS:S_TEMP,:), NONE)
 
-    call trend_ml (sol, trend)
-    call forward_wavelet_transform (trend, trend_wav_coeff)
-
     do k = 1, zlevels
        do d = 1, size(grid)
           mass => sol(S_MASS,k)%data(d)%elts
@@ -1393,7 +1390,7 @@ contains
           do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
                MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
 
-             if (sol(S_VELO,k)%data(d)%elts(i) /= sol(S_VELO,k)%data(d)%elts(i)) then
+             if (isnan(sol(S_VELO,k)%data(d)%elts(i))) then
                 write (6,*) d, i, 'Wrote out NaN velocity'
                 dump_adapt_mpi = 1
                 close (fid_no); close(fid_grid)
@@ -1425,7 +1422,7 @@ contains
                 do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                      MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
 
-                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) /= wav_coeff(S_VELO,k)%data(d)%elts(i)) then
+                   if (isnan(wav_coeff(S_VELO,k)%data(d)%elts(i))) then
                       write (0,*) grid(d)%patch%elts(p_par+1)%level, 'Wrote out NaN velocity wavelet'
                       dump_adapt_mpi = 1
                       close (fid_no); close(fid_grid);
@@ -1656,7 +1653,7 @@ contains
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
-    if (rank == 0) write(*,'(A,2(es12.4,1x))') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
+    if (rank == 0) write(*,'(A,2(es12.4,1x),/)') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
   end subroutine read_HR_optim_grid
 
   function dom_id_from_HR_id (d_HR)
