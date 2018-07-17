@@ -272,7 +272,8 @@ contains
     read(fid,*) varname, zlevels
     read(fid,*) varname, adapt_trend
     read(fid,*) varname, threshold 
-    read(fid,*) varname, optimize_grid 
+    read(fid,*) varname, optimize_grid
+    read(fid,*) varname, cfl_num
     read(fid,*) varname, dt_write
     read(fid,*) varname, CP_EVERY
     read(fid,*) varname, time_end
@@ -284,7 +285,8 @@ contains
        write(6,'(A,i3)')     "zlevels          = ", zlevels
        write(6,'(A,L1)')     "adapt_trend      = ", adapt_trend
        write(6,'(A,es10.4)') "threshold        = ", threshold
-       write(6,'(A,i2)')     "optimize_grid    = ", optimize_grid 
+       write(6,'(A,i2)')     "optimize_grid    = ", optimize_grid
+       write(6,'(A,es10.4)') "cfl_num          = ", cfl_num
        write(6,'(A,es10.4)') "dt_write         = ", dt_write
        write(6,'(A,i6)')     "CP_EVERY         = ", CP_EVERY
        write(6,'(A,es10.4)') "time_end         = ", time_end 
@@ -391,7 +393,7 @@ contains
     integer                       :: e, l, k
     real(8)                       :: mass_scale, temp_scale, velo_scale
     real(8), dimension(1:zlevels) :: tol_mass_new, tol_temp_new, tol_velo_new
-    logical                       :: default_tol = .false.
+    logical                       :: default_tol = .true.
 
     ! Set thresholds dynamically (trend or sol must be known)                                                                                                         
     if (default_tol) then
@@ -716,7 +718,6 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 1.5_8                                      ! cfl number
   max_change     = 1.0d-1                                     ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
