@@ -304,7 +304,7 @@ contains
     integer      :: d, i, j, k, l, p, u
     character(7) :: var_file
 
-    if (rank == 0) write(6,'(/,A,/)') 'Saving fields'
+    if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', iwrite
 
     call update_array_bdry (sol, NONE)
 
@@ -702,10 +702,12 @@ program DCMIP2012c4
   Udim           = u_0                              ! velocity scale
   Tdim           = DAY                              ! time scale
   Ldim           = Udim*Tdim                        ! length scale
+
+  ! Dimensions for scaling tendencies
   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
-  dTempdim       = 3.0d1                            ! temperature scale for tolerances
+  dTempdim       = 8.0d1                            ! temperature scale for tolerances
   Pdim           = ref_surf_press                   ! pressure scale
-  dPdim          = 5.0d3                            ! scale of surface pressure variation determining mass tolerance scale
+  dPdim          = 8.0d3                            ! scale of surface pressure variation determining mass tolerance scale
 
   acceldim       = Udim**2/Hdim                     ! acceleration scale
   R_ddim         = R_d                              ! R_d scale
@@ -714,7 +716,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  cfl_num        = 1.0_8                                      ! cfl number
+  cfl_num        = 1.5_8                                      ! cfl number
   max_change     = 1.0d-1                                     ! max relative change in vertical layer thickness before remap
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
@@ -736,6 +738,7 @@ program DCMIP2012c4
   do k = 1, zlevels
      norm_temp_def(k) = (a_vert_mass(k) + b_vert_mass(k)*Pdim/grav_accel)*dTempdim
   end do
+  norm_temp_def = norm_temp_def + Tempdim*norm_mass_def ! Add component due to tendency in mass 
   norm_velo_def = Udim
 
   if (adapt_trend) then
@@ -826,7 +829,7 @@ program DCMIP2012c4
              ' dt [s] = ', dt, &
              '  mass tol = ', sum(tol_mass)/zlevels, &
              ' temp tol = ', sum(tol_temp)/zlevels, &
-             ' velo tol = ', sum(tol_velo)/(EDGE*zlevels), &
+             ' velo tol = ', sum(tol_velo)/zlevels, &
              ' Jmax = ', level_end, &
              '  dof = ', sum(n_active), &
              ' change level = ', change_mass, &
@@ -834,7 +837,7 @@ program DCMIP2012c4
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/3600, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/(EDGE*zlevels), &
+             time/3600, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/zlevels, &
              level_end, sum(n_active), change_mass, mass_error, timing
      end if
 
