@@ -68,6 +68,7 @@ contains
 
     if (resume >= 0) then
        if (rank == 0) write(6,'(A,i6)') 'Resuming from checkpoint ', resume
+       call restart_full (set_thresholds, custom_load, test_case)
     else
        if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid -------------'
 
@@ -124,10 +125,9 @@ contains
        dt_new = cpt_dt_mpi() ; if (rank==0) write(6,'(A,i8,/)') 'Initial number of dof = ', sum(n_active)
 
        cp_idx = -1
-       ierr = write_checkpoint (custom_dump)
+       ierr = write_checkpoint (custom_dump, test_case)
     end if
-
-    call restart_full (set_thresholds, custom_load, test_case)
+    !call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
   subroutine record_init_state (init_state)
@@ -292,9 +292,7 @@ contains
     external     :: set_thresholds, custom_load
     character(*) :: test_case
     
-    integer, parameter       :: len_cmd_files = 12 + 4 + 12 + 4
-    character(len_cmd_files) :: cmd_files
-    character(255)           :: cmd_archive, command
+    character(255)           :: cmd_archive, cmd_files, command
 
     if (rank == 0) then
        write (6,'(A,/)') &
@@ -306,22 +304,25 @@ contains
     call deallocate_structures
     call init_structures
 
+    ! Uncompress checkpoint data
+    write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
+    write (command, '(A,A)') 'tar xzf ', trim(cmd_archive)
+    if (rank == 0) call system (command)
+
+    call barrier ! Make sure checkpoint is uncompressed before reading
+    
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load)
-        
-    itime = nint(time*time_mult, 8)
-    resume = cp_idx ! to disable alignment for next step
-
-    ! Make checkpoint archive
-    write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
-    write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
-   
-    ! Overwrite existing checkpoint archive
-    write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim(cmd_archive), ' ', cmd_files
 
     call barrier ! Do not delete files before everyone has read them
 
+    write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+    write (command, '(A,A)') '\rm ', trim(cmd_files)
     if (rank == 0) call system (command)
+
+    itime = nint(time*time_mult, 8)
+    resume = cp_idx ! to disable alignment for next step
+
     istep = 0
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff,       sol,   level_start-1)
@@ -345,21 +346,27 @@ contains
     end if
   end subroutine restart_full
 
-  function write_checkpoint (custom_dump)
+  integer function write_checkpoint (custom_dump, test_case)
     implicit none
-    integer  :: write_checkpoint
     external :: custom_dump
+    character(*) :: test_case
+
+    character(255) :: cmd_archive, cmd_files, command
     
-    external :: custom_load
-
-    character (38+4+22+4+6) :: command
-
     cp_idx = cp_idx + 1
 
     if (rank == 0) write(6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/3600
     
     call write_load_conn (cp_idx)
     write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
+
+    call barrier ! Make sure all processors have written data
+    
+    ! Make checkpoint archive (overwriting existing checkpoint if present)
+    write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+    write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
+    write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim(cmd_archive), ' ', trim(cmd_files)
+    if (rank == 0) call system (command)
   end function write_checkpoint
 
   subroutine compress_files (iwrite, test_case)

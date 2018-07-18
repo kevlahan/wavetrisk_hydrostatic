@@ -754,12 +754,12 @@ program DCMIP2012c4
   ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
   Laplace_order = 0
 
-  ! Set viscosities according to Jablonowski and Williamson (2006) Table 3 (GME with icosahedral grid)
   if (Laplace_order == 1) then ! Usual Laplacian diffusion
      viscosity_mass = 0.0_8
      viscosity_temp = 0.0_8
      viscosity_rotu = 0.0_8
 
+     ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
      P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
      do k = 1, zlevels
         P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
@@ -859,7 +859,7 @@ program DCMIP2012c4
         !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
         !     set_thresholds, test_case)
 
-        ierr = write_checkpoint (dump)
+        ierr = write_checkpoint (dump, test_case)
 
         ! Let all cpus exit gracefully if NaN has been produced
         ierr = sync_max (ierr)
@@ -870,7 +870,7 @@ program DCMIP2012c4
         end if
 
         ! Restart after checkpoint and load balance
-        call restart_full (set_thresholds, load, test_case)
+        !call restart_full (set_thresholds, load, test_case)
      end if
      call sum_total_mass (.False.)
   end do
