@@ -2,15 +2,15 @@ module comm_mpi_mod
   use domain_mod
   use comm_mod
   implicit none
+  integer                              :: nreq
   type(Int_Array)                      :: recv_buf_i, send_buf_i
   type(Float_Array)                    :: recv_buf, send_buf
-  integer, dimension(:), allocatable   :: recv_lengths, recv_offsets, send_lengths, send_offsets
-  integer                              :: nreq
-  integer, dimension(:), allocatable   :: req
+  integer, dimension(:), allocatable   :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
   integer, dimension(:,:), allocatable :: stat_ray
   real(8), dimension(2)                :: times
 contains
   subroutine init_comm_mpi
+    implicit none
     allocate(send_lengths(n_process), send_offsets(n_process))
     allocate(recv_lengths(n_process), recv_offsets(n_process))
     allocate(req(2*n_process))
@@ -21,6 +21,7 @@ contains
 
   integer function write_active_per_level()
     ! write out distribution of active nodes over levels
+    implicit none
     integer                                         :: l, n_full, fillin, n_lev_cur, recommended_level_start
     integer, dimension(2*(level_end-level_start+1)) :: n_active_all_loc, n_active_all_glo
     integer, dimension(level_start:level_end)       :: n_active_per_lev
@@ -68,10 +69,10 @@ contains
     end if
 
     write_active_per_level = recommended_level_start
-
   end function write_active_per_level
 
   subroutine write_load_conn (id)
+    implicit none
     ! Write out load distribution and connectivity for load balancing
     integer :: id
     
@@ -100,6 +101,7 @@ contains
   end subroutine write_load_conn
 
   subroutine get_load_balance (mini, avg, maxi)
+    implicit none
     integer :: mini, maxi
     real(8) :: avg
 
@@ -118,6 +120,7 @@ contains
   end subroutine get_load_balance
 
   subroutine print_load_balance
+    implicit none
     ! Prints out load balance between processors
     integer :: load_min, load_max
     real(8) :: rel_imbalance, load_avg
@@ -168,6 +171,7 @@ contains
   end subroutine write_level_mpi
 
   subroutine init_comm_mpi_mod
+    implicit none
     call init (send_buf_i, 0)
     call init (recv_buf_i, 0) 
     call init (send_buf, 0)
@@ -175,12 +179,14 @@ contains
   end subroutine init_comm_mpi_mod
 
   subroutine comm_communication_mpi
+    implicit none
     call alltoall_dom (unpack_comm_struct, 4)
     call comm_communication
     call recreate_send_patch_lists
   end subroutine comm_communication_mpi
 
   subroutine recreate_send_patch_lists
+    implicit none
     integer :: l, r, d, k, p, s, n, typ, d_neigh, i
 
     do l = level_start, level_end
@@ -212,6 +218,7 @@ contains
     end do
   contains
     subroutine handle_neigh(dom, d0)
+      implicit none
       type(Domain) :: dom
       integer      :: d0
       
@@ -227,10 +234,10 @@ contains
 
       call append(dom%src_patch(r0,l), p)
     end subroutine handle_neigh
-
   end subroutine recreate_send_patch_lists
 
   subroutine alltoall_dom (unpack_rout, N)
+    implicit none
     external :: unpack_rout
     integer :: N
     
@@ -274,7 +281,8 @@ contains
   end subroutine alltoall_dom
 
   subroutine check_alltoall_lengths
-    integer :: test_recv_len(n_process)
+    implicit none
+    integer, dimension(n_process) :: test_recv_len
 
     call MPI_Alltoall(send_lengths, 1, MPI_INTEGER, &
          test_recv_len, 1, MPI_INTEGER, &
@@ -287,6 +295,7 @@ contains
   end subroutine check_alltoall_lengths
 
   subroutine alltoall
+    implicit none
     integer :: i
 
     call MPI_Alltoall(send_lengths, 1, MPI_INTEGER, &
@@ -312,7 +321,8 @@ contains
   end subroutine alltoall
 
   subroutine comm_masks_mpi (l)
-    !communication of mask information in a subdomain between different processes
+    implicit none
+    ! communication of mask information in a subdomain between different processes
     integer :: l
     
     integer :: r_dest, r_src, d_src, d_dest, dest, id, i, kk
@@ -377,12 +387,12 @@ contains
     end if
 
     !     call check_alltoall_lengths()
-    call MPI_Alltoallv(send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
+    call MPI_Alltoallv (send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
          recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, &
          MPI_COMM_WORLD, ierror)
 
     ! communicate inside domain
-    call comm_masks()
+    call comm_masks
 
     kk = 0
     do r_src = 1, n_process 
@@ -409,6 +419,7 @@ contains
   end subroutine comm_masks_mpi
 
   subroutine update_bdry1 (field, l_start, l_end)
+    implicit none
     type(Float_Field) :: field
     integer l_start, l_end
 
@@ -417,6 +428,7 @@ contains
   end subroutine update_bdry1
 
   subroutine update_array_bdry1 (field, l_start, l_end)
+    implicit none
     type(Float_Field), dimension(:,:) :: field
     integer l_start, l_end
 
@@ -425,6 +437,7 @@ contains
   end subroutine update_array_bdry1
 
   subroutine update_bdry (field, l)
+    implicit none
     type(Float_Field) :: field
     integer           :: l
 
@@ -433,6 +446,7 @@ contains
   end subroutine update_bdry
 
   subroutine update_vector_bdry (field, l)
+    implicit none
     ! Updates field array
     type(Float_Field), dimension(:) :: field
     integer                         :: l
@@ -443,6 +457,7 @@ contains
   
   subroutine update_array_bdry (field, l)
     ! Updates field array
+    implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l
 
@@ -451,6 +466,7 @@ contains
   end subroutine update_array_bdry
 
   subroutine update_bdry__start (field, l)
+    implicit none
     type(Float_Field) :: field
     integer           ::  l
 
@@ -463,6 +479,7 @@ contains
   
   subroutine update_vector_bdry__start (field, l)
     ! Finishes boundary update for field arrays
+    implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l
 
@@ -475,6 +492,7 @@ contains
   
   subroutine update_array_bdry__start (field, l)
     ! Finishes boundary update for field arrays
+    implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l
 
@@ -486,6 +504,7 @@ contains
   end subroutine update_array_bdry__start
 
   subroutine update_bdry__start1 (field, l_start, l_end)
+    implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
     
@@ -565,6 +584,7 @@ contains
 
   subroutine update_vector_bdry__start1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
+    implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
     
@@ -664,6 +684,7 @@ contains
 
   subroutine update_array_bdry__start1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
+    implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           ::  l_start, l_end
     
@@ -770,6 +791,7 @@ contains
   end subroutine update_array_bdry__start1
 
   subroutine update_bdry__finish (field, l)
+    implicit none
     type(Float_Field) :: field
     integer           :: l
 
@@ -782,6 +804,7 @@ contains
   
   subroutine update_vector_bdry__finish (field, l)
     ! Finishes boundary update for field arrays
+    implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l
 
@@ -794,6 +817,7 @@ contains
   
   subroutine update_array_bdry__finish (field, l)
     ! Finishes boundary update for field arrays
+    implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l
 
@@ -805,6 +829,7 @@ contains
   end subroutine update_array_bdry__finish
 
   subroutine update_bdry__finish1 (field, l_start, l_end)
+    implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
     
@@ -845,6 +870,7 @@ contains
 
   subroutine update_vector_bdry__finish1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
+    implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
     
@@ -897,6 +923,7 @@ contains
   
   subroutine update_array_bdry__finish1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
+    implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
     
@@ -952,6 +979,7 @@ contains
   end subroutine update_array_bdry__finish1
   
   subroutine comm_nodes9_mpi (get, set, l)
+    implicit none
     external :: get, set
     integer :: l
     
@@ -1020,6 +1048,7 @@ contains
   end subroutine comm_nodes9_mpi
 
   subroutine comm_nodes3_mpi (get, set, l)
+    implicit none
     external    :: get, set
     type(Coord) :: get
     integer     :: l
@@ -1091,6 +1120,7 @@ contains
   end subroutine comm_nodes3_mpi
 
   subroutine comm_patch_conn_mpi
+    implicit none
     integer               :: r_src, r_dest, d_src, d_dest, i, b, c, p, s, d_glo, k, rot, d, ngh_pa, typ, l_par, rot_shift
     integer, dimension(4) :: st
     logical               :: is_pole
@@ -1164,19 +1194,19 @@ contains
     end do
   end subroutine comm_patch_conn_mpi
 
-  function cpt_dt_mpi()
-    real(8) :: cpt_dt_mpi
-    
+  real(8) function cpt_dt_mpi()
+    ! Calculates time step, minimum relative mass and active nodes and edges
+    implicit none
     integer               :: l, ierror, n_level_glo
     integer, dimension(2) :: n_active_loc, n_active_glo
-    real(8)               :: loc_max, loc_min, glo_max, glo_min
+    real(8)               :: loc_min, glo_min
 
     if (adapt_dt) then
-       dt_loc = 1d16
+       dt_loc = 1.0d16
     else
        dt_loc = dt_init
     end if
-    change_loc = 0.0_8
+    min_mass_loc = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0
 
@@ -1184,10 +1214,12 @@ contains
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
 
-    loc_max = change_loc
-    call MPI_Allreduce (loc_max, glo_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-    change_mass = glo_max
+    ! Minimum relative mass over all nodes and vertical layers
+    loc_min = min_mass_loc
+    call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    min_mass = glo_min
 
+    ! Time step
     if (adapt_dt) then
        loc_min = dt_loc
        call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
@@ -1195,7 +1227,8 @@ contains
     else
        cpt_dt_mpi = dt_loc
     end if
-    
+
+    ! Active nodes and edges
     n_active_loc = (/sum(n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end))/)
 
     call MPI_Allreduce (n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
@@ -1205,8 +1238,8 @@ contains
     level_end = n_level_glo
   end function cpt_dt_mpi
 
-  function sync_max (val)
-    integer :: sync_max
+  integer function sync_max (val)
+    implicit none
     integer :: val
 
     integer :: val_glo
@@ -1215,8 +1248,8 @@ contains
     sync_max = val_glo
   end function sync_max
 
-  function sync_max_d (val)
-    real(8) :: sync_max_d
+  real(8) function sync_max_d (val)
+    implicit none
     real(8) :: val
 
     real(8) :: val_glo
@@ -1225,8 +1258,8 @@ contains
     sync_max_d = val_glo
   end function sync_max_d
 
-  function sum_real (val)
-    real(8) :: sum_real
+  real(8) function sum_real (val)
+    implicit none
     real(8) :: val
 
     real(8) :: val_glo
@@ -1235,8 +1268,8 @@ contains
     sum_real = val_glo
   end function sum_real
 
-  function sum_int (val)
-    integer :: sum_int
+  integer function sum_int (val)
+    implicit none
     integer :: val
 
     integer :: val_glo
@@ -1246,19 +1279,22 @@ contains
   end function sum_int
 
   subroutine start_timing
+    implicit none
     times(1) = MPI_Wtime()  
   end subroutine start_timing
 
   subroutine stop_timing
+    implicit none
     times(2) = MPI_Wtime()  
   end subroutine stop_timing
 
-  function get_timing()
-    real(8) :: get_timing
+  real(8) function get_timing()
+    implicit none
     get_timing = times(2) - times(1)
   end function get_timing
 
   subroutine sync (in, inout, len, type)
+    implicit none
     real, dimension(len) :: in, inout
     integer              :: len, type
 
@@ -1266,6 +1302,7 @@ contains
   end subroutine sync
 
   subroutine sync_array (arr, N)
+    implicit none
     real, dimension(N) :: arr
     integer            :: N
     
@@ -1278,9 +1315,10 @@ contains
   end subroutine sync_array
 
   subroutine stop_and_record_timings (id)
-    ! use like:
-    !call stop_and_record_timings(6500); call start_timing()
-    !call stop_and_record_timings(6501); call start_timing()
+    ! Use like:
+    ! call stop_and_record_timings(6500); call start_timing()
+    ! call stop_and_record_timings(6501); call start_timing()
+    implicit none
     integer :: id
 
     real(8) :: time_loc, time_max, time_min, time_sum

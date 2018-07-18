@@ -4,7 +4,7 @@ module comm_mod
   implicit none
   integer, dimension(4,4)            :: shift_arr
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes
-  real(8)                            :: change_loc, dt_loc, sync_val
+  real(8)                            :: min_mass_loc, dt_loc, sync_val
 contains
   subroutine init_comm_mod
     implicit none
@@ -971,14 +971,14 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
 
-       ! Find change in mass for this node
+       ! Find minimum relative mass for this node
        col_mass = 0.0_8
        do k = 1, zlevels
           col_mass = col_mass + sol(S_MASS,k)%data(d)%elts(id+1)
        end do
        do k = 1, zlevels
           init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
-          change_loc = max (change_loc, abs(sol(S_MASS,k)%data(d)%elts(id+1)-init_mass)/init_mass)
+          min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id+1)/init_mass)
        end do
 
        do e = 1, EDGE

@@ -294,7 +294,6 @@ module shared_mod
   integer :: save_levels ! number of vertical levels to save
   integer :: level_start, level_end, level_save
 
-  real(8) :: change_mass
   real(8) :: threshold ! threshold level on wavelet coefficients for grid adaptation
 
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
@@ -311,7 +310,7 @@ module shared_mod
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8) :: viscosity_rotu, viscosity_mass, viscosity_temp
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
-  real(8) :: max_change
+  real(8) :: min_mass, min_allowed_mass
   real(8), dimension(:), target, allocatable :: pressure_save
 
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
@@ -364,38 +363,38 @@ contains
 
     ! Default values
     adapt_dt            = .true.
-    adapt_trend         = .false.
+    adapt_trend         = .true.
     initialized         = .true.
     remap               = .true.
-    lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates
+    lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates (mass based NOT implemented!)
     
-    resume        = NONE
-    istep         = 0
-    time          = 0.0_8
-    optimize_grid = NO_OPTIM
-    threshold     = 0.0_8
-    max_change    = 0.0_8
-    cfl_num       = 1.0_8
-    min_level     = DOMAIN_LEVEL+PATCH_LEVEL+1
-    max_level     = min_level
-    level_start   = min_level
-    level_end     = level_start
-    level_save    = level_start
-    zlevels       = 1
-    save_levels   = 1
+    resume              = NONE
+    istep               = 0
+    time                = 0.0_8
+    optimize_grid       = NO_OPTIM
+    threshold           = 0.0_8
+    min_allowed_mass    = 0.2_8
+    cfl_num             = 1.0_8
+    min_level           = DOMAIN_LEVEL+PATCH_LEVEL+1
+    max_level           = min_level
+    level_start         = min_level
+    level_end           = level_start
+    level_save          = level_start
+    zlevels             = 1
+    save_levels         = 1
     
     ! Physical parameters
     ! these parameters are typically reset in test case file, but are needed for compilation
-    Laplace_order = 1
-    omega         = 7.292d-05
-    grav_accel    = 9.80616_8
-    radius        = 6371220.0_8
-    ref_density   = 1.0_8
-    press_infty   = 0.0_8
-    R_d           = 1.0_8
-    c_p           = 1.0_8
-    kappa         = R_d/c_p
-    ref_press     = 1000.0d2
+    Laplace_order  = 0
+    omega          = 7.292d-05
+    grav_accel     = 9.80616_8
+    radius         = 6371220.0_8
+    ref_density    = 1.0_8
+    press_infty    = 0.0_8
+    R_d            = 1.0_8
+    c_p            = 1.0_8
+    kappa          = R_d/c_p
+    ref_press      = 1000.0d2
     viscosity_rotu = 0.0_8
     viscosity_mass = 0.0_8
     viscosity_temp = 0.0_8

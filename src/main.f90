@@ -188,7 +188,7 @@ contains
     dt_new = cpt_dt_mpi() 
 
     ! If necessary, remap vertical coordinates
-    if (remap .and. change_mass >= max_change) call remap_vertical_coordinates (set_thresholds)
+    if (remap .and. min_mass < min_allowed_mass) call remap_vertical_coordinates (set_thresholds)
     
     itime = itime + idt
     time  = itime/time_mult

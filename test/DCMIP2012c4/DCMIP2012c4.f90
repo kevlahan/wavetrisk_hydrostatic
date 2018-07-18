@@ -718,7 +718,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  max_change     = 1.0d-1                                     ! max relative change in vertical layer thickness before remap
+  min_allowed_mass = 2.0d-1                                   ! minimum relative mass before remapping
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
@@ -832,14 +832,14 @@ program DCMIP2012c4
              ' temp tol = ', sum(tol_temp)/zlevels, &
              ' velo tol = ', sum(tol_velo)/zlevels, &
              ' Jmax = ', level_end, &
-             '  dof = ', sum(n_active), &
-             ' change level = ', change_mass, &
+             ' dof = ', sum(n_active), &
+             ' min rel mass = ', min_mass, &
              ' mass error = ', mass_error, &
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
              time/3600, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/zlevels, &
-             level_end, sum(n_active), change_mass, mass_error, timing
+             level_end, sum(n_active), min_mass, mass_error, timing
      end if
 
      if (aligned) then

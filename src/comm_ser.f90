@@ -2,16 +2,24 @@ module comm_mpi_mod
   use domain_mod
   use comm_mod
   implicit none
+  integer, dimension(:), allocatable   :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
+  integer, dimension(:,:), allocatable :: stat_ray
 contains
   subroutine init_comm_mpi
+    ! Needed for compatibility with mpi code (not actually used in serial case)
+    allocate(send_lengths(n_process), send_offsets(n_process))
+    allocate(recv_lengths(n_process), recv_offsets(n_process))
+    allocate(req(2*n_process))
+    allocate(stat_ray(1,2*n_process))
+    
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi
 
-  function write_active_per_level ()
+  integer function write_active_per_level()
     ! write out distribution of active nodes over levels
     implicit none
-    integer :: write_active_per_level
+
     integer :: l, recommended_level_start
 
     recommended_level_start = level_start
@@ -214,9 +222,8 @@ contains
     integer                           :: l
   end subroutine update_array_bdry__finish
 
-  function cpt_dt_mpi()
+  real(8) function cpt_dt_mpi()
     implicit none
-    real(8) :: cpt_dt_mpi
 
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
@@ -233,37 +240,33 @@ contains
     do l = level_start, level_end
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
-    change_mass = change_loc
+    min_mass = min_mass_loc
     n_active = (/ sum(n_active_nodes), sum(n_active_edges) /)
     cpt_dt_mpi = dt_loc
   end function cpt_dt_mpi
 
-  function sync_max (val)
+  integer function sync_max (val)
     implicit none
-    integer :: sync_max
     integer :: val
     
     sync_max = val
   end function sync_max
 
-  function sync_max_d (val)
+  real(8) function sync_max_d (val)
     implicit none
-    real(8) :: sync_max_d
     real(8) :: val
     
     sync_max_d = val
   end function sync_max_d
 
-  function sum_real (val)
+  real(8) function sum_real (val)
     implicit none
-    real(8) :: sum_real
     real(8) :: val
     
     sum_real = val
   end function sum_real
 
-  function sum_int (val)
-    integer :: sum_int
+  integer function sum_int (val)
     integer :: val
 
     sum_int = val
@@ -275,9 +278,8 @@ contains
   subroutine stop_timing
   end subroutine stop_timing
 
-  function get_timing ()
+  real(8) function get_timing()
     implicit none
-    real(8) :: get_timing
     get_timing = 0.0_8
   end function get_timing
 
