@@ -301,8 +301,11 @@ module shared_mod
   integer :: optimize_grid
 
   ! basic constants
-  real(8), parameter :: MATH_PI = acos(-1.0_8) 
-  integer, parameter :: DAY = 24*60*60
+  real(8), parameter :: MATH_PI = acos(-1.0_8)
+  integer, parameter :: MINUTE = 60
+  integer, parameter :: HOUR = 60*MINUTE
+  integer, parameter :: DAY = 24*HOUR
+  integer, parameter :: WEEK = 7*DAY
 
   ! simulation variables
   integer :: istep, resume, Laplace_order

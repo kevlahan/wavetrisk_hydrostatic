@@ -68,7 +68,6 @@ contains
 
     if (resume >= 0) then
        if (rank == 0) write(6,'(A,i6)') 'Resuming from checkpoint ', resume
-       call restart_full (set_thresholds, custom_load, test_case)
     else
        if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid -------------'
 
@@ -127,7 +126,7 @@ contains
        cp_idx = -1
        ierr = write_checkpoint (custom_dump, test_case)
     end if
-    !call restart_full (set_thresholds, custom_load, test_case)
+    call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
   subroutine record_init_state (init_state)
@@ -335,7 +334,7 @@ contains
     
     if (rank == 0) then
        write (6,'(/,A,ES12.6,3(A,ES10.4),A,I2,A,I9,/)') &
-            'time [h] = ', time/3600, &
+            'time [h] = ', time/HOUR, &
             '  mass tol = ', sum(tol_mass)/zlevels, &
             ' temp tol = ', sum(tol_temp)/zlevels, &
             ' velo tol = ', sum(tol_velo)/(EDGE*zlevels), &
@@ -355,7 +354,7 @@ contains
     
     cp_idx = cp_idx + 1
 
-    if (rank == 0) write(6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/3600
+    if (rank == 0) write(6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/HOUR
     
     call write_load_conn (cp_idx)
     write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)

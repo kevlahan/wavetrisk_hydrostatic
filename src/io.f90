@@ -1346,7 +1346,7 @@ contains
     logical, dimension(N_CHDRN) :: child_required
 
     dump_adapt_mpi = 0
-    fid_no   = id+1000000
+    fid_no = id+1000000
     fid_gr = id+3000000
 
     call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:),       NONE)
@@ -1434,17 +1434,20 @@ contains
                 end do
              end do
 
-             do c = 1, N_CHDRN
-                child_required(c) = check_child_required(grid(d), p_par, c-1)
+              do c = 1, N_CHDRN
                 p_chd = grid(d)%patch%elts(p_par+1)%children(c)
                 if (p_chd > 0) then
+                   child_required(c) = check_child_required(grid(d), p_par, c-1)
                    grid(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
                    if (child_required(c)) then
                       p_lev = p_lev + 1
                       grid(d)%lev(l+1)%elts(p_lev) = p_chd
                    end if
+                else
+                   child_required(c) = .False.
                 end if
              end do
+
              write (fid_gr) child_required
           end do
           if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev
@@ -1494,7 +1497,7 @@ contains
           do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
                MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
              if (isnan(sol(S_VELO,k)%data(d)%elts(i))) then
-                write (0,'(i4,1x,i8,A,i3)') d, i, ' Attempt reading NaN scal -> corrupted checkpoint ', id
+                write (0,'(i4,1x,i8,A,i3)') d, i, ' Attempted reading NaN scal -> corrupted checkpoint ', id
                 stop
              end if
           end do
@@ -1521,7 +1524,7 @@ contains
                 do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                      MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
                    if (isnan(wav_coeff(S_VELO,k)%data(d)%elts(i))) then
-                      write (0,'(i4,1x,i8,A,i3)') d, i, ' Attempt reading NaN wavelet -> corrupted checkpoint ', id
+                      write (0,'(i4,1x,i8,A,i3)') d, i, ' Attempeted reading NaN wavelet -> corrupted checkpoint ', id
                       stop
                    end if
                 end do

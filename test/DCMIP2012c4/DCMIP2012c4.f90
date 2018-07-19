@@ -421,14 +421,14 @@ contains
           ! velo_scale = sync_max_d (norm_velo)
 
           ! L2
-          mass_scale = sqrt(sync_max_d (norm_mass)/N_node)
-          temp_scale = sqrt(sync_max_d (norm_temp)/N_node)
-          velo_scale = sqrt(sync_max_d (norm_velo)/N_edge)
+          mass_scale = sqrt(sum_real (norm_mass/N_node))
+          temp_scale = sqrt(sum_real (norm_temp/N_node))
+          velo_scale = sqrt(sum_real (norm_velo/N_edge))
 
           ! L1
-          ! mass_scale = sync_max_d(norm_mass)/N_node
-          ! temp_scale = sync_max_d(norm_temp)/N_node
-          ! velo_scale = sync_max_d(norm_velo)/N_edge
+          ! mass_scale = sum_real (norm_mass /N_node)
+          ! temp_scale = sum_real (norm_temp /N_node)
+          ! velo_scale = sum_real (norm_velo /N_edge)
 
           tol_mass_new(k) = threshold * mass_scale
           tol_temp_new(k) = threshold * temp_scale
@@ -838,7 +838,7 @@ program DCMIP2012c4
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/3600, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/zlevels, &
+             time/HOUR, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/zlevels, &
              level_end, sum(n_active), min_mass, mass_error, timing
      end if
 
@@ -870,7 +870,7 @@ program DCMIP2012c4
         end if
 
         ! Restart after checkpoint and load balance
-        !call restart_full (set_thresholds, load, test_case)
+        call restart_full (set_thresholds, load, test_case)
      end if
      call sum_total_mass (.False.)
   end do
