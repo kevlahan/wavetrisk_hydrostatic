@@ -1319,11 +1319,11 @@ contains
   subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
     implicit none
     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
+    integer                        :: fid, i, j, p, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, fid, v
+    integer :: d, e, id, v
 
     d  = dom%id+1
     id = idx(i, j, offs, dims)
@@ -1334,22 +1334,20 @@ contains
     end do
   end subroutine read_scalar
 
-  function dump_adapt_mpi (id, custom_dump)
+  integer function dump_adapt_mpi (id, custom_dump)
     ! Save data in check point files for restart
     ! One file per domain
     implicit none
-    integer  :: dump_adapt_mpi
     external :: custom_dump
     integer  :: id
 
-    character(5+4+1+5) :: filename_no, filename_ed, fname_gr
-    integer            :: fid_no, l, fid_grid, fid_ed, d, j, k, v, i
-    logical            :: child_required(N_CHDRN)
-    integer            :: p_par, p_chd, c, p_lev
+    character(255)              :: filename_gr, filename_no
+    integer                     :: c, d, fid_gr, fid_no, i, j, k, l, p_par, p_chd, p_lev, v
+    logical, dimension(N_CHDRN) :: child_required
 
     dump_adapt_mpi = 0
     fid_no   = id+1000000
-    fid_grid = id+3000000
+    fid_gr = id+3000000
 
     call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:),       NONE)
     call update_array_bdry (trend_wav_coeff(S_MASS:S_TEMP,:), NONE)
@@ -1373,11 +1371,11 @@ contains
     end do
 
     do d = 1, size(grid)
-       write (filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
-       write (fname_gr,    '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
+       write (filename_no, '(A,I4.4,A,I5.5)') "coef.", id, "_", glo_id(rank+1,d)
+       write (filename_gr, '(A,I4.4,A,I5.5)') "grid.", id, "_", glo_id(rank+1,d)
 
-       open (unit=fid_no,   file=filename_no, form="UNFORMATTED", action='WRITE')
-       open (unit=fid_grid, file=fname_gr,    form="UNFORMATTED", action='WRITE')
+       open (unit=fid_no, file=trim(filename_no), form="UNFORMATTED", action='WRITE')
+       open (unit=fid_gr, file=trim(filename_gr), form="UNFORMATTED", action='WRITE')
 
        write (fid_no) istep
        write (fid_no) time
@@ -1389,11 +1387,10 @@ contains
 
           do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
                MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
-
              if (isnan(sol(S_VELO,k)%data(d)%elts(i))) then
-                write (6,*) d, i, 'Wrote out NaN velocity'
+                write (6,'(i4,1x,i8,A)') d, i, ' Wrote NaN velocity'
                 dump_adapt_mpi = 1
-                close (fid_no); close(fid_grid)
+                close (fid_no); close(fid_gr)
                 return
              end if
           end do
@@ -1421,11 +1418,10 @@ contains
              do k = 1, zlevels
                 do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                      MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
-
                    if (isnan(wav_coeff(S_VELO,k)%data(d)%elts(i))) then
-                      write (0,*) grid(d)%patch%elts(p_par+1)%level, 'Wrote out NaN velocity wavelet'
+                      write (0,'(i2,A)') grid(d)%patch%elts(p_par+1)%level, ' Wrote NaN velocity wavelet'
                       dump_adapt_mpi = 1
-                      close (fid_no); close(fid_grid);
+                      close (fid_no); close(fid_gr);
                       return
                    end if
                 end do
@@ -1439,25 +1435,21 @@ contains
              end do
 
              do c = 1, N_CHDRN
+                child_required(c) = check_child_required(grid(d), p_par, c-1)
                 p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-
                 if (p_chd > 0) then
-                   child_required(c) = check_child_required(grid(d), p_par, c-1)
                    grid(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
-
                    if (child_required(c)) then
                       p_lev = p_lev + 1
                       grid(d)%lev(l+1)%elts(p_lev) = p_chd
                    end if
-                else
-                   child_required(c) = .False.
                 end if
              end do
-             write (fid_grid) child_required
+             write (fid_gr) child_required
           end do
           if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev
        end do
-       close (fid_no); close (fid_grid)
+       close (fid_no); close (fid_gr)
     end do
   end function dump_adapt_mpi
 
@@ -1466,23 +1458,23 @@ contains
     ! One file per domain
     implicit none
     external                             :: custom_load
-    integer, dimension(n_domain(rank+1)) :: fid_no, fid_grid ! ASCII, fid_ed 
     integer                              :: id
 
-    character(5+4+1+5)          :: filename_no, filename_ed, fname_gr
-    integer                     :: c, d, i, j, k, l, v, old_n_patch, p_par, p_chd
-    logical, dimension(N_CHDRN) :: child_required
+    character(255)                       :: filename_gr, filename_no
+    integer                              :: c, d, i, j, k, l, old_n_patch, p_par, p_chd, v
+    integer, dimension(n_domain(rank+1)) :: fid_no, fid_gr
+    logical, dimension(N_CHDRN)          :: child_required
 
     ! Loop over domains at coarsest scale
     do d = 1, size(grid)
-       fid_no(d)   = id*1000 + 1000000 + d
-       fid_grid(d) = id*1000 + 3000000 + d
+       fid_no(d) = id*1000 + 1000000 + d
+       fid_gr(d) = id*1000 + 3000000 + d
 
-       write (filename_no, '(A,I4.4,A,I5.5)')  "coef.", id, "_", glo_id(rank+1,d)
-       write (fname_gr,    '(A,I4.4,A,I5.5)')  "grid.", id, "_", glo_id(rank+1,d)
+       write (filename_no, '(A,I4.4,A,I5.5)') "coef.", id, "_", glo_id(rank+1,d)
+       write (filename_gr, '(A,I4.4,A,I5.5)') "grid.", id, "_", glo_id(rank+1,d)
 
-       open (unit=fid_no(d),   file=filename_no, form="UNFORMATTED", action='READ')
-       open (unit=fid_grid(d), file=fname_gr,    form="UNFORMATTED", action='READ')
+       open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ')
+       open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ')
 
        read (fid_no(d)) istep
        read (fid_no(d)) time
@@ -1499,11 +1491,10 @@ contains
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
           end do
 
-          do i = MULT(S_VELO) * grid(d)%patch%elts(1+1)%elts_start+1, &
+          do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
                MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
-
-             if (sol(S_VELO,k)%data(d)%elts(i) /= sol(S_VELO,k)%data(d)%elts(i)) then
-                write (0,*) d, i, 'Attempt reading in NaN scal -> corrupted checkpoint', id
+             if (isnan(sol(S_VELO,k)%data(d)%elts(i))) then
+                write (0,'(i4,1x,i8,A,i3)') d, i, ' Attempt reading NaN scal -> corrupted checkpoint ', id
                 stop
              end if
           end do
@@ -1514,13 +1505,11 @@ contains
     l = 1
     do while (level_end > l) ! New level was added -> proceed to it
        l = level_end 
-       if (rank == 0) write (6,*) 'loading level', l
-
+       if (rank == 0) write (6,'(A,i2)') 'Loading level ', l
        do d = 1, size(grid)
           old_n_patch = grid(d)%patch%length
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
-
              do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    read (fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
@@ -1531,16 +1520,16 @@ contains
 
                 do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                      MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
-                   if (wav_coeff(S_VELO,k)%data(d)%elts(i) /= wav_coeff(S_VELO,k)%data(d)%elts(i)) then
-                      write (0,*) d, i, 'Attempt reading in NaN wav -> corrupted checkpoint', id
+                   if (isnan(wav_coeff(S_VELO,k)%data(d)%elts(i))) then
+                      write (0,'(i4,1x,i8,A,i3)') d, i, ' Attempt reading NaN wavelet -> corrupted checkpoint ', id
                       stop
                    end if
                 end do
              end do
 
-             read (fid_grid(d)) child_required
+             read (fid_gr(d)) child_required
              do c = 1, N_CHDRN
-                if (child_required(c)) call refine_patch1 (grid(d), p_par, c-1)
+                if (child_required(c)) call refine_patch1 (grid(d), p_par, c - 1)
              end do
           end do
 
@@ -1555,7 +1544,7 @@ contains
     end do
 
     do d = 1, size(grid)
-       close(fid_no(d)); close(fid_grid(d))
+       close(fid_no(d)); close(fid_gr(d))
     end do
 
     wav_coeff%bdry_uptodate       = .False.
