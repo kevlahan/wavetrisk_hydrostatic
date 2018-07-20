@@ -12,31 +12,39 @@ module domain_mod
 
   ! Objects same on all zlevels
   type Domain
-     integer                    :: id
-
+     ! Geometry
      integer, dimension(2)      :: neigh_over_pole
      integer, dimension(N_BDRY) :: neigh, neigh_rot
-     
      logical, dimension(2)      :: pole_master
      logical, dimension(N_BDRY) :: penta
-     
-     type(Patch_Array) :: patch
-     
-     type(Bdry_Patch_Array) :: bdry_patch
-     
-     type(Int_Array)                                          :: level, mask_e, mask_n, neigh_pa_over_pole, send_pa_all
-     type(Int_Array), dimension(:), allocatable               :: lev
+     type(Int_Array)            :: neigh_pa_over_pole
+     type(Coord_Array)          :: ccentre     ! circumcentres
+     type(Coord_Array)          :: midpt       ! midpoints of edges
+     type(Coord_Array)          :: node        ! coordinates of hexagon nodes
+     type(Areas_Array)          :: areas       ! hexagon areas
+     type(Float_Array)          :: len         ! primal edge lengths
+     type(Float_Array)          :: pedlen      ! dual edge lengths
+     type(Float_Array)          :: triarea     ! triangle areas
+     type(Overl_Area_Array)     :: overl_areas ! overlapping areas
+
+     ! Multiscale and data structure
+     integer                                    :: id
+     type(Int_Array)                            :: level
+     type(Int_Array)                            :: mask_n
+     type(Int_Array)                            :: mask_e
+     type(Int_Array), dimension(:), allocatable :: lev
+     type(Iu_Wgt_Array)                         :: I_u_wgt
+     type(RF_Wgt_Array)                         :: R_F_wgt
+     type(Patch_Array)                          :: patch
+     type(Bdry_Patch_Array)                     :: bdry_patch
+
+      ! Communication
+     type(Int_Array)                                          :: send_pa_all
      type(Int_Array), dimension(N_GLO_DOMAIN)                 :: recv_pa, send_conn
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk
      type(Int_Array), dimension(:,:), allocatable             :: src_patch
-
-     type(Coord_Array) :: ccentre     ! circumcentres
-     type(Coord_Array) :: midpt       ! midpoints of edges
-     type(Coord_Array) :: node        ! coordinates of hexagon nodes
-     type(Areas_Array) :: areas       ! hexagon areas
-     type(Float_Array) :: len         ! primal edge lengths
-     type(Float_Array) :: pedlen      ! dual edge lengths
-     type(Float_Array) :: triarea     ! triangle areas
+     
+     ! Physical quantities
      type(Float_Array) :: coriolis    ! Coriolis force
      type(Float_Array) :: surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
      type(Float_Array) :: press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)
@@ -52,11 +60,6 @@ module domain_mod
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          !
      type(Float_Array) :: Laplacian_u ! Laplacian of velocity
-
-     type(Overl_Area_Array) :: overl_areas ! overlapping areas
-     
-     type(Iu_Wgt_Array) :: I_u_wgt
-     type(RF_Wgt_Array) :: R_F_wgt
   end type Domain
 
   type Float_Field
