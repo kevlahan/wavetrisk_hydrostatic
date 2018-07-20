@@ -68,6 +68,7 @@ contains
 
     if (resume >= 0) then
        if (rank == 0) write(6,'(A,i6)') 'Resuming from checkpoint ', resume
+       call restart_full (set_thresholds, custom_load, test_case)
     else
        if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid -------------'
 
@@ -124,9 +125,9 @@ contains
        dt_new = cpt_dt_mpi() ; if (rank==0) write(6,'(A,i8,/)') 'Initial number of dof = ', sum(n_active)
 
        cp_idx = -1
-       ierr = write_checkpoint (custom_dump, test_case)
+       call write_checkpoint (custom_dump, test_case)
     end if
-    call restart_full (set_thresholds, custom_load, test_case)
+    !call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
   subroutine record_init_state (init_state)
@@ -345,7 +346,7 @@ contains
     end if
   end subroutine restart_full
 
-  integer function write_checkpoint (custom_dump, test_case)
+  subroutine write_checkpoint (custom_dump, test_case)
     implicit none
     external :: custom_dump
     character(*) :: test_case
@@ -357,8 +358,7 @@ contains
     if (rank == 0) write(6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/HOUR
     
     call write_load_conn (cp_idx)
-    write_checkpoint = dump_adapt_mpi (cp_idx, custom_dump)
-
+    call dump_adapt_mpi (cp_idx, custom_dump)
     call barrier ! Make sure all processors have written data
     
     ! Make checkpoint archive (overwriting existing checkpoint if present)
@@ -366,7 +366,7 @@ contains
     write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
     write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim(cmd_archive), ' ', trim(cmd_files)
     if (rank == 0) call system (command)
-  end function write_checkpoint
+  end subroutine write_checkpoint
 
   subroutine compress_files (iwrite, test_case)
     implicit none

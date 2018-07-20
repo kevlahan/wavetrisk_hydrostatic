@@ -718,7 +718,7 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  min_allowed_mass = 2.0d-1                                   ! minimum relative mass before remapping
+  min_allowed_mass = 3.0d-1                                   ! minimum relative mass before remapping
   save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
   pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
@@ -854,23 +854,16 @@ program DCMIP2012c4
         if (modulo(iwrite,CP_EVERY) /= 0) cycle ! Do not write checkpoint
 
         ! Save projection on plane 
-        call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-256, 256/), (/2.0_8*MATH_PI, MATH_PI/), &
-            set_thresholds, test_case)
+        !call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-256, 256/), (/2.0_8*MATH_PI, MATH_PI/), &
+        !    set_thresholds, test_case)
         !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
         !     set_thresholds, test_case)
 
-        ierr = write_checkpoint (dump, test_case)
-
-        ! Let all cpus exit gracefully if NaN has been produced
-        ierr = sync_max (ierr)
-        if (ierr == 1) then ! NaN
-           write (0,*) "NaN when writing checkpoint"
-           call finalize
-           stop
-        end if
+        ! Save checkpoint
+        call write_checkpoint (dump, test_case)
 
         ! Restart after checkpoint and load balance
-        call restart_full (set_thresholds, load, test_case)
+        !call restart_full (set_thresholds, load, test_case)
      end if
      call sum_total_mass (.False.)
   end do

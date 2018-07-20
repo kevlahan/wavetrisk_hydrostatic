@@ -29,9 +29,8 @@ contains
     initialized = .True.
   end subroutine init_io_mod
 
-  function get_fid ()
+  integer function get_fid ()
     implicit none
-    integer :: get_fid
 
     get_fid  = next_fid
     next_fid = next_fid + 1
@@ -93,10 +92,9 @@ contains
          time, level_end, n_active, tot_mass, get_timing()
   end subroutine write_step
 
-  function integrate_hex (fun, l, k)
+  real(8) function integrate_hex (fun, l, k)
     ! Integrate function defined by fun over hexagons
     implicit none
-    real(8)  :: integrate_hex
     external :: fun
     integer  :: l, k
 
@@ -141,9 +139,8 @@ contains
     integrate_hex = sum_real(s)
   end function integrate_hex
 
-  function integrate_tri (fun, k)
+  real(8) function integrate_tri (fun, k)
     implicit none
-    real(8)  :: integrate_tri
     external :: fun
     integer  :: k
 
@@ -171,9 +168,8 @@ contains
     integrate_tri = sum_real(s)
   end function integrate_tri
 
-  function only_area (dom, i, j, offs, dims)
+  real(8) function only_area (dom, i, j, offs, dims)
     implicit none
-    real(8)                        :: only_area
     type(Domain)                   :: dom
     integer                        :: i, j
     integer, dimension(N_BDRY+1)   :: offs
@@ -182,9 +178,8 @@ contains
     only_area = 1.0_8
   end function only_area
 
-  function mu (dom, i, j, zlev, offs, dims)
+  real(8) function mu (dom, i, j, zlev, offs, dims)
     implicit none
-    real(8)                        :: mu
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -225,9 +220,8 @@ contains
     energy = bernoulli(id+1) * sol(S_MASS,zlev)%data(d)%elts(id+1)
   end function energy
 
-  function tri_only_area (dom, i, j, t, offs, dims)
+  real(8) function tri_only_area (dom, i, j, t, offs, dims)
     implicit none
-    real(8)                        :: tri_only_area
     type(Domain)                   :: dom
     integer                        :: i, j, t
     integer, dimension(N_BDRY+1)   :: offs
@@ -236,9 +230,8 @@ contains
     tri_only_area = 1.0_8
   end function tri_only_area
 
-  function only_coriolis (dom, i, j, t, offs, dims)
+  real(8) function only_coriolis (dom, i, j, t, offs, dims)
     implicit none
-    real(8)                        :: only_coriolis
     type(Domain)                   :: dom
     integer                        :: i, j, t
     integer, dimension(N_BDRY+1)   :: offs
@@ -1334,7 +1327,7 @@ contains
     end do
   end subroutine read_scalar
 
-  integer function dump_adapt_mpi (id, custom_dump)
+  subroutine dump_adapt_mpi (id, custom_dump)
     ! Save data in check point files for restart
     ! One file per domain
     implicit none
@@ -1342,10 +1335,12 @@ contains
     integer  :: id
 
     character(255)              :: filename_gr, filename_no
-    integer                     :: c, d, fid_gr, fid_no, i, j, k, l, p_par, p_chd, p_lev, v
+    integer                     :: c, d, fid_gr, fid_no, i, j, k, l, p_chd, p_lev, p_par, v
     logical, dimension(N_CHDRN) :: child_required
+    type(Domain), dimension(1:size(grid)) :: grid_tmp
 
-    dump_adapt_mpi = 0
+    grid_tmp = grid
+    
     fid_no = id+1000000
     fid_gr = id+3000000
 
@@ -1384,17 +1379,6 @@ contains
 
        do k = 1, zlevels
           call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no, .True.)
-
-          do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
-               MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
-             if (isnan(sol(S_VELO,k)%data(d)%elts(i))) then
-                write (6,'(i4,1x,i8,A)') d, i, ' Wrote NaN velocity'
-                dump_adapt_mpi = 1
-                close (fid_no); close(fid_gr)
-                return
-             end if
-          end do
-
           do v = S_MASS, S_VELO
              write (fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
@@ -1405,27 +1389,18 @@ contains
 
        do l = min_level, level_end
           p_lev = 0
-          do j = 1, grid(d)%lev(l)%length
-             p_par = grid(d)%lev(l)%elts(j)
-             if (grid(d)%patch%elts(p_par+1)%deleted) then
+          do j = 1, grid_tmp(d)%lev(l)%length
+             
+             p_par = grid_tmp(d)%lev(l)%elts(j)
+             if (grid_tmp(d)%patch%elts(p_par+1)%deleted) then
                 do c = 1, N_CHDRN
-                   p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-                   if (p_chd > 0) grid(d)%patch%elts(p_chd+1)%deleted = .True.
+                   p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
+                   if (p_chd > 0) grid_tmp(d)%patch%elts(p_chd+1)%deleted = .True.
                 end do
                 cycle
              end if
 
              do k = 1, zlevels
-                do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                     MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
-                   if (isnan(wav_coeff(S_VELO,k)%data(d)%elts(i))) then
-                      write (0,'(i2,A)') grid(d)%patch%elts(p_par+1)%level, ' Wrote NaN velocity wavelet'
-                      dump_adapt_mpi = 1
-                      close (fid_no); close(fid_gr);
-                      return
-                   end if
-                end do
-
                 do v = S_MASS, S_VELO
                    write (fid_no) (wav_coeff(v,k)%data(d)%elts(i), i = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
@@ -1435,13 +1410,13 @@ contains
              end do
 
               do c = 1, N_CHDRN
-                p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
                 if (p_chd > 0) then
-                   child_required(c) = check_child_required(grid(d), p_par, c-1)
-                   grid(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
+                   child_required(c) = check_child_required(grid_tmp(d), p_par, c-1)
+                   grid_tmp(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
                    if (child_required(c)) then
                       p_lev = p_lev + 1
-                      grid(d)%lev(l+1)%elts(p_lev) = p_chd
+                      grid_tmp(d)%lev(l+1)%elts(p_lev) = p_chd
                    end if
                 else
                    child_required(c) = .False.
@@ -1450,11 +1425,11 @@ contains
 
              write (fid_gr) child_required
           end do
-          if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev
+          if (l+1 <= max_level) grid_tmp(d)%lev(l+1)%length = p_lev
        end do
        close (fid_no); close (fid_gr)
     end do
-  end function dump_adapt_mpi
+  end subroutine dump_adapt_mpi
 
   subroutine load_adapt_mpi (id, custom_load)
     ! Read data from check point files for restart
@@ -1464,7 +1439,7 @@ contains
     integer                              :: id
 
     character(255)                       :: filename_gr, filename_no
-    integer                              :: c, d, i, j, k, l, old_n_patch, p_par, p_chd, v
+    integer                              :: c, d, i, j, k, l, old_n_patch, p_chd, p_par, v
     integer, dimension(n_domain(rank+1)) :: fid_no, fid_gr
     logical, dimension(N_CHDRN)          :: child_required
 
@@ -1493,14 +1468,6 @@ contains
              read (fid_no(d)) (trend(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
                   MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
           end do
-
-          do i = MULT(S_VELO)*grid(d)%patch%elts(1+1)%elts_start+1, &
-               MULT(S_VELO)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2)
-             if (isnan(sol(S_VELO,k)%data(d)%elts(i))) then
-                write (0,'(i4,1x,i8,A,i3)') d, i, ' Attempted reading NaN scal -> corrupted checkpoint ', id
-                stop
-             end if
-          end do
        end do
     end do
 
@@ -1519,14 +1486,6 @@ contains
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
                    read (fid_no(d)) (trend_wav_coeff(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
                         MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
-                end do
-
-                do i = MULT(S_VELO)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                     MULT(S_VELO)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2)
-                   if (isnan(wav_coeff(S_VELO,k)%data(d)%elts(i))) then
-                      write (0,'(i4,1x,i8,A,i3)') d, i, ' Attempeted reading NaN wavelet -> corrupted checkpoint ', id
-                      stop
-                   end if
                 end do
              end do
 
