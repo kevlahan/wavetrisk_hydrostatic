@@ -1,7 +1,7 @@
 # options: ser mpi mpi-lb
 TEST_CASE  = DCMIP2008c5
 OPTIM      = -O2
-ARCH       = mpi-lb
+ARCH       = mpi
 PARAM      = param_J4
 GEOM       = sphere
 ARRAYS     = dyn_array
