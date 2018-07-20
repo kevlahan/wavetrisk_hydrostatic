@@ -1340,9 +1340,9 @@ contains
     character(255)              :: filename_gr, filename_no
     integer                     :: c, d, fid_gr, fid_no, i, j, k, l, p_chd, p_lev, p_par, v
     logical, dimension(N_CHDRN) :: child_required
-    type(Domain), dimension(1:size(grid)) :: grid_tmp
+    type(Domain), dimension(:), allocatable :: grid_tmp
 
-    grid_tmp = grid
+    allocate (grid_tmp(1:size(grid))); grid_tmp = grid
     
     fid_no = id+1000000
     fid_gr = id+3000000
@@ -1432,6 +1432,7 @@ contains
        end do
        close (fid_no); close (fid_gr)
     end do
+    deallocate (grid_tmp)
   end subroutine dump_adapt_mpi
 
   subroutine load_adapt_mpi (id, custom_load)
