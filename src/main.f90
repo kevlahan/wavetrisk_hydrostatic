@@ -51,15 +51,14 @@ contains
     integer        :: k, d, ierr
 
     if (min_level > max_level) then
-       if (rank == 0) write(6,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
+       if (rank == 0) write (6,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
             '<', min_level, '. Setting max_level to', min_level
        max_level = min_level
     end if
 
     if (resume >= 0) then
-       if (rank == 0) write(6,'(A,i6)') 'Resuming from checkpoint ', resume
        cp_idx = resume
-       write(command, '(A,I4.4,A)')  'tar xzf '//trim(test_case)//'_checkpoint_' , cp_idx , ".tgz"
+       write (command, '(A,I4.4,A)')  'tar xzf '//trim(test_case)//'_checkpoint_' , cp_idx , ".tgz"
        if (rank == 0) call system (command)
        call barrier ! make sure all files are extracted before everyone starts reading them
     end if
@@ -67,10 +66,10 @@ contains
     call init_structures
 
     if (resume >= 0) then
-       if (rank == 0) write(6,'(A,i6)') 'Resuming from checkpoint ', resume
+       if (rank == 0) write (6,'(A,i6)') 'Resuming from checkpoint ', resume
        call restart_full (set_thresholds, custom_load, test_case)
     else
-       if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid --------------'
+       if (rank == 0) write (6,'(/,A,/)') '------------- Adapting initial grid --------------'
 
        call apply_init_cond
        call forward_wavelet_transform (sol, wav_coeff)
@@ -78,7 +77,7 @@ contains
        call forward_wavelet_transform (trend, trend_wav_coeff)
 
        do while (level_end < max_level)
-          if (rank == 0) write(6,'(A,i2,A,i2)') 'Initial refinement Level', level_end, ' -> ', level_end+1
+          if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
@@ -113,16 +112,16 @@ contains
           ! Sum results over all ranks
           n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))
           
-          if (rank == 0) write(6,'(A,i2,1x,2(A,i8,1x),/)') &
+          if (rank == 0) write (6,'(A,i2,1x,2(A,i8,1x),/)') &
                'Level = ', level_end, 'number of active node wavelets = ',n_active(AT_NODE), &
                'number of active edge wavelets = ', n_active(AT_EDGE)
 
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit !--No active nodes at this scale
        end do
-       if (rank == 0) write(6,'(A,/)') '--------- Finished adapting initial grid ---------'
+       if (rank == 0) write (6,'(A,/)') '--------- Finished adapting initial grid ---------'
 
        call adapt (set_thresholds)
-       dt_new = cpt_dt_mpi() ; if (rank==0) write(6,'(A,i8,/)') 'Initial number of dof = ', sum(n_active)
+       dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum(n_active)
 
        cp_idx = -1
        call write_checkpoint (custom_dump, test_case)
@@ -341,7 +340,7 @@ contains
             ' velo tol = ', sum(tol_velo)/(EDGE*zlevels), &
             ' Jmax =', level_end, &
             '  dof = ', sum(n_active)
-       write(6,'(A,/)') &
+       write (6,'(A,/)') &
             '**************************************************** End Restart ****************************************************'
     end if
   end subroutine restart_full
@@ -355,7 +354,7 @@ contains
     
     cp_idx = cp_idx + 1
 
-    if (rank == 0) write(6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/HOUR
+    if (rank == 0) write (6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/HOUR
     
     call write_load_conn (cp_idx)
     call dump_adapt_mpi (cp_idx, custom_dump)
@@ -412,7 +411,7 @@ contains
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
-    if (rank == 0) write(6,'(A,i2,A)') 'Make level J_min = ', min_level, ' ...'
+    if (rank == 0) write (6,'(A,i2,A)') 'Make level J_min = ', min_level, ' ...'
 
     call init_wavelets
     call init_masks
