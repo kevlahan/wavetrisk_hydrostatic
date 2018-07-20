@@ -70,7 +70,7 @@ contains
        if (rank == 0) write(6,'(A,i6)') 'Resuming from checkpoint ', resume
        call restart_full (set_thresholds, custom_load, test_case)
     else
-       if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid -------------'
+       if (rank == 0) write(6,'(/,A,/)') '------------- Adapting initial grid --------------'
 
        call apply_init_cond
        call forward_wavelet_transform (sol, wav_coeff)

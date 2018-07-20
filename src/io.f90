@@ -253,7 +253,7 @@ contains
     real(8), dimension(2)  :: lon_lat_range
     character(*)           :: test_case
 
-    integer                              :: d, i, id, j, k, p, v, ix
+    integer                              :: d, i, id, ix, j, k, level_end_old, p, v
     integer, parameter                   :: funit = 400
     integer, parameter                   :: nvar_save=7, nvar_zonal=8 ! Number of variables to save
 
@@ -268,10 +268,11 @@ contains
 
     type(Domain), dimension(:), allocatable, target :: old_grid
 
-    N_zonal = real(Nx(2)-Nx(1)+1)
-
     ! Save adapted grid
     allocate(old_grid(1:size(grid))); old_grid = grid
+    level_end_old = level_end
+    
+    N_zonal = real(Nx(2)-Nx(1)+1)
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
@@ -444,9 +445,11 @@ contains
     deallocate (field2d, field2d_save, zonal_av)
 
     ! Reset grid to adapted grid and recover old solution
+    level_end = level_end_old
     grid = old_grid ; deallocate(old_grid)
     call inverse_wavelet_transform (wav_coeff, sol, level_start)
     call update_array_bdry (sol, NONE)
+    call update_array_bdry (wav_coeff, NONE)
   end subroutine export_2d
 
   subroutine project_onto_plane (field, Nx, Ny, l, proj, default_val)

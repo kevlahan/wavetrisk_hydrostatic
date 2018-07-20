@@ -856,8 +856,8 @@ program DCMIP2012c4
         ! Save projection on plane 
         !call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-256, 256/), (/2.0_8*MATH_PI, MATH_PI/), &
         !    set_thresholds, test_case)
-        !call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
-        !     set_thresholds, test_case)
+        call export_2d (cart2sph2, 3000000+100*iwrite, (/-768, 768/), (/-384, 384/), (/2.0_8*MATH_PI, MATH_PI/), &
+             set_thresholds, test_case)
 
         ! Save checkpoint
         call write_checkpoint (dump, test_case)
