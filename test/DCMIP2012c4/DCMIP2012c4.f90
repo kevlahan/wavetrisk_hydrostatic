@@ -849,9 +849,9 @@ program DCMIP2012c4
         if (remap) call remap_vertical_coordinates (set_thresholds)
         call write_and_export (iwrite)
 
-         ! Save projection on plane 
-        call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-128, 128/), (/2.0_8*MATH_PI, MATH_PI/), &
-             set_thresholds, test_case)
+        ! Save projection on plane 
+        !call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-128, 128/), (/2.0_8*MATH_PI, MATH_PI/), &
+        !     set_thresholds, test_case)
 
         call sum_total_mass (.False.)
 
