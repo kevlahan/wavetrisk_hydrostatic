@@ -1342,7 +1342,7 @@ contains
     logical, dimension(N_CHDRN) :: child_required
     type(Domain), dimension(:), allocatable :: grid_tmp
 
-    allocate (grid_tmp(1:size(grid))); grid_tmp = grid
+    allocate (grid_tmp, source=grid)
     
     fid_no = id+1000000
     fid_gr = id+3000000
