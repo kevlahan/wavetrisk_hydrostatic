@@ -1,12 +1,81 @@
 module flat_projection_data_mod
-  ! DCMIP2012 test case 4: baroclinic instability
+  ! 2d projection from saved data
   use main_mod
   use remap_mod
   implicit none
-  integer        :: iwrite, tstart, tend
-  logical        :: uniform
-  character(255) :: test_case
+
+  character(255)                     :: test_case 
+  integer                            :: check_start, check_end, iwrite
+  logical                            :: uniform
 contains
+   subroutine read_test_case_parameters (filename)
+    implicit none
+    character(*)   :: filename
+    integer        :: fid = 500
+    real(8)        :: pressures
+    character(255) :: varname
+
+    open (unit=fid, file=filename, action='READ')
+    read (fid,*) varname, test_case
+    read (fid,*) varname, check_start
+    read (fid,*) varname, check_end
+    read (fid,*) varname, max_level
+    read (fid,*) varname, zlevels
+    read (fid,*) varname, level_save
+    read (fid,*) varname, pressures
+    close(fid)
+
+    if (rank==0) then
+       write (6,'(A,A)')      "test_case          = ", test_case
+       write (6,'(A,i12)')    "first file         = ", check_start
+       write (6,'(A,i12)')    "first file         = ", check_end
+       write (6,'(A,i3)')     "min_level          = ", min_level
+       write (6,'(A,i3)')     "max_level          = ", max_level
+       write (6,'(A,i3)')     "zlevels            = ", zlevels
+       write (6,'(A,i3)')     "level_save         = ", level_save
+       write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressures
+       write (6,*) ' '
+    end if
+    pressure_save = (/pressures/) * 1.0d2 ! Convert to Pascals
+  end subroutine read_test_case_parameters
+
+  subroutine set_surf_geopot
+    implicit none
+    integer ::  d, p
+
+    do d = 1, size(grid)
+       do p = 3, grid(d)%patch%length
+          call apply_onescale_to_patch (set_surfgeopot, grid(d), p-1, z_null, 0, 1)
+       end do
+    end do
+  end subroutine set_surf_geopot
+  
+  subroutine set_surfgeopot (dom, i, j, zlev, offs, dims)
+    ! Initialize surface geopotential after restart
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, k, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    type (Coord) :: x_i
+    integer      :: id
+
+    id   = idx(i, j, offs, dims)
+    x_i  = dom%node%elts(id+1)
+
+    ! Surfaced geopotential
+    dom%surf_geopot%elts(id+1) = surf_geopot_fun(x_i)
+  end subroutine set_surfgeopot
+
+   real(8) function surf_geopot_fun (x_i)
+    ! Surface geopotential
+    implicit none
+    Type(Coord) :: x_i
+
+    surf_geopot_fun = 0.0_8
+  end function surf_geopot_fun
+ 
   subroutine initialize_a_b_vert
     implicit none
     integer :: k
@@ -91,41 +160,14 @@ contains
        a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
     end if
   end subroutine initialize_a_b_vert
-
-  subroutine read_test_case_parameters (filename)
+ 
+  subroutine dump (fid)
     implicit none
-    character(*)   :: filename
-    integer        :: fid = 500
-    character(255) :: varname
+    integer :: fid
 
-    open (unit=fid, file=filename, action='READ')
-    read (fid,*) varname, test_case
-    read (fid,*) varname, tstart
-    read (fid,*) varname, tend
-    read (fid,*) varname, max_level
-    read (fid,*) varname, zlevels
-    read (fid,*) varname, level_save
-    read (fid,*) varname, pressure_save
-    close(fid)
-
-    if (rank==0) then
-       write (6,'(A,A)')      "test_case          = ", test_case
-       write (6,'(A,i12)')    "first file         = ", tstart
-       write (6,'(A,i12)')    "first file         = ", tend
-       write (6,'(A,i3)')     "min_level          = ", min_level
-       write (6,'(A,i3)')     "max_level          = ", max_level
-       write (6,'(A,i3)')     "zlevels            = ", zlevels
-       write (6,'(A,i3)')     "level_save         = ", level_save
-       write (6,'(A,es10.4)') "pressure_save (hPa = ", pressure_save
-       write (6,*) ' '
-    end if
-    pressure_save = pressure_save * 1.0d2 ! Convert to Pascals
-  end subroutine read_test_case_parameters
-  
-   subroutine dump (fid)
-     ! Dummy routine
-     implicit none
-     integer :: fid
+    write(fid) itime
+    write(fid) iwrite
+    write(fid) tol_mass, tol_temp, tol_velo
   end subroutine dump
 
   subroutine load (fid)
@@ -137,17 +179,21 @@ contains
     read(fid) tol_mass, tol_temp, tol_velo
   end subroutine load
 
-   subroutine set_thresholds
-    ! Dummy routine
+  subroutine set_thresholds
     implicit none
   end subroutine set_thresholds
+    
+  subroutine apply_initial_conditions
+    implicit none
+  end subroutine apply_initial_conditions
 end module flat_projection_data_mod
 
 program flat_projection_data
   use main_mod
   use flat_projection_data_mod
   implicit none
-  integer :: iout
+
+  character(255) :: command
 
   ! Initialize grid etc
   call init_main_mod 
@@ -155,32 +201,46 @@ program flat_projection_data
   ! Nullify all pointers initially
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
+  save_levels = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
+
   ! Read test case parameters
-  call read_test_case_parameters (trim(test_case)//".in")
+  call read_test_case_parameters ("flat_projection_data.in")
+
+  allocate (tol_mass(1:zlevels), tol_temp(1:zlevels), tol_velo(1:zlevels))
 
   ! Parameters for the simulation
-  ref_press      = 1.0d5       ! reference pressure (mean surface pressure) in Pascals
-  kappa          = 2.0_8/7.0_8 ! kappa=R_d/c_p
-  uniform        = .false.     ! Type of vertical grid
+  radius         = 6.371229d6   ! mean radius of the Earth in meters
+  grav_accel     = 9.80616_8    ! gravitational acceleration in meters per second squared
+  ref_press      = 1.0d5        ! reference pressure (mean surface pressure) in Pascals
+  ref_surf_press = ref_press    ! reference surface pressure
+  R_d            = 287.0_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
+  kappa          = 2.0_8/7.0_8  ! kappa=R_d/c_p
+  compressible   = .true.       ! Compressible equations
+  uniform        = .false.      ! Type of vertical grid
 
    ! Initialize vertical grid
   call initialize_a_b_vert
 
-  call barrier
-  
-  do cp_idx = tstart, tend
-     ! Load checkpoint file
-     call restart_full (set_thresholds, load, test_case)
+  ! Initialize variables
+  resume = check_start
+  call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
 
-     ! Export data
-     iout = 3000000+100*cp_idx
-     call export_2d (cart2sph2, iout, (/-256, 256/), (/-128, 128/), (/2.0_8*MATH_PI, MATH_PI/), set_thresholds, test_case)
+  call set_surf_geopot 
+
+  call barrier
+
+  call export_2d (cart2sph2, 3000000+100*cp_idx, (/-256, 256/), (/-128, 128/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
+
+  do cp_idx = resume+1, check_end
+     resume = NONE
+     call restart_full (set_thresholds, load, test_case)
+     call export_2d (cart2sph2, 3000000+100*cp_idx, (/-256, 256/), (/-128, 128/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
   end do
   call finalize
 end program flat_projection_data
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Dummy physics routines
+! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   use domain_mod
@@ -190,13 +250,13 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   type(Domain)                             :: dom
   integer                                  :: id, idE, idNE, idN
   logical, optional                        :: type
-
+  
   physics_scalar_flux(S_MASS,:) = 0.0_8
-  physics_scalar_flux(S_TEMP,:) = 0.0_8
 end function physics_scalar_flux
 
 function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
   use domain_mod
+  use flat_projection_data_mod
   implicit none
 
   real(8), dimension(1:EDGE)               :: grad_physics
@@ -205,11 +265,22 @@ function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
   integer                                  :: id, idE, idNE, idN
   logical                                  :: local_type
 
-  grad_physics = 0.0_8
+  if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
+     grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
+     grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
+     grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
+  else ! Gradient for southwest edges of hexagon W, SW, S
+     grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
+     grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
+     grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+  end if
 end function grad_physics
 
 function physics_scalar_source (dom, i, j, zlev, offs, dims)
+  ! Additional physics for the source term of the scalar trend
+  ! Newton cooling to equilibrium potential temperature theta_equil
   use domain_mod
+  use flat_projection_data_mod
   implicit none
 
   real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
@@ -234,7 +305,5 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   physics_velo_source = 0.0_8
 end function physics_velo_source
-
-
 
 

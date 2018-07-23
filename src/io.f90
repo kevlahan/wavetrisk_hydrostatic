@@ -243,11 +243,11 @@ contains
     only_coriolis = (dom%coriolis%elts(TRIAG*id+t+1)/dom%triarea%elts(TRIAG*id+t+1))**2
   end function only_coriolis
 
-  subroutine export_2d (proj, fid, Nx, Ny, lon_lat_range, set_thresholds, test_case)
+  subroutine export_2d (proj, fid, Nx, Ny, lon_lat_range, test_case)
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
     ! save zonal average and horizontal grid at vertical level zlevel
     implicit none
-    external               :: proj, set_thresholds
+    external               :: proj
     integer, dimension(2)  :: Nx, Ny
     integer                :: fid
     real(8), dimension(2)  :: lon_lat_range

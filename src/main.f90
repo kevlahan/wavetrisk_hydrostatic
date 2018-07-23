@@ -305,6 +305,7 @@ contains
 
     ! Uncompress checkpoint data
     write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
+    if (rank == 0) write(6,'(A,A,/)') 'Loading file ', trim(cmd_archive)
     write (command, '(A,A)') 'tar xzf ', trim(cmd_archive)
     if (rank == 0) call system (command)
 

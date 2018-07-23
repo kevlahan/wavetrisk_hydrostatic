@@ -69,9 +69,8 @@ contains
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
 
-  function set_temp (x_i)
+  real(8) function set_temp (x_i)
     implicit none
-    real(8)     :: set_temp
     type(Coord) :: x_i
 
     real(8) :: lon, lat, Tmean
@@ -107,11 +106,10 @@ contains
     dom%surf_geopot%elts(id+1) = surf_geopot_fun(x_i)
   end subroutine set_surfgeopot
 
-  function geopot_fun (x_i)
+  real(8) function geopot_fun (x_i)
     ! Geopotential
     implicit none
     type(Coord) :: x_i
-    real(8)     :: geopot_fun
 
     real(8) :: lon, lat, phi_mean, rgrc
 
@@ -138,11 +136,10 @@ contains
          - 10.0_8/3.0_8 * eta_t**2*eta**3 + 5.0_8/4.0_8*eta_t*eta**4 - eta**5/5.0_8)
   end function delta_phi
 
-  function surf_geopot_fun (x_i)
+  real(8) function surf_geopot_fun (x_i)
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
-    real(8)     :: surf_geopot_fun
     real(8)     :: lon, lat
 
     ! Find latitude and longitude from Cartesian coordinates
@@ -848,10 +845,6 @@ program DCMIP2012c4
         ! Save fields
         if (remap) call remap_vertical_coordinates (set_thresholds)
         call write_and_export (iwrite)
-
-        ! Save projection on plane 
-        !call export_2d (cart2sph2, 3000000+100*iwrite, (/-256, 256/), (/-128, 128/), (/2.0_8*MATH_PI, MATH_PI/), &
-        !     set_thresholds, test_case)
 
         call sum_total_mass (.False.)
 
