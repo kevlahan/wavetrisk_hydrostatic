@@ -374,7 +374,7 @@ contains
     resume              = NONE
     istep               = 0
     time                = 0.0_8
-    optimize_grid       = NO_OPTIM
+    optimize_grid       = HR_GRID
     threshold           = 0.0_8
     min_allowed_mass    = 0.2_8
     cfl_num             = 1.0_8

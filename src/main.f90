@@ -291,7 +291,7 @@ contains
     external     :: set_thresholds, custom_load
     character(*) :: test_case
     
-    character(255)           :: cmd_archive, cmd_files, command
+    character(255) :: cmd_archive, cmd_files, command
 
     if (rank == 0) then
        write (6,'(A,/)') &

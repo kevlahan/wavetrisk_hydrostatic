@@ -266,12 +266,6 @@ contains
     character(7)                         :: var_file
     character(130)                       :: command
 
-    type(Domain), dimension(:), allocatable, target :: old_grid
-
-    ! Save adapted grid
-    allocate(old_grid(1:size(grid))); old_grid = grid
-    level_end_old = level_end
-    
     N_zonal = real(Nx(2)-Nx(1)+1)
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
@@ -443,13 +437,6 @@ contains
        call system (command)
     end if
     deallocate (field2d, field2d_save, zonal_av)
-
-    ! Reset grid to adapted grid and recover old solution
-    level_end = level_end_old
-    grid = old_grid ; deallocate(old_grid)
-    call inverse_wavelet_transform (wav_coeff, sol, level_start)
-    call update_array_bdry (sol, NONE)
-    call update_array_bdry (wav_coeff, NONE)
   end subroutine export_2d
 
   subroutine project_onto_plane (field, Nx, Ny, l, proj, default_val)
