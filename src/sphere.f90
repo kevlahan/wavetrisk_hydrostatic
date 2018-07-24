@@ -4,89 +4,84 @@ module geom_mod
   implicit none
 
   type Coord
-     real(8) x
-     real(8) y
-     real(8) z
+     real(8) :: x, y, z
   end type Coord
 
   type Areas
      real(8), dimension(6) :: part
-     real(8) :: hex_inv
+     real(8)               :: hex_inv
   end type Areas
 
   type(Coord), parameter :: ORIGIN = Coord(0.0_8, 0.0_8, 0.0_8)
-
   integer, parameter :: N_GLO_DOMAIN = N_ICOSAH_LOZANGE*N_SUB_DOM
-
 contains
   subroutine init_sphere_mod
     ! if needed in future
   end subroutine init_sphere_mod
 
   type(Coord) function direction (init, term)
-    type(Coord) init
-    type(Coord) term
-    type(Coord) v
+    implicit none
+    type(Coord) :: init, term, v
 
     v = vector(init, term)
     direction = normalize_Coord(v)
   end function direction
 
-  function vec_plus (v1, v2)
-    type(Coord) :: vec_plus
+  type(Coord) function vec_plus (v1, v2)
+    implicit none
     type(Coord) :: v1, v2
 
     vec_plus = Coord (v1%x+v2%x, v1%y+v2%y, v1%z+v2%z)
   end function vec_plus
 
-  function vec_plus3 (v1, v2, v3)
-    type(Coord) :: vec_plus3
+  type(Coord) function vec_plus3 (v1, v2, v3)
+    implicit none
     type(Coord) :: v1, v2, v3
 
     vec_plus3 = Coord (v1%x+v2%x+v3%x, v1%y+v2%y+v3%y, v1%z+v2%z+v3%z)
   end function vec_plus3
 
-  function vec_minus (v1, v2)
-    type(Coord) :: vec_minus
+  type(Coord) function vec_minus (v1, v2)
+    implicit none
     type(Coord) :: v1, v2
 
     vec_minus = Coord (v1%x-v2%x, v1%y-v2%y, v1%z-v2%z)
   end function vec_minus
 
-  function vec_scale (alpha, v)
-    type(Coord) :: vec_scale
+  type(Coord) function vec_scale (alpha, v)
+    implicit none
     real(8) :: alpha
     type(Coord) :: v
 
     vec_scale = Coord (alpha*v%x, alpha*v%y, alpha*v%z)
   end function vec_scale
 
-  function dist (p, q)
-    real(8) :: dist
-    type(Coord) p
-    type(Coord) q
+  real(8) function dist (p, q)
+    implicit none
+    type(Coord) :: p, q
 
     dist = asin(sqrt((p%y*q%z - p%z*q%y)**2 + (p%z*q%x - p%x*q%z)**2 + (p%x*q%y - p%y*q%x)**2)/radius**2)*radius
   end function dist
 
-  function sph2cart (lon, lat)
-    type(Coord) :: sph2cart
-    real(8) lon
-    real(8) lat
+  type(Coord) function sph2cart (lon, lat)
+    implicit none
+    real(8) :: lon, lat
+    
     sph2cart = Coord(cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat))
   end function sph2cart
 
-  function cross(u, v)
-    type(Coord) :: cross
-    type(Coord) u
-    type(Coord) v
+  type(Coord) function cross(u, v)
+    implicit none
+    type(Coord) :: u, v
+
     cross = Coord(u%y*v%z - u%z*v%y, u%z*v%x - u%x*v%z, u%x*v%y - u%y*v%x)
   end function cross
 
-  function project_on_sphere (p)
-    type(Coord) :: project_on_sphere
-    type(Coord) p
-    real(8) nrm
+  type(Coord) function project_on_sphere (p)
+    implicit none
+    type(Coord) :: p
+    real(8)     :: nrm
+    
     nrm = sqrt(p%x**2 + p%y**2 + p%z**2)
     p%x = p%x*(radius/nrm)
     p%y = p%y*(radius/nrm)
@@ -95,6 +90,7 @@ contains
   end function project_on_sphere
 
   subroutine arc_inters (arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, does_inters, troubles)
+    implicit none
     type(Coord) :: arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, neg_int_pt, normal1, normal2
     
     real(8) :: inpr
@@ -134,22 +130,22 @@ contains
     does_inters = .True.
   end subroutine arc_inters
 
-  function vector (init, term)
-    type(Coord) :: vector
+  type(Coord) function vector (init, term)
+    implicit none
     type(Coord) :: init, term
 
     vector = Coord(term%x - init%x, term%y - init%y, term%z - init%z)
   end function vector
 
-  function inner (u, v)
-    real(8)     :: inner
+  real(8) function inner (u, v)
+    implicit none
     type(Coord) :: u, v
 
     inner = u%x*v%x + u%y*v%y + u%z*v%z
   end function inner
 
-  function triarea (A, B, C)
-    real(8) :: triarea
+  real(8) function triarea (A, B, C)
+    implicit none
     type(Coord) :: A, B, C
 
     real(8) :: ab, ac, bc, s, t
@@ -164,15 +160,15 @@ contains
          0.5_8*s)*tan(-0.5_8*bc + 0.5_8*s)
 
     if (t .lt. 1.0d-64) then
-       triarea = 0.0
+       triarea = 0.0_8
        return
     end if
 
     triarea = 4*radius**2*atan(sqrt(t))
   end function triarea
 
-  function distn (p, q)
-    real(8)     :: distn
+  real(8) function distn (p, q)
+    implicit none
     type(Coord) :: p, q
 
     real(8) :: sindist
@@ -180,15 +176,15 @@ contains
     sindist = (1.0_8/radius)**2*sqrt((p%y*q%z - p%z*q%y)**2 + (p%z*q%x - &
          p%x*q%z)**2 + (p%x*q%y - p%y*q%x)**2)
 
-    if (sindist .gt. 1) then
-       distn = asin(1.0_8)
+    if (sindist > 1) then
+       distn = asin (1.0_8)
        return
     end if
-
     distn = asin(sindist)
   end function distn
 
   subroutine cart2sph (c, lon, lat)
+    implicit none
     type(Coord) :: c
     real(8)     :: lat, lon
 
@@ -196,8 +192,8 @@ contains
     lon = atan2 (c%y, c%x)
   end subroutine cart2sph
 
-  function circumcentre (A, B, C)
-    type(Coord) :: circumcentre
+  type(Coord) function circumcentre (A, B, C)
+    implicit none
     type(Coord) :: A, B, C
 
     type(Coord) :: centre
@@ -209,14 +205,13 @@ contains
        circumcentre = centre
        return
     end if
-
     circumcentre = project_on_sphere(centre)
   end function circumcentre
   
-  function centroid (points, n)
+  type(Coord) function centroid (points, n)
     ! Computes centroid of polygon given coordinates for its n nodes
     ! Simple area-weighted average (second-order accurate, stable)
-    type(Coord)               :: centroid
+    implicit none
     integer                   :: n
     type(Coord), dimension(n) :: points
 
@@ -240,28 +235,28 @@ contains
     centroid = project_on_sphere(vec_scale(1.0_8/6.0_8, centroid))
   end function centroid
 
-  function norm (c)
-    real(8)     :: norm
+  real(8) function norm (c)
+    implicit none
     type(Coord) :: c
 
     norm = sqrt(c%x**2 + c%y**2 + c%z**2)
   end function norm
 
-  function mid_pt(p, q)
-    type(Coord) :: mid_pt
+  type(Coord) function mid_pt(p, q)
+    implicit none
     type(Coord) :: p, q
 
     mid_pt = project_on_sphere(Coord(p%x + q%x, p%y + q%y, p%z + q%z))
   end function mid_pt
 
-  function normalize_Coord (self)
-    type(Coord) :: normalize_Coord
+  type(Coord) function normalize_Coord (self)
+    implicit none
     type(Coord) :: self
     
     real(8) :: nrm
 
     nrm = sqrt(self%x**2 + self%y**2 + self%z**2)
-    if(nrm.ge.eps()) then
+    if(nrm >= eps()) then
        normalize_Coord = Coord(self%x/nrm, self%y/nrm, self%z/nrm)
     else
        normalize_Coord = ORIGIN
@@ -269,6 +264,7 @@ contains
   end function normalize_Coord
 
   subroutine init_Coord (self, x, y, z)
+    implicit none
     type(Coord) :: self
     real(8)     :: x, y, z
 
@@ -278,6 +274,7 @@ contains
   end subroutine init_Coord
 
   subroutine init_Areas (self, centre, corners, midpts)
+    implicit none
     type(Areas)               :: self
     type(Coord)               :: centre
     type(Coord), dimension(6) :: corners, midpts
@@ -297,10 +294,10 @@ contains
     end if
   end subroutine init_Areas
 
-  function proj_vel (vel_fun, ep1, ep2)
+  real(8) function proj_vel (vel_fun, ep1, ep2)
     ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
     ! given a function for zonal u and meridional v velocities as a function of longitude and latitude
-    real(8) :: proj_vel
+    implicit none
     external    :: vel_fun
     type(Coord) :: ep1, ep2
     
@@ -325,9 +322,9 @@ contains
     proj_vel = inner(direction(ep1, ep2), vel)
   end function proj_vel
 
-  function proj_vel_eta (vel_fun, ep1, ep2, eta_z)
+  real(8) function proj_vel_eta (vel_fun, ep1, ep2, eta_z)
     !extention of proj_vel that allows for another parameter eta_z to be passed in vel_fun
-    real(8)     :: proj_vel_eta
+    implicit none
     external    :: vel_fun
     type(Coord) :: co, ep1, ep2
     real(8)     :: eta_z

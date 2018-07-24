@@ -5,8 +5,8 @@ module smooth_mod
   use init_mod
   use comm_mpi_mod
   implicit none
-  real(8)                  :: maxerror, l2error
-  type(Coord), allocatable :: sums(:,:)
+  real(8)                                  :: maxerror, l2error
+  type(Coord), dimension(:,:), allocatable :: sums
 contains
   subroutine init_smooth_mod
     implicit none
@@ -79,16 +79,16 @@ contains
 
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
-    if (rank==0)  write(6,'(A,es10.4,A)') &
-         'Grid error before optimization (max difference between primal and dual edge bisection) = ', maxerror, ' m'
-
-    allocate(sums(maxval(grid(:)%node%length),size(grid)))
-
-    if (rank == 0) write(6,'(A,es11.4)') 'Xu grid optimization tolerance = ', tol
+     if (rank == 0) then
+       write (6,'(A)') '-------------------------------------------------------------------------------------------------'
+       write (6,'(A,i2,A,es10.4/)') 'Xu (2006) diffusion optimization of level ', level_end-1, ' grid with tolerance ', tol
+       write (6,'(A,2(es10.4,A))') 'Grid quality before optimization = ', maxerror, ' [m] (linf) ', l2error, ' [m] (l2)'
+    end if
+        
+    allocate (sums(maxval(grid(:)%node%length), size(grid)))
 
     k = 0
     maxerror = 2.0_8*tol
-    !write(6,*) 'Convergence'
     do while(maxerror > tol)
        maxerror = 0.0_8
        call comm_nodes3_mpi (get_coord, set_coord, NONE)
@@ -97,7 +97,6 @@ contains
        call apply_onescale (Xu_smooth_assign, level_end-1, z_null, 0, 0)
        maxerror = sync_max_d(maxerror)
        k = k + 1
-       !if (rank==0) write(6,'(i2,es11.4)') k, maxerror
     end do
 
 
@@ -114,16 +113,15 @@ contains
 
     maxerror = 0.0_8
     l2error = 0.0_8
-    call  apply_onescale(check_d, level_end-1, z_null, 0, 0)
-    l2error = sqrt(sum_real(l2error))
+    call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
+    l2error = sqrt (sum_real(l2error))
     maxerror = sync_max_d(maxerror)
 
-    if (rank==0) then
-       write(6,'(A,es10.4, A)') &
-            'Grid error after optimization (max difference between primal and dual edge bisection)  = ', maxerror, ' m'
-       write(6,*) ' '
+    if (rank == 0) then
+       write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' [m] (linf) ', l2error, ' [m] (l2)'
+       write (6,'(A)') '(difference between midpoints of primal and dual edges)'
+       write (6,'(A,/)') '-------------------------------------------------------------------------------------------------'
     end if
-
     deallocate(sums)
   end subroutine smooth_Xu
 

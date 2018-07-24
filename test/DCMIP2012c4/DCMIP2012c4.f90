@@ -1,5 +1,6 @@
 module DCMIP2012c4_mod
-  ! DCMIP2012 test case 4: baroclinic instability
+  ! DCMIP (2012) test case 4: baroclinic instability
+  ! Jablonowski and Williamson (2006) QJR Meteorol Soc (2006), 132, 2943–2975
   use main_mod
   use remap_mod
   implicit none
@@ -9,7 +10,6 @@ module DCMIP2012c4_mod
   integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
   logical                            :: wasprinted, uniform
-  character (255)                    :: IC_file
 
   real(8)                            :: c_v, h_0, lat_c, lon_c, N_freq, T_0
   real(8)                            :: dPdim, Pdim, R_ddim, specvoldim
@@ -18,8 +18,6 @@ module DCMIP2012c4_mod
   real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
   real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, R_pert, u_p, u_0
   real(8), dimension(:), allocatable :: norm_mass_def, norm_temp_def, norm_velo_def
-
-  type(Float_Field)                  :: rel_vort 
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -43,7 +41,6 @@ contains
     x_E  = dom%node%elts(idE+1)
     x_N  = dom%node%elts(idN+1)
     x_NE = dom%node%elts(idNE+1)
-
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
@@ -127,15 +124,6 @@ contains
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function geopot_fun
 
-  function delta_phi (eta)
-    implicit none
-    real(8) :: delta_phi
-    real(8) :: eta
-
-    delta_phi = R_d * delta_T*((log(eta/eta_t) + 137.0_8/60.0_8)*eta_t**5 - 5.0_8*eta_t**4*eta + 5.0_8*eta_t**3*eta**2 &
-         - 10.0_8/3.0_8 * eta_t**2*eta**3 + 5.0_8/4.0_8*eta_t*eta**4 - eta**5/5.0_8)
-  end function delta_phi
-
   real(8) function surf_geopot_fun (x_i)
     ! Surface geopotential
     implicit none
@@ -151,11 +139,19 @@ contains
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function surf_geopot_fun
 
-  function surf_pressure_fun (x_i)
+  function delta_phi (eta)
+    implicit none
+    real(8) :: delta_phi
+    real(8) :: eta
+
+    delta_phi = R_d * delta_T*((log(eta/eta_t) + 137.0_8/60.0_8)*eta_t**5 - 5.0_8*eta_t**4*eta + 5.0_8*eta_t**3*eta**2 &
+         - 10.0_8/3.0_8 * eta_t**2*eta**3 + 5.0_8/4.0_8*eta_t*eta**4 - eta**5/5.0_8)
+  end function delta_phi
+
+  real(8) function surf_pressure_fun (x_i)
     ! Surface pressure
     implicit none
     type(Coord) :: x_i
-    real(8)     :: surf_pressure_fun
 
     surf_pressure_fun = ref_press
   end function surf_pressure_fun
@@ -290,8 +286,8 @@ contains
        write(6,'(A,i6)')     "resume           = ", resume
        write(6,*) ' '
     end if
-    dt_write = dt_write * 60.0_8
-    time_end = time_end * 60.0_8**2
+    dt_write = dt_write * MINUTE
+    time_end = time_end * HOUR
 
     close(fid)
   end subroutine read_test_case_parameters
@@ -418,14 +414,14 @@ contains
           ! velo_scale = sync_max_d (norm_velo)
 
           ! L2
-          mass_scale = sqrt(sum_real (norm_mass/N_node))
-          temp_scale = sqrt(sum_real (norm_temp/N_node))
-          velo_scale = sqrt(sum_real (norm_velo/N_edge))
+          mass_scale = sqrt (sum_real (norm_mass/N_node))
+          temp_scale = sqrt (sum_real (norm_temp/N_node))
+          velo_scale = sqrt (sum_real (norm_velo/N_edge))
 
           ! L1
-          ! mass_scale = sum_real (norm_mass /N_node)
-          ! temp_scale = sum_real (norm_temp /N_node)
-          ! velo_scale = sum_real (norm_velo /N_edge)
+          ! mass_scale = sum_real (norm_mass/N_node)
+          ! temp_scale = sum_real (norm_temp/N_node)
+          ! velo_scale = sum_real (norm_velo/N_edge)
 
           tol_mass_new(k) = threshold * mass_scale
           tol_temp_new(k) = threshold * temp_scale
@@ -510,7 +506,7 @@ contains
     do e = 1, EDGE
        if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
           N_edge = N_edge + 1
-          norm_velo  = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+          norm_velo = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
        end if
     end do
   end subroutine l2_trend
@@ -823,7 +819,7 @@ program DCMIP2012c4
 
      if (rank == 0) then
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,3(A,ES8.2,1x))') &
-             'time [h] = ', time/60.0_8**2, &
+             'time [h] = ', time/HOUR, &
              ' dt [s] = ', dt, &
              '  mass tol = ', sum(tol_mass)/zlevels, &
              ' temp tol = ', sum(tol_temp)/zlevels, &

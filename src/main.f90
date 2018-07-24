@@ -51,8 +51,8 @@ contains
     integer        :: k, d, ierr
 
     if (min_level > max_level) then
-       if (rank == 0) write (6,'(A,I4,1X,A,I4,A,I4)') 'ERROR: max_level < min_level:', max_level, &
-            '<', min_level, '. Setting max_level to', min_level
+       if (rank == 0) write (6,'(A,I4,1X,A,I4,A,I4)') &
+            'ERROR: max_level < min_level:', max_level, '<', min_level, '. Setting max_level to', min_level
        max_level = min_level
     end if
 
@@ -69,7 +69,8 @@ contains
        if (rank == 0) write (6,'(A,i6)') 'Resuming from checkpoint ', resume
        call restart_full (set_thresholds, custom_load, test_case)
     else
-       if (rank == 0) write (6,'(/,A,/)') '------------- Adapting initial grid --------------'
+       if (rank == 0) write (6,'(/,A,/)') &
+            '----------------------------------- Adapting initial grid ---------------------------------------'
 
        call apply_init_cond
        call forward_wavelet_transform (sol, wav_coeff)
@@ -118,7 +119,8 @@ contains
 
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit !--No active nodes at this scale
        end do
-       if (rank == 0) write (6,'(A,/)') '--------- Finished adapting initial grid ---------'
+       if (rank == 0) write (6,'(A,/)') &
+            '-------------------------------- Finished adapting initial grid ---------------------------------'
 
        call adapt (set_thresholds)
        dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum(n_active)

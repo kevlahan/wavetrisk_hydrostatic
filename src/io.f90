@@ -1523,8 +1523,7 @@ contains
   end subroutine error
 
   subroutine read_lonlat_from_binary (arr, n, fid)
-    ! use: 
-    !     real(8) arr(n_lon,n_lat)
+    !     Use: real(8) arr(n_lon,n_lat)
     !     call read_lonlat_from_binary(arr(1,1),n_lon*n_lat,fid)
     implicit none
     integer               :: n, fid
@@ -1533,7 +1532,6 @@ contains
     integer :: i
 
     read(fid) (arr(i),i=1,n)
-
   end subroutine read_lonlat_from_binary
 
   subroutine read_HR_optim_grid
@@ -1554,26 +1552,29 @@ contains
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
 
-    if (rank == 0) write(6,'(A,2(es12.4,1x))') 'Grid quality before optimization:', maxerror, l2error
-
+    if (rank == 0) then
+       write (6,'(A)') '-------------------------------------------------------------------------------------------------'
+       write (6,'(A,i2,A,/)') 'Heikes-Randall optimizations of level ', level_start-1, ' grid:'
+       write (6,'(A,2(es10.4,A))') 'Grid quality before optimization = ', maxerror, ' [m] (linf) ', l2error, ' [m] (l2)'
+    end if
+    
     fid = get_fid()
     if (level_start /= level_end) then
-       write(0,*) level_end, level_start
-       write(0,*) "Reading HR grid points for `level_start` unequal `level_end` not implemented"
+       write (0,'(i2,1x,i2)') level_end, level_start
+       write (0,'(A)') "Reading HR grid points for level_start not equal to level_end not implemented"
        return
     end if
 
-    write(filename, '(A,I1)')  "../extern/grid_HR/J", level_start-1
-    open(unit=fid,file=filename)
+    write (filename, '(A,I1)')  "../extern/grid_HR/J", level_start-1
+    open (unit=fid, file=filename)
 
     p = 1
     do d_HR = 1, N_ICOSAH_LOZANGE
        loz = dom_id_from_HR_id(d_HR)
        do d_sub = 1, N_SUB_DOM
           d_glo = loz*N_SUB_DOM + sub_dom_id_from_HR_sub_id(d_sub)
-          if (owner(d_glo+1) == rank) &
-               call get_offs_Domain(grid(loc_id(d_glo+1)+1), p, offs, dims)
-          call coord_from_file(d_glo, PATCH_LEVEL, fid, offs, dims, (/0, 0/))
+          if (owner(d_glo+1) == rank) call get_offs_Domain (grid(loc_id(d_glo+1)+1), p, offs, dims)
+          call coord_from_file (d_glo, PATCH_LEVEL, fid, offs, dims, (/0, 0/))
        end do
     end do
     close(fid)
@@ -1584,8 +1585,8 @@ contains
     call apply_onescale2 (midpt,      level_end-1, z_null, -1, 1)
     call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
 
-    maxerror = 0.0
-    l2error = 0.0
+    maxerror = 0.0_8
+    l2error = 0.0_8
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
@@ -1593,26 +1594,28 @@ contains
     call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
     call apply_onescale (check_d,  level_end-1, z_null,  0, 0)
 
-    l2error = sqrt(sum_real(l2error))
+    l2error = sqrt (sum_real(l2error))
     maxerror = sync_max_d(maxerror)
-    if (rank == 0) write(*,'(A,2(es12.4,1x),/)') 'Grid quality (max. diff. primal dual edge bisection [m]):', maxerror, l2error
+    if (rank == 0) then
+       write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' [m] (linf) ', l2error, ' [m] (l2)'
+       write (6,'(A)') '(difference between midpoints of primal and dual edges)'
+       write (6,'(A,/)') '-------------------------------------------------------------------------------------------------'
+    end if
   end subroutine read_HR_optim_grid
 
-  function dom_id_from_HR_id (d_HR)
-    implicit none
-    integer :: dom_id_from_HR_id
+  integer function dom_id_from_HR_id (d_HR)
     ! d_HR: lozange id as used by Heikes & Randall (starts from 1)
     ! results: domain id (starts from 0)
+    implicit none
     integer :: d_HR
 
     dom_id_from_HR_id = modulo(d_HR,2)*5 + modulo(d_HR/2-1,5)
   end function dom_id_from_HR_id
 
-  function sub_dom_id_from_HR_sub_id (sub_id)
-    implicit none
-    integer ::  sub_dom_id_from_HR_sub_id
+  integer function sub_dom_id_from_HR_sub_id (sub_id)
     ! sub_id: lozange sub id as used by Heikes & Randall (starts from 1)
     ! results: sub domain id (starts from 0)
+    implicit none
     integer :: sub_id
 
     integer :: id, i, j, halv_sub_dom, l, jdiv, idiv
@@ -1624,11 +1627,11 @@ contains
     do l = DOMAIN_LEVEL-1, 0, -1
        jdiv = id/halv_sub_dom
        j = j + jdiv*2**l
-       id = modulo(id+4**l,4**(l+1))
+       id = modulo (id+4**l,4**(l+1))
        idiv = id/halv_sub_dom
        i = i + idiv*2**l
        halv_sub_dom = halv_sub_dom/4
-       id = modulo(id,4**l)
+       id = modulo (id,4**l)
     end do
     sub_dom_id_from_HR_sub_id = j*N_SUB_DOM_PER_DIM + i
   end function sub_dom_id_from_HR_sub_id
