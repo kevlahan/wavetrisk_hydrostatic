@@ -336,12 +336,12 @@ contains
     end if
   end subroutine create_comm_e
 
-  function rot_direction (dom, typ)
+  integer function rot_direction (dom, typ)
     implicit none
     type(Domain) :: dom
     integer      :: typ
 
-    integer :: rot_direction, t_last, t_next
+    integer :: t_last, t_next
 
     if (typ <= 4) then
        rot_direction = modulo(typ, 2)
@@ -997,9 +997,8 @@ contains
     end if
   end subroutine min_dt
 
-  function domain_load (dom)
+  integer function domain_load (dom)
     implicit none
-    integer      :: domain_load
     type(Domain) :: dom
 
     domain_load = count(abs(dom%mask_n%elts(1+1:dom%node%length)) > ADJZONE) &

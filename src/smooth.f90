@@ -119,7 +119,7 @@ contains
 
     if (rank == 0) then
        write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' [m] (linf) ', l2error, ' [m] (l2)'
-       write (6,'(A)') '(difference between midpoints of primal and dual edges)'
+       write (6,'(A)') '(distance between midpoints of primal and dual edges)'
        write (6,'(A,/)') '-------------------------------------------------------------------------------------------------'
     end if
     deallocate(sums)

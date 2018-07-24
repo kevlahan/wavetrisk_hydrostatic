@@ -1324,9 +1324,9 @@ contains
     external :: custom_dump
     integer  :: id
 
-    character(255)              :: filename_gr, filename_no
-    integer                     :: c, d, fid_gr, fid_no, i, j, k, l, p_chd, p_lev, p_par, v
-    logical, dimension(N_CHDRN) :: child_required
+    character(255)                          :: filename_gr, filename_no
+    integer                                 :: c, d, fid_gr, fid_no, i, j, k, l, p_chd, p_lev, p_par, v
+    logical, dimension(N_CHDRN)             :: child_required
     type(Domain), dimension(:), allocatable :: grid_tmp
 
     allocate (grid_tmp, source=grid)
@@ -1598,7 +1598,7 @@ contains
     maxerror = sync_max_d(maxerror)
     if (rank == 0) then
        write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' [m] (linf) ', l2error, ' [m] (l2)'
-       write (6,'(A)') '(difference between midpoints of primal and dual edges)'
+       write (6,'(A)') '(distance between midpoints of primal and dual edges)'
        write (6,'(A,/)') '-------------------------------------------------------------------------------------------------'
     end if
   end subroutine read_HR_optim_grid

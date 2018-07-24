@@ -40,7 +40,7 @@ contains
     n_active_edges(level_start:level_end) = n_active_all_glo(n_lev_cur+1:n_lev_cur*2)
     n_active_per_lev = n_active_edges(level_start:level_end) + n_active_nodes(level_start:level_end)
 
-    if (rank == 0) write(*,'(6X,A,A,3(1X,A))') '   N_p   ', '   N_u   ','of all active', 'of full level', 'fill-in'
+    if (rank == 0) write(6,'(6X,A,A,3(1X,A))') '   N_p   ', '   N_u   ','of all active', 'of full level', 'fill-in'
 
     recommended_level_start = level_start
 
@@ -52,7 +52,7 @@ contains
        fillin = n_full-n_active_per_lev(l)-sum(n_active_per_lev(level_start:l-1))
 
        if (rank == 0) then
-          write(*,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
+          write(6,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
                'lev', l, n_active_nodes(l), n_active_edges(l), &
                float(n_active_per_lev(l))/float(sum(n_active(AT_NODE:AT_EDGE)))*100.0, '%', &
                float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
@@ -63,7 +63,7 @@ contains
     end do
 
     if (rank == 0) then
-       write(*,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(AT_NODE:AT_EDGE), 100.0, '%', &
+       write(6,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(AT_NODE:AT_EDGE), 100.0, '%', &
             float(sum(n_active(AT_NODE:AT_EDGE)))/float(n_full)*100.0, '%', &
             n_full/sum(n_active(AT_NODE:AT_EDGE))
     end if

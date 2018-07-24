@@ -124,6 +124,14 @@ contains
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function geopot_fun
 
+  real(8) function delta_phi (eta)
+    implicit none
+    real(8) :: eta
+
+    delta_phi = R_d * delta_T*((log(eta/eta_t) + 137.0_8/60.0_8)*eta_t**5 - 5.0_8*eta_t**4*eta + 5.0_8*eta_t**3*eta**2 &
+         - 10.0_8/3.0_8 * eta_t**2*eta**3 + 5.0_8/4.0_8*eta_t*eta**4 - eta**5/5.0_8)
+  end function delta_phi
+
   real(8) function surf_geopot_fun (x_i)
     ! Surface geopotential
     implicit none
@@ -138,15 +146,6 @@ contains
          (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function surf_geopot_fun
-
-  function delta_phi (eta)
-    implicit none
-    real(8) :: delta_phi
-    real(8) :: eta
-
-    delta_phi = R_d * delta_T*((log(eta/eta_t) + 137.0_8/60.0_8)*eta_t**5 - 5.0_8*eta_t**4*eta + 5.0_8*eta_t**3*eta**2 &
-         - 10.0_8/3.0_8 * eta_t**2*eta**3 + 5.0_8/4.0_8*eta_t*eta**4 - eta**5/5.0_8)
-  end function delta_phi
 
   real(8) function surf_pressure_fun (x_i)
     ! Surface pressure
@@ -257,8 +256,9 @@ contains
   subroutine read_test_case_parameters (filename)
     implicit none
     character(*)   :: filename
-    integer        :: fid = 500
-    character(255) :: varname
+
+    integer, parameter :: fid = 500
+    character(255)     :: varname
 
     open(unit=fid, file=filename, action='READ')
     read(fid,*) varname, max_level
