@@ -8,14 +8,18 @@ module patch_mod
   integer, parameter :: LAST_BDRY = BDRY_THICKNESS - 1
 
   type Patch
-     integer                     :: active, elts_start, level
+     integer                     :: elts_start
+     integer                     :: level
      integer, dimension(N_CHDRN) :: children
      integer, dimension(N_BDRY)  :: neigh
+     integer                     :: active
      logical                     :: deleted
   end type Patch
 
   type Bdry_Patch
-     integer :: elts_start, neigh, side
+     integer :: elts_start
+     integer :: side
+     integer :: neigh
   end type Bdry_Patch
 
   type Overl_Area
