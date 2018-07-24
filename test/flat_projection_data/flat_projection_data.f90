@@ -202,7 +202,8 @@ program flat_projection_data
 
   ! Nullify all pointers initially
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-
+  save_levels = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
+  
   ! Parameters for the simulation
   radius         = 6.371229d6   ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8    ! gravitational acceleration in meters per second squared
@@ -217,7 +218,6 @@ program flat_projection_data
   ! Read test case parameters
   call read_test_case_parameters ("flat_projection_data.in")
   resume = check_start
-  save_levels = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
   allocate (tol_mass(1:zlevels), tol_temp(1:zlevels), tol_velo(1:zlevels))
 
   ! Initialize vertical grid
