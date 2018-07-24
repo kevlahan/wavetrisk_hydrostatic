@@ -5,7 +5,7 @@ module flat_projection_data_mod
   implicit none
 
   character(255)                     :: test_case 
-  integer                            :: check_start, check_end, iwrite
+  integer                            :: check_start, check_end, iwrite, N
   logical                            :: uniform
 contains
    subroutine read_test_case_parameters (filename)
@@ -22,17 +22,19 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, level_save
+    read (fid,*) varname, N
     read (fid,*) varname, pressures
     close(fid)
 
     if (rank==0) then
-       write (6,'(A,A)')      "test_case          = ", test_case
-       write (6,'(A,i12)')    "first file         = ", check_start
-       write (6,'(A,i12)')    "first file         = ", check_end
-       write (6,'(A,i3)')     "min_level          = ", min_level
-       write (6,'(A,i3)')     "max_level          = ", max_level
-       write (6,'(A,i3)')     "zlevels            = ", zlevels
-       write (6,'(A,i3)')     "level_save         = ", level_save
+       write (6,'(A,A)')      "test_case           = ", test_case
+       write (6,'(A,i12)')    "first file          = ", check_start
+       write (6,'(A,i12)')    "first file          = ", check_end
+       write (6,'(A,i3)')     "min_level           = ", min_level
+       write (6,'(A,i3)')     "max_level           = ", max_level
+       write (6,'(A,i3)')     "zlevels             = ", zlevels
+       write (6,'(A,i3)')     "level_save          = ", level_save
+       write (6,'(A,i3)')     "N                   = ", N
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressures
        write (6,*) ' '
     end if
@@ -201,13 +203,6 @@ program flat_projection_data
   ! Nullify all pointers initially
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
-  save_levels = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
-
-  ! Read test case parameters
-  call read_test_case_parameters ("flat_projection_data.in")
-
-  allocate (tol_mass(1:zlevels), tol_temp(1:zlevels), tol_velo(1:zlevels))
-
   ! Parameters for the simulation
   radius         = 6.371229d6   ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8    ! gravitational acceleration in meters per second squared
@@ -217,24 +212,30 @@ program flat_projection_data
   kappa          = 2.0_8/7.0_8  ! kappa=R_d/c_p
   compressible   = .true.       ! Compressible equations
   uniform        = .false.      ! Type of vertical grid
+  N              = 512          ! default interpolation resolution
+  
+  ! Read test case parameters
+  call read_test_case_parameters ("flat_projection_data.in")
+  resume = check_start
+  save_levels = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
+  allocate (tol_mass(1:zlevels), tol_temp(1:zlevels), tol_velo(1:zlevels))
 
-   ! Initialize vertical grid
+  ! Initialize vertical grid
   call initialize_a_b_vert
 
   ! Initialize variables
-  resume = check_start
   call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
 
   call set_surf_geopot 
 
   call barrier
 
-  call export_2d (cart2sph2, 3000000+100*cp_idx, (/-256, 256/), (/-128, 128/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
+  call export_2d (cart2sph2, 3000000+100*cp_idx, (/-N/2, N/2/), (/-N/4, N/4/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
 
   do cp_idx = resume+1, check_end
      resume = NONE
      call restart_full (set_thresholds, load, test_case)
-     call export_2d (cart2sph2, 3000000+100*cp_idx, (/-256, 256/), (/-128, 128/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
+     call export_2d (cart2sph2, 3000000+100*cp_idx, (/-N/2, N/2/), (/-N/4, N/4/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
   end do
   call finalize
 end program flat_projection_data
