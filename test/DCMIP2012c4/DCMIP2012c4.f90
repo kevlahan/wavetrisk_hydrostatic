@@ -711,12 +711,9 @@ program DCMIP2012c4
   geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
-  min_allowed_mass = 2.0d-1                                   ! minimum relative mass before remapping
-  save_levels    = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
-  level_save     = min(7, max_level)                          ! resolution level at which to save lat-lon data
-  pressure_save  = (/850.0d2/)                                ! interpolate values to this pressure level when interpolating to lat-lon grid
-
-  if (rank==0) write(6,'(A,i2,A,/)') "Interpolate to resolution level ", level_save, " for saving 2D data" 
+  min_allowed_mass = 2.0d-1                         ! minimum relative mass before remapping
+  
+  pressure_save  = (/850.0d2/)                      ! save vertical level closest to this pressure
 
   ! Set logical switches
   adapt_dt     = .true.  ! Adapt time step
