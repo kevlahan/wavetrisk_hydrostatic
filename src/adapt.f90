@@ -13,6 +13,7 @@ contains
   subroutine init_adapt_mod
     implicit none
     logical :: initialized = .False.
+
     if (initialized) return ! initialize only once
     call init_comm_mod
     call init_refine_patch_mod
@@ -190,7 +191,7 @@ contains
     logical :: required
     integer :: c, d, did_refine, old_n_patch, p_chd, p_par
 
-    !  Using tol masks call refine patch where necessary
+    ! Use tol masks call refine patch where necessary
     did_refine = FALSE
     do d = 1, size(grid)
        old_n_patch = grid(d)%patch%length
@@ -198,9 +199,8 @@ contains
           do c = 1, N_CHDRN
              p_chd = grid(d)%patch%elts(p_par)%children(c)
              required = check_child_required (grid(d), p_par - 1, c - 1)
-             if (p_chd > 0) then
-             else if (required) then ! New patch required
-                if (grid(d)%patch%elts(p_par)%level == max_level) then
+             if (required .and. p_chd <= 0) then ! New patch required and does not yet exist
+                if (grid(d)%patch%elts(p_par)%level == max_level) then ! Cannot refine further
                    max_level_exceeded = .True.
                 else
                    call refine_patch1 (grid(d), p_par - 1, c - 1)
