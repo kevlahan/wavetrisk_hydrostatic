@@ -8,18 +8,14 @@ module patch_mod
   integer, parameter :: LAST_BDRY = BDRY_THICKNESS - 1
 
   type Patch
-     integer elts_start
-     integer level
+     integer                     :: active, elts_start, level
      integer, dimension(N_CHDRN) :: children
-     integer, dimension(N_BDRY) :: neigh
-     integer active
-     logical deleted
+     integer, dimension(N_BDRY)  :: neigh
+     logical                     :: deleted
   end type Patch
 
   type Bdry_Patch
-     integer elts_start
-     integer side
-     integer neigh
+     integer :: elts_start, neigh, side
   end type Bdry_Patch
 
   type Overl_Area
@@ -36,6 +32,7 @@ module patch_mod
   end type RF_Wgt
 contains
   subroutine init_patch_mod
+    implicit none
     logical :: initialized = .False.
 
     if (initialized) return ! initialize only once
@@ -44,6 +41,7 @@ contains
   end subroutine init_patch_mod
 
   subroutine init_Patch (self, elts_start, level, chdrn, neigh)
+    implicit none
     type(Patch) :: self
     integer     :: elts_start, chdrn, level, neigh
 
@@ -53,6 +51,7 @@ contains
   end subroutine init_Patch
 
   subroutine init_Bdry_Patch (self, elts_start, side, neigh)
+    implicit none
     type(Bdry_Patch) :: self
     integer          :: elts_start, neigh, side
 
@@ -61,6 +60,7 @@ contains
   end subroutine init_Bdry_Patch
 
   subroutine init_Overl_Area (self, areas)
+    implicit none
     type(Overl_Area)      :: self
     real(8), dimension(8) :: areas
 
@@ -69,6 +69,7 @@ contains
   end subroutine init_Overl_Area
 
   subroutine init_Iu_Wgt (self, wgt)
+    implicit none
     type(Iu_Wgt)          :: self
     real(8), dimension(9) :: wgt
 
@@ -76,7 +77,8 @@ contains
   end subroutine init_Iu_Wgt
 
   subroutine init_RF_Wgt (self, wgt)
-    type(RF_Wgt) self
+    implicit none
+    type(RF_Wgt)          :: self
     real(4), dimension(3) :: wgt
 
     self%enc = wgt

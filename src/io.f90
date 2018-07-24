@@ -1380,7 +1380,6 @@ contains
        do l = min_level, level_end
           p_lev = 0
           do j = 1, grid_tmp(d)%lev(l)%length
-             
              p_par = grid_tmp(d)%lev(l)%elts(j)
              if (grid_tmp(d)%patch%elts(p_par+1)%deleted) then
                 do c = 1, N_CHDRN
