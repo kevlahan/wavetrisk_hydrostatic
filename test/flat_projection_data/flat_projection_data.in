@@ -4,5 +4,5 @@ tend	        1           ! last checkpoint file
 max_level	6           ! maximum level of resolution
 zlevels         26          ! number of vertical levels
 level_save      6           ! resolution level to interpolate to
-N               6           ! resolution of interpolated grid (N latitude x N/2 longitude)	
+N               512         ! resolution of interpolated grid (N latitude x N/2 longitude)	
 pressure_save   850.0       ! pressure level to save (hPa)
