@@ -34,7 +34,7 @@ contains
        write (6,'(A,i3)')     "max_level           = ", max_level
        write (6,'(A,i3)')     "zlevels             = ", zlevels
        write (6,'(A,i3)')     "level_save          = ", level_save
-       write (6,'(A,i3)')     "N                   = ", N
+       write (6,'(A,i5)')     "N                   = ", N
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressures
        write (6,*) ' '
     end if
