@@ -1,4 +1,4 @@
-function plot_lon_lat_data(s, lon, lat, c_scale, v_title, smooth, shift)
+function plot_lon_lat_data(s, lon, lat, c_scale, v_title, smooth, shift, lines)
 % Plot longitude-latitude data
 % Input:
 % s       = data
@@ -20,8 +20,10 @@ end
 if (smooth)
     s = smooth2a(s,2,2);
 end
-contourf(lon,lat,s,c_scale);
-
+[~,h]=contourf(lon,lat,s,c_scale);
+if not(lines)
+    set(h,'LineColor','none')
+end
 colormap(jet(numel(c_scale)-1));caxis([min(c_scale) max(c_scale)]);c=colorbar;c.Label.String=v_title;c.Label.FontSize=16;
 axis('equal'); 
 set(gca,'ytick',v_yticks,'yticklabels',{'90S','60S','30S','0','30N','60N','90N'});

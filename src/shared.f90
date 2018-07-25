@@ -301,20 +301,22 @@ module shared_mod
   integer :: optimize_grid
 
   ! basic constants
-  real(8), parameter :: MATH_PI = acos(-1.0_8)
   integer, parameter :: MINUTE = 60
   integer, parameter :: HOUR = 60*MINUTE
   integer, parameter :: DAY = 24*HOUR
   integer, parameter :: WEEK = 7*DAY
-
+  real(8), parameter :: MATH_PI = acos(-1.0_8)
+  
   ! simulation variables
   integer :: istep, resume, Laplace_order
+  integer(8) :: itime
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8) :: viscosity_rotu, viscosity_mass, viscosity_temp
   real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
   real(8) :: min_mass, min_allowed_mass
   real(8), dimension(:), target, allocatable :: pressure_save
+  real(8), dimension(:),         allocatable :: tol_mass, tol_temp, tol_velo
 
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs

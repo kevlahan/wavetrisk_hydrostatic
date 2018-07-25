@@ -12,9 +12,9 @@ module main_mod
   use mask_mod
   use adapt_mod
   use smooth_mod
+  use remap_mod
 
   implicit none
-  integer(8)                         :: itime
   integer                            :: cp_idx
   integer, dimension(:), allocatable :: node_level_start, edge_level_start
   real(8)                            :: dt, dt_new, time_mult  
@@ -157,7 +157,7 @@ contains
     logical, intent(out) :: aligned
     external             :: set_thresholds
 
-    integer(8)           :: idt, ialign
+    integer(8) :: idt, ialign
     
     istep = istep+1
     dt = dt_new
@@ -175,6 +175,7 @@ contains
     dt = idt/time_mult ! Modify time step
 
     ! Take time step
+    call update_array_bdry (sol, NONE)
     call RK45_opt (trend_ml, dt)
 
     ! Adapt grid
@@ -364,30 +365,6 @@ contains
     write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim(cmd_archive), ' ', trim(cmd_files)
     if (rank == 0) call system (command)
   end subroutine write_checkpoint
-
-  subroutine compress_files (iwrite, test_case)
-    implicit none
-    integer      :: iwrite
-    character(*) :: test_case
-
-    character(4)   :: s_time
-    character(130) :: command
-
-    write (s_time, '(i4.4)') iwrite
-
-    command = 'ls -1 '//trim(test_case)//'.1'//s_time//'?? > tmp1'
-    
-    call system (command)
-
-    command = 'tar czf '//trim(test_case)//'.1'//s_time//'.tgz -T tmp1 --remove-files &'
-    call system (command)
-
-    command = 'ls -1 '//trim(test_case)//'.2'//s_time //'?? > tmp2' 
-    call system (command)
-
-    command = 'tar czf '//trim(test_case)//'.2'//s_time//'.tgz -T tmp2 --remove-files &'
-    call system (command)
-  end subroutine compress_files
 
   subroutine init_structures
     ! Initialize dynamical arrays and structures

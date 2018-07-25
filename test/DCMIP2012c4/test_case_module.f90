@@ -1,25 +1,17 @@
 module test_case_mod
-  ! DCMIP (2012) test case 4: baroclinic instability
-  ! Jablonowski and Williamson (2006) QJR Meteorol Soc (2006), 132, 2943–2975
-  !use main_mod
+  ! Module file for DCMIP2012c4
   use shared_mod
   use domain_mod
   use comm_mpi_mod
-  !use io_mod
   implicit none
 
   character(*), parameter            :: test_case = "DCMIP2012c4"      
   integer                            :: CP_EVERY, iwrite, N_edge, N_node, save_zlev
-  integer, dimension(:), allocatable :: n_patch_old, n_node_old
   real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
   logical                            :: wasprinted, uniform
 
-  real(8)                            :: c_v, h_0, lat_c, lon_c, N_freq, T_0
-  real(8)                            :: dPdim, Pdim, R_ddim, specvoldim
-  real(8)                            :: acceldim, f0, geopotdim, Ldim, Hdim, massdim, Tdim, Tempdim, dTempdim, Udim
   real(8)                            :: norm_mass, norm_temp, norm_velo
-  real(8)                            :: l2_mass, l2_temp, l2_velo, mass_error
-  real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, R_pert, u_p, u_0
+  real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, lat_c, lon_c, mass_error, R_pert, T_0, u_p, u_0
   real(8), dimension(:), allocatable :: norm_mass_def, norm_temp_def, norm_velo_def
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -46,7 +38,7 @@ contains
     x_NE = dom%node%elts(idNE+1)
 
     ! Surface pressure
-    dom%surf_press%elts(id+1) = surf_pressure_fun (x_i)
+    dom%surf_press%elts(id+1) = surf_pressure (x_i)
     column_mass = dom%surf_press%elts(id+1)/grav_accel
 
     ! Pressure at level zlev
@@ -103,21 +95,13 @@ contains
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function surf_geopot
 
-  real(8) function delta_phi (eta)
-    implicit none
-    real(8) :: eta
-
-    delta_phi = R_d * delta_T*((log(eta/eta_t) + 137.0_8/60.0_8)*eta_t**5 - 5.0_8*eta_t**4*eta + 5.0_8*eta_t**3*eta**2 &
-         - 10.0_8/3.0_8 * eta_t**2*eta**3 + 5.0_8/4.0_8*eta_t*eta**4 - eta**5/5.0_8)
-  end function delta_phi
-
-  real(8) function surf_pressure_fun (x_i)
+  real(8) function surf_pressure (x_i)
     ! Surface pressure
     implicit none
     type(Coord) :: x_i
 
-    surf_pressure_fun = ref_press
-  end function surf_pressure_fun
+    surf_pressure = ref_press
+  end function surf_pressure
 
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
@@ -530,5 +514,4 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
   end subroutine vel2uvw
-
 end module test_case_mod

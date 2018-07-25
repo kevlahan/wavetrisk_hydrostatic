@@ -2,11 +2,11 @@ module io_mod
   use geom_mod
   use domain_mod
   use arch_mod
-  use adapt_mod
+  use ops_mod
+  use wavelet_mod
   use smooth_mod
   use comm_mpi_mod
-  use multi_level_mod
-  use remap_mod
+  use adapt_mod
   implicit none
 
   integer, parameter                   :: N_VAR_OUT = 7
@@ -177,6 +177,27 @@ contains
 
     only_area = 1.0_8
   end function only_area
+
+  subroutine sum_total_mass (initialgo)
+    ! Total mass over all vertical layers
+    implicit none
+    logical :: initialgo
+
+    integer :: k
+
+    if (initialgo) then
+       initotalmass = 0.0_8
+       do k = 1, zlevels
+          initotalmass = initotalmass + integrate_hex (mu, level_start, k)
+       end do
+    else
+       totalmass = 0.0_8
+       do k = 1, zlevels
+          totalmass = totalmass + integrate_hex (mu, level_start, k)
+       end do
+       mass_error = abs(totalmass-initotalmass)/initotalmass
+    end if
+  end subroutine sum_total_mass
 
   real(8) function mu (dom, i, j, zlev, offs, dims)
     implicit none
@@ -950,7 +971,7 @@ contains
     ! Integrate geopotential upwards from surface
     pressure_lower = dom%surf_press%elts(id+1)
     pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
-    dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1)/grav_accel
+    dom%adj_geopot%elts(id+1) = surf_geopot (dom%node%elts(id+1))/grav_accel
 
     k = 1
     do while (pressure_upper > press_save)
@@ -1721,4 +1742,98 @@ contains
 
     if (dom%mask_n%elts(id_chd+1) >= ADJZONE) active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
   end subroutine restrict_level
+
+  subroutine write_and_export (iwrite)
+    implicit none
+    integer :: iwrite
+
+    integer      :: d, i, j, k, l, p, u
+    character(7) :: var_file
+
+    if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', iwrite
+
+    call update_array_bdry (sol, NONE)
+
+    call pre_levelout
+
+    ! Compute surface pressure
+    call cal_surf_press (sol)
+
+    do l = level_start, level_end
+       minv = 1.0d63; maxv = -1.0d63
+       u = 1000000+100*iwrite
+
+       ! Calculate pressure, exner and geopotential at vertical level save_zlev and scale l
+       do k = 1, save_zlev
+          do d = 1, size(grid)
+             mass  => sol(S_MASS,k)%data(d)%elts
+             temp  => sol(S_TEMP,k)%data(d)%elts
+             exner => exner_fun(k)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+             end do
+             nullify (mass, temp, exner)
+          end do
+       end do
+
+       ! Calculate zonal and meridional velocities and vorticity for vertical level save_zlev
+       do d = 1, size(grid)
+          velo => sol(S_VELO,save_zlev)%data(d)%elts
+          vort => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), l, z_null)
+          nullify (velo, vort)
+       end do
+
+       ! Calculate vorticity at hexagon points (stored in adj_mass)
+       call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
+
+       call write_level_mpi (write_primal, u+l, l, save_zlev, .true., test_case)
+
+       do i = 1, N_VAR_OUT
+          minv(i) = -sync_max_d(-minv(i))
+          maxv(i) =  sync_max_d( maxv(i))
+       end do
+       if (rank == 0) then
+          write (var_file, '(i7)') u
+          open(unit=50, file=trim(test_case)//'.'//var_file)
+          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+          close(50)
+       end if
+       u = 2000000+100*iwrite
+       call write_level_mpi (write_dual, u+l, l, save_zlev, .False., test_case)
+    end do
+
+    call post_levelout
+    call barrier
+    if (rank == 0) call compress_files (iwrite, test_case)
+  end subroutine write_and_export
+
+  subroutine compress_files (iwrite, test_case)
+    implicit none
+    integer      :: iwrite
+    character(*) :: test_case
+
+    character(4)   :: s_time
+    character(130) :: command
+
+    write (s_time, '(i4.4)') iwrite
+
+    command = 'ls -1 '//trim(test_case)//'.1'//s_time//'?? > tmp1'
+    
+    call system (command)
+
+    command = 'tar czf '//trim(test_case)//'.1'//s_time//'.tgz -T tmp1 --remove-files &'
+    call system (command)
+
+    command = 'ls -1 '//trim(test_case)//'.2'//s_time //'?? > tmp2' 
+    call system (command)
+
+    command = 'tar czf '//trim(test_case)//'.2'//s_time//'.tgz -T tmp2 --remove-files &'
+    call system (command)
+  end subroutine compress_files
 end module io_mod

@@ -405,7 +405,7 @@ contains
     call comm_nodes9_mpi (get_areas, set_areas, NONE)
     call apply_to_penta (area_post_comm, NONE, z_null)
   end subroutine add_second_level
-
+  
   subroutine fill_up_level
     ! Fills up level level_start+1 and increases level_start
     implicit none

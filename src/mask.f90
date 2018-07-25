@@ -5,9 +5,6 @@ module mask_mod
   use comm_mod
   use comm_mpi_mod
   use wavelet_mod
-
-  implicit none
-  real(8), dimension(:),   allocatable :: tol_mass, tol_temp, tol_velo
 contains
   subroutine set_masks (dom, p, i, j, zlev, offs, dims, mask)
     ! Sets all nodes and edges to value mask unless node is FROZEN

@@ -1,6 +1,7 @@
 module ops_mod
   use domain_mod
   use arch_mod
+  use test_case_mod
   implicit none
 
   real(8) :: totaldmass, totalabsdmass, totaldtemp, totalabsdtemp
@@ -744,7 +745,7 @@ contains
 
        ! Find geopotential at upper interface of current level using (18) in DYNAMICO
        if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
-          dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1) 
+          dom%adj_geopot%elts(id+1) = surf_geopot (dom%node%elts(id+1))
        else
           dom%adj_geopot%elts(id+1) = dom%geopot%elts(id+1)
        end if
@@ -771,7 +772,7 @@ contains
        ! Note: since mu is associated with the kinematic mass = inert mass (not the gravitational mass defined by the buyoancy)
        ! we divide by the constant reference density. This is the Boussinesq approximation.
        if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
-          dom%adj_geopot%elts(id+1) = dom%surf_geopot%elts(id+1) 
+          dom%adj_geopot%elts(id+1) = surf_geopot (dom%node%elts(id+1))
        else
           dom%adj_geopot%elts(id+1) = dom%geopot%elts(id+1)
        end if
@@ -1348,35 +1349,6 @@ contains
     offs(SOUTHEAST) = offs(SOUTHEAST) - (PATCH_SIZE-1)
     offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
   end subroutine comp_offs3
-
-  subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
-    ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-    external                        :: vel_fun
-
-    integer      :: d, id, idE, idN, idNE
-    type (Coord) :: x_i, x_E, x_N, x_NE
-
-    d = dom%id+1
-
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-
-    x_i  = dom%node%elts(id+1)
-    x_E  = dom%node%elts(idE+1)
-    x_N  = dom%node%elts(idN+1)
-    x_NE = dom%node%elts(idNE+1)
-
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, x_i,  x_E)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
-  end subroutine vel2uvw
 
   ! subroutine vert_integrated_horiz_flux (dom, i, j, zlev, offs, dims)
   !   ! Integrate horizontal fluxes on the three edges vertically 

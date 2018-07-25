@@ -234,9 +234,10 @@ contains
     else
        dt_loc = dt_init
     end if
-    
+    min_mass_loc = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0
+
     do l = level_start, level_end
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
