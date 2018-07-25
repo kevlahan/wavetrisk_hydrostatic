@@ -265,9 +265,8 @@ contains
     if (n > 0) get_child_and_neigh_patches(4) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
   end function get_child_and_neigh_patches
 
-  function check_children_fillup (dom, p_par)
+  real(8) function check_children_fillup (dom, p_par)
     implicit none
-    real(8)      :: check_children_fillup
     type(Domain) :: dom
     integer      :: p_par
     
@@ -292,9 +291,8 @@ contains
     check_children_fillup = dble(active)/dble(N_CHDRN*5*DOF_PER_PATCH)
   end function check_children_fillup
 
-  function remove_inside_patches()
+  logical function remove_inside_patches()
     ! Removes patches that are not required because they are far enough away from the locally finest level
-    logical :: remove_inside_patches
     
     integer               :: d, k, p, l, c, c1
     integer, dimension(4) :: chdrn
@@ -338,9 +336,8 @@ contains
     remove_inside_patches = changes
   end function remove_inside_patches
 
-  function check_child_required (dom, p, c)
+  logical function check_child_required (dom, p, c)
     implicit none
-    logical      :: check_child_required
     type(Domain) :: dom
     integer      :: p, c
 

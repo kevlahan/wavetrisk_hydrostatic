@@ -273,6 +273,9 @@ contains
     read(fid,*) varname, resume
 
     if (rank==0) then
+       write (6,'(A)') &
+            '**************************************************** Parameters *****************************************************'
+       write(6,'(A,A)')      "test_case        = ", test_case
        write(6,'(A,i3)')     "min_level        = ", min_level
        write(6,'(A,i3)')     "max_level        = ", max_level
        write(6,'(A,i3)')     "zlevels          = ", zlevels
@@ -712,6 +715,7 @@ program DCMIP2012c4
   wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
   
   min_allowed_mass = 2.0d-1                         ! minimum relative mass before remapping
+  if (rank==0) write(6,'(A,es10.4,1x)') "min_allowed_mass = ", min_allowed_mass
   
   pressure_save  = (/850.0d2/)                      ! save vertical level closest to this pressure
 
@@ -769,16 +773,17 @@ program DCMIP2012c4
   else
      dt_init = dt_cfl
   end if
-  if (rank==0)                      write(6,'(A,es10.4,1x,/)') "dt_cfl  = ", dt_cfl
-  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x,/)') "dt_visc = ", dt_visc
+  if (rank==0)                      write(6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
+  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
 
   if (rank == 0) then
-     write(6,'(A,i1)') 'Laplace order = ', Laplace_order
-     write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
-     write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
-     write(6,'(A,es10.4)') 'Viscosity_divu   = ', sum(viscosity_divu)/zlevels
-     write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
-     write(6,'(A,es10.4)') ' '
+     write(6,'(A,i1)')     'Laplace_order    = ', Laplace_order
+     if (Laplace_order /= 0) then
+        write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
+        write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
+        write(6,'(A,es10.4)') 'Viscosity_divu   = ', sum(viscosity_divu)/zlevels
+        write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
+     end if
   end if
  
   ! Determine vertical level to save
@@ -800,7 +805,9 @@ program DCMIP2012c4
   total_cpu_time = 0.0_8
   
   open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  
+
+  if (rank == 0) write (6,'(A,/)') &
+       '----------------------------------------------- Start simulation run ------------------------------------------------'
   do while (time < time_end)
      call update_array_bdry (sol, NONE)
      n_patch_old = grid(:)%patch%length
@@ -877,8 +884,8 @@ subroutine set_save_level
         save_press = lev_press
      end if
   end do
-  if (rank==0) write(6,'(A,i2,A,f5.1,A)') "Saving vertical level ", save_zlev, " Approximate pressure = ", save_press/1.0d2, " hPa"
-  if (rank==0) write(6,*) ' '
+  if (rank==0) write(6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
+       " (approximate pressure = ", save_press/1.0d2, " hPa)"
 end subroutine set_save_level
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

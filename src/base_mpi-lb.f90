@@ -15,7 +15,7 @@ contains
     integer, dimension(N_GLO_DOMAIN) :: adj_line, vwgt
     integer, parameter               :: fid = 599
     character(5+4)                   :: filename
-    real(8)                          :: wgt_per_rank, wgt_cur_rank, accepted_inbalance
+    real(8)                          :: wgt_per_rank, wgt_cur_rank, accepted_imbalance
     
     write(filename, '(A,I4.4)')  "conn.", k
 
@@ -27,7 +27,7 @@ contains
        end do
        close (fid)
 
-       total_wgt = sum(vwgt)
+       total_wgt = sum (vwgt)
        wgt_per_rank = dble(total_wgt)/dble(n_process)
        d = 0
 
@@ -35,9 +35,9 @@ contains
        !  - every rank has at least one domain
        !  - every domain is assigned to a rank
 
-       accepted_inbalance = 0.1_8
+       accepted_imbalance = 0.1_8
 
-       do while (d < N_GLO_DOMAIN) ! increase accepted_inbalance until all domains fit
+       do while (d < N_GLO_DOMAIN) ! increase accepted_imbalance until all domains fit
           d = 0
           do r = 1, n_process
              wgt_cur_rank = 0
@@ -47,12 +47,11 @@ contains
                 d = d + 1
              end do
              ! If load too much, keep last item for next rank
-             if (wgt_cur_rank > dble(wgt_per_rank)*(1.0_8 + accepted_inbalance)) d = d - 1
+             if (wgt_cur_rank > dble(wgt_per_rank)*(1.0_8 + accepted_imbalance)) d = d - 1
           end do
-          ! Did not find enough room for all domains > accepted_inbalance was too tight
-          accepted_inbalance = accepted_inbalance*2.0_8
+          ! Did not find enough room for all domains > accepted_imbalance was too tight
+          accepted_imbalance = accepted_imbalance*2.0_8
        end do
-       if (rank == 0) write(*,'(A,es12.4)') 'Accepted imbalance:', accepted_inbalance/2.0_8
     else
        n_domain_floor = N_GLO_DOMAIN/n_process
        d = 0

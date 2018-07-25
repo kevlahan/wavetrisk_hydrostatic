@@ -1259,7 +1259,7 @@ contains
 
     do k = 1, zlevels
        do e = 1, EDGE
-          write(fid,*) wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)
+          write (fid,*) wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)
        end do
     end do
   end subroutine write_u_wc
@@ -1284,18 +1284,18 @@ contains
   subroutine write_scalar (dom, p, i, j, zlev, offs, dims, fid)
     implicit none
     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
+    integer                        :: fid, i, j, p, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, fid, v
+    integer :: d, e, id, v
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
     do v = S_MASS, S_TEMP
-       write(fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
-       write(fid) trend(v,zlev)%data(d)%elts(id+1) ! for pole`
+       write (fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
+       write (fid) trend(v,zlev)%data(d)%elts(id+1) ! for pole`
     end do
   end subroutine write_scalar
 
@@ -1312,8 +1312,8 @@ contains
     id = idx(i, j, offs, dims)
 
     do v = S_MASS, S_TEMP
-       read(fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
-       read(fid) trend(v,zlev)%data(d)%elts(id+1) ! for pole
+       read (fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
+       read (fid) trend(v,zlev)%data(d)%elts(id+1) ! for pole
     end do
   end subroutine read_scalar
 
@@ -1325,8 +1325,9 @@ contains
     integer  :: id
 
     character(255)                          :: filename_gr, filename_no
-    integer                                 :: c, d, fid_gr, fid_no, i, j, k, l, p_chd, p_lev, p_par, v
-    logical, dimension(N_CHDRN)             :: child_required
+    integer                                 :: c, d, i, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
+    integer, dimension(1:size(grid))        :: fid_no, fid_gr
+    logical, dimension(N_CHDRN)             :: required
     type(Domain), dimension(:), allocatable :: grid_tmp
 
     allocate (grid_tmp, source=grid)
@@ -1359,65 +1360,64 @@ contains
        write (filename_no, '(A,I4.4,A,I5.5)') "coef.", id, "_", glo_id(rank+1,d)
        write (filename_gr, '(A,I4.4,A,I5.5)') "grid.", id, "_", glo_id(rank+1,d)
 
-       open (unit=fid_no, file=trim(filename_no), form="UNFORMATTED", action='WRITE')
-       open (unit=fid_gr, file=trim(filename_gr), form="UNFORMATTED", action='WRITE')
+       open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE')
+       open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE')
 
-       write (fid_no) istep
-       write (fid_no) time
+       write (fid_no(d)) istep
+       write (fid_no(d)) time
 
-       call custom_dump (fid_no)
+       call custom_dump (fid_no(d))
 
+       ! Write data at coarsest scale (scaling functions)
+       p_par = 1
        do k = 1, zlevels
-          call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no, .True.)
+          call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
           do v = S_MASS, S_VELO
-             write (fid_no) (sol(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
-                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
-             write (fid_no) (trend(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(1+1)%elts_start+1, &
-                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2))
+             ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+             iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
+             write (fid_no(d))   sol(v,k)%data(d)%elts(ibeg:iend)
+             write (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
 
+       ! Write wavelets at finer scales
        do l = min_level, level_end
           p_lev = 0
           do j = 1, grid_tmp(d)%lev(l)%length
              p_par = grid_tmp(d)%lev(l)%elts(j)
-             if (grid_tmp(d)%patch%elts(p_par+1)%deleted) then
-                do c = 1, N_CHDRN
-                   p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
-                   if (p_chd > 0) grid_tmp(d)%patch%elts(p_chd+1)%deleted = .True.
-                end do
-                cycle
-             end if
+
+             if (grid_tmp(d)%patch%elts(p_par+1)%deleted) cycle ! Patch does not exist
 
              do k = 1, zlevels
                 do v = S_MASS, S_VELO
-                   write (fid_no) (wav_coeff(v,k)%data(d)%elts(i), i = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
-                   write (fid_no) (trend_wav_coeff(v,k)%data(d)%elts(i), i = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
+                   ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+                   iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
+                   write (fid_no(d))       wav_coeff(v,k)%data(d)%elts(ibeg:iend)
+                   write (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
              end do
 
-              do c = 1, N_CHDRN
+             ! Record whether patch needs to be refined
+             do c = 1, N_CHDRN
+                ! Find index of child patch
                 p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
-                if (p_chd > 0) then
-                   child_required(c) = check_child_required(grid_tmp(d), p_par, c-1)
-                   grid_tmp(d)%patch%elts(p_chd+1)%deleted = .not. child_required(c)
-                   if (child_required(c)) then
-                      p_lev = p_lev + 1
-                      grid_tmp(d)%lev(l+1)%elts(p_lev) = p_chd
-                   end if
+                if (p_chd > 0) then ! Child patch exists
+                   required(c) = .true.
+                   p_lev = p_lev + 1
+                   grid_tmp(d)%lev(l+1)%elts(p_lev) = p_chd
                 else
-                   child_required(c) = .False.
+                   required(c) = .false.
                 end if
              end do
-
-             write (fid_gr) child_required
+             write (fid_gr(d)) required
           end do
-          if (l+1 <= max_level) grid_tmp(d)%lev(l+1)%length = p_lev
        end do
-       close (fid_no); close (fid_gr)
     end do
+    
+    do d = 1, size(grid)
+       close (fid_no(d)); close (fid_gr(d))
+    end do
+
     deallocate (grid_tmp)
   end subroutine dump_adapt_mpi
 
@@ -1429,11 +1429,11 @@ contains
     integer                              :: id
 
     character(255)                       :: filename_gr, filename_no
-    integer                              :: c, d, i, j, k, l, old_n_patch, p_chd, p_par, v
-    integer, dimension(n_domain(rank+1)) :: fid_no, fid_gr
-    logical, dimension(N_CHDRN)          :: child_required
+    integer                              :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, v
+    integer, dimension(1:size(grid))     :: fid_no, fid_gr
+    logical, dimension(N_CHDRN)          :: required
 
-    ! Loop over domains at coarsest scale
+    ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
        fid_no(d) = id*1000 + 1000000 + d
        fid_gr(d) = id*1000 + 3000000 + d
@@ -1449,19 +1449,19 @@ contains
 
        call custom_load (fid_no(d))
 
+       p_par = 1
        do k = 1, zlevels
           call apply_to_pole_d (read_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
-
           do v = S_MASS, S_VELO
-             read (fid_no(d)) (sol(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
-                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
-             read (fid_no(d)) (trend(v,k)%data(d)%elts(i),i = MULT(v)* grid(d)%patch%elts(1+1)%elts_start+1, &
-                  MULT(v)*(grid(d)%patch%elts(1+1)%elts_start+PATCH_SIZE**2) )
+             ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+             iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
+             read (fid_no(d))   sol(v,k)%data(d)%elts(ibeg:iend)
+             read (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
     end do
-
-    ! Load finer scales if present, looping over each domain
+    
+    ! Load finer scales (wavelets) if present
     l = 1
     do while (level_end > l) ! New level was added -> proceed to it
        l = level_end 
@@ -1472,19 +1472,18 @@ contains
              p_par = grid(d)%lev(l)%elts(j)
              do k = 1, zlevels
                 do v = S_MASS, S_VELO
-                   read (fid_no(d)) (wav_coeff(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
-                   read (fid_no(d)) (trend_wav_coeff(v,k)%data(d)%elts(i), i=MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start+1, &
-                        MULT(v)*(grid(d)%patch%elts(p_par+1)%elts_start+PATCH_SIZE**2))
+                   ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+                   iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
+                   read (fid_no(d))       wav_coeff(v,k)%data(d)%elts(ibeg:iend)
+                   read (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
              end do
 
-             read (fid_gr(d)) child_required
+             read (fid_gr(d)) required
              do c = 1, N_CHDRN
-                if (child_required(c)) call refine_patch1 (grid(d), p_par, c - 1)
+                if (required(c)) call refine_patch1 (grid(d), p_par, c - 1)
              end do
           end do
-
           do p_par = 2, old_n_patch
              do c = 1, N_CHDRN
                 p_chd = grid(d)%patch%elts(p_par)%children(c)
@@ -1552,9 +1551,10 @@ contains
     maxerror = sync_max_d(maxerror)
 
     if (rank == 0) then
-       write (6,'(A)') '-------------------------------------------------------------------------------------------------'
+       write (6,'(A)') '-------------------------------------------------&
+            --------------------------------------------------------------------'
        write (6,'(A,i2,A,/)') 'Heikes-Randall optimizations of level ', level_start-1, ' grid:'
-       write (6,'(A,2(es10.4,A))') 'Grid quality before optimization = ', maxerror, ' [m] (linf) ', l2error, ' [m] (l2)'
+       write (6,'(A,2(es10.4,A))') 'Grid quality before optimization = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
     end if
     
     fid = get_fid()
@@ -1596,9 +1596,10 @@ contains
     l2error = sqrt (sum_real(l2error))
     maxerror = sync_max_d(maxerror)
     if (rank == 0) then
-       write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' [m] (linf) ', l2error, ' [m] (l2)'
+       write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
        write (6,'(A)') '(distance between midpoints of primal and dual edges)'
-       write (6,'(A,/)') '-------------------------------------------------------------------------------------------------'
+       write (6,'(A,/)') '-------------------------------------------------&
+            --------------------------------------------------------------------'
     end if
   end subroutine read_HR_optim_grid
 

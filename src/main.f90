@@ -43,13 +43,13 @@ contains
 
   subroutine initialize (apply_init_cond, set_thresholds, custom_dump, custom_load, test_case)
     implicit none
-    real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
     external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
     character(*) :: test_case
     
-    character(255) :: command
-    integer        :: k, d, ierr
-
+    character(255)                 :: command
+    integer                        :: k, d, ierr
+    real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
+    
     if (min_level > max_level) then
        if (rank == 0) write (6,'(A,I4,1X,A,I4,A,I4)') &
             'ERROR: max_level < min_level:', max_level, '<', min_level, '. Setting max_level to', min_level
@@ -58,21 +58,15 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
-       write (command, '(A,I4.4,A)')  'tar xzf '//trim(test_case)//'_checkpoint_' , cp_idx , ".tgz"
-       if (rank == 0) call system (command)
-       call barrier ! make sure all files are extracted before everyone starts reading them
-    end if
-
-    call init_structures
-
-    if (resume >= 0) then
-       if (rank == 0) write (6,'(A,i6)') 'Resuming from checkpoint ', resume
        call restart_full (set_thresholds, custom_load, test_case)
     else
-       if (rank == 0) write (6,'(/,A,/)') &
-            '----------------------------------- Adapting initial grid ---------------------------------------'
-
+       call init_structures
        call apply_init_cond
+
+       if (rank == 0) write (6,'(/,A,/)') &
+            '----------------------------------------------- Adapting initial grid &
+            -----------------------------------------------'
+
        call forward_wavelet_transform (sol, wav_coeff)
        call trend_ml (sol, trend)
        call forward_wavelet_transform (trend, trend_wav_coeff)
@@ -120,7 +114,8 @@ contains
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit !--No active nodes at this scale
        end do
        if (rank == 0) write (6,'(A,/)') &
-            '-------------------------------- Finished adapting initial grid ---------------------------------'
+            '------------------------------------------- Finished adapting initial grid &
+            ------------------------------------------'
 
        call adapt (set_thresholds)
        dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum(n_active)
@@ -301,10 +296,6 @@ contains
        write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
     end if
 
-    ! Deallocate all dynamic arrays and variables
-    call deallocate_structures
-    call init_structures
-
     ! Uncompress checkpoint data
     write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
     if (rank == 0) write(6,'(A,A,/)') 'Loading file ', trim(cmd_archive)
@@ -312,6 +303,10 @@ contains
     if (rank == 0) call system (command)
 
     call barrier ! Make sure checkpoint is uncompressed before reading
+
+    ! Deallocate all dynamic arrays and variables
+    if (resume < 0) call deallocate_structures
+    call init_structures
     
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load)
