@@ -313,7 +313,7 @@ module shared_mod
   real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8) :: viscosity_rotu, viscosity_mass, viscosity_temp
-  real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, R_d, wave_speed
+  real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, c_v, R_d, wave_speed
   real(8) :: min_mass, min_allowed_mass
   real(8), dimension(:), target, allocatable :: pressure_save
   real(8), dimension(:),         allocatable :: tol_mass, tol_temp, tol_velo
@@ -396,8 +396,9 @@ contains
     radius         = 6371220.0_8
     ref_density    = 1.0_8
     press_infty    = 0.0_8
-    R_d            = 1.0_8
-    c_p            = 1.0_8
+    R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
+    c_p            = 1004.64_8                   ! specific heat at constant pressure in joules per kilogram Kelvin
+    c_v            = 717.6_8                     ! specfic heat at constant volume c_v = R_d - c_p
     kappa          = R_d/c_p
     ref_press      = 1000.0d2
     viscosity_rotu = 0.0_8

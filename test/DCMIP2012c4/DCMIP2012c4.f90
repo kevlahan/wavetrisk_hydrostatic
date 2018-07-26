@@ -6,88 +6,75 @@ program DCMIP2012c4
   use io_mod  
   implicit none
 
-  integer        :: d, ierr, k, l, v
-  real(8)        :: dt_cfl, dt_visc, P_k, P_top
-  real(8)        :: acceldim, c_v, f0, dPdim, geopotdim, Ldim, Hdim, massdim, N_freq
-  real(8)        :: Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
+  integer        :: k
+  real(8)        :: dt_cfl, dt_visc, P_k, P_top, timing, total_cpu_time
+  real(8)        :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
   character(255) :: command
   logical        :: aligned, write_init
 
-  ! Initialize grid etc
+  ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
 
-  ! Nullify all pointers initially
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters (trim(test_case)//".in")
+ 
+  ! Standard (shared) parameter values for the simulation
+  radius         = 6.371229d6                  ! mean radius of the Earth in meters
+  grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
+  omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
+  ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
+  ref_surf_press = ref_press                   ! reference surface pressure
+  R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
+  c_p            = 1004.64_8                   ! specific heat at constant pressure in joules per kilogram Kelvin
+  c_v            = 717.6_8                     ! specfic heat at constant volume c_v = R_d - c_p
+  gamma          = c_p/c_v                     ! heat capacity ratio
+  kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
 
-  allocate (tol_mass(1:zlevels), norm_mass_def(1:zlevels))
-  allocate (tol_temp(1:zlevels), norm_temp_def(1:zlevels))
-  allocate (tol_velo(1:zlevels), norm_velo_def(1:zlevels))
-  allocate (viscosity_divu(1:zlevels))
-  tol_mass = 0.0_8 ; tol_temp = 0.0_8 ; tol_velo = 0.0_8
-  norm_mass_def = 0.0_8 ; norm_temp_def = 0.0_8 ; norm_velo_def = 0.0_8
-  viscosity_divu = 0.0_8
-
-  ! Average minimum grid size and maximum wavenumber
-  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
-
-  ! Parameters for the simulation
-  radius         = 6.371229d6    ! mean radius of the Earth in meters
-  grav_accel     = 9.80616_8     ! gravitational acceleration in meters per second squared
-  omega          = 7.29212d-5    ! Earth’s angular velocity in radians per second
-  f0             = 2.0_8*omega   ! Coriolis parameter
-  u_0            = 35.0_8        ! maximum velocity of zonal wind
-  u_p            = 1.0_8         ! maximum perturbation to zonal wind
-  R_pert         = radius/10.0_8 ! 
-  T_0            = 288.0_8       ! temperature in Kelvin
-  gamma_T        = 5.0d-3        ! temperature lapse rate
-  delta_T        = 4.8d5         ! empirical temperature difference
-  eta_0          = 0.252_8       ! value of eta at reference level (level of the jet)
-  eta_t          = 0.2_8         ! value of eta at the tropopause
-  lon_c          = MATH_PI/9.0_8 ! longitude location of perturbation to zonal wind
-  lat_c          = 2.0_8*MATH_PI/9.0_8 ! latitude location of perturbation to zonal wind
-  ref_press      = 1.0d5        ! reference pressure (mean surface pressure) in Pascals
-  ref_surf_press = ref_press    ! reference surface pressure
-  R_d            = 287.0_8      ! ideal gas constant for dry air in joules per kilogram Kelvin
-  c_p            = 1004.64_8     ! specific heat at constant pressure in joules per kilogram Kelvin
-  c_v            = 717.6_8       ! specfic heat at constant volume c_v = R_d - c_p
-  gamma          = c_p/c_v       ! heat capacity ratio
-  kappa          = 2.0_8/7.0_8   ! kappa=R_d/c_p
-  N_freq         = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
-
-  ! Dimensional scaling
-  Udim           = u_0                              ! velocity scale
-  Tdim           = DAY                              ! time scale
-  Ldim           = Udim*Tdim                        ! length scale
+  ! Local test case parameters
+  u_0            = 35.0_8                      ! maximum velocity of zonal wind
+  u_p            = 1.0_8                       ! maximum perturbation to zonal wind
+  R_pert         = radius/10.0_8               ! radius of perturbation to zonal wind
+  T_0            = 288.0_8                     ! temperature in Kelvin
+  gamma_T        = 5.0d-3                      ! temperature lapse rate
+  delta_T        = 4.8d5                       ! empirical temperature difference
+  eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
+  eta_t          = 0.2_8                       ! value of eta at the tropopause
+  lon_c          = MATH_PI/9.0_8               ! longitude location of perturbation to zonal wind
+  lat_c          = 2.0_8*MATH_PI/9.0_8         ! latitude location of perturbation to zonal wind
 
   ! Dimensions for scaling tendencies
-  Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
-  dTempdim       = 8.0d1                            ! temperature scale for tolerances
-  Pdim           = ref_surf_press                   ! pressure scale
-  dPdim          = 8.0d3                            ! scale of surface pressure variation determining mass tolerance scale
+  Tempdim        = T_0                         ! temperature scale (both theta and T from DYNAMICO)
+  dTempdim       = 8.0d1                       ! temperature scale for tolerances
+  Pdim           = ref_surf_press              ! pressure scale
+  dPdim          = 8.0d3                       ! scale of surface pressure variation determining mass tolerance scale
 
-  acceldim       = Udim**2/Hdim                     ! acceleration scale
-  R_ddim         = R_d                              ! R_d scale
-  massdim        = pdim*Hdim/(Tempdim*R_d)          ! mass (=rho*dz following DYNAMICO) scale
-  specvoldim     = (R_d*Tempdim)/pdim               ! specific volume scale
-  geopotdim      = acceldim*massdim*specvoldim/Hdim ! geopotential scale
-  wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
-  
-  min_allowed_mass = 2.0d-1                         ! minimum relative mass before remapping
-  if (rank==0) write(6,'(A,es10.4,1x)') "min_allowed_mass = ", min_allowed_mass
-  
-  pressure_save  = (/850.0d2/)                      ! save vertical level closest to this pressure
+  ! Dimensional scaling
+  specvoldim     = (R_d*Tempdim)/Pdim          ! specific volume scale
+  wave_speed     = sqrt(gamma*Pdim*specvoldim) ! acoustic wave speed
 
+  Udim           = u_0                         ! velocity scale
+  Tdim           = DAY                         ! time scale
+  Ldim           = Udim*Tdim                   ! length scale
+  Hdim           = wave_speed**2/grav_accel    ! vertical length scale
+  
   ! Set logical switches
   adapt_dt     = .true.  ! Adapt time step
   compressible = .true.  ! Compressible equations
   remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
   uniform      = .false. ! Type of vertical grid
-
-   ! Initialize vertical grid
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
+  ! Initialize vertical grid
   call initialize_a_b_vert
+
+  ! Nullify all pointers initially
+  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
+
+  allocate (tol_mass(1:zlevels), norm_mass_def(1:zlevels)); tol_mass = 0.0_8; norm_mass_def = 0.0_8
+  allocate (tol_temp(1:zlevels), norm_temp_def(1:zlevels)); tol_temp = 0.0_8; norm_temp_def = 0.0_8
+  allocate (tol_velo(1:zlevels), norm_velo_def(1:zlevels)); tol_velo = 0.0_8; norm_velo_def = 0.0_8
+  allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
 
   ! Set default trend norms based on dimensional scalings
   norm_mass_def = dPdim/grav_accel
@@ -98,22 +85,17 @@ program DCMIP2012c4
   norm_velo_def = Udim
 
   if (adapt_trend) then
-     norm_mass_def = norm_mass_def/DAY
-     norm_temp_def = norm_temp_def/DAY
-     norm_velo_def = norm_velo_def/DAY
+     norm_mass_def = norm_mass_def/Tdim
+     norm_temp_def = norm_temp_def/Tdim
+     norm_velo_def = norm_velo_def/Tdim
   end if
 
   ! Time step based on wave speed, initial velocity at finest scale
+  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
   dt_cfl = cfl_num*dx_min/(wave_speed+u_0+u_p)
   
   ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
-  Laplace_order = 0
-
   if (Laplace_order == 1) then ! Usual Laplacian diffusion
-     viscosity_mass = 0.0_8
-     viscosity_temp = 0.0_8
-     viscosity_rotu = 0.0_8
-
      ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
      P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
      do k = 1, zlevels
@@ -134,11 +116,9 @@ program DCMIP2012c4
   else
      dt_init = dt_cfl
   end if
-  if (rank==0)                      write(6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
-  if (rank==0.and.viscosity/=0.0_8) write(6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
-
-  if (rank == 0) then
-     write(6,'(A,i1)')     'Laplace_order    = ', Laplace_order
+  if (rank==0) then
+     write(6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
+     if (viscosity/=0.0_8) write(6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
      if (Laplace_order /= 0) then
         write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
         write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
@@ -160,10 +140,10 @@ program DCMIP2012c4
 
   if (resume <= 0) iwrite = 0
   
-  open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------- Start simulation run ------------------------------------------------'
+  open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
@@ -218,26 +198,6 @@ program DCMIP2012c4
 
   call finalize
 end program DCMIP2012c4
-
-subroutine set_save_level
-  ! Determines closest vertical level to desired pressure
-  use test_case_mod
-  implicit none
-  integer :: zlev
-  real(8) :: dpress, lev_press, save_press
-
-  dpress = 1.0d16; save_zlev = 0
-  do zlev = 1, zlevels
-     lev_press = 0.5_8*ref_press*(a_vert(zlev)+a_vert(zlev+1) + b_vert(zlev)+b_vert(zlev+1))
-     if (abs(lev_press-pressure_save(1)) < dpress) then
-        dpress = abs(lev_press-pressure_save(1))
-        save_zlev = zlev
-        save_press = lev_press
-     end if
-  end do
-  if (rank==0) write(6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
-       " (approximate pressure = ", save_press/1.0d2, " hPa)"
-end subroutine set_save_level
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)

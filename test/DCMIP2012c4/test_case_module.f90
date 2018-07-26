@@ -7,12 +7,10 @@ module test_case_mod
 
   character(*), parameter            :: test_case = "DCMIP2012c4"      
   integer                            :: CP_EVERY, iwrite, N_edge, N_node, save_zlev
-  real(8)                            :: initotalmass, totalmass, timing, total_cpu_time
-  logical                            :: wasprinted, uniform
-
-  real(8)                            :: norm_mass, norm_temp, norm_velo
+  real(8)                            :: initotalmass, totalmass, norm_mass, norm_temp, norm_velo
   real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, lat_c, lon_c, mass_error, R_pert, T_0, u_p, u_0
   real(8), dimension(:), allocatable :: norm_mass_def, norm_temp_def, norm_velo_def
+  logical                            :: wasprinted, uniform
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -84,14 +82,13 @@ contains
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
-    real(8)     :: lon, lat
+    real(8)     :: c1, lon, lat
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
-    surf_geopot = u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5 * &
-         (u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5 * &
-         (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
+    c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5
+    surf_geopot =  c1 * (c1 * (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
          radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
   end function surf_geopot
 
@@ -206,19 +203,25 @@ contains
     character(*)   :: filename
 
     integer, parameter :: fid = 500
+    real(8)            :: press_save
     character(255)     :: varname
 
     open(unit=fid, file=filename, action='READ')
     read(fid,*) varname, max_level
     read(fid,*) varname, zlevels
     read(fid,*) varname, adapt_trend
-    read(fid,*) varname, threshold 
+    read(fid,*) varname, threshold
+    read(fid,*) varname, min_allowed_mass 
     read(fid,*) varname, optimize_grid
     read(fid,*) varname, cfl_num
+    read(fid,*) varname, press_save
+    read(fid,*) varname, Laplace_order
     read(fid,*) varname, dt_write
     read(fid,*) varname, CP_EVERY
     read(fid,*) varname, time_end
     read(fid,*) varname, resume
+
+    pressure_save = 1.0d2*(/ press_save /)
 
     if (rank==0) then
        write (6,'(A)') &
@@ -229,8 +232,11 @@ contains
        write(6,'(A,i3)')     "zlevels          = ", zlevels
        write(6,'(A,L1)')     "adapt_trend      = ", adapt_trend
        write(6,'(A,es10.4)') "threshold        = ", threshold
+       write(6,'(A,es10.4)') "min_allowed_mass = ", min_allowed_mass 
        write(6,'(A,i2)')     "optimize_grid    = ", optimize_grid
        write(6,'(A,es10.4)') "cfl_num          = ", cfl_num
+       write(6,'(A,es10.4)') "pressure_save    = ", press_save
+       write(6,'(A,i1)')     "Laplace_order    = ", Laplace_order
        write(6,'(A,es10.4)') "dt_write         = ", dt_write
        write(6,'(A,i6)')     "CP_EVERY         = ", CP_EVERY
        write(6,'(A,es10.4)') "time_end         = ", time_end 
@@ -242,6 +248,7 @@ contains
 
     close(fid)
   end subroutine read_test_case_parameters
+
 
   subroutine dump (fid)
     implicit none
@@ -514,4 +521,23 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
   end subroutine vel2uvw
+
+  subroutine set_save_level
+    ! Determines closest vertical level to desired pressure
+    implicit none
+    integer :: k
+    real(8) :: dpress, lev_press, save_press
+
+    dpress = 1.0d16; save_zlev = 0
+    do k = 1, zlevels
+       lev_press = 0.5_8*ref_press*(a_vert(k)+a_vert(k+1) + b_vert(k)+b_vert(k+1))
+       if (abs(lev_press-pressure_save(1)) < dpress) then
+          dpress = abs(lev_press-pressure_save(1))
+          save_zlev = k
+          save_press = lev_press
+       end if
+    end do
+    if (rank==0) write(6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
+         " (approximate pressure = ", save_press/1.0d2, " hPa)"
+  end subroutine set_save_level
 end module test_case_mod
