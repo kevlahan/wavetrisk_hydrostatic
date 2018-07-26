@@ -7,8 +7,8 @@ module test_case_mod
 
   character(*), parameter            :: test_case = "DCMIP2012c4"      
   integer                            :: CP_EVERY, iwrite, N_edge, N_node, save_zlev
-  real(8)                            :: initotalmass, totalmass, norm_mass, norm_temp, norm_velo
-  real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, lat_c, lon_c, mass_error, R_pert, T_0, u_p, u_0
+  real(8)                            :: initotalmass, mass_error, totalmass, norm_mass, norm_temp, norm_velo
+  real(8)                            :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, lat_c, lon_c,  R_pert, T_0, u_p, u_0
   real(8), dimension(:), allocatable :: norm_mass_def, norm_temp_def, norm_velo_def
   logical                            :: wasprinted, uniform
 contains
