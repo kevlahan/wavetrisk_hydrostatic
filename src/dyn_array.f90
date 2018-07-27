@@ -3,48 +3,48 @@ module dyn_arrays
   use patch_mod
 
   type int_Array
-     integer, allocatable :: elts(:)
-     integer length
+     integer, dimension(:), allocatable :: elts
+     integer                            :: length
   end type int_Array
 
   type Float_Array
-     real(8), allocatable :: elts(:)
-     integer length
+     real(8), dimension(:), allocatable :: elts
+     integer                            :: length
   end type Float_Array
 
   type Coord_Array
-     type(Coord), allocatable :: elts(:)
-     integer length
+     type(Coord), dimension(:), allocatable :: elts
+     integer                                :: length
   end type Coord_Array
 
   type Areas_Array
-     type(Areas), allocatable :: elts(:)
-     integer length
+     type(Areas), dimension(:), allocatable :: elts
+     integer                                :: length
   end type Areas_Array
 
   type Overl_Area_Array
-     type(Overl_Area), allocatable :: elts(:)
-     integer length
+     type(Overl_Area), dimension(:), allocatable :: elts
+     integer                                     :: length
   end type Overl_Area_Array
 
   type Iu_Wgt_Array
-     type(Iu_Wgt), allocatable :: elts(:)
-     integer length
+     type(Iu_Wgt), dimension(:), allocatable :: elts
+     integer                                 :: length
   end type Iu_Wgt_Array
 
   type RF_Wgt_Array
-     type(RF_Wgt), allocatable :: elts(:)
-     integer length
+     type(RF_Wgt), dimension(:), allocatable :: elts
+     integer                                 :: length
   end type RF_Wgt_Array
 
   type Patch_Array
-     type(Patch), allocatable :: elts(:)
-     integer length
+     type(Patch), dimension(:), allocatable :: elts
+     integer                                :: length
   end type Patch_Array
 
   type Bdry_Patch_Array
-     type(Bdry_Patch), allocatable :: elts(:)
-     integer length
+     type(Bdry_Patch), dimension(:), allocatable :: elts
+     integer                                    :: length
   end type Bdry_Patch_Array
 
   interface init
@@ -75,177 +75,191 @@ module dyn_arrays
           dbl_alloc_Iu_Wgt_Array, dbl_alloc_RF_Wgt_Array, &
           dbl_alloc_Patch_Array, dbl_alloc_Bdry_Patch_Array
   end interface dbl_alloc
-
 contains
-
-  subroutine init_Int_Array(arr, N)
-    type(Int_Array) arr
-    integer N
+  subroutine init_Int_Array (arr, N)
+    implicit none
+    type(Int_Array) :: arr
+    integer         :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_Int_Array
 
-  subroutine init_Float_Array(arr, N)
-    type(Float_Array) arr
-    integer N
+  subroutine init_Float_Array (arr, N)
+    implicit none
+    type(Float_Array) :: arr
+    integer           :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_Float_Array
 
-  subroutine init_Coord_Array(arr, N)
-    type(Coord_Array) arr
-    integer N
+  subroutine init_Coord_Array (arr, N)
+    implicit none
+    type(Coord_Array) :: arr
+    integer           :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_Coord_Array
 
-  subroutine init_Areas_Array(arr, N)
-    type(Areas_Array) arr
-    integer N
+  subroutine init_Areas_Array (arr, N)
+    type(Areas_Array) :: arr
+    integer           :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_Areas_Array
 
-  subroutine init_Overl_Area_Array(arr, N)
-    type(Overl_Area_Array) arr
-    integer N
+  subroutine init_Overl_Area_Array (arr, N)
+    implicit none
+    type(Overl_Area_Array) :: arr
+    integer                :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_Overl_Area_Array
 
-  subroutine init_Iu_Wgt_Array(arr, N)
-    type(Iu_Wgt_Array) arr
-    integer N
+  subroutine init_Iu_Wgt_Array (arr, N)
+    implicit none
+    type(Iu_Wgt_Array) :: arr
+    integer            :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_Iu_Wgt_Array
 
-  subroutine init_RF_Wgt_Array(arr, N)
-    type(RF_Wgt_Array) arr
-    integer N
+  subroutine init_RF_Wgt_Array (arr, N)
+    implicit none
+    type(RF_Wgt_Array) :: arr
+    integer            :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_RF_Wgt_Array
 
-  subroutine init_Patch_Array(arr, N)
-    type(Patch_Array) arr
-    integer N
+  subroutine init_Patch_Array (arr, N)
+    implicit none
+    type(Patch_Array) :: arr
+    integer           :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_Patch_Array
 
-  subroutine init_Bdry_Patch_Array(arr, N)
-    type(Bdry_Patch_Array) arr
-    integer N
+  subroutine init_Bdry_Patch_Array (arr, N)
+    implicit none
+    type(Bdry_Patch_Array) :: arr
+    integer                :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
   end subroutine init_Bdry_Patch_Array
 
-  subroutine append_Int_Array(arr, item)
-    type(Int_Array) arr
-    integer item
+  subroutine append_Int_Array (arr, item)
+    type(Int_Array) :: arr
+    integer         :: item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_Int_Array(arr, arr%length + 1)
+    if (arr%length == size(arr%elts)) call dbl_alloc_Int_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Int_Array
 
-  subroutine append_Float_Array(arr, item)
-    type(Float_Array) arr
-    real(8) item
+  subroutine append_Float_Array (arr, item)
+    implicit none
+    type(Float_Array) :: arr
+    real(8)           :: item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_Float_Array(arr, arr%length + 1)
+    if (arr%length ==  size(arr%elts)) call dbl_alloc_Float_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Float_Array
 
-  subroutine append_Coord_Array(arr, item)
-    type(Coord_Array) arr
-    type(Coord) item
+  subroutine append_Coord_Array (arr, item)
+    implicit none
+    type(Coord_Array) :: arr
+    type(Coord)       ::  item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_Coord_Array(arr, arr%length + 1)
+    if (arr%length == size(arr%elts)) call dbl_alloc_Coord_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Coord_Array
 
-  subroutine append_Areas_Array(arr, item)
-    type(Areas_Array) arr
-    type(Areas) item
+  subroutine append_Areas_Array (arr, item)
+    implicit none
+    type(Areas_Array) :: arr
+    type(Areas)       :: item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_Areas_Array(arr, arr%length + 1)
+    if (arr%length == size(arr%elts)) call dbl_alloc_Areas_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Areas_Array
 
-  subroutine append_Overl_Area_Array(arr, item)
-    type(Overl_Area_Array) arr
-    type(Overl_Area) item
+  subroutine append_Overl_Area_Array (arr, item)
+    implicit none
+    type(Overl_Area_Array) :: arr
+    type(Overl_Area)       :: item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_Overl_Area_Array(arr, arr%length + 1)
+    if (arr%length == size(arr%elts)) call dbl_alloc_Overl_Area_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Overl_Area_Array
 
-  subroutine append_Iu_Wgt_Array(arr, item)
-    type(Iu_Wgt_Array) arr
-    type(Iu_Wgt) item
+  subroutine append_Iu_Wgt_Array (arr, item)
+    implicit none
+    type(Iu_Wgt_Array) :: arr
+    type(Iu_Wgt)       :: item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_Iu_Wgt_Array(arr, arr%length + 1)
+    if (arr%length == size(arr%elts)) call dbl_alloc_Iu_Wgt_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Iu_Wgt_Array
 
-  subroutine append_RF_Wgt_Array(arr, item)
-    type(RF_Wgt_Array) arr
-    type(RF_Wgt) item
+  subroutine append_RF_Wgt_Array (arr, item)
+    implicit none
+    type(RF_Wgt_Array) :: arr
+    type(RF_Wgt) :: item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_RF_Wgt_Array(arr, arr%length + 1)
+    if (arr%length == size(arr%elts)) call dbl_alloc_RF_Wgt_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_RF_Wgt_Array
 
-  subroutine append_Patch_Array(arr, item)
-    type(Patch_Array) arr
-    type(Patch) item
+  subroutine append_Patch_Array (arr, item)
+    implicit none
+    type(Patch_Array) :: arr
+    type(Patch)       :: item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_Patch_Array(arr, arr%length + 1)
+    if (arr%length == size(arr%elts)) call dbl_alloc_Patch_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Patch_Array
 
   subroutine append_Bdry_Patch_Array(arr, item)
-    type(Bdry_Patch_Array) arr
-    type(Bdry_Patch) item
+    implicit none
+    type(Bdry_Patch_Array) :: arr
+    type(Bdry_Patch)       :: item
 
-    if (arr%length .eq. size(arr%elts)) call dbl_alloc_Bdry_Patch_Array(arr, arr%length + 1)
+    if (arr%length == size(arr%elts)) call dbl_alloc_Bdry_Patch_Array (arr, arr%length + 1)
 
     arr%length = arr%length + 1
     arr%elts(arr%length) = item
   end subroutine append_Bdry_Patch_Array
 
-  subroutine extend_Int_Array(arr, N, items)
-    type(Int_Array) arr
-    integer N
-    integer items
+  subroutine extend_Int_Array (arr, N, items)
+    implicit none
+    type(Int_Array) :: arr
+    integer         :: items, N
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Int_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Int_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
@@ -256,312 +270,345 @@ contains
     integer N
     real(8) items
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Float_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Float_Array(arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Float_Array
 
-  subroutine extend_Coord_Array(arr, N, items)
-    type(Coord_Array) arr
-    integer N
-    type(Coord) items
+  subroutine extend_Coord_Array (arr, N, items)
+    implicit none
+    type(Coord_Array) :: arr
+    integer           :: N
+    type(Coord)       :: items
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Coord_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Coord_Array(arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Coord_Array
 
   subroutine extend_Areas_Array(arr, N, items)
-    type(Areas_Array) arr
-    integer N
-    type(Areas) items
+    implicit none
+    type(Areas_Array) :: arr
+    integer           :: N
+    type(Areas)       :: items
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Areas_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Areas_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Areas_Array
 
-  subroutine extend_Overl_Area_Array(arr, N, items)
-    type(Overl_Area_Array) arr
-    integer N
-    type(Overl_Area) items
+  subroutine extend_Overl_Area_Array (arr, N, items)
+    implicit none
+    type(Overl_Area_Array) :: arr
+    integer                :: N
+    type(Overl_Area)       :: items
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Overl_Area_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Overl_Area_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Overl_Area_Array
 
-  subroutine extend_Iu_Wgt_Array(arr, N, items)
-    type(Iu_Wgt_Array) arr
-    integer N
-    type(Iu_Wgt) items
+  subroutine extend_Iu_Wgt_Array (arr, N, items)
+    implicit none
+    type(Iu_Wgt_Array) :: arr
+    integer            :: N
+    type(Iu_Wgt)       :: items
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Iu_Wgt_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Iu_Wgt_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Iu_Wgt_Array
 
-  subroutine extend_RF_Wgt_Array(arr, N, items)
-    type(RF_Wgt_Array) arr
-    integer N
-    type(RF_Wgt) items
+  subroutine extend_RF_Wgt_Array (arr, N, items)
+    implicit none
+    type(RF_Wgt_Array) :: arr
+    integer            :: N
+    type(RF_Wgt)       :: items
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_RF_Wgt_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_RF_Wgt_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_RF_Wgt_Array
 
-  subroutine extend_Patch_Array(arr, N, items)
-    type(Patch_Array) arr
-    integer N
-    type(Patch) items
+  subroutine extend_Patch_Array (arr, N, items)
+    implicit none
+    type(Patch_Array) :: arr
+    integer           :: N
+    type(Patch)       :: items
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Patch_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Patch_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Patch_Array
 
-  subroutine extend_Bdry_Patch_Array(arr, N, items)
-    type(Bdry_Patch_Array) arr
-    integer N
-    type(Bdry_Patch) items
+  subroutine extend_Bdry_Patch_Array (arr, N, items)
+    implicit none
+    type(Bdry_Patch_Array) :: arr
+    integer                :: N
+    type(Bdry_Patch)       :: items
 
-    if (arr%length + N .gt. size(arr%elts)) call dbl_alloc_Bdry_Patch_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Bdry_Patch_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N
   end subroutine extend_Bdry_Patch_Array
 
-  subroutine dbl_alloc_Int_Array(arr, N)
+  subroutine dbl_alloc_Int_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(Int_Array) arr
-    integer N, ierr
-    integer, allocatable :: tmparr(:)
+    implicit none
+    type(Int_Array) :: arr
+    integer         :: N
 
-    allocate(tmparr(2*N),stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    integer                            :: ierr
+    integer, dimension(:), allocatable :: tmparr
+
+    allocate (tmparr(2*N),stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_Int_Array
 
-  subroutine dbl_alloc_Float_Array(arr, N)
+  subroutine dbl_alloc_Float_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(Float_Array) arr
-    integer N, ierr
-    real(8), allocatable :: tmparr(:)
+    implicit none
+    type(Float_Array) :: arr
+    integer           :: N
 
-    allocate(tmparr(2*N), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    integer                            :: ierr
+    real(8), dimension(:), allocatable :: tmparr
+
+    allocate (tmparr(2*N), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
        write(0,*) "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_Float_Array
 
-  subroutine dbl_alloc_Coord_Array(arr, N)
+  subroutine dbl_alloc_Coord_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(Coord_Array) arr
-    integer N, ierr
-    type(Coord), allocatable :: tmparr(:)
+    implicit none
+    type(Coord_Array) :: arr
+    integer           :: N
+    
+    integer                                :: ierr
+    type(Coord), dimension(:), allocatable :: tmparr
 
-    allocate(tmparr(2*N), stat=ierr)
-    if (ierr .ne. 0) then
+    allocate (tmparr(2*N), stat=ierr)
+    if (ierr /= 0) then
        write(0,*) "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_Coord_Array
 
-  subroutine dbl_alloc_Areas_Array(arr, N)
+  subroutine dbl_alloc_Areas_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(Areas_Array) arr
-    integer N, ierr
-    type(Areas), allocatable :: tmparr(:)
+    implicit none
+    type(Areas_Array) :: arr
+    integer           :: N
 
-    allocate(tmparr(2*N), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    integer                                :: ierr
+    type(Areas), dimension(:), allocatable :: tmparr
+
+    allocate (tmparr(2*N), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_Areas_Array
 
-  subroutine dbl_alloc_Overl_Area_Array(arr, N)
+  subroutine dbl_alloc_Overl_Area_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(Overl_Area_Array) arr
-    integer N, ierr
-    type(Overl_Area), allocatable :: tmparr(:)
+    implicit none
+    type(Overl_Area_Array) :: arr
+    integer                :: N
+    
+    integer                                     ::  ierr
+    type(Overl_Area), dimension(:), allocatable :: tmparr
 
-    allocate(tmparr(2*N), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    allocate (tmparr(2*N), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_Overl_Area_Array
 
-  subroutine dbl_alloc_Iu_Wgt_Array(arr, N)
+  subroutine dbl_alloc_Iu_Wgt_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(Iu_Wgt_Array) arr
-    integer N, ierr
-    type(Iu_Wgt), allocatable :: tmparr(:)
+    implicit none
+    type(Iu_Wgt_Array) :: arr
+    integer            :: N
 
-    allocate(tmparr(2*N), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    integer                                 :: ierr
+    type(Iu_Wgt), dimension(:), allocatable :: tmparr
+
+    allocate (tmparr(2*N), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_Iu_Wgt_Array
 
-  subroutine dbl_alloc_RF_Wgt_Array(arr, N)
+  subroutine dbl_alloc_RF_Wgt_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(RF_Wgt_Array) arr
-    integer N, ierr
-    type(RF_Wgt), allocatable :: tmparr(:)
+    implicit none
+    type(RF_Wgt_Array) :: arr
+    integer            :: N
+    
+    integer                                 :: ierr
+    type(RF_Wgt), dimension(:), allocatable :: tmparr
 
-    allocate(tmparr(2*N), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    allocate (tmparr(2*N), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_RF_Wgt_Array
 
   subroutine dbl_alloc_Patch_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(Patch_Array) arr
-    integer N, ierr
-    type(Patch), allocatable :: tmparr(:)
+    implicit none
+    type(Patch_Array) :: arr
+    integer           :: N
+    
+    integer                                :: ierr
+    type(Patch), dimension(:), allocatable :: tmparr
 
-    allocate(tmparr(2*N), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    allocate (tmparr(2*N), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_Patch_Array
 
-  subroutine dbl_alloc_Bdry_Patch_Array(arr, N)
+  subroutine dbl_alloc_Bdry_Patch_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
-    type(Bdry_Patch_Array) arr
-    integer N, ierr
-    type(Bdry_Patch), allocatable :: tmparr(:)
+    implicit none
+    type(Bdry_Patch_Array) :: arr
+    integer                :: N
 
-    allocate(tmparr(2*N), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    integer                                     :: ierr
+    type(Bdry_Patch), dimension(:), allocatable :: tmparr
+
+    allocate (tmparr(2*N), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate(arr%elts)
-    allocate(arr%elts(size(tmparr)), stat=ierr)
-    if (ierr .ne. 0) then
-       write(0,*) "ERROR: not enough memory"
+    deallocate (arr%elts)
+    allocate (arr%elts(size(tmparr)), stat=ierr)
+    if (ierr /= 0) then
+       write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
 
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
-    deallocate(tmparr)
+    deallocate (tmparr)
   end subroutine dbl_alloc_Bdry_Patch_Array
-
 end module dyn_arrays
