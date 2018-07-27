@@ -26,10 +26,10 @@ contains
 
     d = dom%id+1
 
-    id   = idx(i, j, offs, dims)
-    idN  = idx(i, j + 1, offs, dims)
-    idE  = idx(i + 1, j, offs, dims)
-    idNE = idx(i + 1, j + 1, offs, dims)
+    id   = idx(i,   j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
 
     x_i  = dom%node%elts(id+1)
     x_E  = dom%node%elts(idE+1)
@@ -55,25 +55,6 @@ contains
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
-
-  real(8) function set_temp (x_i)
-    implicit none
-    type(Coord) :: x_i
-
-    real(8) :: lon, lat, Tmean
-
-    call cart2sph (x_i, lon, lat)
-
-    if (eta>=eta_t) then
-       Tmean = T_0*eta**(R_d*Gamma_T/grav_accel)
-    else
-       Tmean = T_0*eta**(R_d*Gamma_T/grav_accel) + delta_T * (eta_t - eta)**5
-    end if
-
-    set_temp = Tmean + 0.75_8 * eta*MATH_PI*u_0/R_d * sin(eta_v) * sqrt(cos(eta_v)) * &
-         (2.0_8*u_0*cos(eta_v)**1.5*(-2.0_8*sin(lat)**6*(cos(lat)**2+1.0_8/3.0_8) + 10.0_8/63.0_8) + &
-         radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2+2.0_8/3.0_8) - MATH_PI/4.0_8))
-  end function set_temp
 
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
@@ -249,7 +230,6 @@ contains
 
     close(fid)
   end subroutine read_test_case_parameters
-
 
   subroutine dump (fid)
     implicit none
