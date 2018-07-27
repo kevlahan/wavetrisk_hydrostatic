@@ -225,7 +225,6 @@ contains
 
        grid(d)%surf_press%length  = init_state(d)%n_node
        grid(d)%press%length       = init_state(d)%n_node
-       grid(d)%surf_geopot%length = init_state(d)%n_node
        grid(d)%geopot%length      = init_state(d)%n_node
        grid(d)%u_zonal%length     = init_state(d)%n_node
        grid(d)%v_merid%length     = init_state(d)%n_node
@@ -440,7 +439,6 @@ contains
        deallocate (grid(d)%overl_areas%elts)
        deallocate (grid(d)%surf_press%elts)
        deallocate (grid(d)%press%elts)
-       deallocate (grid(d)%surf_geopot%elts)
        deallocate (grid(d)%geopot%elts)
        deallocate (grid(d)%u_zonal%elts)
        deallocate (grid(d)%v_merid%elts)

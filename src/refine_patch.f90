@@ -152,7 +152,6 @@ contains
     
     call extend (dom%surf_press,  num, 0.0_8)
     call extend (dom%press,       num, 0.0_8)
-    call extend (dom%surf_geopot, num, 0.0_8)
     call extend (dom%geopot,      num, 0.0_8)
     call extend (dom%u_zonal,     num, 0.0_8)
     call extend (dom%v_merid,     num, 0.0_8)

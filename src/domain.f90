@@ -48,7 +48,6 @@ module domain_mod
      type(Float_Array) :: coriolis    ! Coriolis force
      type(Float_Array) :: surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
      type(Float_Array) :: press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)
-     type(Float_Array) :: surf_geopot ! surface geopotential
      type(Float_Array) :: geopot      ! geopotential
      type(Float_Array) :: u_zonal     ! zonal velocity
      type(Float_Array) :: v_merid     ! meridional velocity
