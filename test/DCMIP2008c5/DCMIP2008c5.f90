@@ -1,4 +1,4 @@
-program DCMIP2008c5
+program DCMIP2012c4
   ! DCMIP2008c5 test case 5: Mountain-induced Rossby wave
   use main_mod
   use test_case_mod
@@ -6,18 +6,19 @@ program DCMIP2008c5
   implicit none
 
   integer        :: k
-  real(8)        :: dt_cfl, dt_visc, P_k, P_top, timing, total_cpu_time
-  real(8)        :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
+  real(8)        :: timing, total_cpu_time
   character(255) :: command
   logical        :: aligned, write_init
 
   ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
+  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
-  call read_test_case_parameters (trim(test_case)//".in")
+  call read_test_case_parameters ("test_case.in")
  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
   radius         = 6.371229d6                   ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8                    ! gravitational acceleration in meters per second squared
@@ -53,79 +54,20 @@ program DCMIP2008c5
   Ldim           = 2.0_8*sqrt(d2)               ! length scale (mountain width)
   Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
   Hdim           = wave_speed**2/grav_accel     ! vertical length scale
-  
-  ! Set logical switches
-  adapt_dt     = .true.  ! Adapt time step
-  compressible = .true.  ! Compressible equations
-  remap        = .true.  ! Remap vertical coordinates (always remap when saving results)
-  uniform      = .false. ! Type of vertical grid
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
   ! Initialize vertical grid
   call initialize_a_b_vert
 
-  ! Nullify all pointers initially
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-
-  allocate (tol_mass(1:zlevels), norm_mass_def(1:zlevels)); tol_mass = 0.0_8; norm_mass_def = 0.0_8
-  allocate (tol_temp(1:zlevels), norm_temp_def(1:zlevels)); tol_temp = 0.0_8; norm_temp_def = 0.0_8
-  allocate (tol_velo(1:zlevels), norm_velo_def(1:zlevels)); tol_velo = 0.0_8; norm_velo_def = 0.0_8
-  allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
-
-  ! Set default trend norms based on dimensional scalings
-  norm_mass_def = dPdim/grav_accel
-  do k = 1, zlevels
-     norm_temp_def(k) = (a_vert_mass(k) + b_vert_mass(k)*Pdim/grav_accel)*dTempdim
-  end do
-  norm_temp_def = norm_temp_def + Tempdim*norm_mass_def ! Add component due to tendency in mass 
-  norm_velo_def = Udim
-
-  if (adapt_trend) then
-     norm_mass_def = norm_mass_def/Tdim
-     norm_temp_def = norm_temp_def/Tdim
-     norm_velo_def = norm_velo_def/Tdim
-  end if
-
-  ! Time step based on wave speed, initial velocity at finest scale
-  dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
-  dt_cfl = cfl_num*dx_min/(wave_speed+u_0+u_p)
-  
-  ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
-  if (Laplace_order == 1) then ! Usual Laplacian diffusion
-     ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
-     P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
-     do k = 1, zlevels
-        P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
-        viscosity_divu(k) = dx_min**2/dt_cfl * max(1.0_8, 8.0_8*(1.0_8 + tanh(log(P_top/P_k))))/128.0_8
-        if (rank==0) write(6,'(i2,1x,es10.4)') k, viscosity_divu(k)
-     end do
-  elseif (Laplace_order /= 0) then
-     write(6,*) 'Unsupported iterated Laplacian (only 0 or 1 supported)'
-     stop
-  end if
-  viscosity = max (viscosity_mass, viscosity_temp, maxval(viscosity_divu), viscosity_rotu)
-
-  ! Time step based on acoustic wave speed and hexagon edge length (not used if adaptive dt)
-  if (viscosity/=0.0_8) then
-     dt_visc = 0.25_8*dx_min**2/viscosity
-     dt_init = min(dt_cfl, dt_visc)
-  else
-     dt_init = dt_cfl
-  end if
-  if (rank==0) then
-     write(6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
-     if (viscosity/=0.0_8) write(6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
-     if (Laplace_order /= 0) then
-        write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
-        write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
-        write(6,'(A,es10.4)') 'Viscosity_divu   = ', sum(viscosity_divu)/zlevels
-        write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
-     end if
-  end if
- 
   ! Determine vertical level to save
   call set_save_level
-   
+
+  ! Initialize thresholds to default values 
+  call initialize_thresholds
+
+  ! Initialize time step and viscosities
+  call initialize_dt_viscosity
+    
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
   call sum_total_mass (.true.)
@@ -134,12 +76,11 @@ program DCMIP2008c5
   ! Save initial conditions
   call write_and_export (iwrite)
 
-  if (resume <= 0) iwrite = 0
-  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------- Start simulation run ------------------------------------------------'
   open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  if (resume <= 0) iwrite = 0
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
@@ -152,9 +93,9 @@ program DCMIP2008c5
         write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,3(A,ES8.2,1x))') &
              'time [h] = ', time/HOUR, &
              ' dt [s] = ', dt, &
-             '  mass tol = ', sum(tol_mass)/zlevels, &
-             ' temp tol = ', sum(tol_temp)/zlevels, &
-             ' velo tol = ', sum(tol_velo)/zlevels, &
+             '  mass tol = ', sum(threshold(S_MASS,:))/zlevels, &
+              ' temp tol = ', sum(threshold(S_TEMP,:))/zlevels, &
+              ' velo tol = ', sum(threshold(S_VELO,:))/zlevels, &
              ' Jmax = ', level_end, &
              ' dof = ', sum(n_active), &
              ' min rel mass = ', min_mass, &
@@ -162,8 +103,8 @@ program DCMIP2008c5
              ' cpu = ', timing
 
         write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/HOUR, dt, sum(tol_mass)/zlevels, sum(tol_temp)/zlevels, sum(tol_velo)/zlevels, &
-             level_end, sum(n_active), min_mass, mass_error, timing
+             time/HOUR, dt, sum(threshold(S_MASS,:))/zlevels, sum(threshold(S_TEMP,:))/zlevels, &
+             sum(threshold(S_VELO,:))/zlevels, level_end, sum(n_active), min_mass, mass_error, timing
      end if
 
      if (aligned) then
@@ -193,7 +134,7 @@ program DCMIP2008c5
   end if
 
   call finalize
-end program DCMIP2008c5
+end program DCMIP2012c4
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)

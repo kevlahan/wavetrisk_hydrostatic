@@ -5,13 +5,12 @@ module test_case_mod
   use comm_mpi_mod
   implicit none
 
-  character(*), parameter            :: test_case = "DCMIP2008c5"      
-  integer                            :: CP_EVERY, iwrite, N_edge, N_node, save_zlev
-  real(8)                            :: initotalmass, mass_error, totalmass, norm_mass, norm_temp, norm_velo
-  real(8)                            :: d2, delta_T, eta, eta_t, eta_v, eta_0, gamma_T, h_0, lat_c, lon_c, N_freq
-  real(8)                            :: R_pert, T_0, u_p, u_0
-  real(8), dimension(:), allocatable :: norm_mass_def, norm_temp_def, norm_velo_def
-  logical                            :: wasprinted, uniform
+  integer                 :: CP_EVERY, iwrite, save_zlev
+  real(8)                 :: initotalmass, mass_error, totalmass
+  real(8)                 :: d2, delta_T, eta, eta_t, eta_v, eta_0, gamma_T, h_0, lat_c, lon_c, N_freq
+  real(8)                 :: R_pert, T_0, u_0
+  real(8)                 :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
+  real(8)                 :: dt_cfl, dt_visc
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -94,6 +93,29 @@ contains
     u = u_0*cos(lat)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
+  
+  subroutine set_thresholds
+    ! Set thresholds dynamically (trend or sol must be known)
+    use wavelet_mod
+    implicit none
+    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm, threshold_new
+
+    character(3), parameter :: order = "inf"
+
+    if (.not. default_thresholds) then
+       if (adapt_trend) then
+          call cal_lnorm (trend, order, lnorm)
+       else
+          call cal_lnorm (sol,   order, lnorm)
+       end if
+       threshold_new = tol * lnorm
+       if (istep /= 0) then
+          threshold = 0.9_8*threshold + 0.1_8*threshold_new
+       else
+          threshold = threshold_new
+       end if
+    end if
+  end subroutine set_thresholds
 
   subroutine initialize_a_b_vert
     implicit none
@@ -189,12 +211,18 @@ contains
     character(255)     :: varname
 
     open(unit=fid, file=filename, action='READ')
+    read(fid,*) varname, test_case
+    read(fid,*) varname, compressible
     read(fid,*) varname, max_level
     read(fid,*) varname, zlevels
+    read(fid,*) varname, uniform
+    read(fid,*) varname, remap
+    read(fid,*) varname, min_allowed_mass
     read(fid,*) varname, adapt_trend
-    read(fid,*) varname, threshold
-    read(fid,*) varname, min_allowed_mass 
+    read(fid,*) varname, default_thresholds
+    read(fid,*) varname, tol
     read(fid,*) varname, optimize_grid
+    read(fid,*) varname, adapt_dt
     read(fid,*) varname, cfl_num
     read(fid,*) varname, press_save
     read(fid,*) varname, Laplace_order
@@ -208,268 +236,101 @@ contains
     if (rank==0) then
        write (6,'(A)') &
             '**************************************************** Parameters *****************************************************'
-       write(6,'(A,A)')      "test_case        = ", test_case
-       write(6,'(A,i3)')     "min_level        = ", min_level
-       write(6,'(A,i3)')     "max_level        = ", max_level
-       write(6,'(A,i3)')     "zlevels          = ", zlevels
-       write(6,'(A,L1)')     "adapt_trend      = ", adapt_trend
-       write(6,'(A,es10.4)') "threshold        = ", threshold
-       write(6,'(A,es10.4)') "min_allowed_mass = ", min_allowed_mass 
-       write(6,'(A,i2)')     "optimize_grid    = ", optimize_grid
-       write(6,'(A,es10.4)') "cfl_num          = ", cfl_num
-       write(6,'(A,es10.4)') "pressure_save    = ", press_save
-       write(6,'(A,i1)')     "Laplace_order    = ", Laplace_order
-       write(6,'(A,es10.4)') "dt_write         = ", dt_write
-       write(6,'(A,i6)')     "CP_EVERY         = ", CP_EVERY
-       write(6,'(A,es10.4)') "time_end         = ", time_end 
-       write(6,'(A,i6)')     "resume           = ", resume
+       write(6,'(A,A)')      "test_case          = ", trim(test_case)
+       write(6,'(A,L1)')     "compressible       = ", compressible
+       write(6,'(A,i3)')     "min_level          = ", min_level
+       write(6,'(A,i3)')     "max_level          = ", max_level
+       write(6,'(A,i3)')     "zlevels            = ", zlevels
+       write(6,'(A,L1)')     "uniform            = ", uniform
+       write(6,'(A,L1)')     "remap              = ", remap
+       write(6,'(A,es10.4)') "min_allowed_mass   = ", min_allowed_mass
+       write(6,'(A,L1)')     "adapt_trend        = ", adapt_trend
+       write(6,'(A,L1)')     "default_thresholds = ", default_thresholds
+       write(6,'(A,es10.4)') "tolerance          = ", tol
+       write(6,'(A,i1)')     "optimize_grid      = ", optimize_grid
+       write(6,'(A,L1)')     "adapt_dt           = ", adapt_dt
+       write(6,'(A,es10.4)') "cfl_num            = ", cfl_num
+       write(6,'(A,es10.4)') "pressure_save      = ", press_save
+       write(6,'(A,i1)')     "Laplace_order      = ", Laplace_order
+       write(6,'(A,es10.4)') "dt_write           = ", dt_write
+       write(6,'(A,i6)')     "CP_EVERY           = ", CP_EVERY
+       write(6,'(A,es10.4)') "time_end           = ", time_end 
+       write(6,'(A,i6)')     "resume             = ", resume
        write(6,*) ' '
     end if
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
-
     close(fid)
   end subroutine read_test_case_parameters
 
-  subroutine dump (fid)
-    implicit none
-    integer :: fid
-
-    write(fid) itime
-    write(fid) iwrite
-    write(fid) tol_mass, tol_temp, tol_velo
-  end subroutine dump
-
-  subroutine load (fid)
-    implicit none
-    integer :: fid
-
-    read(fid) itime
-    read(fid) iwrite
-    read(fid) tol_mass, tol_temp, tol_velo
-  end subroutine load
-
-  subroutine set_thresholds
+  subroutine initialize_thresholds
+    ! Set default thresholds based on dimensional scalings of norms
     implicit none
 
-    integer                       :: e, l, k
-    real(8)                       :: mass_scale, temp_scale, velo_scale
-    real(8), dimension(1:zlevels) :: tol_mass_new, tol_temp_new, tol_velo_new
-    logical                       :: default_tol = .true.
+    integer :: k
+    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm
+    
+    allocate (threshold(S_MASS:S_VELO,1:zlevels)); threshold = 0.0_8
 
-    ! Set thresholds dynamically (trend or sol must be known)                                                                                                         
-    if (default_tol) then
-       tol_mass_new = threshold * norm_mass_def
-       tol_temp_new = threshold * norm_temp_def
-       tol_velo_new = threshold * norm_velo_def
-    else
+    lnorm(S_MASS,:) = dPdim/grav_accel
+    do k = 1, zlevels
+       lnorm(S_TEMP,k) = (a_vert_mass(k) + b_vert_mass(k)*Pdim/grav_accel)*dTempdim
+    end do
+    lnorm(S_TEMP,:) = lnorm(S_TEMP,:) + Tempdim*lnorm(S_MASS,:) ! Add component due to tendency in mass 
+    lnorm(S_VELO,:) = Udim
+    if (adapt_trend) lnorm = lnorm/Tdim
+    threshold = tol * lnorm
+  end subroutine initialize_thresholds
+
+  subroutine initialize_dt_viscosity
+    ! Initializes time step and viscosity
+    implicit none
+
+    integer :: k
+    real(8) :: P_k, P_top
+
+    ! Time step based on wave speed, initial velocity at finest scale
+    dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
+    dt_cfl = cfl_num*dx_min/(wave_speed+u_0)
+    
+    ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
+    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
+    if (Laplace_order == 1) then ! Usual Laplacian diffusion
+       ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
+       P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
        do k = 1, zlevels
-          N_node = 0
-          N_edge = 0
-          norm_mass = 0.0_8
-          norm_temp = 0.0_8
-          norm_velo = 0.0_8
-          do l = level_start, level_end
-             if (adapt_trend) then
-                call apply_onescale (l2_trend, l, k, 0, 0)
-             else
-                call apply_onescale (l2_vars,  l, k, 0, 0)
-             end if
-          end do
-
-          ! Linf
-          ! mass_scale = sync_max_d (norm_mass)
-          ! temp_scale = sync_max_d (norm_temp)
-          ! velo_scale = sync_max_d (norm_velo)
-
-          ! L2
-          mass_scale = sqrt (sum_real (norm_mass/N_node))
-          temp_scale = sqrt (sum_real (norm_temp/N_node))
-          velo_scale = sqrt (sum_real (norm_velo/N_edge))
-
-          ! L1
-          ! mass_scale = sum_real (norm_mass/N_node)
-          ! temp_scale = sum_real (norm_temp/N_node)
-          ! velo_scale = sum_real (norm_velo/N_edge)
-
-          tol_mass_new(k) = threshold * mass_scale
-          tol_temp_new(k) = threshold * temp_scale
-          tol_velo_new(k) = threshold * velo_scale
+          P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
+          viscosity_divu(k) = dx_min**2/dt_cfl * max(1.0_8, 8.0_8*(1.0_8 + tanh(log(P_top/P_k))))/128.0_8
+          if (rank==0) write(6,'(i2,1x,es10.4)') k, viscosity_divu(k)
        end do
+    elseif (Laplace_order /= 0) then
+       write(6,'(A)') 'Unsupported iterated Laplacian (only 0 or 1 supported)'
+       stop
     end if
-    if (istep /= 0) then
-       tol_mass = 0.9_8*tol_mass + 0.1_8*tol_mass_new
-       tol_temp = 0.9_8*tol_temp + 0.1_8*tol_temp_new
-       tol_velo = 0.9_8*tol_velo + 0.1_8*tol_velo_new
-    else
-       tol_mass = tol_mass_new
-       tol_temp = tol_temp_new
-       tol_velo = tol_velo_new
+    viscosity = max (viscosity_mass, viscosity_temp, maxval(viscosity_divu), viscosity_rotu)
+    dt_visc = 0.25_8*dx_min**2/viscosity
+
+    dt_init = min (dt_cfl, dt_visc)
+
+    if (rank==0) then
+       write(6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
+       if (Laplace_order/=0) then
+          write(6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
+          write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
+          write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
+          write(6,'(A,es10.4)') 'Viscosity_divu   = ', sum(viscosity_divu)/zlevels
+          write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
+       end if
     end if
-  end subroutine set_thresholds
+  end subroutine initialize_dt_viscosity
 
-  subroutine linf_trend (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id, e
-
-    d = dom%id + 1
-    id = idx(i, j, offs, dims)
-
-    ! Maximum trends
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       norm_mass = max(norm_mass, abs(trend(S_MASS,zlev)%data(d)%elts(id+1)))
-       norm_temp = max(norm_temp, abs(trend(S_TEMP,zlev)%data(d)%elts(id+1)))
-    end if
-
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
-    end do
-  end subroutine linf_trend
-
-  subroutine linf_vars (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id, e
-
-    d = dom%id + 1
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       norm_mass = max(norm_mass, abs(sol(S_MASS,zlev)%data(d)%elts(id+1)))
-       norm_temp = max(norm_temp, abs(sol(S_TEMP,zlev)%data(d)%elts(id+1)))
-    end if
-
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) norm_velo = max(norm_velo, abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
-    end do
-  end subroutine linf_vars
-
-  subroutine l2_trend (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
-
-    ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       N_node = N_node + 1
-       norm_mass = norm_mass + trend(S_MASS,zlev)%data(d)%elts(id+1)**2
-       norm_temp = norm_temp + trend(S_TEMP,zlev)%data(d)%elts(id+1)**2
-    endif
-
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-          N_edge = N_edge + 1
-          norm_velo = norm_velo + trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
-       end if
-    end do
-  end subroutine l2_trend
-
-  subroutine l1_trend (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
-
-    ! L1 norms of trends
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       N_node = N_node + 1
-       norm_mass = norm_mass + abs(trend(S_MASS,zlev)%data(d)%elts(id+1))
-       norm_temp = norm_temp + abs(trend(S_TEMP,zlev)%data(d)%elts(id+1))
-    endif
-
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-          N_edge = N_edge + 1
-          norm_velo = norm_velo + abs(trend(S_VELO,zlev)%data(d)%elts(EDGE*id+e))
-       end if
-    end do
-  end subroutine l1_trend
-
-  subroutine l2_vars (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
-
-    ! L2 norms of trends
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       N_node = N_node + 1
-       norm_mass = norm_mass + sol(S_MASS,zlev)%data(d)%elts(id+1)**2
-       norm_temp = norm_temp + sol(S_TEMP,zlev)%data(d)%elts(id+1)**2
-    endif
-
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-          N_edge = N_edge + 1
-          norm_velo  = norm_velo + sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
-       end if
-    end do
-  end subroutine l2_vars
-
-  subroutine l1_vars (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
-
-    ! L1 norms of trends
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       N_node = N_node + 1
-       norm_mass = norm_mass + abs(sol(S_MASS,zlev)%data(d)%elts(id+1))
-       norm_temp = norm_temp + abs(sol(S_TEMP,zlev)%data(d)%elts(id+1))
-    endif
-
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-          N_edge = N_edge + 1
-          norm_velo  = norm_velo + abs(sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e))
-       end if
-    end do
-  end subroutine l1_vars
-  
   subroutine apply_initial_conditions
     implicit none
     integer :: k, l
 
-    wasprinted=.false.
     do l = level_start, level_end
        do k = 1, zlevels
           call apply_onescale (init_sol, l, k, -1, 1)
-          wasprinted=.false.
        end do
     end do
   end subroutine apply_initial_conditions
@@ -521,4 +382,22 @@ contains
     if (rank==0) write(6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
          " (approximate pressure = ", save_press/1.0d2, " hPa)"
   end subroutine set_save_level
+
+  subroutine dump (fid)
+    implicit none
+    integer :: fid
+
+    write(fid) itime
+    write(fid) iwrite
+    write(fid) threshold
+  end subroutine dump
+
+  subroutine load (fid)
+    implicit none
+    integer :: fid
+
+    read(fid) itime
+    read(fid) iwrite
+    read(fid) threshold
+  end subroutine load
 end module test_case_mod
