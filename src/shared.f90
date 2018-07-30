@@ -294,7 +294,7 @@ module shared_mod
   integer :: save_levels ! number of vertical levels to save
   integer :: level_start, level_end, level_save
 
-  real(8) :: threshold ! threshold level on wavelet coefficients for grid adaptation
+  real(8) :: tol ! relative tolerance for all variables
 
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
 
@@ -307,23 +307,24 @@ module shared_mod
   integer, parameter :: WEEK = 7*DAY
   real(8), parameter :: MATH_PI = acos(-1.0_8)
   
-  ! simulation variables
-  integer :: istep, resume, Laplace_order
-  integer(8) :: itime
-  real(8) :: dt_init, dt_write, dx_min, dx_max, time_end, time
-  real(8) :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
-  real(8) :: viscosity_rotu, viscosity_mass, viscosity_temp
-  real(8) :: ref_press, ref_surf_press, gamma, kappa, c_p, c_v, R_d, wave_speed
-  real(8) :: min_mass, min_allowed_mass
-  real(8), dimension(:), target, allocatable :: pressure_save
-  real(8), dimension(:),         allocatable :: tol_mass, tol_temp, tol_velo
-
+  ! Simulation variables
+  integer                                       :: istep, resume, Laplace_order
+  integer(8)                                    :: itime
+  
+  real(8)                                       :: dt_init, dt_write, dx_min, dx_max, time_end, time
+  real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
+  real(8)                                       :: viscosity_rotu, viscosity_mass, viscosity_temp
+  real(8)                                       :: ref_press, ref_surf_press, gamma, kappa, c_p, c_v, R_d, wave_speed
+  real(8)                                       :: min_mass, min_allowed_mass
+  real(8), dimension(:), target, allocatable    :: pressure_save
+  real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu
+  real(8), dimension(:,:),       allocatable    :: threshold
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
 
-  real(8), dimension (:), allocatable :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu
-
-  logical :: adapt_dt, adapt_trend, compressible, lagrangian_vertical, remap
+  character(255)                                :: test_case
+  
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, lagrangian_vertical, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .False.
@@ -369,6 +370,7 @@ contains
     ! Default values
     adapt_dt            = .true.
     adapt_trend         = .true.
+    default_thresholds  = .true.
     initialized         = .true.
     remap               = .true.
     lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates (mass based NOT implemented!)
@@ -377,7 +379,7 @@ contains
     istep               = 0
     time                = 0.0_8
     optimize_grid       = HR_GRID
-    threshold           = 0.0_8
+    tol                 = 0.0_8
     min_allowed_mass    = 0.2_8
     cfl_num             = 1.0_8
     min_level           = DOMAIN_LEVEL+PATCH_LEVEL+1

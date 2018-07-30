@@ -124,20 +124,20 @@ contains
 
     if (dom%mask_n%elts(id+1) == FROZEN) return
 
-    call set_active_mask (dom%mask_n%elts(id+1), wc_m(id+1), tol_mass(zlev))
-    call set_active_mask (dom%mask_n%elts(id+1), wc_t(id+1), tol_temp(zlev))
+    call set_active_mask (dom%mask_n%elts(id+1), wc_m(id+1), threshold(S_MASS,zlev))
+    call set_active_mask (dom%mask_n%elts(id+1), wc_t(id+1), threshold(S_TEMP,zlev))
     do e = 1, EDGE
-       call set_active_mask (dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), tol_velo(zlev))
+       call set_active_mask (dom%mask_e%elts(EDGE*id+e), wc_u(EDGE*id+e), threshold(S_VELO,zlev))
     end do
   end subroutine mask_tol
 
-  subroutine set_active_mask (mask, wc, tol)
+  subroutine set_active_mask (mask, wc, tolerance)
     ! add active points to mask
     implicit none
     integer, intent(inout) :: mask
-    real(8), intent(in)    :: wc, tol
+    real(8), intent(in)    :: wc, tolerance
 
-    if (abs(wc) >= tol) mask = TOLRNZ
+    if (abs(wc) >= tolerance) mask = TOLRNZ
   end subroutine set_active_mask
 
   subroutine mask_perfect_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -1208,8 +1208,8 @@ contains
     idS    = idx(i_chd,   j_chd-1, offs_chd, dims_chd)
     idW    = idx(i_chd-1, j_chd,   offs_chd, dims_chd)
 
-    if (dom%mask_n%elts(idE+1)  .eq. TOLRNZ .or. &
-        dom%mask_n%elts(idNE+1) .eq. TOLRNZ .or. &
+    if (dom%mask_n%elts(idE+1)  == TOLRNZ .or. &
+        dom%mask_n%elts(idNE+1) == TOLRNZ .or. &
         dom%mask_n%elts(idN+1)  == TOLRNZ .or. &
         dom%mask_n%elts(idW+1)  == TOLRNZ .or. &
         dom%mask_n%elts(idSW+1) == TOLRNZ .or. &

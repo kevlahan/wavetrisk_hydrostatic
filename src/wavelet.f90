@@ -1355,4 +1355,124 @@ contains
     xy = coord2local(midpt, x, y)
     coords_to_rowd = (/u, u*xy(1), u*xy(2), v, v*xy(1), v*xy(2)/)
   end function coords_to_rowd
+
+  subroutine cal_lnorm (scaling, order, lnorm)
+    ! Calculates l norm of a float_field
+    implicit none
+
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling
+    real(8),           dimension(S_MASS:S_VELO,1:zlevels)         :: lnorm
+    character(*)                                                  :: order
+
+    integer :: k, l, v
+
+    lnorm = 0.0_8
+    do k = 1, zlevels
+       if (order == "1") then ! l1 norm
+          do l = level_start, level_end
+             call apply_onescale (l1, l, k, 0, 0)
+          end do
+          do v = S_MASS, S_TEMP
+             lnorm(v,k) = sum_real (lnorm(v,k))
+          end do
+          lnorm(S_VELO,k) = sum_real (lnorm(S_VELO,k))
+       elseif (order == "2") then ! l2 norm
+          do l = level_start, level_end
+             call apply_onescale (l2, l, k, 0, 0)
+          end do
+          do v = S_MASS, S_TEMP
+             lnorm(v,k) = sqrt (sum_real (lnorm(v,k)))
+          end do
+          lnorm(S_VELO,k) = sqrt (sum_real (lnorm(S_VELO,k)))
+       elseif (order == "inf") then ! l infinity norm
+          do l = level_start, level_end
+             call apply_onescale (linf, l, k, 0, 0)
+          end do
+          do v = S_MASS, S_VELO
+             lnorm(v,k) = sync_max_d (lnorm(v,k))
+          end do
+       else
+          write(6,'(A,A,A)') "Order ", order, " not supported"
+          stop
+       end if
+    end do
+  contains
+    subroutine l1 (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, e, id, v
+
+      d = dom%id+1
+      id = idx(i, j, offs, dims)
+
+      ! L1 lnorms of trends
+      if (dom%mask_n%elts(id+1) >= ADJZONE) then
+         do v = S_MASS, S_TEMP
+            lnorm(v,zlev) = lnorm(v,zlev) + abs(scaling(v,zlev)%data(d)%elts(id+1))
+         end do
+      endif
+
+      do e = 1, EDGE
+         if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+            lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + abs(scaling(S_VELO,zlev)%data(d)%elts(EDGE*id+e))
+         end if
+      end do
+    end subroutine l1
+
+    subroutine l2 (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, e, id, v
+
+      d = dom%id+1
+      id = idx(i, j, offs, dims)
+
+      ! L2 lnorms of trends
+      if (dom%mask_n%elts(id+1) >= ADJZONE) then
+         do v = S_MASS, S_TEMP
+            lnorm(v,zlev) = lnorm(v,zlev) + scaling(v,zlev)%data(d)%elts(id+1)**2
+         end do
+      endif
+
+      do e = 1, EDGE
+         if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+            lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + scaling(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
+         end if
+      end do
+    end subroutine l2
+
+    subroutine linf (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id, e, v
+
+      d = dom%id + 1
+      id = idx(i, j, offs, dims)
+
+      ! Maximum trends
+      if (dom%mask_n%elts(id+1) >= ADJZONE) then
+         do v = S_MASS, S_TEMP
+            lnorm(v,zlev) = max (lnorm(v,zlev), abs(scaling(v,zlev)%data(d)%elts(id+1)))
+         end do
+      end if
+
+      do e = 1, EDGE
+         if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+            lnorm(S_VELO,zlev) = max (lnorm(S_VELO,zlev), abs(scaling(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+         end if
+      end do
+    end subroutine linf
+  end subroutine cal_lnorm
 end module wavelet_mod

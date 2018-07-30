@@ -13,7 +13,7 @@ module geom_mod
   end type Areas
 
   type(Coord), parameter :: ORIGIN = Coord(0.0_8, 0.0_8, 0.0_8)
-  integer, parameter :: N_GLO_DOMAIN = N_ICOSAH_LOZANGE*N_SUB_DOM
+  integer,    parameter  :: N_GLO_DOMAIN = N_ICOSAH_LOZANGE*N_SUB_DOM
 contains
   subroutine init_sphere_mod
     ! if needed in future
@@ -100,12 +100,12 @@ contains
     does_inters = .True.
     troubles = .False.
 
-    if (norm(vector(arc1_no2, arc2_no2)) .lt. eps()) return
+    if (norm(vector(arc1_no2, arc2_no2)) < eps()) return
 
     normal1 = cross(arc1_no1, arc1_no2)
     inpr = inner(normal1, arc2_no1)*inner(normal1, arc2_no2)
-    if (inpr .gt. 0.0) then
-       if (inpr .lt. (eps()*radius**2)**2) troubles = .True.
+    if (inpr > 0.0) then
+       if (inpr < (eps()*radius**2)**2) troubles = .True.
        does_inters = .False.
        return
     end if
@@ -113,8 +113,8 @@ contains
     normal2 = cross(arc2_no1, arc2_no2)
     inpr = inner(normal2, arc1_no1)*inner(normal2, arc1_no2)
 
-    if (inpr .gt. 0.0) then
-       if (inpr .lt. (eps()*radius**2)**2) troubles = .True.
+    if (inpr > 0.0) then
+       if (inpr < (eps()*radius**2)**2) troubles = .True.
        does_inters = .False.
        return
     end if
@@ -122,7 +122,7 @@ contains
     inters_pt = project_on_sphere(cross(normal1, normal2))
     call init_Coord(neg_int_pt, -inters_pt%x, -inters_pt%y, -inters_pt%z)
 
-    if (norm(vector(neg_int_pt, arc1_no1)) .lt. norm(vector(inters_pt, &
+    if (norm(vector(neg_int_pt, arc1_no1)) < norm(vector(inters_pt, &
          arc1_no1))) then
        inters_pt = neg_int_pt
     end if
@@ -159,7 +159,7 @@ contains
     t = tan(0.5_8*s)*tan(-0.5_8*ab + 0.5_8*s)*tan(-0.5_8*ac + &
          0.5_8*s)*tan(-0.5_8*bc + 0.5_8*s)
 
-    if (t .lt. 1.0d-64) then
+    if (t < 1.0d-64) then
        triarea = 0.0_8
        return
     end if
@@ -201,7 +201,7 @@ contains
     centre = cross(Coord(A%x - B%x, A%y - B%y, A%z - B%z), Coord(C%x - B%x, &
          C%y - B%y, C%z - B%z))
 
-    if (norm(centre) .lt. eps()) then
+    if (norm(centre) < eps()) then
        circumcentre = centre
        return
     end if
@@ -287,7 +287,7 @@ contains
     end do
     area = sum(self%part)
 
-    if (area .eq. 0.0) then ! Avoid overflow for unused zero area hexagons (points at origin and 10 lozenge vertices)
+    if (area == 0.0) then ! Avoid overflow for unused zero area hexagons (points at origin and 10 lozenge vertices)
        self%hex_inv = 1.0_8
     else
        self%hex_inv = 1.0_8/area

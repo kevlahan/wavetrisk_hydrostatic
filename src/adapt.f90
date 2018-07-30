@@ -97,7 +97,7 @@ contains
     call comm_masks_mpi (NONE)
 
     ! needed if bdry is only 2 layers for scenario:
-    ! mass > tol @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
+    ! mass > threshold @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
     ! => patch needed (contains flux for corrective part of R_F)
     do l = level_start+1, min(level_end, max_level-1)
        call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
@@ -191,7 +191,7 @@ contains
     logical :: required
     integer :: c, d, did_refine, old_n_patch, p_chd, p_par
 
-    ! Use tol masks call refine patch where necessary
+    ! Use threshold masks call refine patch where necessary
     did_refine = FALSE
     do d = 1, size(grid)
        old_n_patch = grid(d)%patch%length

@@ -98,9 +98,9 @@ contains
                    wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
                    wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 end if
-                n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= tol_mass(k) .or. &
-                                                abs(wc_t(node_level_start(d):grid(d)%node%length))  >= tol_temp(k)), &
-                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= tol_velo(k)) /)
+                n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= threshold(S_MASS,k) .or. &
+                                                abs(wc_t(node_level_start(d):grid(d)%node%length))  >= threshold(S_TEMP,k)), &
+                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k)) /)
                 nullify (wc_m, wc_t, wc_u)
              end do
           end do
@@ -333,9 +333,9 @@ contains
     if (rank == 0) then
        write (6,'(/,A,ES12.6,3(A,ES10.4),A,I2,A,I9,/)') &
             'time [h] = ', time/HOUR, &
-            '  mass tol = ', sum(tol_mass)/zlevels, &
-            ' temp tol = ', sum(tol_temp)/zlevels, &
-            ' velo tol = ', sum(tol_velo)/(EDGE*zlevels), &
+            '  mass threshold = ', sum(threshold(S_MASS,:))/zlevels, &
+            ' temp threshold = ', sum(threshold(S_TEMP,:))/zlevels, &
+            ' velo threshold = ', sum(threshold(S_VELO,:))/zlevels, &
             ' Jmax =', level_end, &
             '  dof = ', sum(n_active)
        write (6,'(A,/)') &
@@ -392,7 +392,7 @@ contains
     call add_second_level
 
     call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale (mask_adj_children, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
+    call apply_interscale (mask_adj_children, level_start-1, z_null, 0, 1) ! level 0 = THRESHOLRNZ => level 1 = ADJZONE
 
     call record_init_state (ini_st)
     if (time_end > 0.0_8) time_mult = huge(itime)/2/time_end
