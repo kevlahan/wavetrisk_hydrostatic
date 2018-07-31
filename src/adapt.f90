@@ -112,7 +112,7 @@ contains
 
     ! Add neighbouring wavelets at finer scale                                                                                         
     do l = level_end-1, level_start, -1
-       call apply_interscale (mask_adj_children, l, z_null, 0, 0)
+       call apply_interscale (mask_adj_children, l, z_null, 0, 1)
     end do
     call comm_masks_mpi (NONE)
 

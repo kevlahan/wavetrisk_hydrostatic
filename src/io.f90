@@ -1349,9 +1349,6 @@ contains
     integer                                 :: c, d, i, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
     integer, dimension(1:size(grid))        :: fid_no, fid_gr
     logical, dimension(N_CHDRN)             :: required
-    type(Domain), dimension(:), allocatable :: grid_tmp
-
-    allocate (grid_tmp, source=grid)
     
     fid_no = id+1000000
     fid_gr = id+3000000
@@ -1404,16 +1401,15 @@ contains
        ! Write wavelets at finer scales
        do l = min_level, level_end
           p_lev = 0
-          do j = 1, grid_tmp(d)%lev(l)%length
-             p_par = grid_tmp(d)%lev(l)%elts(j)
+          do j = 1, grid(d)%lev(l)%length
+             p_par = grid(d)%lev(l)%elts(j)
 
-             if (grid_tmp(d)%patch%elts(p_par+1)%deleted) cycle ! Patch does not exist
+             if (grid(d)%patch%elts(p_par+1)%deleted) cycle ! Patch does not exist
 
              do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
-                   write (fid_no(d))             sol(v,k)%data(d)%elts(ibeg:iend)
                    write (fid_no(d))       wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                    write (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
@@ -1422,11 +1418,11 @@ contains
              ! Record whether patch needs to be refined
              do c = 1, N_CHDRN
                 ! Find index of child patch
-                p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
+                p_chd = grid(d)%patch%elts(p_par+1)%children(c)
                 if (p_chd > 0) then ! Child patch exists
                    required(c) = .true.
                    p_lev = p_lev + 1
-                   grid_tmp(d)%lev(l+1)%elts(p_lev) = p_chd
+                   grid(d)%lev(l+1)%elts(p_lev) = p_chd
                 else
                    required(c) = .false.
                 end if
@@ -1439,8 +1435,6 @@ contains
     do d = 1, size(grid)
        close (fid_no(d)); close (fid_gr(d))
     end do
-
-    deallocate (grid_tmp)
   end subroutine dump_adapt_mpi
 
   subroutine load_adapt_mpi (id, custom_load)
@@ -1496,7 +1490,6 @@ contains
                 do v = S_MASS, S_VELO
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
-                   read (fid_no(d))             sol(v,k)%data(d)%elts(ibeg:iend)
                    read (fid_no(d))       wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                    read (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
@@ -1574,8 +1567,8 @@ contains
     maxerror = sync_max_d(maxerror)
 
     if (rank == 0) then
-       write (6,'(A)') '-------------------------------------------------&
-            --------------------------------------------------------------------'
+       write (6,'(A)') '-------------------------------------------------------&
+            --------------------------------------------------------------------------'
        write (6,'(A,i2,A,/)') 'Heikes-Randall optimizations of level ', level_start-1, ' grid:'
        write (6,'(A,2(es10.4,A))') 'Grid quality before optimization = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
     end if
@@ -1621,8 +1614,8 @@ contains
     if (rank == 0) then
        write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
        write (6,'(A)') '(distance between midpoints of primal and dual edges)'
-       write (6,'(A,/)') '-------------------------------------------------&
-            --------------------------------------------------------------------'
+       write (6,'(A,/)') '-------------------------------------------------------&
+            --------------------------------------------------------------------------'
     end if
   end subroutine read_HR_optim_grid
 
