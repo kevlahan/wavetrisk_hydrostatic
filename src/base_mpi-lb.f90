@@ -17,8 +17,9 @@ contains
     character(5+4)                   :: filename
     real(8)                          :: wgt_per_rank, wgt_cur_rank, accepted_imbalance
     
-    write (6,'(A)') 'Rebalancing processor load'
+    if (rank == 0) write (6,'(A)') 'Rebalancing processor load'
     write (filename, '(A,I4.4)')  "conn.", k
+    
     if (k >= 0 .and. n_process > 1) then
        open (unit=fid, file=filename)
        do d = 1, N_GLO_DOMAIN
@@ -51,7 +52,7 @@ contains
           ! Did not find enough room for all domains > accepted_imbalance was too tight
           accepted_imbalance = accepted_imbalance*2.0_8
        end do
-       if (rank == 0) write(6,'(A,es8.2)') 'Accepted load imbalance = ', accepted_imbalance/2.0_8
+       if (rank == 0) write (6,'(A,es8.2,/)') 'Accepted load imbalance = ', accepted_imbalance/2.0_8
     else
        n_domain_floor = N_GLO_DOMAIN/n_process
        d = 0
