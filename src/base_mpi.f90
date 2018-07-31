@@ -13,6 +13,8 @@ contains
     integer :: k
     integer :: i, d, r, d_ngb, n_domain_floor
 
+    if (rank == 0) write (6,'(/,A,/)') 'Distributing each domain to a processor'
+    
     n_domain_floor = N_GLO_DOMAIN/n_process
     d = 0
     do r = 1, n_process
