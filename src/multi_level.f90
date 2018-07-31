@@ -179,10 +179,10 @@ contains
 
     do j = 1, dom%lev(l)%length
        p_par = dom%lev(l)%elts(j)
-       restrict = .False.
+       restrict = .false.
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd > 0) restrict(c) = .True.
+          if (p_chd > 0) restrict(c) = .true.
        end do
        do c = 1, N_CHDRN
           if (restrict(c)) then
@@ -237,28 +237,24 @@ contains
 
     integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
 
-    id_par   = idx(i_par,     j_par,     offs_par, dims_par)
+    id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
-    idE_chd  = idx(i_chd + 1, j_chd,     offs_chd, dims_chd)
-    idNE_chd = idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,     j_chd + 1, offs_chd, dims_chd)
+    id_chd   = idx(i_chd,   j_chd,   offs_chd, dims_chd)
+    idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
 
-    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) < ADJZONE) then
-       call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
-    end if
+    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) < ADJZONE) &
+         call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
 
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) then
-       dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
-    end if
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) &
+         dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
 
-    if (dom%mask_e%elts(DG+EDGE*id_chd+1) >= ADJZONE) then
-       dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
-    end if
+    if (dom%mask_e%elts(DG+EDGE*id_chd+1) >= ADJZONE) &
+         dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
 
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) then
-       dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
-    end if
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) &
+         dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
   end subroutine du_source_cpt_restr
 
   subroutine cpt_or_restr_physics_velo_source (dom, zlev, l)
@@ -319,9 +315,8 @@ contains
     idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
     idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
 
-    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) < ADJZONE) then
-       call physics_velo_source (dom, i_par, j_par, zlev, offs_par, dims_par)
-    end if
+    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) < ADJZONE) &
+         call physics_velo_source (dom, i_par, j_par, zlev, offs_par, dims_par)
 
     ! Restriction is on edge integrated velocity
     u_prim_RT    = dvelo(EDGE*id_chd+RT+1)*dom%len%elts(EDGE*id_chd+RT+1)
@@ -351,13 +346,13 @@ contains
 
     do j = 1, dom%lev(l)%length
        p_par = dom%lev(l)%elts(j)
-       restrict = .False.
+       restrict = .false.
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd > 0) restrict(c) = .True.
+          if (p_chd > 0) restrict(c) = .true.
        end do
        do c = 1, N_CHDRN
-          if (restrict(c))  call apply_interscale_to_patch3 (flux_cpt_restr, dom, p_par, c, z_null, 0, 1)
+          if (restrict(c)) call apply_interscale_to_patch3 (flux_cpt_restr, dom, p_par, c, z_null, 0, 1)
        end do
     end do
   end subroutine cpt_or_restr_flux
@@ -373,8 +368,8 @@ contains
     integer               :: id_par, id_chd
     real(8), dimension(4) :: sm_flux_m, sm_flux_t
 
-    id_chd   = idx(i_chd, j_chd, offs_chd, dims_chd)
-    id_par   = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx(i_par, j_par, offs_par, dims_par)
 
     if (i_chd >= PATCH_SIZE .or. j_chd >= PATCH_SIZE) return
 
@@ -387,24 +382,17 @@ contains
 
       real(8), dimension(4) :: sm_flux
 
-      if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) >= RESTRCT) then
-         sm_flux = interp_flux(h_flux, dom, i_chd, j_chd, offs_chd, dims_chd)
-      end if
+      if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) >= RESTRCT) &
+           sm_flux = interp_flux(h_flux, dom, i_chd, j_chd, offs_chd, dims_chd)
 
-      if (dom%mask_e%elts(EDGE*id_par+RT+1) >= RESTRCT) then
-         h_flux(EDGE*id_par+RT+1) = &
-              complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, RT, offs_chd, dims_chd)
-      end if
+      if (dom%mask_e%elts(EDGE*id_par+RT+1) >= RESTRCT) h_flux(EDGE*id_par+RT+1) = &
+           complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, RT, offs_chd, dims_chd)
 
-      if (dom%mask_e%elts(EDGE*id_par+DG+1) >= RESTRCT) then
-         h_flux(EDGE*id_par+DG+1) = &
-              complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, DG, offs_chd, dims_chd)
-      end if
+      if (dom%mask_e%elts(EDGE*id_par+DG+1) >= RESTRCT) h_flux(EDGE*id_par+DG+1) = &
+           complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, DG, offs_chd, dims_chd)
 
-      if (dom%mask_e%elts(EDGE*id_par+UP+1) >= RESTRCT) then
-         h_flux(EDGE*id_par+UP+1) = &
-              complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
-      end if
+      if (dom%mask_e%elts(EDGE*id_par+UP+1) >= RESTRCT) h_flux(EDGE*id_par+UP+1) = &
+           complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
     end subroutine flux_restr
 
     function complete_coarse_flux (dscalar, flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
@@ -535,7 +523,7 @@ contains
            + sum((flux(id((/VMP,WPPP,UPZ/)+1)+1) - flux(id((/UMZ,VMPP,WPP/)+1)+1))* &
            dom%R_F_wgt%elts(idx(i, j+1, offs, dims)+1)%enc) ! LORT
 
-      call get_indices(dom, i, j+1, UP, offs, dims, id)
+      call get_indices (dom, i, j+1, UP, offs, dims, id)
 
       interp_flux(3) = - sum(flux(id((/UZM,VMM,WPM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1,j, offs, dims)+1)%enc) &
            - sum((flux(id((/WMMM,UMZ,VPM/)+1)+1) - flux(id((/VPMM,WMM,UPZ/)+1)+1))* &
@@ -555,9 +543,9 @@ contains
       integer, dimension(2,N_BDRY+1) :: dims
 
       type(Domain)           :: dom      
+      integer, dimension(20) :: id
       real(8), dimension(2)  :: area
       real(8), dimension(4)  :: ol_area
-      integer, dimension(20) :: id
 
       call get_indices (dom, i, j, e, offs, dims, id)
 
@@ -588,18 +576,18 @@ contains
 
     do d = 1, n_domain(rank+1)
        do p = 3, grid(d)%patch%length
-          call connect_children(grid(d), p-1)
+          call connect_children (grid(d), p-1)
        end do
     end do
 
     call comm_patch_conn_mpi
 
     do d = 1, size(grid)
-       call update_comm(grid(d))
+       call update_comm (grid(d))
     end do
 
     call comm_communication_mpi
-    call comm_nodes9_mpi(get_areas, set_areas, NONE)
-    call apply_to_penta(area_post_comm, NONE, z_null)
+    call comm_nodes9_mpi (get_areas, set_areas, NONE)
+    call apply_to_penta (area_post_comm, NONE, z_null)
   end subroutine post_refine
 end module multi_level_mod

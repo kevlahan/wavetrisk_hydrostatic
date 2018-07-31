@@ -13,7 +13,7 @@ contains
     logical :: initialized = .False.
     if (initialized) return ! initialize only once
     call init_domain_mod
-    initialized = .True.
+    initialized = .true.
   end subroutine init_ops_mod
 
   subroutine step1 (dom, p, zlev, itype)
