@@ -1,17 +1,12 @@
 module test_case_mod
-  ! Module file for DCMIP2012c4
+  ! Module file for flat_projection_data
   use shared_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-
-  character(255) :: test_case 
-  integer        :: check_end, check_start, iwrite, N, save_zlev
-  real(8)        :: initotalmass, mass_error, totalmass
-  logical        :: uniform, wasprinted
-
-  !  Variables for particular test cases
-  real(8)        :: eta_0, u_0 ! DCMIP2012c4
+  integer :: check_end, check_start, iwrite, N, save_zlev
+  real(8) :: initotalmass, mass_error, totalmass
+  real(8) :: eta_0, u_0 ! DCMIP2012c4
 contains
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
@@ -32,40 +27,6 @@ contains
        stop
     end if
   end function surf_geopot
-
-  subroutine read_test_case_parameters (filename)
-    implicit none
-    character(*)   :: filename
-    integer        :: fid = 500
-    real(8)        :: pressures
-    character(255) :: varname
-
-    open (unit=fid, file=filename, action='READ')
-    read (fid,*) varname, test_case
-    read (fid,*) varname, check_start
-    read (fid,*) varname, check_end
-    read (fid,*) varname, max_level
-    read (fid,*) varname, zlevels
-    read (fid,*) varname, level_save
-    read (fid,*) varname, N
-    read (fid,*) varname, pressures
-    close(fid)
-
-    if (rank==0) then
-       write (6,'(A,A)')      "test_case           = ", test_case
-       write (6,'(A,i12)')    "first file          = ", check_start
-       write (6,'(A,i12)')    "first file          = ", check_end
-       write (6,'(A,i3)')     "min_level           = ", min_level
-       write (6,'(A,i3)')     "max_level           = ", max_level
-       write (6,'(A,i3)')     "zlevels             = ", zlevels
-       write (6,'(A,i3)')     "level_save          = ", level_save
-       write (6,'(A,i5)')     "N                   = ", N
-       write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressures
-       write (6,*) ' '
-    end if
-    pressure_save = (/pressures/) * 1.0d2 ! Convert to Pascals
-  end subroutine read_test_case_parameters
-
 
   subroutine initialize_a_b_vert
     implicit none
@@ -152,15 +113,46 @@ contains
     end if
   end subroutine initialize_a_b_vert
 
+  subroutine read_test_case_parameters (filename)
+    implicit none
+    character(*)   :: filename
+    integer        :: fid = 500
+    real(8)        :: pressures
+    character(255) :: varname
+
+    open (unit=fid, file=filename, action='READ')
+    read (fid,*) varname, test_case
+    read (fid,*) varname, check_start
+    read (fid,*) varname, check_end
+    read (fid,*) varname, max_level
+    read (fid,*) varname, zlevels
+    read (fid,*) varname, level_save
+    read (fid,*) varname, N
+    read (fid,*) varname, pressures
+    close(fid)
+
+    if (rank==0) then
+       write (6,'(A,A)')      "test_case           = ", test_case
+       write (6,'(A,i12)')    "first file          = ", check_start
+       write (6,'(A,i12)')    "first file          = ", check_end
+       write (6,'(A,i3)')     "min_level           = ", min_level
+       write (6,'(A,i3)')     "max_level           = ", max_level
+       write (6,'(A,i3)')     "zlevels             = ", zlevels
+       write (6,'(A,i3)')     "level_save          = ", level_save
+       write (6,'(A,i5)')     "N                   = ", N
+       write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressures
+       write (6,*) ' '
+    end if
+    pressure_save = (/pressures/) * 1.0d2 ! Convert to Pascals
+  end subroutine read_test_case_parameters
+
   subroutine apply_initial_conditions
     implicit none
     integer :: k, l
 
-    wasprinted=.false.
     do l = level_start, level_end
        do k = 1, zlevels
           call apply_onescale (init_sol, l, k, -1, 1)
-          wasprinted=.false.
        end do
     end do
   end subroutine apply_initial_conditions
@@ -178,13 +170,20 @@ contains
     ! Dummy routine
   end subroutine set_thresholds
 
+  subroutine initialize_thresholds
+    ! Set default thresholds based on dimensional scalings of norms
+    implicit none
+
+    allocate (threshold(S_MASS:S_VELO,1:zlevels)); threshold = 0.0_8
+  end subroutine initialize_thresholds
+
   subroutine dump (fid)
     implicit none
     integer :: fid
 
     write(fid) itime
     write(fid) iwrite
-    write(fid) tol_mass, tol_temp, tol_velo
+    write(fid) threshold
   end subroutine dump
 
   subroutine load (fid)
@@ -193,6 +192,6 @@ contains
 
     read(fid) itime
     read(fid) iwrite
-    read(fid) tol_mass, tol_temp, tol_velo
+    read(fid) threshold
   end subroutine load
 end module test_case_mod

@@ -1,45 +1,48 @@
 program flat_projection_data
+  ! Post-processing of checkpoint data to calculate flat projection
   use main_mod
   use test_case_mod
   use io_mod  
   implicit none
 
+  integer        :: k
+  real(8)        :: timing, total_cpu_time
   character(255) :: command
+  logical        :: aligned, write_init
 
-  ! Initialize grid etc
+  ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
-
-  ! Nullify all pointers initially
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-  save_levels = 1; allocate(pressure_save(1:save_levels))  ! number of vertical levels to save
-  save_zlev = 1
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters ("flat_projection_data.in")
-  
+
   ! DCMIP 2012c4
   if (trim(test_case) == 'DCMIP2012c4') then
-      radius         = 6.371229d6                  ! mean radius of the Earth in meters
-      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
-      omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
-      ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-      ref_surf_press = ref_press                   ! reference surface pressure
-      R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
-      u_0            = 35.0_8                      ! maximum velocity of zonal wind
-      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
-      compressible   = .true.                      ! Compressible equations
-      uniform        = .false.                     ! Type of vertical grid
+     radius         = 6.371229d6                  ! mean radius of the Earth in meters
+     grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
+     omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
+     ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
+     ref_surf_press = ref_press                   ! reference surface pressure
+     R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
+     kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
+     u_0            = 35.0_8                      ! maximum velocity of zonal wind
+     eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
+     compressible   = .true.                      ! Compressible equations
+     uniform        = .false.                     ! Type of vertical grid
   else
      write(6,'(A)') "Test case not supported"
      stop
   end if
- 
   resume = check_start
-  allocate (tol_mass(1:zlevels), tol_temp(1:zlevels), tol_velo(1:zlevels))
-
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
   ! Initialize vertical grid
   call initialize_a_b_vert
+
+  ! Initialize thresholds to default values 
+  call initialize_thresholds
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
