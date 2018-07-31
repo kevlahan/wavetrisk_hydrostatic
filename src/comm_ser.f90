@@ -32,9 +32,9 @@ contains
     write_active_per_level = recommended_level_start
   end function write_active_per_level
 
-  subroutine print_load_balance
-    
-  end subroutine print_load_balance
+  subroutine cal_load_balance
+    ! Dummy routine
+  end subroutine cal_load_balance
 
   subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, test_case)
     implicit none
