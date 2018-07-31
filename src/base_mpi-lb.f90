@@ -19,7 +19,7 @@ contains
     character(5+4)                   :: filename
     real(8)                          :: wgt_per_rank, wgt_cur_rank, accepted_imbalance
     
-    if (rank == 0) write (6,'(\,A)') 'Distributing each domain to a processor'
+    if (rank == 0) write (6,'(/,A)') 'Distributing each domain to a processor'
     write (filename, '(A,I4.4)')  "conn.", k
     
     if (k >= 0 .and. n_process > 1) then
