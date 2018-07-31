@@ -119,9 +119,9 @@ program DCMIP2012c4
         if (remap) call remap_vertical_coordinates (set_thresholds)
         call write_and_export (iwrite)
 
-        call sum_total_mass (.False.)
+        call sum_total_mass (.false.)
 
-        if (modulo(iwrite,CP_EVERY) /= 0) cycle ! Do not write checkpoint
+        if (modulo (iwrite,CP_EVERY) /= 0) cycle ! Do not write checkpoint
 
         ! Save checkpoint
         call write_checkpoint (dump, test_case)

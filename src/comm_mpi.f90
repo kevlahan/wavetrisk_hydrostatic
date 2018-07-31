@@ -5,16 +5,16 @@ module comm_mpi_mod
   integer                              :: nreq
   type(Int_Array)                      :: recv_buf_i, send_buf_i
   type(Float_Array)                    :: recv_buf, send_buf
-  integer, dimension(:), allocatable   :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
+  integer, dimension(:),   allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
   integer, dimension(:,:), allocatable :: stat_ray
   real(8), dimension(2)                :: times
 contains
   subroutine init_comm_mpi
     implicit none
-    allocate(send_lengths(n_process), send_offsets(n_process))
-    allocate(recv_lengths(n_process), recv_offsets(n_process))
-    allocate(req(2*n_process))
-    allocate(stat_ray(MPI_STATUS_SIZE,2*n_process))
+    allocate (send_lengths(n_process), send_offsets(n_process))
+    allocate (recv_lengths(n_process), recv_offsets(n_process))
+    allocate (req(2*n_process))
+    allocate (stat_ray(MPI_STATUS_SIZE,2*n_process))
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi
@@ -40,7 +40,7 @@ contains
     n_active_edges(level_start:level_end) = n_active_all_glo(n_lev_cur+1:n_lev_cur*2)
     n_active_per_lev = n_active_edges(level_start:level_end) + n_active_nodes(level_start:level_end)
 
-    if (rank == 0) write(6,'(6X,A,A,3(1X,A))') '   N_p   ', '   N_u   ','of all active', 'of full level', 'fill-in'
+    if (rank == 0) write (6,'(6X,A,A,3(1X,A))') '   N_p   ', '   N_u   ','of all active', 'of full level', 'fill-in'
 
     recommended_level_start = level_start
 
@@ -52,7 +52,7 @@ contains
        fillin = n_full-n_active_per_lev(l)-sum(n_active_per_lev(level_start:l-1))
 
        if (rank == 0) then
-          write(6,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
+          write (6,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
                'lev', l, n_active_nodes(l), n_active_edges(l), &
                float(n_active_per_lev(l))/float(sum(n_active(AT_NODE:AT_EDGE)))*100.0, '%', &
                float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
@@ -63,7 +63,7 @@ contains
     end do
 
     if (rank == 0) then
-       write(6,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(AT_NODE:AT_EDGE), 100.0, '%', &
+       write (6,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(AT_NODE:AT_EDGE), 100.0, '%', &
             float(sum(n_active(AT_NODE:AT_EDGE)))/float(n_full)*100.0, '%', &
             n_full/sum(n_active(AT_NODE:AT_EDGE))
     end if
@@ -72,15 +72,15 @@ contains
   end function write_active_per_level
 
   subroutine write_load_conn (id)
-    implicit none
     ! Write out load distribution and connectivity for load balancing
+    implicit none
     integer :: id
     
     integer        :: r, fid
     character(5+4) :: filename
 
     fid = 599
-    write(filename, '(A,I4.4)')  "conn.", id
+    write (filename, '(A,I4.4)')  "conn.", id
 
     do r = 1, n_process
        if (r /= rank+1) then ! write only if our turn, otherwise only wait at Barrier
@@ -283,7 +283,7 @@ contains
          test_recv_len, 1, MPI_INTEGER, &
          MPI_COMM_WORLD, ierror)
 
-    write(3000+rank,*) test_recv_len-recv_lengths
+    write (3000+rank,*) test_recv_len-recv_lengths
 
     close(3000+rank)
     call MPI_Barrier(MPI_Comm_World, ierror)
@@ -306,8 +306,8 @@ contains
     recv_buf_i%length = sum(recv_lengths)
 
     if (size(recv_buf_i%elts) < recv_buf_i%length) then
-       deallocate(recv_buf_i%elts)
-       allocate(recv_buf_i%elts(recv_buf_i%length))
+       deallocate (recv_buf_i%elts)
+       allocate (recv_buf_i%elts(recv_buf_i%length))
     end if
 
     call MPI_Alltoallv(send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
@@ -377,8 +377,8 @@ contains
        recv_lengths(r_src) = recv_buf_i%length - recv_offsets(r_src)
     end do
     if (size(recv_buf_i%elts) < recv_buf_i%length) then
-       deallocate(recv_buf_i%elts)
-       allocate(recv_buf_i%elts(recv_buf_i%length))
+       deallocate (recv_buf_i%elts)
+       allocate (recv_buf_i%elts(recv_buf_i%length))
     end if
 
     !     call check_alltoall_lengths()
@@ -553,8 +553,8 @@ contains
     end do
 
     if (size(recv_buf%elts) < recv_buf%length) then
-       deallocate(recv_buf%elts)
-       allocate(recv_buf%elts(recv_buf%length))
+       deallocate (recv_buf%elts)
+       allocate (recv_buf%elts(recv_buf%length))
     end if
 
     ! Post all receives first
@@ -653,8 +653,8 @@ contains
     end do
 
     if (size(recv_buf%elts) < recv_buf%length) then
-       deallocate(recv_buf%elts)
-       allocate(recv_buf%elts(recv_buf%length))
+       deallocate (recv_buf%elts)
+       allocate (recv_buf%elts(recv_buf%length))
     end if
 
     ! Post all receives first
@@ -761,8 +761,8 @@ contains
     end do
 
     if (size(recv_buf%elts) < recv_buf%length) then
-       deallocate(recv_buf%elts)
-       allocate(recv_buf%elts(recv_buf%length))
+       deallocate (recv_buf%elts)
+       allocate (recv_buf%elts(recv_buf%length))
     end if
 
     ! Post all receives first
@@ -1017,8 +1017,8 @@ contains
     end do
 
     if (size(recv_buf%elts) < recv_buf%length) then
-       deallocate(recv_buf%elts)
-       allocate(recv_buf%elts(recv_buf%length))
+       deallocate (recv_buf%elts)
+       allocate (recv_buf%elts(recv_buf%length))
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
@@ -1034,7 +1034,7 @@ contains
           do d_dest = 1, n_domain(rank+1)
              do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
                 id = grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i)
-                call set(grid(d_dest), id, recv_buf%elts(k+1:k+7))
+                call set (grid(d_dest), id, recv_buf%elts(k+1:k+7))
                 k = k + 7
              end do
           end do
@@ -1086,8 +1086,8 @@ contains
     end do
 
     if (size(recv_buf%elts) < recv_buf%length) then
-       deallocate(recv_buf%elts)
-       allocate(recv_buf%elts(recv_buf%length))
+       deallocate (recv_buf%elts)
+       allocate (recv_buf%elts(recv_buf%length))
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
@@ -1106,7 +1106,7 @@ contains
                 c%x = recv_buf%elts(k+1) 
                 c%y = recv_buf%elts(k+2) 
                 c%z = recv_buf%elts(k+3) 
-                call set(grid(d_dest), id, c)
+                call set (grid(d_dest), id, c)
                 k = k + 3
              end do
           end do
@@ -1326,6 +1326,6 @@ contains
     call MPI_Reduce (time_loc, time_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
     call MPI_Reduce (time_loc, time_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
 
-    if (rank == 0) write(id,*) time_max, time_min, time_sum
+    if (rank == 0) write (id,*) time_max, time_min, time_sum
   end subroutine stop_and_record_timings
 end module comm_mpi_mod
