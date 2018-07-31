@@ -51,7 +51,7 @@ contains
           ! Did not find enough room for all domains > accepted_imbalance was too tight
           accepted_imbalance = accepted_imbalance*2.0_8
        end do
-       if (rank == 0) write(6,'(A,es8.2)') 'Accepted load imbalance = ', accepted_inbalance/2.0_8
+       if (rank == 0) write(6,'(A,es8.2)') 'Accepted load imbalance = ', accepted_imbalance/2.0_8
     else
        n_domain_floor = N_GLO_DOMAIN/n_process
        d = 0
