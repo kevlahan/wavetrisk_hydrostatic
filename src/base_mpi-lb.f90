@@ -19,10 +19,11 @@ contains
     character(5+4)                   :: filename
     real(8)                          :: wgt_per_rank, wgt_cur_rank, accepted_imbalance
     
-    if (rank == 0) write (6,'(A)') 'Rebalancing processor load'
+    if (rank == 0) write (6,'(\,A)') 'Distributing each domain to a processor'
     write (filename, '(A,I4.4)')  "conn.", k
     
     if (k >= 0 .and. n_process > 1) then
+       if (rank == 0) write (6,'(A)') 'Rebalancing processor load'
        open (unit=fid, file=filename)
        do d = 1, N_GLO_DOMAIN
           read (fid,*) vwgt(d), adj_line
