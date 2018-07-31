@@ -324,7 +324,7 @@ contains
     dt_new = cpt_dt_mpi()
     
     if (rank == 0) then
-       write (6,'(/,A,ES12.6,3(A,ES10.4),A,I2,A,I9,/)') &
+       write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [h] = ', time/HOUR, &
             '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
              ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &

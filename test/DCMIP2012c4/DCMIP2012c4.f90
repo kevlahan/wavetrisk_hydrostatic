@@ -94,7 +94,7 @@ program DCMIP2012c4
      call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
      
      if (rank == 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,4(A,ES8.2,1x))') &
+        write (6,'(A,es12.6,4(A,es8.2),A,I2,A,I9,4(A,es8.2,1x))') &
              'time [h] = ', time/HOUR, &
              ' dt [s] = ', dt, &
              '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
@@ -127,7 +127,7 @@ program DCMIP2012c4
         call write_checkpoint (dump, test_case)
 
         ! Restart after checkpoint and load balance
-        !call restart_full (set_thresholds, load, test_case)
+        call restart_full (set_thresholds, load, test_case)
      end if
      call sum_total_mass (.False.)
   end do
