@@ -367,7 +367,7 @@ contains
     level_start = min_level
     level_end = level_start
     
-    call distribute_grid (resume)
+    call distribute_grid (cp_idx)
     call init_grid
     call init_comm_mpi
     call init_geometry
