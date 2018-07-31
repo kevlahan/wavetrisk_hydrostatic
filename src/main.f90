@@ -59,6 +59,7 @@ contains
     if (resume >= 0) then
        cp_idx = resume
     else
+       cp_idx = -1
        call init_structures
        call apply_init_cond
 
@@ -118,7 +119,6 @@ contains
        call adapt (set_thresholds)
        dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
 
-       cp_idx = -1
        call write_checkpoint (custom_dump, test_case)
     end if
     call restart_full (set_thresholds, custom_load, test_case)
