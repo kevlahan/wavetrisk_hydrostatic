@@ -8,6 +8,8 @@ module arch_mod
   integer, dimension(:,:), allocatable :: glo_id
 contains
   subroutine distribute_grid (k)
+    ! Allocates each domain to a processor
+    ! Attempts to balance the total load using load data from checkpoint
     implicit none
     integer :: k
 

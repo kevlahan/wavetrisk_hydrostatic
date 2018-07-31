@@ -80,8 +80,8 @@ contains
     l2error = sqrt(sum_real(l2error))
     maxerror = sync_max_d(maxerror)
     if (rank == 0) then
-       write (6,'(A)') '-------------------------------------------------&
-            --------------------------------------------------------------------'
+       write (6,'(A)') '-------------------------------------------------------&
+            --------------------------------------------------------------------------'
        write (6,'(A,i2,A,es10.4/)') 'Xu (2006) diffusion optimization of level ', level_end-1, ' grid with tolerance ', tol
        write (6,'(A,2(es10.4,A))') 'Grid quality before optimization = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
     end if

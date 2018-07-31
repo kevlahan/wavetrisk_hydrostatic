@@ -64,8 +64,8 @@ contains
        call apply_init_cond
 
        if (rank == 0) write (6,'(/,A,/)') &
-            '----------------------------------------------- Adapting initial grid &
-            -----------------------------------------------'
+            '----------------------------------------------------- Adapting initial grid &
+            -----------------------------------------------------'
 
        call forward_wavelet_transform (sol, wav_coeff)
        call trend_ml (sol, trend)
@@ -113,8 +113,8 @@ contains
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! No active nodes or edges at this scale
        end do
        if (rank == 0) write (6,'(A,/)') &
-            '------------------------------------------- Finished adapting initial grid &
-            ------------------------------------------'
+            '------------------------------------------------- Finished adapting initial grid &
+            ------------------------------------------------'
 
        call adapt (set_thresholds)
        dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
@@ -289,7 +289,8 @@ contains
     ! Uncompress checkpoint data
     if (rank == 0) then
        write (6,'(A,/)') &
-            '*************************************************** Begin Restart ***************************************************'
+            '********************************************************* Begin Restart &
+            *********************************************************'
        write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
        write (cmd_archive, '(A,I4.4,A)') trim (test_case)//'_checkpoint_' , cp_idx, ".tgz"
        write (6,'(A,A,/)') 'Loading file ', trim (cmd_archive)
@@ -332,7 +333,8 @@ contains
             ' Jmax =', level_end, &
             '  dof = ', sum (n_active)
        write (6,'(A,/)') &
-            '**************************************************** End Restart ****************************************************'
+            '********************************************************** End Restart &
+            **********************************************************'
     end if
   end subroutine restart_full
 
@@ -367,7 +369,9 @@ contains
     level_start = min_level
     level_end = level_start
     
+    ! Distribute and balance grid over processors (necessary for correct restart!)
     call distribute_grid (cp_idx)
+    
     call init_grid
     call init_comm_mpi
     call init_geometry
