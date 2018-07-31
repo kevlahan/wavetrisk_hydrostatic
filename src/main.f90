@@ -15,14 +15,14 @@ module main_mod
   use remap_mod
 
   implicit none
-  integer                            :: cp_idx
-  integer, dimension(:), allocatable :: node_level_start, edge_level_start
-  real(8)                            :: dt, dt_new, time_mult  
   type Initial_State
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
-  
+
+  integer                                        :: cp_idx
+  integer,             dimension(:), allocatable :: node_level_start, edge_level_start
+  real(8)                                        :: dt, dt_new, time_mult  
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
   subroutine init_main_mod
@@ -58,7 +58,6 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
-       call restart_full (set_thresholds, custom_load, test_case)
     else
        call init_structures
        call apply_init_cond
@@ -85,7 +84,7 @@ contains
           call trend_ml (sol, trend)
           call forward_wavelet_transform (trend, trend_wav_coeff)
 
-          !--Check whether there are any active nodes at this scale
+          ! Check whether there are any active nodes or edges at this scale
           n_active = 0
           do k = 1, zlevels
              do d = 1, size(grid)
@@ -108,22 +107,21 @@ contains
           n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))
           
           if (rank == 0) write (6,'(A,i2,1x,2(A,i8,1x),/)') &
-               'Level = ', level_end, 'number of active node wavelets = ',n_active(AT_NODE), &
+               'Level = ', level_end, 'number of active node wavelets = ', n_active(AT_NODE), &
                'number of active edge wavelets = ', n_active(AT_EDGE)
-
-          if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit !--No active nodes at this scale
+          if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! No active nodes or edges at this scale
        end do
        if (rank == 0) write (6,'(A,/)') &
             '------------------------------------------- Finished adapting initial grid &
             ------------------------------------------'
 
        call adapt (set_thresholds)
-       dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum(n_active)
+       dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
 
        cp_idx = -1
        call write_checkpoint (custom_dump, test_case)
     end if
-    !call restart_full (set_thresholds, custom_load, test_case)
+    call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
   subroutine record_init_state (init_state)
@@ -135,13 +133,11 @@ contains
     allocate (init_state(size(grid)))
 
     do d = 1, size(grid)
-
        init_state(d)%n_patch      = grid(d)%patch%length
        init_state(d)%n_bdry_patch = grid(d)%bdry_patch%length
        init_state(d)%n_node       = grid(d)%node%length
        init_state(d)%n_edge       = grid(d)%midpt%length
        init_state(d)%n_tria       = grid(d)%ccentre%length
-
        do i = 1, N_GLO_DOMAIN
           do v = AT_NODE, AT_EDGE
              init_state(d)%pack_len(v,i) = grid(d)%pack(v,i)%length 
@@ -290,54 +286,51 @@ contains
     
     character(255) :: cmd_archive, cmd_files, command
 
+    ! Uncompress checkpoint data
     if (rank == 0) then
        write (6,'(A,/)') &
             '*************************************************** Begin Restart ***************************************************'
        write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
+       write (cmd_archive, '(A,I4.4,A)') trim (test_case)//'_checkpoint_' , cp_idx, ".tgz"
+       write (6,'(A,A,/)') 'Loading file ', trim (cmd_archive)
+       write (command, '(A,A)') 'tar xzf ', trim (cmd_archive)
+       call system (command)
     end if
-
-    ! Uncompress checkpoint data
-    write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
-    if (rank == 0) write(6,'(A,A,/)') 'Loading file ', trim(cmd_archive)
-    write (command, '(A,A)') 'tar xzf ', trim(cmd_archive)
-    if (rank == 0) call system (command)
-
-    call barrier ! Make sure checkpoint is uncompressed before reading
 
     ! Deallocate all dynamic arrays and variables
     if (resume < 0) call deallocate_structures
+
+    ! Rebalance adaptive grid and re-initialize structures
+    call barrier ! Make sure all archive files have been uncompressed
     call init_structures
-    
+
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load)
 
+    ! Delete temporary files
     call barrier ! Do not delete files before everyone has read them
+    if (rank == 0) then
+       write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+       write (command, '(A,A)') '\rm ', trim (cmd_files)
+       call system (command)
+    end if
 
-    write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
-    write (command, '(A,A)') '\rm ', trim(cmd_files)
-    if (rank == 0) call system (command)
-
-    itime = nint(time*time_mult, 8)
+    itime = nint (time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
 
     istep = 0
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
-    call inverse_wavelet_transform (wav_coeff,       sol,   level_start-1)
-    call inverse_wavelet_transform (trend_wav_coeff, trend, level_start-1)
-
-    call print_load_balance
-    call barrier
-
+    call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     dt_new = cpt_dt_mpi()
     
     if (rank == 0) then
        write (6,'(/,A,ES12.6,3(A,ES10.4),A,I2,A,I9,/)') &
             'time [h] = ', time/HOUR, &
-            '  mass threshold = ', sum(threshold(S_MASS,:))/zlevels, &
-            ' temp threshold = ', sum(threshold(S_TEMP,:))/zlevels, &
-            ' velo threshold = ', sum(threshold(S_VELO,:))/zlevels, &
+            '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
+             ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &
+             ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
             ' Jmax =', level_end, &
-            '  dof = ', sum(n_active)
+            '  dof = ', sum (n_active)
        write (6,'(A,/)') &
             '**************************************************** End Restart ****************************************************'
     end if
@@ -356,13 +349,15 @@ contains
     
     call write_load_conn (cp_idx)
     call dump_adapt_mpi (cp_idx, custom_dump)
-    call barrier ! Make sure all processors have written data
     
-    ! Make checkpoint archive (overwriting existing checkpoint if present)
-    write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
-    write (cmd_archive, '(A,I4.4,A)') trim(test_case)//'_checkpoint_' , cp_idx, ".tgz"
-    write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim(cmd_archive), ' ', trim(cmd_files)
-    if (rank == 0) call system (command)
+    ! Archive checkpoint (overwriting existing checkpoint if present)
+    call barrier ! Make sure all processors have written data
+    if (rank == 0) then
+       write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+       write (cmd_archive, '(A,I4.4,A)') trim (test_case)//'_checkpoint_' , cp_idx, ".tgz"
+       write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim (cmd_archive), ' ', trim (cmd_files)
+       call system (command)
+    end if
   end subroutine write_checkpoint
 
   subroutine init_structures

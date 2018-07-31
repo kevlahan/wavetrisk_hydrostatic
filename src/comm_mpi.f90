@@ -100,6 +100,16 @@ contains
     end do
   end subroutine write_load_conn
 
+  subroutine cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
+    ! Finds load balance between processors
+    implicit none
+    integer :: min_load, max_load
+    real(8) :: avg_load, rel_imbalance
+
+    call get_load_balance (min_load, avg_load, max_load)
+    rel_imbalance = dble(max_load)/avg_load
+  end subroutine cal_load_balance
+
   subroutine get_load_balance (mini, avg, maxi)
     implicit none
     integer :: mini, maxi
@@ -118,21 +128,6 @@ contains
 
     avg = dble(load_sum)/dble(n_process)
   end subroutine get_load_balance
-
-  subroutine print_load_balance
-    implicit none
-    ! Prints out load balance between processors
-    integer :: load_min, load_max
-    real(8) :: rel_imbalance, load_avg
-
-    call get_load_balance (load_min, load_avg, load_max)
-    rel_imbalance = dble(load_max)/load_avg
-
-    if (rank == 0) then
-       write(6,'(/,A,i9,A,f10.1,A,i9)') 'Min load  =', load_min, ' average load = ', load_avg, ' max load = ', load_max
-       write(6,'(A,1x,f10.2)') 'Relative imbalance (1=perfect balance)', rel_imbalance
-    end if
-  end subroutine print_load_balance
 
   subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, test_case)
     implicit none

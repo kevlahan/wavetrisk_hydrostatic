@@ -1413,6 +1413,7 @@ contains
                 do v = S_MASS, S_VELO
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
+                   write (fid_no(d))             sol(v,k)%data(d)%elts(ibeg:iend)
                    write (fid_no(d))       wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                    write (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
@@ -1495,6 +1496,7 @@ contains
                 do v = S_MASS, S_VELO
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
+                   read (fid_no(d))             sol(v,k)%data(d)%elts(ibeg:iend)
                    read (fid_no(d))       wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                    read (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do

@@ -20,7 +20,6 @@ contains
     write(filename, '(A,I4.4)')  "conn.", k
 
     if (k >= 0 .and. n_process > 1) then
-
        open (unit=fid, file=filename)
        do d = 1, N_GLO_DOMAIN
           read (fid,*) vwgt(d), adj_line

@@ -6,8 +6,8 @@ program DCMIP2012c4
   use io_mod  
   implicit none
 
-  integer        :: k
-  real(8)        :: timing, total_cpu_time
+  integer        :: min_load, max_load
+  real(8)        :: avg_load, rel_imbalance, timing, total_cpu_time
   character(255) :: command
   logical        :: aligned, write_init
 
@@ -89,25 +89,27 @@ program DCMIP2012c4
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
      call stop_timing
-     timing = get_timing()
-     total_cpu_time = total_cpu_time + timing
-
+     
+     timing = get_timing(); total_cpu_time = total_cpu_time + timing
+     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
+     
      if (rank == 0) then
-        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,3(A,ES8.2,1x))') &
+        write (6,'(A,ES12.6,4(A,ES10.4),A,I2,A,I9,4(A,ES8.2,1x))') &
              'time [h] = ', time/HOUR, &
              ' dt [s] = ', dt, &
-             '  mass tol = ', sum(threshold(S_MASS,:))/zlevels, &
-              ' temp tol = ', sum(threshold(S_TEMP,:))/zlevels, &
-              ' velo tol = ', sum(threshold(S_VELO,:))/zlevels, &
+             '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
+              ' temp tol = ', sum (threshold(S_TEMP,:))/zlevels, &
+              ' velo tol = ', sum (threshold(S_VELO,:))/zlevels, &
              ' Jmax = ', level_end, &
-             ' dof = ', sum(n_active), &
+             ' dof = ', sum (n_active), &
              ' min rel mass = ', min_mass, &
              ' mass error = ', mass_error, &
+             ' balance = ', rel_imbalance, &
              ' cpu = ', timing
 
-        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,3(ES15.9,1x))')  &
-             time/HOUR, dt, sum(threshold(S_MASS,:))/zlevels, sum(threshold(S_TEMP,:))/zlevels, &
-             sum(threshold(S_VELO,:))/zlevels, level_end, sum(n_active), min_mass, mass_error, timing
+        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,4(ES15.9,1x))')  &
+             time/HOUR, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
+             sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
      end if
 
      if (aligned) then
