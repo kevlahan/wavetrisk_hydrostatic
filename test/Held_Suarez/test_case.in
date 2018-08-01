@@ -4,7 +4,7 @@ max_level	   7             ! maximum level of resolution
 zlevels            18            ! number of vertical levels
 uniform            F             ! uniform (T) or hybrid (F) vertical grid
 remap              T             ! remap vertical grid
-min_allowed_mass   0.7           ! minimum allowed relative mass before remapping
+min_allowed_mass   0.2           ! minimum allowed relative mass before remapping
 adapt_trend        T             ! adapt on trend (T) or variables (F)
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 tol      	   2.0           ! non-dimensional tolerance
