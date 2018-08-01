@@ -1405,10 +1405,15 @@ contains
           p_lev = 0
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
-
-             if (grid(d)%patch%elts(p_par+1)%deleted) cycle ! Patch does not exist
-
-             do k = 1, zlevels
+             if (grid(d)%patch%elts(p_par+1)%deleted) then
+                do c = 1, N_CHDRN
+                   p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                   if (p_chd > 0) grid(d)%patch%elts(p_chd+1)%deleted = .true.
+                end do
+                cycle ! No data to write
+             end if
+ 
+            do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -1419,18 +1424,24 @@ contains
 
              ! Record whether patch needs to be refined
              do c = 1, N_CHDRN
-                ! Find index of child patch
                 p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-                if (p_chd > 0) then ! Child patch exists
-                   required(c) = .true.
-                   p_lev = p_lev + 1
-                   grid(d)%lev(l+1)%elts(p_lev) = p_chd
+
+                if (p_chd > 0) then
+                   required(c) = check_child_required(grid(d), p_par, c-1)
+                   grid(d)%patch%elts(p_chd+1)%deleted = .not. required(c)
+
+                   if (required(c)) then
+                      p_lev = p_lev + 1
+                      grid(d)%lev(l+1)%elts(p_lev) = p_chd
+                   end if
                 else
-                   required(c) = .false.
+                   required(c) = .False.
                 end if
              end do
+
              write (fid_gr(d)) required
           end do
+          if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev
        end do
     end do
     
