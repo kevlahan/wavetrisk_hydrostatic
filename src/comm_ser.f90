@@ -32,8 +32,12 @@ contains
     write_active_per_level = recommended_level_start
   end function write_active_per_level
 
-  subroutine cal_load_balance
-    ! Dummy routine
+  subroutine cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
+    implicit none
+    integer :: min_load, max_load
+    real(8) :: avg_load, rel_imbalance
+
+    min_load = 1; max_load = 1; avg_load = 1.0_8; rel_imbalance = 1.0_8
   end subroutine cal_load_balance
 
   subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, test_case)

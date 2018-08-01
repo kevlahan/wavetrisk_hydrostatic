@@ -7,11 +7,11 @@ module arch_mod
   integer, dimension(N_GLO_DOMAIN)     :: loc_id, owner
   integer, dimension(:,:), allocatable :: glo_id
 contains
-  subroutine distribute_grid (k)
+  subroutine distribute_grid (cp_idx)
     ! Allocates each domain to a processor
     ! Attempts to balance the total load using load data from checkpoint
     implicit none
-    integer :: k
+    integer :: cp_idx
 
     integer                          :: i, d, r, d_ngb, n_domain_floor, total_wgt
     integer, dimension(N_GLO_DOMAIN) :: adj_line, vwgt
@@ -20,9 +20,9 @@ contains
     real(8)                          :: wgt_per_rank, wgt_cur_rank, accepted_imbalance
     
     if (rank == 0) write (6,'(/,A,/)') 'Distributing each domain to a processor'
-    write (filename, '(A,I4.4)')  "conn.", k
+    write (filename, '(A,I4.4)')  "conn.", cp_idx
     
-    if (k >= 0 .and. n_process > 1) then
+    if (cp_idx >= 0 .and. n_process > 1) then
        if (rank == 0) write (6,'(A)') 'Rebalancing processor load'
        open (unit=fid, file=filename)
        do d = 1, N_GLO_DOMAIN

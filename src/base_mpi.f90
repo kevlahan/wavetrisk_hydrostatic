@@ -7,13 +7,14 @@ module arch_mod
   integer, dimension(N_GLO_DOMAIN)     :: loc_id, owner
   integer, dimension(:,:), allocatable :: glo_id
 contains
-  subroutine distribute_grid (k)
+  subroutine distribute_grid (cp_idx)
     ! Allocates each domain to a processor
     implicit none
-    integer :: k
+    integer :: cp_idx
+    
     integer :: i, d, r, d_ngb, n_domain_floor
 
-    if (rank == 0) write (6,'(/,A,/)') 'Distributing each domain to a processor'
+    if (rank == 0) write (6,'(/,a,/)') 'Distributing each domain to a processor'
     
     n_domain_floor = N_GLO_DOMAIN/n_process
     d = 0
@@ -33,7 +34,7 @@ contains
        n_domain(r+1) = n_domain(r+1) + 1
     end do
 
-    if (.not. allocated(glo_id)) allocate(glo_id(n_process,maxval(n_domain)))
+    if (.not. allocated (glo_id)) allocate (glo_id(n_process, maxval (n_domain)))
 
     do d = 1, N_GLO_DOMAIN
        glo_id(owner(d)+1,loc_id(d)+1) = d - 1
