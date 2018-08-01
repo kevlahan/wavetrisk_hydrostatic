@@ -8,7 +8,7 @@ test_case = 'DCMIP2012c4';
 
 machine   = 'if';
 %machine   = 'mac';
-t1        = 9; % Start time
+t1        = 60; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
 itype     = 'vort';
@@ -46,6 +46,9 @@ elseif (strcmp(machine,'mac'))
     pathid = ['/Users/kevlahan/hydro/' test_case '/'];
 end
 
+% Load log file
+log_data = load([pathid test_case '_log']);
+%%
 s_ll = 0; s_zo = 0; s_var1 = 0; s_var2 = 0;
 for t = t1:t2
     % Extract files
