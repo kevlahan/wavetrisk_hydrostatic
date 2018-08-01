@@ -7,7 +7,7 @@ test_case = 'DCMIP2012c4';
 %test_case = 'Held_Suarez';
 
 % Columns of log data
-dt=2;tol_mass=3;tol_temp=4;tol_velo=5;j=6;dof=7;min_mass=8;mass_err=9;balance=10;cpu=11;
+dt=2;tol_mass=3;tol_temp=4;tol_velo=5;j=6;dof=7;min_mass=8;mass_err=9;balance=10;cpu=11;cpudof=12;
 
 machine   = 'if';
 %machine   = 'mac';
@@ -15,7 +15,7 @@ t1        = 60; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
 itype     = 'vort';
-ilog      = cpu;
+ilog      = cpudof;
 
 lon_lat   = true; % Plot longitude - latitude data
 zonal_avg = false; % Plot zonally averaged data
@@ -51,8 +51,16 @@ elseif (strcmp(machine,'mac'))
 end
 
 % Load log file 
+beg=1;
+%beg = 575;
 log_data = load([pathid test_case '_log']);
-figure; plot(log_data(:,1),log_data(:,ilog),'o-'); grid on;
+figure; 
+if ilog == cpudof
+    plot(log_data(beg:end,1),log_data(beg:end,cpu)./log_data(beg:end,dof),'o-');
+else
+    plot(log_data(beg:end,1),log_data(beg:end,ilog),'o-');
+end
+grid on;
 %%
 s_ll = 0; s_zo = 0; s_var1 = 0; s_var2 = 0;
 for t = t1:t2
