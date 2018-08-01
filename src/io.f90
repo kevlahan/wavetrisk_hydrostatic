@@ -92,6 +92,41 @@ contains
          time, level_end, n_active, tot_mass, get_timing()
   end subroutine write_step
 
+  subroutine sum_total_mass (initialgo)
+    ! Total mass over all vertical layers
+    implicit none
+    logical :: initialgo
+
+    integer :: k
+    
+    if (initialgo) then
+       initotalmass = 0.0_8
+       do k = 1, zlevels
+          initotalmass = initotalmass + integrate_hex (mu, level_start, k)
+       end do
+    else
+       totalmass = 0.0_8
+       do k = 1, zlevels
+          totalmass = totalmass + integrate_hex (mu, level_start, k)
+       end do
+       mass_error = abs (totalmass-initotalmass)/initotalmass
+    end if
+  end subroutine sum_total_mass
+
+  real(8) function mu (dom, i, j, zlev, offs, dims)
+    ! Defines mass for total mass integration
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx(i, j, offs, dims)
+    mu = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
+  end function mu
+
   real(8) function integrate_hex (fun, l, k)
     ! Integrate function defined by fun over hexagons
     implicit none
@@ -177,40 +212,6 @@ contains
 
     only_area = 1.0_8
   end function only_area
-
-  subroutine sum_total_mass (initialgo)
-    ! Total mass over all vertical layers
-    implicit none
-    logical :: initialgo
-
-    integer :: k
-
-    if (initialgo) then
-       initotalmass = 0.0_8
-       do k = 1, zlevels
-          initotalmass = initotalmass + integrate_hex (mu, level_start, k)
-       end do
-    else
-       totalmass = 0.0_8
-       do k = 1, zlevels
-          totalmass = totalmass + integrate_hex (mu, level_start, k)
-       end do
-       mass_error = abs(totalmass-initotalmass)/initotalmass
-    end if
-  end subroutine sum_total_mass
-
-  real(8) function mu (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx(i, j, offs, dims)
-    mu = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
-  end function mu
 
   function pot_energy (dom, i, j, zlev, offs, dims)
     implicit none
@@ -1341,6 +1342,7 @@ contains
   subroutine dump_adapt_mpi (id, custom_dump)
     ! Save data in check point files for restart
     ! One file per domain
+    ! NOTE: modifies grid structure
     implicit none
     external :: custom_dump
     integer  :: id

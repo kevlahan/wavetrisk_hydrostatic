@@ -22,7 +22,7 @@ module main_mod
 
   integer                                        :: cp_idx
   integer,             dimension(:), allocatable :: node_level_start, edge_level_start
-  real(8)                                        :: dt, dt_new, time_mult  
+  real(8)                                        :: dt_new, time_mult  
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
   subroutine init_main_mod
@@ -51,13 +51,14 @@ contains
     real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
     
     if (min_level > max_level) then
-       if (rank == 0) write (6,'(A,I4,1X,A,I4,A,I4)') &
-            'ERROR: max_level < min_level:', max_level, '<', min_level, '. Setting max_level to', min_level
+       if (rank == 0) &
+       write (6,'(3(A,I4))') 'ERROR: max_level < min_level:', max_level, '<', min_level, ' setting max_level = ', min_level
        max_level = min_level
     end if
 
     if (resume >= 0) then
        cp_idx = resume
+       call restart (set_thresholds, custom_load, test_case)
     else
        cp_idx = -1
        call init_structures
@@ -119,9 +120,8 @@ contains
        call adapt (set_thresholds)
        dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
 
-       call write_checkpoint (custom_dump, test_case)
+       call write_checkpoint (custom_dump, custom_load, test_case)
     end if
-    call restart_full (set_thresholds, custom_load, test_case)
   end subroutine initialize
 
   subroutine record_init_state (init_state)
@@ -279,7 +279,7 @@ contains
     end do
   end subroutine reset
 
-  subroutine restart_full (set_thresholds, custom_load, test_case)
+  subroutine restart (set_thresholds, custom_load, test_case)
     implicit none
     external     :: set_thresholds, custom_load
     character(*) :: test_case
@@ -336,11 +336,11 @@ contains
             '********************************************************** End Restart &
             **********************************************************'
     end if
-  end subroutine restart_full
+  end subroutine restart
 
-  subroutine write_checkpoint (custom_dump, test_case)
+  subroutine write_checkpoint (custom_dump, custom_load, test_case)
     implicit none
-    external :: custom_dump
+    external :: custom_dump, custom_load
     character(*) :: test_case
 
     character(255) :: cmd_archive, cmd_files, command
@@ -360,6 +360,9 @@ contains
        write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim (cmd_archive), ' ', trim (cmd_files)
        call system (command)
     end if
+    
+    ! Must restart after checkpoint and load balance (if compiled with mpi-lb)
+    call restart (set_thresholds, custom_load, test_case)
   end subroutine write_checkpoint
 
   subroutine init_structures

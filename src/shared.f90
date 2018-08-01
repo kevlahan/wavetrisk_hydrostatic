@@ -300,8 +300,9 @@ module shared_mod
 
   integer :: optimize_grid
 
-  ! basic constants
-  integer, parameter :: MINUTE = 60
+  ! Basic constants (assumes basic unit of time is seconds)
+  integer, parameter :: SECOND = 1
+  integer, parameter :: MINUTE = 60*SECOND
   integer, parameter :: HOUR = 60*MINUTE
   integer, parameter :: DAY = 24*HOUR
   integer, parameter :: WEEK = 7*DAY
@@ -311,7 +312,7 @@ module shared_mod
   integer                                       :: istep, resume, Laplace_order
   integer(8)                                    :: itime
   
-  real(8)                                       :: dt_init, dt_write, dx_min, dx_max, time_end, time
+  real(8)                                       :: dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
   real(8)                                       :: viscosity_rotu, viscosity_mass, viscosity_temp
   real(8)                                       :: ref_press, ref_surf_press, gamma, kappa, c_p, c_v, R_d, wave_speed

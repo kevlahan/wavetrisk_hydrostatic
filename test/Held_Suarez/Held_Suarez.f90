@@ -6,8 +6,6 @@ program DCMIP2012c4
   use io_mod  
   implicit none
 
-  integer        :: min_load, max_load
-  real(8)        :: avg_load, rel_imbalance, timing, total_cpu_time
   character(255) :: command
   logical        :: aligned, write_init
 
@@ -89,47 +87,19 @@ program DCMIP2012c4
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
      call stop_timing
+     
+     call sum_total_mass (.false.)
+     call print_log
 
-     timing = get_timing(); total_cpu_time = total_cpu_time + timing
-     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
-
-     if (rank == 0) then
-        write (6,'(A,es12.6,4(A,es8.2),A,I2,A,I9,4(A,es8.2,1x))') &
-             'time [h] = ', time/HOUR, &
-             ' dt [s] = ', dt, &
-             '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
-              ' temp tol = ', sum (threshold(S_TEMP,:))/zlevels, &
-              ' velo tol = ', sum (threshold(S_VELO,:))/zlevels, &
-             ' Jmax = ', level_end, &
-             ' dof = ', sum (n_active), &
-             ' min rel mass = ', min_mass, &
-             ' mass error = ', mass_error, &
-             ' balance = ', rel_imbalance, &
-             ' cpu = ', timing
-
-        write (12,'(5(ES15.9,1x),I2,1X,I9,1X,4(ES15.9,1x))')  &
-             time/HOUR, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
-             sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
-     end if
-
+     ! Save fields
      if (aligned) then
         iwrite = iwrite + 1
-
-        ! Save fields
         if (remap) call remap_vertical_coordinates (set_thresholds)
         call write_and_export (iwrite)
 
-        call sum_total_mass (.false.)
-
-        if (modulo (iwrite,CP_EVERY) /= 0) cycle ! Do not write checkpoint
-
-        ! Save checkpoint
-        call write_checkpoint (dump, test_case)
-
-        ! Restart after checkpoint and load balance
-        call restart_full (set_thresholds, load, test_case)
+        ! Save checkpoint (and rebalance)
+        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, test_case)
      end if
-     call sum_total_mass (.False.)
   end do
 
   if (rank == 0) then

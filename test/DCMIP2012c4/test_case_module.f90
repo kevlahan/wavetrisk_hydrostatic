@@ -9,7 +9,7 @@ module test_case_mod
   real(8)                 :: initotalmass, mass_error, totalmass
   real(8)                 :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, lat_c, lon_c,  R_pert, T_0, u_p, u_0
   real(8)                 :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
-  real(8)                 :: dt_cfl, dt_visc
+  real(8)                 :: dt_cfl, dt_visc, total_cpu_time
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -281,6 +281,37 @@ contains
     time_end = time_end * HOUR
     close(fid)
   end subroutine read_test_case_parameters
+
+  subroutine print_log
+    ! Prints out and saves logged data to a file
+    implicit none
+
+    integer :: min_load, max_load
+    real(8) :: avg_load, rel_imbalance, timing
+
+    timing = get_timing(); total_cpu_time = total_cpu_time + timing
+
+    call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
+    
+    if (rank == 0) then
+       write (6,'(A,es12.6,4(A,es8.2),A,I2,A,I9,4(A,es8.2,1x))') &
+            'time [h] = ', time/HOUR, &
+            ' dt [s] = ', dt, &
+            '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
+            ' temp tol = ', sum (threshold(S_TEMP,:))/zlevels, &
+            ' velo tol = ', sum (threshold(S_VELO,:))/zlevels, &
+            ' Jmax = ', level_end, &
+            ' dof = ', sum (n_active), &
+            ' min rel mass = ', min_mass, &
+            ' mass error = ', mass_error, &
+            ' balance = ', rel_imbalance, &
+            ' cpu = ', timing
+
+       write (12,'(5(ES15.9,1x),I2,1X,I9,1X,4(ES15.9,1x))')  &
+            time/HOUR, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
+            sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
+    end if
+  end subroutine print_log
 
   subroutine initialize_thresholds
     ! Set default thresholds based on dimensional scalings of norms
