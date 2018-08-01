@@ -285,7 +285,7 @@ contains
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
     if (rank == 0) then
-       write (6,'(A,es12.6,4(A,es8.2),A,I2,A,I9,4(A,es8.2,1x))') &
+       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i9,a,es9.2,1x,3(a,es8.2,1x))') &
             'time [h] = ', time/HOUR, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
@@ -298,7 +298,7 @@ contains
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
-       write (12,'(5(ES15.9,1x),I2,1X,I9,1X,4(ES15.9,1x))')  &
+       write (12,'(5(es15.9,1x),i2,1x,i9,1x,es16.9,1x,3(es15.9,1x))')  &
             time/HOUR, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
             sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
