@@ -85,6 +85,7 @@ program DCMIP2012c4
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
+     call time_step_cooling
      call stop_timing
      
      call sum_total_mass (.false.)
