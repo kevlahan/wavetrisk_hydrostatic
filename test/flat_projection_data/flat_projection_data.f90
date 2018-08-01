@@ -52,7 +52,7 @@ program flat_projection_data
 
   do cp_idx = resume+1, check_end
      resume = NONE
-     call restart_full (set_thresholds, load, test_case)
+     call restart (set_thresholds, load, test_case)
      call export_2d (cart2sph2, 3000000+100*cp_idx, (/-N/2, N/2/), (/-N/4, N/4/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
   end do
   call finalize
