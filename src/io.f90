@@ -1425,17 +1425,15 @@ contains
              ! Record whether patch needs to be refined
              do c = 1, N_CHDRN
                 p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-
                 if (p_chd > 0) then
                    required(c) = check_child_required(grid(d), p_par, c-1)
                    grid(d)%patch%elts(p_chd+1)%deleted = .not. required(c)
-
                    if (required(c)) then
                       p_lev = p_lev + 1
                       grid(d)%lev(l+1)%elts(p_lev) = p_chd
                    end if
                 else
-                   required(c) = .False.
+                   required(c) = .false.
                 end if
              end do
 
