@@ -5,9 +5,6 @@ program flat_projection_data
   use io_mod  
   implicit none
 
-  character(255) :: command
-  logical        :: aligned, write_init
-
   ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)

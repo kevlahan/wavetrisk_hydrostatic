@@ -6,8 +6,7 @@ program DCMIP2012c4
   use io_mod  
   implicit none
 
-  character(255) :: command
-  logical        :: aligned, write_init
+  logical :: aligned
 
   ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
@@ -106,9 +105,7 @@ program DCMIP2012c4
   if (rank == 0) then
      close (12)
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
-     command = '\rm tmp tmp1 tmp2'; call system (command)
   end if
-
   call finalize
 end program DCMIP2012c4
 
