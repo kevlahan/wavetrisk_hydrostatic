@@ -5,8 +5,6 @@ program flat_projection_data
   use io_mod  
   implicit none
 
-  integer        :: k
-  real(8)        :: timing, total_cpu_time
   character(255) :: command
   logical        :: aligned, write_init
 
