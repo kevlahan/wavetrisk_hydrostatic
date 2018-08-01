@@ -9,7 +9,7 @@ BUILD_DIR  = build
 
 PREFIX = .
 
-$(shell \rm $(BUILD_DIR)/test_case_module.o)
+$(shell \rm $(BUILD_DIR)/test_case_module.o $(BUILD_DIR)/test_case_mod.mod)
 $(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src/.)
 
 vpath %.f90 src
