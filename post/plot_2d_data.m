@@ -1,65 +1,56 @@
-% Plot 2d data from export_2d
-clear; %close all;
-
-% Test case
+% Plot 2d data from export_2d or log data
 test_case = 'DCMIP2012c4';
 %test_case = 'DCMIP2008c5';
 %test_case = 'Held_Suarez';
 
-% Columns of log data
-dt=2;tol_mass=3;tol_temp=4;tol_velo=5;j=6;dof=7;min_mass=8;mass_err=9;balance=10;cpu=11;cpudof=12;
+% 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
+itype     = 'vort';  % field to plot
+t1        = 60;      % Start time
+t2        = t1;      % End time
+lon_lat   = true;    % Plot longitude - latitude data
+zonal_avg = false;   % Plot zonally averaged data
+shift     = true;    % shift left boundary to zero longitude
+smooth    = false;   % smooth data over two points in each direction
+lines     = true;   % remove lines
 
-machine   = 'if';
-%machine   = 'mac';
-t1        = 60; % Start time
-t2        = t1; % End time
-% Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'vort';
-ilog      = cpudof;
+% Log data options: 
+dt=2; tol_mass=3; tol_temp=4; tol_velo=5; j=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
+ilog = compression;
+Jmin = 5;
+Jmax = 7;
 
-lon_lat   = true; % Plot longitude - latitude data
-zonal_avg = false; % Plot zonally averaged data
-shift     = true; % shift left boundary to zero longitude
-smooth    = false; % smooth data over two points in each direction
-lines     = false; % remove lines
-
-if (strcmp(itype,'temp_var')||strcmp(itype,'eddy_mom')||strcmp(itype,'eddy_ke')||strcmp(itype,'eddy_heat_flux'))
-    lon_lat = 0;
-    zonal_avg = 1;
-end
-
-% Axis limits
-if (strcmp(test_case,'DCMIP2008c5'))
-    ax = [0 360 -90 90];
-elseif (strcmp(test_case,'DCMIP2012c4'))
-    if (strcmp(itype,'temp')||strcmp(itype,'surf_press'))
-        ax = [45 360 0 90];
-    else
-        ax = [120 270 25 75];
-        %ax = [90 200 25 75];
-        %ax = [0 360 25 75];
-    end
-end
-
-N = t2-t1+1; % number of samples
-
-file_base = [test_case '.3'];
+machine = 'if';
+%machine = 'mac';
 if (strcmp(machine,'if'))
     pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/'];
 elseif (strcmp(machine,'mac'))
     pathid = ['/Users/kevlahan/hydro/' test_case '/'];
 end
-
+%% Log data plots
 % Load log file 
 beg = 1;
-beg = 18;
+beg = 1080;
+
+% Number of dof on equivalent uniform grid
+Nunif = 4 * 10*4^Jmax;
+
+% Total number of degrees of freedom over all scales (this is what is
+% counted)
+Nmax = 4 * 10*4^Jmin;
+for j=Jmin+1:Jmax
+    Nmax = Nmax + 4 * 10*4^j;
+end
+
 log_data = load([pathid test_case '_log']);
 figure; 
 if ilog == cpudof
     plot(log_data(beg:end,1),log_data(beg:end,cpu)./log_data(beg:end,dof),'o-');
+elseif ilog == compression
+    plot(log_data(beg:end,1),Nunif./log_data(beg:end,dof),'o-');
 else
     plot(log_data(beg:end,1),log_data(beg:end,ilog),'o-');
 end
+
 if ilog == dt
     ylab = 'dt';
 elseif ilog == tol_mass
@@ -82,10 +73,35 @@ elseif ilog == cpu
     ylab = 'cpu time / dt';
 elseif ilog == cpudof
     ylab = 'cpu time / N';
+elseif ilog == compression
+    ylab = 'Compression ratio';
 end
      xlabel('t');ylabel(ylab);
 grid on;
-%%
+%% 2d data plots
+file_base = [test_case '.3'];
+
+if (strcmp(itype,'temp_var')||strcmp(itype,'eddy_mom')||strcmp(itype,'eddy_ke')||strcmp(itype,'eddy_heat_flux'))
+    lon_lat = 0;
+    zonal_avg = 1;
+end
+
+% Axis limits
+if (strcmp(test_case,'DCMIP2008c5'))
+    ax = [0 360 -90 90];
+elseif (strcmp(test_case,'DCMIP2012c4'))
+    if (strcmp(itype,'temp')||strcmp(itype,'surf_press'))
+        ax = [45 360 0 90];
+    else
+        ax = [120 270 25 75];
+        %ax = [90 200 25 75];
+        %ax = [0 360 25 75];
+    end
+end
+
+N = t2-t1+1; % number of samples
+
+
 s_ll = 0; s_zo = 0; s_var1 = 0; s_var2 = 0;
 for t = t1:t2
     % Extract files
