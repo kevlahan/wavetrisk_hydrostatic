@@ -1205,6 +1205,7 @@ contains
     n_active_nodes = 0
     n_active_edges = 0
 
+    ! Calculate minimum time step, number of active nodes and edges and minimum mass
     do l = level_start, level_end
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do

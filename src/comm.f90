@@ -953,6 +953,7 @@ contains
   end subroutine set_areas
 
   subroutine min_dt (dom, i, j, zlev, offs, dims)
+    ! Calculates time step, minimum mass and number of active nodes and edges
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -971,7 +972,7 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
 
-       ! Find minimum relative mass for this node
+       ! Find relative mass for this node
        col_mass = 0.0_8
        do k = 1, zlevels
           col_mass = col_mass + sol(S_MASS,k)%data(d)%elts(id+1)
@@ -981,6 +982,7 @@ contains
           min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id+1)/init_mass)
        end do
 
+       ! Find time step for this node
        do e = 1, EDGE
           if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
