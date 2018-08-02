@@ -19,7 +19,6 @@ module main_mod
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
-
   integer                                        :: cp_idx
   integer,             dimension(:), allocatable :: node_level_start, edge_level_start
   real(8)                                        :: dt_new, time_mult  
@@ -47,11 +46,10 @@ contains
     character(*) :: test_case
     
     character(255)                 :: command
-    integer                        :: k, d, ierr
+    integer                        :: k, d
     real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
     
-    if (min_level > max_level) then
-       if (rank == 0) &
+    if (min_level > max_level .and. rank == 0) then
        write (6,'(3(A,I4))') 'ERROR: max_level < min_level:', max_level, '<', min_level, ' setting max_level = ', min_level
        max_level = min_level
     end if
@@ -99,15 +97,15 @@ contains
                    wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
                    wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 end if
-                n_active = n_active + (/ count( abs(wc_m(node_level_start(d):grid(d)%node%length))  >= threshold(S_MASS,k) .or. &
-                                                abs(wc_t(node_level_start(d):grid(d)%node%length))  >= threshold(S_TEMP,k)), &
-                                         count( abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k)) /)
+                n_active = n_active + (/ count(abs(wc_m(node_level_start(d):grid(d)%node%length))  >= threshold(S_MASS,k) .or. &
+                                               abs(wc_t(node_level_start(d):grid(d)%node%length))  >= threshold(S_TEMP,k)), &
+                                         count(abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k)) /)
                 nullify (wc_m, wc_t, wc_u)
              end do
           end do
-          ! Sum results over all ranks
-          n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))
           
+          ! Sum results over all ranks
+          n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))          
           if (rank == 0) write (6,'(A,i2,1x,2(A,i8,1x),/)') &
                'Level = ', level_end, 'number of active node wavelets = ', n_active(AT_NODE), &
                'number of active edge wavelets = ', n_active(AT_EDGE)
@@ -117,9 +115,8 @@ contains
             '------------------------------------------------- Finished adapting initial grid &
             ------------------------------------------------'
 
-       call adapt (set_thresholds)
-       dt_new = cpt_dt_mpi() ; if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
-
+       call adapt (set_thresholds) ; dt_new = cpt_dt_mpi()
+       if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
        call write_checkpoint (custom_dump, custom_load, test_case)
     end if
   end subroutine initialize

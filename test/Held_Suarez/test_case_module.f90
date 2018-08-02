@@ -1,15 +1,18 @@
 module test_case_mod
-  ! Module file for DCMIP2012c4
+  ! Module file for Held & Suarez (1994) test case
   use shared_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
+  
+  ! Standard variables
+  integer                              :: iwrite, CP_EVERY, save_zlev
+  real(8)                              :: dt_cfl, dt_visc, initotalmass, mass_error, totalmass, total_cpu_time
+  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
+  real(8), allocatable, dimension(:,:) :: threshold_def
 
-  integer                 :: CP_EVERY, iwrite, save_zlev
-  real(8)                 :: initotalmass, mass_error, totalmass
-  real(8)                 :: delta_T, delta_theta, eta_b, k_a, k_f, k_s, k_T, T_0, T_mean, T_tropo
-  real(8)                 :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
-  real(8)                 :: dt_cfl, dt_visc, total_cpu_time
+  ! Test case variables
+  real(8) :: delta_T, delta_theta, eta_b, k_a, k_f, k_s, k_T, T_0, T_mean, T_tropo
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -111,18 +114,21 @@ contains
 
     character(3), parameter :: order = "inf"
 
-    if (.not. default_thresholds) then
+    if (default_thresholds) then ! Initialize once
+       threshold_new = threshold_def
+    else
        if (adapt_trend) then
           call cal_lnorm (trend, order, lnorm)
        else
           call cal_lnorm (sol,   order, lnorm)
        end if
        threshold_new = tol * lnorm
-       if (istep /= 0) then
-          threshold = 0.9_8*threshold + 0.1_8*threshold_new
-       else
-          threshold = threshold_new
-       end if
+    end if
+    
+    if (istep /= 0) then
+       threshold = 0.9_8*threshold + 0.1_8*threshold_new
+    else
+       threshold = threshold_new
     end if
   end subroutine set_thresholds
 
@@ -311,7 +317,8 @@ contains
     integer :: k
     real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm
     
-    allocate (threshold(S_MASS:S_VELO,1:zlevels)); threshold = 0.0_8
+    allocate (threshold(S_MASS:S_VELO,1:zlevels));     threshold     = 0.0_8
+    allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
 
     lnorm(S_MASS,:) = dPdim/grav_accel
     do k = 1, zlevels
@@ -320,7 +327,7 @@ contains
     lnorm(S_TEMP,:) = lnorm(S_TEMP,:) + Tempdim*lnorm(S_MASS,:) ! Add component due to tendency in mass 
     lnorm(S_VELO,:) = Udim
     if (adapt_trend) lnorm = lnorm/Tdim
-    threshold = tol * lnorm
+    threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 
   subroutine initialize_dt_viscosity
