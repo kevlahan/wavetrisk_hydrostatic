@@ -15,7 +15,7 @@ t1        = 60; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
 itype     = 'vort';
-ilog      = dof;
+ilog      = cpudof;
 
 lon_lat   = true; % Plot longitude - latitude data
 zonal_avg = false; % Plot zonally averaged data
@@ -68,8 +68,10 @@ elseif ilog == tol_temp
     ylab = 'Temperature threshold';
 elseif ilog == tol_velo
     ylab = 'Velocity threshold';
+elseif ilog == j
+    ylab = 'J';
 elseif ilog == dof
-    ylab = 'dof';
+    ylab = 'N (active nodes and edges)';
 elseif ilog == min_mass
     ylab = 'Minimum Mass';
 elseif ilog == mass_err
@@ -77,9 +79,9 @@ elseif ilog == mass_err
 elseif ilog == balance
     ylab = 'Load balance';
 elseif ilog == cpu
-    ylab = 'cpu time/dt';
-elseif ilot == cpudof
-    ylab = 'cpu time per dof';
+    ylab = 'cpu time / dt';
+elseif ilog == cpudof
+    ylab = 'cpu time / N';
 end
      xlabel('t');ylabel(ylab);
 grid on;
