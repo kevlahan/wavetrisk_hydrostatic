@@ -15,7 +15,7 @@ t1        = 60; % Start time
 t2        = t1; % End time
 % Options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
 itype     = 'vort';
-ilog      = cpudof;
+ilog      = min_mass;
 
 lon_lat   = true; % Plot longitude - latitude data
 zonal_avg = false; % Plot zonally averaged data
@@ -52,7 +52,7 @@ end
 
 % Load log file 
 beg=1;
-%beg = 575;
+beg = 1800;
 log_data = load([pathid test_case '_log']);
 figure; 
 if ilog == cpudof
@@ -60,6 +60,28 @@ if ilog == cpudof
 else
     plot(log_data(beg:end,1),log_data(beg:end,ilog),'o-');
 end
+if ilog == dt
+    ylab = 'dt';
+elseif ilog == tol_mass
+    ylab = 'Mass threshold';
+elseif ilog == tol_temp
+    ylab = 'Temperature threshold';
+elseif ilog == tol_velo
+    ylab = 'Velocity threshold';
+elseif ilog == 'dof'
+    ylab = 'dof';
+elseif ilog == min_mass
+    ylab = 'Minimum Mass';
+elseif ilog == mass_err
+    ylab = 'Mass error';
+elseif ilog == balance
+    ylab = 'Load balance';
+elseif ilog == cpu
+    ylab = 'cpu time/dt';
+elseif ilot == cpudof
+    ylab = 'cpu time per dof';
+end
+     xlabel('t');ylabel(ylab);
 grid on;
 %%
 s_ll = 0; s_zo = 0; s_var1 = 0; s_var2 = 0;
