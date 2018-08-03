@@ -1,68 +1,44 @@
-general:
+INSTRUCTIONS FOR COMPILING, RUNNING AND POST-PROCESSING
 
-    If you want to call `make` with `PARAM` or `ARCH` command-line argument different to the previous call to `make`
-    you need to `make clean` first. Only change in `TEST_CASE` argument does not require `make clean`.
+TO COMPILE (example):
+mkdir build
+make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
 
+Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version.
 
-compile and run tsunami test-case (on `if`):
+Note that code requires LAPACK library. Each test case is defined by three files in subdirectories of test directory
 
-    mkdir build
-    make BUILD_DIR=build
-
-    mkdir -p jobs/tsunami
-    cp test/tsunami/tsunami.in jobs/tsunami/
-    cd jobs
-    ln -s /net/if/1/home/aechtnmj/shared extern
-    cd tsunami
-    ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry
-    ln -s ../extern/okada85/arcminutes.scaled okada85
-    mpirun -np 10 ../../bin/tsunami
+TO RUN:
+cd to-working_directory                                  (move to working directory, mkdir if necessary)
+ln -s wavetrisk_hydrostatic/bin/DCMIP2012c4 .            (provide symbolic link to executable)
+ln -s path-to-grid_HR .                                  (provide symbolic link to Heikes and Randall grids, if using)
+cp wavetrisk_hydrostatic/test/DCMIP2012c4/test_case.in . (copy parameters files and then edit as appropriate)
+mpirun -n 40 DCMIP2012c4 > log &                         (run on 40 processors using mpi)
 
 
-post-process tsunami test-case (using asymptote):
+POST-PROCESS SAVED FIELDS (e.g. DCMIP2012c4.1... and DCMIP2012c4.2...) FOR PARAVIEW:
 
-    cp test/tsunami/*.asy post/*.asy jobs/tsunami/
-    cd jobs/tsunami/
-    asy tsunami.rotating_earth.asy
-    ffmpeg -r 6 -i frame_%03d.png -pix_fmt yuv420p -b 2000k tsunami.mp4
-    
-
-
-compile and run gyre test-case (on `if`):
-
-    mkdir build
-    make BUILD_DIR=build TEST_CASE=gyre
-
-    mkdir -p jobs/gyre
-    cp test/gyre/gyre.in jobs/gyre/
-    cd jobs
-    ln -s /net/if/1/home/aechtnmj/shared extern
-    cd gyre
-    ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry
-    ln -s ../extern/wind_stress
-    mpirun -np 10 ../../bin/gyre
+cd post
+gfortran -o trisk2vtk trisk2vtk.f90
+cd to-working-directory
+ln -s wavetrisk_hydrostatic/post/trisk2vtk .
+trisk2vtk DCMIP2012c4.1 primal 0 10 5 8 out (generates .vtk files for the saved primal grid fields 0 to 10 at scales j = 5:8 and saves in files DCMIP2012c4...vtk)
+trisk2vtk DCMIP2012c4.2 dual   0 10 5 8 out (generates .vtk files for the saved primal grid fields 0 to 10 at scales j = 5:8 and saves in files DCMIP2012c4...vtk)
 
 
+POST-PROCESS 2D CHECKPOINTS FOR MATLAB:
 
-compile and run turbulence test-case (on `if`):
+make TEST_CASE=flat_projection_data PARAM=param_J5 ARCH=mpi-lb    (make the code to post process the 2d projections)
+cd to-working_directory                                           (move to working directory)
+ln -s wavetrisk_hydrostatic/bin/flat_projection_data .            (provide symbolic link to executable)    
+ln -s path-to-grid_HR .                                           (provide symbolic link to Heikes and Randall grids, if using)
+cp wavetrisk_hydrostatic/test/flat_projection_data/test_case.in . (copy parameters files and then edit as appropriate)
+mpirun -n 40 flat_projection_data > log &                         (run on 40 processors using mpi)
 
-    mkdir build
-    make BUILD_DIR=build TEST_CASE=turb
-
-    mkdir -p jobs/turb
-    cp test/turb/turb.in jobs/turb/
-    cd jobs
-    ln -s /net/if/1/home/aechtnmj/shared extern
-    cd turb
-    mpirun -np 10 ../../bin/turb
-
-compile Willimson test-case 1 and Lauritzen test-case:
-
-    make TEST_CASE=will1 PARAM=param_J5
-    make TEST_CASE=lauritzen PARAM=param_J5
+Then post-process using the matlab file  wavetrisk_hydrostatic/post/plat_2d.m
 
 
-evaluate weak scaling for perfectly load-balanced test-case
+EVALUATE WEAK SCALING FOR PERFECTLY LOAD BALANCED CASE:
 (might require `bash`):
 
     mkdir build

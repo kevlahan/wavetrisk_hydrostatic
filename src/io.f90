@@ -1560,6 +1560,8 @@ contains
   end subroutine read_lonlat_from_binary
 
   subroutine read_HR_optim_grid
+    ! Reads in Heikes & Randall (1995) optimized grid from file in directory grid_HR
+    ! Need to provide a symbolic link to grid_HR in working directory
     implicit none
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
@@ -1591,7 +1593,7 @@ contains
        return
     end if
 
-    write (filename, '(A,I1)')  "../extern/grid_HR/J", level_start-1
+    write (filename, '(A,I1)')  "grid_HR/J", level_start-1
     open (unit=fid, file=filename)
 
     p = 1
