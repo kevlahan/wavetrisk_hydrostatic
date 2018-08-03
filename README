@@ -4,11 +4,11 @@ TO COMPILE (example):
 mkdir build
 make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
 
-Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version.
+Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean build.
 
-Note that code requires LAPACK library. Each test case is defined by three files in subdirectories of test directory
+Note that code requires LAPACK library. Each test case is defined by three files in subdirectories of test directory.
 
-TO RUN:
+TO RUN (using test case DCMIP2012c4 as an example):
 cd to-working_directory                                  (move to working directory, mkdir if necessary)
 ln -s wavetrisk_hydrostatic/bin/DCMIP2012c4 .            (provide symbolic link to executable)
 ln -s path-to-grid_HR .                                  (provide symbolic link to Heikes and Randall grids, if using)
@@ -22,11 +22,11 @@ cd post
 gfortran -o trisk2vtk trisk2vtk.f90
 cd to-working-directory
 ln -s wavetrisk_hydrostatic/post/trisk2vtk .
-trisk2vtk DCMIP2012c4.1 primal 0 10 5 8 out (generates .vtk files for the saved primal grid fields 0 to 10 at scales j = 5:8 and saves in files DCMIP2012c4...vtk)
-trisk2vtk DCMIP2012c4.2 dual   0 10 5 8 out (generates .vtk files for the saved primal grid fields 0 to 10 at scales j = 5:8 and saves in files DCMIP2012c4...vtk)
+trisk2vtk DCMIP2012c4.1 primal 0 10 5 8 out (generates .vtk files for the saved primal grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk)
+trisk2vtk DCMIP2012c4.2 dual   0 10 5 8 out (generates .vtk files for the saved primal grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk)
 
 
-POST-PROCESS 2D CHECKPOINTS FOR MATLAB:
+POST-PROCESS CHECKPOINTS FOR MATLAB PLOTTING OF 2-D PROJECTIONS ON LONGITUDE-LATITUDE PLANE:
 
 make TEST_CASE=flat_projection_data PARAM=param_J5 ARCH=mpi-lb    (make the code to post process the 2d projections)
 cd to-working_directory                                           (move to working directory)
@@ -35,55 +35,9 @@ ln -s path-to-grid_HR .                                           (provide symbo
 cp wavetrisk_hydrostatic/test/flat_projection_data/test_case.in . (copy parameters files and then edit as appropriate)
 mpirun -n 40 flat_projection_data > log &                         (run on 40 processors using mpi)
 
-Then post-process using the matlab file  wavetrisk_hydrostatic/post/plat_2d.m
+Then post-process using the matlab file wavetrisk_hydrostatic/post/plat_2d.m, which also plots data for the log file DCMIP2012c4_log.
 
+FURTHER INFORMATION ABOUT THE CODE IS GIVEN AT THE START OF src/shared.f90.
 
-EVALUATE WEAK SCALING FOR PERFECTLY LOAD BALANCED CASE:
-(might require `bash`):
-
-    mkdir build
-    mkdir -p weak_scaling/bin
-    for PATCH_LEVEL in 2 3 4 5
-    do
-     for DOMAIN_LEVEL in 0 1 2 3
-     do
-      sed -i "s/DOMAIN_LEVEL = ./DOMAIN_LEVEL = $DOMAIN_LEVEL/" src/param.f90
-      sed -i "s/PATCH_LEVEL = ./PATCH_LEVEL = $PATCH_LEVEL/" src/param.f90
-      make clean; make BUILD_DIR=build TEST_CASE=turb
-      mv bin/turb weak_scaling/bin/turb$DOMAIN_LEVEL$PATCH_LEVEL
-     done
-    done
-    cp test/turb/turb.in weak_scaling/
-    cd weak_scaling
-    sed -i "s/optimize_grid.*$/optimize_grid 0/" turb.in
-    sed -i "s/threshold.*$/threshold 0/" turb.in
-    for PATCH_LEVEL in 2 3 4 5
-    do
-     np=10
-     for DOMAIN_LEVEL in 0 1 2 3
-     do
-      mkdir $DOMAIN_LEVEL$PATCH_LEVEL
-      cp turb.in $DOMAIN_LEVEL$PATCH_LEVEL/
-      cd $DOMAIN_LEVEL$PATCH_LEVEL
-      max_level=`expr $DOMAIN_LEVEL + $PATCH_LEVEL + 3`
-      sed -i "s/max_level.*$/max_level	$max_level/" turb.in
-      sqsub -q mpi -n $np -r 10 -o log --mpp=2G ../bin/turb$DOMAIN_LEVEL$PATCH_LEVEL
-      cd ..
-      np=`expr $np \* 4`
-     done
-    done
-
-Wait for jobs to finish and then
-
-    for PATCH_LEVEL in 2 3 4 5
-    do
-     np=10
-     for DOMAIN_LEVEL in 0 1 2 3
-     do
-      head -n 20 $DOMAIN_LEVEL$PATCH_LEVEL/verlauf.out | tail -n 18 > verlauf.np${np}_$PATCH_LEVEL
-      rm -r $DOMAIN_LEVEL$PATCH_LEVEL
-      np=`expr $np \* 4`
-     done
-    done
 
 
