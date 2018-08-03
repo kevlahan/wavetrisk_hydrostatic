@@ -416,7 +416,7 @@ contains
           write (var_file, '(i7)') fid+v
           open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768)
           do i = Ny(1), Ny(2)
-             write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
+             write (funit,'(2048(E15.6, 1X))') field2d_save(:,i,v)
           end do
           close (funit)
        end do
@@ -426,7 +426,7 @@ contains
           write (var_file, '(i7)') fid+v+10
           open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768)
           do k = zlevels,1,-1
-             write (funit,'(2047(E15.6, 1X))') zonal_av(k,:,v)
+             write (funit,'(2048(E15.6, 1X))') zonal_av(k,:,v)
           end do
           close (funit)
        end do
@@ -436,19 +436,19 @@ contains
        ! Longitude values
        write (var_file, '(i7)') fid+20
        open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768) 
-       write (funit,'(2047(E15.6, 1X))') (-180.0_8+dx_export*(i-1)/MATH_PI*180.0_8, i=1,Nx(2)-Nx(1)+1)
+       write (funit,'(2048(E15.6, 1X))') (-180.0_8+dx_export*(i-1)/MATH_PI*180.0_8, i=1,Nx(2)-Nx(1)+1)
        close (funit)
 
        ! Latitude values
        write (var_file, '(i7)') fid+21
        open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768) 
-       write (funit,'(2047(E15.6, 1X))') (-90.0_8+dy_export*(i-1)/MATH_PI*180.0_8, i=1,Ny(2)-Ny(1)+1)
+       write (funit,'(2048(E15.6, 1X))') (-90.0_8+dy_export*(i-1)/MATH_PI*180.0_8, i=1,Ny(2)-Ny(1)+1)
        close (funit)
 
        ! Pressure vertical coordinates
        write (var_file, '(i7)') fid+22
        open (unit=funit, file=trim(test_case)//'.'//var_file, recl=32768) 
-       write (funit,'(2047(E15.6, 1X))') (a_vert(k)*ref_press/ref_surf_press + b_vert(k), k=zlevels+1,2,-1)
+       write (funit,'(2048(E15.6, 1X))') (a_vert(k)*ref_press/ref_surf_press + b_vert(k), k=zlevels+1,2,-1)
        close (funit)
 
        write (s_time, '(i5)') fid/100
