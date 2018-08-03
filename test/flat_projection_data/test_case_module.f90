@@ -131,6 +131,12 @@ contains
     read (fid,*) varname, pressures
     close(fid)
 
+    if (N > 2048) then
+       write (6,'(A,i5,A)') "N = ", N, " is too large. Maximum allowed value of N = 2048."
+       write (6,'(A)') "Modify export_2d in io.f90 if necessary."
+       stop
+    end if
+
     if (rank==0) then
        write (6,'(A,A)')      "test_case           = ", test_case
        write (6,'(A,i12)')    "first file          = ", check_start
