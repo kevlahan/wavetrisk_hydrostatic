@@ -7,7 +7,7 @@ module test_case_mod
 
   ! Standard variables
   integer                              :: iwrite, CP_EVERY, save_zlev
-  real(8)                              :: dt_cfl, dt_visc, initotalmass, mass_error, totalmass, total_cpu_time
+  real(8)                              :: decay, dt_cfl, dt_visc, initotalmass, mass_error, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
   real(8), allocatable, dimension(:,:) :: threshold_def
 
@@ -250,6 +250,7 @@ contains
     read(fid,*) varname, cfl_num
     read(fid,*) varname, press_save
     read(fid,*) varname, Laplace_order
+    read(fid,*) varname, decay
     read(fid,*) varname, dt_write
     read(fid,*) varname, CP_EVERY
     read(fid,*) varname, time_end
@@ -277,6 +278,7 @@ contains
        write(6,'(A,es10.4)') "cfl_num            = ", cfl_num
        write(6,'(A,es10.4)') "pressure_save      = ", press_save
        write(6,'(A,i1)')     "Laplace_order      = ", Laplace_order
+       write(6,'(A,es8.2)')  "decay              = ", decay
        write(6,'(A,es10.4)') "dt_write           = ", dt_write
        write(6,'(A,i6)')     "CP_EVERY           = ", CP_EVERY
        write(6,'(A,es10.4)') "time_end           = ", time_end 
@@ -344,39 +346,46 @@ contains
     implicit none
 
     integer :: k
-    real(8) :: P_k, P_top
+    real(8) :: C_visc, P_k, P_top
 
     ! Time step based on wave speed, initial velocity at finest scale
-    dx_min = sqrt(4.0_8*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8))
+    dx_min = sqrt (4*MATH_PI*radius**2/(10*4**max_level+2))
     dt_cfl = cfl_num*dx_min/(wave_speed+u_0+u_p)
+
+    ! Viscosity constant
+    C_visc = -log (decay)/MATH_PI**2 * dx_min**2/dt_cfl
     
     ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
     allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
+    
     if (Laplace_order == 1) then ! Usual Laplacian diffusion
+       ! Minimal grid scale mass and temperature diffusion
+       viscosity_mass = C_visc; viscosity_temp = viscosity_mass
+       
        ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
        P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
        do k = 1, zlevels
           P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
-          viscosity_divu(k) = dx_min**2/dt_cfl * max(1.0_8, 8.0_8*(1.0_8 + tanh(log(P_top/P_k))))/128.0_8
-          if (rank==0) write(6,'(i2,1x,es10.4)') k, viscosity_divu(k)
+          viscosity_divu(k) = C_visc * max (1.0_8, 8.0_8*(1.0_8 + tanh (log (P_top/P_k))))
+          if (rank==0) write (6,'(i2,1x,es10.4)') k, viscosity_divu(k)
        end do
     elseif (Laplace_order /= 0) then
-       write(6,'(A)') 'Unsupported iterated Laplacian (only 0 or 1 supported)'
+       write (6,'(A)') 'Unsupported iterated Laplacian (only 0 or 1 supported)'
        stop
     end if
-    viscosity = max (viscosity_mass, viscosity_temp, maxval(viscosity_divu), viscosity_rotu)
+    viscosity = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
     dt_visc = 0.25_8*dx_min**2/viscosity
 
     dt_init = min (dt_cfl, dt_visc)
 
-    if (rank==0) then
-       write(6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
+    if (rank == 0) then
+       write (6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
        if (Laplace_order/=0) then
-          write(6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
-          write(6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
-          write(6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
-          write(6,'(A,es10.4)') 'Viscosity_divu   = ', sum(viscosity_divu)/zlevels
-          write(6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
+          write (6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
+          write (6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
+          write (6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
+          write (6,'(A,es10.4)') 'Viscosity_divu   = ', sum (viscosity_divu)/zlevels
+          write (6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
        end if
     end if
   end subroutine initialize_dt_viscosity
