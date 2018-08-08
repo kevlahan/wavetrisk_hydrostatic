@@ -24,7 +24,7 @@ contains
     allocate (sol(S_MASS:S_VELO,1:zlevels), sol_save(S_MASS:S_VELO,1:save_levels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
     allocate (exner_fun(1:zlevels+1))
-    allocate (horiz_flux(S_MASS:S_TEMP), Laplacian_scalar(S_MASS:S_TEMP))
+    allocate (horiz_flux(S_MASS:S_TEMP), horiz_flux2(S_MASS:S_TEMP), Laplacian_scalar(S_MASS:S_TEMP))
 
     do k = 1, zlevels
        call init_Float_Field (exner_fun(k), AT_NODE)
@@ -43,6 +43,7 @@ contains
 
     do v = S_MASS, S_TEMP
        call init_Float_Field (horiz_flux(v), AT_EDGE)
+       call init_Float_Field (horiz_flux2(v), AT_EDGE)
        call init_Float_Field (Laplacian_scalar(v), AT_NODE)
     end do
 
@@ -330,6 +331,7 @@ contains
     do d = 1, size(grid)
        do v = S_MASS, S_TEMP
           call init (horiz_flux(v)%data(d), grid(d)%node%length*EDGE)
+          call init (horiz_flux2(v)%data(d), grid(d)%node%length*EDGE)
           call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
        end do
     end do
