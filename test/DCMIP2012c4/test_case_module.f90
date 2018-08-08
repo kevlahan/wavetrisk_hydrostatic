@@ -352,23 +352,30 @@ contains
     dx_min = sqrt (4*MATH_PI*radius**2/(10*4**max_level+2))
     dt_cfl = cfl_num*dx_min/(wave_speed+u_0+u_p)
 
-    ! Viscosity constant (largest wavenumber modes decay by factor decay in one time step)
-    C_visc = -log (decay)/MATH_PI**2 * dx_min**2/dt_cfl
-    
     ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
     allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
-    
+
     if (Laplace_order == 1) then ! Usual Laplacian diffusion
+       ! Viscosity constant (largest wavenumber modes decay by factor decay in one time step)
+       C_visc = -log (decay)/MATH_PI**2 * dx_min**2/dt_cfl
+
        ! Minimal grid scale mass and temperature diffusion
        viscosity_mass = C_visc; viscosity_temp = viscosity_mass
-       
+
        ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
+       ! (no vorticity diffusion)
        P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
        do k = 1, zlevels
           P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
           viscosity_divu(k) = C_visc * max (1.0_8, 8.0_8*(1.0_8 + tanh (log (P_top/P_k))))
           if (rank==0) write (6,'(i2,1x,es10.4)') k, viscosity_divu(k)
        end do
+    elseif (Laplace_order == 2) then ! Fourth-order iterated Laplacian diffusion (scalars only)
+       ! Viscosity constant (largest wavenumber modes decay by factor decay in one time step)
+       C_visc = -log (decay)/MATH_PI**4 * dx_min**4/dt_cfl
+
+       ! Minimal grid scale mass and temperature diffusion
+       viscosity_mass = C_visc; viscosity_temp = viscosity_mass
     elseif (Laplace_order /= 0) then
        write (6,'(A)') 'Unsupported iterated Laplacian (only 0 or 1 supported)'
        stop

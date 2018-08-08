@@ -24,6 +24,30 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
+       
+       ! Find grad(scalars) for fourth order Laplacian
+       if (Laplace_order == 2) then 
+          do d = 1, size(grid)
+             mass    => q(S_MASS,k)%data(d)%elts
+             temp    => q(S_TEMP,k)%data(d)%elts
+             h_mflux => horiz_flux(S_MASS)%data(d)%elts
+             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+             do j = 1, grid(d)%lev(level_end)%length
+                call step1 (grid(d), grid(d)%lev(level_end)%elts(j), k, 1)
+             end do
+             nullify (mass, temp, h_mflux, h_tflux)
+          end do
+          do d = 1, size(grid)
+             h_mflux => horiz_flux(S_MASS)%data(d)%elts
+             h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+             do j = 1, grid(d)%lev(level_end)%length
+                call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+             end do
+             nullify (h_mflux, h_tflux)
+          end do
+          call update_vector_bdry (Laplacian_scalar, level_end)
+       end if
+
        do d = 1, size(grid)
           mass      => q(S_MASS,k)%data(d)%elts
           temp      => q(S_TEMP,k)%data(d)%elts
@@ -93,6 +117,30 @@ contains
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do l = level_end-1, level_start, -1
           call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
+
+          ! Find grad(scalars) for fourth order Laplacian
+          if (Laplace_order == 2) then 
+             do d = 1, size(grid)
+                mass    => q(S_MASS,k)%data(d)%elts
+                temp    => q(S_TEMP,k)%data(d)%elts
+                h_mflux => horiz_flux(S_MASS)%data(d)%elts
+                h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call step1 (grid(d), grid(d)%lev(l)%elts(j), k, 1)
+                end do
+                nullify (mass, temp, h_mflux, h_tflux)
+             end do
+             do d = 1, size(grid)
+                h_mflux => horiz_flux(S_MASS)%data(d)%elts
+                h_tflux => horiz_flux(S_TEMP)%data(d)%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                end do
+                nullify (h_mflux, h_tflux)
+             end do
+             call update_vector_bdry (Laplacian_scalar, l)
+          end if
+          
           do d = 1, size(grid)
              mass      =>  q(S_MASS,k)%data(d)%elts
              velo      =>  q(S_VELO,k)%data(d)%elts
