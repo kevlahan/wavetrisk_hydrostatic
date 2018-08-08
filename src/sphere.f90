@@ -13,7 +13,7 @@ module geom_mod
   end type Areas
 
   type(Coord), parameter :: ORIGIN = Coord(0.0_8, 0.0_8, 0.0_8)
-  integer,    parameter  :: N_GLO_DOMAIN = N_ICOSAH_LOZANGE*N_SUB_DOM
+  integer,    parameter  :: N_GLO_DOMAIN = N_ICOSAH_LOZENGE*N_SUB_DOM
 contains
   subroutine init_sphere_mod
     ! if needed in future

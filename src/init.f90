@@ -79,7 +79,7 @@ contains
        grid(d)%patch%elts(p+1)%neigh    = (/ ( i_ , i_ = -1, -N_BDRY, -1 ) /)
     end do
 
-    do loz = 1, N_ICOSAH_LOZANGE
+    do loz = 1, N_ICOSAH_LOZENGE
        call set_penta (N_SUB_DOM*(loz - 1),                                 SOUTHWEST)
        call set_penta (N_SUB_DOM*(loz - 1) + N_SUB_DOM_PER_DIM - 1,         SOUTHEAST)
        call set_penta (N_SUB_DOM*(loz - 1) + N_SUB_DOM - N_SUB_DOM_PER_DIM, NORTHWEST)

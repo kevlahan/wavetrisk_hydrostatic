@@ -1597,7 +1597,7 @@ contains
     open (unit=fid, file=filename)
 
     p = 1
-    do d_HR = 1, N_ICOSAH_LOZANGE
+    do d_HR = 1, N_ICOSAH_LOZENGE
        loz = dom_id_from_HR_id(d_HR)
        do d_sub = 1, N_SUB_DOM
           d_glo = loz*N_SUB_DOM + sub_dom_id_from_HR_sub_id(d_sub)
@@ -1633,7 +1633,7 @@ contains
   end subroutine read_HR_optim_grid
 
   integer function dom_id_from_HR_id (d_HR)
-    ! d_HR: lozange id as used by Heikes & Randall (starts from 1)
+    ! d_HR: lozenge id as used by Heikes & Randall (starts from 1)
     ! results: domain id (starts from 0)
     implicit none
     integer :: d_HR
@@ -1642,7 +1642,7 @@ contains
   end function dom_id_from_HR_id
 
   integer function sub_dom_id_from_HR_sub_id (sub_id)
-    ! sub_id: lozange sub id as used by Heikes & Randall (starts from 1)
+    ! sub_id: lozenge sub id as used by Heikes & Randall (starts from 1)
     ! results: sub domain id (starts from 0)
     implicit none
     integer :: sub_id

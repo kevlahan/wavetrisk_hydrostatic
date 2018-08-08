@@ -1,20 +1,31 @@
 !
 ! BASICS OF CODE
-
-
+!
+!
 ! GRID STRUCTURE 
 !
-! The icosahedron is divided into a network of ten regular lozange grids (with the exception of the poles), each lozange is then divided
-! into N_SUB_DOM = 4**DOMAIN_LEVEL regular sub-domains with the number of sub-domains on each processor given by n_domain(rank+1)).
-! Therefore the maximum number of processors than can be used is 10*2**(2*DOMAIN_LEVEL).  The number of domains is set by the coarsest scale Jmin
-! and PATCH_LEVEL: Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1.  The size of patches is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then we use patches of size 4x4) and PATCH_LEVEL>=2.
+! The icosahedron is divided into a network of ten regular lozenge grids (with the exception of the POLES),
+! each lozenge is then divided into N_SUB_DOM = 4**DOMAIN_LEVEL regular sub-domains with the number of sub-domains on each processor given by n_domain(rank+1).
+!
+! There are two special nodes called POLEs. One connects the five lozenge vertices at the top of the network and the other connects the 
+! five lozenge grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and South poles.  
+!
+! The coarsest level Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1 with PATCH_LEVEL>=2. The geometry of this coarsest level may be optimized by reading 
+! in a Heikes & Randall (1995) grid of resolution Jmin-1 or using the Xu (2006) smoothing algorithm.
+! The size of patches is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then the patches are 4x4).
 ! The larger PATCH_LEVEL is the fewer levels of tree structure must be traversed before reaching a uniform grid (which will in general contain inactive nodes).
+! Each computation patch element is made up of one node for scalars and three edges for vectors U, V,W (see also GRID ELEMENTS below).
 !
-! The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10 4**DOMAIN_LEVEL. 
+! PARALLEL EXECUTION
 !
-! There are two special nodes called POLEs. One connects the five lozange vertices at the top of the network and the other connects the 
-! five lozange grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and South poles.
-
+! If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  With option mpi-lb the computational load is re-balanced
+! each time a checkpoint is saved.
+! 
+! The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10*4**DOMAIN_LEVEL.
+! Since DOMAIN_LEVEL = Jmin - (PATCH_LEVEL+1) larger Jmin or smaller PATCH_LEVEL allows more cores to be used.  For inhomogeneous problems
+! (i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin while for homogeneous (i.e. well-balanced) problems it is more efficient to choose
+! a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used.
+!
 ! BASIC GRID DATA TYPES
 !
 ! Type(Coord_Array) has components elts(:)%length (where elts is Type(Coord) array of x%y%z coordinates on the sphere for each grid element and
@@ -173,9 +184,9 @@ module shared_mod
   integer, parameter :: N_CHDRN = 4 
 
   ! domain parameters
-  integer, parameter :: N_ICOSAH_LOZANGE = 10               ! number of lozanges (coarse regular domains) in icosahedron
-  integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL ! number of subdomains per lozange in each direction
-  integer, parameter :: N_SUB_DOM = N_SUB_DOM_PER_DIM**2    ! total number of sub-domains per lozange
+  integer, parameter :: N_ICOSAH_LOZENGE = 10               ! number of lozenges (coarse regular domains) in icosahedron
+  integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL ! number of subdomains per lozenge in each direction
+  integer, parameter :: N_SUB_DOM = N_SUB_DOM_PER_DIM**2    ! total number of sub-domains per lozenge
   integer, parameter :: N_BDRY = 8                          ! number of boundary patches associated to each patch
   integer, dimension(:), allocatable :: n_domain            ! number of subdomains on each processor
 
