@@ -69,7 +69,7 @@ module domain_mod
 
   type(Domain), dimension(:), allocatable, target        :: grid
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_save, trend, wav_coeff, trend_wav_coeff
-  type(Float_Field), dimension(:), allocatable, target   :: exner_fun, horiz_flux, horiz_flux2, Laplacian_scalar
+  type(Float_Field), dimension(:), allocatable, target   :: exner_fun, horiz_flux, Laplacian_scalar
 
   ! Note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
   ! we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature

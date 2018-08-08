@@ -254,7 +254,6 @@ contains
 
        do v = S_MASS, S_TEMP
           horiz_flux(v)%data(d)%length = num(AT_EDGE)
-          horiz_flux2(v)%data(d)%length = num(AT_EDGE)
           Laplacian_scalar(v)%data(d)%length = num(AT_NODE)
        end do
 
@@ -492,7 +491,6 @@ contains
     do d = 1, size(grid)
        do v = S_MASS, S_TEMP
           deallocate (horiz_flux(v)%data(d)%elts)
-          deallocate (horiz_flux2(v)%data(d)%elts)
           deallocate (Laplacian_scalar(v)%data(d)%elts)
        end do
     end do
@@ -570,11 +568,10 @@ contains
 
     do v = S_MASS, S_TEMP
        deallocate (horiz_flux(v)%data)
-       deallocate (horiz_flux2(v)%data)
        deallocate (Laplacian_scalar(v)%data)
     end do
 
-    deallocate (grid, sol, sol_save, trend, exner_fun, horiz_flux, horiz_flux2, Laplacian_scalar)
+    deallocate (grid, sol, sol_save, trend, exner_fun, horiz_flux, Laplacian_scalar)
     deallocate (n_active_edges, n_active_nodes)
     deallocate (send_lengths, send_offsets, recv_lengths, recv_offsets, req, stat_ray)
   end subroutine deallocate_structures
