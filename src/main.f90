@@ -1,17 +1,8 @@
 module main_mod
-  use param_mod
-  use domain_mod
-  use comm_mod
-  use comm_mpi_mod
-  use init_mod
-  use refine_patch_mod
-  use arch_mod
   use time_integr_mod
   use io_mod
   use wavelet_mod
-  use mask_mod
   use adapt_mod
-  use smooth_mod
   use remap_mod
 
   implicit none
@@ -228,7 +219,6 @@ contains
        grid(d)%divu%length        = init_state(d)%n_node
        grid(d)%vort%length        = init_state(d)%n_tria
        grid(d)%qe%length          = init_state(d)%n_edge
-       grid(d)%Laplacian_u%length = init_state(d)%n_edge
 
        do k = 1, zlevels
           exner_fun(k)%data(d)%length = num(AT_NODE)
@@ -252,6 +242,7 @@ contains
           end do
        end do
 
+       Laplacian_u%data(d)%length = num(AT_EDGE)
        do v = S_MASS, S_TEMP
           horiz_flux(v)%data(d)%length = num(AT_EDGE)
           Laplacian_scalar(v)%data(d)%length = num(AT_NODE)
@@ -446,7 +437,6 @@ contains
        deallocate (grid(d)%adj_geopot%elts)
        deallocate (grid(d)%vort%elts)
        deallocate (grid(d)%qe%elts)
-       deallocate (grid(d)%Laplacian_u%elts)
        deallocate (grid(d)%bernoulli%elts)
        deallocate (grid(d)%divu%elts)
        deallocate (grid(d)%coriolis%elts)
@@ -489,6 +479,7 @@ contains
     end do
 
     do d = 1, size(grid)
+       deallocate (Laplacian_u%data(d)%elts)
        do v = S_MASS, S_TEMP
           deallocate (horiz_flux(v)%data(d)%elts)
           deallocate (Laplacian_scalar(v)%data(d)%elts)
@@ -566,6 +557,7 @@ contains
        end do
     end do
 
+    deallocate (Laplacian_u%data)
     do v = S_MASS, S_TEMP
        deallocate (horiz_flux(v)%data)
        deallocate (Laplacian_scalar(v)%data)

@@ -1,10 +1,6 @@
 module mask_mod
-  use param_mod
-  use shared_mod
   use domain_mod
-  use comm_mod
   use comm_mpi_mod
-  use wavelet_mod
 contains
   subroutine set_masks (dom, p, i, j, zlev, offs, dims, mask)
     ! Sets all nodes and edges to value mask unless node is FROZEN

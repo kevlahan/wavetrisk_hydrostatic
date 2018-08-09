@@ -115,7 +115,6 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   !
   ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
   use domain_mod
-  use test_case_mod
   implicit none
 
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
@@ -123,23 +122,10 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   integer                                  :: id, idE, idNE, idN
   logical, optional                        :: type
 
-  integer                                  :: d, v
+  integer                                  :: v
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
   real(8), dimension(:), pointer           :: flx
   logical                                  :: local_type
-
-  interface
-     function grad_physics (scalar, dom, id, idE, idNE, idN, type)
-       use domain_mod
-       use test_case_mod
-       implicit none
-       real(8), dimension(1:EDGE)               :: grad_physics
-       real(8), dimension(:), pointer           :: scalar
-       type(Domain)                             :: dom
-       integer                                  :: id, idE, idNE, idN
-       logical                                  :: type
-     end function grad_physics
-  end interface
 
   if (present(type)) then
      local_type = type
@@ -147,64 +133,58 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      local_type = .false.
   end if
 
-  if (max(viscosity_mass, viscosity_temp)==0.0_8) then
+  if (max(viscosity_mass, viscosity_temp) == 0.0_8) then
      physics_scalar_flux = 0.0_8
   else
      ! Calculate gradients
-     if (Laplace_order==1) then
-        grad(S_MASS,:) = grad_physics (mass, dom, id, idE, idNE, idN, local_type)
-        grad(S_TEMP,:) = grad_physics (temp, dom, id, idE, idNE, idN, local_type)
-     elseif (Laplace_order==2) then
-        d = dom%id+1
+     if (Laplace_order == 1) then
+        grad(S_MASS,:) = grad_physics (mass)
+        grad(S_TEMP,:) = grad_physics (temp)
+     elseif (Laplace_order == 2) then
         do v = S_MASS, S_TEMP
-           flx => Laplacian_scalar(v)%data(d)%elts
-           grad(v,:) = grad_physics (flx, dom, id, idE, idNE, idN, local_type)
-           nullify (flx)
+           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(dom%id+1)%elts)
         end do
      end if
 
      ! Fluxes of physics
      if (.not.local_type) then ! Usual flux at edges E, NE, N
-        physics_scalar_flux(S_MASS,RT+1) = -viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-        physics_scalar_flux(S_MASS,DG+1) = -viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-        physics_scalar_flux(S_MASS,UP+1) = -viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+        physics_scalar_flux(S_MASS,RT+1) = viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+        physics_scalar_flux(S_MASS,DG+1) = viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+        physics_scalar_flux(S_MASS,UP+1) = viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
 
-        physics_scalar_flux(S_TEMP,RT+1) = -viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-        physics_scalar_flux(S_TEMP,DG+1) = -viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-        physics_scalar_flux(S_TEMP,UP+1) = -viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+        physics_scalar_flux(S_TEMP,RT+1) = viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+        physics_scalar_flux(S_TEMP,DG+1) = viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+        physics_scalar_flux(S_TEMP,UP+1) = viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
      else ! Flux at edges W, SW, S
-        physics_scalar_flux(S_MASS,RT+1) = -viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(S_MASS,DG+1) = -viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(S_MASS,UP+1) = -viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
+        physics_scalar_flux(S_MASS,RT+1) = viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
+        physics_scalar_flux(S_MASS,DG+1) = viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
+        physics_scalar_flux(S_MASS,UP+1) = viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
 
-        physics_scalar_flux(S_TEMP,RT+1) = -viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(S_TEMP,DG+1) = -viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(S_TEMP,UP+1) = -viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
+        physics_scalar_flux(S_TEMP,RT+1) = viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
+        physics_scalar_flux(S_TEMP,DG+1) = viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
+        physics_scalar_flux(S_TEMP,UP+1) = viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
      end if
+
+     ! Find correct sign for diffusion on left hand side of the equation
+     physics_scalar_flux = (-1)**Laplace_order * physics_scalar_flux
   end if
+contains
+  function grad_physics (scalar)
+    implicit none
+    real(8), dimension(1:EDGE) :: grad_physics
+    real(8), dimension(:)      :: scalar
+
+    if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
+       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
+       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
+       grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
+    else ! Gradient for southwest edges of hexagon W, SW, S
+       grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
+       grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
+       grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+    end if
+  end function grad_physics
 end function physics_scalar_flux
-
-function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
-  use domain_mod
-  use test_case_mod
-  implicit none
-
-  real(8), dimension(1:EDGE)               :: grad_physics
-  real(8), dimension(:), pointer           :: scalar
-  type(Domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
-  logical                                  :: local_type
-
-  if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-     grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-     grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-     grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-  else ! Gradient for southwest edges of hexagon W, SW, S
-     grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-     grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-     grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
-  end if
-end function grad_physics
 
 function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the scalar trend

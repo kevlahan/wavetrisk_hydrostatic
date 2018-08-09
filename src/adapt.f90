@@ -1,5 +1,4 @@
 module adapt_mod
-  use comm_mpi_mod
   use refine_patch_mod
   use multi_level_mod
   implicit none
@@ -8,7 +7,6 @@ module adapt_mod
   real(8), parameter :: FILLUP_THRESHOLD = 0.9
   integer, parameter :: DOF_PER_PATCH = PATCH_SIZE*PATCH_SIZE*(EDGE+1)
   integer, parameter :: FILLED_AND_FROZEN = DOF_PER_PATCH + 1
-
 contains
   subroutine init_adapt_mod
     implicit none
@@ -17,8 +15,8 @@ contains
     if (initialized) return ! initialize only once
     call init_comm_mod
     call init_refine_patch_mod
-    max_level_exceeded = .False.
-    initialized = .True.
+    max_level_exceeded = .false.
+    initialized = .true.
   end subroutine init_adapt_mod
 
   subroutine adapt_grid (set_thresholds, type)

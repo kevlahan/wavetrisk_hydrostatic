@@ -41,6 +41,7 @@ contains
        end do
     end do
 
+    call init_Float_Field (Laplacian_u, AT_EDGE)
     do v = S_MASS, S_TEMP
        call init_Float_Field (horiz_flux(v), AT_EDGE)
        call init_Float_Field (Laplacian_scalar(v), AT_NODE)
@@ -328,6 +329,7 @@ contains
     end do
 
     do d = 1, size(grid)
+       call init (Laplacian_u%data(d), grid(d)%node%length*EDGE)
        do v = S_MASS, S_TEMP
           call init (horiz_flux(v)%data(d), grid(d)%node%length*EDGE)
           call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
@@ -347,7 +349,6 @@ contains
        call init (grid(d)%divu,         grid(d)%node%length)
        call init (grid(d)%vort,         grid(d)%node%length*TRIAG)
        call init (grid(d)%qe,           grid(d)%node%length*EDGE)
-       call init (grid(d)%Laplacian_u,  grid(d)%node%length*EDGE)
     end do
   end subroutine precompute_geometry
 

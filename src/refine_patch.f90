@@ -1,5 +1,4 @@
 module refine_patch_mod
-  use shared_mod
   use domain_mod
   use init_mod
   use wavelet_mod
@@ -162,7 +161,6 @@ contains
     call extend (dom%divu,        num, 0.0_8)
     
     call extend (dom%qe,          EDGE*num, 0.0_8)
-    call extend (dom%Laplacian_u, EDGE*num, 0.0_8)
     call extend (dom%vort,       TRIAG*num, 0.0_8)
     
     do k = 1, zlevels
@@ -178,6 +176,7 @@ contains
     end do
     call extend (exner_fun(zlevels+1)%data(d), num, 0.0_8)
     
+    call extend (Laplacian_u%data(d), num*EDGE, 0.0_8)
     do v = S_MASS, S_TEMP
        call extend (horiz_flux(v)%data(d),       num*EDGE, 0.0_8)
        call extend (Laplacian_scalar(v)%data(d), num,      0.0_8)

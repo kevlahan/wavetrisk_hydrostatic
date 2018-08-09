@@ -1,5 +1,4 @@
 module wavelet_mod
-  use shared_mod
   use domain_mod
   use comm_mpi_mod
   implicit none

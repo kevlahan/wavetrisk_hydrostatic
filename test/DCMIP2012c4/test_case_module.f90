@@ -344,39 +344,44 @@ contains
   subroutine initialize_dt_viscosity
     ! Initializes time step and viscosity
     implicit none
-
     integer :: k
     real(8) :: C_visc, P_k, P_top
+
+    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
 
     ! Time step based on wave speed, initial velocity at finest scale
     dx_min = sqrt (4*MATH_PI*radius**2/(10*4**max_level+2))
     dt_cfl = cfl_num*dx_min/(wave_speed+u_0+u_p)
 
     ! Viscosity constant (largest wavenumber modes decay by factor decay in one time step)
-    C_visc = -log (decay)/MATH_PI**2 * dx_min**2/dt_cfl
-    
-    ! Set viscosity (0 = no diffusion, 1 = Laplacian, 2 = second-order Laplacian)
-    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
-    
-    if (Laplace_order == 1) then ! Usual Laplacian diffusion
-       ! Minimal grid scale mass and temperature diffusion
+    if (Laplace_order /= 0) then
+       C_visc = -log (decay) * (dx_min/MATH_PI)**(2*Laplace_order)/dt_cfl
        viscosity_mass = C_visc; viscosity_temp = viscosity_mass
-       
+    end if
+
+    if (Laplace_order == 1) then
        ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
+       ! (no vorticity diffusion)
        P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
        do k = 1, zlevels
           P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
           viscosity_divu(k) = C_visc * max (1.0_8, 8.0_8*(1.0_8 + tanh (log (P_top/P_k))))
           if (rank==0) write (6,'(i2,1x,es10.4)') k, viscosity_divu(k)
        end do
-    elseif (Laplace_order /= 0) then
-       write (6,'(A)') 'Unsupported iterated Laplacian (only 0 or 1 supported)'
+    elseif (Laplace_order == 2) then
+       viscosity_divu = C_visc ; viscosity_rotu = C_visc
+    elseif (Laplace_order > 2) then
+       if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
     viscosity = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
-    dt_visc = 0.25_8*dx_min**2/viscosity
 
-    dt_init = min (dt_cfl, dt_visc)
+    if (Laplace_order == 1) then
+       dt_visc = 0.25_8*dx_min**2/viscosity
+       dt_init = min (dt_cfl, dt_visc)
+    else
+       dt_init = dt_cfl
+    end if
 
     if (rank == 0) then
        write (6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl

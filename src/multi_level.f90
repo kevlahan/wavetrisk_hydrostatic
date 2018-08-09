@@ -1,9 +1,6 @@
 module multi_level_mod
-  use comm_mod
   use ops_mod
-  use wavelet_mod
   use refine_patch_mod
-  use comm_mpi_mod
   implicit none
 contains
   subroutine trend_ml (q, dq)
@@ -24,6 +21,20 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
+       ! Find grad(scalars) for second order Laplacian
+       if (Laplace_order == 2) then 
+          do d = 1, size(grid)
+             mass => q(S_MASS,k)%data(d)%elts
+             temp => q(S_TEMP,k)%data(d)%elts
+              do j = 1, grid(d)%lev(level_end)%length
+                call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
+             end do
+             nullify (mass, temp)
+          end do
+         call update_vector_bdry (Laplacian_scalar, level_end)
+       end if
+       
+       ! Calculate basic dynamical quantities and fluxes
        do d = 1, size(grid)
           mass      => q(S_MASS,k)%data(d)%elts
           temp      => q(S_TEMP,k)%data(d)%elts
@@ -40,11 +51,36 @@ contains
           end do
           ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case)
           do j = 1, grid(d)%lev(level_end)%length
-             call step1 (grid(d), grid(d)%lev(level_end)%elts(j), k, 0)
+             call step1 (grid(d), grid(d)%lev(level_end)%elts(j), z_null)
           end do
-          call apply_to_penta_d (post_step1, grid(d), level_end, k)
-          nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, divu, exner, vort, qe)
+          call apply_to_penta_d (post_step1, grid(d), level_end, z_null)
+          nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, vort, qe)
        end do
+
+       ! Calculate div(Laplacian(u)) and rot(Laplacian(u)) for second order Laplacian
+       if (Laplace_order == 2) then 
+          do d = 1, size(grid)
+             velo => q(S_VELO,k)%data(d)%elts
+             divu => grid(d)%divu%elts
+             vort => grid(d)%vort%elts
+             do j = 1, grid(d)%lev(level_end)%length
+                call apply_onescale_to_patch (cal_Laplacian_u, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
+             end do
+             nullify (velo, divu, vort)
+          end do
+          call update_bdry (Laplacian_u, level_end)
+          do d = 1, size(grid) 
+             velo => Laplacian_u%data(d)%elts
+             divu => grid(d)%divu%elts
+             vort => grid(d)%vort%elts
+             do j = 1, grid(d)%lev(level_end)%length
+                call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
+                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
+             end do
+             call apply_to_penta_d (post_vort, grid(d), level_end, z_null)
+             nullify (velo, divu, vort)
+          end do
+       end if
 
        if (level_start < level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
 
@@ -87,6 +123,21 @@ contains
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do l = level_end-1, level_start, -1
           call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
+
+          ! Find grad(scalars) for second order Laplacian
+          if (Laplace_order == 2) then 
+             do d = 1, size(grid)
+                mass => q(S_MASS,k)%data(d)%elts
+                temp => q(S_TEMP,k)%data(d)%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                end do
+                nullify (mass, temp)
+             end do
+             call update_vector_bdry (Laplacian_scalar, l)
+          end if
+          
+          ! Calculate basic dynamical quantities and fluxes determine whether to compute or restrict
           do d = 1, size(grid)
              mass      =>  q(S_MASS,k)%data(d)%elts
              velo      =>  q(S_VELO,k)%data(d)%elts
@@ -104,15 +155,39 @@ contains
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
              do j = 1, grid(d)%lev(l)%length
-                call step1 (grid(d), grid(d)%lev(l)%elts(j), k, 0)
+                call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null)
              end do
-             call apply_to_penta_d (post_step1, grid(d), l, k)
+             call apply_to_penta_d (post_step1, grid(d), l, z_null)
              call cpt_or_restr_Bernoulli_Exner (grid(d), l)
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) & use dmass (l+1)
              nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, divu, exner, vort, qe)
           end do
-
           call update_vector_bdry (horiz_flux, l)
+
+          ! Calculate div(Laplacian(u)) and rot(Laplacian(u)) for second order Laplacian
+          if (Laplace_order == 2) then 
+             do d = 1, size(grid) 
+                velo => q(S_VELO,k)%data(d)%elts
+                divu => grid(d)%divu%elts
+                vort => grid(d)%vort%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (cal_Laplacian_u, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+                end do
+                nullify (velo, divu, vort)
+             end do
+             call update_bdry (Laplacian_u, l)
+             do d = 1, size(grid)
+                velo => Laplacian_u%data(d)%elts
+                divu => grid(d)%divu%elts
+                vort => grid(d)%vort%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+                   call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+                end do
+                call apply_to_penta_d (post_vort, grid(d), l, z_null)
+                nullify (velo, divu, vort)
+             end do
+          end if
 
           ! Compute scalar trends at level l
           do d = 1, size(grid)

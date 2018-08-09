@@ -1,9 +1,6 @@
 module io_mod
-  use geom_mod
   use domain_mod
-  use arch_mod
   use ops_mod
-  use wavelet_mod
   use smooth_mod
   use comm_mpi_mod
   use adapt_mod

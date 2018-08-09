@@ -1,6 +1,4 @@
 module remap_mod
-  use adapt_mod
-  use ops_mod
   use time_integr_mod
   use wavelet_mod
   implicit none

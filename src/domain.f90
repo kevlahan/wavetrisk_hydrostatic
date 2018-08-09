@@ -58,7 +58,6 @@ module domain_mod
      type(Float_Array) :: bernoulli   ! Bernoulli function
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          !
-     type(Float_Array) :: Laplacian_u ! Laplacian of velocity
   end type Domain
 
   type Float_Field
@@ -68,8 +67,10 @@ module domain_mod
   end type Float_Field
 
   type(Domain), dimension(:), allocatable, target        :: grid
+
+  type(Float_Field),                              target :: Laplacian_u
+  type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, Laplacian_scalar
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_save, trend, wav_coeff, trend_wav_coeff
-  type(Float_Field), dimension(:), allocatable, target   :: exner_fun, horiz_flux, Laplacian_scalar
 
   ! Note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
   ! we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
@@ -81,7 +82,7 @@ module domain_mod
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo
-  real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort, Laplacian_u
+  real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
 contains
   subroutine init_Float_Field (self, pos)

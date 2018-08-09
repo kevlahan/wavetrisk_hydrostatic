@@ -1,13 +1,7 @@
 module time_integr_mod
-  use dyn_arrays
-  use comm_mod
-  use ops_mod
-  use multi_level_mod
   use wavelet_mod
   use adapt_mod
-  use arch_mod
   implicit none
-
   type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
 contains
   subroutine RK34_opt (trend_fun, dt)
