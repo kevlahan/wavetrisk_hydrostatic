@@ -1,4 +1,4 @@
-program DCMIP2012c4
+program DCMIP2008c5
   ! DCMIP2008c5 test case 5: Mountain-induced Rossby wave
   use main_mod
   use test_case_mod
@@ -104,7 +104,7 @@ program DCMIP2012c4
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
   end if
   call finalize
-end program DCMIP2012c4
+end program DCMIP2008c5
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)

@@ -1,4 +1,4 @@
-program DCMIP2012c4
+program Held_Suarez
   ! Held & Suarez (1994) test case
   ! Bulletin of the American Meteotrological Society 75 (10), 1825-1830
   use main_mod
@@ -107,7 +107,7 @@ program DCMIP2012c4
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
   end if
   call finalize
-end program DCMIP2012c4
+end program Held_Suarez
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
