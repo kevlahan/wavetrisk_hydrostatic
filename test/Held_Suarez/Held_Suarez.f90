@@ -1,6 +1,6 @@
 program Held_Suarez
   ! Held & Suarez (1994) test case
-  ! Bulletin of the American Meteotrological Society 75 (10), 1825-1830
+  ! Bulletin of the American Meteorological Society 75 (10), 1825-1830
   use main_mod
   use test_case_mod
   use io_mod  

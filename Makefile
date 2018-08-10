@@ -9,7 +9,10 @@ BUILD_DIR  = build
 
 PREFIX = .
 
+# Remove files associated with previous test case
 $(shell \rm $(BUILD_DIR)/test_case_module.o $(BUILD_DIR)/test_case_mod.mod)
+
+# Link to test case module file	
 $(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src/.)
 
 vpath %.f90 src

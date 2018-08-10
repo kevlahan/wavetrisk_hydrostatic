@@ -6,6 +6,8 @@ make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
 
 Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean build.
 
+!! Always do "make clean" when compiling a new test case !!
+
 Note that code requires LAPACK library. Each test case is defined by three files in subdirectories of test directory.
 
 TO RUN (using test case DCMIP2012c4 as an example):

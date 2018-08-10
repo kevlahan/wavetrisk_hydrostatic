@@ -2,7 +2,6 @@ module wavelet_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-
   real(8), dimension(9) :: Iu_Base_Wgt
 contains
   subroutine forward_wavelet_transform (scaling, wavelet)
