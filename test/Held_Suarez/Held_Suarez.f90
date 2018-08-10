@@ -227,10 +227,9 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   id = idx(i, j, offs, dims)
 
-  if (max(maxval(viscosity_divu), viscosity_rotu)==0.0_8) then
+  if (max (maxval (viscosity_divu), viscosity_rotu) == 0.0_8) then
      diffusion = 0.0_8
-  else
-     ! Calculate Laplacian of velocity
+  else ! Calculate Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
      do e = 1, EDGE 
@@ -242,7 +241,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   
   ! Total physics for source term of velocity trend
   do e = 1, EDGE
-     physics_velo_source(e) =  diffusion(e) - k_f * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
+     physics_velo_source(e) =  diffusion(e) - k_f * max (0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * velo(EDGE*id+e)
   end do
 end function physics_velo_source
 
@@ -250,7 +249,6 @@ end function physics_velo_source
   ! Euler time step to diffuse solution
   use domain_mod
   use ops_mod
-  use test_case_mod
   implicit none
   integer :: d, j, k, p
 
@@ -280,7 +278,7 @@ end function physics_velo_source
         end do
         nullify (mass, temp)
      end do
-     sol(:,k)%bdry_uptodate = .False.
+     sol(:,k)%bdry_uptodate = .false.
   end do
 end subroutine time_step_cooling
 
@@ -295,18 +293,18 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY + 1)   :: offs
   integer, dimension(2,N_BDRY + 1) :: dims
 
-  integer :: e, id
+  integer :: e, id_i
   real(8) :: eta, lat, lon, press, theta_equil
 
-  id = idx(i, j, offs, dims)
+  id_i = idx(i, j, offs, dims) + 1
  
-  call cart2sph (dom%node%elts(id+1), lon, lat) ! Latitude and longitude
+  call cart2sph (dom%node%elts(id_i), lon, lat) ! Latitude and longitude
   
-  press = dom%press%elts(id+1)          ! Pressure
-  eta = press/dom%surf_press%elts(id+1) ! Normalized pressure
+  press = dom%press%elts(id_i)          ! Pressure
+  eta = press/dom%surf_press%elts(id_i) ! Normalized pressure
 
   call cal_theta_eq (eta, lat, press, theta_equil)
   
   ! Exact time integration
-  temp(id+1) = theta_equil*mass(id+1) + (temp(id+1)-theta_equil*mass(id+1))*exp(-dt*k_T)
+  temp(id_i) = theta_equil*mass(id_i) + (temp(id_i)-theta_equil*mass(id_i)) * exp (-dt*k_T)
 end subroutine euler_step_cooling
