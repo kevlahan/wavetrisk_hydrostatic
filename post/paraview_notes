@@ -1,0 +1,25 @@
+PARAVIEW NOTES
+
+Click on window and then on "eye" to left of data set to activate or de-activate data display in the window.
+
+DISPLAY TIME
+
+Filters -> Annotation ->Annotate Time Filter.  Need to click on "Apply" to be able to format font and location.
+
+DISPLAY TEXT
+
+Sources -> Text.  Need to click on "Apply" to be able to format font and location.
+
+EDIT COLOR BAR
+
+View -> Color Map Editor. Click on rainbow with black e (upper right) to edit color bar legend. Click on "Gear" to get all properties. Usually want to unclick "Add Range Labels".
+
+SAVE ANIMATION
+
+File -> Save Animation. Click on "Save All Views" and then save as .jpg (don't click "transparent view").
+
+Then convert .jpg to .avi usable in Beamer:
+
+ffmpeg -r fps -i base%4d.jpg -vcodec mpeg4 -qscale 0 base.avi
+
+where: fps is the number of frames per second, "base" is the base name of the .jpg files and %4d is the frame numbering (e.g. 0001, 0002 etc).
