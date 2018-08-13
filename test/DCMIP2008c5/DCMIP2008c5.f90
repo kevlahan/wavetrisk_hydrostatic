@@ -32,7 +32,7 @@ program DCMIP2008c5
   d2             = 1.5d6**2                     ! square of half width of Gaussian mountain profile in meters
   h_0            = 2.0d3                        ! mountain height in meters
   lon_c          = MATH_PI/2.0_8                ! longitude location of mountain
-  lat_c          = 2.0_8*MATH_PI/6.0_8          ! latitude location of mountain
+  lat_c          = MATH_PI/6.0_8                ! latitude location of mountain
   T_0            = 288.0_8                      ! temperature in Kelvin
   u_0            = 20.0_8                       ! velocity in meters per second
   N_freq         = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
