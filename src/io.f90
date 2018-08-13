@@ -104,10 +104,6 @@ contains
           totalmass = totalmass + integrate_hex (mu, level_start, k)
        end do
        mass_error = abs (totalmass-initotalmass)/initotalmass
-       if (isnan(mass_error)) then
-          if (rank == 0) write (6,'(A)') "Mass is NaN"
-          stop
-       end if
     end if
   end subroutine sum_total_mass
 

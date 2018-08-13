@@ -975,6 +975,10 @@ contains
        ! Find relative mass for this node
        col_mass = 0.0_8
        do k = 1, zlevels
+          if (sol(S_MASS,k)%data(d)%elts(id+1) < 0.0_8) then
+             write (6,'(A)') "ERROR: mass is negative"
+             stop
+          end if
           col_mass = col_mass + sol(S_MASS,k)%data(d)%elts(id+1)
        end do
        do k = 1, zlevels
