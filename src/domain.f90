@@ -38,7 +38,7 @@ module domain_mod
      type(Patch_Array)                          :: patch
      type(Bdry_Patch_Array)                     :: bdry_patch
 
-      ! Communication
+     ! Communication
      type(Int_Array)                                          :: send_pa_all
      type(Int_Array), dimension(N_GLO_DOMAIN)                 :: recv_pa, send_conn
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk

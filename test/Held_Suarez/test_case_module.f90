@@ -17,7 +17,7 @@ contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
     type (Domain)                   :: dom
-    integer                         :: i, j, k, zlev
+    integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
