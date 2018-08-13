@@ -339,6 +339,7 @@ contains
        ! Geopotential
        press_save => pressure_save(k)
        call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
+       nullify (press_save)
        call project_geopot_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
        field2d_save(:,:,5+k-1) = field2d
 

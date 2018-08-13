@@ -77,7 +77,7 @@ program DCMIP2008c5
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
-  open(unit=12, file=trim(test_case)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  open (unit=12, file=trim (test_case)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   if (resume <= 0) iwrite = 0
   total_cpu_time = 0.0_8
   do while (time < time_end)

@@ -1,11 +1,11 @@
 % Plot 2d data from export_2d or log data
-test_case = 'DCMIP2012c4';
-%test_case = 'DCMIP2008c5';
+%test_case = 'DCMIP2012c4';
+test_case = 'DCMIP2008c5';
 %test_case = 'Held_Suarez';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'vort';  % field to plot
-t1        = 54;      % Start time
+itype     = 'surf_press';  % field to plot
+t1        = 15;      % Start time
 t2        = t1;      % End time
 lon_lat   = true;    % Plot longitude - latitude data
 zonal_avg = false;   % Plot zonally averaged data
@@ -17,12 +17,13 @@ lines     = true;   % remove lines
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; j=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
 ilog = compression;
 Jmin = 5;
-Jmax = 10;
+Jmax = 7;
 
 machine = 'if';
 if (strcmp(machine,'if'))
-    %pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/'];
-    pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/J5J10_eps_def_4_nodiff/'];
+    pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/'];
+    %pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/J5J10_eps_def_4_nodiff/'];
+    %pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/J5J7_eps_def_2_Lap2/'];
 elseif (strcmp(machine,'mac'))
     pathid = ['/Users/kevlahan/hydro/' test_case '/'];
 end
@@ -43,12 +44,13 @@ end
 
 log_data = load([pathid test_case '_log']);
 figure; 
+day = 24;
 if ilog == cpudof
-    plot(log_data(beg:end,1),log_data(beg:end,cpu)./log_data(beg:end,dof),'-');
+    plot(log_data(beg:end,1)/day,log_data(beg:end,cpu)./log_data(beg:end,dof),'-');
 elseif ilog == compression
-    plot(log_data(beg:end,1),Nunif./log_data(beg:end,dof),'-');
+    plot(log_data(beg:end,1)/day,Nunif./log_data(beg:end,dof),'-');
 else
-    plot(log_data(beg:end,1),log_data(beg:end,ilog),'-');
+    plot(log_data(beg:end,1)/day,log_data(beg:end,ilog),'-');
 end
 
 if ilog == dt
@@ -76,8 +78,9 @@ elseif ilog == cpudof
 elseif ilog == compression
     ylab = 'Compression ratio';
 end
-     xlabel('t');ylabel(ylab);
-grid on;
+xlabel('t (days)');ylabel(ylab);
+grid on; 
+%axis([8.3 9 0 3e-4]);
 %% 2d data plots
 file_base = [test_case '.3'];
 
