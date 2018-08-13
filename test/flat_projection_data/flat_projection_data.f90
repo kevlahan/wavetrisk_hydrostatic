@@ -22,10 +22,32 @@ program flat_projection_data
      ref_surf_press = ref_press                   ! reference surface pressure
      R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
+
      u_0            = 35.0_8                      ! maximum velocity of zonal wind
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
      compressible   = .true.                      ! Compressible equations
      uniform        = .false.                     ! Type of vertical grid
+  elseif (trim(test_case) == "DCMIP2008c5") then
+     grav_accel     = 9.80616_8                    ! gravitational acceleration in meters per second squared
+     omega          = 7.29211d-5                   ! Earth’s angular velocity in radians per second
+     ref_press      = 100145.6_8                   ! reference pressure (mean surface pressure) in Pascals
+     ref_surf_press = 930.0d2                      ! reference surface pressure
+     R_d            = 287.04_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
+     kappa          = 2.0_8/7.0_8                  ! kappa=R_d/c_p
+
+     d2             = 1.5d6**2                     ! square of half width of Gaussian mountain profile in meters
+     h_0            = 2.0d3                        ! mountain height in meters
+     lon_c          = MATH_PI/2.0_8                ! longitude location of mountain
+     lat_c          = 2.0_8*MATH_PI/6.0_8          ! latitude location of mountain
+  elseif (trim(test_case) == "Held_Suarez") then
+     radius         = 6.371229d6                  ! mean radius of the Earth in meters
+     grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
+     omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
+     ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
+     ref_surf_press = ref_press                   ! reference surface pressure
+     R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
+     gamma          = c_p/c_v                     ! heat capacity ratio
+     kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
   else
      write(6,'(A)') "Test case not supported"
      stop

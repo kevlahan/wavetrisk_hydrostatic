@@ -6,22 +6,33 @@ module test_case_mod
   implicit none
   integer :: check_end, check_start, iwrite, N, save_zlev
   real(8) :: initotalmass, mass_error, totalmass
-  real(8) :: eta_0, u_0 ! DCMIP2012c4
+  ! DCMIP2012c4
+  real(8) :: eta_0, u_0 
+  ! DCMIP2008c5
+  real(8) :: d2, h_0, lat_c, lon_c
 contains
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
-    real(8)     :: c1, lon, lat
+    real(8)     :: c1, d2, lon, lat, rgrc
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
     if (trim(test_case) == "DCMIP2012c4") then
-       c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5
-       surf_geopot =  c1 * (c1 * (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
+       c1     = u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5
+       omega  = 7.29211d-5
+       radius = 6.371229d6
+       
+       surf_geopot = c1 * (c1 * (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
             radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
-
+    elseif (trim(test_case) == "DCMIP2008c5") then
+       rgrc = radius*acos (sin (lat_c)*sin (lat)+cos (lat_c)*cos (lat)*cos (lon-lon_c))
+       
+       surf_geopot = grav_accel*h_0*exp__flush (-rgrc**2/d2)
+    elseif (trim(test_case) == "Held_Suarez") then
+       surf_geopot = 0.0_8
     else
        write(6,'(A)') "Test case not supported"
        stop

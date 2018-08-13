@@ -54,17 +54,14 @@ contains
        vort = dom%vort%elts(id*TRIAG+UPLT+1)
        vmin = min(vmin, vort)
        vmax = max(vmax, vort)
-
     end if
 
     if ( dom%mask_e%elts(id*EDGE+DG+1)  >= ADJZONE .or. &
          dom%mask_e%elts(idE*EDGE+UP+1) >= ADJZONE .or. &
          dom%mask_e%elts(id*EDGE+RT+1)  >= ADJZONE) then
-
        vort = dom%vort%elts(id*TRIAG+LORT+1)
-       vmin = min(vmin, vort)
-       vmax = max(vmax, vort)
-
+       vmin = min (vmin, vort)
+       vmax = max (vmax, vort)
     end if
   end subroutine vort_extrema
 
@@ -80,12 +77,12 @@ contains
     vmax = -1d-16
 
     do l = level_start, level_end
-       call apply_onescale(vort_extrema, l, z_null, 0, 0)
+       call apply_onescale (vort_extrema, l, z_null, 0, 0)
     end do
 
     tot_mass = integrate_hex (mu, level_start, k)
 
-    if (rank == 0) write(fid,'(E16.9, I3, 2(1X, I9), 7(1X, E16.8), 1X, F16.7)') &
+    if (rank == 0) write (fid,'(E16.9, I3, 2(1X, I9), 7(1X, E16.8), 1X, F16.7)') &
          time, level_end, n_active, tot_mass, get_timing()
   end subroutine write_step
 
@@ -107,6 +104,10 @@ contains
           totalmass = totalmass + integrate_hex (mu, level_start, k)
        end do
        mass_error = abs (totalmass-initotalmass)/initotalmass
+       if (isnan(mass_error)) then
+          if (rank == 0) write (6,'(A)') "Mass is NaN"
+          stop
+       end if
     end if
   end subroutine sum_total_mass
 
@@ -154,7 +155,7 @@ contains
           do while (grid(d)%patch%elts(p+1)%level < l)
              p = grid(d)%patch%elts(p+1)%children(c-4)
              if (p == 0) then
-                write(6,*) "ERROR(rank=", rank, "):integrate_hex: level incomplete"
+                write (6,'(A, i4, A)') "ERROR(rank = ", rank, "): integrate_hex: level incomplete"
                 return
              end if
           end do
@@ -181,7 +182,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8)                        :: s, fun
 
-    s = 0.0
+    s = 0.0_8
     do d = 1, size(grid)
        do ll = 1, grid(d)%lev(level_start)%length
           p = grid(d)%lev(level_start)%elts(ll)
@@ -190,8 +191,7 @@ contains
              do i = 1, PATCH_SIZE
                 id = idx(i-1, j-1, offs, dims)
                 do t = LORT, UPLT
-                   s = s + fun(grid(d), i-1, j-1, k, t, offs, dims) &
-                        *grid(d)%triarea%elts(id*TRIAG+t+1)
+                   s = s + fun(grid(d), i-1, j-1, k, t, offs, dims) * grid(d)%triarea%elts(id*TRIAG+t+1)
                 end do
              end do
           end do
@@ -285,7 +285,7 @@ contains
     character(7)                         :: var_file
     character(130)                       :: command
 
-    N_zonal = real(Nx(2)-Nx(1)+1)
+    N_zonal = real (Nx(2)-Nx(1)+1)
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
@@ -838,19 +838,19 @@ contains
     real(8), dimension(3) :: bac
     logical               :: inside
 
-    minx = min(min(a(1), b(1)), c(1))
-    maxx = max(max(a(1), b(1)), c(1))
-    miny = min(min(a(2), b(2)), c(2))
-    maxy = max(max(a(2), b(2)), c(2))
+    minx = min (min (a(1), b(1)), c(1))
+    maxx = max (max (a(1), b(1)), c(1))
+    miny = min (min (a(2), b(2)), c(2))
+    maxy = max (max (a(2), b(2)), c(2))
     if (maxx-minx > MATH_PI/2.0_8) then
-       write(0,*) 'ERROR(rank', rank, '):io-333 "export"'
+       write (0,'(A,i4,A)') 'ERROR (rank = ', rank, '): io-333 "export"'
        return
     end if
 
-    do id_x = floor(kx_export*minx), ceiling(kx_export*maxx)
-       if (id_x < lbound(field2d,1) .or. id_x > ubound(field2d,1)) cycle
-       do id_y = floor(ky_export*miny), ceiling(ky_export*maxy)
-          if (id_y < lbound(field2d,2) .or. id_y > ubound(field2d,2)) cycle
+    do id_x = floor (kx_export*minx), ceiling (kx_export*maxx)
+       if (id_x < lbound (field2d,1) .or. id_x > ubound (field2d,1)) cycle
+       do id_y = floor (ky_export*miny), ceiling (ky_export*maxy)
+          if (id_y < lbound (field2d,2) .or. id_y > ubound (field2d,2)) cycle
           ll = (/dx_export*id_x, dy_export*id_y/)
           call interp_tria (ll, a, b, c, val, ival, inside)
           if (inside) field2d(id_x,id_y) = ival
@@ -869,10 +869,8 @@ contains
     real(8), dimension(3) :: bc
 
     bc = bary_coord(ll, coord1, coord2, coord3)
-    inside = (0.0 < bc(1) .and. bc(1) < 1.0_8 .and. &
-         0.0 < bc(2) .and. bc(2) < 1.0_8 .and. &
-         0.0 < bc(3) .and. bc(3) < 1.0_8)
-    if (inside) ival = sum(values*bc)
+    inside = (0.0_8 < bc(1) .and. bc(1) < 1.0_8 .and. 0.0_8 < bc(2) .and. bc(2) < 1.0_8 .and. 0.0_8 < bc(3) .and. bc(3) < 1.0_8)
+    if (inside) ival = sum (values*bc)
   end subroutine interp_tria
 
   function bary_coord (ll, a, b, c)
@@ -1690,13 +1688,13 @@ contains
           ! if domain on other process still read to get to correct position in file
           if (owner(d_glo+1) == rank) then
              read(fid,*) node
-             call zrotate(node, node_r, -0.5_8)  ! icosahedron orientation good for tsunami
+             call zrotate (node, node_r, -0.5_8)  ! icosahedron orientation good for tsunami
              grid(d_loc+1)%node%elts(idx(ij(1), ij(2), offs, dims)+1) = project_on_sphere(node_r)
           else
              read(fid,*)
           end if
        else
-          call coord_from_file(d_glo, l-1, fid, offs, dims, ij)
+          call coord_from_file (d_glo, l-1, fid, offs, dims, ij)
        end if
     end do
   end subroutine coord_from_file
@@ -1710,7 +1708,7 @@ contains
 
     do d = 1, size(grid)
        num = grid(d)%node%length
-       call init(active_level%data(d), num)
+       call init (active_level%data(d), num)
        active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
     end do
 
