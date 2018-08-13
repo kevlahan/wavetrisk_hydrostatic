@@ -13,7 +13,6 @@ program flat_projection_data
   ! Read test case parameters
   call read_test_case_parameters ("flat_projection_data.in")
 
-  ! DCMIP 2012c4
   if (trim(test_case) == 'DCMIP2012c4') then
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared

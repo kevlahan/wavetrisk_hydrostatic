@@ -15,20 +15,18 @@ contains
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
-    real(8)     :: c1, d2, lon, lat, rgrc
+    real(8)     :: c1, lon, lat, rgrc
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
     if (trim(test_case) == "DCMIP2012c4") then
        c1     = u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5
-       omega  = 7.29211d-5
-       radius = 6.371229d6
-       
+
        surf_geopot = c1 * (c1 * (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
             radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
     elseif (trim(test_case) == "DCMIP2008c5") then
-       rgrc = radius*acos (sin (lat_c)*sin (lat)+cos (lat_c)*cos (lat)*cos (lon-lon_c))
+       rgrc = radius*acos (sin (lat_c)*sin (lat) + cos (lat_c)*cos (lat)*cos (lon-lon_c))
        
        surf_geopot = grav_accel*h_0*exp__flush (-rgrc**2/d2)
     elseif (trim(test_case) == "Held_Suarez") then
