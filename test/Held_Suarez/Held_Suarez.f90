@@ -85,7 +85,7 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call time_step_cooling
+     !call time_step_cooling
      call stop_timing
      
      call sum_total_mass (.false.)
@@ -202,8 +202,21 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
+  integer :: id_i
+  real(8) :: eta, k_T, lat, lon, press, theta_equil
+
+  id_i = idx(i, j, offs, dims) + 1
+
   physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = 0.0_8
+  
+  ! Equilibrium potential temperature
+  call cart2sph (dom%node%elts(id_i), lon, lat)
+  press = dom%press%elts(id_i)          
+  eta = press/dom%surf_press%elts(id_i)
+  call cal_theta_eq (press, eta, lat, theta_equil, k_T)
+  
+  ! Newton cooling to equilibrium temperature
+  physics_scalar_source(S_TEMP) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -293,8 +306,8 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY + 1)   :: offs
   integer, dimension(2,N_BDRY + 1) :: dims
 
-  integer :: e, id_i
-  real(8) :: eta, lat, lon, press, theta_equil
+  integer :: id_i
+  real(8) :: eta, k_T, lat, lon, press, theta_equil
 
   id_i = idx(i, j, offs, dims) + 1
  
@@ -303,7 +316,8 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   press = dom%press%elts(id_i)          ! Pressure
   eta = press/dom%surf_press%elts(id_i) ! Normalized pressure
 
-  call cal_theta_eq (eta, lat, press, theta_equil)
+  ! Equilibrium potential temperature
+  call cal_theta_eq (press, eta, lat, theta_equil, k_T)
   
   ! Exact time integration
   temp(id_i) = theta_equil*mass(id_i) + (temp(id_i)-theta_equil*mass(id_i)) * exp (-dt*k_T)

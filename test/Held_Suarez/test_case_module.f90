@@ -12,7 +12,7 @@ module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Test case variables
-  real(8) :: delta_T, delta_theta, eta_b, k_a, k_f, k_s, k_T, T_0, T_mean, T_tropo
+  real(8) :: delta_T, delta_theta, eta_b, k_a, k_f, k_s, T_0, T_mean, T_tropo
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -21,64 +21,54 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    type(Coord) :: x_i, x_E, x_N, x_NE
-    integer     :: id, d, idN, idE, idNE
-    real(8)     :: column_mass, eta, k_T, lev_press, p_top, p_bot, pot_temp, lon, lat, r
-
+    integer     :: d, id_i
+    real(8)     :: column_mass, eta, k_T, lev_press, lon, lat, p_top, p_bot, theta_equil
+    type(Coord) :: x_i
+    
     d = dom%id+1
-
-    id   = idx(i,   j, offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idE  = idx(i+1, j, offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-
-    x_i  = dom%node%elts(id+1)
-    x_E  = dom%node%elts(idE+1)
-    x_N  = dom%node%elts(idN+1)
-    x_NE = dom%node%elts(idNE+1)
-
-    call cart2sph (x_i, lon, lat) ! Latitude and longitude
-
+    id_i = idx(i, j, offs, dims) + 1
+    x_i = dom%node%elts(id_i)
+    
     ! Surface pressure
-    dom%surf_press%elts(id+1) = surf_pressure (x_i)
-    column_mass = dom%surf_press%elts(id+1)/grav_accel
+    dom%surf_press%elts(id_i) = surf_pressure (x_i)
+    column_mass = dom%surf_press%elts(id_i)/grav_accel
 
     ! Pressure at level zlev
-    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id_i)
 
     ! Mass/Area = rho*dz at level zlev
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
+    sol(S_MASS,zlev)%data(d)%elts(id_i) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
     
     ! Initial potential temperature to equilibrium value
-    eta = lev_press/dom%surf_press%elts(id+1)
-    call cal_theta_eq (eta, lat, lev_press, pot_temp)
+    eta = lev_press/dom%surf_press%elts(id_i)
+    call cart2sph (x_i, lon, lat) 
+    call cal_theta_eq (lev_press, eta, lat, theta_equil, k_T)
 
     ! Mass-weighted potential temperature
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
+    sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * theta_equil
     
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
 
-  subroutine cal_theta_eq (eta, lat, press, theta_equil)
+  subroutine cal_theta_eq (press, eta, lat, theta_equil, k_T)
     ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
     use domain_mod
     implicit none
+    real(8) :: press, eta, lat, theta_equil, k_T
 
-    real(8) :: theta_equil
-    real(8) :: eta, lat, press
+    real(8) :: sn2, cs2, theta_force, theta_tropo 
 
-    real(8) :: ddsin, theta_force, theta_tropo 
+    sn2 = sin (lat)**2
+    cs2 = cos (lat)**2
 
-    ddsin = sin(lat) 
-
-    k_T = k_a + (k_s-k_a) * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cos(lat)**4
+    k_T = k_a + (k_s-k_a) * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cs2**2
 
     theta_tropo = T_tropo * (press/ref_press)**(-kappa) ! Potential temperature at tropopause
 
-    theta_force  = T_mean - delta_T*ddsin**2 - delta_theta*(1.0_8 - ddsin**2)*log(press/ref_press)
+    theta_force = T_mean - delta_T*sn2 - delta_theta*cs2*log (press/ref_press)
 
-    theta_equil = max(theta_tropo, theta_force) ! Equilibrium temperature
+    theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
   end subroutine cal_theta_eq
 
   real(8) function surf_geopot (x_i)
