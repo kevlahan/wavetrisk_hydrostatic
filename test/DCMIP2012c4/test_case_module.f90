@@ -50,7 +50,7 @@ contains
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
-
+    
     ! Potential temperature
     pot_temp =  set_temp(x_i) * (lev_press/ref_press)**(-kappa)
 
@@ -150,12 +150,11 @@ contains
     if (allocated(b_vert)) deallocate(b_vert)
     if (allocated(a_vert_mass)) deallocate(a_vert_mass)
     if (allocated(b_vert_mass)) deallocate(b_vert_mass)
-    allocate (a_vert(1:zlevels), b_vert(1:zlevels))
+    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
        do k = 1, zlevels+1
-          press_infty = 0.0_8
           a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
           b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
@@ -212,18 +211,16 @@ contains
        end if
 
        ! DCMIP order is opposite to ours
-       if (.not. uniform) then
-          a_vert = a_vert(zlevels+1:1:-1)
-          b_vert = b_vert(zlevels+1:1:-1)
-       end if
-
-       ! Set pressure at infinity
-       press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
-
-       ! Set mass coefficients
-       b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
-       a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
+       a_vert = a_vert(zlevels+1:1:-1)
+       b_vert = b_vert(zlevels+1:1:-1)
     end if
+    
+    ! Set pressure at infinity
+    press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+
+    ! Set mass coefficients
+    b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
+    a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
   end subroutine initialize_a_b_vert
 
   subroutine read_test_case_parameters (filename)
