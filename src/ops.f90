@@ -1021,7 +1021,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                           :: id
+    integer                           :: id_i
     real(8), dimension(S_MASS:S_TEMP) :: physics
 
     interface
@@ -1037,10 +1037,10 @@ contains
    
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
-    id = idx(i, j, offs, dims)
+    id_i = idx(i, j, offs, dims) + 1
 
-    dmass(id+1) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
-    dtemp(id+1) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
+    dmass(id_i) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
+    dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
   end subroutine scalar_trend
 
   subroutine cal_Laplacian_scalar (dom, i, j, zlev, offs, dims)

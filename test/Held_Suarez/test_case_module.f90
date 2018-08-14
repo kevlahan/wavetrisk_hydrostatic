@@ -62,7 +62,7 @@ contains
     sn2 = sin (lat)**2
     cs2 = cos (lat)**2
 
-    k_T = k_a + (k_s-k_a) * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cs2**2
+    k_T = k_a + (k_s-k_a) * max (0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cs2**2
 
     theta_tropo = T_tropo * (press/ref_press)**(-kappa) ! Potential temperature at tropopause
 
