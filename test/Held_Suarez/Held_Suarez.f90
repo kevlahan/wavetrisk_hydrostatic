@@ -49,7 +49,7 @@ program Held_Suarez
   specvoldim     = (R_d*Tempdim)/Pdim          ! specific volume scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim) ! acoustic wave speed
 
-  Udim           = 30.0_8                      ! velocity scale
+  Udim           = 60.0_8                      ! velocity scale
   Tdim           = DAY                         ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
