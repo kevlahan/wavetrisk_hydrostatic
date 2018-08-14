@@ -336,7 +336,8 @@ contains
 
     ! Viscosity constant (largest wavenumber modes decay by factor decay in one time step)
     if (Laplace_order /= 0) then
-       C_visc = -log (decay) * (dx_min/MATH_PI)**(2*Laplace_order)/dt_cfl
+       !C_visc = -log (decay) * (dx_min/MATH_PI)**(2*Laplace_order)/dt_cfl
+       C_visc = (dx_min/MATH_PI)**(2*Laplace_order)/(0.1_8*DAY) ! Held and Suarez value
        viscosity_mass = C_visc; viscosity_temp = viscosity_mass
     end if
 
