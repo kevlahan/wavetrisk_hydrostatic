@@ -163,7 +163,7 @@ contains
     call RK45_opt (trend_ml, dt)
 
     ! Adapt grid
-    if (min_level < max_level) call adapt_grid (set_thresholds)
+    call adapt_grid (set_thresholds)
 
     ! Set new time step, find change in vertical levels and count active nodes
     dt_new = cpt_dt_mpi() 
