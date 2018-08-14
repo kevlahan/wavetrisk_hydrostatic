@@ -104,7 +104,7 @@ contains
 
     character(3), parameter :: order = "inf"
 
-    if (default_thresholds) then ! Initialize once
+    if (default_thresholds .or. istep == 0) then ! Initialize once
        threshold_new = threshold_def
     else
        if (adapt_trend) then
