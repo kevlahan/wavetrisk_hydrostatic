@@ -703,8 +703,8 @@ contains
        if (zlev == zlevels) then !top zlev, purely diagnostic
           err = abs((dom%press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)) - press_infty)/dom%surf_press%elts(id+1)
           if (err > 1d-10) then
-             write(6,*) 'Warning: upward integration of pressure not resulting in zero at top interface'
-             write(6,*) '(observed pressure - pressure_infty)/P_Surface =', err
+             write(6,'(A)') 'Warning: upward integration of pressure not resulting in zero at top interface'
+             write(6,'(A,es10.4)') '(observed pressure - pressure_infty)/P_Surface = ', err
              stop
           end if
        end if

@@ -66,7 +66,7 @@ contains
 
     theta_tropo = T_tropo * (press/ref_press)**(-kappa) ! Potential temperature at tropopause
 
-    theta_force = T_mean - delta_T*sn2 - delta_theta*cs2*log (press/ref_press)
+    theta_force = T_mean - delta_T*sn2 - delta_theta*cs2 * log (press/ref_press)
 
     theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
   end subroutine cal_theta_eq
