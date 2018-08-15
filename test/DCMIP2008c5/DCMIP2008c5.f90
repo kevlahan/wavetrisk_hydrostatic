@@ -232,6 +232,9 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      end do
   end if
 
+  ! Find correct sign of diffusion on right hand side of equation
+  diffusion = (-1)**(Laplace_order-1) * diffusion
+
   ! Total physics for source term of velocity trend
   do e = 1, EDGE
      physics_velo_source(e) =  diffusion(e)

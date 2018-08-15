@@ -249,6 +249,9 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      end do
   end if
 
+  ! Find correct sign of diffusion on right hand side of equation
+  diffusion = (-1)**(Laplace_order-1) * diffusion
+
   eta = dom%press%elts(id+1)/dom%surf_press%elts(id+1)
   
   k_v = k_f * max (0.0_8, (eta-eta_b)/(1.0_8-eta_b)) ! Rayleigh friction
