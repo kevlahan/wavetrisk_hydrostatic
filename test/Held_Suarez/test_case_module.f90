@@ -330,7 +330,7 @@ contains
 
     ! Time step based on wave speed, initial velocity at finest scale
     dx_min = sqrt (4*MATH_PI*radius**2/(10*4**max_level+2))
-    dt_cfl = cfl_num*dx_min/wave_speed
+    dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
 
     ! Viscosity constant (largest wavenumber modes decay by factor decay in one time step)
     if (Laplace_order /= 0) then
