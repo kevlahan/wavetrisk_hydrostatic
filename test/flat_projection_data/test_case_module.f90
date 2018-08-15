@@ -126,7 +126,7 @@ contains
     implicit none
     character(*)   :: filename
     integer        :: fid = 500
-    real(8)        :: pressures
+    real(8)        :: press_save
     character(255) :: varname
 
     open (unit=fid, file=filename, action='READ')
@@ -137,7 +137,7 @@ contains
     read (fid,*) varname, zlevels
     read (fid,*) varname, level_save
     read (fid,*) varname, N
-    read (fid,*) varname, pressures
+    read (fid,*) varname, press_save
     close(fid)
 
     if (N > 2000) then
@@ -155,10 +155,12 @@ contains
        write (6,'(A,i3)')     "zlevels             = ", zlevels
        write (6,'(A,i3)')     "level_save          = ", level_save
        write (6,'(A,i5)')     "N                   = ", N
-       write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressures
+       write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
        write (6,*) ' '
     end if
-    pressure_save = (/pressures/) * 1.0d2 ! Convert to Pascals
+    
+    allocate (pressure_save(1))
+    pressure_save(1) = 1.0d2*press_save
   end subroutine read_test_case_parameters
 
   subroutine apply_initial_conditions

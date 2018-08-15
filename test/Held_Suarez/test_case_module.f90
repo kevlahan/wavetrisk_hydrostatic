@@ -234,33 +234,34 @@ contains
     read(fid,*) varname, time_end
     read(fid,*) varname, resume
 
-    pressure_save = 1.0d2*(/ press_save /)
+    allocate (pressure_save(1))
+    pressure_save(1) = 1.0d2*press_save
 
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
             ***********************************************************'
-       write(6,'(A,A)')      "test_case          = ", trim(test_case)
-       write(6,'(A,L1)')     "compressible       = ", compressible
-       write(6,'(A,i3)')     "min_level          = ", min_level
-       write(6,'(A,i3)')     "max_level          = ", max_level
-       write(6,'(A,i3)')     "zlevels            = ", zlevels
-       write(6,'(A,L1)')     "uniform            = ", uniform
-       write(6,'(A,L1)')     "remap              = ", remap
-       write(6,'(A,es10.4)') "min_allowed_mass   = ", min_allowed_mass
-       write(6,'(A,L1)')     "adapt_trend        = ", adapt_trend
-       write(6,'(A,L1)')     "default_thresholds = ", default_thresholds
-       write(6,'(A,es10.4)') "tolerance          = ", tol
-       write(6,'(A,i1)')     "optimize_grid      = ", optimize_grid
-       write(6,'(A,L1)')     "adapt_dt           = ", adapt_dt
-       write(6,'(A,es10.4)') "cfl_num            = ", cfl_num
-       write(6,'(A,es10.4)') "pressure_save      = ", press_save
-       write(6,'(A,i1)')     "Laplace_order      = ", Laplace_order
-       write(6,'(A,es8.2)')  "decay              = ", decay
-       write(6,'(A,es10.4)') "dt_write           = ", dt_write
-       write(6,'(A,i6)')     "CP_EVERY           = ", CP_EVERY
-       write(6,'(A,es10.4)') "time_end           = ", time_end 
-       write(6,'(A,i6)')     "resume             = ", resume
+       write(6,'(A,A)')      "test_case           = ", trim(test_case)
+       write(6,'(A,L1)')     "compressible        = ", compressible
+       write(6,'(A,i3)')     "min_level           = ", min_level
+       write(6,'(A,i3)')     "max_level           = ", max_level
+       write(6,'(A,i3)')     "zlevels             = ", zlevels
+       write(6,'(A,L1)')     "uniform             = ", uniform
+       write(6,'(A,L1)')     "remap               = ", remap
+       write(6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
+       write(6,'(A,L1)')     "adapt_trend         = ", adapt_trend
+       write(6,'(A,L1)')     "default_thresholds  = ", default_thresholds
+       write(6,'(A,es10.4)') "tolerance           = ", tol
+       write(6,'(A,i1)')     "optimize_grid       = ", optimize_grid
+       write(6,'(A,L1)')     "adapt_dt            = ", adapt_dt
+       write(6,'(A,es10.4)') "cfl_num             = ", cfl_num
+       write(6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
+       write(6,'(A,i1)')     "Laplace_order       = ", Laplace_order
+       write(6,'(A,es8.2)')  "decay               = ", decay
+       write(6,'(A,es10.4)') "dt_write            = ", dt_write
+       write(6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
+       write(6,'(A,es10.4)') "time_end            = ", time_end 
+       write(6,'(A,i6)')     "resume              = ", resume
        write(6,*) ' '
     end if
     dt_write = dt_write * MINUTE

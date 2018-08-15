@@ -10,7 +10,6 @@ module io_mod
   integer, dimension(2,4)              :: HR_offs
   real(8)                              :: dx_export, dy_export, kx_export, ky_export, vmin, vmax
   real(8), dimension(N_VAR_OUT)        :: minv, maxv
-  real(8), pointer                     :: press_save
   real(4), dimension(:,:), allocatable :: field2d
   integer                              :: next_fid
   type(Float_Field)                    :: active_level
@@ -337,9 +336,7 @@ contains
        field2d_save(:,:,4+k-1) = field2d
 
        ! Geopotential
-       press_save => pressure_save(k)
        call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
-       nullify (press_save)
        call project_geopot_onto_plane (Nx, Ny, level_save, proj, 1.0_8)
        field2d_save(:,:,5+k-1) = field2d
 
@@ -971,7 +968,7 @@ contains
     dom%adj_geopot%elts(id+1) = surf_geopot (dom%node%elts(id+1))/grav_accel
 
     k = 1
-    do while (pressure_upper > press_save)
+    do while (pressure_upper > pressure_save(1))
        dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
             R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_upper))
 
@@ -980,9 +977,9 @@ contains
        pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id+1)
     end do
 
-    ! Add additional contribution up to pressure level pressure_save
+    ! Add additional contribution up to pressure level pressure_save(1)
     dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) &
-         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(press_save))
+         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
 
   subroutine interp_save (dom, i, j, zlev, offs, dims)

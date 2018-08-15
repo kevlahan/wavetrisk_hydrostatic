@@ -22,4 +22,8 @@ Then convert .jpg to .avi usable in Beamer:
 
 ffmpeg -r fps -i base%4d.jpg -vcodec mpeg4 -qscale 0 base.avi
 
-where: fps is the number of frames per second, "base" is the base name of the .jpg files and %4d is the frame numbering (e.g. 0001, 0002 etc).
+e.g. 
+
+ffmpeg -r 12 -i test.%4djpg -vcodec mpeg4 -qscale 0 DCMIP2008c5.avi
+
+where: fps is the number of frames per second, "base" is the base name of the .jpg files and %4d is the frame numbering (e.g. test.0001.jpg, test.0002.jpg etc).

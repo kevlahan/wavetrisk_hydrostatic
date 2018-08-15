@@ -328,7 +328,7 @@ module shared_mod
   real(8)                                       :: viscosity_rotu, viscosity_mass, viscosity_temp
   real(8)                                       :: ref_press, ref_surf_press, gamma, kappa, c_p, c_v, R_d, wave_speed
   real(8)                                       :: min_mass, min_allowed_mass
-  real(8), dimension(:), target, allocatable    :: pressure_save
+  real(8), dimension(:),         allocatable    :: pressure_save
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu
   real(8), dimension(:,:),       allocatable    :: threshold
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
