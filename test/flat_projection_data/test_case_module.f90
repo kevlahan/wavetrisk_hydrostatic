@@ -26,7 +26,7 @@ contains
        surf_geopot = c1 * (c1 * (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
             radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
     elseif (trim(test_case) == "DCMIP2008c5") then
-       rgrc = radius*acos (sin (lat_c)*sin (lat) + cos (lat_c)*cos (lat)*cos (lon-lon_c))
+       rgrc = radius*acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
        
        surf_geopot = grav_accel*h_0*exp__flush (-rgrc**2/d2)
     elseif (trim(test_case) == "Held_Suarez") then
@@ -37,7 +37,7 @@ contains
     end if
   end function surf_geopot
 
-  subroutine initialize_a_b_vert
+ subroutine initialize_a_b_vert
     implicit none
     integer :: k
 
@@ -46,12 +46,11 @@ contains
     if (allocated(b_vert)) deallocate(b_vert)
     if (allocated(a_vert_mass)) deallocate(a_vert_mass)
     if (allocated(b_vert_mass)) deallocate(b_vert_mass)
-    allocate (a_vert(1:zlevels), b_vert(1:zlevels))
+    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
        do k = 1, zlevels+1
-          press_infty = 0.0_8
           a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
           b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
        end do
@@ -108,18 +107,16 @@ contains
        end if
 
        ! DCMIP order is opposite to ours
-       if (.not. uniform) then
-          a_vert = a_vert(zlevels+1:1:-1)
-          b_vert = b_vert(zlevels+1:1:-1)
-       end if
-
-       ! Set pressure at infinity
-       press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
-
-       ! Set mass coefficients
-       b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
-       a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
+       a_vert = a_vert(zlevels+1:1:-1)
+       b_vert = b_vert(zlevels+1:1:-1)
     end if
+    
+    ! Set pressure at infinity
+    press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+
+    ! Set mass coefficients
+    b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
+    a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
   end subroutine initialize_a_b_vert
 
   subroutine read_test_case_parameters (filename)
