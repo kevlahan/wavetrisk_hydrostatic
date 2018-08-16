@@ -290,7 +290,7 @@ subroutine time_step_cooling
      do d = 1, size(grid)
         mass => sol(S_MASS,k)%data(d)%elts
         temp => sol(S_TEMP,k)%data(d)%elts
-        temp => sol(S_VELO,k)%data(d)%elts
+        velo => sol(S_VELO,k)%data(d)%elts
         do p = 3, grid(d)%patch%length
            call apply_onescale_to_patch (cal_pressure,          grid(d), p-1, k, 0, 1)
            call apply_onescale_to_patch (euler_step_cooling,    grid(d), p-1, k, 0, 1)
