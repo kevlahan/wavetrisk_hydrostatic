@@ -15,7 +15,6 @@ program flat_projection_data
 
   if (trim (test_case) == 'DCMIP2012c4') then
      compressible   = .true.                      ! Compressible equations
-     uniform        = .false.                     ! Type of vertical grid
 
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
@@ -29,7 +28,6 @@ program flat_projection_data
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
   elseif (trim (test_case) == "DCMIP2008c5") then
      compressible   = .true.                      ! Compressible equations
-     uniform        = .false.                     ! Type of vertical grid
 
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
@@ -45,7 +43,6 @@ program flat_projection_data
      lat_c          = MATH_PI/6.0_8               ! latitude location of mountain
   elseif (trim (test_case) == "Held_Suarez") then
      compressible   = .true.                      ! Compressible equations
-     uniform        = .false.                     ! Type of vertical grid
 
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
