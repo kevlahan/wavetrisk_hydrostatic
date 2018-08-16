@@ -85,6 +85,7 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
+     call time_step_cooling
      call stop_timing
      
      call sum_total_mass (.false.)
@@ -208,14 +209,15 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   
   id_i = idx(i, j, offs, dims) + 1
 
-  ! Equilibrium potential temperature
-  call cart2sph (dom%node%elts(id_i), lon, lat)
-  press = dom%press%elts(id_i)          
-  eta = press/dom%surf_press%elts(id_i)
-  call cal_theta_eq (press, eta, lat, theta_equil, k_T)
+  ! ! Equilibrium potential temperature
+  ! call cart2sph (dom%node%elts(id_i), lon, lat)
+  ! press = dom%press%elts(id_i)          
+  ! eta = press/dom%surf_press%elts(id_i)
+  ! call cal_theta_eq (press, eta, lat, theta_equil, k_T)
   
-  ! Newton cooling to equilibrium temperature
-  physics_scalar_source(S_TEMP) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
+  ! ! Newton cooling to equilibrium temperature
+  ! physics_scalar_source(S_TEMP) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
+  physics_scalar_source(S_TEMP) = 0.0_8
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -261,4 +263,68 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      physics_velo_source(e) =  diffusion(e) -  k_v * velo(EDGE*id+e)
   end do
 end function physics_velo_source
+
+subroutine time_step_cooling
+  ! Euler time step to diffuse solution
+  use domain_mod
+  use ops_mod
+  implicit none
+  integer :: d, j, k, p
+
+  interface
+     subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                     :: dom
+       integer                          :: i, j, zlev
+       integer, dimension(N_BDRY + 1)   :: offs
+       integer, dimension(2,N_BDRY + 1) :: dims
+     end subroutine euler_step_cooling
+  end interface
+
+  call update_array_bdry (sol, NONE)
+
+  ! Compute curent surface pressure
+  call cal_surf_press (sol)
+
+  do k = 1, zlevels
+     do d = 1, size(grid)
+        mass => sol(S_MASS,k)%data(d)%elts
+        temp => sol(S_TEMP,k)%data(d)%elts
+        do p = 3, grid(d)%patch%length
+           call apply_onescale_to_patch (cal_pressure,          grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (euler_step_cooling,    grid(d), p-1, k, 0, 1)
+        end do
+        nullify (mass, temp)
+     end do
+     sol(:,k)%bdry_uptodate = .false.
+  end do
+end subroutine time_step_cooling
+
+subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
+  ! Euler time step
+  use test_case_mod
+  use main_mod
+  use domain_mod
+  implicit none
+  type(Domain)                     :: dom
+  integer                          :: i, j, zlev
+  integer, dimension(N_BDRY + 1)   :: offs
+  integer, dimension(2,N_BDRY + 1) :: dims
+
+  integer :: e, id_i
+  real(8) :: eta, k_T, lat, lon, press, theta_equil
+
+  id_i = idx(i, j, offs, dims) + 1
+ 
+  call cart2sph (dom%node%elts(id_i), lon, lat) ! Latitude and longitude
+  
+  press = dom%press%elts(id_i)          ! Pressure
+  eta = press/dom%surf_press%elts(id_i) ! Normalized pressure
+
+  call cal_theta_eq (press, eta, lat, theta_equil, k_T)
+  
+  ! Exact time integration
+  temp(id_i) = theta_equil*mass(id_i) + (temp(id_i)-theta_equil*mass(id_i)) * exp (-dt*k_T)
+end subroutine euler_step_cooling
 
