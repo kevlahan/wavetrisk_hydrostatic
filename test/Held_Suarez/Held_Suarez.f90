@@ -260,7 +260,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   
   ! Total physics for source term of velocity trend
   do e = 1, EDGE
-     physics_velo_source(e) =  diffusion(e) -  k_v * velo(EDGE*id+e)
+     physics_velo_source(e) =  diffusion(e) - k_v * velo(EDGE*id+e)
   end do
 end function physics_velo_source
 
@@ -325,6 +325,8 @@ subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
   call cal_theta_eq (press, eta, lat, theta_equil, k_T)
   
   ! Exact time integration
-  temp(id_i) = theta_equil*mass(id_i) + (temp(id_i)-theta_equil*mass(id_i)) * exp (-dt*k_T)
+!  temp(id_i) = theta_equil*mass(id_i) + (temp(id_i)-theta_equil*mass(id_i)) * exp (-dt*k_T)
+  ! Euler step
+  temp(id_i) = theta_equil*mass(id_i) - dt*k_T * (temp(id_i)-theta_equil*mass(id_i))
 end subroutine euler_step_cooling
 
