@@ -228,7 +228,6 @@ contains
     read(fid,*) varname, cfl_num
     read(fid,*) varname, press_save
     read(fid,*) varname, Laplace_order
-    read(fid,*) varname, decay
     read(fid,*) varname, dt_write
     read(fid,*) varname, CP_EVERY
     read(fid,*) varname, time_end
@@ -257,7 +256,6 @@ contains
        write(6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write(6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
        write(6,'(A,i1)')     "Laplace_order       = ", Laplace_order
-       write(6,'(A,es8.2)')  "decay               = ", decay
        write(6,'(A,es10.4)') "dt_write            = ", dt_write
        write(6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write(6,'(A,es10.4)') "time_end            = ", time_end 
@@ -332,9 +330,8 @@ contains
     dx_min = sqrt (4*MATH_PI*radius**2/(10*4**max_level+2))
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
 
-    ! Viscosity constant (largest wavenumber modes decay by factor decay in one time step)
+    ! Viscosity constant 
     if (Laplace_order /= 0) then
-       !C_visc = -log (decay) * (dx_min/MATH_PI)**(2*Laplace_order)/dt_cfl
        C_visc = (dx_min/MATH_PI)**(2*Laplace_order)/(0.1_8*DAY) ! Held and Suarez value
        viscosity_mass = C_visc; viscosity_temp = viscosity_mass
     end if
@@ -362,7 +359,7 @@ contains
     else
        dt_init = dt_cfl
     end if
-
+    
     if (rank == 0) then
        write (6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
        if (Laplace_order/=0) then
