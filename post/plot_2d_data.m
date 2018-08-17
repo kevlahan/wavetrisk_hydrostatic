@@ -4,7 +4,7 @@
 test_case = 'Held_Suarez';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'temp_var';  % field to plot
+itype     = 'merid';  % field to plot
 t1        = 29;      % Start time
 t2        = 162;      % End time
 lon_lat   = false;    % Plot longitude - latitude data
@@ -152,7 +152,7 @@ for t = t1:t2
         elseif (strcmp(test_case,'Held_Suarez'))
             c_scale = -30:5:30;
         end
-        v_title = 'Zonal velocity (m/s)';
+        v_title = 'Zonal wind (m/s)';
         if (lon_lat)
             s_ll = s_ll+load([file_base itime '03']);
         end
@@ -165,7 +165,7 @@ for t = t1:t2
         elseif (strcmp(test_case,'DCMIP2012c4'))
             c_scale = -35:5:35;
         end
-        v_title = 'Meridional velocity (m/s)';
+        v_title = 'Meridional wind (m/s)';
         if (lon_lat)
             s_ll = s_ll+load([file_base itime '04']);
         end
