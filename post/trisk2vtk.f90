@@ -24,7 +24,7 @@ program trisk2vtk
   character(4)   :: s_time
   character(12)  :: str1, str2
   character(6)   :: file_type
-  character(32)  :: file_vtk, arg, command, filename_in, filename_out, file_base
+  character(255)  :: file_vtk, arg, command, filename_in, filename_out, file_base
   character(1), parameter :: lf=char(10) ! line feed character
 
   real(4), dimension (:,:),   allocatable :: tmp_outv, outv
@@ -47,25 +47,25 @@ program trisk2vtk
   call get_command_argument(7, arg); file_vtk = trim(arg)
 
   if (file_type .eq. " ") then
-     write(*,*) " "
-     write(*,*) "Usage: trisk2vtk file_base file_type tbegin tend jmin jmax file_vtk"
-     write(*,*) " "
-     write(*,*) "file_base = base name for files"
-     write(*,*) "file_type = primal (hexagons) or dual (triangles)"
-     write(*,*) "tstart    = number of first file to read"
-     write(*,*) "tend      = number of last file to read"
-     write(*,*) "jmin      = minimum scale to save"
-     write(*,*) "jmax      = maximum scale to save"
-     write(*,*) "file_vtk  = file for vtk data (without extension)"
+     write (6,'(A)') " "
+     write (6,'(A)') "Usage: trisk2vtk file_base file_type tbegin tend jmin jmax file_vtk"
+     write (6,'(A)') " "
+     write (6,'(A)') "file_base = base name for files"
+     write (6,'(A)') "file_type = primal (hexagons) or dual (triangles)"
+     write (6,'(A)') "tstart    = number of first file to read"
+     write (6,'(A)') "tend      = number of last file to read"
+     write (6,'(A)') "jmin      = minimum scale to save"
+     write (6,'(A)') "jmax      = maximum scale to save"
+     write (6,'(A)') "file_vtk  = file for vtk data (without extension)"
      stop
   else
-     write(*,'("file_base = ", A)') file_base
-     write(*,'("file_type  = ", A)') file_type
-     write(*,'("tstart    = ", I12)') tstart
-     write(*,'("tend      = ", I12)') tend
-     write(*,'("jmin      = ", I2)') jmin
-     write(*,'("jmax      = ", I2)') jmax
-     write(*,'("file_vtk  = ", A)') file_vtk
+     write (6,'("file_base = ", A)') file_base
+     write (6,'("file_type  = ", A)') file_type
+     write (6,'("tstart    = ", I12)') tstart
+     write (6,'("tend      = ", I12)') tend
+     write (6,'("jmin      = ", I2)') jmin
+     write (6,'("jmax      = ", I2)') jmax
+     write (6,'("file_vtk  = ", A)') file_vtk
 
      if (trim(file_type) .eq. "primal") then
         n_vertices = 6 ! Hexagonal cells (primal grid)
@@ -85,7 +85,7 @@ program trisk2vtk
 
      if (compressed_file_exists) then ! Uncompress base file
         command = 'tar xzf ' // filename_in
-        write(*,*) command
+        write (6,'(A)') command
         CALL system(command)
 
         ! Delete un-needed file
@@ -102,7 +102,7 @@ program trisk2vtk
         write (j_lev,'(I2.2)') j
         filename_in = trim(file_base) // s_time // j_lev
 
-        write(*,'("Reading from file ",A)') filename_in
+        write (6,'("Reading from file ",A)') filename_in
 
         ! First pass to determine number of cells
         open (unit=iunit, file=trim(filename_in), form="formatted")
@@ -114,7 +114,7 @@ program trisk2vtk
            if (stat==0) then
               n_cells = n_cells+1
            elseif (stat>0) then
-              write(*,*) "Error reading file"
+              write (6,'(A)') "Error reading file"
               stop
            end if
         end do
@@ -159,7 +159,7 @@ program trisk2vtk
         end if
 
         ! Second pass to actually read in data
-        open (unit=iunit, file=filename_in, form="formatted")
+        open (unit=iunit, file=trim(filename_in), form="formatted")
         if (file_type.eq."primal") then
            do icell = n_cells_old+1, n_cells
               read (iunit, fmt='(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
@@ -188,7 +188,7 @@ program trisk2vtk
 
      write (*,'("File ", A," opened to write vtk output field")') trim(filename_out)
 
-     open (unit=iunit, file=filename_out, form="unformatted", access='stream',convert='BIG_ENDIAN')
+     open (unit=iunit, file=trim(filename_out), form="unformatted", access='stream',convert='BIG_ENDIAN')
      write(iunit) '# vtk DataFile Version 3.0'//lf
      write(iunit) 'vtk output'//lf                
      write(iunit) 'BINARY'//lf                    
