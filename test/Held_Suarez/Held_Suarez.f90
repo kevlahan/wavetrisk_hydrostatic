@@ -202,21 +202,7 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
-  integer :: id_i
-  real(8) :: eta, k_T, lat, lon, press, theta_equil
-
   physics_scalar_source(S_MASS) = 0.0_8
-  
-  id_i = idx(i, j, offs, dims) + 1
-
-  ! ! Equilibrium potential temperature
-  ! call cart2sph (dom%node%elts(id_i), lon, lat)
-  ! press = dom%press%elts(id_i)          
-  ! eta = press/dom%surf_press%elts(id_i)
-  ! call cal_theta_eq (press, eta, lat, theta_equil, k_T)
-  
-  ! ! Newton cooling to equilibrium temperature
-  ! physics_scalar_source(S_TEMP) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
   physics_scalar_source(S_TEMP) = 0.0_8
 end function physics_scalar_source
 
@@ -235,8 +221,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: e, id, k_v
-  real(8)                    :: eta
+  integer                    :: e, id
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
 
   id = idx(i, j, offs, dims)
@@ -253,13 +238,10 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   ! Find correct sign of diffusion on right hand side of equation
   diffusion = (-1)**(Laplace_order-1) * diffusion
-
-  ! eta = dom%press%elts(id+1)/dom%surf_press%elts(id+1)
-  ! k_v = k_f * max (0.0_8, (eta-eta_b)/(1.0_8-eta_b)) ! Rayleigh friction
-  
+   
   ! Total physics for source term of velocity trend
   do e = 1, EDGE
-     physics_velo_source(e) =  diffusion(e) !- k_v * velo(EDGE*id+e)
+     physics_velo_source(e) =  diffusion(e) 
   end do
 end function physics_velo_source
 

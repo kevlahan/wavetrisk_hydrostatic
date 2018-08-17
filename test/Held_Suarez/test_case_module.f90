@@ -187,7 +187,7 @@ contains
                0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
                0.9851122_8, 1.0_8/)
        else
-          write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
+          write (0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
           stop
        end if
 
@@ -213,25 +213,25 @@ contains
     character(255)     :: varname
 
     open(unit=fid, file=filename, action='READ')
-    read(fid,*) varname, test_case
-    read(fid,*) varname, compressible
-    read(fid,*) varname, max_level
-    read(fid,*) varname, zlevels
-    read(fid,*) varname, uniform
-    read(fid,*) varname, remap
-    read(fid,*) varname, min_allowed_mass
-    read(fid,*) varname, adapt_trend
-    read(fid,*) varname, default_thresholds
-    read(fid,*) varname, tol
-    read(fid,*) varname, optimize_grid
-    read(fid,*) varname, adapt_dt
-    read(fid,*) varname, cfl_num
-    read(fid,*) varname, press_save
-    read(fid,*) varname, Laplace_order
-    read(fid,*) varname, dt_write
-    read(fid,*) varname, CP_EVERY
-    read(fid,*) varname, time_end
-    read(fid,*) varname, resume
+    read (fid,*) varname, test_case
+    read (fid,*) varname, compressible
+    read (fid,*) varname, max_level
+    read (fid,*) varname, zlevels
+    read (fid,*) varname, uniform
+    read (fid,*) varname, remap
+    read (fid,*) varname, min_allowed_mass
+    read (fid,*) varname, adapt_trend
+    read (fid,*) varname, default_thresholds
+    read (fid,*) varname, tol
+    read (fid,*) varname, optimize_grid
+    read (fid,*) varname, adapt_dt
+    read (fid,*) varname, cfl_num
+    read (fid,*) varname, press_save
+    read (fid,*) varname, Laplace_order
+    read (fid,*) varname, dt_write
+    read (fid,*) varname, CP_EVERY
+    read (fid,*) varname, time_end
+    read (fid,*) varname, resume
 
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
@@ -240,27 +240,28 @@ contains
        write (6,'(A)') &
             '********************************************************** Parameters &
             ***********************************************************'
-       write(6,'(A,A)')      "test_case           = ", trim(test_case)
-       write(6,'(A,L1)')     "compressible        = ", compressible
-       write(6,'(A,i3)')     "min_level           = ", min_level
-       write(6,'(A,i3)')     "max_level           = ", max_level
-       write(6,'(A,i3)')     "zlevels             = ", zlevels
-       write(6,'(A,L1)')     "uniform             = ", uniform
-       write(6,'(A,L1)')     "remap               = ", remap
-       write(6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
-       write(6,'(A,L1)')     "adapt_trend         = ", adapt_trend
-       write(6,'(A,L1)')     "default_thresholds  = ", default_thresholds
-       write(6,'(A,es10.4)') "tolerance           = ", tol
-       write(6,'(A,i1)')     "optimize_grid       = ", optimize_grid
-       write(6,'(A,L1)')     "adapt_dt            = ", adapt_dt
-       write(6,'(A,es10.4)') "cfl_num             = ", cfl_num
-       write(6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
-       write(6,'(A,i1)')     "Laplace_order       = ", Laplace_order
-       write(6,'(A,es10.4)') "dt_write            = ", dt_write
-       write(6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
-       write(6,'(A,es10.4)') "time_end            = ", time_end 
-       write(6,'(A,i6)')     "resume              = ", resume
-       write(6,*) ' '
+       write (6,'(A,A)')      "test_case           = ", trim (test_case)
+       write (6,'(A,L1)')     "compressible        = ", compressible
+       write (6,'(A,i3)')     "min_level           = ", min_level
+       write (6,'(A,i3)')     "max_level           = ", max_level
+       write (6,'(A,i5)')     "number of domains   = ", N_GLO_DOMAIN
+       write (6,'(A,i3)')     "zlevels             = ", zlevels
+       write (6,'(A,L1)')     "uniform             = ", uniform
+       write (6,'(A,L1)')     "remap               = ", remap
+       write (6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
+       write (6,'(A,L1)')     "adapt_trend         = ", adapt_trend
+       write (6,'(A,L1)')     "default_thresholds  = ", default_thresholds
+       write (6,'(A,es10.4)') "tolerance           = ", tol
+       write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
+       write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
+       write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
+       write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
+       write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order
+       write (6,'(A,es10.4)') "dt_write            = ", dt_write
+       write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
+       write (6,'(A,es10.4)') "time_end            = ", time_end 
+       write (6,'(A,i6)')     "resume              = ", resume
+       write (6,'(A)') ' '
     end if
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
@@ -427,7 +428,7 @@ contains
           save_press = lev_press
        end if
     end do
-    if (rank==0) write(6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
+    if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
          " (approximate pressure = ", save_press/1.0d2, " hPa)"
   end subroutine set_save_level
 
@@ -435,17 +436,17 @@ contains
     implicit none
     integer :: fid
 
-    write(fid) itime
-    write(fid) iwrite
-    write(fid) threshold
+    write (fid) itime
+    write (fid) iwrite
+    write (fid) threshold
   end subroutine dump
 
   subroutine load (fid)
     implicit none
     integer :: fid
 
-    read(fid) itime
-    read(fid) iwrite
-    read(fid) threshold
+    read (fid) itime
+    read (fid) iwrite
+    read (fid) threshold
   end subroutine load
 end module test_case_mod
