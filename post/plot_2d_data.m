@@ -1,23 +1,23 @@
 % Plot 2d data from export_2d or log data
 %test_case = 'DCMIP2012c4';
-test_case = 'DCMIP2008c5';
-%test_case = 'Held_Suarez';
+%test_case = 'DCMIP2008c5';
+test_case = 'Held_Suarez';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'surf_press';  % field to plot
-t1        = 15;      % Start time
-t2        = t1;      % End time
-lon_lat   = true;    % Plot longitude - latitude data
-zonal_avg = false;   % Plot zonally averaged data
+itype     = 'temp_var';  % field to plot
+t1        = 29;      % Start time
+t2        = 162;      % End time
+lon_lat   = false;    % Plot longitude - latitude data
+zonal_avg = true;   % Plot zonally averaged data
 shift     = true;    % shift left boundary to zero longitude
 smooth    = false;   % smooth data over two points in each direction
 lines     = true;   % remove lines
 
-% Log data options: 
+% Log data options:
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; j=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = compression;
-Jmin = 5;
-Jmax = 7;
+ilog = dt;
+Jmin = 4;
+Jmax = 5;
 
 machine = 'if';
 if (strcmp(machine,'if'))
@@ -28,7 +28,7 @@ elseif (strcmp(machine,'mac'))
     pathid = ['/Users/kevlahan/hydro/' test_case '/'];
 end
 %% Log data plots
-% Load log file 
+% Load log file
 beg = 1;
 %beg = 357;
 
@@ -43,12 +43,12 @@ for j=Jmin+1:Jmax
 end
 
 log_data = load([pathid test_case '_log']);
-figure; 
+figure;
 day = 24;
 if ilog == cpudof
     plot(log_data(beg:end,1)/day,log_data(beg:end,cpu)./log_data(beg:end,dof),'-');
 elseif ilog == compression
-    plot(log_data(beg:end,1)/day,Nunif./log_data(beg:end,dof),'-');
+    plot(log_data(beg:end,1)/day,Nmax./log_data(beg:end,dof),'-');
 else
     plot(log_data(beg:end,1)/day,log_data(beg:end,ilog),'-');
 end
@@ -79,15 +79,11 @@ elseif ilog == compression
     ylab = 'Compression ratio';
 end
 xlabel('t (days)');ylabel(ylab);
-grid on; 
+grid on;
 %axis([8.3 9 0 3e-4]);
-%% 2d data plots
+axis ([0 1200 700 900]);
+%% Uncompress data files for 2d plots
 file_base = [test_case '.3'];
-
-if (strcmp(itype,'temp_var')||strcmp(itype,'eddy_mom')||strcmp(itype,'eddy_ke')||strcmp(itype,'eddy_heat_flux'))
-    lon_lat = 0;
-    zonal_avg = 1;
-end
 
 % Axis limits
 if (strcmp(test_case,'DCMIP2008c5'))
@@ -104,20 +100,30 @@ end
 
 N = t2-t1+1; % number of samples
 
-
 s_ll = 0; s_zo = 0; s_var1 = 0; s_var2 = 0;
 for t = t1:t2
     % Extract files
     itime = num2str(t,'%04i');
-    disp(['Loading file ' itime ' of ' num2str(t2,'%04i')]);
+    disp(['Uncompressing file ' pathid file_base itime ' of ' num2str(t2,'%04i')]);
     file_tar = ['tar ' 'xf ' pathid file_base itime '.tgz'];
     system(file_tar);
+end
+%% Plot 2d data
+
+if (strcmp(itype,'temp_var')||strcmp(itype,'eddy_mom')||strcmp(itype,'eddy_ke')||strcmp(itype,'eddy_heat_flux'))
+    lon_lat = 0;
+    zonal_avg = 1;
+end
+
+file_base = [test_case '.3'];
+for t = t1:t2
+    itime = num2str(t,'%04i');
+    disp(['Loading ' itype ' file ' pathid file_base itime ' of ' num2str(t2,'%04i')]);
     
     % Load coordinates
     lon = load([file_base itime '20']);
     lat = load([file_base itime '21']);
     P_z = load([file_base itime '22']); % Pressure-based vertical coordinates
-    
     if (strcmp(itype,'temp')) % Plot temperature
         if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = 270:3:303;
@@ -140,9 +146,9 @@ for t = t1:t2
         s_zo = s_zo + load([file_base itime '13']);
     elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
         if (strcmp(test_case,'DCMIP2008c5'))
-            c_scale = -15:5:50; 
+            c_scale = -15:5:50;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            c_scale = -60:5:60;   
+            c_scale = -60:5:60;
         elseif (strcmp(test_case,'Held_Suarez'))
             c_scale = -30:5:30;
         end
@@ -157,7 +163,7 @@ for t = t1:t2
         if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = -35:5:20;
         elseif (strcmp(test_case,'DCMIP2012c4'))
-            c_scale = -35:5:35; 
+            c_scale = -35:5:35;
         end
         v_title = 'Meridional velocity (m/s)';
         if (lon_lat)
@@ -176,15 +182,15 @@ for t = t1:t2
         s_ll = s_ll+load([file_base itime '05']);
     elseif (strcmp(itype,'vort')) % Plot relative vorticity data
         s_ll = s_ll+load([file_base itime '06']);
-         if (strcmp(test_case,'DCMIP2008c5'))
+        if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = -3e-5:1e-5:6e-5;
         elseif (strcmp(test_case,'DCMIP2012c4'))
             %if (t<=48)
             %    c_scale = -3e-5:1e-5:6e-5;
             %    ax = [90 200 25 75];
             %else
-                c_scale = -10e-5:5e-5:40e-5;
-                ax = [120 270 25 75];
+            c_scale = -10e-5:5e-5:40e-5;
+            ax = [120 270 25 75];
             %end
         end
         v_title = 'Relative vorticity';
@@ -203,7 +209,7 @@ for t = t1:t2
     elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
         if (strcmp(test_case,'DCMIP2008c5'))
             c_scale = 0:5:100;
-        elseif (strcmp(test_case,'Held_Suares'))
+        elseif (strcmp(test_case,'Held_Suarez'))
             c_scale = 0:40:480;
         end
         v_title = 'Eddy kinetic energy (m^2/s^2)';
@@ -213,9 +219,6 @@ for t = t1:t2
         v_title = 'Eddy kinetic energy (K m/s)';
         s_zo = s_zo+load([file_base itime '18']);
     end
-    % Erase extracted files
-    file_erase = ['\rm ' file_base '*'];
-    system(file_erase);
 end
 
 % Plot data
@@ -233,6 +236,6 @@ if (zonal_avg)
     fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_zo)));
     plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, smooth, 0)
 end
-
-
-
+%% Erase extracted files
+file_erase = ['\rm ' file_base '*'];
+system(file_erase);
