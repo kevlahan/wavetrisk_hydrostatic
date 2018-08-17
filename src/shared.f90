@@ -271,34 +271,31 @@ module shared_mod
   integer, parameter :: MM = 19
 
   ! weights for various interpolation schemes
-  integer, dimension(2,2,3) :: end_pt
-  integer, dimension(2,2,3) :: opp_no
-  integer, dimension(3,10)  :: no_adj_tri
-  integer, dimension(3,10)  :: hex_sides
   integer, dimension(3)     :: hex_s_offs
-  integer, dimension(3,4,3) :: bfly_tri
-  integer, dimension(3,2,3) :: adj_tri
   integer, dimension(2,10)  :: nghb_pt
-  integer, dimension(2,4,3) :: bfly_no
-  integer, dimension(2,4,3) :: bfly_no2
+  integer, dimension(3,10)  :: hex_sides, no_adj_tri
+  integer, dimension(2,2,3) :: end_pt, opp_no
+  integer, dimension(2,4,3) :: bfly_no, bfly_no2
+  integer, dimension(3,2,3) :: adj_tri
+  integer, dimension(3,4,3) :: bfly_tri
 
-  ! used in grid smoothing routine
+  ! Used in grid smoothing routine
   integer, dimension(2,3) :: O2 
   data O2 /2,3, 3,1, 1,2/ 
 
-  ! indices of prognostic variables in sol, trend etc
+  ! Indices of prognostic variables in sol, trend etc
   integer, parameter :: S_MASS = 1, S_TEMP = 2, S_VELO = 3
 
-  ! number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
+  ! Number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
   integer, dimension(S_MASS:S_VELO) :: MULT
 
-  ! location of each variable on the grid (at an edge or at a node)
+  ! Location of each variable on the grid (at an edge or at a node)
   integer, dimension(S_MASS:S_VELO) :: POSIT
 
-  ! grid optimization choices
+  ! Grid optimization choices
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 
-  ! basic grid parameters
+  ! Basic grid parameters
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
   integer :: min_level, max_level ! minimum and maximum grid refinement levels in pseudo-horizontal directions
   integer :: zlevels ! number of levels in vertical direction
@@ -336,84 +333,85 @@ module shared_mod
 
   character(255)                                :: test_case
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, lagrangian_vertical, remap, uniform
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, lagrangian_vertical, perfect, remap, uniform
 contains
   subroutine init_shared_mod
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
-    if (initialized) return ! initialize only once
-
-    !specify the multiplicity per grid element of each quantity
+    if (initialized) return ! Initialize only once
+    initialized = .true.
+    
+    ! Specify the multiplicity per grid element of each quantity
     MULT(S_MASS) = 1
     MULT(S_TEMP) = 1
     MULT(S_VELO) = EDGE
 
-    !specify the position on the grid of each quantity
+    ! Specify the position on the grid of each quantity
     POSIT(S_MASS) = AT_NODE
     POSIT(S_TEMP) = AT_NODE
     POSIT(S_VELO) = AT_EDGE
 
-    end_pt = reshape((/0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1/), (/2, 2, 3/))
+    end_pt = reshape ((/0,  0, 1, 0, 1, 1, 0, 0, 0, 0,  0, 1/), (/2, 2, 3/))
+    opp_no = reshape ((/0, -1, 1, 1, 0, 1, 1, 0, 1, 1, -1, 0/), (/2, 2, 3/))
 
-    opp_no = reshape((/0, -1, 1, 1, 0, 1, 1, 0, 1, 1, -1, 0/), (/2, 2, 3/))
+    no_adj_tri = reshape ((/0, 0, LORT, 0, -1, UPLT, -1, -1, LORT, -1, -1, UPLT, -1, 0, LORT, 0, 0, UPLT, 0, 0, LORT, &
+         0, -1, UPLT, -1, -1, LORT, -1, -1, UPLT/), (/3, 10/))
 
-    no_adj_tri = reshape((/0, 0, LORT, 0, -1, UPLT, -1, -1, LORT, -1, -1, &
-         UPLT, -1, 0, LORT, 0, 0, UPLT, 0, 0, LORT, 0, -1, UPLT, -1, -1, &
-         LORT, -1, -1, UPLT/), (/3, 10/))
-
-    hex_sides = reshape((/0, 0, RT, 0, 0, DG, 0, 0, UP, -1, 0, RT, -1, -1, &
-         DG, 0, -1, UP, 0, 0, RT, 0, 0, DG, 0, 0, UP, -1, 0, RT/), (/3, &
-         10/))
+    hex_sides = reshape ((/0, 0, RT, 0, 0, DG, 0, 0, UP, -1, 0, RT, -1, -1, DG, 0, -1, UP, 0, 0, RT, 0, 0, DG, 0, 0, UP, &
+         -1, 0, RT/), (/3, 10/))
 
     hex_s_offs = (/2, 0, 4/)
 
-    bfly_tri = reshape((/-1, -1, LORT, 0, -1, LORT, 1, 0, UPLT, 0, 0, UPLT, &
-         0, 1, LORT, -1, 0, LORT, 0, -1, UPLT, 1, 0, UPLT, 0, 0, LORT, 0, &
-         1, LORT, -1, 0, UPLT, -1, -1, UPLT/), (/3, 4, 3/))
+    bfly_tri = reshape ((/-1, -1, LORT, 0, -1, LORT, 1, 0, UPLT, 0, 0, UPLT, 0, 1, LORT, -1, 0, LORT, 0, -1, UPLT, 1, 0, &
+         UPLT, 0, 0, LORT, 0, 1, LORT, -1, 0, UPLT, -1, -1, UPLT/), (/3, 4, 3/))
+    bfly_no  = reshape ((/-1, -1, 1, -1, 2, 1,  0, 1, 1, 2, -1,  0,  0, -1, 2, 1, 1, 0, 1, 2,  -1, 1, -1, -1/), (/2, 4, 3/))
+    bfly_no2 = reshape ((/-3, -2, 1, -2, 3, 2, -1, 2, 1, 3, -3, -1, -1, -3, 3, 1, 2, -1, 2, 3, -2, 1, -2, -3/), (/2, 4, 3/))
+    
+    adj_tri  = reshape ((/0, -1, UPLT, 0, 0, LORT, 0, 0, UPLT, 0, 0, LORT, 0, 0, UPLT, -1, 0, LORT/), (/3, 2, 3/))
 
-    adj_tri  = reshape((/0, -1, UPLT, 0, 0, LORT, 0, 0, UPLT, 0, 0, LORT, 0, 0, UPLT, -1, 0, LORT/), (/3, 2, 3/))
-    
-    nghb_pt  = reshape((/1, 0, 1, 1, 0, 1, -1, 0, -1, -1, 0, -1, 1, 0, 1, 1, 0, 1, -1, 0/), (/2, 10/))
-    
-    bfly_no  = reshape((/-1, -1, 1, -1, 2, 1, 0, 1, 1, 2, -1, 0, 0, -1, 2, 1, 1, 0, 1, 2, -1, 1, -1, -1/), (/2, 4, 3/))
-    
-    bfly_no2 = reshape((/-3, -2, 1, -2, 3, 2, -1, 2, 1, 3, -3, -1, -1, -3, 3, 1, 2, -1, 2, 3, -2, 1, -2, -3/), (/2, 4, 3/))
+    nghb_pt  = reshape ((/1, 0, 1, 1, 0, 1, -1, 0, -1, -1, 0, -1, 1, 0, 1, 1, 0, 1, -1, 0/), (/2, 10/))
 
-    ! Default values
-    adapt_dt            = .true.
-    adapt_trend         = .true.
-    default_thresholds  = .true.
-    initialized         = .true.
-    remap               = .true.
-    lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates (mass based NOT implemented!)
-    
+    ! Initialize values
     resume              = NONE
     istep               = 0
     time                = 0.0_8
-    optimize_grid       = HR_GRID
-    tol                 = 0.0_8
-    min_allowed_mass    = 0.2_8
-    cfl_num             = 1.0_8
     min_level           = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level           = min_level
     level_start         = min_level
     level_end           = level_start
-    level_save          = level_start
-    zlevels             = 1
-    save_levels         = 1
     
-    ! Physical parameters
+    ! Default logical switches, most are reset in the input file
+    adapt_dt            = .true. ! Dynamically adapt time step (T) or use time step based on initial conditions (F) 
+    adapt_trend         = .true. ! Adapt on trend (T) or on solution (F)
+    compressible        = .true. ! Compressible equations (T) or Boussinesq incompressible (F)
+    default_thresholds  = .true. ! Use default thresholds (T) or calculate dynamically (F)
+    perfect             = .true. ! Use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
+    remap               = .true. ! Remap Lagrangian coordinates (T) or no remapping (F)
+    lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates (only option implement is T, mass-based coordinates not implemented)
+    uniform             = .true. ! Uniform vertical grid in pressure (T) or hybrid (F)
+
+    ! Default run values
+    ! these parameters are typically reset in the input file, but are needed for compilation
+    cfl_num             = 1.5_8
+    level_save          = level_start
+    Laplace_order       = 0                      ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
+    min_allowed_mass    = 0.3_8
+    optimize_grid       = HR_GRID
+    save_levels         = 1
+    tol                 = 0.0_8
+    zlevels             = 20
+    
+    ! Default physical parameters
     ! these parameters are typically reset in test case file, but are needed for compilation
-    Laplace_order  = 0
-    omega          = 7.292d-05
-    grav_accel     = 9.80616_8
-    radius         = 6371220.0_8
-    ref_density    = 1.0_8
-    press_infty    = 0.0_8
-    R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
     c_p            = 1004.64_8                   ! specific heat at constant pressure in joules per kilogram Kelvin
     c_v            = 717.6_8                     ! specfic heat at constant volume c_v = R_d - c_p
+    grav_accel     = 9.80616_8
+    press_infty    = 0.0_8
+    R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
+    ref_density    = 1.0_8
     kappa          = R_d/c_p
+    omega          = 7.292d-05
+    radius         = 6371220.0_8
     ref_press      = 1000.0d2
     viscosity_rotu = 0.0_8
     viscosity_mass = 0.0_8
@@ -429,7 +427,7 @@ contains
     integer, optional :: entity
     
     max_nodes_per_level = 10*4**lev
-    if (present(entity)) then 
+    if (present (entity)) then 
        max_nodes_per_level = max_nodes_per_level*entity
     else ! mass node
        max_nodes_per_level = max_nodes_per_level+2
@@ -439,8 +437,8 @@ contains
   real(8) function exp__flush(x)
     real(8) :: x
     
-    if (x .gt. -1.0d2) then
-       exp__flush = exp(x)
+    if (x > -1.0d2) then
+       exp__flush = exp (x)
     else
        exp__flush = 0.0_8
     end if

@@ -7,6 +7,7 @@ remap              T             ! remap vertical grid
 min_allowed_mass   0.3           ! minimum allowed relative mass before remapping
 adapt_trend        T             ! adapt on trend (T) or variables (F)
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
+perfect            T             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)
 tol      	   8.0           ! non-dimensional tolerance
 optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)

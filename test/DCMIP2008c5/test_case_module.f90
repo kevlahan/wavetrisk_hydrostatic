@@ -1,4 +1,4 @@
-Modulex test_case_mod
+Module test_case_mod
   ! Module file for DCMIP2008c5
   use shared_mod
   use domain_mod
@@ -222,6 +222,7 @@ contains
     read (fid,*) varname, min_allowed_mass
     read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
+    read (fid,*) varname, perfect
     read (fid,*) varname, tol
     read (fid,*) varname, optimize_grid
     read (fid,*) varname, adapt_dt
@@ -252,6 +253,7 @@ contains
        write (6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
        write (6,'(A,L1)')     "adapt_trend         = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds  = ", default_thresholds
+       write (6,'(A,L1)')     "perfect             = ", perfect
        write (6,'(A,es10.4)') "tolerance           = ", tol
        write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt

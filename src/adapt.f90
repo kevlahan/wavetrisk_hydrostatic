@@ -53,7 +53,6 @@ contains
     
     integer :: k, l, d
     logical :: local_type
-    logical, parameter :: perfect = .false.
 
     ! Recalculate thresholds?
     if (present(type)) then

@@ -241,6 +241,7 @@ contains
     read (fid,*) varname, min_allowed_mass
     read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
+    read (fid,*) varname, perfect
     read (fid,*) varname, tol
     read (fid,*) varname, optimize_grid
     read (fid,*) varname, adapt_dt
@@ -255,7 +256,7 @@ contains
 
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
-    
+
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
@@ -271,6 +272,7 @@ contains
        write (6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
        write (6,'(A,L1)')     "adapt_trend         = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds  = ", default_thresholds
+       write (6,'(A,L1)')     "perfect             = ", perfect
        write (6,'(A,es10.4)') "tolerance           = ", tol
        write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
