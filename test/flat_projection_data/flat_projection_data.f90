@@ -4,6 +4,7 @@ program flat_projection_data
   use test_case_mod
   use io_mod  
   implicit none
+  real(8), dimension(:,:,:), allocatable :: zonal_spacetime_av, zonal_av
 
   ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
@@ -69,12 +70,26 @@ program flat_projection_data
   call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
   call barrier
 
-  call export_2d (cart2sph2, 3000000+100*cp_idx, (/-N/2, N/2/), (/-N/4, N/4/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
+  allocate (zonal_spacetime_av(1:zlevels,-N/4:N/4,4))
+  allocate (zonal_av(1:zlevels,-N/4:N/4,4))
 
-  do cp_idx = resume+1, check_end
+  ! Calculate zonal average over all check points
+  write (6,'(A)') "Calculating zonal averages over all checkpoints"
+  zonal_spacetime_av = 0.0_8
+  do cp_idx = check_start, check_end
      resume = NONE
      call restart (set_thresholds, load, test_case)
-     call export_2d (cart2sph2, 3000000+100*cp_idx, (/-N/2, N/2/), (/-N/4, N/4/), (/2.0_8*MATH_PI, MATH_PI/), test_case)
+     call cal_zonal_av (cart2sph2, (/-N/2, N/2/), (/-N/4, N/4/), (/2.0_8*MATH_PI, MATH_PI/), zonal_av)
+     zonal_spacetime_av = zonal_spacetime_av + zonal_av
+  end do
+  zonal_spacetime_av = zonal_spacetime_av / dble (check_end-check_start+1)
+
+  ! Project onto plane
+  write (6,'(/,A,/)') "Projecting onto plane"
+  do cp_idx = check_start, check_end
+     resume = NONE
+     call restart (set_thresholds, load, test_case)
+     call export_2d (cart2sph2, 3000000+100*cp_idx, (/-N/2, N/2/), (/-N/4, N/4/), (/2.0_8*MATH_PI, MATH_PI/), zonal_spacetime_av)
   end do
   call finalize
 end program flat_projection_data
@@ -144,5 +159,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   physics_velo_source = 0.0_8
 end function physics_velo_source
+
+
 
 

@@ -240,15 +240,15 @@ contains
     only_coriolis = (dom%coriolis%elts(TRIAG*id+t+1)/dom%triarea%elts(TRIAG*id+t+1))**2
   end function only_coriolis
 
-  subroutine export_2d (proj, fid, Nx, Ny, lon_lat_range, test_case)
+  subroutine export_2d (proj, fid, Nx, Ny, lon_lat_range, zonal_spacetime_av)
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
     ! save zonal average and horizontal grid at vertical level zlevel
     implicit none
-    external               :: proj
-    integer, dimension(2)  :: Nx, Ny
-    integer                :: fid
-    real(8), dimension(2)  :: lon_lat_range
-    character(*)           :: test_case
+    external                                     :: proj
+    integer, dimension(2)                        :: Nx, Ny
+    integer                                      :: fid
+    real(8), dimension(2)                        :: lon_lat_range
+    real(8), dimension (1:zlevels,Ny(1):Ny(2),4) :: zonal_spacetime_av
 
     integer                              :: d, i, id, ix, j, k, level_end_old, p, v
     integer, parameter                   :: funit = 400
@@ -333,19 +333,19 @@ contains
     do k = 1, zlevels
        ! Mass density
        call project_onto_plane (sol(S_MASS,k), Nx, Ny, level_save, proj, 0.0_8)
-       zonal_av(k,:,1) = sum(field2d,DIM=1)/N_zonal
+       zonal_av(k,:,1) = sum (field2d,DIM=1)/N_zonal
 
        ! Temperature
        call project_onto_plane (exner_fun(k), Nx, Ny, level_save, proj, 1.0_8)
-       zonal_av(k,:,2) = sum(field2d,DIM=1)/N_zonal
+       zonal_av(k,:,2) = sum (field2d,DIM=1)/N_zonal
 
        ! Peturbation Temperature
        do ix = Nx(1), Nx(2)
-          Tprime(ix,:) = field2d(ix,:) - zonal_av(k,:,2)
+          Tprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,2)
        end do
 
        ! Variance of temperature (stable calculation)
-       zonal_av(k,:,3) = (sum((field2d-TT)**2,DIM=1) - sum(field2d-TT,DIM=1)**2/N_zonal)/(N_zonal-1)
+       zonal_av(k,:,3) = (sum ((field2d-TT)**2,DIM=1) - sum (field2d-TT,DIM=1)**2/N_zonal)/(N_zonal-1)
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
@@ -358,30 +358,30 @@ contains
 
        ! Zonal velocity
        call project_uzonal_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
-       zonal_av(k,:,4) = sum(field2d,DIM=1)/N_zonal
+       zonal_av(k,:,4) = sum (field2d, DIM=1)/N_zonal
 
        ! Peturbation zonal velocity
        do ix = Nx(1), Nx(2)
-          uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,4)
+          uprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,3)
        end do
 
        ! Meridional velocity
        call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
-       zonal_av(k,:,5) = sum(field2d,DIM=1)/N_zonal
+       zonal_av(k,:,5) = sum (field2d,DIM=1)/N_zonal
 
        ! Peturbation meridional velocity
        do ix = Nx(1), Nx(2)
-          vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,5)
+          vprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,4)
        end do
 
        ! Eddy momentum flux
-       zonal_av(k,:,6) = sum(uprime*vprime,DIM=1)/N_zonal
+       zonal_av(k,:,6) = sum (uprime*vprime,DIM=1)/N_zonal
 
        ! Eddy kinetic energy
-       zonal_av(k,:,7) = sum(0.5_8*(uprime*uprime+vprime*vprime),DIM=1)/N_zonal
+       zonal_av(k,:,7) = sum (0.5_8*(uprime**2+vprime**2),DIM=1)/N_zonal
 
        ! Eddy heat flux
-       zonal_av(k,:,8) = sum(Tprime*vprime,DIM=1)/N_zonal
+       zonal_av(k,:,8) = sum (Tprime*vprime,DIM=1)/N_zonal
     end do
 
     if (rank == 0) then
@@ -434,6 +434,72 @@ contains
     end if
     deallocate (field2d, field2d_save, zonal_av)
   end subroutine export_2d
+
+   subroutine cal_zonal_av (proj, Nx, Ny, lon_lat_range, zonal_av)
+    ! Finds zonal average over all checkpoint
+    implicit none
+    external                                 :: proj
+    integer, dimension(2)                    :: Nx, Ny
+    real(8), dimension(2)                    :: lon_lat_range
+    real(8), dimension (:,:,:), allocatable  :: zonal_av
+    
+    integer        :: d, i, id, ix, j, k, p, v
+    real(8)        :: N_zonal
+    character(5)   :: s_time
+    character(7)   :: var_file
+    character(130) :: command
+
+    N_zonal = real (Nx(2)-Nx(1)+1)
+
+    if (allocated (zonal_av)) deallocate (zonal_av)
+    allocate (zonal_av (1:zlevels,Ny(1):Ny(2),4))
+    
+    ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
+    call fill_up_grid_and_IWT (level_save)
+
+    call cal_surf_press (sol)
+
+    ! Remap to pressure_save vertical levels for saving data
+    sol_save = sol(:,1:save_levels)
+    call apply_onescale (interp_save, level_save, z_null, -1, 2)
+
+    ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    call update_vector_bdry (exner_fun, NONE)
+
+    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
+    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
+
+    ! Zonal averages
+    do k = 1, zlevels
+       ! Mass density
+       call project_onto_plane (sol(S_MASS,k), Nx, Ny, level_save, proj, 0.0_8)
+       zonal_av(k,:,1) = sum (field2d,DIM=1)/N_zonal
+
+       ! Temperature
+       call project_onto_plane (exner_fun(k), Nx, Ny, level_save, proj, 1.0_8)
+       zonal_av(k,:,2) = sum (field2d,DIM=1)/N_zonal
+
+       ! Zonal and meridional velocities
+       do d = 1, size(grid)
+          velo => sol(S_VELO,k)%data(d)%elts
+          do j = 1, grid(d)%lev(level_save)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+          end do
+          nullify (velo)
+       end do
+
+       ! Zonal velocity
+       call project_uzonal_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
+       zonal_av(k,:,3) = sum (field2d, DIM=1)/N_zonal
+
+       ! Meridional velocity
+       call project_vmerid_onto_plane (Nx, Ny, level_save, proj, 0.0_8)
+       zonal_av(k,:,4) = sum (field2d,DIM=1)/N_zonal
+    end do
+    deallocate (field2d)
+  end subroutine cal_zonal_av
 
   subroutine project_onto_plane (field, Nx, Ny, l, proj, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
