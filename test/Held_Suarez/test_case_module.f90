@@ -325,17 +325,25 @@ contains
     ! Initializes time step and viscosity
     implicit none
     integer :: k
-    real(8) :: C_visc, P_k, P_top
+    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top
 
     allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
 
-    ! Time step based on wave speed, initial velocity at finest scale
-    dx_min = sqrt (4*MATH_PI*radius**2/(10*4**max_level+2))
+    ! Average area of smallest lozenges
+    Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level+2)
+
+    ! Smallest triangle edge length
+    dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2.0_8))
+
+    ! Largest wavenumber on regular lozenge grid
+    k_max = MATH_PI/(sqrt (3.0_8)*dx_min)
+
+    ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
 
     ! Viscosity constant 
     if (Laplace_order /= 0) then
-       C_visc = (dx_min/MATH_PI)**(2*Laplace_order)/(0.1_8*DAY) ! Held and Suarez value
+       C_visc = 1.0_8/(0.1_8*DAY * k_max**(2*Laplace_order)) ! Held and Suarez value
        viscosity_mass = C_visc; viscosity_temp = viscosity_mass
     end if
 
