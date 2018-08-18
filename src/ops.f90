@@ -1347,4 +1347,106 @@ contains
     offs(SOUTHEAST) = offs(SOUTHEAST) - (PATCH_SIZE-1)
     offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
   end subroutine comp_offs3
+
+  subroutine evals_diffusion
+    ! Estimates largest eigenvalues of diffusion operators by power iteration
+    use wavelet_mod
+    implicit none
+    integer                                     :: d, iter, j
+    integer, parameter                          :: iter_max = 50, k = 1, seed = 86456
+    real(8)                                     :: diff
+    real(8), dimension(3)                       :: eigen, eigen_old
+    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm, lnorm_old
+
+    character(3), parameter :: order = "2"
+
+    lnorm = 1.0_8; lnorm_old = 1.0_8
+    eigen = 1.0_8; eigen_old = 1.0_8
+
+    ! Initialize variables to random values
+    call srand (seed)
+    call apply_init
+    
+    iter = 0 ; diff = 1.0d16
+    do while (diff > 1d-2 .and. iter <= iter_max)
+       iter = iter + 1
+       do d = 1, size(grid) 
+          velo => sol(S_VELO,k)%data(d)%elts
+          divu => grid(d)%divu%elts
+          vort => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), level_end, z_null)
+          nullify (velo, divu, vort)
+       end do
+       
+       do d = 1, size(grid)
+          mass => sol(S_MASS,k)%data(d)%elts
+          temp => sol(S_TEMP,k)%data(d)%elts
+          velo => sol(S_VELO,k)%data(d)%elts
+          divu => grid(d)%divu%elts
+          vort => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
+             call apply_onescale_to_patch (cal_Laplacian_u,      grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
+          end do
+          nullify (mass, temp, velo, divu, vort)
+       end do
+       call update_vector_bdry (Laplacian_scalar, level_end)
+       sol(S_MASS:S_TEMP,k) = Laplacian_scalar
+       sol(S_VELO,k) = Laplacian_u
+
+       lnorm_old = lnorm; eigen_old = eigen; call cal_lnorm (sol, order, lnorm)
+       eigen = lnorm(:,k)/lnorm_old(:,k); diff = maxval(abs(eigen - eigen_old)/eigen)
+       write(6,'(a,i2,a,3(es10.4,1x))') "Iteration ", iter, " eigenvalues = ", eigen
+    end do
+  contains
+    subroutine init_scalar (dom, i, j, zlev, offs, dims)
+      ! Initializes mass at first vertical level to a random vector
+      implicit none
+      type (Domain)                   :: dom
+      integer                         :: i, j, zlev
+      integer, dimension (N_BDRY+1)   :: offs
+      integer, dimension (2,N_BDRY+1) :: dims
+
+      integer :: d, id
+
+      d  = dom%id+1
+      id = idx(i, j, offs, dims)
+
+      sol(S_MASS,zlev)%data(d)%elts(id+1) = rand()
+      sol(S_TEMP,zlev)%data(d)%elts(id+1) = rand()
+    end subroutine init_scalar
+
+    subroutine init_velo (dom, i, j, zlev, offs, dims)
+      ! Initializes mass at first vertical level to a random vector
+      implicit none
+      type (Domain)                   :: dom
+      integer                         :: i, j, zlev
+      integer, dimension (N_BDRY+1)   :: offs
+      integer, dimension (2,N_BDRY+1) :: dims
+
+      integer :: d, e, id
+
+      d  = dom%id+1
+      id = idx(i, j, offs, dims)
+
+      do e = 1, EDGE
+         sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e) = rand()
+      end do
+    end subroutine init_velo
+
+    subroutine apply_init
+      implicit none
+      integer :: l
+
+      do l = level_start, level_end
+         call apply_onescale (init_scalar, l, k, 0, 1)
+         call apply_onescale (init_velo,   l, k, 0, 0)
+      end do
+      call update_array_bdry (sol, NONE)
+    end subroutine apply_init
+  end subroutine evals_diffusion
 end module ops_mod
