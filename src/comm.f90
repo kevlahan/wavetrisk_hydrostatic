@@ -961,7 +961,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, e, id, k, l
-    real(8) :: C_visc, col_mass, d_e, init_mass, v_e, viscosity
+    real(8) :: C_visc, col_mass, d_e, init_mass, v_e
 
     C_visc = 0.25_8
     
@@ -996,7 +996,6 @@ contains
                    v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
                    dt_loc = min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
                 end do
-                dt_loc = min (dt_loc, C_visc*d_e**2/viscosity)
              end if
           end if
        end do

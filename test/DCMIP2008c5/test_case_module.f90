@@ -267,9 +267,10 @@ contains
        write (6,'(A,i6)')     "resume              = ", resume
        write (6,'(A)') ' '
     end if
+    close(fid)
+    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
-    close(fid)
   end subroutine read_test_case_parameters
 
   subroutine print_log
@@ -329,11 +330,10 @@ contains
     integer :: k
     real(8) :: C_visc, P_k, P_top
 
-    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
-
     ! Time step based on wave speed, initial velocity at finest scale
     dx_min = sqrt (4*MATH_PI*radius**2/(10*4**max_level+2))
     dt_cfl = cfl_num*dx_min/(wave_speed+u_0)
+    dt_init = dt_cfl
 
     ! Viscosity constant (largest wavenumber modes decay by factor decay in one time step)
     if (Laplace_order /= 0) then
@@ -348,7 +348,6 @@ contains
        do k = 1, zlevels
           P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
           viscosity_divu(k) = C_visc * max (1.0_8, 8.0_8*(1.0_8 + tanh (log (P_top/P_k))))
-          if (rank==0) write (6,'(i2,1x,es10.4)') k, viscosity_divu(k)
        end do
     elseif (Laplace_order == 2) then
        viscosity_divu = C_visc ; viscosity_rotu = C_visc
@@ -356,23 +355,13 @@ contains
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
-    viscosity = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
-
-    if (Laplace_order == 1) then
-       dt_visc = 0.25_8*dx_min**2/viscosity
-       dt_init = min (dt_cfl, dt_visc)
-    else
-       dt_init = dt_cfl
-    end if
-
+   
     if (rank == 0) then
-       write (6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
        if (Laplace_order/=0) then
-          write (6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
-          write (6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
-          write (6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
-          write (6,'(A,es10.4)') 'Viscosity_divu   = ', sum (viscosity_divu)/zlevels
-          write (6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
+          write (6,'(A,es10.4)') 'Viscosity_mass = ', viscosity_mass
+          write (6,'(A,es10.4)') 'Viscosity_temp = ', viscosity_temp
+          write (6,'(A,es10.4)') 'Viscosity_divu = ', sum (viscosity_divu)/zlevels
+          write (6,'(A,es10.4)') 'Viscosity_rotu = ', viscosity_rotu
        end if
     end if
   end subroutine initialize_dt_viscosity

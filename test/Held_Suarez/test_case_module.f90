@@ -265,9 +265,11 @@ contains
        write (6,'(A,i6)')     "resume              = ", resume
        write (6,'(A)') ' '
     end if
+    close(fid)
+
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
-    close(fid)
+    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
   end subroutine read_test_case_parameters
 
   subroutine print_log
@@ -321,16 +323,17 @@ contains
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 
-   subroutine initialize_dt_viscosity
+  subroutine initialize_dt_viscosity (eigen)
     ! Initializes time step and viscosity
+    use wavelet_mod
     implicit none
+    real(8), dimension(3) :: eigen
+    
     integer :: k
-    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top
-
-    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
+    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top, scale_fac
 
     ! Average area of smallest lozenges
-    Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level+2)
+    Area_lozenge = 4*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)
 
     ! Smallest triangle edge length
     dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2.0_8))
@@ -340,45 +343,27 @@ contains
 
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
-
-    ! Viscosity constant 
-    if (Laplace_order /= 0) then
-       C_visc = 1.0_8/(0.1_8*DAY * k_max**(2*Laplace_order)) ! Held and Suarez value
-       viscosity_mass = C_visc; viscosity_temp = viscosity_mass
-    end if
-
-    if (Laplace_order == 1) then
-       ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
-       ! (no vorticity diffusion)
-       P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
-       do k = 1, zlevels
-          P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
-          viscosity_divu(k) = C_visc * max (1.0_8, 8.0_8*(1.0_8 + tanh (log (P_top/P_k))))
-          if (rank==0) write (6,'(i2,1x,es10.4)') k, viscosity_divu(k)
-       end do
-    elseif (Laplace_order == 2) then
-       viscosity_divu = C_visc ; viscosity_rotu = C_visc
+    dt_init = dt_cfl
+    
+    ! Viscosity constant from eigenvalues of Laplacian
+    if (Laplace_order == 1 .or. Laplace_order == 2) then
+       scale_fac = (dble(max_level)/dble(min_level))**(2*Laplace_order) ! Rescale to finest grid
+       
+       viscosity_mass = 1.0_8/(3*HOUR * eigen(1)**Laplace_order * scale_fac)
+       viscosity_temp = viscosity_mass
+       viscosity_rotu = 1.0_8/(3*HOUR * eigen(3)**Laplace_order * scale_fac)
+       viscosity_divu = viscosity_rotu
     elseif (Laplace_order > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
-    viscosity = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
 
-    if (Laplace_order == 1) then
-       dt_visc = 0.25_8*dx_min**2/viscosity
-       dt_init = min (dt_cfl, dt_visc)
-    else
-       dt_init = dt_cfl
-    end if
-    
     if (rank == 0) then
-       write (6,'(A,es10.4,1x)') "dt_cfl           = ", dt_cfl
-       if (Laplace_order/=0) then
-          write (6,'(A,es10.4,1x)') "dt_visc          = ", dt_visc
-          write (6,'(A,es10.4)') 'Viscosity_mass   = ', viscosity_mass
-          write (6,'(A,es10.4)') 'Viscosity_temp   = ', viscosity_temp
-          write (6,'(A,es10.4)') 'Viscosity_divu   = ', sum (viscosity_divu)/zlevels
-          write (6,'(A,es10.4)') 'Viscosity_rotu   = ', viscosity_rotu
+       if (Laplace_order /= 0) then
+          write (6,'(A,es10.4)') 'Viscosity_mass = ', viscosity_mass
+          write (6,'(A,es10.4)') 'Viscosity_temp = ', viscosity_temp
+          write (6,'(A,es10.4)') 'Viscosity_divu = ', sum (viscosity_divu)/zlevels
+          write (6,'(A,es10.4)') 'Viscosity_rotu = ', viscosity_rotu
        end if
     end if
   end subroutine initialize_dt_viscosity

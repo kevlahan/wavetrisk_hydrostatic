@@ -2,11 +2,13 @@ program Held_Suarez
   ! Held & Suarez (1994) test case
   ! Bulletin of the American Meteorological Society 75 (10), 1825-1830
   use main_mod
+  use ops_mod
   use test_case_mod
   use io_mod  
   implicit none
 
   logical :: aligned
+  real(8), dimension(3) :: eigen
 
   ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
@@ -63,14 +65,17 @@ program Held_Suarez
 
   ! Initialize thresholds to default values 
   call initialize_thresholds
-
-  ! Initialize time step and viscosities
-  call initialize_dt_viscosity
-    
+ 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
   call sum_total_mass (.true.)
   call barrier
+
+  ! Estimate largest eigenvalues of diffusion operators
+  if (Laplace_order /= 0) call evals_diffusion (eigen)
+
+  ! Initialize viscosities
+  call initialize_dt_viscosity (eigen)
 
   ! Save initial conditions
   call write_and_export (iwrite)

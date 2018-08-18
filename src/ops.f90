@@ -1348,30 +1348,37 @@ contains
     offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
   end subroutine comp_offs3
 
-  subroutine evals_diffusion
+  subroutine evals_diffusion (eigen)
     ! Estimates largest eigenvalues of diffusion operators by power iteration
     use wavelet_mod
     implicit none
-    integer                                     :: d, iter, j
-    integer, parameter                          :: iter_max = 50, k = 1, seed = 86456
-    real(8)                                     :: diff
-    real(8), dimension(3)                       :: eigen, eigen_old
-    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm, lnorm_old
+    real(8), dimension(3) :: eigen
+    
+    integer                                                       :: d, iter, ii, j
+    integer, parameter                                            :: iter_max = 50, k = 1, seed = 86456
+    real(8)                                                       :: diff
+    real(8), dimension(3)                                         :: eigen_old
+    real(8), dimension(3,iter_max+1)                              :: norm_iter
+    real(8), dimension(S_MASS:S_VELO,1:zlevels)                   :: lnorm
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: sol_tmp
 
     character(3), parameter :: order = "2"
 
-    lnorm = 1.0_8; lnorm_old = 1.0_8
+    sol_tmp = sol
+    
+    norm_iter = 1.0_8
     eigen = 1.0_8; eigen_old = 1.0_8
 
     ! Initialize variables to random values
     call srand (seed)
     call apply_init
     
-    iter = 0 ; diff = 1.0d16
+    iter = 1 ; diff = 1d16
     do while (diff > 1d-2 .and. iter <= iter_max)
        iter = iter + 1
+       
        do d = 1, size(grid) 
-          velo => sol(S_VELO,k)%data(d)%elts
+          velo => sol_tmp(S_VELO,k)%data(d)%elts
           divu => grid(d)%divu%elts
           vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(level_end)%length
@@ -1381,11 +1388,11 @@ contains
           call apply_to_penta_d (post_vort, grid(d), level_end, z_null)
           nullify (velo, divu, vort)
        end do
-       
+
        do d = 1, size(grid)
-          mass => sol(S_MASS,k)%data(d)%elts
-          temp => sol(S_TEMP,k)%data(d)%elts
-          velo => sol(S_VELO,k)%data(d)%elts
+          mass => sol_tmp(S_MASS,k)%data(d)%elts
+          temp => sol_tmp(S_TEMP,k)%data(d)%elts
+          velo => sol_tmp(S_VELO,k)%data(d)%elts
           divu => grid(d)%divu%elts
           vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(level_end)%length
@@ -1395,12 +1402,17 @@ contains
           nullify (mass, temp, velo, divu, vort)
        end do
        call update_vector_bdry (Laplacian_scalar, level_end)
-       sol(S_MASS:S_TEMP,k) = Laplacian_scalar
-       sol(S_VELO,k) = Laplacian_u
+       call update_bdry        (Laplacian_u,      level_end)
 
-       lnorm_old = lnorm; eigen_old = eigen; call cal_lnorm (sol, order, lnorm)
-       eigen = lnorm(:,k)/lnorm_old(:,k); diff = maxval(abs(eigen - eigen_old)/eigen)
-       write(6,'(a,i2,a,3(es10.4,1x))') "Iteration ", iter, " eigenvalues = ", eigen
+       sol_tmp(S_MASS:S_TEMP,k) = Laplacian_scalar
+       sol_tmp(S_VELO,k)        = Laplacian_u
+
+       call cal_lnorm (sol_tmp, order, lnorm)
+       norm_iter(:,iter) = lnorm(:,k)
+
+       eigen_old = eigen
+       eigen = norm_iter(:,iter)/norm_iter(:,iter-1)
+       diff = maxval (abs (eigen - eigen_old)/eigen)
     end do
   contains
     subroutine init_scalar (dom, i, j, zlev, offs, dims)
@@ -1415,9 +1427,9 @@ contains
 
       d  = dom%id+1
       id = idx(i, j, offs, dims)
-
-      sol(S_MASS,zlev)%data(d)%elts(id+1) = rand()
-      sol(S_TEMP,zlev)%data(d)%elts(id+1) = rand()
+      
+      sol_tmp(S_MASS,zlev)%data(d)%elts(id+1) = rand()
+      sol_tmp(S_TEMP,zlev)%data(d)%elts(id+1) = rand()
     end subroutine init_scalar
 
     subroutine init_velo (dom, i, j, zlev, offs, dims)
@@ -1434,7 +1446,7 @@ contains
       id = idx(i, j, offs, dims)
 
       do e = 1, EDGE
-         sol(S_VELO,zlev)%data(d)%elts(EDGE*id+e) = rand()
+         sol_tmp(S_VELO,zlev)%data(d)%elts(EDGE*id+e) = rand()
       end do
     end subroutine init_velo
 
@@ -1446,7 +1458,7 @@ contains
          call apply_onescale (init_scalar, l, k, 0, 1)
          call apply_onescale (init_velo,   l, k, 0, 0)
       end do
-      call update_array_bdry (sol, NONE)
+      call update_array_bdry (sol_tmp, NONE)
     end subroutine apply_init
   end subroutine evals_diffusion
 end module ops_mod

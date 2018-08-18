@@ -321,7 +321,7 @@ module shared_mod
   integer(8)                                    :: itime
   
   real(8)                                       :: dt, dt_init, dt_write, dx_min, dx_max, time_end, time
-  real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty, viscosity
+  real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty
   real(8)                                       :: viscosity_rotu, viscosity_mass, viscosity_temp
   real(8)                                       :: ref_press, ref_surf_press, gamma, kappa, c_p, c_v, R_d, wave_speed
   real(8)                                       :: min_mass, min_allowed_mass
