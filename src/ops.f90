@@ -1360,6 +1360,7 @@ contains
     real(8), dimension(3)                                         :: eigen, err, inner_prod
     real(8), dimension(S_MASS:S_VELO,1:zlevels)                   :: lnorm
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: sol_tmp
+    real(8), parameter                                            :: err_max = 1d-6
 
     character(3), parameter :: order = "2"
 
@@ -1373,7 +1374,7 @@ contains
     end if
     
     iter = 0; err = 1d16
-    do while (maxval (err) > 1d-6 .and. iter <= 50)
+    do while (maxval (err) > err_max .and. iter <= iter_max)
        iter = iter + 1
 
        ! Save previous eigenvectors
