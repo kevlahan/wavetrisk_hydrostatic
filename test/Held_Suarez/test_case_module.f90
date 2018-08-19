@@ -352,8 +352,8 @@ contains
        
        viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
        viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
-       viscosity_rotu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
-       viscosity_divu = L_diffusion(3)**(2*Laplace_order) / tau_diffusion
+       viscosity_divu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
+       viscosity_rotu = L_diffusion(3)**(2*Laplace_order) / tau_diffusion
     elseif (Laplace_order > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
