@@ -333,10 +333,10 @@ contains
     real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top, tau_diffusion
 
     ! Average area of smallest lozenges
-    Area_lozenge = 4*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)
+    Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level + 2)
 
     ! Smallest triangle edge length
-    dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2.0_8))
+    dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2))
 
     ! Largest wavenumber on regular lozenge grid
     k_max = MATH_PI/(sqrt (3.0_8)*dx_min)
@@ -347,8 +347,8 @@ contains
     
     ! Viscosity constant from eigenvalues of Laplacian
     if (Laplace_order == 1 .or. Laplace_order == 2) then
-       L_diffusion = L_diffusion * 2.0_8**(min_level-max_level) ! Correct length scales for finest grid
-       tau_diffusion = 3.0_8*HOUR                               ! Diffusion time scale
+       L_diffusion = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
+       tau_diffusion = 3*HOUR                               ! Diffusion time scale
        
        viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
        viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
