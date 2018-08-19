@@ -8,7 +8,7 @@ program Held_Suarez
   implicit none
 
   logical :: aligned
-  real(8), dimension(3) :: eigen
+  real(8), dimension(3) :: L_diffusion
 
   ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
@@ -72,10 +72,10 @@ program Held_Suarez
   call barrier
 
   ! Estimate largest eigenvalues of diffusion operators
-  if (Laplace_order /= 0) call evals_diffusion (eigen)
+  if (Laplace_order /= 0) call evals_diffusion (L_diffusion)
 
   ! Initialize viscosities
-  call initialize_dt_viscosity (eigen)
+  call initialize_dt_viscosity (L_diffusion)
 
   ! Save initial conditions
   call write_and_export (iwrite)

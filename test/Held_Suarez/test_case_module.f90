@@ -7,7 +7,7 @@ module test_case_mod
   
   ! Standard variables
   integer                              :: iwrite, CP_EVERY, save_zlev
-  real(8)                              :: decay, dt_cfl, dt_visc, initotalmass, mass_error, totalmass, total_cpu_time
+  real(8)                              :: decay, dt_cfl, initotalmass, mass_error, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
   real(8), allocatable, dimension(:,:) :: threshold_def
 
@@ -323,14 +323,14 @@ contains
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 
-  subroutine initialize_dt_viscosity (eigen)
+  subroutine initialize_dt_viscosity (L_diffusion)
     ! Initializes time step and viscosity
     use wavelet_mod
     implicit none
-    real(8), dimension(3) :: eigen
+    real(8), dimension(3) :: L_diffusion
     
     integer :: k
-    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top, scale_fac
+    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top, tau_diffusion
 
     ! Average area of smallest lozenges
     Area_lozenge = 4*MATH_PI*radius**2/(10.0_8*4**max_level+2.0_8)
@@ -347,23 +347,27 @@ contains
     
     ! Viscosity constant from eigenvalues of Laplacian
     if (Laplace_order == 1 .or. Laplace_order == 2) then
-       scale_fac = (dble(max_level)/dble(min_level))**(2*Laplace_order) ! Rescale to finest grid
+       L_diffusion = L_diffusion * 2.0_8**(min_level-max_level) ! Correct length scales for finest grid
+       tau_diffusion = 3.0_8*HOUR                               ! Diffusion time scale
        
-       viscosity_mass = 1.0_8/(3*HOUR * eigen(1)**Laplace_order * scale_fac)
-       viscosity_temp = viscosity_mass
-       viscosity_rotu = 1.0_8/(3*HOUR * eigen(3)**Laplace_order * scale_fac)
-       viscosity_divu = viscosity_rotu
+       viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
+       viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
+       viscosity_rotu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
+       viscosity_divu = L_diffusion(3)**(2*Laplace_order) / tau_diffusion
     elseif (Laplace_order > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
 
     if (rank == 0) then
+       write (6,'(A,es10.4)')   'dt_cfl         = ', dt_cfl
+       write (6,'(A,es10.4)')   'dx_min         = ', dx_min
+       write (6,'(A,es10.4,/)') 'k_max          = ', k_max
        if (Laplace_order /= 0) then
           write (6,'(A,es10.4)') 'Viscosity_mass = ', viscosity_mass
           write (6,'(A,es10.4)') 'Viscosity_temp = ', viscosity_temp
           write (6,'(A,es10.4)') 'Viscosity_divu = ', sum (viscosity_divu)/zlevels
-          write (6,'(A,es10.4)') 'Viscosity_rotu = ', viscosity_rotu
+          write (6,'(A,es10.4,/)') 'Viscosity_rotu = ', viscosity_rotu
        end if
     end if
   end subroutine initialize_dt_viscosity
