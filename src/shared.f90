@@ -333,7 +333,7 @@ module shared_mod
 
   character(255)                                :: test_case
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, lagrangian_vertical, perfect, remap, uniform
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fresh_start, lagrangian_vertical, perfect, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -385,6 +385,7 @@ contains
     adapt_trend         = .true. ! Adapt on trend (T) or on solution (F)
     compressible        = .true. ! Compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true. ! Use default thresholds (T) or calculate dynamically (F)
+    fresh_start         = .true. ! Fresh start (T) or restart from checkpoint (F)
     perfect             = .true. ! Use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
     remap               = .true. ! Remap Lagrangian coordinates (T) or no remapping (F)
     lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates (only option implement is T, mass-based coordinates not implemented)

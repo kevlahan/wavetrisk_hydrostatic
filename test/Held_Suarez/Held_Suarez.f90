@@ -56,10 +56,10 @@ program Held_Suarez
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
+  
   ! Initialize vertical grid
   call initialize_a_b_vert
-
+  
   ! Determine vertical level to save
   call set_save_level
 
@@ -72,7 +72,7 @@ program Held_Suarez
   call barrier
 
   ! Estimate largest eigenvalues of diffusion operators
-  if (Laplace_order /= 0) call evals_diffusion (L_diffusion)
+  if (Laplace_order /= 0 .and. fresh_start) call evals_diffusion (L_diffusion) 
 
   ! Initialize viscosities
   call initialize_dt_viscosity (L_diffusion)
