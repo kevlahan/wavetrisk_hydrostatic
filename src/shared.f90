@@ -328,6 +328,7 @@ module shared_mod
   real(8), dimension(:),         allocatable    :: pressure_save
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu
   real(8), dimension(:,:),       allocatable    :: threshold
+  real(8), dimension(3)                         :: L_diffusion
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
 

@@ -98,7 +98,7 @@ program DCMIP2012c4
         call write_and_export (iwrite)
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, test_case)
+        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, test_case, .false.)
      end if
   end do
 

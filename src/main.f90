@@ -47,7 +47,7 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
-       call restart (set_thresholds, custom_load, test_case)
+       call restart (set_thresholds, custom_load, test_case, .true.)
     else
        cp_idx = -1
        call init_structures
@@ -108,7 +108,7 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt_mpi()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
-       call write_checkpoint (custom_dump, custom_load, test_case)
+       call write_checkpoint (custom_dump, custom_load, test_case, .true.)
     end if
   end subroutine initialize
 
@@ -267,10 +267,11 @@ contains
     end do
   end subroutine reset
 
-  subroutine restart (set_thresholds, custom_load, test_case)
+  subroutine restart (set_thresholds, custom_load, test_case, init_restart)
     implicit none
     external     :: set_thresholds, custom_load
     character(*) :: test_case
+    logical      :: init_restart
     
     character(255) :: cmd_archive, cmd_files, command
 
@@ -293,6 +294,9 @@ contains
     call barrier ! Make sure all archive files have been uncompressed
     call init_structures
 
+    ! Calculate diffusion length scales
+    if (Laplace_order /= 0 .and. init_restart) call evals_diffusion
+    
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load)
 
@@ -326,10 +330,11 @@ contains
     end if
   end subroutine restart
 
-  subroutine write_checkpoint (custom_dump, custom_load, test_case)
+  subroutine write_checkpoint (custom_dump, custom_load, test_case, init_restart)
     implicit none
     external :: custom_dump, custom_load
     character(*) :: test_case
+    logical      :: init_restart
 
     character(255) :: cmd_archive, cmd_files, command
     
@@ -350,7 +355,7 @@ contains
     end if
     
     ! Must restart after checkpoint and load balance (if compiled with mpi-lb)
-    call restart (set_thresholds, custom_load, test_case)
+    call restart (set_thresholds, custom_load, test_case, init_restart)
   end subroutine write_checkpoint
 
   subroutine init_structures

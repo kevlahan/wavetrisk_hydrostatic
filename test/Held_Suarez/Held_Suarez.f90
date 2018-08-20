@@ -8,7 +8,6 @@ program Held_Suarez
   implicit none
 
   logical :: aligned
-  real(8), dimension(3) :: L_diffusion
 
   ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
@@ -71,12 +70,9 @@ program Held_Suarez
   call sum_total_mass (.true.)
   call barrier
 
-  ! Estimate largest eigenvalues of diffusion operators
-  if (Laplace_order /= 0 .and. fresh_start) call evals_diffusion (L_diffusion) 
-
   ! Initialize viscosities
-  call initialize_dt_viscosity (L_diffusion)
-
+  call initialize_dt_viscosity
+  
   ! Save initial conditions
   call write_and_export (iwrite)
 
@@ -103,7 +99,7 @@ program Held_Suarez
         call write_and_export (iwrite)
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, test_case)
+        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, test_case, .false.)
      end if
   end do
 

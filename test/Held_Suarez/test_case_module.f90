@@ -266,11 +266,9 @@ contains
        write (6,'(A)') ' '
     end if
     close(fid)
-
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
     allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
-    if (resume >= 0) fresh_start = .false.
   end subroutine read_test_case_parameters
 
   subroutine print_log
@@ -324,11 +322,10 @@ contains
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 
-  subroutine initialize_dt_viscosity (L_diffusion)
+  subroutine initialize_dt_viscosity 
     ! Initializes viscosity
     use wavelet_mod
     implicit none
-    real(8), dimension(3) :: L_diffusion
     
     integer :: k
     real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top, tau_diffusion
@@ -439,7 +436,6 @@ contains
     write (fid) itime
     write (fid) iwrite
     write (fid) threshold
-    write (fid) viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu
   end subroutine dump
 
   subroutine load (fid)
@@ -449,6 +445,5 @@ contains
     read (fid) itime
     read (fid) iwrite
     read (fid) threshold
-    read (fid) viscosity_mass, viscosity_temp, viscosity_divu, viscosity_rotu
   end subroutine load
 end module test_case_mod
