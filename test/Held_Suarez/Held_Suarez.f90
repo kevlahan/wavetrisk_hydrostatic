@@ -221,9 +221,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: e, id, id_i
+  integer                    :: e
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
-  real(8)                    :: k_v
 
   if (max (maxval (viscosity_divu), viscosity_rotu) == 0.0_8) then
      diffusion = 0.0_8
@@ -294,10 +293,10 @@ contains
     id_i = idx(i, j, offs, dims)+1
     call cart2sph (dom%node%elts(id_i), lon, lat)
 
-    !if (dom%mask_n%elts(id_i) >= ADJZONE) then
-    call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-    temp(id_i) = temp(id_i) - dt*k_T * (temp(id_i) - theta_equil*mass(id_i))
-    !end if
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+       temp(id_i) = temp(id_i) - dt*k_T * (temp(id_i) - theta_equil*mass(id_i))
+    end if
   end subroutine euler_step_mass
 
   subroutine euler_step_velo (dom, i, j, zlev, offs, dims)
@@ -323,8 +322,7 @@ contains
     ! Euler step for temperature and velocity cooling
     do e = 1, EDGE
        id_e = EDGE*id+e
-       !if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = (1.0_8 - dt*k_v) * velo(id_e)
-       velo(id_e) = (1.0_8 - dt*k_v) * velo(id_e)
+       if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = (1.0_8 - dt*k_v) * velo(id_e)
     end do
   end subroutine euler_step_velo
 end subroutine time_step_cooling
