@@ -22,7 +22,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id_i
-    real(8)     :: column_mass, eta, k_T, lev_press, lon, lat, p_top, p_bot, theta_equil
+    real(8)     :: column_mass, k_T, lev_press, lon, lat, p_top, p_bot, theta_equil
     type(Coord) :: x_i
     
     d = dom%id+1
@@ -40,9 +40,8 @@ contains
     sol(S_MASS,zlev)%data(d)%elts(id_i) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
     
     ! Initial potential temperature to equilibrium value
-    eta = lev_press/dom%surf_press%elts(id_i)
     call cart2sph (x_i, lon, lat) 
-    call cal_theta_eq (lev_press, eta, lat, theta_equil, k_T)
+    call cal_theta_eq (lev_press/ref_press, lev_press/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
 
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * theta_equil
@@ -51,11 +50,11 @@ contains
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
 
-  subroutine cal_theta_eq (press, eta, lat, theta_equil, k_T)
+  subroutine cal_theta_eq (eta_ref, eta, lat, theta_equil, k_T)
     ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
     use domain_mod
     implicit none
-    real(8) :: press, eta, lat, theta_equil, k_T
+    real(8) :: eta_ref, eta, lat, theta_equil, k_T
 
     real(8) :: sn2, cs2, theta_force, theta_tropo 
 
@@ -64,9 +63,9 @@ contains
 
     k_T = k_a + (k_s-k_a) * max (0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cs2**2
 
-    theta_tropo = T_tropo * (press/ref_press)**(-kappa) ! Potential temperature at tropopause
+    theta_tropo = T_tropo * eta_ref**(-kappa) ! Potential temperature at tropopause
 
-    theta_force = T_mean - delta_T*sn2 - delta_theta*cs2 * log (press/ref_press)
+    theta_force = T_mean - delta_T*sn2 - delta_theta*cs2 * log (eta_ref)
 
     theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
   end subroutine cal_theta_eq
@@ -346,8 +345,8 @@ contains
     if (fresh_start) then
        ! Viscosity constant from eigenvalues of Laplacian
        if (Laplace_order == 1 .or. Laplace_order == 2) then
-          L_diffusion = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
-          tau_diffusion = 3*HOUR                               ! Diffusion time scale
+          L_diffusion = L_diffusion / 2**(1.5*(max_level-min_level)) ! Correct length scales for finest grid
+          tau_diffusion = 12*HOUR                                     ! Diffusion time scale
 
           viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion

@@ -16,9 +16,9 @@ program Held_Suarez
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters ("test_case.in")
- 
+
   ! Standard (shared) parameter values for the simulation
-  radius         = 6.371229d6                  ! mean radius of the Earth in meters
+  radius         = 6.371d6                  ! mean radius of the Earth in meters
   grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
   omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
   ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
@@ -54,17 +54,17 @@ program Held_Suarez
   Tdim           = DAY                         ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   ! Initialize vertical grid
   call initialize_a_b_vert
-  
+
   ! Determine vertical level to save
   call set_save_level
 
   ! Initialize thresholds to default values 
   call initialize_thresholds
- 
+
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
   call sum_total_mass (.true.)
@@ -72,11 +72,11 @@ program Held_Suarez
 
   ! Initialize viscosities
   call initialize_dt_viscosity
-  
+
   ! Save initial conditions
   call write_and_export (iwrite)
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
@@ -88,7 +88,7 @@ program Held_Suarez
      call time_step (dt_write, aligned, set_thresholds)
      call time_step_cooling
      call stop_timing
-     
+
      call sum_total_mass (.false.)
      call print_log
 
@@ -203,8 +203,7 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
-  physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = 0.0_8
+  physics_scalar_source = 0.0_8
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -222,10 +221,9 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: e, id
+  integer                    :: e, id, id_i
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
-
-  id = idx(i, j, offs, dims)
+  real(8)                    :: k_v
 
   if (max (maxval (viscosity_divu), viscosity_rotu) == 0.0_8) then
      diffusion = 0.0_8
@@ -239,7 +237,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   ! Find correct sign of diffusion on right hand side of equation
   diffusion = (-1)**(Laplace_order-1) * diffusion
-   
+    
   ! Total physics for source term of velocity trend
   do e = 1, EDGE
      physics_velo_source(e) =  diffusion(e) 
@@ -251,67 +249,83 @@ subroutine time_step_cooling
   use domain_mod
   use ops_mod
   implicit none
-  integer :: d, j, k, p
-
-  interface
-     subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
-       use domain_mod
-       implicit none
-       type(Domain)                     :: dom
-       integer                          :: i, j, zlev
-       integer, dimension(N_BDRY + 1)   :: offs
-       integer, dimension(2,N_BDRY + 1) :: dims
-     end subroutine euler_step_cooling
-  end interface
+  integer :: d, j, k, l, p
 
   call update_array_bdry (sol, NONE)
 
-  ! Compute curent surface pressure
+  ! Current surface pressure
   call cal_surf_press (sol)
-
+  
   do k = 1, zlevels
-     do d = 1, size(grid)
-        mass => sol(S_MASS,k)%data(d)%elts
-        temp => sol(S_TEMP,k)%data(d)%elts
-        velo => sol(S_VELO,k)%data(d)%elts
-        do p = 3, grid(d)%patch%length
-           call apply_onescale_to_patch (cal_pressure,          grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (euler_step_cooling,    grid(d), p-1, k, 0, 1)
+     do l = level_end, level_start, -1
+        do d = 1, size(grid)
+           mass => sol(S_MASS,k)%data(d)%elts
+           temp => sol(S_TEMP,k)%data(d)%elts
+           velo => sol(S_VELO,k)%data(d)%elts
+           ! Pressure at vertical level k
+           do j = 1, grid(d)%lev(l)%length
+              call apply_onescale_to_patch (cal_pressure, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+           end do
+           do j = 1, grid(d)%lev(l)%length
+              call apply_onescale_to_patch (euler_step_mass, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+              call apply_onescale_to_patch (euler_step_velo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+           end do
+           nullify (mass, temp, velo)
         end do
-        nullify (mass, temp, velo)
      end do
-     sol(:,k)%bdry_uptodate = .false.
+     sol(S_TEMP:S_VELO,k)%bdry_uptodate = .false.
   end do
+  call update_array_bdry (sol, NONE)
+contains
+  subroutine euler_step_mass (dom, i, j, zlev, offs, dims)
+    ! Euler time step
+    use test_case_mod
+    use main_mod
+    use domain_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer     :: id_i
+    real(8)     :: k_T, lat, lon, theta_equil
+    
+    id_i = idx(i, j, offs, dims)+1
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+
+    !if (dom%mask_n%elts(id_i) >= ADJZONE) then
+    call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+    temp(id_i) = temp(id_i) - dt*k_T * (temp(id_i) - theta_equil*mass(id_i))
+    !end if
+  end subroutine euler_step_mass
+
+  subroutine euler_step_velo (dom, i, j, zlev, offs, dims)
+    ! Euler time step
+    use test_case_mod
+    use main_mod
+    use domain_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: e, id, id_e, id_i
+    real(8) :: k_v
+
+    id = idx(i, j, offs, dims)
+    id_i = id+1
+
+    ! Rayleigh friction
+    k_v = k_f * max (0.0_8, (dom%press%elts(id_i)/dom%surf_press%elts(id_i) - eta_b)/(1.0_8-eta_b)) 
+
+    ! Euler step for temperature and velocity cooling
+    do e = 1, EDGE
+       id_e = EDGE*id+e
+       !if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = (1.0_8 - dt*k_v) * velo(id_e)
+       velo(id_e) = (1.0_8 - dt*k_v) * velo(id_e)
+    end do
+  end subroutine euler_step_velo
 end subroutine time_step_cooling
-
-subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
-  ! Euler time step
-  use test_case_mod
-  use main_mod
-  use domain_mod
-  implicit none
-  type(Domain)                     :: dom
-  integer                          :: i, j, zlev
-  integer, dimension(N_BDRY + 1)   :: offs
-  integer, dimension(2,N_BDRY + 1) :: dims
-
-  integer :: e, id
-  real(8) :: eta, k_T, k_v, lat, lon, press, theta_equil
-
-  id = idx(i, j, offs, dims)
- 
-  call cart2sph (dom%node%elts(id+1), lon, lat) ! Latitude and longitude
-  
-  press = dom%press%elts(id+1)          ! Pressure
-  eta = press/dom%surf_press%elts(id+1) ! Normalized pressure
-
-  call cal_theta_eq (press, eta, lat, theta_equil, k_T)
-  k_v = k_f * max (0.0_8, (eta-eta_b)/(1.0_8-eta_b)) ! Rayleigh friction
-  
-  ! Euler step for temperature and velocity cooling
-  temp(id+1) = temp(id+1) - dt*k_T * (temp(id+1) - theta_equil*mass(id+1))
-  do e = 1, EDGE
-     velo(EDGE*id+e) = velo(EDGE*id+e) - dt*k_v * velo(EDGE*id+e)
-  end do
-end subroutine euler_step_cooling
 

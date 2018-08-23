@@ -174,7 +174,7 @@ contains
       idW  = id+W
       idSW = id+SW
       idS  = id+S
-      
+
       u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
       u_prim_UP_SW = velo(EDGE*idSW+UP+1)*dom%len%elts(EDGE*idSW+UP+1)
 
@@ -343,7 +343,7 @@ contains
        idS  = idx( 0, -1, offs, dims)
        idN  = idx( 0,  1, offs, dims)
        idE  = idx( 1,  0, offs, dims)
-       
+
        u_prim_RT_W  = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW +RT+1)
        u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1) 
        u_prim_UP_S  = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS +UP+1)
@@ -662,22 +662,22 @@ contains
        end do
        grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + press_infty
     end do
+  contains
+    subroutine column_mass (dom, i, j, zlev, offs, dims)
+      ! Sum up total mass over column id
+      implicit none
+      type (Domain)                  :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: id_i
+
+      id_i = idx(i, j, offs, dims) + 1
+
+      dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
+    end subroutine column_mass
   end subroutine cal_surf_press
-
-  subroutine column_mass (dom, i, j, zlev, offs, dims)
-    ! Sum up total mass over column id
-    implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-
-    id_i = idx(i, j, offs, dims) + 1
-
-    dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
-  end subroutine column_mass
 
   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
     ! Integrate pressure (compressible case)/Lagrange multiplier (incompressible case) and geopotential up from surface to top layer
@@ -909,28 +909,28 @@ contains
     idSW = idx(i-1, j-1, offs, dims)
     idS  = idx(i,   j-1, offs, dims)
     idSE = idx(i+1, j-1, offs, dims)
-    
+
     ! RT edge
     wgt1 = get_weights(dom, id,  0)
     wgt2 = get_weights(dom, idE, 3)
-    
+
     Qperp_Gassmann(RT+1) = &
          ! Adjacent neighbour edges (Gassmann rule 1)
          h_mflux(EDGE*id +DG+1) * qe(EDGE*idE+UP+1)*wgt1(1) + &
          h_mflux(EDGE*idS+UP+1) * qe(EDGE*idS+DG+1)*wgt1(5) + &
          h_mflux(EDGE*idS+DG+1) * qe(EDGE*idS+UP+1)*wgt2(1) + &
          h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +DG+1)*wgt2(5) + &
-
+         
          ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*id  +UP+1) * qe(EDGE*id +DG+1)*wgt1(2) + &
          h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idS+UP+1)*wgt1(4) + &
          h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+DG+1)*wgt2(2) + &
          h_mflux(EDGE*idE +DG+1) * qe(EDGE*idE+UP+1)*wgt2(4)
-         
-         ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
-         ! h_mflux(EDGE*idW+RT+1)  * interp (qe(EDGE*idW+RT+1), qe(EDGE*id+RT+1))*wgt1(3) + &
-         ! h_mflux(EDGE*idE+RT+1)  * interp (qe(EDGE*idE+RT+1), qe(EDGE*id+RT+1))*wgt2(3)
-        
+
+    ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
+    ! h_mflux(EDGE*idW+RT+1)  * interp (qe(EDGE*idW+RT+1), qe(EDGE*id+RT+1))*wgt1(3) + &
+    ! h_mflux(EDGE*idE+RT+1)  * interp (qe(EDGE*idE+RT+1), qe(EDGE*id+RT+1))*wgt2(3)
+
     if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*interp (qe(EDGE*idW+RT+1),qe(EDGE*id+RT+1))*wgt1(3)
     else ! Pentagon, second neighbour edge (Gassmann rule 2)
@@ -948,19 +948,19 @@ contains
     wgt2 = get_weights(dom, idNE, 4)
 
     Qperp_Gassmann(DG+1) = &
-         ! Adjacent neighbour edges (Gassmann rule 1)
+                                ! Adjacent neighbour edges (Gassmann rule 1)
          h_mflux(EDGE*id +UP+1) * qe(EDGE*idN+RT+1)*wgt1(1) + &
          h_mflux(EDGE*id +RT+1) * qe(EDGE*idE+UP+1)*wgt1(5) + &
          h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +RT+1)*wgt2(1) + &
          h_mflux(EDGE*idN+RT+1) * qe(EDGE*id +UP+1)*wgt2(5) + &
-
-         ! Second neighbour edges (Gassmann rule 2)
+         
+                                ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*idW +RT+1) * qe(EDGE*id +UP+1)*wgt1(2) + &
          h_mflux(EDGE*idS +UP+1) * qe(EDGE*id +RT+1)*wgt1(4) + &
          h_mflux(EDGE*idNE+RT+1) * qe(EDGE*idE+UP+1)*wgt2(2) + &
          h_mflux(EDGE*idNE+UP+1) * qe(EDGE*idN+RT+1)*wgt2(4) + &
-        
-         ! Third neighbour edges (Gassmann rule 3 = TRSK)
+         
+                                ! Third neighbour edges (Gassmann rule 3 = TRSK)
          h_mflux(EDGE*idSW+DG+1) * interp (qe(EDGE*idSW+DG+1), qe(EDGE*id+DG+1))*wgt1(3) + &
          h_mflux(EDGE*idNE+DG+1) * interp (qe(EDGE*idNE+DG+1), qe(EDGE*id+DG+1))*wgt2(3)
 
@@ -974,17 +974,17 @@ contains
          h_mflux(EDGE*id +DG+1)  * qe(EDGE*idN+RT+1)*wgt1(5) + &
          h_mflux(EDGE*idN+RT+1)  * qe(EDGE*id +DG+1)*wgt2(1) + &
          h_mflux(EDGE*idW+DG+1)  * qe(EDGE*idW+RT+1)*wgt2(5) + &
-                 
+         
          ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idW+RT+1)*wgt1(2) + &
          h_mflux(EDGE*id+RT+1)   * qe(EDGE*id +DG+1)*wgt1(4) + &
          h_mflux(EDGE*idN+DG+1)  * qe(EDGE*idN+RT+1)*wgt2(2) + &         
          h_mflux(EDGE*idNW+RT+1) * qe(EDGE*idW+DG+1)*wgt2(4)
-                 
-         ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
-         ! h_mflux(EDGE*idS+UP+1)  * interp (qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
-         ! h_mflux(EDGE*idN+UP+1)  * interp (qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3)
-    
+
+    ! ! Third neighbour edges (Gassmann rule 3 = TRSK)
+    ! h_mflux(EDGE*idS+UP+1)  * interp (qe(EDGE*idS+UP+1),  qe(EDGE*id+UP+1))*wgt1(3) + &
+    ! h_mflux(EDGE*idN+UP+1)  * interp (qe(EDGE*idN+UP+1),  qe(EDGE*id+UP+1))*wgt2(3)
+
     if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3 = TRSK)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*interp (qe(EDGE*idS+UP+1),qe(EDGE*id+UP+1))*wgt1(3)
     else ! Pentagon, second neighbour edge (Gassmann rule 2)
@@ -1035,7 +1035,7 @@ contains
          integer, dimension(2,N_BDRY+1)    :: dims
        end function physics_scalar_source
     end interface
-   
+
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
     id_i = idx(i, j, offs, dims) + 1
@@ -1155,7 +1155,7 @@ contains
     curlv_e(RT+1) = (dom%vort%elts(TRIAG*id +LORT+1) - dom%vort%elts(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
     curlv_e(DG+1) = (dom%vort%elts(TRIAG*id +LORT+1) - dom%vort%elts(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
     curlv_e(UP+1) = (dom%vort%elts(TRIAG*idW+LORT+1) - dom%vort%elts(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
- end function curlv_e
+  end function curlv_e
 
   function div (hflux, dom, i, j, offs, dims)
     ! Divergence at nodes x_i given horizontal fluxes at edges x_e
@@ -1356,7 +1356,7 @@ contains
     ! Estimates largest eigenvalues of Laplacian diffusion operators by power iteration
     use wavelet_mod
     implicit none
-    
+
     integer                                                       :: d, iter, j, k
     integer, parameter                                            :: iter_max = 100, seed = 86456
     real(8)                                                       :: diff
@@ -1375,7 +1375,7 @@ contains
        write (6,'(/,A,i2)') "Convergence of largest eigenvector on coarsest grid J = ", min_level
        write (6,'(A)') "Iteration    err(scalar)   err(divu)     err(rotu)"
     end if
-    
+
     iter = 0; err = 1d16
     do while (maxval (err) > err_max .and. iter <= iter_max)
        iter = iter + 1
@@ -1402,7 +1402,7 @@ contains
     ! Find diffusion length scales
     L_diffusion = 1.0_8/sqrt (eigen)
     if (rank == 0) write (6,'(/,3(A,es10.4,1x),/)') &
-         "L_scalar = ", L_diffusion(1), "L_divu = ", L_diffusion(2),"L_rotu = ", L_diffusion(3)
+         "dx_scalar = ", MATH_PI*L_diffusion(1), "dx_divu = ",MATH_PI* L_diffusion(2),"dx_rotu = ", MATH_PI*L_diffusion(3)
   contains
     subroutine init_rand
       ! Applies random initial conditions
@@ -1430,7 +1430,7 @@ contains
       sol_tmp(S_MASS,1)%data(d)%elts(id_i) = rand()
     end subroutine init_rand_mass
 
-     subroutine init_rand_velo (dom, i, j, zlev, offs, dims)
+    subroutine init_rand_velo (dom, i, j, zlev, offs, dims)
       ! Initializes velocities to a random vector
       implicit none
       type (Domain)                   :: dom
@@ -1442,7 +1442,7 @@ contains
 
       d  = dom%id+1
       id = idx(i, j, offs, dims)
-      
+
       do e = 1, EDGE
          id_e = EDGE*id+e
          sol_tmp(S_VELO,1)%data(d)%elts(id_e) = rand()
@@ -1456,7 +1456,7 @@ contains
 
       ! Find norms
       call cal_lnorm (sol_tmp, '2', lnorm)
-      
+
       call apply_onescale (normalize_mass, level_start, z_null, 0, 1)
       call apply_onescale (normalize_velo, level_start, z_null, 0, 0)
       call update_array_bdry (sol_tmp, NONE)
@@ -1531,7 +1531,7 @@ contains
       err(1) = err(1) + (sol_tmp(S_MASS,2)%data(d)%elts(id_i) - sol_tmp(S_MASS,1)%data(d)%elts(id_i))**2
     end subroutine cal_err_mass
 
-     subroutine cal_err_velo (dom, i, j, zlev, offs, dims)
+    subroutine cal_err_velo (dom, i, j, zlev, offs, dims)
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
@@ -1591,128 +1591,128 @@ contains
     end subroutine Ax
 
     subroutine cal_Laplacian_mass (dom, i, j, zlev, offs, dims)
-        ! Calculate divergence of gradient of scalar
-        implicit none
-        type(Domain)                   :: dom
-        integer                        :: i, j, zlev
-        integer, dimension(N_BDRY+1)   :: offs
-        integer, dimension(2,N_BDRY+1) :: dims
+      ! Calculate divergence of gradient of scalar
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
 
-        integer               :: id, idE, idNE, idN, idW, idSW, idS
-        real(8), dimension(6) :: grad
+      integer               :: id, idE, idNE, idN, idW, idSW, idS
+      real(8), dimension(6) :: grad
 
-        id = idx(i, j, offs, dims)
+      id = idx(i, j, offs, dims)
 
-        idE  = idx(i+1, j,   offs, dims)
-        idNE = idx(i+1, j+1, offs, dims)
-        idN  = idx(i,   j+1, offs, dims)
-        idW  = idx(i-1, j,   offs, dims)
-        idSW = idx(i-1, j-1, offs, dims)
-        idS  = idx(i,   j-1, offs, dims)
+      idE  = idx(i+1, j,   offs, dims)
+      idNE = idx(i+1, j+1, offs, dims)
+      idN  = idx(i,   j+1, offs, dims)
+      idW  = idx(i-1, j,   offs, dims)
+      idSW = idx(i-1, j-1, offs, dims)
+      idS  = idx(i,   j-1, offs, dims)
 
-        grad(1) =  (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
-        grad(2) =  (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
-        grad(3) =  (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
-        grad(4) = -(mass(idW+1) - mass(id+1))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
-        grad(5) = -(mass(id+1)  - mass(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-        grad(6) = -(mass(idS+1) - mass(id+1))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+      grad(1) =  (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
+      grad(2) =  (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
+      grad(3) =  (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
+      grad(4) = -(mass(idW+1) - mass(id+1))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+      grad(5) = -(mass(id+1)  - mass(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+      grad(6) = -(mass(idS+1) - mass(id+1))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
 
-        mass(id+1) = (grad(1)-grad(4) + grad(5)-grad(2) + grad(3)-grad(6)) * dom%areas%elts(id+1)%hex_inv
-      end subroutine cal_Laplacian_mass
+      mass(id+1) = (grad(1)-grad(4) + grad(5)-grad(2) + grad(3)-grad(6)) * dom%areas%elts(id+1)%hex_inv
+    end subroutine cal_Laplacian_mass
 
     subroutine cal_Laplacian_divu (dom, i, j, zlev, offs, dims)
       ! Calculate Laplacian(u) = grad(divu) - curl(vort)
       implicit none
-        type(Domain)                   :: dom
-        integer                        :: i, j, zlev
-        integer, dimension(N_BDRY+1)   :: offs
-        integer, dimension(2,N_BDRY+1) :: dims
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
 
-        integer               :: d, e, id
-        real(8), dimension(3) :: grad_divu, curl_rotu
+      integer               :: d, e, id
+      real(8), dimension(3) :: grad_divu, curl_rotu
 
-        grad_divu = gradi_e (divu, dom, i, j, offs, dims)
+      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
 
-        id = idx(i, j, offs, dims)
-        do e = 1, EDGE
-           velo(EDGE*id+e) = grad_divu(e)
-        end do
-      end subroutine cal_Laplacian_divu
+      id = idx(i, j, offs, dims)
+      do e = 1, EDGE
+         velo(EDGE*id+e) = grad_divu(e)
+      end do
+    end subroutine cal_Laplacian_divu
 
-      subroutine cal_Laplacian_rotu (dom, i, j, zlev, offs, dims)
-        ! Calculate Laplacian(u) = grad(divu) - curl(vort)
-        implicit none
-        type(Domain)                   :: dom
-        integer                        :: i, j, zlev
-        integer, dimension(N_BDRY+1)   :: offs
-        integer, dimension(2,N_BDRY+1) :: dims
+    subroutine cal_Laplacian_rotu (dom, i, j, zlev, offs, dims)
+      ! Calculate Laplacian(u) = grad(divu) - curl(vort)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
 
-        integer               :: d, e, id
-        real(8), dimension(3) :: curl_rotu
+      integer               :: d, e, id
+      real(8), dimension(3) :: curl_rotu
 
-        curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
+      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
 
-        id = idx(i, j, offs, dims)
-        do e = 1, EDGE
-           velo(EDGE*id+e) = - curl_rotu(e)
-        end do
-      end subroutine cal_Laplacian_rotu
+      id = idx(i, j, offs, dims)
+      do e = 1, EDGE
+         velo(EDGE*id+e) = - curl_rotu(e)
+      end do
+    end subroutine cal_Laplacian_rotu
 
-      subroutine Ray_quotient
-        implicit none
-        integer :: ii
+    subroutine Ray_quotient
+      implicit none
+      integer :: ii
 
-        ! Save current eigenvectors, x (already normalized)
-        sol_tmp(S_MASS,2) = sol_tmp(S_MASS,1)
-        sol_tmp(S_VELO,3) = sol_tmp(S_VELO,1)
-        sol_tmp(S_VELO,4) = sol_tmp(S_VELO,2)
-       
-        ! Apply Laplacian operators to find Ax
-        call Ax
+      ! Save current eigenvectors, x (already normalized)
+      sol_tmp(S_MASS,2) = sol_tmp(S_MASS,1)
+      sol_tmp(S_VELO,3) = sol_tmp(S_VELO,1)
+      sol_tmp(S_VELO,4) = sol_tmp(S_VELO,2)
 
-        ! Inner product with previous eigenvectors to find <Ax,x>
-        inner_prod = 0.0_8
-        call apply_onescale (cal_inner_prod_mass, level_start, z_null, 0, 1)
-        call apply_onescale (cal_inner_prod_velo, level_start, z_null, 0, 0)
+      ! Apply Laplacian operators to find Ax
+      call Ax
 
-        ! Normalize to obtain Rayleigh quotient <Ax,x>/<x,x> (x is already normalized)
-        do ii = 1, 3
-           eigen(ii) = sum_real (inner_prod(ii))
-        end do
-      end subroutine Ray_quotient
+      ! Inner product with previous eigenvectors to find <Ax,x>
+      inner_prod = 0.0_8
+      call apply_onescale (cal_inner_prod_mass, level_start, z_null, 0, 1)
+      call apply_onescale (cal_inner_prod_velo, level_start, z_null, 0, 0)
 
-      subroutine cal_inner_prod_mass (dom, i, j, zlev, offs, dims)
-        implicit none
-        type(Domain)                   :: dom
-        integer                        :: i, j, zlev
-        integer, dimension(N_BDRY+1)   :: offs
-        integer, dimension(2,N_BDRY+1) :: dims
+      ! Normalize to obtain Rayleigh quotient <Ax,x>/<x,x> (x is already normalized)
+      do ii = 1, 3
+         eigen(ii) = sum_real (inner_prod(ii))
+      end do
+    end subroutine Ray_quotient
 
-        integer :: d, id_i
+    subroutine cal_inner_prod_mass (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
 
-        d = dom%id+1
-        id_i = idx(i, j, offs, dims)+1
+      integer :: d, id_i
 
-        inner_prod(1) = inner_prod(1) + sol_tmp(S_MASS,2)%data(d)%elts(id_i)*sol_tmp(S_MASS,1)%data(d)%elts(id_i)
-      end subroutine cal_inner_prod_mass
+      d = dom%id+1
+      id_i = idx(i, j, offs, dims)+1
 
-      subroutine cal_inner_prod_velo (dom, i, j, zlev, offs, dims)
-        implicit none
-        type(Domain)                   :: dom
-        integer                        :: i, j, zlev
-        integer, dimension(N_BDRY+1)   :: offs
-        integer, dimension(2,N_BDRY+1) :: dims
+      inner_prod(1) = inner_prod(1) + sol_tmp(S_MASS,2)%data(d)%elts(id_i)*sol_tmp(S_MASS,1)%data(d)%elts(id_i)
+    end subroutine cal_inner_prod_mass
 
-        integer :: d, e, id, id_e
+    subroutine cal_inner_prod_velo (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
 
-        d = dom%id+1
-        id = idx(i, j, offs, dims)
+      integer :: d, e, id, id_e
 
-        do e = 1, EDGE
-           id_e  = EDGE*id+e
-           inner_prod(2) = inner_prod(2) + sol_tmp(S_VELO,3)%data(d)%elts(id_e)*sol_tmp(S_VELO,1)%data(d)%elts(id_e)
-           inner_prod(3) = inner_prod(3) + sol_tmp(S_VELO,4)%data(d)%elts(id_e)*sol_tmp(S_VELO,2)%data(d)%elts(id_e)
-        end do
-      end subroutine cal_inner_prod_velo
-    end subroutine evals_diffusion
-  end module ops_mod
+      d = dom%id+1
+      id = idx(i, j, offs, dims)
+
+      do e = 1, EDGE
+         id_e  = EDGE*id+e
+         inner_prod(2) = inner_prod(2) + sol_tmp(S_VELO,3)%data(d)%elts(id_e)*sol_tmp(S_VELO,1)%data(d)%elts(id_e)
+         inner_prod(3) = inner_prod(3) + sol_tmp(S_VELO,4)%data(d)%elts(id_e)*sol_tmp(S_VELO,2)%data(d)%elts(id_e)
+      end do
+    end subroutine cal_inner_prod_velo
+  end subroutine evals_diffusion
+end module ops_mod
