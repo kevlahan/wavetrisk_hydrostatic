@@ -248,7 +248,7 @@ subroutine time_step_cooling
   use domain_mod
   use ops_mod
   implicit none
-  integer :: d, j, k, l, p
+  integer :: d, j, k, p
 
   call update_array_bdry (sol, NONE)
 
@@ -256,24 +256,20 @@ subroutine time_step_cooling
   call cal_surf_press (sol)
   
   do k = 1, zlevels
-     do l = level_end, level_start, -1
-        do d = 1, size(grid)
-           mass => sol(S_MASS,k)%data(d)%elts
-           temp => sol(S_TEMP,k)%data(d)%elts
-           velo => sol(S_VELO,k)%data(d)%elts
-           ! Pressure at vertical level k
-           do j = 1, grid(d)%lev(l)%length
-              call apply_onescale_to_patch (cal_pressure, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-           end do
-           do j = 1, grid(d)%lev(l)%length
-              call apply_onescale_to_patch (euler_step_mass, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-              call apply_onescale_to_patch (euler_step_velo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-           end do
-           nullify (mass, temp, velo)
+     do d = 1, size(grid)
+        mass => sol(S_MASS,k)%data(d)%elts
+        temp => sol(S_TEMP,k)%data(d)%elts
+        velo => sol(S_VELO,k)%data(d)%elts
+        do p = 3, grid(d)%patch%length
+           call apply_onescale_to_patch (cal_pressure,    grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (euler_step_mass, grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (euler_step_velo, grid(d), p-1, k, 0, 0)
         end do
+        nullify (mass, temp, velo)
      end do
      sol(S_TEMP:S_VELO,k)%bdry_uptodate = .false.
   end do
+  
   call update_array_bdry (sol, NONE)
 contains
   subroutine euler_step_mass (dom, i, j, zlev, offs, dims)
@@ -291,9 +287,9 @@ contains
     real(8)     :: k_T, lat, lon, theta_equil
     
     id_i = idx(i, j, offs, dims)+1
-    call cart2sph (dom%node%elts(id_i), lon, lat)
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       call cart2sph (dom%node%elts(id_i), lon, lat)
        call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
        temp(id_i) = temp(id_i) - dt*k_T * (temp(id_i) - theta_equil*mass(id_i))
     end if

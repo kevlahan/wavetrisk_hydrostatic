@@ -814,7 +814,11 @@ contains
 
     do e = 1, EDGE
        id_e = EDGE*id+e
-       dvelo(id_e) = - Qperp_e(e) + physics(e)*dom%len%elts(id_e)
+       if (dom%mask_e%elts(id_e) >= ADJZONE) then
+          dvelo(id_e) = - Qperp_e(e) + physics(e)*dom%len%elts(id_e)
+       else
+          dvelo(id_e) = 0.0_8
+       end if
     end do
   end subroutine du_source
 
@@ -1036,12 +1040,16 @@ contains
        end function physics_scalar_source
     end interface
 
-    physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
-
     id_i = idx(i, j, offs, dims) + 1
 
-    dmass(id_i) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
-    dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
+       dmass(id_i) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
+       dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
+    else
+       dmass(id_i) = 0.0_8
+       dtemp(id_i) = 0.0_8
+    end if
   end subroutine scalar_trend
 
   subroutine cal_Laplacian_scalar (dom, i, j, zlev, offs, dims)
@@ -1228,7 +1236,7 @@ contains
     ! Update velocity trend (source dvelo calculated was edge integrated)
     do e = 1, EDGE
        id_e = EDGE*id+e
-       dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB(e) - theta_e(e)*gradE(e)
+       if (dom%mask_e%elts(id_e) >= ADJZONE) dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB(e) - theta_e(e)*gradE(e)
     end do
   end subroutine du_grad
 
@@ -1427,7 +1435,7 @@ contains
 
       d  = dom%id+1
       id_i = idx(i, j, offs, dims)+1
-      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = rand()
+      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = rand() + 0.5_8
     end subroutine init_rand_mass
 
     subroutine init_rand_velo (dom, i, j, zlev, offs, dims)
@@ -1445,8 +1453,8 @@ contains
 
       do e = 1, EDGE
          id_e = EDGE*id+e
-         sol_tmp(S_VELO,1)%data(d)%elts(id_e) = rand()
-         sol_tmp(S_VELO,2)%data(d)%elts(id_e) = rand()
+         sol_tmp(S_VELO,1)%data(d)%elts(id_e) = rand() - 0.5_8
+         sol_tmp(S_VELO,2)%data(d)%elts(id_e) = rand() - 0.5_8
       end do
     end subroutine init_rand_velo
 
