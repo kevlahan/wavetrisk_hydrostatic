@@ -805,21 +805,20 @@ contains
     real(8), dimension (3) :: Qperp_e, physics
 
     id = idx(i, j, offs, dims)
+    dvelo(EDGE*id+1:EDGE*(id+1)) = 0.0_8
+    
+    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*(id+1))) >= ADJZONE) then
+       ! Calculate Q_perp
+       Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
-    ! Calculate Q_perp
-    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
-
-    ! Calculate physics
-    physics = physics_velo_source (dom, i, j, zlev, offs, dims)
-
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) then
-          dvelo(id_e) = - Qperp_e(e) + physics(e)*dom%len%elts(id_e)
-       else
-          dvelo(id_e) = 0.0_8
-       end if
-    end do
+       ! Calculate physics
+       physics = physics_velo_source (dom, i, j, zlev, offs, dims)
+       
+       do e = 1, EDGE
+          id_e = EDGE*id+e
+          if (dom%mask_e%elts(id_e) >= ADJZONE) dvelo(id_e) = - Qperp_e(e) + physics(e)*dom%len%elts(id_e)
+       end do
+    end if
   end subroutine du_source
 
   function Qperp (dom, i, j, zlev, offs, dims)
@@ -1105,7 +1104,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer               :: d, e, id, id_e
+    integer               :: d, e, id
     real(8), dimension(3) :: grad_divu, curl_rotu
 
     grad_divu = gradi_e (divu, dom, i, j, offs, dims)
@@ -1113,10 +1112,8 @@ contains
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       Laplacian_u%data(d)%elts(id_e) = grad_divu(e) - curl_rotu(e)
-    end do
+   
+    Laplacian_u%data(d)%elts(EDGE*id+1:EDGE*(id+1)) = grad_divu - curl_rotu
   end subroutine cal_Laplacian_u
 
   function gradi_e (scalar, dom, i, j, offs, dims)
@@ -1206,38 +1203,41 @@ contains
     real(8), dimension(3)        :: gradB, gradE, theta_e
     real(8), dimension(0:N_BDRY) :: theta
 
-    id   = idx(i,   j,   offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
+    id   = idx(i, j, offs, dims)
 
-    ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
-    ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-    theta(0)         = temp(id+1)/mass(id+1)
-    theta(NORTH)     = temp(idN+1)/mass(idN+1)
-    theta(EAST)      = temp(idE+1)/mass(idE+1)
-    theta(NORTHEAST) = temp(idNE+1)/mass(idNE+1)
+    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*(id+1))) >= ADJZONE) then
+       idE  = idx(i+1, j,   offs, dims)
+       idN  = idx(i,   j+1, offs, dims)
+       idNE = idx(i+1, j+1, offs, dims)
 
-    ! Interpolate potential temperature to edges
-    if (compressible) then
-       theta_e(1) = interp (theta(0), theta(EAST))
-       theta_e(2) = interp (theta(0), theta(NORTHEAST))
-       theta_e(3) = interp (theta(0), theta(NORTH))
-    else
-       theta_e(1) = interp (1.0_8-theta(0), 1.0_8-theta(EAST))
-       theta_e(2) = interp (1.0_8-theta(0), 1.0_8-theta(NORTHEAST)) 
-       theta_e(3) = interp (1.0_8-theta(0), 1.0_8-theta(NORTH)) 
+       ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
+       ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
+       theta(0)         = temp(id+1)/mass(id+1)
+       theta(NORTH)     = temp(idN+1)/mass(idN+1)
+       theta(EAST)      = temp(idE+1)/mass(idE+1)
+       theta(NORTHEAST) = temp(idNE+1)/mass(idNE+1)
+
+       ! Interpolate potential temperature to edges
+       if (compressible) then
+          theta_e(1) = interp (theta(0), theta(EAST))
+          theta_e(2) = interp (theta(0), theta(NORTHEAST))
+          theta_e(3) = interp (theta(0), theta(NORTH))
+       else
+          theta_e(1) = interp (1.0_8-theta(0), 1.0_8-theta(EAST))
+          theta_e(2) = interp (1.0_8-theta(0), 1.0_8-theta(NORTHEAST)) 
+          theta_e(3) = interp (1.0_8-theta(0), 1.0_8-theta(NORTH)) 
+       end if
+
+       ! Calculate gradients
+       gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
+       gradE = gradi_e (exner,     dom, i, j, offs, dims)
+
+       ! Update velocity trend (source dvelo calculated was edge integrated)
+       do e = 1, EDGE
+          id_e = EDGE*id+e
+          if (dom%mask_e%elts(id_e) >= ADJZONE) dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB(e) - theta_e(e)*gradE(e)
+       end do
     end if
-
-    ! Calculate gradients
-    gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
-    gradE = gradi_e (exner,     dom, i, j, offs, dims)
-
-    ! Update velocity trend (source dvelo calculated was edge integrated)
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB(e) - theta_e(e)*gradE(e)
-    end do
   end subroutine du_grad
 
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
@@ -1639,12 +1639,11 @@ contains
       integer               :: d, e, id
       real(8), dimension(3) :: grad_divu, curl_rotu
 
+      id = idx(i, j, offs, dims)
+
       grad_divu = gradi_e (divu, dom, i, j, offs, dims)
 
-      id = idx(i, j, offs, dims)
-      do e = 1, EDGE
-         velo(EDGE*id+e) = grad_divu(e)
-      end do
+      velo(EDGE*id+1:EDGE*(id+1)) = grad_divu
     end subroutine cal_Laplacian_divu
 
     subroutine cal_Laplacian_rotu (dom, i, j, zlev, offs, dims)
@@ -1658,12 +1657,11 @@ contains
       integer               :: d, e, id
       real(8), dimension(3) :: curl_rotu
 
+      id = idx(i, j, offs, dims)
+
       curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
 
-      id = idx(i, j, offs, dims)
-      do e = 1, EDGE
-         velo(EDGE*id+e) = - curl_rotu(e)
-      end do
+      velo(EDGE*id+1:EDGE*(id+1)) = - curl_rotu
     end subroutine cal_Laplacian_rotu
 
     subroutine Ray_quotient
