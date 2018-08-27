@@ -65,7 +65,7 @@ program flat_projection_data
      stop
   end if
   resume = check_start
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize vertical grid
   call initialize_a_b_vert
@@ -76,13 +76,14 @@ program flat_projection_data
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
   call barrier
-
+  
+  Nx     = (/-N/2, N/2/)
+  Ny     = (/-N/4, N/4/)
   Nzonal = Nx(2)-Nx(1)+1
   Ntimes = check_end-check_start+1
   Ntot   = Nzonal*Ntimes
-  Nx     = (/-N/2, N/2/)
-  Ny     = (/-N/4, N/4/)
   lon_lat_range = (/2.0_8*MATH_PI, MATH_PI/)
+  
   allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
   allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
   allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
@@ -90,20 +91,18 @@ program flat_projection_data
 
   ! Calculate zonal average over all check points
   write (6,'(A)') "Calculating zonal averages over all checkpoints"
-  zonal_spacetime_av = 0.0_8
+  zonal_av = 0.0_8; zonal_spacetime_av = 0.0_8
   do cp_idx = check_start, check_end
      resume = NONE
      call restart (set_thresholds, load, test_case, .false.)
      call cal_zonal_av 
   end do
   ! Temperature
-  zonal_av(:,:,1) = zonal_spacetime_av(:,:,1) / dble (Ntot)
+  zonal_av(:,:,1) = zonal_spacetime_av(:,:,1) / dble(Ntot)
   ! Temperature variance
-  zonal_av(:,:,2) = (zonal_spacetime_av(:,:,2) - zonal_spacetime_av(:,:,2)**2/dble(Ntot)) / dble (Ntot-1)
-  ! Zonal wind
-  zonal_av(:,:,3) = zonal_spacetime_av(:,:,4) / dble (Ntot)
-  ! Meridional wind
-  zonal_av(:,:,4) = zonal_spacetime_av(:,:,5) / dble (Ntot)
+  zonal_av(:,:,2) = (zonal_spacetime_av(:,:,2) - zonal_spacetime_av(:,:,2)**2/dble(Ntot)) / dble(Ntot-1)
+  ! Velocities
+  zonal_av(:,:,3:4) = zonal_spacetime_av(:,:,4) / dble(Ntot)
 
   ! Project onto plane and find zonally averaged perturbation quantities
   write (6,'(/,A,/)') "Projecting onto plane"
@@ -112,16 +111,14 @@ program flat_projection_data
      call restart (set_thresholds, load, test_case, .false.)
      call cal_perturb
   end do
-  zonal_av(:,:,5:7) = zonal_av(:,:,5:7) / dble (Ntot)
-
-  call barrier
+  zonal_av(:,:,5:7) = zonal_av(:,:,5:7) / dble(Ntot)
   
+  call barrier
   if (rank==0) call write_out
-
   call finalize
 contains
   subroutine cal_zonal_av
-    ! Finds zonal average over all checkpoint
+    ! Zonal average over all checkpoints
     use domain_mod
     integer            :: d, i, id, ix, j, k
     real(8), parameter :: TT=200.0_8 ! shift for stable variance calculation
@@ -146,11 +143,11 @@ contains
     do k = 1, zlevels
        ! Temperature
        call project_onto_plane (exner_fun(k), level_save, 1.0_8)
-       zonal_spacetime_av(k,:,1) = zonal_spacetime_av(k,:,1) + sum (field2d,DIM=1)
+       zonal_spacetime_av(k,:,1) = zonal_spacetime_av(k,:,1) + sum (field2d, dim=1)
 
        ! Variance of temperature (stable calculation)
-       zonal_spacetime_av(k,:,2) = zonal_spacetime_av(k,:,2) + sum ((field2d-TT)**2,DIM=1)
-       zonal_spacetime_av(k,:,3) = zonal_spacetime_av(k,:,3) + sum (field2d-TT,DIM=1)
+       zonal_spacetime_av(k,:,2) = zonal_spacetime_av(k,:,2) + sum ((field2d-TT)**2, dim=1)
+       zonal_spacetime_av(k,:,3) = zonal_spacetime_av(k,:,3) + sum (field2d-TT, dim=1)
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
@@ -163,11 +160,11 @@ contains
 
        ! Zonal velocity
        call project_uzonal_onto_plane (level_save, 0.0_8)
-       zonal_spacetime_av(k,:,4) = zonal_spacetime_av(k,:,3) + sum (field2d, DIM=1)
+       zonal_spacetime_av(k,:,4) = zonal_spacetime_av(k,:,3) + sum (field2d, dim=1)
 
        ! Meridional velocity
        call project_vmerid_onto_plane (level_save, 0.0_8)
-       zonal_spacetime_av(k,:,5) = zonal_spacetime_av(k,:,4) + sum (field2d,DIM=1)
+       zonal_spacetime_av(k,:,5) = zonal_spacetime_av(k,:,4) + sum (field2d, dim=1)
     end do
   end subroutine cal_zonal_av
 
@@ -237,10 +234,8 @@ contains
 
     ! Zonal averages
     do k = 1, zlevels
-       ! Temperature
-       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
-
        ! Peturbation Temperature
+       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
        do ix = Nx(1), Nx(2)
           Tprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,1)
        end do
@@ -254,30 +249,26 @@ contains
           nullify (velo)
        end do
 
-       ! Zonal velocity
-       call project_uzonal_onto_plane (level_save, 0.0_8)
-
        ! Peturbation zonal velocity
+       call project_uzonal_onto_plane (level_save, 0.0_8)
        do ix = Nx(1), Nx(2)
           uprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,4)
        end do
 
-       ! Meridional velocity
-       call project_vmerid_onto_plane (level_save, 0.0_8)
-
        ! Peturbation meridional velocity
+       call project_vmerid_onto_plane (level_save, 0.0_8)
        do ix = Nx(1), Nx(2)
           vprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,5)
        end do
 
        ! Eddy momentum flux
-       zonal_av(k,:,5) = zonal_av(k,:,5) + sum (uprime*vprime,DIM=1)
+       zonal_av(k,:,5) = zonal_av(k,:,5) + sum (uprime*vprime, dim=1)
 
        ! Eddy kinetic energy
-       zonal_av(k,:,6) = zonal_av(k,:,6) + sum (0.5_8*(uprime**2+vprime**2),DIM=1)
+       zonal_av(k,:,6) = zonal_av(k,:,6) + sum (0.5_8*(uprime**2+vprime**2), dim=1)
 
        ! Eddy heat flux
-       zonal_av(k,:,7) = zonal_av(k,:,7) + sum (Tprime*vprime,DIM=1)
+       zonal_av(k,:,7) = zonal_av(k,:,7) + sum (Tprime*vprime, dim=1)
     end do
   end subroutine cal_perturb
 

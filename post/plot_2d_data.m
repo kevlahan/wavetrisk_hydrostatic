@@ -85,7 +85,7 @@ axis ([0 1200 700 900]);
 % Extract files
 file_base = [test_case '.3.'];
 file_tar = ['tar ' 'xf ' pathid file_base 'tgz'];
-disp(['Uncompressing file ' file_base 'tgz']);
+disp(['Uncompressing file ' pathid file_base 'tgz']);
 system(file_tar);
 
 % Plot 2d data
