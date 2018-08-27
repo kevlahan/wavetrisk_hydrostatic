@@ -82,7 +82,7 @@ program flat_projection_data
   Nzonal = Nx(2)-Nx(1)+1
   Ntimes = check_end-check_start+1
   Ntot   = Nzonal*Ntimes
-  lon_lat_range = (/2.0_8*MATH_PI, MATH_PI/)
+  lon_lat_range = (/2*MATH_PI, MATH_PI/)
   
   allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
   allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
@@ -302,13 +302,13 @@ contains
     ! Longitude values
     write (var_file, '(i2)') 20
     open (unit=funit, file=trim(test_case)//'.3.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (-180.0_8+dx_export*(i-1)/MATH_PI*180.0_8, i=1,Nx(2)-Nx(1)+1)
+    write (funit,'(2047(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
     open (unit=funit, file=trim(test_case)//'.3.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (-90.0_8+dy_export*(i-1)/MATH_PI*180.0_8, i=1,Ny(2)-Ny(1)+1)
+    write (funit,'(2047(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
     ! Pressure vertical coordinates
@@ -361,13 +361,13 @@ contains
                 valE  = field%data(d)%elts(idE+1)
                 valNE = field%data(d)%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -417,13 +417,13 @@ contains
                 valE  = grid(d)%adj_geopot%elts(idE+1)
                 valNE = grid(d)%adj_geopot%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -468,18 +468,18 @@ contains
                 call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
                 call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
 
-                val   = grid(d)%surf_press%elts(id+1)/1.0d2
-                valN  = grid(d)%surf_press%elts(idN+1)/1.0d2
-                valE  = grid(d)%surf_press%elts(idE+1)/1.0d2
-                valNE = grid(d)%surf_press%elts(idNE+1)/1.0d2
+                val   = grid(d)%surf_press%elts(id+1)/100
+                valN  = grid(d)%surf_press%elts(idN+1)/100
+                valE  = grid(d)%surf_press%elts(idE+1)/100
+                valNE = grid(d)%surf_press%elts(idNE+1)/100
 
-                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -529,13 +529,13 @@ contains
                 valE  = grid(d)%adj_mass%elts(idE+1)
                 valNE = grid(d)%adj_mass%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs(cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs(cE(2) + MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -585,13 +585,13 @@ contains
                 valE  = grid(d)%u_zonal%elts(idE+1)
                 valNE = grid(d)%u_zonal%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -641,13 +641,13 @@ contains
                 valE  = grid(d)%v_merid%elts(idE+1)
                 valNE = grid(d)%v_merid%elts(idNE+1)
 
-                if (abs(cN(2) - MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
                    call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
                 else
                    call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
                 end if
-                if (abs(cE(2) + MATH_PI/2.0_8) < sqrt(1.0d-15)) then
+                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
                    call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
                 else
@@ -709,12 +709,12 @@ contains
     call fix_boundary (c(1), a(1), b(1), fixed(3))
     call interp_tri_to_2d (a, b, c, val)
 
-    if (sum(abs(fixed)) > 1) write(0,'(A)') 'ALARM'
+    if (sum(abs(fixed)) > 1) write (0,'(A)') 'ALARM'
 
     if (sum(fixed) /= 0) then
-       a(1) = a(1) - sum(fixed)*MATH_PI*2.0_8
-       b(1) = b(1) - sum(fixed)*MATH_PI*2.0_8
-       c(1) = c(1) - sum(fixed)*MATH_PI*2.0_8
+       a(1) = a(1) - sum(fixed) * 2*MATH_PI
+       b(1) = b(1) - sum(fixed) * 2*MATH_PI
+       c(1) = c(1) - sum(fixed) * 2*MATH_PI
        call interp_tri_to_2d (a, b, c, val)
     end if
   end subroutine interp_tri_to_2d_and_fix_bdry
@@ -744,12 +744,12 @@ contains
     do kk = 1, save_levels
        ! Find pressure at current levels (not interfaces)
        pressure_lower = spress
-       pressure_upper = 0.5_8*(a_vert(1)+a_vert(2))*ref_press + 0.5_8*(b_vert(1)+b_vert(2))*spress
+       pressure_upper = 0.5*(a_vert(1)+a_vert(2))*ref_press + 0.5*(b_vert(1)+b_vert(2))*spress
        k = 1
        do while (pressure_upper > pressure_save(kk))
           k = k+1
           pressure_lower = pressure_upper
-          pressure_upper = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*spress
+          pressure_upper = 0.5*(a_vert(k)+a_vert(k+1))*ref_press + 0.5*(b_vert(k)+b_vert(k+1))*spress
        end do
        if (k==1) return ! Skip incorrect values for pentagons
        dpressure =  (pressure_save(kk)-pressure_upper)/(pressure_lower-pressure_upper)

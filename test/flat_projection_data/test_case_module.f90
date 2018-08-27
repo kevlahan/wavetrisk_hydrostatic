@@ -15,19 +15,21 @@ contains
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
-    real(8)     :: c1, lon, lat, rgrc
+    real(8)     :: c1, cs2, sn2, lon, lat, rgrc
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
-
+    cs2 = cos(lat)**2
+    sn2 = sin(lat)**2
+    
     if (trim(test_case) == "DCMIP2012c4") then
-       c1     = u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5
+       c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
 
-       surf_geopot = c1 * (c1 * (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
-            radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
+       surf_geopot = c1 * (c1 * (-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + &
+        radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
     elseif (trim(test_case) == "DCMIP2008c5") then
        rgrc = radius*acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
-       
+
        surf_geopot = grav_accel*h_0*exp__flush (-rgrc**2/d2)
     elseif (trim(test_case) == "Held_Suarez") then
        surf_geopot = 0.0_8
@@ -51,8 +53,8 @@ contains
 
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
-          b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
+          a_vert(k) = dble(k-1)/dble(zlevels) * press_infty/ref_press
+          b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
        end do
     else
        if (zlevels==18) then
@@ -122,6 +124,7 @@ contains
   subroutine read_test_case_parameters (filename)
     implicit none
     character(*)   :: filename
+    
     integer        :: fid = 500
     real(8)        :: press_save
     character(255) :: varname
@@ -159,7 +162,7 @@ contains
     end if
     
     allocate (pressure_save(1))
-    pressure_save(1) = 1.0d2*press_save
+    pressure_save(1) = 100*press_save
   end subroutine read_test_case_parameters
 
   subroutine apply_initial_conditions
@@ -197,17 +200,17 @@ contains
     implicit none
     integer :: fid
 
-    write(fid) itime
-    write(fid) iwrite
-    write(fid) threshold
+    write (fid) itime
+    write (fid) iwrite
+    write (fid) threshold
   end subroutine dump
 
   subroutine load (fid)
     implicit none
     integer :: fid
 
-    read(fid) itime
-    read(fid) iwrite
-    read(fid) threshold
+    read (fid) itime
+    read (fid) iwrite
+    read (fid) threshold
   end subroutine load
 end module test_case_mod

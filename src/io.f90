@@ -312,7 +312,7 @@ contains
     id = idx(i, j, offs, dims)
 
     ! Integrate the pressure upwards
-    pressure(1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
+    pressure(1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
     do k = 2, zlevels
        pressure(k) = pressure(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
     end do

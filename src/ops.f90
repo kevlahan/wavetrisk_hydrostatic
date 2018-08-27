@@ -694,14 +694,14 @@ contains
 
     if (compressible) then ! Compressible case
        if (zlev == 1) then
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*mass(id+1)
        else ! Interpolate mass=rho*dz to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp (mass(id+1), dom%adj_mass%elts(id+1))
        end if
        dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressure calculation at next vertical level
 
        if (zlev == zlevels) then !top zlev, purely diagnostic
-          err = abs((dom%press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)) - press_infty)/dom%surf_press%elts(id+1)
+          err = abs((dom%press%elts(id+1) - 0.5*grav_accel*mass(id+1)) - press_infty)/dom%surf_press%elts(id+1)
           if (err > 1d-10) then
              write(6,'(A)') 'Warning: upward integration of pressure not resulting in zero at top interface'
              write(6,'(A,es10.4)') '(observed pressure - pressure_infty)/P_Surface = ', err
@@ -724,18 +724,18 @@ contains
        dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel*mass(id+1)*spec_vol
     else ! Incompressible case
        if (zlev == 1) then 
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*temp(id+1)
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*temp(id+1)
        else ! Interpolate to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp (dom%adj_temp%elts(id+1), temp(id+1))
        end if
        dom%adj_temp%elts(id+1) = temp(id+1)
 
        if (zlev == zlevels) then !top zlev, purely diagnostic
-          if (abs(dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1) - press_infty)> 1e-10_8) then
+          if (abs(dom%press%elts(id+1)-0.5*grav_accel*temp(id+1) - press_infty)> 1d-10) then
              print *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
-             write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1)
+             write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id+1)-0.5*grav_accel*temp(id+1)
              write(6,'(A,es15.8)') "Press_infty = ", press_infty
-             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id+1)-0.5_8*grav_accel*temp(id+1) - press_infty
+             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id+1)-0.5*grav_accel*temp(id+1) - press_infty
              stop
           end if
        end if
@@ -766,14 +766,14 @@ contains
 
     if (compressible) then ! Compressible case
        if (zlev == 1) then
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*mass(id+1)
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*mass(id+1)
        else ! Interpolate mass=rho*dz to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp (mass(id+1), dom%adj_mass%elts(id+1))
        end if
        dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressure calculation at next vertical level
     else ! Incompressible case
        if (zlev == 1) then 
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5_8*grav_accel*temp(id+1)
+          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*temp(id+1)
        else ! Interpolate to lower interface of current level
           dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp (dom%adj_temp%elts(id+1), temp(id+1))
        end if
@@ -1408,7 +1408,7 @@ contains
     call Ray_quotient
 
     ! Find diffusion length scales
-    L_diffusion = 1.0_8/sqrt (eigen)
+    L_diffusion = 1/sqrt (eigen)
     if (rank == 0) write (6,'(/,3(A,es10.4,1x),/)') &
          "dx_scalar = ", MATH_PI*L_diffusion(1), "dx_divu = ",MATH_PI* L_diffusion(2),"dx_rotu = ", MATH_PI*L_diffusion(3)
   contains

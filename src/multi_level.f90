@@ -524,13 +524,13 @@ contains
            + dom%overl_areas%elts(id_mm+1)%a(2)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv) &
            *(dscalar(id_pz+1) - dscalar(id_mz+1)) + &
            dom%overl_areas%elts(id_pp+1)%a(3)*dom%overl_areas%elts(id_pp+1)%a(4)*dom%areas%elts(id_pp+1)%hex_inv &
-           *0.5_8*(dscalar(id_pp2+1) - dscalar(id_mz+1)) + &
+           *0.5*(dscalar(id_pp2+1) - dscalar(id_mz+1)) + &
            dom%overl_areas%elts(id_pm+1)%a(3)*dom%overl_areas%elts(id_pm+1)%a(4)*dom%areas%elts(id_pm+1)%hex_inv &
-           *0.5_8*(dscalar(id_pm2+1) - dscalar(id_mz+1)) + &
+           *0.5*(dscalar(id_pm2+1) - dscalar(id_mz+1)) + &
            dom%overl_areas%elts(id_mp+1)%a(3)*dom%overl_areas%elts(id_mp+1)%a(4)*dom%areas%elts(id_mp+1)%hex_inv &
-           *0.5_8*(dscalar(id_pz+1) - dscalar(id_mp2+1)) + &
+           *0.5*(dscalar(id_pz+1) - dscalar(id_mp2+1)) + &
            dom%overl_areas%elts(id_mm+1)%a(3)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv &
-           *0.5_8*(dscalar(id_pz+1) - dscalar(id_mm2+1))
+           *0.5*(dscalar(id_pz+1) - dscalar(id_mm2+1))
     end function coarse_flux
 
     subroutine get_indices (dom, i, j, e, offs, dims, id)

@@ -37,8 +37,8 @@ program DCMIP2012c4
   delta_T        = 4.8d5                       ! empirical temperature difference
   eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
   eta_t          = 0.2_8                       ! value of eta at the tropopause
-  lon_c          = MATH_PI/9.0_8               ! longitude location of perturbation to zonal wind
-  lat_c          = 2.0_8*MATH_PI/9.0_8         ! latitude location of perturbation to zonal wind
+  lon_c          = MATH_PI/9                   ! longitude location of perturbation to zonal wind
+  lat_c          = 2*MATH_PI/9                 ! latitude location of perturbation to zonal wind
 
   ! Dimensions for scaling tendencies
   Tempdim        = T_0                         ! temperature scale (both theta and T from DYNAMICO)

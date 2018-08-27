@@ -96,7 +96,7 @@ contains
 
        call apply_onescale (Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
        call apply_onescale (Xu_smooth_assign, level_end-1, z_null, 0, 0)
-       maxerror = sync_max_d(maxerror)
+       maxerror = sync_max_d (maxerror)
        k = k + 1
     end do
 
@@ -115,8 +115,8 @@ contains
     maxerror = 0.0_8
     l2error = 0.0_8
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
-    l2error = sqrt (sum_real(l2error))
-    maxerror = sync_max_d(maxerror)
+    l2error = sqrt (sum_real (l2error))
+    maxerror = sync_max_d (maxerror)
 
     if (rank == 0) then
        write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
@@ -124,7 +124,7 @@ contains
        write (6,'(A,/)') '-------------------------------------------------&
             --------------------------------------------------------------------'
     end if
-    deallocate(sums)
+    deallocate (sums)
   end subroutine smooth_Xu
 
   subroutine check_grid (dom, p, i, j, zlev, offs, dims)
@@ -185,7 +185,7 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    maxerror = max(maxerror, dist(dom%node%elts(id+1), sums(id+1,dom%id+1)))
+    maxerror = max (maxerror, dist(dom%node%elts(id+1), sums(id+1,dom%id+1)))
 
     dom%node%elts(id+1) = sums(id+1,dom%id+1)
   end subroutine Xu_smooth_assign
@@ -209,7 +209,7 @@ contains
          dist(dom%midpt%elts(EDGE*id+DG+1), mid_pt(dom%ccentre%elts(TRIAG*id+LORT+1),dom%ccentre%elts(TRIAG*id+UPLT+1))), &
          dist(dom%midpt%elts(EDGE*id+UP+1), mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1),dom%ccentre%elts(TRIAG*id+UPLT+1)) )/)
 
-    maxerror = max(maxerror, maxval(error))
-    l2error = l2error + sum(error**2)
+    maxerror = max (maxerror, maxval (error))
+    l2error = l2error + sum (error**2)
   end subroutine check_d
 end module smooth_mod

@@ -42,11 +42,11 @@ contains
     column_mass = dom%surf_press%elts(id+1)/grav_accel
 
     ! Pressure at level zlev
-    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+    lev_press = 0.5*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
 
     ! Normalized pressure
     eta = lev_press/dom%surf_press%elts(id+1)
-    eta_v = (eta - eta_0) * MATH_PI/2.0_8
+    eta_v = (eta - eta_0) * MATH_PI/2
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
@@ -65,9 +65,11 @@ contains
     implicit none
     type(Coord) :: x_i
 
-    real(8) :: lon, lat, Tmean
+    real(8) :: cs2, lon, lat, sn2, Tmean
 
     call cart2sph (x_i, lon, lat)
+    sn2 = sin(lat)**2
+    cs2 = cos(lat)**2
 
     if (eta>=eta_t) then
        Tmean = T_0*eta**(R_d*Gamma_T/grav_accel)
@@ -76,22 +78,22 @@ contains
     end if
 
     set_temp = Tmean + 0.75_8 * eta*MATH_PI*u_0/R_d * sin(eta_v) * sqrt(cos(eta_v)) * &
-         (2.0_8*u_0*cos(eta_v)**1.5*(-2.0_8*sin(lat)**6*(cos(lat)**2+1.0_8/3.0_8) + 10.0_8/63.0_8) + &
-         radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2+2.0_8/3.0_8) - MATH_PI/4.0_8))
+         (2*u_0*cos(eta_v)**1.5*(-2*sn2**3*(cs2+1/3.0_8) + 10/63.0_8) + radius*omega*(8/5.0_8*cs2**1.5*(sn2+2/3.0_8) - MATH_PI/4))
   end function set_temp
 
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
-    real(8)     :: c1, lon, lat
+    real(8)     :: c1, cs2, lon, lat, sn2
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
+    cs2 = cos(lat)**2
+    sn2 = sin(lat)**2
 
-    c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2.0_8)**1.5
-    surf_geopot =  c1 * (c1 * (-2.0_8*sin(lat)**6*(cos(lat)**2 + 1.0_8/3.0_8) + 10.0_8/63.0_8)  + &
-         radius*omega*(8.0_8/5.0_8*cos(lat)**3*(sin(lat)**2 + 2.0_8/3.0_8) - MATH_PI/4.0_8))
+    c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
+    surf_geopot =  c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
   end function surf_geopot
 
   real(8) function surf_pressure (x_i)
@@ -106,12 +108,13 @@ contains
     ! Zonal latitude-dependent wind
     implicit none
     real(8) :: lon, lat, u, v
+    
     real(8) :: rgrc
 
     ! Great circle distance
     rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
-    u = u_0*cos(eta_v)**1.5*sin(2.0_8*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2)  ! Zonal velocity component
+    u = u_0*cos(eta_v)**1.5*sin(2*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
@@ -155,8 +158,8 @@ contains
 
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
-          b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
+          a_vert(k) = dble(k-1)/dble(zlevels) * press_infty/ref_press
+          b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
        end do
     else
        if (zlevels==18) then
@@ -363,10 +366,10 @@ contains
     if (Laplace_order == 1) then
        ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
        ! (no vorticity diffusion)
-       P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
+       P_top = 0.5*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
        do k = 1, zlevels
-          P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
-          viscosity_divu(k) = C_visc * max (1.0_8, 8.0_8*(1.0_8 + tanh (log (P_top/P_k))))
+          P_k = 0.5*(a_vert(k)+a_vert(k+1))*ref_press + 0.5*(b_vert(k)+b_vert(k+1))*ref_surf_press
+          viscosity_divu(k) = C_visc * max (1.0_8, 8*(1.0_8 + tanh (log (P_top/P_k))))
        end do
     elseif (Laplace_order == 2) then
        viscosity_divu = C_visc ; viscosity_rotu = C_visc
@@ -431,9 +434,9 @@ contains
     integer :: k
     real(8) :: dpress, lev_press, save_press
 
-    dpress = 1.0d16; save_zlev = 0
+    dpress = 1d16; save_zlev = 0
     do k = 1, zlevels
-       lev_press = 0.5_8*ref_press*(a_vert(k)+a_vert(k+1) + b_vert(k)+b_vert(k+1))
+       lev_press = 0.5*ref_press*(a_vert(k)+a_vert(k+1) + b_vert(k)+b_vert(k+1))
        if (abs(lev_press-pressure_save(1)) < dpress) then
           dpress = abs(lev_press-pressure_save(1))
           save_zlev = k
@@ -441,7 +444,7 @@ contains
        end if
     end do
     if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate pressure = ", save_press/1.0d2, " hPa)"
+         " (approximate pressure = ", save_press/100, " hPa)"
   end subroutine set_save_level
 
   subroutine dump (fid)

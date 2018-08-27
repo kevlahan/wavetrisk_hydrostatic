@@ -42,7 +42,7 @@ contains
     column_mass = dom%surf_press%elts(id+1)/grav_accel
 
     ! Pressure at level zlev
-    lev_press = 0.5_8*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5_8*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+    lev_press = 0.5*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
@@ -83,7 +83,7 @@ contains
     call cart2sph (x_i, lon, lat)
 
     surf_pressure = ref_surf_press * exp__flush ( &
-         - radius*N_freq**2*u_0/(2.0_8*grav_accel**2*kappa)*(u_0/radius+2.0_8*omega)*(sin(lat)**2-1.0_8) &
+         - radius*N_freq**2*u_0/(2*grav_accel**2*kappa)*(u_0/radius+2*omega)*(sin(lat)**2-1.0_8) &
          - N_freq**2/(grav_accel**2*kappa)*surf_geopot (x_i) )
   end function surf_pressure
 
@@ -136,8 +136,8 @@ contains
 
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = real(k-1)/real(zlevels) * press_infty/ref_press
-          b_vert(k) = 1.0_8 - real(k-1)/real(zlevels)
+          a_vert(k) = dble(k-1)/dble(zlevels) * press_infty/ref_press
+          b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
        end do
     else
        if (zlevels==18) then
@@ -236,7 +236,7 @@ contains
     read (fid,*) varname, resume
 
     allocate (pressure_save(1))
-    pressure_save(1) = 1.0d2*press_save
+    pressure_save(1) = press_save*100
 
     if (rank==0) then
        write (6,'(A)') &
@@ -344,10 +344,10 @@ contains
     if (Laplace_order == 1) then
        ! Set divergence diffusion according to Whitehead (Monthly Weather Review 2011)
        ! (no vorticity diffusion)
-       P_top = 0.5_8*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5_8*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
+       P_top = 0.5*(a_vert(zlevels)+a_vert(zlevels+1))*ref_press + 0.5*(b_vert(zlevels)+b_vert(zlevels+1))*ref_surf_press
        do k = 1, zlevels
-          P_k = 0.5_8*(a_vert(k)+a_vert(k+1))*ref_press + 0.5_8*(b_vert(k)+b_vert(k+1))*ref_surf_press
-          viscosity_divu(k) = C_visc * max (1.0_8, 8.0_8*(1.0_8 + tanh (log (P_top/P_k))))
+          P_k = 0.5*(a_vert(k)+a_vert(k+1))*ref_press + 0.5*(b_vert(k)+b_vert(k+1))*ref_surf_press
+          viscosity_divu(k) = C_visc * max (1.0_8, 8*(1.0_8 + tanh (log (P_top/P_k))))
        end do
     elseif (Laplace_order == 2) then
        viscosity_divu = C_visc ; viscosity_rotu = C_visc
@@ -412,9 +412,9 @@ contains
     integer :: k
     real(8) :: dpress, lev_press, save_press
 
-    dpress = 1.0d16; save_zlev = 0
+    dpress = 1d16; save_zlev = 0
     do k = 1, zlevels
-       lev_press = 0.5_8*ref_press*(a_vert(k)+a_vert(k+1) + b_vert(k)+b_vert(k+1))
+       lev_press = 0.5*ref_press*(a_vert(k)+a_vert(k+1) + b_vert(k)+b_vert(k+1))
        if (abs(lev_press-pressure_save(1)) < dpress) then
           dpress = abs(lev_press-pressure_save(1))
           save_zlev = k
@@ -422,7 +422,7 @@ contains
        end if
     end do
     if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate pressure = ", save_press/1.0d2, " hPa)"
+         " (approximate pressure = ", save_press/100, " hPa)"
   end subroutine set_save_level
 
   subroutine dump (fid)

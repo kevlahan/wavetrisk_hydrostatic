@@ -154,12 +154,11 @@ contains
     ac = distn(A, C)
     bc = distn(B, C)
 
-    s = (ab + ac + bc)*0.5_8
+    s = (ab + ac + bc)/2
 
-    t = tan(0.5_8*s)*tan(-0.5_8*ab + 0.5_8*s)*tan(-0.5_8*ac + &
-         0.5_8*s)*tan(-0.5_8*bc + 0.5_8*s)
+    t = tan(0.5*s) * tan((s-ab)/2) * tan((s-ac)/2) * tan((s-bc)/2) 
 
-    if (t < 1.0d-64) then
+    if (t < 1d-64) then
        triarea = 0.0_8
        return
     end if
@@ -173,14 +172,13 @@ contains
 
     real(8) :: sindist
 
-    sindist = (1.0_8/radius)**2*sqrt((p%y*q%z - p%z*q%y)**2 + (p%z*q%x - &
-         p%x*q%z)**2 + (p%x*q%y - p%y*q%x)**2)
+    sindist = (1/radius)**2*sqrt((p%y*q%z - p%z*q%y)**2 + (p%z*q%x - p%x*q%z)**2 + (p%x*q%y - p%y*q%x)**2)
 
     if (sindist > 1) then
        distn = asin (1.0_8)
        return
     end if
-    distn = asin(sindist)
+    distn = asin (sindist)
   end function distn
 
   subroutine cart2sph (c, lon, lat)
@@ -198,14 +196,13 @@ contains
 
     type(Coord) :: centre
 
-    centre = cross(Coord(A%x - B%x, A%y - B%y, A%z - B%z), Coord(C%x - B%x, &
-         C%y - B%y, C%z - B%z))
+    centre = cross (Coord(A%x - B%x, A%y - B%y, A%z - B%z), Coord(C%x - B%x, C%y - B%y, C%z - B%z))
 
     if (norm(centre) < eps()) then
        circumcentre = centre
        return
     end if
-    circumcentre = project_on_sphere(centre)
+    circumcentre = project_on_sphere (centre)
   end function circumcentre
   
   type(Coord) function centroid (points, n)
@@ -224,7 +221,7 @@ contains
     do i = 2, n
        cc = vec_plus(cc, points(i))
     end do
-    cc = vec_scale(1.0_8/6.0_8, cc)
+    cc = vec_scale(1/6.0_8, cc)
     
     centroid = ORIGIN
     do i = 1, n
@@ -232,14 +229,14 @@ contains
        area = triarea (cc, points(i), points(j))
        centroid = vec_plus(centroid, vec_scale(area, vec_plus3(cc, points(i), points(j))))
     end do
-    centroid = project_on_sphere(vec_scale(1.0_8/6.0_8, centroid))
+    centroid = project_on_sphere(vec_scale(1/6.0_8, centroid))
   end function centroid
 
   real(8) function norm (c)
     implicit none
     type(Coord) :: c
 
-    norm = sqrt(c%x**2 + c%y**2 + c%z**2)
+    norm = sqrt (c%x**2 + c%y**2 + c%z**2)
   end function norm
 
   type(Coord) function mid_pt(p, q)
@@ -255,7 +252,7 @@ contains
     
     real(8) :: nrm
 
-    nrm = sqrt(self%x**2 + self%y**2 + self%z**2)
+    nrm = sqrt (self%x**2 + self%y**2 + self%z**2)
     if(nrm >= eps()) then
        normalize_Coord = Coord(self%x/nrm, self%y/nrm, self%z/nrm)
     else
@@ -290,7 +287,7 @@ contains
     if (area == 0.0) then ! Avoid overflow for unused zero area hexagons (points at origin and 10 lozenge vertices)
        self%hex_inv = 1.0_8
     else
-       self%hex_inv = 1.0_8/area
+       self%hex_inv = 1/area
     end if
   end subroutine init_Areas
 

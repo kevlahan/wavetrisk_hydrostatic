@@ -56,7 +56,7 @@ contains
              nullify (wc_u, velo)
           end do
        end do
-       wavelet(S_VELO,k)%bdry_uptodate = .False.
+       wavelet(S_VELO,k)%bdry_uptodate = .false.
     end do
   end subroutine forward_wavelet_transform
 
@@ -570,7 +570,7 @@ contains
     real(8), dimension(2) :: q
     real(8)               :: nrm, u, v
 
-    nrm = sqrt(q(1)**2 + q(2)**2)
+    nrm = sqrt (q(1)**2 + q(2)**2)
     u = q(1)/nrm
     v = q(2)/nrm
   end subroutine normalize2
@@ -593,8 +593,8 @@ contains
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
-    mass(id_chd+1) = prolong(mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    temp(id_chd+1) = prolong(temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    mass(id_chd+1) = prolong (mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    temp(id_chd+1) = prolong (temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine IWT_prolong_scalar__fast
 
   subroutine IWT_prolong_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -784,7 +784,7 @@ contains
        u = Interp_outer_velo (dom, i_par, j_par, e-1, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
 
        velo(EDGE*id2+e) = u + wc_u(EDGE*id2+e)
-       velo(EDGE*id1+e) = 2.0_8*velo(EDGE*id_par+e) - u + wc_u(EDGE*id1+e)
+       velo(EDGE*id1+e) = 2*velo(EDGE*id_par+e) - u + wc_u(EDGE*id1+e)
     end do
   end subroutine IWT_reconstruct_outer_velo
 
@@ -1068,9 +1068,9 @@ contains
     idE_chd  = idx(i_chd+1, j_chd,     offs_chd, dims_chd)
     idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
 
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) > 0) velo(EDGE*id_par+RT+1) = 0.5_8*(velo(EDGE*id_chd+RT+1)   + velo(EDGE*idE_chd+RT+1))
-    if (dom%mask_e%elts(EDGE*id_chd+DG+1) > 0) velo(EDGE*id_par+DG+1) = 0.5_8*(velo(EDGE*idNE_chd+DG+1) + velo(EDGE*id_chd+DG+1))
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) > 0) velo(EDGE*id_par+UP+1) = 0.5_8*(velo(EDGE*id_chd+UP+1)   + velo(EDGE*idN_chd+UP+1))
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) > 0) velo(EDGE*id_par+RT+1) = 0.5*(velo(EDGE*id_chd+RT+1)   + velo(EDGE*idE_chd+RT+1))
+    if (dom%mask_e%elts(EDGE*id_chd+DG+1) > 0) velo(EDGE*id_par+DG+1) = 0.5*(velo(EDGE*idNE_chd+DG+1) + velo(EDGE*id_chd+DG+1))
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) > 0) velo(EDGE*id_par+UP+1) = 0.5*(velo(EDGE*id_chd+UP+1)   + velo(EDGE*idN_chd+UP+1))
   end subroutine restrict_velo
 
   subroutine check_m (dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par,  offs_chd, dims_chd)
@@ -1099,7 +1099,7 @@ contains
     id2SW = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
     idSE  = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
 
-    ratio = (1.0/dom%areas%elts(id_chd+1)%hex_inv + &
+    ratio = (1/dom%areas%elts(id_chd+1)%hex_inv + &
          dom%overl_areas%elts(idE+1)%a(1) + &
          dom%overl_areas%elts(idNE+1)%a(2) + &
          dom%overl_areas%elts(idN2E+1)%a(3) + &
@@ -1225,7 +1225,7 @@ contains
        weights(-2*k+7)      = weights(-2*k+7) - b(6)
     end do
 
-    outer_velo_weights = Iu_Wgt(0.5_8*weights - Iu_Base_Wgt)
+    outer_velo_weights = Iu_Wgt(0.5*weights - Iu_Base_Wgt)
   contains
     function coords_to_row (i00, j00, n_offs1, n_offs2, e00)
       real(8), dimension(6) :: coords_to_row
@@ -1296,13 +1296,13 @@ contains
   end function coord2local
 
   subroutine init_wavelet_mod
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
     call init_shared_mod
     call init_domain_mod
 
-    Iu_Base_Wgt = (/16.0_8, -1.0_8, 1.0_8, 1.0_8, -1.0_8, -1.0_8, -1.0_8, 1.0_8, 1.0_8/)/16.0_8
+    Iu_Base_Wgt = (/16.0_8, -1.0_8, 1.0_8, 1.0_8, -1.0_8, -1.0_8, -1.0_8, 1.0_8, 1.0_8/)/16
     initialized = .true.
   end subroutine init_wavelet_mod
 
