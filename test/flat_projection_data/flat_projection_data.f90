@@ -47,8 +47,8 @@ program flat_projection_data
 
      d2             = 1.5d6**2                    ! square of half width of Gaussian mountain profile in meters
      h_0            = 2.0d3                       ! mountain height in meters
-     lon_c          = MATH_PI/2.0_8               ! longitude location of mountain
-     lat_c          = MATH_PI/6.0_8               ! latitude location of mountain
+     lon_c          = MATH_PI/2                   ! longitude location of mountain
+     lat_c          = MATH_PI/6                   ! latitude location of mountain
   elseif (trim (test_case) == "Held_Suarez") then
      compressible   = .true.                      ! Compressible equations
 
@@ -676,7 +676,7 @@ contains
     maxx = max (max (a(1), b(1)), c(1))
     miny = min (min (a(2), b(2)), c(2))
     maxy = max (max (a(2), b(2)), c(2))
-    if (maxx-minx > MATH_PI/2.0_8) then
+    if (maxx-minx > MATH_PI/2) then
        write (0,'(A,i4,A)') 'ERROR (rank = ', rank, '): io-333 "export"'
        return
     end if
