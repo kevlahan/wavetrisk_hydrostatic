@@ -100,9 +100,9 @@ program flat_projection_data
   ! Temperature
   zonal_av(:,:,1) = zonal_spacetime_av(:,:,1) / dble(Ntot)
   ! Temperature variance
-  zonal_av(:,:,2) = (zonal_spacetime_av(:,:,2) - zonal_spacetime_av(:,:,2)**2/dble(Ntot)) / dble(Ntot-1)
+  zonal_av(:,:,2) = (zonal_spacetime_av(:,:,2) - zonal_spacetime_av(:,:,3)**2/dble(Ntot)) / dble(Ntot-1)
   ! Velocities
-  zonal_av(:,:,3:4) = zonal_spacetime_av(:,:,4) / dble(Ntot)
+  zonal_av(:,:,3:4) = zonal_spacetime_av(:,:,3:4) / dble(Ntot)
 
   ! Project onto plane and find zonally averaged perturbation quantities
   write (6,'(/,A,/)') "Projecting onto plane"
