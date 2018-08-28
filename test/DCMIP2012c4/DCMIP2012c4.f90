@@ -64,14 +64,14 @@ program DCMIP2012c4
 
   ! Initialize thresholds to default values 
   call initialize_thresholds
-
-  ! Initialize time step and viscosities
-  call initialize_dt_viscosity
     
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
   call sum_total_mass (.true.)
   call barrier
+
+  ! Initialize time step and viscosities
+  call initialize_dt_viscosity
 
   ! Save initial conditions
   call write_and_export (iwrite)
