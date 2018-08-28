@@ -259,7 +259,6 @@ contains
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order
-       write (6,'(A,es8.2)')  "decay               = ", decay
        write (6,'(A,es10.4)') "dt_write            = ", dt_write
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end            = ", time_end 

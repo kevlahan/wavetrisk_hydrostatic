@@ -1536,8 +1536,6 @@ contains
       integer, dimension (N_BDRY+1)   :: offs
       integer, dimension (2,N_BDRY+1) :: dims
 
-      integer :: d, id, l
-
       err = 0.0_8
       call apply_onescale (cal_err_mass, level_start, z_null, 0, 1)
       call apply_onescale (cal_err_velo, level_start, z_null, 0, 0)
@@ -1659,13 +1657,13 @@ contains
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer               :: d, e, id
+      integer               :: d, id
       real(8), dimension(3) :: grad_divu, curl_rotu
-
-      id = idx(i, j, offs, dims)
 
       grad_divu = gradi_e (divu, dom, i, j, offs, dims)
 
+      id = idx(i, j, offs, dims)
+      
       velo(EDGE*id+1:EDGE*(id+1)) = grad_divu
     end subroutine cal_Laplacian_divu
 
@@ -1677,12 +1675,12 @@ contains
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer               :: d, e, id
+      integer               :: d, id
       real(8), dimension(3) :: curl_rotu
 
-      id = idx(i, j, offs, dims)
-
       curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
+
+      id = idx(i, j, offs, dims)
 
       velo(EDGE*id+1:EDGE*(id+1)) = - curl_rotu
     end subroutine cal_Laplacian_rotu

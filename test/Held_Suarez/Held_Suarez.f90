@@ -221,7 +221,6 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: e
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
 
   if (max (maxval (viscosity_divu), viscosity_rotu) == 0.0_8) then
@@ -229,18 +228,14 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   else ! Calculate Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-     do e = 1, EDGE 
-        diffusion(e) = viscosity_divu(zlev) * grad_divu(e) - viscosity_rotu * curl_rotu(e)
-     end do
+     diffusion = viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu
   end if
 
   ! Find correct sign of diffusion on right hand side of equation
   diffusion = (-1)**(Laplace_order-1) * diffusion
     
   ! Total physics for source term of velocity trend
-  do e = 1, EDGE
-     physics_velo_source(e) =  diffusion(e) 
-  end do
+  physics_velo_source = diffusion 
 end function physics_velo_source
 
 subroutine time_step_cooling
