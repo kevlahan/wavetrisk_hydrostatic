@@ -1,7 +1,10 @@
 % Plot 2d data from export_2d or log data
 %test_case = 'DCMIP2012c4';
+%run_id = 'DCMIP2012c4';
 %test_case = 'DCMIP2008c5';
+%run_id = 'DCMIP2008c5';
 test_case = 'Held_Suarez';
+run_id = 'Held_Suarez_J6';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
 itype     = 'temp';  % field to plot
@@ -13,9 +16,9 @@ lines     = true;   % remove lines
 
 % Log data options:
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; j=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = dt;
+ilog = dof;
 Jmin = 4;
-Jmax = 5;
+Jmax = 6;
 
 machine = 'mac';
 if (strcmp(machine,'if'))
@@ -40,7 +43,7 @@ for j=Jmin+1:Jmax
     Nmax = Nmax + 4 * 10*4^j;
 end
 
-log_data = load([pathid test_case '_log']);
+log_data = load([pathid run_id '_log']);
 figure;
 day = 24;
 if ilog == cpudof
@@ -79,11 +82,11 @@ end
 xlabel('t (days)');ylabel(ylab);
 grid on;
 %axis([8.3 9 0 3e-4]);
-axis ([0 1200 700 900]);
+%axis ([0 1200 700 900]);
 %% Uncompress data files for 2d plots
 
 % Extract files
-file_base = [test_case '.3.'];
+file_base = [run_id '.3.'];
 file_tar = ['tar ' 'xf ' pathid file_base 'tgz'];
 disp(['Uncompressing file ' pathid file_base 'tgz']);
 system(file_tar);
