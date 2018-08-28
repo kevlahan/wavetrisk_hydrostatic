@@ -1075,18 +1075,26 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
+    integer :: d, id, idE, idNE, idN, idW, idSW, idS
+    integer :: id_i, idE_i, idNE_i, idN_i, idW_i, idSW_i, idS_i
+    
+    id   = idx(i, j, offs, dims)
     id_i = id+1
-
+    d    = dom%id+1
+    
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
     idN  = idx(i,   j+1, offs, dims)
     idW  = idx(i-1, j,   offs, dims)
     idSW = idx(i-1, j-1, offs, dims)
     idS  = idx(i,   j-1, offs, dims)
+
+    idE_i  = idE+1
+    idNE_i = idNE+1
+    idN_i  = idN+1
+    idW_i  = idW+1
+    idSW_i = idSW+1
+    idS_i  = idS+1
 
     Laplacian_scalar(S_MASS)%data(d)%elts(id_i) = div_grad (grad_flux (mass))
     Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) = div_grad (grad_flux (temp))
@@ -1097,12 +1105,12 @@ contains
       real(8), dimension(6) :: grad_flux
       real(8), dimension(:) :: scalar
 
-      grad_flux(1) =  (scalar(idE+1) - scalar(id_i))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
-      grad_flux(2) =  (scalar(id_i)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
-      grad_flux(3) =  (scalar(idN+1) - scalar(id_i))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
-      grad_flux(4) = -(scalar(idW+1) - scalar(id_i))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
-      grad_flux(5) = -(scalar(id_i)  - scalar(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-      grad_flux(6) = -(scalar(idS+1) - scalar(id_i))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+      grad_flux(1) =  (scalar(idE_i) - scalar(id_i))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
+      grad_flux(2) =  (scalar(id_i)  - scalar(idNE_i))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
+      grad_flux(3) =  (scalar(idN_i) - scalar(id_i))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
+      grad_flux(4) = -(scalar(idW_i) - scalar(id_i))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+      grad_flux(5) = -(scalar(id_i)  - scalar(idSW_i))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+      grad_flux(6) = -(scalar(idS_i) - scalar(id_i))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
     end function grad_flux
 
     real(8) function div_grad (grad)
@@ -1128,10 +1136,10 @@ contains
     grad_divu = gradi_e (divu, dom, i, j, offs, dims)
     curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
 
-    d = dom%id+1
-    id = idx(i, j, offs, dims)
+    id   = idx(i, j, offs, dims)
     id_i = id+1
-   
+    d    = dom%id+1
+    
     Laplacian_u%data(d)%elts(EDGE*id+1:EDGE*id_i) = grad_divu - curl_rotu
   end subroutine cal_Laplacian_u
 
