@@ -702,21 +702,21 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer :: id_i
     real(8) :: err, spec_vol
 
-    id = idx(i, j, offs, dims)
+    id_i = idx(i, j, offs, dims)+1
 
     if (compressible) then ! Compressible case
        if (zlev == 1) then
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*mass(id+1)
+          dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*mass(id_i)
        else ! Interpolate mass=rho*dz to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp (mass(id+1), dom%adj_mass%elts(id+1))
+          dom%press%elts(id_i) = dom%press%elts(id_i) - grav_accel*interp (mass(id_i), dom%adj_mass%elts(id_i))
        end if
-       dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressure calculation at next vertical level
+       dom%adj_mass%elts(id_i) = mass(id_i) ! Save current mass for pressure calculation at next vertical level
 
        if (zlev == zlevels) then !top zlev, purely diagnostic
-          err = abs((dom%press%elts(id+1) - 0.5*grav_accel*mass(id+1)) - press_infty)/dom%surf_press%elts(id+1)
+          err = abs((dom%press%elts(id_i) - 0.5*grav_accel*mass(id_i)) - press_infty)/dom%surf_press%elts(id_i)
           if (err > 1d-10) then
              write(6,'(A)') 'Warning: upward integration of pressure not resulting in zero at top interface'
              write(6,'(A,es10.4)') '(observed pressure - pressure_infty)/P_Surface = ', err
@@ -725,32 +725,32 @@ contains
        end if
 
        ! Exner function from pressure
-       exner(id+1) = c_p*(dom%press%elts(id+1)/ref_press)**kappa
+       exner(id_i) = c_p*(dom%press%elts(id_i)/ref_press)**kappa
 
        ! Specific volume alpha = kappa*theta*pi/p
-       spec_vol = kappa * temp(id+1)/mass(id+1) * exner(id+1) / dom%press%elts(id+1)
+       spec_vol = kappa * temp(id_i)/mass(id_i) * exner(id_i) / dom%press%elts(id_i)
 
        ! Find geopotential at upper interface of current level using (18) in DYNAMICO
        if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
-          dom%adj_geopot%elts(id+1) = surf_geopot (dom%node%elts(id+1))
+          dom%adj_geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
        else
-          dom%adj_geopot%elts(id+1) = dom%geopot%elts(id+1)
+          dom%adj_geopot%elts(id_i) = dom%geopot%elts(id_i)
        end if
-       dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel*mass(id+1)*spec_vol
+       dom%geopot%elts(id_i) = dom%adj_geopot%elts(id_i) + grav_accel*mass(id_i)*spec_vol
     else ! Incompressible case
        if (zlev == 1) then 
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*temp(id+1)
+          dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*temp(id_i)
        else ! Interpolate to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp (dom%adj_temp%elts(id+1), temp(id+1))
+          dom%press%elts(id_i) = dom%press%elts(id_i) - grav_accel*interp (dom%adj_temp%elts(id_i), temp(id_i))
        end if
-       dom%adj_temp%elts(id+1) = temp(id+1)
+       dom%adj_temp%elts(id_i) = temp(id_i)
 
        if (zlev == zlevels) then !top zlev, purely diagnostic
-          if (abs(dom%press%elts(id+1)-0.5*grav_accel*temp(id+1) - press_infty)> 1d-10) then
+          if (abs(dom%press%elts(id_i)-0.5*grav_accel*temp(id_i) - press_infty)> 1d-10) then
              print *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
-             write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id+1)-0.5*grav_accel*temp(id+1)
+             write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id_i)-0.5*grav_accel*temp(id_i)
              write(6,'(A,es15.8)') "Press_infty = ", press_infty
-             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id+1)-0.5*grav_accel*temp(id+1) - press_infty
+             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id_i)-0.5*grav_accel*temp(id_i) - press_infty
              stop
           end if
        end if
@@ -759,11 +759,11 @@ contains
        ! Note: since mu is associated with the kinematic mass = inert mass (not the gravitational mass defined by the buyoancy)
        ! we divide by the constant reference density. This is the Boussinesq approximation.
        if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
-          dom%adj_geopot%elts(id+1) = surf_geopot (dom%node%elts(id+1))
+          dom%adj_geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
        else
-          dom%adj_geopot%elts(id+1) = dom%geopot%elts(id+1)
+          dom%adj_geopot%elts(id_i) = dom%geopot%elts(id_i)
        end if
-       dom%geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + grav_accel*mass(id+1)/ref_density
+       dom%geopot%elts(id_i) = dom%adj_geopot%elts(id_i) + grav_accel*mass(id_i)/ref_density
     end if
   end subroutine integrate_pressure_up
 
@@ -775,24 +775,24 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer :: id_i
 
-    id = idx(i, j, offs, dims)
+    id_i = idx(i, j, offs, dims)+1
 
     if (compressible) then ! Compressible case
        if (zlev == 1) then
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*mass(id+1)
+          dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*mass(id_i)
        else ! Interpolate mass=rho*dz to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp (mass(id+1), dom%adj_mass%elts(id+1))
+          dom%press%elts(id_i) = dom%press%elts(id_i) - grav_accel*interp (mass(id_i), dom%adj_mass%elts(id_i))
        end if
-       dom%adj_mass%elts(id+1) = mass(id+1) ! Save current mass for pressure calculation at next vertical level
+       dom%adj_mass%elts(id_i) = mass(id_i) ! Save current mass for pressure calculation at next vertical level
     else ! Incompressible case
        if (zlev == 1) then 
-          dom%press%elts(id+1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*temp(id+1)
+          dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*temp(id_i)
        else ! Interpolate to lower interface of current level
-          dom%press%elts(id+1) = dom%press%elts(id+1) - grav_accel*interp (dom%adj_temp%elts(id+1), temp(id+1))
+          dom%press%elts(id_i) = dom%press%elts(id_i) - grav_accel*interp (dom%adj_temp%elts(id_i), temp(id_i))
        end if
-       dom%adj_temp%elts(id+1) = temp(id+1)
+       dom%adj_temp%elts(id_i) = temp(id_i)
     end if
   end subroutine cal_pressure
 
@@ -816,13 +816,14 @@ contains
        end function physics_velo_source
     end interface
 
-    integer                :: e, id, id_e
+    integer                :: e, id, id_e, id_i
     real(8), dimension (3) :: Qperp_e, physics
 
     id = idx(i, j, offs, dims)
-    dvelo(EDGE*id+1:EDGE*(id+1)) = 0.0_8
+    id_i = id+1
+    dvelo(EDGE*id+1:EDGE*id_i) = 0.0_8
     
-    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*(id+1))) >= ADJZONE) then
+    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) >= ADJZONE) then
        ! Calculate Q_perp
        Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
@@ -1074,9 +1075,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN, idW, idSW, idS
+    integer :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
 
+    d = dom%id+1
     id = idx(i, j, offs, dims)
+    id_i = id+1
 
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
@@ -1085,8 +1088,8 @@ contains
     idSW = idx(i-1, j-1, offs, dims)
     idS  = idx(i,   j-1, offs, dims)
 
-    Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id+1) = div_grad (grad_flux (mass))
-    Laplacian_scalar(S_TEMP)%data(dom%id+1)%elts(id+1) = div_grad (grad_flux (temp))
+    Laplacian_scalar(S_MASS)%data(d)%elts(id_i) = div_grad (grad_flux (mass))
+    Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) = div_grad (grad_flux (temp))
   contains
     function grad_flux (scalar)
       ! Calculates gradient flux
@@ -1094,12 +1097,12 @@ contains
       real(8), dimension(6) :: grad_flux
       real(8), dimension(:) :: scalar
 
-      grad_flux(1) =  (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
-      grad_flux(2) =  (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
-      grad_flux(3) =  (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
-      grad_flux(4) = -(scalar(idW+1) - scalar(id+1))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
-      grad_flux(5) = -(scalar(id+1)  - scalar(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-      grad_flux(6) = -(scalar(idS+1) - scalar(id+1))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+      grad_flux(1) =  (scalar(idE+1) - scalar(id_i))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
+      grad_flux(2) =  (scalar(id_i)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
+      grad_flux(3) =  (scalar(idN+1) - scalar(id_i))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
+      grad_flux(4) = -(scalar(idW+1) - scalar(id_i))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+      grad_flux(5) = -(scalar(id_i)  - scalar(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+      grad_flux(6) = -(scalar(idS+1) - scalar(id_i))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
     end function grad_flux
 
     real(8) function div_grad (grad)
@@ -1107,7 +1110,7 @@ contains
       implicit none
       real(8), dimension(6) :: grad
 
-      div_grad = (grad(1)-grad(4) + grad(5)-grad(2) + grad(3)-grad(6)) * dom%areas%elts(id+1)%hex_inv
+      div_grad = (grad(1)-grad(4) + grad(5)-grad(2) + grad(3)-grad(6)) * dom%areas%elts(id_i)%hex_inv
     end function div_grad
   end subroutine cal_Laplacian_scalar
 
@@ -1119,7 +1122,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer               :: d, e, id
+    integer               :: d, e, id, id_i
     real(8), dimension(3) :: grad_divu, curl_rotu
 
     grad_divu = gradi_e (divu, dom, i, j, offs, dims)
@@ -1127,8 +1130,9 @@ contains
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
+    id_i = id+1
    
-    Laplacian_u%data(d)%elts(EDGE*id+1:EDGE*(id+1)) = grad_divu - curl_rotu
+    Laplacian_u%data(d)%elts(EDGE*id+1:EDGE*id_i) = grad_divu - curl_rotu
   end subroutine cal_Laplacian_u
 
   function gradi_e (scalar, dom, i, j, offs, dims)
@@ -1214,23 +1218,24 @@ contains
     integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer                      :: e, id, id_e, idE, idN, idNE
+    integer                      :: e, id, id_e, id_i, idE_i, idN_i, idNE_i
     real(8), dimension(3)        :: gradB, gradE, theta_e
     real(8), dimension(0:N_BDRY) :: theta
 
     id = idx(i, j, offs, dims)
+    id_i = id+1
 
-    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*(id+1))) >= ADJZONE) then
-       idE  = idx(i+1, j,   offs, dims)
-       idN  = idx(i,   j+1, offs, dims)
-       idNE = idx(i+1, j+1, offs, dims)
+    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) >= ADJZONE) then
+       idE_i  = idx(i+1, j,   offs, dims)+1
+       idN_i  = idx(i,   j+1, offs, dims)+1
+       idNE_i = idx(i+1, j+1, offs, dims)+1
 
        ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
        ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-       theta(0)         = temp(id+1)/mass(id+1)
-       theta(NORTH)     = temp(idN+1)/mass(idN+1)
-       theta(EAST)      = temp(idE+1)/mass(idE+1)
-       theta(NORTHEAST) = temp(idNE+1)/mass(idNE+1)
+       theta(0)         = temp(id_i)/mass(id_i)
+       theta(NORTH)     = temp(idN_i)/mass(idN_i)
+       theta(EAST)      = temp(idE_i)/mass(idE_i)
+       theta(NORTHEAST) = temp(idNE_i)/mass(idNE_i)
 
        ! Interpolate potential temperature to edges
        if (compressible) then
@@ -1321,24 +1326,19 @@ contains
 
   subroutine sum_dmassdtemp (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain) dom
-    integer i
-    integer j
-    integer zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
-    integer id
-    integer idS
-    integer idW
-    integer idSW
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer :: id_i
 
-    id = idx(i, j, offs, dims)
+    id_i = idx(i, j, offs, dims)+1
 
-    totaldmass = totaldmass + dmass(id+1)/dom%areas%elts(id+1)%hex_inv
-    totalabsdmass = totalabsdmass + abs(dmass(id+1)/dom%areas%elts(id+1)%hex_inv)
+    totaldmass = totaldmass + dmass(id_i)/dom%areas%elts(id_i)%hex_inv
+    totalabsdmass = totalabsdmass + abs (dmass(id_i)/dom%areas%elts(id_i)%hex_inv)
 
-    totaldtemp = totaldtemp + dtemp(id+1)/dom%areas%elts(id+1)%hex_inv
-    totalabsdtemp = totalabsdtemp + abs(dtemp(id+1)/dom%areas%elts(id+1)%hex_inv)
+    totaldtemp = totaldtemp + dtemp(id_i)/dom%areas%elts(id_i)%hex_inv
+    totalabsdtemp = totalabsdtemp + abs (dtemp(id_i)/dom%areas%elts(id_i)%hex_inv)
   end subroutine sum_dmassdtemp
 
   subroutine comp_offs3 (dom, p, offs, dims)
