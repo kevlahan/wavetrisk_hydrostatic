@@ -7,7 +7,7 @@ module test_case_mod
   
   ! Standard variables
   integer                              :: iwrite, CP_EVERY, save_zlev
-  real(8)                              :: decay, dt_cfl, initotalmass, mass_error, totalmass, total_cpu_time
+  real(8)                              :: dt_cfl, initotalmass, mass_error, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
   real(8), allocatable, dimension(:,:) :: threshold_def
 
@@ -359,9 +359,9 @@ contains
     end if
     
     if (rank == 0) then
-       write (6,'(A,es10.4)')   'dt_cfl         = ', dt_cfl
        write (6,'(A,es10.4)')   'dx_min         = ', dx_min
        write (6,'(A,es10.4,/)') 'k_max          = ', k_max
+       write (6,'(A,es10.4)')   'dt_cfl         = ', dt_cfl
        write (6,'(A,es10.4)') 'Viscosity_mass = ', viscosity_mass
        write (6,'(A,es10.4)') 'Viscosity_temp = ', viscosity_temp
        write (6,'(A,es10.4)') 'Viscosity_divu = ', sum (viscosity_divu)/zlevels
