@@ -351,7 +351,7 @@ contains
        if (Laplace_order == 1 .or. Laplace_order == 2) then
           L_diffusion = L_diffusion / 2**(1.5*(max_level-min_level)) ! Correct length scales for finest grid
 
-          viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
+          viscosity_mass = 0.0_8
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_divu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
           viscosity_rotu = L_diffusion(3)**(2*Laplace_order) / tau_diffusion

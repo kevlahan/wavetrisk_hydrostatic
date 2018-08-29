@@ -350,7 +350,7 @@ contains
        if (Laplace_order == 1 .or. Laplace_order == 2) then
           L_diffusion = L_diffusion / 2**(1.5*(max_level-min_level)) ! Correct length scales for finest grid
 
-          viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
+          viscosity_mass = 0.0_8
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_divu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
           viscosity_rotu = L_diffusion(3)**(2*Laplace_order) / tau_diffusion
@@ -363,7 +363,7 @@ contains
     if (rank == 0) then
        write (6,'(A,es10.4)')   'dx_min         = ', dx_min
        write (6,'(A,es10.4,/)') 'k_max          = ', k_max
-       write (6,'(A,es10.4,/)')   'dt_cfl         = ', dt_cfl
+       write (6,'(A,es10.4,/)') 'dt_cfl         = ', dt_cfl
        write (6,'(A,es10.4)') 'Viscosity_mass = ', viscosity_mass
        write (6,'(A,es10.4)') 'Viscosity_temp = ', viscosity_temp
        write (6,'(A,es10.4)') 'Viscosity_divu = ', sum (viscosity_divu)/zlevels
