@@ -7,8 +7,8 @@ module test_case_mod
 
   ! Standard variables
   integer                              :: iwrite, CP_EVERY, save_zlev
-  real(8)                              :: dt_cfl, dt_visc, initotalmass, mass_error, totalmass, total_cpu_time
-  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim, visc
+  real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
+  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Test case variables
@@ -251,6 +251,7 @@ contains
     read (fid,*) varname, cfl_num
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order
+    read (fid,*) varname, tau_diffusion
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
@@ -281,6 +282,7 @@ contains
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order
+       write (6,'(A,es10.4)')     "tau_diffusion (h)   = ", tau_diffusion
        write (6,'(A,es10.4)') "dt_write            = ", dt_write
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end            = ", time_end 
@@ -290,6 +292,7 @@ contains
     close(fid)
     allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
     dt_write = dt_write * MINUTE
+    tau_diffusion = tau_diffusion * HOUR
     time_end = time_end * HOUR
   end subroutine read_test_case_parameters
 
@@ -350,7 +353,7 @@ contains
     implicit none
     
     integer :: k
-    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top, tau_diffusion
+    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top
 
     ! Average area of smallest lozenges
     Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level + 2)
@@ -359,7 +362,7 @@ contains
     dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2))
 
     ! Largest wavenumber on regular lozenge grid
-    k_max = MATH_PI/(sqrt (3.0_8)*dx_min)
+    k_max = MATH_PI/(sqrt(3.0_8)*dx_min)
 
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
@@ -369,8 +372,7 @@ contains
        ! Viscosity constant from eigenvalues of Laplacian
        if (Laplace_order == 1 .or. Laplace_order == 2) then
           L_diffusion = L_diffusion / 2**(1.5*(max_level-min_level)) ! Correct length scales for finest grid
-          tau_diffusion = 3*HOUR                                     ! Diffusion time scale
-
+ 
           viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_divu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
@@ -384,7 +386,7 @@ contains
     if (rank == 0) then
        write (6,'(A,es10.4)')   'dx_min         = ', dx_min
        write (6,'(A,es10.4,/)') 'k_max          = ', k_max
-       write (6,'(A,es10.4)')   'dt_cfl         = ', dt_cfl
+       write (6,'(A,es10.4,/)')   'dt_cfl         = ', dt_cfl
        write (6,'(A,es10.4)') 'Viscosity_mass = ', viscosity_mass
        write (6,'(A,es10.4)') 'Viscosity_temp = ', viscosity_temp
        write (6,'(A,es10.4)') 'Viscosity_divu = ', sum (viscosity_divu)/zlevels
