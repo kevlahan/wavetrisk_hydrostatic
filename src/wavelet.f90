@@ -1333,7 +1333,8 @@ contains
     do k = 1, zlevels
        if (order == "1") then ! l1 norm
           do l = level_start, level_end
-             call apply_onescale (l1, l, k, 0, 0)
+             call apply_onescale (l1_scalar, l, k, 0, 1)
+             call apply_onescale (l1_velo,   l, k, 0, 0)
           end do
           do v = S_MASS, S_TEMP
              lnorm(v,k) = sum_real (lnorm(v,k))
@@ -1341,7 +1342,8 @@ contains
           lnorm(S_VELO,k) = sum_real (lnorm(S_VELO,k))
        elseif (order == "2") then ! l2 norm
           do l = level_start, level_end
-             call apply_onescale (l2, l, k, 0, 0)
+             call apply_onescale (l2_scalar, l, k, 0, 1)
+             call apply_onescale (l2_velo,   l, k, 0, 0)
           end do
           do v = S_MASS, S_TEMP
              lnorm(v,k) = sqrt (sum_real (lnorm(v,k)))
@@ -1349,7 +1351,8 @@ contains
           lnorm(S_VELO,k) = sqrt (sum_real (lnorm(S_VELO,k)))
        elseif (order == "inf") then ! l infinity norm
           do l = level_start, level_end
-             call apply_onescale (linf, l, k, 0, 0)
+             call apply_onescale (linf_scalar, l, k, 0, 1)
+             call apply_onescale (linf_velo,   l, k, 0, 0)
           end do
           do v = S_MASS, S_VELO
              lnorm(v,k) = sync_max_d (lnorm(v,k))
@@ -1360,82 +1363,121 @@ contains
        end if
     end do
   contains
-    subroutine l1 (dom, i, j, zlev, offs, dims)
+    subroutine l1_scalar (dom, i, j, zlev, offs, dims)
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: d, e, id, v
+      integer :: d, id, v
 
       d = dom%id+1
       id = idx(i, j, offs, dims)
 
-      ! L1 lnorms of trends
       if (dom%mask_n%elts(id+1) >= ADJZONE) then
          do v = S_MASS, S_TEMP
-            lnorm(v,zlev) = lnorm(v,zlev) + abs(scaling(v,zlev)%data(d)%elts(id+1))
+            lnorm(v,zlev) = lnorm(v,zlev) + abs (scaling(v,zlev)%data(d)%elts(id+1))
          end do
       endif
-
-      do e = 1, EDGE
-         if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-            lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + abs(scaling(S_VELO,zlev)%data(d)%elts(EDGE*id+e))
-         end if
-      end do
-    end subroutine l1
-
-    subroutine l2 (dom, i, j, zlev, offs, dims)
+    end subroutine l1_scalar
+    
+    subroutine l1_velo (dom, i, j, zlev, offs, dims)
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: d, e, id, v
+      integer :: d, e, id, id_e
+
+      d = dom%id+1
+      id = idx(i, j, offs, dims)
+      
+      do e = 1, EDGE
+         id_e = EDGE*id+e
+         if (dom%mask_e%elts(id_e) >= ADJZONE) then
+            lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + abs (scaling(S_VELO,zlev)%data(d)%elts(id_e))
+         end if
+      end do
+    end subroutine l1_velo
+
+    subroutine l2_scalar (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id, v
 
       d = dom%id+1
       id = idx(i, j, offs, dims)
 
-      ! L2 lnorms of trends
       if (dom%mask_n%elts(id+1) >= ADJZONE) then
          do v = S_MASS, S_TEMP
             lnorm(v,zlev) = lnorm(v,zlev) + scaling(v,zlev)%data(d)%elts(id+1)**2
          end do
       endif
+    end subroutine l2_scalar
 
-      do e = 1, EDGE
-         if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-            lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + scaling(S_VELO,zlev)%data(d)%elts(EDGE*id+e)**2
-         end if
-      end do
-    end subroutine l2
-
-    subroutine linf (dom, i, j, zlev, offs, dims)
+     subroutine l2_velo (dom, i, j, zlev, offs, dims)
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: d, id, e, v
+      integer :: d, e, id, id_e
 
       d = dom%id+1
       id = idx(i, j, offs, dims)
 
-      ! Maximum trends
-      if (dom%mask_n%elts(id+1) >= ADJZONE) then
-         do v = S_MASS, S_TEMP
-            lnorm(v,zlev) = max (lnorm(v,zlev), abs(scaling(v,zlev)%data(d)%elts(id+1)))
-         end do
-      end if
-
       do e = 1, EDGE
-         if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-            lnorm(S_VELO,zlev) = max (lnorm(S_VELO,zlev), abs(scaling(S_VELO,zlev)%data(d)%elts(EDGE*id+e)))
+         id_e = EDGE*id+e
+         if (dom%mask_e%elts(id_e) >= ADJZONE) then
+            lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + scaling(S_VELO,zlev)%data(d)%elts(id_e)**2
          end if
       end do
-    end subroutine linf
+    end subroutine l2_velo
+
+    subroutine linf_scalar (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id, v
+
+      d = dom%id+1
+      id = idx(i, j, offs, dims)
+
+      if (dom%mask_n%elts(id+1) >= ADJZONE) then
+         do v = S_MASS, S_TEMP
+            lnorm(v,zlev) = max (lnorm(v,zlev), abs (scaling(v,zlev)%data(d)%elts(id+1)))
+         end do
+      end if
+    end subroutine linf_scalar
+
+    subroutine linf_velo (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id, id_e, e
+
+      d = dom%id+1
+      id = idx(i, j, offs, dims)
+
+      do e = 1, EDGE
+         id_e = EDGE*id+e
+         if (dom%mask_e%elts(id_e) >= ADJZONE) then
+            lnorm(S_VELO,zlev) = max (lnorm(S_VELO,zlev), abs (scaling(S_VELO,zlev)%data(d)%elts(id_e)))
+         end if
+      end do
+    end subroutine linf_velo
   end subroutine cal_lnorm
 end module wavelet_mod
