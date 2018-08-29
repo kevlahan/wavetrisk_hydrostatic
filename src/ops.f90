@@ -1452,7 +1452,7 @@ contains
     end subroutine init_rand
 
     subroutine init_rand_mass (dom, i, j, zlev, offs, dims)
-      ! Initializes mass to a random number on [1,2) (positive)
+      ! Initializes mass to a random number on [-1,1) 
       implicit none
       type (Domain)                   :: dom
       integer                         :: i, j, zlev
@@ -1467,7 +1467,7 @@ contains
       d  = dom%id+1
       id_i = idx(i, j, offs, dims)+1
 
-      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = harvest + 1.0_8
+      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = 2*harvest - 1.0_8
     end subroutine init_rand_mass
 
     subroutine init_rand_velo (dom, i, j, zlev, offs, dims)
