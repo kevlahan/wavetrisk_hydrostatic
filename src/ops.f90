@@ -1438,8 +1438,13 @@ contains
     subroutine init_rand
       ! Applies random initial conditions
       implicit none
+      integer :: i, m
+      
       sol_tmp = sol
-      call srand (seed)
+
+      call random_seed (size=m)
+      call random_seed (put=(/(i,i=1,m)/))
+
       call apply_onescale (init_rand_mass, level_start, z_null, 0, 1)
       call apply_onescale (init_rand_velo, level_start, z_null, 0, 0)
       call update_array_bdry (sol_tmp, NONE)
@@ -1447,7 +1452,7 @@ contains
     end subroutine init_rand
 
     subroutine init_rand_mass (dom, i, j, zlev, offs, dims)
-      ! Initializes mass to a random vector
+      ! Initializes mass to a random number on [1,2) (positive)
       implicit none
       type (Domain)                   :: dom
       integer                         :: i, j, zlev
@@ -1455,14 +1460,18 @@ contains
       integer, dimension (2,N_BDRY+1) :: dims
 
       integer :: d, id_i
+      real(8) :: harvest
+
+      call random_number (harvest)
 
       d  = dom%id+1
       id_i = idx(i, j, offs, dims)+1
-      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = rand() + 0.5_8
+
+      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = harvest + 1.0_8
     end subroutine init_rand_mass
 
     subroutine init_rand_velo (dom, i, j, zlev, offs, dims)
-      ! Initializes velocities to a random vector
+      ! Initializes velocities to a uniform random number on [-1, 1)
       implicit none
       type (Domain)                   :: dom
       integer                         :: i, j, zlev
@@ -1470,14 +1479,16 @@ contains
       integer, dimension (2,N_BDRY+1) :: dims
 
       integer :: d, e, id, id_e
+      real(8) :: harvest
 
       d  = dom%id+1
       id = idx(i, j, offs, dims)
 
       do e = 1, EDGE
          id_e = EDGE*id+e
-         sol_tmp(S_VELO,1)%data(d)%elts(id_e) = rand() - 0.5_8
-         sol_tmp(S_VELO,2)%data(d)%elts(id_e) = rand() - 0.5_8
+         call random_number (harvest)
+         sol_tmp(S_VELO,1)%data(d)%elts(id_e) = 2*harvest - 1.0_8
+         sol_tmp(S_VELO,2)%data(d)%elts(id_e) = sol_tmp(S_VELO,1)%data(d)%elts(id_e)
       end do
     end subroutine init_rand_velo
 
