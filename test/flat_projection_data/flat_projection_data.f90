@@ -90,7 +90,7 @@ program flat_projection_data
   allocate (zonal_spacetime_av(1:zlevels,Ny(1):Ny(2),5))
 
   ! Calculate zonal average over all check points
-  write (6,'(A)') "Calculating zonal averages over all checkpoints"
+  if (rank == 0) write (6,'(A)') "Calculating zonal averages over all checkpoints"
   zonal_av = 0.0_8; zonal_spacetime_av = 0.0_8
   do cp_idx = check_start, check_end
      resume = NONE
@@ -105,7 +105,7 @@ program flat_projection_data
   zonal_av(:,:,3:4) = zonal_spacetime_av(:,:,3:4) / dble(Ntot)
 
   ! Project onto plane and find zonally averaged perturbation quantities
-  write (6,'(/,A,/)') "Projecting onto plane"
+  if (rank == 0) write (6,'(/,A,/)') "Projecting onto plane"
   do cp_idx = check_start, check_end
      resume = NONE
      call restart (set_thresholds, load, run_id, .false.)
