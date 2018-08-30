@@ -74,7 +74,7 @@ program flat_projection_data
   call initialize_thresholds
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
+  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
   call barrier
   
   Nx     = (/-N/2, N/2/)
@@ -94,7 +94,7 @@ program flat_projection_data
   zonal_av = 0.0_8; zonal_spacetime_av = 0.0_8
   do cp_idx = check_start, check_end
      resume = NONE
-     call restart (set_thresholds, load, test_case, .false.)
+     call restart (set_thresholds, load, run_id, .false.)
      call cal_zonal_av 
   end do
   ! Temperature
@@ -108,7 +108,7 @@ program flat_projection_data
   write (6,'(/,A,/)') "Projecting onto plane"
   do cp_idx = check_start, check_end
      resume = NONE
-     call restart (set_thresholds, load, test_case, .false.)
+     call restart (set_thresholds, load, run_id, .false.)
      call cal_perturb
   end do
   zonal_av(:,:,5:7) = zonal_av(:,:,5:7) / dble(Ntot)

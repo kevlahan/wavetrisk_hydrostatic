@@ -63,7 +63,7 @@ program DCMIP2008c5
   call initialize_thresholds
     
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, test_case)
+  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
   call sum_total_mass (.true.)
   call barrier
 
@@ -77,7 +77,7 @@ program DCMIP2008c5
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
-  open (unit=12, file=trim (test_case)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   if (resume <= 0) iwrite = 0
   total_cpu_time = 0.0_8
   do while (time < time_end)
@@ -95,7 +95,7 @@ program DCMIP2008c5
         call write_and_export (iwrite)
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, test_case, .false.)
+        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, .false.)
      end if
   end do
   

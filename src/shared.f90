@@ -332,7 +332,7 @@ module shared_mod
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
 
-  character(255)                                :: test_case
+  character(255)                                :: run_id, test_case
   
   logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fresh_start, lagrangian_vertical, perfect, remap, uniform
 contains

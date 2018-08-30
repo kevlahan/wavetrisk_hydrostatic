@@ -236,6 +236,7 @@ contains
 
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
+    read (fid,*) varname, run_id
     read (fid,*) varname, compressible
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
@@ -265,6 +266,7 @@ contains
             '********************************************************** Parameters &
             ***********************************************************'
        write (6,'(A,A)')      "test_case           = ", trim (test_case)
+       write (6,'(A,A)')      "run_id              = ", trim (run_id)
        write (6,'(A,L1)')     "compressible        = ", compressible
        write (6,'(A,i3)')     "min_level           = ", min_level
        write (6,'(A,i3)')     "max_level           = ", max_level

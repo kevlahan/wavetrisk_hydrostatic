@@ -1,4 +1,5 @@
 test_case          "DCMIP2008c5" ! name of test case
+run_id             "DCMIP2008c5_J7" ! name of run (for saved data)	
 compressible       T             ! compressible (T) or incompressible (F) equations
 max_level	   7             ! maximum level of resolution
 zlevels            26            ! number of vertical levels

@@ -1,4 +1,5 @@
 test_case    "DCMIP2012c4"  ! test case
+test_case    "DCMIP2012c4_J6"  ! run
 tstart	        0           ! first checkpoint file
 tend	        1           ! last checkpoint file
 max_level	6           ! maximum level of resolution

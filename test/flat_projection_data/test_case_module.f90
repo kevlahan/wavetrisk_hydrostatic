@@ -22,16 +22,16 @@ contains
     cs2 = cos(lat)**2
     sn2 = sin(lat)**2
     
-    if (trim(test_case) == "DCMIP2012c4") then
+    if (trim (test_case) == "DCMIP2012c4") then
        c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
 
        surf_geopot = c1 * (c1 * (-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + &
         radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
-    elseif (trim(test_case) == "DCMIP2008c5") then
+    elseif (trim (test_case) == "DCMIP2008c5") then
        rgrc = radius*acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
        surf_geopot = grav_accel*h_0*exp__flush (-rgrc**2/d2)
-    elseif (trim(test_case) == "Held_Suarez") then
+    elseif (trim (test_case) == "Held_Suarez") then
        surf_geopot = 0.0_8
     else
        write(6,'(A)') "Test case not supported"
@@ -131,6 +131,7 @@ contains
 
     open (unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
+    read (fid,*) varname, run_id
     read (fid,*) varname, check_start
     read (fid,*) varname, check_end
     read (fid,*) varname, max_level
@@ -149,6 +150,7 @@ contains
 
     if (rank==0) then
        write (6,'(A,A)')      "test_case           = ", test_case
+       write (6,'(A,A)')      "run_id              = ", run_id
        write (6,'(A,i12)')    "first file          = ", check_start
        write (6,'(A,i12)')    "first file          = ", check_end
        write (6,'(A,i3)')     "min_level           = ", min_level

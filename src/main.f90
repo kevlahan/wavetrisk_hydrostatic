@@ -31,10 +31,10 @@ contains
     time_mult = 1.0_8
   end subroutine init_main_mod
 
-  subroutine initialize (apply_init_cond, set_thresholds, custom_dump, custom_load, test_case)
+  subroutine initialize (apply_init_cond, set_thresholds, custom_dump, custom_load, run_id)
     implicit none
     external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
-    character(*) :: test_case
+    character(*) :: run_id
     
     character(255)                 :: command
     integer                        :: k, d
@@ -47,7 +47,7 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
-       call restart (set_thresholds, custom_load, test_case, .true.)
+       call restart (set_thresholds, custom_load, run_id, .true.)
     else
        cp_idx = -1
        call init_structures
@@ -108,7 +108,7 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt_mpi()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
-       call write_checkpoint (custom_dump, custom_load, test_case, .true.)
+       call write_checkpoint (custom_dump, custom_load, run_id, .true.)
     end if
   end subroutine initialize
 
@@ -267,10 +267,10 @@ contains
     end do
   end subroutine reset
 
-  subroutine restart (set_thresholds, custom_load, test_case, init_restart)
+  subroutine restart (set_thresholds, custom_load, run_id, init_restart)
     implicit none
     external     :: set_thresholds, custom_load
-    character(*) :: test_case
+    character(*) :: run_id
     logical      :: init_restart
     
     character(255) :: cmd_archive, cmd_files, command
@@ -281,7 +281,7 @@ contains
             '********************************************************* Begin Restart &
             *********************************************************'
        write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
-       write (cmd_archive, '(A,I4.4,A)') trim (test_case)//'_checkpoint_' , cp_idx, ".tgz"
+       write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (6,'(A,A,/)') 'Loading file ', trim (cmd_archive)
        write (command, '(A,A)') 'tar xzf ', trim (cmd_archive)
        call system (command)
@@ -330,10 +330,10 @@ contains
     end if
   end subroutine restart
 
-  subroutine write_checkpoint (custom_dump, custom_load, test_case, init_restart)
+  subroutine write_checkpoint (custom_dump, custom_load, run_id, init_restart)
     implicit none
     external :: custom_dump, custom_load
-    character(*) :: test_case
+    character(*) :: run_id
     logical      :: init_restart
 
     character(255) :: cmd_archive, cmd_files, command
@@ -349,13 +349,13 @@ contains
     call barrier ! Make sure all processors have written data
     if (rank == 0) then
        write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
-       write (cmd_archive, '(A,I4.4,A)') trim (test_case)//'_checkpoint_' , cp_idx, ".tgz"
+       write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim (cmd_archive), ' ', trim (cmd_files)
        call system (command)
     end if
     
     ! Must restart after checkpoint and load balance (if compiled with mpi-lb)
-    call restart (set_thresholds, custom_load, test_case, init_restart)
+    call restart (set_thresholds, custom_load, run_id, init_restart)
   end subroutine write_checkpoint
 
   subroutine init_structures

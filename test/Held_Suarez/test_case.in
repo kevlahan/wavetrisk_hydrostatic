@@ -1,4 +1,5 @@
 test_case          "Held_Suarez" ! name of test case
+run_id             "Held_Suarez_J6" ! name of run (for saved data files)
 compressible       T             ! compressible (T) or incompressible (F) equations
 max_level	   6             ! maximum level of resolution
 zlevels            18            ! number of vertical levels
