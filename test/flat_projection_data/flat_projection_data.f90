@@ -280,7 +280,7 @@ contains
     ! 2d projections
     do v = 1, nvar_save*save_levels
        write (var_file, '(i1)') v
-       open (unit=funit, file=trim(test_case)//'.3.0'//var_file)
+       open (unit=funit, file=trim(run_id)//'.3.0'//var_file)
        do i = Ny(1), Ny(2)
           write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
        end do
