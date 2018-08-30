@@ -290,7 +290,7 @@ contains
     ! Zonal average of solution over all vertical levels
     do v = 1, nvar_zonal
        write (var_file, '(i2)') v+10
-       open (unit=funit, file=trim(test_case)//'.3.'//var_file)
+       open (unit=funit, file=trim(run_id)//'.3.'//var_file)
        do k = zlevels,1,-1
           write (funit,'(2047(E15.6, 1X))') zonal_av(k,:,v)
        end do
@@ -301,26 +301,26 @@ contains
 
     ! Longitude values
     write (var_file, '(i2)') 20
-    open (unit=funit, file=trim(test_case)//'.3.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
     write (funit,'(2047(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
-    open (unit=funit, file=trim(test_case)//'.3.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
     write (funit,'(2047(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
     ! Pressure vertical coordinates
     write (var_file, '(i2)') 22
-    open (unit=funit, file=trim(test_case)//'.3.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
     write (funit,'(2047(E15.6, 1X))') (a_vert(k)*ref_press/ref_surf_press + b_vert(k), k=zlevels+1,2,-1)
     close (funit)
 
     ! Compress files
-    command = 'ls -1 '//trim(test_case)//'.3.?? > tmp' 
+    command = 'ls -1 '//trim(run_id)//'.3.?? > tmp' 
     call system (command)
-    command = 'tar czf '//trim(test_case)//'.3.tgz -T tmp --remove-files &'
+    command = 'tar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
     call system (command)
     deallocate (field2d, field2d_save, zonal_av)
   end subroutine write_out
@@ -784,7 +784,7 @@ end function physics_scalar_flux
 
 function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
   use domain_mod
-  use test_case_mod
+  use test_cas_mod
   implicit none
 
   real(8), dimension(1:EDGE)               :: grad_physics
