@@ -5,7 +5,7 @@ program flat_projection_data
   use io_mod  
   implicit none
   integer                                :: Ntimes, Ntot, Nzonal
-  integer, parameter                     :: nvar_save=6, nvar_zonal=7 ! Number of variables to save
+  integer, parameter                     :: nvar_save=6, nvar_zonal=8 ! Number of variables to save
   integer, dimension(2)                  :: Nx, Ny
   real(8), dimension(2)                  :: lon_lat_range
   real(4), dimension(:,:), allocatable   :: field2d
@@ -87,7 +87,7 @@ program flat_projection_data
   allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
   allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
   allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
-  allocate (zonal_spacetime_av(1:zlevels,Ny(1):Ny(2),5))
+  allocate (zonal_spacetime_av(1:zlevels,Ny(1):Ny(2),6))
 
   ! Calculate zonal average over all check points
   if (rank == 0) write (6,'(A)') "Calculating zonal averages over all checkpoints"
@@ -101,17 +101,17 @@ program flat_projection_data
   zonal_av(:,:,1) = zonal_spacetime_av(:,:,1) / dble(Ntot)
   ! Temperature variance
   zonal_av(:,:,2) = (zonal_spacetime_av(:,:,2) - zonal_spacetime_av(:,:,3)**2/dble(Ntot)) / dble(Ntot-1)
-  ! Velocities
-  zonal_av(:,:,3:4) = zonal_spacetime_av(:,:,3:4) / dble(Ntot)
+  ! Zonal velocity, meridional velocity and kinetic energy
+  zonal_av(:,:,3:5) = zonal_spacetime_av(:,:,4:6) / dble(Ntot)
 
   ! Project onto plane and find zonally averaged perturbation quantities
   if (rank == 0) write (6,'(/,A,/)') "Projecting onto plane"
   do cp_idx = check_start, check_end
      resume = NONE
      call restart (set_thresholds, load, run_id, .false.)
-     call cal_perturb
+     call export_2d
   end do
-  zonal_av(:,:,5:7) = zonal_av(:,:,5:7) / dble(Ntot)
+  zonal_av(:,:,6:8) = zonal_av(:,:,6:8) / dble(Ntot)
   
   call barrier
   if (rank==0) call write_out
@@ -161,14 +161,16 @@ contains
        ! Zonal velocity
        call project_uzonal_onto_plane (level_save, 0.0_8)
        zonal_spacetime_av(k,:,4) = zonal_spacetime_av(k,:,3) + sum (field2d, dim=1)
+       zonal_spacetime_av(k,:,6) = zonal_spacetime_av(k,:,6) + 0.5*sum (field2d**2, dim=1) ! Kinetic energy (zonal part)
 
        ! Meridional velocity
        call project_vmerid_onto_plane (level_save, 0.0_8)
        zonal_spacetime_av(k,:,5) = zonal_spacetime_av(k,:,4) + sum (field2d, dim=1)
+       zonal_spacetime_av(k,:,6) = zonal_spacetime_av(k,:,6) + 0.5*sum (field2d**2, dim=1) ! Kinetic energy (meridional part)
     end do
   end subroutine cal_zonal_av
 
-  subroutine cal_perturb
+  subroutine export_2d
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
     ! save zonal average and horizontal grid at vertical level zlevel
     use domain_mod
@@ -191,9 +193,10 @@ contains
     dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
     allocate (uprime(Nx(1):Nx(2),Ny(1):Ny(2)), vprime(Nx(1):Nx(2),Ny(1):Ny(2)), Tprime(Nx(1):Nx(2),Ny(1):Ny(2)))
-   
+
+    ! Latitude-longitude projections
     do k = 1, save_levels
-        ! Temperature
+       ! Temperature
        call project_onto_plane (horiz_flux(k), level_save, 0.0_8)
        field2d_save(:,:,1+k-1) = field2d
 
@@ -237,7 +240,7 @@ contains
        ! Peturbation Temperature
        call project_onto_plane (exner_fun(k), level_save, 1.0_8)
        do ix = Nx(1), Nx(2)
-          Tprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,1)
+          Tprime(ix,:) = field2d(ix,:) - zonal_av(k,:,1)
        end do
 
        ! Zonal and meridional velocities
@@ -252,25 +255,25 @@ contains
        ! Peturbation zonal velocity
        call project_uzonal_onto_plane (level_save, 0.0_8)
        do ix = Nx(1), Nx(2)
-          uprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,4)
+          uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,3)
        end do
 
        ! Peturbation meridional velocity
        call project_vmerid_onto_plane (level_save, 0.0_8)
        do ix = Nx(1), Nx(2)
-          vprime(ix,:) = field2d(ix,:) - zonal_spacetime_av(k,:,5)
+          vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,4)
        end do
 
        ! Eddy momentum flux
-       zonal_av(k,:,5) = zonal_av(k,:,5) + sum (uprime*vprime, dim=1)
+       zonal_av(k,:,5) = zonal_av(k,:,6) + sum (uprime*vprime, dim=1)
 
        ! Eddy kinetic energy
-       zonal_av(k,:,6) = zonal_av(k,:,6) + sum (0.5_8*(uprime**2+vprime**2), dim=1)
+       zonal_av(k,:,6) = zonal_av(k,:,7) + sum (0.5_8*(uprime**2+vprime**2), dim=1)
 
        ! Eddy heat flux
-       zonal_av(k,:,7) = zonal_av(k,:,7) + sum (Tprime*vprime, dim=1)
+       zonal_av(k,:,7) = zonal_av(k,:,8) + sum (Tprime*vprime, dim=1)
     end do
-  end subroutine cal_perturb
+  end subroutine export_2d
 
   subroutine write_out
     ! Writes out results
