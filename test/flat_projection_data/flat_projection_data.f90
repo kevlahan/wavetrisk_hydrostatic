@@ -160,12 +160,12 @@ contains
 
        ! Zonal velocity
        call project_uzonal_onto_plane (level_save, 0.0_8)
-       zonal_spacetime_av(k,:,4) = zonal_spacetime_av(k,:,3) + sum (field2d, dim=1)
+       zonal_spacetime_av(k,:,4) = zonal_spacetime_av(k,:,4) + sum (field2d, dim=1)
        zonal_spacetime_av(k,:,6) = zonal_spacetime_av(k,:,6) + 0.5*sum (field2d**2, dim=1) ! Kinetic energy (zonal part)
 
        ! Meridional velocity
        call project_vmerid_onto_plane (level_save, 0.0_8)
-       zonal_spacetime_av(k,:,5) = zonal_spacetime_av(k,:,4) + sum (field2d, dim=1)
+       zonal_spacetime_av(k,:,5) = zonal_spacetime_av(k,:,5) + sum (field2d, dim=1)
        zonal_spacetime_av(k,:,6) = zonal_spacetime_av(k,:,6) + 0.5*sum (field2d**2, dim=1) ! Kinetic energy (meridional part)
     end do
   end subroutine cal_zonal_av
