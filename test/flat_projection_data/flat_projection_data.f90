@@ -784,7 +784,7 @@ end function physics_scalar_flux
 
 function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
   use domain_mod
-  use test_cas_mod
+  use test_case_mod
   implicit none
 
   real(8), dimension(1:EDGE)               :: grad_physics
