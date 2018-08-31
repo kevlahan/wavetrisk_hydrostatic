@@ -40,19 +40,19 @@ contains
     min_load = 1; max_load = 1; avg_load = 1.0_8; rel_imbalance = 1.0_8
   end subroutine cal_load_balance
 
-  subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, test_case)
+  subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, run_id)
     implicit none
     external     :: out_rout
     integer      :: fid, l, zlev
     logical      :: eval_pole
-    character(*) :: test_case
+    character(*) :: run_id
 
     integer, parameter :: funit = 300
     character(7)       :: var_file
     character(255)     :: filename
     
     write (var_file, '(I7)')  fid
-    filename = trim(test_case)//'.'//var_file
+    filename = trim(run_id)//'.'//var_file
     open (unit=funit, file=filename)
     if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .False.)
     call apply_onescale__int (out_rout, l, zlev, 0, 0, funit)

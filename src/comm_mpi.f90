@@ -129,12 +129,12 @@ contains
     avg = dble(load_sum)/dble(n_process)
   end subroutine get_load_balance
 
-  subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, test_case)
+  subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, run_id)
     implicit none
     external       :: out_rout
     integer        :: fid, l, zlev
     logical        :: eval_pole
-    character(*)   :: test_case
+    character(*)   :: run_id
 
     integer            :: r
     integer, parameter :: funit = 300
@@ -148,7 +148,7 @@ contains
        end if
 
        write (var_file, '(I7)')  fid
-       filename = trim(test_case)//'.'//var_file
+       filename = trim(run_id)//'.'//var_file
        if (r == 1) then ! first process opens without append to delete old file if existing
           open (unit=funit, file=filename)
        else
