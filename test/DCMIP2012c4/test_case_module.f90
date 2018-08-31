@@ -455,21 +455,34 @@ contains
          " (approximate pressure = ", save_press/100, " hPa)"
   end subroutine set_save_level
 
-  subroutine dump (fid)
+   subroutine dump (fid)
     implicit none
     integer :: fid
 
     write (fid) itime
     write (fid) iwrite
-    write (fid) threshold
+    write (fid) zlevels
+    write (fid) threshold, threshold_def
   end subroutine dump
 
   subroutine load (fid)
     implicit none
     integer :: fid
+    
+    integer :: zlevels_old
 
+    zlevels_old = zlevels
+    
     read (fid) itime
     read (fid) iwrite
-    read (fid) threshold
+    
+    read (fid) zlevels
+    if (zlevels /= zlevels_old) then
+       write (6,'(2(i3,A))') zlevels_old, " vertical levels specified in input file does not match ", zlevels, &
+            " vertical levels in checkpoint"
+       stop
+    end if
+    
+    read (fid) threshold, threshold_def
   end subroutine load
 end module test_case_mod

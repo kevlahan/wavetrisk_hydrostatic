@@ -4,7 +4,8 @@ Click on window and then on "eye" to left of data set to activate or de-activate
 
 DISPLAY TIME
 
-Filters -> Annotation ->Annotate Time Filter.  Need to click on "Apply" to be able to format font and location.
+Filters -> Annotation -> Annotate Time Filter.  Need to click on "Apply" to be able to format font and location.  Uses printf format (e.g. %4.2f). Use shift and scale
+to convert filenumber to correct units.
 
 DISPLAY TEXT
 

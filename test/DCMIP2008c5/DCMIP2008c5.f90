@@ -6,14 +6,6 @@ program DCMIP2008c5
   implicit none
 
   logical :: aligned
-
-  ! Basic initialization of structures (grid, geometry etc)
-  call init_main_mod 
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Read test case parameters
-  call read_test_case_parameters ("test_case.in")
  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
@@ -52,24 +44,18 @@ program DCMIP2008c5
   Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
   Hdim           = wave_speed**2/grav_accel     ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
-  ! Initialize vertical grid
-  call initialize_a_b_vert
 
-  ! Determine vertical level to save
-  call set_save_level
+  ! Basic initialization of structures (grid, geometry etc)
+  call init_main_mod 
+  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
 
-  ! Initialize thresholds to default values 
-  call initialize_thresholds
-    
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Read test case parameters
+  call read_test_case_parameters ("test_case.in")
+  
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
-  call sum_total_mass (.true.)
-  call barrier
-
-  ! Initialize time step and viscosities
-  call initialize_dt_viscosity
-
+  
   ! Save initial conditions
   call write_and_export (iwrite)
 

@@ -313,8 +313,8 @@ contains
     integer :: k
     real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm
     
-    allocate (threshold(S_MASS:S_VELO,1:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
+    allocate (threshold(S_MASS:S_VELO,1:zlevels))
+    allocate (threshold_def(S_MASS:S_VELO,1:zlevels))
 
     lnorm(S_MASS,:) = dPdim/grav_accel
     do k = 1, zlevels
@@ -352,7 +352,7 @@ contains
        if (Laplace_order == 1 .or. Laplace_order == 2) then
           L_diffusion = L_diffusion / 2**(1.5*(max_level-min_level)) ! Correct length scales for finest grid
 
-          viscosity_mass = 0.0_8
+          viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_divu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
           viscosity_rotu = L_diffusion(3)**(2*Laplace_order) / tau_diffusion
@@ -438,15 +438,28 @@ contains
 
     write (fid) itime
     write (fid) iwrite
-    write (fid) threshold
+    write (fid) zlevels
+    write (fid) threshold, threshold_def
   end subroutine dump
 
-  subroutine load (fid)
+   subroutine load (fid)
     implicit none
     integer :: fid
+    
+    integer :: zlevels_old
 
+    zlevels_old = zlevels
+    
     read (fid) itime
     read (fid) iwrite
-    read (fid) threshold
+    
+    read (fid) zlevels
+    if (zlevels /= zlevels_old) then
+       write (6,'(2(i3,A))') zlevels_old, " vertical levels specified in input file does not match ", zlevels, &
+            " vertical levels in checkpoint"
+       stop
+    end if
+    
+    read (fid) threshold, threshold_def
   end subroutine load
 end module test_case_mod

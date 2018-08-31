@@ -4,8 +4,9 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  integer :: check_end, check_start, cp_2d, iwrite, N, save_zlev
-  real(8) :: initotalmass, mass_error, totalmass
+  integer                              :: check_end, check_start, cp_2d, iwrite, N, save_zlev
+  real(8)                              :: initotalmass, mass_error, totalmass
+  real(8), allocatable, dimension(:,:) :: threshold_def
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
   ! DCMIP2008c5
@@ -200,21 +201,42 @@ contains
     allocate (threshold(S_MASS:S_VELO,1:zlevels)); threshold = 0.0_8
   end subroutine initialize_thresholds
 
+  subroutine set_save_level
+    ! Dummy routine
+  end subroutine set_save_level
+
+  subroutine initialize_dt_viscosity
+    ! Dummy routine
+  end subroutine initialize_dt_viscosity
+
   subroutine dump (fid)
     implicit none
     integer :: fid
 
     write (fid) itime
     write (fid) iwrite
-    write (fid) threshold
+    write (fid) zlevels
+    write (fid) threshold, threshold_def
   end subroutine dump
 
   subroutine load (fid)
     implicit none
     integer :: fid
+    
+    integer :: zlevels_old
 
+    zlevels_old = zlevels
+    
     read (fid) itime
     read (fid) iwrite
-    read (fid) threshold
+    
+    read (fid) zlevels
+    if (zlevels /= zlevels_old) then
+       write (6,'(2(i3,A))') zlevels_old, " vertical levels specified in input file does not match ", zlevels, &
+            " vertical levels in checkpoint"
+       stop
+    end if
+    
+    read (fid) threshold, threshold_def
   end subroutine load
 end module test_case_mod
