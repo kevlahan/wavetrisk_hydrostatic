@@ -1129,7 +1129,7 @@ contains
        ! Calculate vorticity at hexagon points (stored in adj_mass)
        call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
 
-       call write_level_mpi (write_primal, u+l, l, save_zlev, .true., test_case)
+       call write_level_mpi (write_primal, u+l, l, save_zlev, .true., run_id)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_d(-minv(i))
@@ -1137,41 +1137,41 @@ contains
        end do
        if (rank == 0) then
           write (var_file, '(i7)') u
-          open(unit=50, file=trim(test_case)//'.'//var_file)
+          open(unit=50, file=trim(run_id)//'.'//var_file)
           write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
           write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
           close(50)
        end if
        u = 2000000+100*iwrite
-       call write_level_mpi (write_dual, u+l, l, save_zlev, .False., test_case)
+       call write_level_mpi (write_dual, u+l, l, save_zlev, .False., run_id)
     end do
 
     call post_levelout
     call barrier
-    if (rank == 0) call compress_files (iwrite, test_case)
+    if (rank == 0) call compress_files (iwrite, run_id)
   end subroutine write_and_export
 
-  subroutine compress_files (iwrite, test_case)
+  subroutine compress_files (iwrite, run_id)
     implicit none
     integer      :: iwrite
-    character(*) :: test_case
+    character(*) :: run_id
 
     character(4)   :: s_time
     character(130) :: command
 
     write (s_time, '(i4.4)') iwrite
 
-    command = 'ls -1 '//trim(test_case)//'.1'//s_time//'?? > tmp1'
+    command = 'ls -1 '//trim(run_id)//'.1'//s_time//'?? > tmp1'
     
     call system (command)
 
-    command = 'tar czf '//trim(test_case)//'.1'//s_time//'.tgz -T tmp1 --remove-files &'
+    command = 'tar czf '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files &'
     call system (command)
 
-    command = 'ls -1 '//trim(test_case)//'.2'//s_time //'?? > tmp2' 
+    command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2' 
     call system (command)
 
-    command = 'tar czf '//trim(test_case)//'.2'//s_time//'.tgz -T tmp2 --remove-files &'
+    command = 'tar czf '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files &'
     call system (command)
   end subroutine compress_files
 end module io_mod
