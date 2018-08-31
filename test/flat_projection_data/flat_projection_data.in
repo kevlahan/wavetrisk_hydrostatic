@@ -1,11 +1,11 @@
-test_case    "DCMIP2012c4"  ! test case
-test_case    "DCMIP2012c4_J6"  ! run
-tstart	        0           ! first checkpoint file
-tend	        1           ! last checkpoint file
-cp_2d	        1           ! checkpoint for 2d projection	
+test_case    "Held_Suarez"  ! test case
+test_case    "Held_Suarez_J6"  ! run
+tstart	        29           ! first checkpoint file
+tend	        171           ! last checkpoint file
+cp_2d	        171           ! checkpoint for 2d projection	
 max_level	6           ! maximum level of resolution
-zlevels         26          ! number of vertical levels
+zlevels         18          ! number of vertical levels
 uniform         F           ! uniform (T) or hybrid (F) vertical grid	
 level_save      6           ! resolution level to interpolate to
-N               512         ! resolution of interpolated grid (N latitude x N/2 longitude)	
+N               1024         ! resolution of interpolated grid (N latitude x N/2 longitude)	
 pressure_save   850.0       ! pressure level to save (hPa)
