@@ -313,8 +313,8 @@ contains
     integer :: k
     real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm
     
-    allocate (threshold(S_MASS:S_VELO,1:zlevels))
-    allocate (threshold_def(S_MASS:S_VELO,1:zlevels))
+    allocate (threshold(S_MASS:S_VELO,1:zlevels)) ;     threshold = 0.0_8
+    allocate (threshold_def(S_MASS:S_VELO,1:zlevels)) ; threshold_def = 0.0_8
 
     lnorm(S_MASS,:) = dPdim/grav_accel
     do k = 1, zlevels
@@ -438,28 +438,15 @@ contains
 
     write (fid) itime
     write (fid) iwrite
-    write (fid) zlevels
-    write (fid) threshold, threshold_def
+    write (fid) threshold
   end subroutine dump
 
-   subroutine load (fid)
+  subroutine load (fid)
     implicit none
     integer :: fid
     
-    integer :: zlevels_old
-
-    zlevels_old = zlevels
-    
     read (fid) itime
     read (fid) iwrite
-    
-    read (fid) zlevels
-    if (zlevels /= zlevels_old) then
-       write (6,'(2(i3,A))') zlevels_old, " vertical levels specified in input file does not match ", zlevels, &
-            " vertical levels in checkpoint"
-       stop
-    end if
-    
-    read (fid) threshold, threshold_def
+    read (fid) threshold
   end subroutine load
 end module test_case_mod

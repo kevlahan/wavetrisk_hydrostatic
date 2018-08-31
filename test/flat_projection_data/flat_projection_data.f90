@@ -14,10 +14,15 @@ program flat_projection_data
   character(2)                           :: var_file
   character(130)                         :: command
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Basic initialization of structures (grid, geometry etc)
+  call init_main_mod 
+  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
+
   ! Read test case parameters
   call read_test_case_parameters ("flat_projection_data.in")
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  
   if (trim (test_case) == 'DCMIP2012c4') then
      compressible   = .true.                      ! Compressible equations
 
@@ -63,11 +68,6 @@ program flat_projection_data
   end if
   resume = check_start
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  ! Basic initialization of structures (grid, geometry etc)
-  call init_main_mod 
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
   

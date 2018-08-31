@@ -9,9 +9,6 @@ program DCMIP2012c4
   logical :: aligned
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Read test case parameters
-  call read_test_case_parameters ("test_case.in")
- 
   ! Standard (shared) parameter values for the simulation
   radius         = 6.371229d6                  ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
@@ -55,6 +52,9 @@ program DCMIP2012c4
   ! Basic initialization of structures (grid, geometry etc)
   call init_main_mod 
   nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
+
+  ! Read test case parameters
+  call read_test_case_parameters ("test_case.in")
     
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)

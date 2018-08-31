@@ -208,35 +208,22 @@ contains
   subroutine initialize_dt_viscosity
     ! Dummy routine
   end subroutine initialize_dt_viscosity
-
+  
   subroutine dump (fid)
     implicit none
     integer :: fid
 
     write (fid) itime
     write (fid) iwrite
-    write (fid) zlevels
-    write (fid) threshold, threshold_def
+    write (fid) threshold
   end subroutine dump
 
   subroutine load (fid)
     implicit none
     integer :: fid
     
-    integer :: zlevels_old
-
-    zlevels_old = zlevels
-    
     read (fid) itime
     read (fid) iwrite
-    
-    read (fid) zlevels
-    if (zlevels /= zlevels_old) then
-       write (6,'(2(i3,A))') zlevels_old, " vertical levels specified in input file does not match ", zlevels, &
-            " vertical levels in checkpoint"
-       stop
-    end if
-    
-    read (fid) threshold, threshold_def
+    read (fid) threshold
   end subroutine load
 end module test_case_mod

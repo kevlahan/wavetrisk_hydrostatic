@@ -7,7 +7,7 @@ test_case = 'Held_Suarez';
 run_id = 'Held_Suarez_J5';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'eddy_heat_flux';  % field to plot
+itype     = 'eddy_mom';  % field to plot
 lon_lat   = false;    % Plot longitude - latitude data
 zonal_avg = true;   % Plot zonally averaged data
 shift     = true;    % shift left boundary to zero longitude

@@ -53,9 +53,10 @@ contains
     
        call initialize_a_b_vert
        call set_save_level
-       call initialize_thresholds
        call init_structures
        call apply_init_cond
+       call initialize_thresholds
+       if (Laplace_order /= 0) call evals_diffusion
 
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
@@ -112,7 +113,7 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt_mpi()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
-       call write_checkpoint (custom_dump, custom_load, run_id, .true.)
+       call write_checkpoint (custom_dump, custom_load, run_id, .false.)
     end if
     call sum_total_mass (.true.)
     call barrier
@@ -302,6 +303,17 @@ contains
 
     call init_structures
 
+    if (init_restart) then
+       ! Initialize vertical grid
+       call initialize_a_b_vert
+
+       ! Initialize thresholds
+       call initialize_thresholds
+
+       ! Calculate diffusion lengthscales
+       if (Laplace_order /= 0) call evals_diffusion
+    end if
+
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load)
  
@@ -316,12 +328,6 @@ contains
     itime  = nint (time*time_mult, 8)
     resume = cp_idx ! to disable alignment for next step
     istep  = 0
-    
-    ! Calculate diffusion length scales
-    if (Laplace_order /= 0 .and. init_restart) call evals_diffusion
-
-    ! Initialize vertical grid
-    call initialize_a_b_vert
 
     ! Determine save level
     call set_save_level
@@ -407,8 +413,6 @@ contains
     if (time_end > 0.0_8) time_mult = huge(itime)/2/time_end
 
     call init_RK_mem
-
-    allocate (threshold(S_MASS:S_VELO,1:zlevels), threshold_def(S_MASS:S_VELO,1:zlevels))
   end subroutine init_structures
 
   subroutine deallocate_structures
@@ -587,6 +591,5 @@ contains
     deallocate (grid, sol, sol_save, trend, exner_fun, horiz_flux, Laplacian_scalar)
     deallocate (n_active_edges, n_active_nodes)
     deallocate (send_lengths, send_offsets, recv_lengths, recv_offsets, req, stat_ray)
-    deallocate (threshold, threshold_def)
   end subroutine deallocate_structures
 end module main_mod
