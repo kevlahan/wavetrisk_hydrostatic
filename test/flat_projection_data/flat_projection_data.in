@@ -2,6 +2,7 @@ test_case    "DCMIP2012c4"  ! test case
 test_case    "DCMIP2012c4_J6"  ! run
 tstart	        0           ! first checkpoint file
 tend	        1           ! last checkpoint file
+cp_2d	        1           ! checkpoint for 2d projection	
 max_level	6           ! maximum level of resolution
 zlevels         26          ! number of vertical levels
 uniform         F           ! uniform (T) or hybrid (F) vertical grid	

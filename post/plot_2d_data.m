@@ -6,8 +6,8 @@
 test_case = 'Held_Suarez';
 run_id = 'Held_Suarez_J6';
 
-% 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'temp';  % field to plot
+% 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
+itype     = 'zonal';  % field to plot
 lon_lat   = false;    % Plot longitude - latitude data
 zonal_avg = true;   % Plot zonally averaged data
 shift     = true;    % shift left boundary to zero longitude
@@ -134,7 +134,7 @@ if (strcmp(itype,'temp')) % Plot temperature
 elseif (strcmp(itype,'temp_var')) % Plot temperature variance
     c_scale = 0:5:40; % Held-Suarez
     v_title = 'Temperature variance (K^2)';
-    s_zo = s_zo + load([file_base itime '12']);
+    s_zo = s_zo + load([file_base '12']);
 elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
     if (strcmp(test_case,'DCMIP2008c5'))
         c_scale = -15:5:50;
@@ -148,7 +148,7 @@ elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
         s_ll = s_ll+load([file_base '02']);
     end
     if (zonal_avg)
-        s_zo = s_zo+load([file_base '12']);
+        s_zo = s_zo+load([file_base '13']);
     end
 elseif (strcmp(itype,'merid')) % Plot meridional velocity data
     if (strcmp(test_case,'DCMIP2008c5'))
@@ -193,10 +193,14 @@ elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
         c_scale = 930:10:1030;
     end
     v_title = 'Surface pressure';
+elseif (strcmp(itype,'ke')) % Plot zonal kinetic energy
+    c_scale = 0:40:480; % Held-Suarez
+    v_title = 'Kinetic energy (m^2/s^2)';
+    s_zo = s_zo+load([file_base '15']);
 elseif (strcmp(itype,'eddy_mom')) % Plot zonal eddy momentum flux
     c_scale = -100:20:100; % Held-Suarez
     v_title = 'Eddy momentum flux (m^2/s^2)';
-    s_zo = s_zo+load([file_base '15']);
+    s_zo = s_zo+load([file_base '16']);
 elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
     if (strcmp(test_case,'DCMIP2008c5'))
         c_scale = 0:5:100;
@@ -204,11 +208,11 @@ elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
         c_scale = 0:40:480;
     end
     v_title = 'Eddy kinetic energy (m^2/s^2)';
-    s_zo = s_zo+load([file_base '16']);
+    s_zo = s_zo+load([file_base '17']);
 elseif (strcmp(itype,'eddy_heat_flux')) % Plot zonal eddy heat flux
     c_scale = -20:5:20; % Held-Suarez
     v_title = 'Eddy kinetic energy (K m/s)';
-    s_zo = s_zo+load([file_base '17']);
+    s_zo = s_zo+load([file_base '18']);
 end
 
 % Plot data

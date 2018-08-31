@@ -8,7 +8,7 @@ module io_mod
 
   integer, parameter                   :: N_VAR_OUT = 7
   integer, dimension(2,4)              :: HR_offs
-  real(8)                              :: dx_export, dy_export, kx_export, ky_export, vmin, vmax
+  real(8)                              :: vmin, vmax
   real(8), dimension(N_VAR_OUT)        :: minv, maxv
   integer                              :: next_fid
   type(Float_Field)                    :: active_level

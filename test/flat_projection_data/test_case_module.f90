@@ -4,7 +4,7 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  integer :: check_end, check_start, iwrite, N, save_zlev
+  integer :: check_end, check_start, cp_2d, iwrite, N, save_zlev
   real(8) :: initotalmass, mass_error, totalmass
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
@@ -134,6 +134,7 @@ contains
     read (fid,*) varname, run_id
     read (fid,*) varname, check_start
     read (fid,*) varname, check_end
+    read (fid,*) varname, cp_2d
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, uniform
@@ -149,10 +150,11 @@ contains
     end if
 
     if (rank==0) then
-       write (6,'(A,A)')      "test_case           = ", test_case
-       write (6,'(A,A)')      "run_id              = ", run_id
-       write (6,'(A,i12)')    "first file          = ", check_start
-       write (6,'(A,i12)')    "first file          = ", check_end
+       write (6,'(A,A)')      "test_case           = ", trim (test_case)
+       write (6,'(A,A)')      "run_id              = ", trim (run_id)
+       write (6,'(A,i4)')     "first file          = ", check_start
+       write (6,'(A,i4)')     "last file           = ", check_end
+       write (6,'(A,i4)')     "file to save as 2d  = ", cp_2d
        write (6,'(A,i3)')     "min_level           = ", min_level
        write (6,'(A,i3)')     "max_level           = ", max_level
        write (6,'(A,i3)')     "zlevels             = ", zlevels

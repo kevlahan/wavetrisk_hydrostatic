@@ -7,6 +7,7 @@ program flat_projection_data
   integer                                :: Ntimes, Ntot, Nzonal
   integer, parameter                     :: nvar_save=6, nvar_zonal=8 ! Number of variables to save
   integer, dimension(2)                  :: Nx, Ny
+  real(8)                                :: dx_export, dy_export, kx_export, ky_export
   real(8), dimension(2)                  :: lon_lat_range
   real(4), dimension(:,:), allocatable   :: field2d
   real(8), dimension(:,:,:), allocatable :: field2d_save, zonal_av, zonal_spacetime_av
@@ -83,6 +84,8 @@ program flat_projection_data
   Ntimes = check_end-check_start+1
   Ntot   = Nzonal*Ntimes
   lon_lat_range = (/2*MATH_PI, MATH_PI/)
+  dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
+  kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
   
   allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
   allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
@@ -105,11 +108,12 @@ program flat_projection_data
   zonal_av(:,:,3:5) = zonal_spacetime_av(:,:,4:6) / dble(Ntot)
 
   ! Project onto plane and find zonally averaged perturbation quantities
-  if (rank == 0) write (6,'(/,A,/)') "Projecting onto plane"
+  if (rank == 0) write (6,'(/,A,/)') "Perturbation quantities"
   do cp_idx = check_start, check_end
      resume = NONE
      call restart (set_thresholds, load, run_id, .false.)
-     call export_2d
+     call cal_perturb
+     if (cp_idx == cp_2d) call latlon
   end do
   zonal_av(:,:,6:8) = zonal_av(:,:,6:8) / dble(Ntot)
   
@@ -135,9 +139,6 @@ contains
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     call update_vector_bdry (exner_fun, NONE)
-
-    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
 
     ! Zonal averages
     do k = 1, zlevels
@@ -170,9 +171,10 @@ contains
     end do
   end subroutine cal_zonal_av
 
-  subroutine export_2d
+  subroutine cal_perturb
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
     ! save zonal average and horizontal grid at vertical level zlevel
+    ! Calculate perturbation variable statistics 
     use domain_mod
     integer                              :: d, i, id, ix, j, k
     real, dimension(:,:),   allocatable  :: uprime, vprime, Tprime
@@ -189,10 +191,67 @@ contains
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     call update_vector_bdry (exner_fun, NONE)
-
-    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
+   
     allocate (uprime(Nx(1):Nx(2),Ny(1):Ny(2)), vprime(Nx(1):Nx(2),Ny(1):Ny(2)), Tprime(Nx(1):Nx(2),Ny(1):Ny(2)))
+
+    ! Zonal averages
+    do k = 1, zlevels
+       ! Peturbation Temperature
+       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
+       do ix = Nx(1), Nx(2)
+          Tprime(ix,:) = field2d(ix,:) - zonal_av(k,:,1)
+       end do
+
+       ! Zonal and meridional velocities
+       do d = 1, size(grid)
+          velo => sol(S_VELO,k)%data(d)%elts
+          do j = 1, grid(d)%lev(level_save)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+          end do
+          nullify (velo)
+       end do
+
+       ! Peturbation zonal velocity
+       call project_uzonal_onto_plane (level_save, 0.0_8)
+       do ix = Nx(1), Nx(2)
+          uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,3)
+       end do
+
+       ! Peturbation meridional velocity
+       call project_vmerid_onto_plane (level_save, 0.0_8)
+       do ix = Nx(1), Nx(2)
+          vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,4)
+       end do
+
+       ! Eddy momentum flux
+       zonal_av(k,:,6) = zonal_av(k,:,6) + sum (uprime*vprime, dim=1)
+
+       ! Eddy kinetic energy
+       zonal_av(k,:,7) = zonal_av(k,:,7) + sum (0.5*(uprime**2+vprime**2), dim=1)
+
+       ! Eddy heat flux
+       zonal_av(k,:,8) = zonal_av(k,:,8) + sum (Tprime*vprime, dim=1)
+    end do
+  end subroutine cal_perturb
+
+  subroutine latlon
+    ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
+    use domain_mod
+    integer                              :: d, i, id, ix, j, k
+    real, dimension(:,:),   allocatable  :: uprime, vprime, Tprime
+
+    ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
+    call fill_up_grid_and_IWT (level_save)
+
+    call cal_surf_press (sol)
+
+    ! Remap to pressure_save vertical levels for saving data
+    sol_save = sol(:,1:save_levels)
+    call apply_onescale (interp_save, level_save, z_null, -1, 2)
+
+    ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    call update_vector_bdry (exner_fun, NONE)
 
     ! Latitude-longitude projections
     do k = 1, save_levels
@@ -234,46 +293,7 @@ contains
        call project_surf_press_onto_plane (level_save, 1.0_8)
        field2d_save(:,:,6+k-1) = field2d
     end do
-
-    ! Zonal averages
-    do k = 1, zlevels
-       ! Peturbation Temperature
-       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
-       do ix = Nx(1), Nx(2)
-          Tprime(ix,:) = field2d(ix,:) - zonal_av(k,:,1)
-       end do
-
-       ! Zonal and meridional velocities
-       do d = 1, size(grid)
-          velo => sol(S_VELO,k)%data(d)%elts
-          do j = 1, grid(d)%lev(level_save)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
-          end do
-          nullify (velo)
-       end do
-
-       ! Peturbation zonal velocity
-       call project_uzonal_onto_plane (level_save, 0.0_8)
-       do ix = Nx(1), Nx(2)
-          uprime(ix,:) = field2d(ix,:) - zonal_av(k,:,3)
-       end do
-
-       ! Peturbation meridional velocity
-       call project_vmerid_onto_plane (level_save, 0.0_8)
-       do ix = Nx(1), Nx(2)
-          vprime(ix,:) = field2d(ix,:) - zonal_av(k,:,4)
-       end do
-
-       ! Eddy momentum flux
-       zonal_av(k,:,5) = zonal_av(k,:,6) + sum (uprime*vprime, dim=1)
-
-       ! Eddy kinetic energy
-       zonal_av(k,:,6) = zonal_av(k,:,7) + sum (0.5_8*(uprime**2+vprime**2), dim=1)
-
-       ! Eddy heat flux
-       zonal_av(k,:,7) = zonal_av(k,:,8) + sum (Tprime*vprime, dim=1)
-    end do
-  end subroutine export_2d
+  end subroutine latlon
 
   subroutine write_out
     ! Writes out results
