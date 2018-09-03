@@ -15,6 +15,10 @@ EDIT COLOR BAR
 
 View -> Color Map Editor. Click on rainbow with black e (upper right) to edit color bar legend. Click on "Gear" to get all properties. Usually want to unclick "Add Range Labels".
 
+TRANSFORM DATA
+Filter -> Alphabetical -> Cell Data to Point Data
+To convert Cell data (e.g. hexagons) to point data (that can be used by filters like contour).
+
 SAVE ANIMATION
 
 File -> Save Animation. Click on "Save All Views" and then save as .jpg (don't click "transparent view").
