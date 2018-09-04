@@ -4,9 +4,8 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  integer                              :: check_end, check_start, cp_2d, iwrite, N, save_zlev
-  real(8)                              :: initotalmass, mass_error, totalmass
-  real(8), allocatable, dimension(:,:) :: threshold_def
+  integer :: check_end, check_start, cp_2d, iwrite, N, save_zlev
+  real(8) :: initotalmass, mass_error, totalmass
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
   ! DCMIP2008c5
@@ -201,14 +200,6 @@ contains
     allocate (threshold(S_MASS:S_VELO,1:zlevels)); threshold = 0.0_8
   end subroutine initialize_thresholds
 
-  subroutine set_save_level
-    ! Dummy routine
-  end subroutine set_save_level
-
-  subroutine initialize_dt_viscosity
-    ! Dummy routine
-  end subroutine initialize_dt_viscosity
-  
   subroutine dump (fid)
     implicit none
     integer :: fid
@@ -221,7 +212,7 @@ contains
   subroutine load (fid)
     implicit none
     integer :: fid
-    
+
     read (fid) itime
     read (fid) iwrite
     read (fid) threshold

@@ -467,7 +467,7 @@ contains
   subroutine load (fid)
     implicit none
     integer :: fid
-    
+
     read (fid) itime
     read (fid) iwrite
     read (fid) threshold

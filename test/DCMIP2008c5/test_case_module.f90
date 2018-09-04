@@ -432,7 +432,7 @@ contains
     if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
          " (approximate pressure = ", save_press/100, " hPa)"
   end subroutine set_save_level
-  
+
   subroutine dump (fid)
     implicit none
     integer :: fid
@@ -445,7 +445,7 @@ contains
   subroutine load (fid)
     implicit none
     integer :: fid
-    
+
     read (fid) itime
     read (fid) iwrite
     read (fid) threshold

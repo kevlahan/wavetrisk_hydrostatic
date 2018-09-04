@@ -9,7 +9,14 @@ program Held_Suarez
 
   logical :: aligned
 
+  ! Basic initialization of structures (grid, geometry etc)
+  call init_main_mod 
+  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Read test case parameters
+  call read_test_case_parameters ("test_case.in")
+
   ! Standard (shared) parameter values for the simulation
   radius         = 6.371d6                  ! mean radius of the Earth in meters
   grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
@@ -47,22 +54,29 @@ program Held_Suarez
   Tdim           = DAY                         ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  ! Basic initialization of structures (grid, geometry etc)
-  call init_main_mod 
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
+  ! Initialize vertical grid
+  call initialize_a_b_vert
 
-  ! Read test case parameters
-  call read_test_case_parameters ("test_case.in")
+  ! Determine vertical level to save
+  call set_save_level
+
+  ! Initialize thresholds to default values 
+  call initialize_thresholds
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call sum_total_mass (.true.)
+  call barrier
+
+  ! Initialize viscosities
+  call initialize_dt_viscosity
 
   ! Save initial conditions
   call write_and_export (iwrite)
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
@@ -207,7 +221,6 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  real(8)                    :: eta
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
 
   if (max (maxval (viscosity_divu), viscosity_rotu) == 0.0_8) then
@@ -220,9 +233,9 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   ! Find correct sign of diffusion on right hand side of equation
   diffusion = (-1)**(Laplace_order-1) * diffusion
-
+    
   ! Total physics for source term of velocity trend
-  physics_velo_source = diffusion
+  physics_velo_source = diffusion 
 end function physics_velo_source
 
 subroutine time_step_cooling
@@ -243,9 +256,9 @@ subroutine time_step_cooling
         temp => sol(S_TEMP,k)%data(d)%elts
         velo => sol(S_VELO,k)%data(d)%elts
         do p = 3, grid(d)%patch%length
-           call apply_onescale_to_patch (cal_pressure,    grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (euler_step_mass, grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (euler_step_velo, grid(d), p-1, k, 0, 0)
+           call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (time_step_mass, grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (time_step_velo, grid(d), p-1, k, 0, 0)
         end do
         nullify (mass, temp, velo)
      end do
@@ -254,7 +267,7 @@ subroutine time_step_cooling
   
   call update_array_bdry (sol, NONE)
 contains
-  subroutine euler_step_mass (dom, i, j, zlev, offs, dims)
+  subroutine time_step_mass (dom, i, j, zlev, offs, dims)
     ! Euler time step
     use test_case_mod
     use main_mod
@@ -273,12 +286,12 @@ contains
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        call cart2sph (dom%node%elts(id_i), lon, lat)
        call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-       temp(id_i) = temp(id_i) - dt*k_T * (temp(id_i) - theta_equil*mass(id_i))
-       !temp(id_i) = theta_equil*mass(id_i) + (temp(id_i)-theta_equil*mass(id_i))*exp (-dt*k_T) ! Exact
+       !temp(id_i) = temp(id_i) - dt*k_T * (temp(id_i) - theta_equil*mass(id_i)) ! Euler
+       temp(id_i) = theta_equil*mass(id_i) + (temp(id_i)-theta_equil*mass(id_i)) * exp (-dt*k_T) ! Exact
     end if
-  end subroutine euler_step_mass
+  end subroutine time_step_mass
 
-  subroutine euler_step_velo (dom, i, j, zlev, offs, dims)
+  subroutine time_step_velo (dom, i, j, zlev, offs, dims)
     ! Euler time step
     use test_case_mod
     use main_mod
@@ -301,9 +314,9 @@ contains
     ! Euler step for temperature and velocity cooling
     do e = 1, EDGE
        id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = (1.0_8 - dt*k_v) * velo(id_e)
-       ! if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = velo(id_e) * exp (-dt*k_v) ! Exact
+       ! if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = (1.0_8 - dt*k_v) * velo(id_e) ! Euler
+       if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = velo(id_e) * exp (-dt*k_v) ! Exact
     end do
-  end subroutine euler_step_velo
+  end subroutine time_step_velo
 end subroutine time_step_cooling
 
