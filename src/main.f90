@@ -159,6 +159,7 @@ contains
     dt = idt/time_mult ! Modify time step
 
     ! Take time step
+    sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
     call RK45_opt (trend_ml, dt)
 

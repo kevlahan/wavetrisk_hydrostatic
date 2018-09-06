@@ -13,6 +13,7 @@ contains
     integer :: d, j, k, l
 
     ! Ensure boundary values are up to date
+    sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
     
     ! Remap on finest level
@@ -21,6 +22,7 @@ contains
 
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
+       sol%bdry_uptodate = .false.
        call update_array_bdry (sol, l+1)
 
        ! Compute scalar wavelet coefficients
@@ -34,6 +36,7 @@ contains
              nullify (wc_m, wc_t, mass, temp)
           end do
        end do
+       wav_coeff%bdry_uptodate = .false.
        call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
 
        ! Remap at level l (over-written if value available from restriction)

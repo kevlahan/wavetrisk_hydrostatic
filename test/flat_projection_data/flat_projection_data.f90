@@ -138,6 +138,7 @@ contains
 
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    exner_fun%bdry_uptodate = .false.
     call update_vector_bdry (exner_fun, NONE)
 
     ! Zonal averages
@@ -190,6 +191,7 @@ contains
 
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    exner_fun%bdry_uptodate = .false.
     call update_vector_bdry (exner_fun, NONE)
    
     allocate (uprime(Nx(1):Nx(2),Ny(1):Ny(2)), vprime(Nx(1):Nx(2),Ny(1):Ny(2)), Tprime(Nx(1):Nx(2),Ny(1):Ny(2)))
@@ -251,6 +253,7 @@ contains
 
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    exner_fun%bdry_uptodate = .false.
     call update_vector_bdry (exner_fun, NONE)
 
     ! Latitude-longitude projections

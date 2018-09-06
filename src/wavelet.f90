@@ -1331,7 +1331,7 @@ contains
 
     lnorm = 0.0_8
     do k = 1, zlevels
-       if (order == "1") then ! l1 norm
+       if (trim (order) == "1") then ! l1 norm
           do l = level_start, level_end
              call apply_onescale (l1_scalar, l, k, 0, 1)
              call apply_onescale (l1_velo,   l, k, 0, 0)
@@ -1340,7 +1340,7 @@ contains
              lnorm(v,k) = sum_real (lnorm(v,k))
           end do
           lnorm(S_VELO,k) = sum_real (lnorm(S_VELO,k))
-       elseif (order == "2") then ! l2 norm
+       elseif (trim (order) == "2") then ! l2 norm
           do l = level_start, level_end
              call apply_onescale (l2_scalar, l, k, 0, 1)
              call apply_onescale (l2_velo,   l, k, 0, 0)
@@ -1349,7 +1349,7 @@ contains
              lnorm(v,k) = sqrt (sum_real (lnorm(v,k)))
           end do
           lnorm(S_VELO,k) = sqrt (sum_real (lnorm(S_VELO,k)))
-       elseif (order == "inf") then ! l infinity norm
+       elseif (trim (order) == "inf") then ! l infinity norm
           do l = level_start, level_end
              call apply_onescale (linf_scalar, l, k, 0, 1)
              call apply_onescale (linf_velo,   l, k, 0, 0)
@@ -1418,7 +1418,7 @@ contains
          do v = S_MASS, S_TEMP
             lnorm(v,zlev) = lnorm(v,zlev) + scaling(v,zlev)%data(d)%elts(id+1)**2
          end do
-      endif
+      end if
     end subroutine l2_scalar
 
      subroutine l2_velo (dom, i, j, zlev, offs, dims)

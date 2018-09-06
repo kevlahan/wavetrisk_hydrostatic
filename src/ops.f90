@@ -816,7 +816,7 @@ contains
        end function physics_velo_source
     end interface
 
-    integer                :: e, id, id_e, id_i
+    integer                :: id, id_i
     real(8), dimension (3) :: Qperp_e, physics
 
     id = idx(i, j, offs, dims)
@@ -828,10 +828,7 @@ contains
     ! Calculate physics
     physics = physics_velo_source (dom, i, j, zlev, offs, dims)
 
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       dvelo(id_e) = - Qperp_e(e) + physics(e)*dom%len%elts(id_e)
-    end do
+    dvelo(EDGE*id+1:EDGE*id_i) = - Qperp_e + physics*dom%len%elts(EDGE*id+1:EDGE*id_i)
   end subroutine du_source
 
   function Qperp (dom, i, j, zlev, offs, dims)
@@ -1219,7 +1216,7 @@ contains
     integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer                      :: e, id, id_e, id_i, idE_i, idN_i, idNE_i
+    integer                      :: id, id_i, idE_i, idN_i, idNE_i
     real(8), dimension(3)        :: gradB, gradE, theta_e
     real(8), dimension(0:N_BDRY) :: theta
 
@@ -1253,10 +1250,7 @@ contains
     gradE = gradi_e (exner,     dom, i, j, offs, dims)
 
     ! Update velocity trend (source dvelo calculated was edge integrated)
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB(e) - theta_e(e)*gradE(e)
-    end do
+    dvelo(EDGE*id+1:EDGE*id_i) = dvelo(EDGE*id+1:EDGE*id_i)/dom%len%elts(EDGE*id+1:EDGE*id_i) - gradB - theta_e*gradE
   end subroutine du_grad
 
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
@@ -1266,10 +1260,12 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idS, idW, idSW
+    integer :: id, id_i, idS, idW, idSW
     real(8) :: u_dual_RT, u_dual_RT_W, u_dual_DG_SW, u_dual_DG, u_dual_UP, u_dual_UP_S
 
     id   = idx(i,   j,   offs, dims)
+    id_i = id+1
+    
     idS  = idx(i,   j-1, offs, dims)
     idW  = idx(i-1, j,   offs, dims)
     idSW = idx(i-1, j-1, offs, dims)
@@ -1281,7 +1277,7 @@ contains
     u_dual_UP    = velo(EDGE*id  +UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
     u_dual_UP_S  = velo(EDGE*idS +UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
 
-    divu(id+1) =  (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id+1)%hex_inv
+    divu(id_i) =  (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
   end subroutine cal_divu
 
   subroutine cal_vort (dom, i, j, zlev, offs, dims)
@@ -1381,68 +1377,64 @@ contains
 
     integer                                                       :: d, iter, j, k
     integer, parameter                                            :: iter_max = 100, seed = 86456
-    real(8)                                                       :: diff
-    real(8), dimension(3)                                         :: eigen, err, inner_prod
+    real(8), dimension(4)                                         :: err, eval, eval_old, inner_prod
     real(8), dimension(S_MASS:S_VELO,1:zlevels)                   :: lnorm
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: sol_tmp
-    real(8), parameter                                            :: err_max = 1d-6
+    real(8), parameter                                            :: err_max = 1d-4
 
     character(3), parameter :: order = "2"
 
+    if (rank == 0) then
+       write (6,'(/,A)') "Finding diffusion lengthscales by power iteration:"
+       write (6,'(/,A,i2)') "Convergence of largest eigenvalues on coarsest grid J = ", min_level
+       write (6,'(A)') "Iteration    err(mass)   err(temp)   err(divu)     err(rotu)"
+    end if
+    
     ! Initialize variables to random values and normalize
     call init_rand
 
-    if (rank == 0) then
-       write (6,'(A)') "Finding diffusion lengthscales by power iteration:"
-       write (6,'(/,A,i2)') "Convergence of largest eigenvector on coarsest grid J = ", min_level
-       write (6,'(A)') "Iteration    err(scalar)   err(divu)     err(rotu)"
-    end if
-
-    iter = 0; err = 1d16
+    iter = 1; err = 1d16; eval = 0.0_8
     do while (maxval (err) > err_max .and. iter <= iter_max)
-       iter = iter + 1
-
-       ! Save previous eigenvectors
-       sol_tmp(S_MASS,2) = sol_tmp(S_MASS,1)
-       sol_tmp(S_VELO,3) = sol_tmp(S_VELO,1)
-       sol_tmp(S_VELO,4) = sol_tmp(S_VELO,2)
-
        ! Apply Laplacian operators
        call Ax
 
        ! Normalize new eigenvectors
        call apply_normalize
 
-       ! Find error (normalized difference between old and new eigenvectors)
+       ! Find Rayleigh quotient approximation to largest eigenvalues
+       eval_old = eval
+       call Ray_quotient
+
+       ! Find relative change in eigenvalues
        call error
-       if (rank == 0) write (6,'(i3,10x,3(es10.4,4x))') iter, err
+       
+       iter = iter + 1
     end do
 
-    ! Find Rayleigh quotient approximation to largest eigenvalues
-    call Ray_quotient
-
     ! Find diffusion length scales
-    L_diffusion = 1/sqrt (eigen)
+    L_diffusion(1) = 1/sqrt(-interp(eval(1),eval(2)))
+    L_diffusion(2:3) = 1/sqrt(-eval(3:4))
     if (rank == 0) write (6,'(/,3(A,es10.4,1x),/)') &
-         "dx_scalar = ", MATH_PI*L_diffusion(1), "dx_divu = ",MATH_PI* L_diffusion(2),"dx_rotu = ", MATH_PI*L_diffusion(3)
+         "dx_scalar = ", MATH_PI*L_diffusion(1), "dx_divu = ",MATH_PI*L_diffusion(2),"dx_rotu = ", MATH_PI*L_diffusion(3)
   contains
     subroutine init_rand
       ! Applies random initial conditions
       implicit none
       integer :: i, m
-      
-      sol_tmp = sol
 
+      sol_tmp = sol
+      
       call random_seed (size=m)
       call random_seed (put=(/(i,i=1,m)/))
 
-      call apply_onescale (init_rand_mass, level_start, z_null, 0, 1)
-      call apply_onescale (init_rand_velo, level_start, z_null, 0, 0)
-      call update_array_bdry (sol_tmp, NONE)
+      call apply_onescale (init_rand_scalar, level_start, z_null, 0, 1)
+      call apply_onescale (init_rand_velo,   level_start, z_null, 0, 0)
+
+      call update_evec
       call apply_normalize
     end subroutine init_rand
 
-    subroutine init_rand_mass (dom, i, j, zlev, offs, dims)
+    subroutine init_rand_scalar (dom, i, j, zlev, offs, dims)
       ! Initializes mass to a random number on [-1,1) 
       implicit none
       type (Domain)                   :: dom
@@ -1453,13 +1445,15 @@ contains
       integer :: d, id_i
       real(8) :: harvest
 
-      call random_number (harvest)
-
       d  = dom%id+1
       id_i = idx(i, j, offs, dims)+1
 
-      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = 2*harvest - 1.0_8
-    end subroutine init_rand_mass
+      call random_number (harvest)
+      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = harvest - 0.5_8
+      
+      call random_number (harvest)
+      sol_tmp(S_TEMP,1)%data(d)%elts(id_i) = harvest - 0.5_8
+    end subroutine init_rand_scalar
 
     subroutine init_rand_velo (dom, i, j, zlev, offs, dims)
       ! Initializes velocities to a uniform random number on [-1, 1)
@@ -1478,8 +1472,10 @@ contains
       do e = 1, EDGE
          id_e = EDGE*id+e
          call random_number (harvest)
-         sol_tmp(S_VELO,1)%data(d)%elts(id_e) = 2*harvest - 1.0_8
-         sol_tmp(S_VELO,2)%data(d)%elts(id_e) = sol_tmp(S_VELO,1)%data(d)%elts(id_e)
+         sol_tmp(S_VELO,1)%data(d)%elts(id_e) = harvest - 0.5_8
+         
+         call random_number (harvest)
+         sol_tmp(S_VELO,2)%data(d)%elts(id_e) = harvest - 0.5_8
       end do
     end subroutine init_rand_velo
 
@@ -1488,14 +1484,15 @@ contains
       implicit none
 
       ! Find norms
-      call cal_lnorm (sol_tmp, '2', lnorm)
+      call cal_lnorm (sol_tmp, order, lnorm)
 
-      call apply_onescale (normalize_mass, level_start, z_null, 0, 1)
-      call apply_onescale (normalize_velo, level_start, z_null, 0, 0)
-      call update_array_bdry (sol_tmp, NONE)
+      call apply_onescale (normalize_scalar, level_start, z_null, 0, 1)
+      call apply_onescale (normalize_velo,   level_start, z_null, 0, 0)
+
+      call update_evec
     end subroutine apply_normalize
 
-    subroutine normalize_mass (dom, i, j, zlev, offs, dims)
+    subroutine normalize_scalar (dom, i, j, zlev, offs, dims)
       ! Normalizes the mass eigenvector
       implicit none
       type (Domain)                   :: dom
@@ -1503,13 +1500,15 @@ contains
       integer, dimension (N_BDRY+1)   :: offs
       integer, dimension (2,N_BDRY+1) :: dims
 
-      integer :: d, id_i
+      integer :: d, id_i, v
 
       d  = dom%id+1
       id_i = idx(i, j, offs, dims)+1
 
-      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = sol_tmp(S_MASS,1)%data(d)%elts(id_i)/lnorm(S_MASS,1)
-    end subroutine normalize_mass
+      do v = S_MASS, S_TEMP
+         sol_tmp(v,1)%data(d)%elts(id_i) = sol_tmp(v,1)%data(d)%elts(id_i)/lnorm(v,1)
+      end do
+    end subroutine normalize_scalar
 
     subroutine normalize_velo (dom, i, j, zlev, offs, dims)
       ! Normalizes the velocity eigenvectors
@@ -1530,56 +1529,6 @@ contains
       end do
     end subroutine normalize_velo
 
-    subroutine error
-      ! Finds normalized difference in eigenvectors
-      implicit none
-      type (Domain)                   :: dom
-      integer                         :: i, j, zlev
-      integer, dimension (N_BDRY+1)   :: offs
-      integer, dimension (2,N_BDRY+1) :: dims
-
-      err = 0.0_8
-      call apply_onescale (cal_err_mass, level_start, z_null, 0, 1)
-      call apply_onescale (cal_err_velo, level_start, z_null, 0, 0)
-
-      err(1) = sqrt (sum_real (err(1)))/lnorm(S_MASS,1)
-      err(2) = sqrt (sum_real (err(2)))/lnorm(S_VELO,1)
-      err(3) = sqrt (sum_real (err(3)))/lnorm(S_VELO,2)
-    end subroutine error
-
-    subroutine cal_err_mass (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id_i
-
-      d = dom%id+1
-      id_i = idx(i, j, offs, dims)+1
-
-      err(1) = err(1) + (sol_tmp(S_MASS,2)%data(d)%elts(id_i) - sol_tmp(S_MASS,1)%data(d)%elts(id_i))**2
-    end subroutine cal_err_mass
-
-    subroutine cal_err_velo (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, e, id, id_e
-
-      d = dom%id+1
-      id = idx(i, j, offs, dims)
-      do e = 1, EDGE
-         id_e  = EDGE*id+e
-         err(2) = err(2) + (sol_tmp(S_VELO,3)%data(d)%elts(id_e) - sol_tmp(S_VELO,1)%data(d)%elts(id_e))**2
-         err(3) = err(3) + (sol_tmp(S_VELO,4)%data(d)%elts(id_e) - sol_tmp(S_VELO,2)%data(d)%elts(id_e))**2
-      end do
-    end subroutine cal_err_velo
-
     subroutine Ax
       ! Applies Laplacian operators to previous eigenvectors to find new eigenvectors
       implicit none
@@ -1589,102 +1538,83 @@ contains
       do d = 1, size(grid) 
          velo => sol_tmp(S_VELO,1)%data(d)%elts
          divu => grid(d)%divu%elts
-         vort => grid(d)%vort%elts
          do j = 1, grid(d)%lev(level_start)%length
-            call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_start)%elts(j), z_null,  0, 1)
+            call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 1)
          end do
-         nullify (velo)
+         nullify (velo, divu)
+
          velo => sol_tmp(S_VELO,2)%data(d)%elts
+         vort => grid(d)%vort%elts
          do j = 1, grid(d)%lev(level_start)%length
             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_start)%elts(j), z_null, -1, 0)
          end do
-         nullify (velo, divu, vort)
+         call apply_to_penta_d (post_vort, grid(d), level_start, z_null)
+         nullify (velo, vort)
       end do
 
       ! Find Laplacians
       do d = 1, size(grid)
          mass => sol_tmp(S_MASS,1)%data(d)%elts
+         temp => sol_tmp(S_TEMP,1)%data(d)%elts
          velo => sol_tmp(S_VELO,1)%data(d)%elts
          divu => grid(d)%divu%elts
          do j = 1, grid(d)%lev(level_start)%length
-            call apply_onescale_to_patch (cal_Laplacian_mass, grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 1)
-            call apply_onescale_to_patch (cal_Laplacian_divu, grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 0)
+            call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_end)%elts(j),   z_null, 0, 1)
+            call apply_onescale_to_patch (cal_Laplacian_divu,   grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 0)
          end do
-         nullify (velo)
+         nullify (mass, divu, temp, velo)
+         
          velo => sol_tmp(S_VELO,2)%data(d)%elts
          vort => grid(d)%vort%elts
          do j = 1, grid(d)%lev(level_start)%length
             call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 0)
          end do
-         nullify (mass, velo, divu, vort)
+         nullify (velo, vort)
       end do
-      call update_array_bdry (sol_tmp, NONE)
+
+      ! Update scalar eigenvector
+      sol_tmp(S_MASS:S_TEMP,1) = Laplacian_scalar
+      
+      ! Update boundaries
+      call update_evec
     end subroutine Ax
 
-    subroutine cal_Laplacian_mass (dom, i, j, zlev, offs, dims)
-      ! Calculate divergence of gradient of scalar
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer               :: id, idE, idNE, idN, idW, idSW, idS
-      real(8), dimension(6) :: grad
-
-      id = idx(i, j, offs, dims)
-
-      idE  = idx(i+1, j,   offs, dims)
-      idNE = idx(i+1, j+1, offs, dims)
-      idN  = idx(i,   j+1, offs, dims)
-      idW  = idx(i-1, j,   offs, dims)
-      idSW = idx(i-1, j-1, offs, dims)
-      idS  = idx(i,   j-1, offs, dims)
-
-      grad(1) =  (mass(idE+1) - mass(id+1))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
-      grad(2) =  (mass(id+1)  - mass(idNE+1))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
-      grad(3) =  (mass(idN+1) - mass(id+1))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
-      grad(4) = -(mass(idW+1) - mass(id+1))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
-      grad(5) = -(mass(id+1)  - mass(idSW+1))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-      grad(6) = -(mass(idS+1) - mass(id+1))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
-
-      mass(id+1) = (grad(1)-grad(4) + grad(5)-grad(2) + grad(3)-grad(6)) * dom%areas%elts(id+1)%hex_inv
-    end subroutine cal_Laplacian_mass
-
     subroutine cal_Laplacian_divu (dom, i, j, zlev, offs, dims)
-      ! Calculate Laplacian(u) = grad(divu) - curl(vort)
+      ! Calculate divergence part of Laplacian
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer               :: d, id
-      real(8), dimension(3) :: grad_divu, curl_rotu
-
-      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
+      integer               :: id, id_i
+      real(8), dimension(3) :: grad_divu
 
       id = idx(i, j, offs, dims)
+      id_i = id+1
       
-      velo(EDGE*id+1:EDGE*(id+1)) = grad_divu
+      grad_divu = gradi_e (divu, dom, i, j, offs, dims) 
+
+      velo(EDGE*id+1:EDGE*id_i) = grad_divu
     end subroutine cal_Laplacian_divu
 
     subroutine cal_Laplacian_rotu (dom, i, j, zlev, offs, dims)
-      ! Calculate Laplacian(u) = grad(divu) - curl(vort)
+      ! Calculate rotational part of Laplacian
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer               :: d, id
+      integer               :: id, id_i
       real(8), dimension(3) :: curl_rotu
 
       curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
 
       id = idx(i, j, offs, dims)
+      id_i = id+1
 
-      velo(EDGE*id+1:EDGE*(id+1)) = - curl_rotu
+      velo(EDGE*id+1:EDGE*id_i) = - curl_rotu
     end subroutine cal_Laplacian_rotu
 
     subroutine Ray_quotient
@@ -1693,37 +1623,37 @@ contains
 
       ! Save current eigenvectors, x (already normalized)
       sol_tmp(S_MASS,2) = sol_tmp(S_MASS,1)
+      sol_tmp(S_TEMP,2) = sol_tmp(S_TEMP,1)
       sol_tmp(S_VELO,3) = sol_tmp(S_VELO,1)
       sol_tmp(S_VELO,4) = sol_tmp(S_VELO,2)
 
       ! Apply Laplacian operators to find Ax
       call Ax
 
-      ! Inner product with previous eigenvectors to find <Ax,x>
+      ! Rayleigh quotient approximation to eigenvalue <Ax,x>/<x,x> (x is already normalized)
       inner_prod = 0.0_8
-      call apply_onescale (cal_inner_prod_mass, level_start, z_null, 0, 1)
-      call apply_onescale (cal_inner_prod_velo, level_start, z_null, 0, 0)
-
-      ! Normalize to obtain Rayleigh quotient <Ax,x>/<x,x> (x is already normalized)
-      do ii = 1, 3
-         eigen(ii) = sum_real (inner_prod(ii))
+      call apply_onescale (cal_inner_prod_scalar, level_start, z_null, 0, 1)
+      call apply_onescale (cal_inner_prod_velo,   level_start, z_null, 0, 0)
+      do ii = 1, 4
+         eval(ii) = sum_real (inner_prod(ii))
       end do
     end subroutine Ray_quotient
 
-    subroutine cal_inner_prod_mass (dom, i, j, zlev, offs, dims)
+    subroutine cal_inner_prod_scalar (dom, i, j, zlev, offs, dims)
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: d, id_i
+      integer :: d, id_i, v
 
       d = dom%id+1
       id_i = idx(i, j, offs, dims)+1
 
       inner_prod(1) = inner_prod(1) + sol_tmp(S_MASS,2)%data(d)%elts(id_i)*sol_tmp(S_MASS,1)%data(d)%elts(id_i)
-    end subroutine cal_inner_prod_mass
+      inner_prod(2) = inner_prod(2) + sol_tmp(S_TEMP,2)%data(d)%elts(id_i)*sol_tmp(S_TEMP,1)%data(d)%elts(id_i)
+    end subroutine cal_inner_prod_scalar
 
     subroutine cal_inner_prod_velo (dom, i, j, zlev, offs, dims)
       implicit none
@@ -1739,9 +1669,26 @@ contains
 
       do e = 1, EDGE
          id_e  = EDGE*id+e
-         inner_prod(2) = inner_prod(2) + sol_tmp(S_VELO,3)%data(d)%elts(id_e)*sol_tmp(S_VELO,1)%data(d)%elts(id_e)
-         inner_prod(3) = inner_prod(3) + sol_tmp(S_VELO,4)%data(d)%elts(id_e)*sol_tmp(S_VELO,2)%data(d)%elts(id_e)
+         inner_prod(3) = inner_prod(3) + sol_tmp(S_VELO,3)%data(d)%elts(id_e)*sol_tmp(S_VELO,1)%data(d)%elts(id_e)
+         inner_prod(4) = inner_prod(4) + sol_tmp(S_VELO,4)%data(d)%elts(id_e)*sol_tmp(S_VELO,2)%data(d)%elts(id_e)
       end do
     end subroutine cal_inner_prod_velo
+
+    subroutine error
+      ! Finds normalized change in eigenvalues
+      implicit none
+
+      err = abs (eval - eval_old) / abs (eval)
+      if (rank == 0) write (6,'(i5,8x,4(es10.4,4x))') iter, err
+    end subroutine error
+
+    subroutine update_evec
+      implicit none
+
+      sol_tmp(S_MASS:S_VELO,1)%bdry_uptodate = .false.
+      sol_tmp(S_VELO,2)%bdry_uptodate        = .false.
+      call update_vector_bdry (sol_tmp(S_MASS:S_VELO,1), level_start)
+      call update_bdry        (sol_tmp(S_VELO,2),        level_start)
+    end subroutine update_evec
   end subroutine evals_diffusion
 end module ops_mod

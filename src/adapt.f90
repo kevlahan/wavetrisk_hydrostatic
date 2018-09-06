@@ -189,6 +189,7 @@ contains
        l_start = level_start
     end if
 
+    q%bdry_uptodate = .false.
     call update_array_bdry (q, NONE)
 
     do k = 1, zlevels
@@ -499,6 +500,7 @@ contains
        call fill_up_level
     end do
     call inverse_wavelet_transform (wav_coeff, sol, old_level_start)
+    sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
     level_start = old_level_start
   end subroutine fill_up_grid_and_IWT

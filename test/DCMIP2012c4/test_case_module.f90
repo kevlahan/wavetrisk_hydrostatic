@@ -373,7 +373,7 @@ contains
     if (fresh_start) then
        ! Viscosity constant from eigenvalues of Laplacian
        if (Laplace_order == 1 .or. Laplace_order == 2) then
-          L_diffusion = L_diffusion / 2**(1.5*(max_level-min_level)) ! Correct length scales for finest grid
+          L_diffusion = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
  
           viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion

@@ -77,6 +77,7 @@ contains
 
     integer :: d, j, k, l
 
+    wavelet%bdry_uptodate = .false.
     call update_array_bdry1 (wavelet, level_start, level_end)
 
     do k = 1, zlevels

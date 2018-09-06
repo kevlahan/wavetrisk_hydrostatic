@@ -31,6 +31,7 @@ contains
              end do
              nullify (mass, temp)
           end do
+          Laplacian_scalar%bdry_uptodate = .false.
          call update_vector_bdry (Laplacian_scalar, level_end)
        end if
        
@@ -68,6 +69,7 @@ contains
              end do
              nullify (velo, divu, vort)
           end do
+          Laplacian_u%bdry_uptodate = .false.
           call update_bdry (Laplacian_u, level_end)
           do d = 1, size(grid) 
              velo => Laplacian_u%data(d)%elts
@@ -136,6 +138,7 @@ contains
                 end do
                 nullify (mass, temp)
              end do
+             Laplacian_scalar%bdry_uptodate = .false.
              call update_vector_bdry (Laplacian_scalar, l)
           end if
           
@@ -177,6 +180,7 @@ contains
                 end do
                 nullify (velo, divu, vort)
              end do
+             Laplacian_u%bdry_uptodate = .false.
              call update_bdry (Laplacian_u, l)
              do d = 1, size(grid)
                 velo => Laplacian_u%data(d)%elts

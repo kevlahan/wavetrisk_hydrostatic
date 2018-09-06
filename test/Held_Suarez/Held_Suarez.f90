@@ -245,6 +245,7 @@ subroutine time_step_cooling
   implicit none
   integer :: d, j, k, p
 
+  sol%bdry_uptodate = .false.
   call update_array_bdry (sol, NONE)
 
   ! Current surface pressure
@@ -264,7 +265,8 @@ subroutine time_step_cooling
      end do
      sol(S_TEMP:S_VELO,k)%bdry_uptodate = .false.
   end do
-  
+
+  sol%bdry_uptodate = .false.
   call update_array_bdry (sol, NONE)
 contains
   subroutine time_step_mass (dom, i, j, zlev, offs, dims)
