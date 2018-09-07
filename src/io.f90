@@ -685,8 +685,14 @@ contains
     fid_no = id+1000000
     fid_gr = id+3000000
 
-    call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:),       NONE)
-    call update_array_bdry (trend_wav_coeff(S_MASS:S_TEMP,:), NONE)
+    sol%bdry_uptodate             = .false.
+    trend%bdry_uptodate           = .false.
+    wav_coeff%bdry_uptodate       = .false.
+    trend_wav_coeff%bdry_uptodate = .false.
+    call update_array_bdry (sol,             NONE)
+    call update_array_bdry (trend,           NONE)
+    call update_array_bdry (wav_coeff,       NONE)
+    call update_array_bdry (trend_wav_coeff, NONE)
 
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -1090,6 +1096,7 @@ contains
 
     if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', iwrite
 
+    sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
 
     call pre_levelout
