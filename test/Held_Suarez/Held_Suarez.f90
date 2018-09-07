@@ -240,6 +240,7 @@ subroutine time_step_cooling
   ! Euler time step to diffuse solution
   use domain_mod
   use ops_mod
+  use time_integr_mod
   implicit none
   integer :: d, j, k, p
 
@@ -266,6 +267,8 @@ subroutine time_step_cooling
 
   sol%bdry_uptodate = .false.
   call update_array_bdry (sol, NONE)
+
+  call WT_after_step (sol, wav_coeff, level_start-1)
 contains
   subroutine time_step_mass (dom, i, j, zlev, offs, dims)
     ! Euler time step
