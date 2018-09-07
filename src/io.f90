@@ -98,7 +98,7 @@ contains
 
     integer :: id
 
-    id = idx(i, j, offs, dims)
+    id = idx (i, j, offs, dims)
     mu = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
   end function mu
 
@@ -113,15 +113,15 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8)                        :: s, fun
 
-    s = 0.0
+    s = 0.0_8
     do d = 1, size(grid)
        do ll = 1, grid(d)%lev(l)%length
           p = grid(d)%lev(l)%elts(ll)
           call get_offs_Domain (grid(d), p, offs, dims)
           do j = 1, PATCH_SIZE
              do i = 1, PATCH_SIZE
-                id = idx(i-1,j-1,offs,dims)
-                s = s + fun(grid(d), i-1, j-1, k, offs, dims)/grid(d)%areas%elts(id+1)%hex_inv
+                id = idx (i-1, j-1, offs, dims)
+                s = s + fun (grid(d), i-1, j-1, k, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
              end do
           end do
        end do
@@ -138,11 +138,11 @@ contains
           end do
           call get_offs_Domain (grid(d), p, offs, dims)
           if (c == NORTHWEST) then
-             s = s + fun(grid(d), 0, PATCH_SIZE, k, offs, dims)/ &
-                  grid(d)%areas%elts(idx(0,PATCH_SIZE,offs,dims)+1)%hex_inv
+             id = idx (0, PATCH_SIZE, offs, dims)
+             s = s + fun (grid(d), 0, PATCH_SIZE, k, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
           else
-             s = s + fun(grid(d), PATCH_SIZE, 0, k, offs, dims)/ &
-                  grid(d)%areas%elts(idx(PATCH_SIZE,0,offs,dims)+1)%hex_inv
+             id = idx (PATCH_SIZE, 0, offs, dims)
+             s = s + fun (grid(d), PATCH_SIZE, 0, k, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
           end if
        end do
     end do
