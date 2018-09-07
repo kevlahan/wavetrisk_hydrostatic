@@ -334,8 +334,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fresh_start, lagrangian_vertical
-  logical :: perfect, remap, uniform, upwind
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fresh_start, lagrangian_vertical, perfect, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -383,16 +382,15 @@ contains
     level_end           = level_start
     
     ! Default logical switches, most are reset in the input file
-    adapt_dt            = .true.  ! Dynamically adapt time step (T) or use time step based on initial conditions (F) 
-    adapt_trend         = .true.  ! Adapt on trend (T) or on solution (F)
-    compressible        = .true.  ! Compressible equations (T) or Boussinesq incompressible (F)
-    default_thresholds  = .true.  ! Use default thresholds (T) or calculate dynamically (F)
-    fresh_start         = .true.  ! Fresh start (T) or restart from checkpoint (F)
-    perfect             = .true.  ! Use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
-    remap               = .true.  ! Remap Lagrangian coordinates (T) or no remapping (F)
-    lagrangian_vertical = .true.  ! Lagrangian or mass based vertical coordinates (only option implement is T, mass-based coordinates not implemented)
-    uniform             = .true.  ! Uniform vertical grid in pressure (T) or hybrid (F)
-    upwind              = .false. ! Upwind value for potential vorticity (T) or average (F)
+    adapt_dt            = .true. ! Dynamically adapt time step (T) or use time step based on initial conditions (F) 
+    adapt_trend         = .true. ! Adapt on trend (T) or on solution (F)
+    compressible        = .true. ! Compressible equations (T) or Boussinesq incompressible (F)
+    default_thresholds  = .true. ! Use default thresholds (T) or calculate dynamically (F)
+    fresh_start         = .true. ! Fresh start (T) or restart from checkpoint (F)
+    perfect             = .true. ! Use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
+    remap               = .true. ! Remap Lagrangian coordinates (T) or no remapping (F)
+    lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates (only option implement is T, mass-based coordinates not implemented)
+    uniform             = .true. ! Uniform vertical grid in pressure (T) or hybrid (F)
 
     ! Default run values
     ! these parameters are typically reset in the input file, but are needed for compilation
