@@ -370,7 +370,7 @@ contains
 
     integer  :: id, idS, idW, idSW, idN, idE, idNE
     real(8)  :: pv_LORT_W, pv_UPLT_S, pv_LORT, pv_UPLT, pv_LORT_SW, pv_UPLT_SW, pv 
-    real(8)  :: circ_LORT, circ_LORT_SW, circ_UPLT_SW, circ_LORT_W, circ_UPLT, circ_UPLT_S
+    real(8)  :: circ_LORT, circ_LORT_SW, circ_UPLT_SW, circ_LORT_W, circ_UPLT, circ_UPLT_S, sgn
     real(8)  :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
     ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
@@ -411,8 +411,16 @@ contains
 
        pv_UPLT_SW = pv_LORT_SW
 
-       qe(EDGE*idW+RT+1) = interp (pv_LORT_W, pv_UPLT_SW)
-       qe(EDGE*idS+UP+1) = interp (pv_UPLT_S, pv_LORT_SW)
+       if (upwind) then
+          sgn = sign (1.0_8, h_mflux(EDGE*idW+RT+1))
+          qe(EDGE*idW+RT+1) = (sgn - 1.0_8)/2*pv_LORT_W  + (sgn + 1.0_8)/2*pv_UPLT_SW
+
+          sgn = sign (1.0_8, h_mflux(EDGE*idS+UP+1))
+          qe(EDGE*idS+UP+1) = (sgn - 1.0_8)/2*pv_LORT_SW + (sgn + 1.0_8)/2*pv_UPLT_S
+       else
+          qe(EDGE*idW+RT+1) = interp (pv_LORT_W, pv_UPLT_SW)
+          qe(EDGE*idS+UP+1) = interp (pv_UPLT_S, pv_LORT_SW)
+       end if
     end if
 
     ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
@@ -453,8 +461,16 @@ contains
 
        pv_UPLT_S = pv_LORT_SW
 
-       qe(EDGE*id  +RT+1) = interp (pv_UPLT_S,  pv_LORT)
-       qe(EDGE*idSW+DG+1) = interp (pv_LORT_SW, pv_UPLT_SW)
+       if (upwind) then
+          sgn = sign (1.0_8, h_mflux(EDGE*id+RT+1))
+          qe(EDGE*id+  RT+1) = (sgn - 1.0_8)/2*pv_LORT    + (sgn + 1.0_8)/2*pv_UPLT_S
+
+          sgn = sign (1.0_8, h_mflux(EDGE*idSW+DG+1))
+          qe(EDGE*idSW+DG+1) = (sgn - 1.0_8)/2*pv_LORT_SW + (sgn + 1.0_8)/2*pv_UPLT_SW
+       else
+          qe(EDGE*id  +RT+1) = interp (pv_UPLT_S,  pv_LORT)
+          qe(EDGE*idSW+DG+1) = interp (pv_LORT_SW, pv_UPLT_SW)
+       end if
     end if
 
     ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
@@ -495,8 +511,16 @@ contains
 
        pv_LORT_W = pv_UPLT_SW
 
-       qe(EDGE*id  +UP+1) = interp (pv_LORT_W,  pv_UPLT)
-       qe(EDGE*idSW+DG+1) = interp (pv_LORT_SW, pv_UPLT_SW)
+        if (upwind) then
+          sgn = sign (1.0_8, h_mflux(EDGE*id+UP+1))
+          qe(EDGE*id+  UP+1) = (sgn - 1.0_8)/2*pv_LORT_W  + (sgn + 1.0_8)/2*pv_UPLT
+
+          sgn = sign (1.0_8, h_mflux(EDGE*idSW+DG+1))
+          qe(EDGE*idSW+DG+1) = (sgn - 1.0_8)/2*pv_LORT_SW + (sgn + 1.0_8)/2*pv_UPLT_SW
+       else
+          qe(EDGE*id  +UP+1) = interp (pv_LORT_W,  pv_UPLT)
+          qe(EDGE*idSW+DG+1) = interp (pv_LORT_SW, pv_UPLT_SW)
+       end if
     end if
 
     ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
@@ -536,8 +560,16 @@ contains
 
        pv_UPLT = pv_LORT
 
-       qe(EDGE*id+RT+1) = interp (pv_LORT, pv_UPLT_S)
-       qe(EDGE*id+UP+1) = interp (pv_UPLT, pv_LORT_W)
+       if (upwind) then
+          sgn = sign (1.0_8, h_mflux(EDGE*id+RT+1))
+          qe(EDGE*id+RT+1) = (sgn - 1.0_8)/2*pv_LORT  + (sgn + 1.0_8)/2*pv_UPLT_S
+
+          sgn = sign (1.0_8, h_mflux(EDGE*id+UP+1))
+          qe(EDGE*id+UP+1) = (sgn - 1.0_8)/2*pv_LORT_W  + (sgn + 1.0_8)/2*pv_UPLT
+       else
+          qe(EDGE*id+RT+1) = interp (pv_LORT, pv_UPLT_S)
+          qe(EDGE*id+UP+1) = interp (pv_UPLT, pv_LORT_W)
+       end if
     end if
   end subroutine post_step1
 
