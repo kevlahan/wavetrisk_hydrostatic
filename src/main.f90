@@ -110,6 +110,7 @@ contains
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
        call write_checkpoint (custom_dump, custom_load, run_id, .true.)
     end if
+    call barrier
   end subroutine initialize
 
   subroutine record_init_state (init_state)
@@ -329,6 +330,9 @@ contains
             '********************************************************** End Restart &
             **********************************************************'
     end if
+
+    ! Initialize total mass value
+    call sum_total_mass (.true.)
   end subroutine restart
 
   subroutine write_checkpoint (custom_dump, custom_load, run_id, init_restart)

@@ -76,7 +76,6 @@ program flat_projection_data
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
-  call barrier
   
   Nx     = (/-N/2, N/2/)
   Ny     = (/-N/4, N/4/)

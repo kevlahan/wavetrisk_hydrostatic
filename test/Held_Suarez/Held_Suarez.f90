@@ -67,8 +67,6 @@ program Held_Suarez
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
-  call sum_total_mass (.true.)
-  call barrier
 
   ! Initialize viscosities
   call initialize_dt_viscosity

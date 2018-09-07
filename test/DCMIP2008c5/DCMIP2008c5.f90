@@ -64,8 +64,6 @@ program DCMIP2008c5
     
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
-  call sum_total_mass (.true.)
-  call barrier
 
   ! Initialize time step and viscosities
   call initialize_dt_viscosity

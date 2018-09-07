@@ -1,15 +1,15 @@
 % Plot 2d data from export_2d or log data
-%test_case = 'DCMIP2012c4';
-%run_id = 'DCMIP2012c4';
+test_case = 'DCMIP2012c4';
+run_id = 'DCMIP2012c4_J7';
 %test_case = 'DCMIP2008c5';
 %run_id = 'DCMIP2008c5';
-test_case = 'Held_Suarez';
-run_id = 'Held_Suarez_J5';
+%test_case = 'Held_Suarez';
+%run_id = 'Held_Suarez_J5';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'eddy_mom';  % field to plot
-lon_lat   = false;    % Plot longitude - latitude data
-zonal_avg = true;   % Plot zonally averaged data
+itype     = 'vort';  % field to plot
+lon_lat   = true;    % Plot longitude - latitude data
+zonal_avg = false;   % Plot zonally averaged data
 shift     = true;    % shift left boundary to zero longitude
 smooth    = false;   % smooth data over two points in each direction
 lines     = true;   % remove lines
