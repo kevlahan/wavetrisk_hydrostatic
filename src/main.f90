@@ -48,8 +48,10 @@ contains
     if (resume >= 0) then
        cp_idx = resume
        call restart (set_thresholds, custom_load, run_id, .true.)
+       resume = NONE
     else
-       cp_idx = -1
+       cp_idx = NONE
+       resume = NONE
        call init_structures
        call apply_init_cond
 
@@ -148,15 +150,14 @@ contains
     dt = dt_new
 
     ! Match certain times exactly
-    idt    = nint(dt*time_mult, 8)
-    ialign = nint(align_time*time_mult, 8)
-    if (ialign > 0 .and. cp_idx /= resume .and. istep /= 1) then
-       aligned = (modulo(itime+idt,ialign) < modulo(itime,ialign))
+    idt    = nint (dt*time_mult, 8)
+    ialign = nint (align_time*time_mult, 8)
+    if (ialign > 0 .and. istep /= 1) then
+       aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
     else
-       resume = NONE ! Set unequal cp_idx => only first step after resume is protected from alignment
-       aligned = .False.
+       aligned = .false.
     end if
-    if (aligned) idt = ialign - modulo(itime,ialign)
+    if (aligned) idt = ialign - modulo (itime,ialign)
     dt = idt/time_mult ! Modify time step
 
     ! Take time step
@@ -290,7 +291,7 @@ contains
     end if
 
     ! Deallocate all dynamic arrays and variables
-    if (resume < 0) call deallocate_structures
+    if (resume == NONE) call deallocate_structures
 
     ! Rebalance adaptive grid and re-initialize structures
     call barrier ! Make sure all archive files have been uncompressed
@@ -310,15 +311,18 @@ contains
        call system (command)
     end if
 
-    itime = nint (time*time_mult, 8)
-    resume = cp_idx ! to disable alignment for next step
-
-    istep = 0
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+
+    ! Initialize time step and counters
     dt_new = cpt_dt_mpi()
-    
-    if (rank == 0) then
+    itime = nint (time*time_mult, 8)
+    istep = 0
+      
+    ! Initialize total mass value
+    call sum_total_mass (.true.)
+
+     if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [h] = ', time/HOUR, &
             '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
@@ -330,9 +334,6 @@ contains
             '********************************************************** End Restart &
             **********************************************************'
     end if
-
-    ! Initialize total mass value
-    call sum_total_mass (.true.)
   end subroutine restart
 
   subroutine write_checkpoint (custom_dump, custom_load, run_id, init_restart)
