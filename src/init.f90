@@ -99,8 +99,8 @@ contains
     type(Coord)                 :: ne, se, sw, nw
     type(Coord), dimension(2,2) :: cnr
 
-    lat = (/-MATH_PI/2.0_8, -atan(1.0_8/2.0_8), atan(1.0_8/2.0_8), MATH_PI/2.0_8/)
-    lon = (/ ((MATH_PI*k)/5.0_8, k = 0, 10-1) /)
+    lat = (/-MATH_PI/2, -atan(1.0_8/2), atan(1.0_8/2), MATH_PI/2/)
+    lon = (/ ((MATH_PI*k)/5, k = 0, 10-1) /)
 
     do ii = 1, 2
        do jj = 1, 5
@@ -122,10 +122,10 @@ contains
 
                 d = loc_id(d_glo+1)
                 call assign_coord (grid(d+1), 1, &
-                     get_J0_coord(i,     j,     DOMAIN_LEVEL), &
-                     get_J0_coord(i,     j-1, DOMAIN_LEVEL), &
+                     get_J0_coord(i,   j,   DOMAIN_LEVEL), &
+                     get_J0_coord(i,   j-1, DOMAIN_LEVEL), &
                      get_J0_coord(i-1, j-1, DOMAIN_LEVEL), &
-                     get_J0_coord(i-1, j,     DOMAIN_LEVEL))
+                     get_J0_coord(i-1, j,   DOMAIN_LEVEL))
              end do
           end do
        end do
@@ -147,11 +147,10 @@ contains
       integer :: i, j, l
 
       if (l > 0) then
-         c = mid_pt( get_J0_coord(i/2,       j/2,       l-1), &
-              get_J0_coord((i+1)/2, (j+1)/2, l-1) )
+         c = mid_pt (get_J0_coord(i/2, j/2, l-1), get_J0_coord((i+1)/2, (j+1)/2, l-1))
          return
       else
-         c = cnr(i+1,j+1)
+         c = cnr (i+1,j+1)
          return
       end if
     end function get_J0_coord
@@ -171,9 +170,9 @@ contains
     call get_offs_Domain (dom, p, offs, dims)
 
     if (is_penta(dom, p, IJMINUS - 1)) then
-       id_mm  = idx(-1, -1, offs, dims)
-       id_0m1 = idx( 0, -1, offs, dims)
-       id_m10 = idx(-1,  0, offs, dims)
+       id_mm  = idx (-1, -1, offs, dims)
+       id_0m1 = idx ( 0, -1, offs, dims)
+       id_m10 = idx (-1,  0, offs, dims)
 
        dom%ccentre%elts(TRIAG*id_mm+LORT+1) = &
             circumcentre(dom%node%elts(idx(0,0,offs,dims)+1), dom%node%elts(id_0m1+1), dom%node%elts(id_m10+1))
@@ -183,13 +182,13 @@ contains
        id_0m2 = idx( 0, -2, offs, dims)
        id_m20 = idx(-2,  0, offs, dims)
 
-       pt3 = mid_pt(dom%node%elts(id_0m2+1), dom%node%elts(id_m20+1))
+       pt3 = mid_pt (dom%node%elts(id_0m2+1), dom%node%elts(id_m20+1))
 
        id_m12 = idx(-1, -2, offs, dims)
        id_m21 = idx(-2, -1, offs, dims)
 
-       dom%ccentre%elts(TRIAG*id_m12+LORT+1) = circumcentre(dom%node%elts(id_0m1+1), dom%node%elts(id_0m2+1), pt3)
-       dom%ccentre%elts(TRIAG*id_m21+UPLT+1) = circumcentre(pt3, dom%node%elts(id_m20+1), dom%node%elts(id_m10+1))
+       dom%ccentre%elts(TRIAG*id_m12+LORT+1) = circumcentre (dom%node%elts(id_0m1+1), dom%node%elts(id_0m2+1), pt3)
+       dom%ccentre%elts(TRIAG*id_m21+UPLT+1) = circumcentre (pt3, dom%node%elts(id_m20+1), dom%node%elts(id_m10+1))
     end if
 
     if (is_penta(dom, p, IPLUSJMINUS - 1)) then
@@ -209,12 +208,12 @@ contains
        i = -1
        j = PATCH_SIZE
 
-       id   = idx(i,     j,     offs, dims)
-       idE  = idx(i+1, j,     offs, dims)
-       idNE = idx(i+1, j+1, offs, dims)
-       idS  = idx(i,     j-1, offs, dims)
+       id   = idx (i,   j,   offs, dims)
+       idE  = idx (i+1, j,   offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
+       idS  = idx (i,   j-1, offs, dims)
 
-       dom%ccentre%elts(TRIAG*idS+UPLT+1) = circumcentre(dom%node%elts(idS+1), dom%node%elts(idNE+1), dom%node%elts(idE+1))
+       dom%ccentre%elts(TRIAG*idS+UPLT+1) = circumcentre (dom%node%elts(idS+1), dom%node%elts(idNE+1), dom%node%elts(idE+1))
        dom%ccentre%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*idS+UPLT+1)
     end if
 
@@ -222,11 +221,11 @@ contains
        i = PATCH_SIZE
        j = PATCH_SIZE
 
-       id  = idx(i,     j,     offs, dims)
-       idN = idx(i,     j+1, offs, dims)
-       idE = idx(i+1, j,     offs, dims)
+       id  = idx (i,   j,   offs, dims)
+       idN = idx (i,   j+1, offs, dims)
+       idE = idx (i+1, j,   offs, dims)
 
-       dom%ccentre%elts(TRIAG*id+LORT+1) = circumcentre(dom%node%elts(id+1), dom%node%elts(idN+1), dom%node%elts(idE+1))
+       dom%ccentre%elts(TRIAG*id+LORT+1) = circumcentre (dom%node%elts(id+1), dom%node%elts(idN+1), dom%node%elts(idE+1))
        dom%ccentre%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)
     end if
   end subroutine ccentre_penta
@@ -240,37 +239,37 @@ contains
     
     integer :: id, idS, idW, idN, idE, idNE
 
-    id   = idx(i,     j,     offs, dims)
-    idS  = idx(i,     j-1, offs, dims)
-    idW  = idx(i-1, j,     offs, dims)
-    idN  = idx(i,     j+1, offs, dims)
-    idE  = idx(i+1, j,     offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
     if (j >= PATCH_SIZE + 1) then
-       dom%len%elts(EDGE*id+RT+1) = dist(dom%node%elts(id+1), dom%node%elts(idE+1))
+       dom%len%elts(EDGE*id+RT+1) = dist (dom%node%elts(id+1), dom%node%elts(idE+1))
        return
     end if
 
     if (i >= PATCH_SIZE + 1) then
-       dom%len%elts(EDGE*id+UP+1) = dist(dom%node%elts(id+1), dom%node%elts(idN+1))
+       dom%len%elts(EDGE*id+UP+1) = dist (dom%node%elts(id+1), dom%node%elts(idN+1))
        return
     end if
 
-    dom%len%elts(EDGE*id+RT+1)    = dist(dom%node%elts(id+1), dom%node%elts(idE+1))
-    dom%len%elts(EDGE*id+DG+1)    = dist(dom%node%elts(idNE+1), dom%node%elts(id+1))
-    dom%len%elts(EDGE*id+UP+1)    = dist(dom%node%elts(id+1), dom%node%elts(idN+1))
-    dom%pedlen%elts(EDGE*id+RT+1) = dist(dom%ccentre%elts(TRIAG*idS+UPLT+1), dom%ccentre%elts(LORT+TRIAG*id+1))
-    dom%pedlen%elts(EDGE*id+DG+1) = dist(dom%ccentre%elts(TRIAG*id+UPLT+1), dom%ccentre%elts(LORT+TRIAG*id+1))
-    dom%pedlen%elts(EDGE*id+UP+1) = dist(dom%ccentre%elts(TRIAG*id+UPLT+1), dom%ccentre%elts(LORT+TRIAG*idW+1))
+    dom%len%elts(EDGE*id+RT+1)    = dist (dom%node%elts(id+1),   dom%node%elts(idE+1))
+    dom%len%elts(EDGE*id+DG+1)    = dist (dom%node%elts(idNE+1), dom%node%elts(id+1))
+    dom%len%elts(EDGE*id+UP+1)    = dist (dom%node%elts(id+1),   dom%node%elts(idN+1))
+    dom%pedlen%elts(EDGE*id+RT+1) = dist (dom%ccentre%elts(TRIAG*idS+UPLT+1), dom%ccentre%elts(LORT+TRIAG*id+1))
+    dom%pedlen%elts(EDGE*id+DG+1) = dist (dom%ccentre%elts(TRIAG*id+UPLT+1),  dom%ccentre%elts(LORT+TRIAG*id+1))
+    dom%pedlen%elts(EDGE*id+UP+1) = dist (dom%ccentre%elts(TRIAG*id+UPLT+1),  dom%ccentre%elts(LORT+TRIAG*idW+1))
 
-    if (i == -1 .and. j == -1 .and. is_penta(dom, p, IJMINUS - 1)) then
+    if (i == -1 .and. j == -1 .and. is_penta (dom, p, IJMINUS - 1)) then
        dom%pedlen%elts(EDGE*id+DG+1) = 0
-       dom%len%elts(EDGE*id+1) = dist(dom%node%elts(idE+1), dom%node%elts(idN+1))
+       dom%len%elts(EDGE*id+1) = dist (dom%node%elts(idE+1), dom%node%elts(idN+1))
     end if
 
     if (i == PATCH_SIZE .and. j == PATCH_SIZE .and. is_penta(dom, p, IJPLUS - 1)) &
-       dom%len%elts(EDGE*id+DG+1) = dist(dom%node%elts(idE+1), dom%node%elts(idN+1))
+       dom%len%elts(EDGE*id+DG+1) = dist (dom%node%elts(idE+1), dom%node%elts(idN+1))
   end subroutine lengths
 
   subroutine init_geometry
@@ -325,7 +324,7 @@ contains
     end do
 
     do d = 1, size(grid)
-       call init (exner_fun(zlevels+1)%data(d),      grid(d)%node%length)
+       call init (exner_fun(zlevels+1)%data(d), grid(d)%node%length)
     end do
 
     do d = 1, size(grid)
@@ -358,7 +357,7 @@ contains
     integer, dimension(2) :: neigh_over_pole
     integer               :: d, d_glo, i, ii, j, jj, k, loz, ngb_loz, rot, s, split
 
-    pole_assigned = .False.
+    pole_assigned = .false.
 
     do ii = 1, 2
        do jj = 1, 5
@@ -370,8 +369,8 @@ contains
 
                 if (.not. owner(d_glo+1) == rank) then
                    ! check if pole master on other rank
-                   if (ii-1 == 1 .and. i-1 == 0 .and. j-1 == N_SUB_DOM_PER_DIM - 1) pole_assigned(1) = .True.
-                   if (ii-1 == 0 .and. j-1 == 0 .and. i-1 == N_SUB_DOM_PER_DIM - 1) pole_assigned(2) = .True.
+                   if (ii-1 == 1 .and. i-1 == 0 .and. j-1 == N_SUB_DOM_PER_DIM - 1) pole_assigned(1) = .true.
+                   if (ii-1 == 0 .and. j-1 == 0 .and. i-1 == N_SUB_DOM_PER_DIM - 1) pole_assigned(2) = .true.
                    cycle
                 end if
 
@@ -474,7 +473,7 @@ contains
     implicit none
     integer :: d_glo, side
 
-    if (owner(d_glo+1) == rank) grid(loc_id(d_glo+1)+1)%penta(side) = .True.
+    if (owner(d_glo+1) == rank) grid(loc_id(d_glo+1)+1)%penta(side) = .true.
   end subroutine set_penta
 
   subroutine assign_coord (dom, p, ne, se, sw, nw)
@@ -603,8 +602,8 @@ contains
     idS  = idx(i,   j-1, offs, dims)
     idW  = idx(i-1, j,   offs, dims)
 
-    dom%ccentre%elts(TRIAG*id+LORT+1) = circumcentre(dom%node%elts(id+1), dom%node%elts(idNE+1), dom%node%elts(idE+1))
-    dom%ccentre%elts(TRIAG*id+UPLT+1) = circumcentre(dom%node%elts(id+1), dom%node%elts(idN+1),  dom%node%elts(idNE+1))
+    dom%ccentre%elts(TRIAG*id+LORT+1) = circumcentre (dom%node%elts(id+1), dom%node%elts(idNE+1), dom%node%elts(idE+1))
+    dom%ccentre%elts(TRIAG*id+UPLT+1) = circumcentre (dom%node%elts(id+1), dom%node%elts(idN+1),  dom%node%elts(idNE+1))
   end subroutine ccentre
 
   subroutine cpt_triarea (dom, i, j, zlev, offs, dims)

@@ -1162,16 +1162,16 @@ contains
     integer :: d, i, num
 
     do d = 1, size(grid)
-       call init(grid(d)%mask_n, 1)
-       call init(grid(d)%mask_e, EDGE)
-       call init(grid(d)%level, 1)
+       call init (grid(d)%mask_n, 1)
+       call init (grid(d)%mask_e, EDGE)
+       call init (grid(d)%level, 1)
     end do
 
     do d = 1, size(grid)
        num = grid(d)%node%length-1
-       call extend(grid(d)%mask_n, num, TOLRNZ)
-       call extend(grid(d)%mask_e, EDGE*num, TOLRNZ)
-       call extend(grid(d)%level, num, min_level-1)
+       call extend (grid(d)%mask_n, num,      TOLRNZ)
+       call extend (grid(d)%mask_e, EDGE*num, TOLRNZ)
+       call extend (grid(d)%level,  num,      min_level-1)
     end do
   end subroutine init_masks
 
