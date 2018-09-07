@@ -408,37 +408,48 @@ contains
 
     integer :: d, i, k, l, v, r
 
-     ! deallocate init_RK_mem allocations
+    deallocate (node_level_start, edge_level_start)
+    deallocate (ini_st)
+
+    ! Deallocate init_RK_mem allocations
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
           do v = S_MASS, S_VELO
-             deallocate(q1(v,k)%data(d)%elts)
-             deallocate(q2(v,k)%data(d)%elts)
-             deallocate(q3(v,k)%data(d)%elts)
-             deallocate(q4(v,k)%data(d)%elts)
-             deallocate(dq1(v,k)%data(d)%elts)
+             deallocate (q1(v,k)%data(d)%elts)
+             deallocate (q2(v,k)%data(d)%elts)
+             deallocate (q3(v,k)%data(d)%elts)
+             deallocate (q4(v,k)%data(d)%elts)
+             deallocate (dq1(v,k)%data(d)%elts)
           end do
        end do
        do v = S_MASS, S_VELO
-          deallocate(q1(v,k)%data)
-          deallocate(q2(v,k)%data)
-          deallocate(q3(v,k)%data)
-          deallocate(q4(v,k)%data)
-          deallocate(dq1(v,k)%data)
+          deallocate (q1(v,k)%data)
+          deallocate (q2(v,k)%data)
+          deallocate (q3(v,k)%data)
+          deallocate (q4(v,k)%data)
+          deallocate (dq1(v,k)%data)
        end do
     end do
-    deallocate(q1, q2, q3, q4, dq1)
+    deallocate (q1, q2, q3, q4, dq1)
 
-    deallocate(ini_st)
-
-    ! deallocate mask and geometry allocations
+    ! Deallocate grid structure elements
     do d = 1, size(grid)
        deallocate (grid(d)%mask_n%elts)
        deallocate (grid(d)%mask_e%elts)
+       
        deallocate (grid(d)%level%elts)
+       
        deallocate (grid(d)%R_F_wgt%elts)
        deallocate (grid(d)%I_u_wgt%elts)
+       
        deallocate (grid(d)%overl_areas%elts)
+       deallocate (grid(d)%triarea%elts)
+       deallocate (grid(d)%len%elts)
+       deallocate (grid(d)%pedlen%elts)
+       deallocate (grid(d)%areas%elts)
+       deallocate (grid(d)%midpt%elts)
+       deallocate (grid(d)%ccentre%elts)
+
        deallocate (grid(d)%surf_press%elts)
        deallocate (grid(d)%press%elts)
        deallocate (grid(d)%geopot%elts)
@@ -452,94 +463,25 @@ contains
        deallocate (grid(d)%bernoulli%elts)
        deallocate (grid(d)%divu%elts)
        deallocate (grid(d)%coriolis%elts)
-       deallocate (grid(d)%triarea%elts)
-       deallocate (grid(d)%len%elts)
-       deallocate (grid(d)%pedlen%elts)
-       deallocate (grid(d)%areas%elts)
-       deallocate (grid(d)%midpt%elts)
-       deallocate (grid(d)%ccentre%elts)
-    end do
 
-    ! deallocate wavelet allocations
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             deallocate (wav_coeff(v,k)%data(d)%elts)
-             deallocate (trend_wav_coeff(v,k)%data(d)%elts)
-          end do
-       end do
-       do v = S_MASS, S_VELO
-          deallocate (wav_coeff(v,k)%data)
-          deallocate (trend_wav_coeff(v,k)%data)
-       end do
-    end do
-    deallocate (wav_coeff, trend_wav_coeff)
-
-    deallocate (node_level_start, edge_level_start)
-
-    ! deallocate precompute_geometry allocations
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          deallocate (exner_fun(k)%data(d)%elts)
-          do v = S_MASS, S_VELO
-             deallocate (trend(v,k)%data(d)%elts)
-          end do
-       end do
-    end do
-    do d = 1, size(grid)
-       deallocate (exner_fun(zlevels+1)%data(d)%elts)
-    end do
-
-    do d = 1, size(grid)
-       deallocate (Laplacian_u%data(d)%elts)
-       do v = S_MASS, S_TEMP
-          deallocate (horiz_flux(v)%data(d)%elts)
-          deallocate (Laplacian_scalar(v)%data(d)%elts)
-       end do
-    end do
-
-    ! deallocate solution arrays
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             deallocate (sol(v,k)%data(d)%elts) 
-          end do
-       end do
-    end do
-
-    do k = 1, save_levels
-       do d = 1, size(grid)
-          do v = S_MASS, S_VELO
-             deallocate (sol_save(v,k)%data(d)%elts) 
-          end do
-       end do
-    end do
-
-    ! deallocate init_grid allocations
-    do d = 1, size(grid)
+       deallocate (grid(d)%node%elts) 
+       deallocate (grid(d)%bdry_patch%elts) 
+       deallocate (grid(d)%patch%elts) 
        deallocate (grid(d)%neigh_pa_over_pole%elts)
-
-       do k = AT_NODE, AT_EDGE
-          do i = 1, N_GLO_DOMAIN
+       deallocate (grid(d)%send_pa_all%elts)
+       
+       do i = 1, N_GLO_DOMAIN
+          deallocate (grid(d)%recv_pa(i)%elts)
+          deallocate (grid(d)%send_conn(i)%elts)
+          do k = AT_NODE, AT_EDGE
              deallocate (grid(d)%pack(k,i)%elts)
              deallocate (grid(d)%unpk(k,i)%elts)
           end do
        end do
 
-       do i = 1, N_GLO_DOMAIN
-          deallocate (grid(d)%recv_pa(i)%elts)
-       end do
-
-       deallocate (grid(d)%send_pa_all%elts)
-
-       do i = 1, N_GLO_DOMAIN
-          deallocate (grid(d)%send_conn(i)%elts)
-       end do
-
        do i = lbound(grid(d)%lev,1), ubound(grid(d)%lev,1)
           deallocate (grid(d)%lev(i)%elts)
        end do
-
        deallocate (grid(d)%lev)
 
        do l = min_level, max_level
@@ -547,36 +489,59 @@ contains
              deallocate (grid(d)%src_patch(r,l)%elts) 
           end do
        end do
+       deallocate (grid(d)%src_patch)
 
-       deallocate(grid(d)%src_patch)
-       deallocate(grid(d)%node%elts) 
-       deallocate(grid(d)%bdry_patch%elts) 
-       deallocate(grid(d)%patch%elts) 
-    end do
+       deallocate (Laplacian_u%data(d)%elts)
+       
+       do v = S_MASS, S_TEMP
+          deallocate (horiz_flux(v)%data(d)%elts)
+          deallocate (Laplacian_scalar(v)%data(d)%elts)
+       end do
 
-    do k = 1, zlevels
-       deallocate (exner_fun(k)%data)
+       do k = 1, zlevels+1
+          deallocate (exner_fun(k)%data(d)%elts)
+       end do
+       
        do v = S_MASS, S_VELO
-          deallocate (sol(v,k)%data)
-          deallocate (trend(v,k)%data)
+          do k = 1, zlevels
+             deallocate (sol(v,k)%data(d)%elts)
+             deallocate (trend(v,k)%data(d)%elts)
+             deallocate (wav_coeff(v,k)%data(d)%elts)
+             deallocate (trend_wav_coeff(v,k)%data(d)%elts)
+          end do
+          do k = 1, save_levels
+             deallocate (sol_save(v,k)%data(d)%elts) 
+          end do
        end do
     end do
-    deallocate (exner_fun(zlevels+1)%data)
-
-    do k = 1, save_levels
-       do v = S_MASS, S_VELO
-          deallocate (sol_save(v,k)%data)
-       end do
-    end do
-
+    
     deallocate (Laplacian_u%data)
+
+    do k = 1, zlevels+1
+       deallocate (exner_fun(k)%data)
+    end do
+    
     do v = S_MASS, S_TEMP
        deallocate (horiz_flux(v)%data)
        deallocate (Laplacian_scalar(v)%data)
     end do
-
-    deallocate (grid, sol, sol_save, trend, exner_fun, horiz_flux, Laplacian_scalar)
+    
+    do v = S_MASS, S_VELO
+       do k = 1, zlevels
+          deallocate (sol(v,k)%data)
+          deallocate (trend(v,k)%data)
+          deallocate (wav_coeff(v,k)%data)
+          deallocate (trend_wav_coeff(v,k)%data)
+       end do
+       do k = 1, save_levels
+          deallocate (sol_save(v,k)%data)
+       end do
+    end do
+   
+    deallocate (grid)
+    deallocate (sol, sol_save, trend, wav_coeff, trend_wav_coeff)       
+    deallocate (exner_fun, horiz_flux, Laplacian_scalar)
     deallocate (n_active_edges, n_active_nodes)
-    deallocate (send_lengths, send_offsets, recv_lengths, recv_offsets, req, stat_ray)
+    deallocate (glo_id, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
   end subroutine deallocate_structures
 end module main_mod
