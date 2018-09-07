@@ -50,6 +50,7 @@ contains
        call restart (set_thresholds, custom_load, run_id, .true.)
        resume = NONE
     else
+       iwrite = 0
        cp_idx = NONE
        resume = NONE
        call init_structures

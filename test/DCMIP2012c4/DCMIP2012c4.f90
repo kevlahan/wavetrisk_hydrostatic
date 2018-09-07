@@ -79,7 +79,6 @@ program DCMIP2012c4
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   open(unit=12, file=trim(run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  if (resume <= 0) iwrite = 0
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
