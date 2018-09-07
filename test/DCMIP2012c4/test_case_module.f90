@@ -250,6 +250,7 @@ contains
     read (fid,*) varname, optimize_grid
     read (fid,*) varname, adapt_dt
     read (fid,*) varname, cfl_num
+    read (fid,*) varname, upwind
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order
     read (fid,*) varname, tau_diffusion
@@ -282,9 +283,10 @@ contains
        write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
+       write (6,'(A,L1)')     "upwind              = ", upwind
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order
-       write (6,'(A,es10.4)')     "tau_diffusion (h)   = ", tau_diffusion
+       write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion
        write (6,'(A,es10.4)') "dt_write            = ", dt_write
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end            = ", time_end 

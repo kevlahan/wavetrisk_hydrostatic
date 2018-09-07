@@ -159,7 +159,7 @@ contains
       implicit none
       integer :: idS, idSW, idW
       integer :: id_i, idS_i, idSW_i, idW_i
-      real(8) :: circ_LORT_SW, circ_UPLT_SW, u_prim_RT_SW, u_prim_UP_SW
+      real(8) :: circ_LORT_SW, circ_UPLT_SW, sgn, u_prim_RT_SW, u_prim_UP_SW
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
 
       interface
@@ -200,10 +200,6 @@ contains
            mass(id_i)*dom%areas%elts(id_i)%part(4) + &
            mass(idW_i)*dom%areas%elts(idW_i)%part(6))
 
-      qe(EDGE*idW+RT+1)  = interp (pv_LORT_W , pv_UPLT_SW)
-      qe(EDGE*idSW+DG+1) = interp (pv_LORT_SW, pv_UPLT_SW)
-      qe(EDGE*idS+UP+1)  = interp (pv_LORT_SW, pv_UPLT_S)
-
       ! Mass and temperature fluxes
       physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
 
@@ -214,6 +210,22 @@ contains
       h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp (temp(id_i), temp(idW_i))  + physics(S_TEMP,RT+1)
       h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (temp(id_i), temp(idSW_i)) + physics(S_TEMP,DG+1)
       h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp (temp(id_i), temp(idS_i))  + physics(S_TEMP,UP+1)
+
+      ! Potential vorticity at edges
+      if (upwind) then 
+         sgn = sign (1.0_8, h_mflux(EDGE*idW+RT+1))
+         qe(EDGE*idW+RT+1)  = (sgn - 1.0_8)/2*pv_LORT_W  + (sgn + 1.0_8)/2*pv_UPLT_SW
+
+         sgn = sign (1.0_8, h_mflux(EDGE*idSW+DG+1))
+         qe(EDGE*idSW+DG+1) = (sgn - 1.0_8)/2*pv_LORT_SW + (sgn + 1.0_8)/2*pv_UPLT_SW
+
+         sgn = sign (1.0_8, h_mflux(EDGE*idS+UP+1))
+         qe(EDGE*idS+UP+1)  = (sgn - 1.0_8)/2*pv_LORT_SW + (sgn + 1.0_8)/2*pv_UPLT_S
+      else
+         qe(EDGE*idW+RT+1)  = interp (pv_LORT_W , pv_UPLT_SW)
+         qe(EDGE*idSW+DG+1) = interp (pv_LORT_SW, pv_UPLT_SW)
+         qe(EDGE*idS+UP+1)  = interp (pv_LORT_SW, pv_UPLT_S)
+      end if
     end subroutine comp_ijmin
 
     subroutine comput
@@ -222,7 +234,7 @@ contains
       type (Coord)                             :: x_e, x_i, vel
       integer                                  :: idE, idN, idNE, idS, idSW, idW
       integer                                  :: id_i, idE_i, idN_i, idNE_i, idS_i, idSW_i, idW_i
-      real(8)                                  :: kinetic_energy, Phi_k, circ_LORT, circ_UPLT
+      real(8)                                  :: circ_LORT, circ_UPLT, kinetic_energy, Phi_k, sgn
       real(8)                                  :: u_prim_UP_E, u_prim_RT_N, u_prim_DG_W, u_prim_DG_S
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
       type (Coord), dimension(6)               :: hex_nodes
@@ -319,10 +331,6 @@ contains
            mass(idE_i)*dom%areas%elts(idE_i)%part(4) + &
            mass(id_i)*dom%areas%elts(id_i)%part(6))
 
-      qe(EDGE*id+RT+1) = interp (pv_UPLT_S, pv_LORT)
-      qe(EDGE*id+DG+1) = interp (pv_UPLT,   pv_LORT)
-      qe(EDGE*id+UP+1) = interp (pv_UPLT,   pv_LORT_W)
-
       ! Mass and temperature fluxes
       physics = physics_scalar_flux (dom, id, idE, idNE, idN)
 
@@ -333,6 +341,22 @@ contains
       h_tflux(EDGE*id+RT+1) = u_dual_RT * interp (temp(id_i), temp(idE_i))  + physics(S_TEMP,RT+1)
       h_tflux(EDGE*id+DG+1) = u_dual_DG * interp (temp(id_i), temp(idNE_i)) + physics(S_TEMP,DG+1)
       h_tflux(EDGE*id+UP+1) = u_dual_UP * interp (temp(id_i), temp(idN_i))  + physics(S_TEMP,UP+1)
+      
+      ! Potential vorticity at edges
+      if (upwind) then
+         sgn = sign (1.0_8, h_mflux(EDGE*id+RT+1))
+         qe(EDGE*id+RT+1) = (sgn - 1.0_8)/2*pv_LORT   + (sgn + 1.0_8)/2*pv_UPLT_S
+
+         sgn = sign (1.0_8, h_mflux(EDGE*id+DG+1))
+         qe(EDGE*id+DG+1) = (sgn - 1.0_8)/2*pv_LORT   + (sgn + 1.0_8)/2*pv_UPLT
+
+         sgn = sign (1.0_8, h_mflux(EDGE*id+UP+1))
+         qe(EDGE*id+UP+1) = (sgn - 1.0_8)/2*pv_LORT_W + (sgn + 1.0_8)/2*pv_UPLT
+      else
+         qe(EDGE*id+RT+1) = interp (pv_UPLT_S, pv_LORT)
+         qe(EDGE*id+DG+1) = interp (pv_UPLT,   pv_LORT)
+         qe(EDGE*id+UP+1) = interp (pv_UPLT,   pv_LORT_W)
+      end if
     end subroutine comput
   end subroutine step1
 
