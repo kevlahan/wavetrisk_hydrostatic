@@ -350,7 +350,7 @@ contains
     implicit none
     
     integer :: k
-    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top
+    real(8) :: Area_lozenge, k_max, visc
 
     allocate (viscosity_divu(1:zlevels))
     
@@ -386,10 +386,12 @@ contains
           stop
        end if
     end if
+    visc = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
     
     if (rank == 0) then
-       write (6,'(3(A,es10.4))')   'dx_min  = ', dx_min, ' k_max  = ', k_max, ' dt_cfl = ', dt_cfl
-       write (6,'(4(A,es10.4),/)') 'Viscosity_mass = ', viscosity_mass, ' Viscosity_temp = ', viscosity_temp, &
+       write (6,'(4(A,es8.2), A)')   'dx_min  = ', dx_min, ' k_max  = ', k_max, ' dt_cfl = ', dt_cfl, &
+            ' diffusion stability constant = ', dt_cfl/dx_min**(2*Laplace_order)*visc, " (should be < 0.25)"
+       write (6,'(4(A,es8.2),/)') 'Viscosity_mass = ', viscosity_mass, ' Viscosity_temp = ', viscosity_temp, &
             ' Viscosity_divu = ', sum (viscosity_divu)/zlevels, ' Viscosity_rotu = ', viscosity_rotu
     end if
   end subroutine initialize_dt_viscosity
