@@ -149,10 +149,6 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    if (allocated(a_vert)) deallocate(a_vert)
-    if (allocated(b_vert)) deallocate(b_vert)
-    if (allocated(a_vert_mass)) deallocate(a_vert_mass)
-    if (allocated(b_vert_mass)) deallocate(b_vert_mass)
     allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
@@ -292,7 +288,6 @@ contains
        write (6,'(A)') ' '
     end if
     close(fid)
-    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
     dt_write = dt_write * MINUTE
     tau_diffusion = tau_diffusion * HOUR
     time_end = time_end * HOUR
@@ -357,6 +352,8 @@ contains
     integer :: k
     real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top
 
+    allocate (viscosity_divu(1:zlevels))
+    
     ! Average area of smallest lozenges
     Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level + 2)
 
@@ -372,7 +369,12 @@ contains
 
     if (fresh_start) then
        ! Viscosity constant from eigenvalues of Laplacian
-       if (Laplace_order == 1 .or. Laplace_order == 2) then
+       if (Laplace_order == 0) then
+          viscosity_mass = 0.0_8
+          viscosity_temp = 0.0_8
+          viscosity_divu = 0.0_8
+          viscosity_rotu = 0.0_8
+       elseif (Laplace_order == 1 .or. Laplace_order == 2) then
           L_diffusion = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
  
           viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
@@ -386,13 +388,9 @@ contains
     end if
     
     if (rank == 0) then
-       write (6,'(A,es10.4)')   'dx_min         = ', dx_min
-       write (6,'(A,es10.4,/)') 'k_max          = ', k_max
-       write (6,'(A,es10.4,/)')   'dt_cfl         = ', dt_cfl
-       write (6,'(A,es10.4)') 'Viscosity_mass = ', viscosity_mass
-       write (6,'(A,es10.4)') 'Viscosity_temp = ', viscosity_temp
-       write (6,'(A,es10.4)') 'Viscosity_divu = ', sum (viscosity_divu)/zlevels
-       write (6,'(A,es10.4,/)') 'Viscosity_rotu = ', viscosity_rotu
+       write (6,'(3(A,es10.4))')   'dx_min  = ', dx_min, ' k_max  = ', k_max, ' dt_cfl = ', dt_cfl
+       write (6,'(4(A,es10.4),/)') 'Viscosity_mass = ', viscosity_mass, ' Viscosity_temp = ', viscosity_temp, &
+            ' Viscosity_divu = ', sum (viscosity_divu)/zlevels, ' Viscosity_rotu = ', viscosity_rotu
     end if
   end subroutine initialize_dt_viscosity
 

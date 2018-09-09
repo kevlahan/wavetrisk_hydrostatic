@@ -39,7 +39,7 @@ contains
     character(255)                 :: command
     integer                        :: k, d
     real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
-    
+
     if (min_level > max_level .and. rank == 0) then
        write (6,'(3(A,I4))') 'ERROR: max_level < min_level:', max_level, '<', min_level, ' setting max_level = ', min_level
        max_level = min_level
@@ -47,14 +47,30 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
-       call restart (set_thresholds, custom_load, run_id, .true.)
+       call restart (set_thresholds, custom_load, run_id)
        resume = NONE
     else
        iwrite = 0
        cp_idx = NONE
        resume = NONE
+       
+       ! Initialize vertical grid
+       call initialize_a_b_vert
+
+       ! Determine vertical level to save
+       call set_save_level
+
+       ! Initialize thresholds to default values 
+       call initialize_thresholds
+
        call init_structures
        call apply_init_cond
+
+       ! Calculate diffusion length scales
+       if (Laplace_order /= 0) call evals_diffusion
+
+       ! Initialize time step and viscosities
+       call initialize_dt_viscosity
 
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
@@ -111,7 +127,7 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt_mpi()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
-       call write_checkpoint (custom_dump, custom_load, run_id, .true.)
+       call write_checkpoint (custom_dump, custom_load, run_id)
     end if
     call barrier
   end subroutine initialize
@@ -271,14 +287,25 @@ contains
     end do
   end subroutine reset
 
-  subroutine restart (set_thresholds, custom_load, run_id, init_restart)
+  subroutine restart (set_thresholds, custom_load, run_id)
     implicit none
     external     :: set_thresholds, custom_load
     character(*) :: run_id
-    logical      :: init_restart
     
     character(255) :: cmd_archive, cmd_files, command
 
+    ! Deallocate all dynamic arrays and variables
+    if (resume == NONE) call deallocate_structures
+
+    ! Initialize vertical grid
+    call initialize_a_b_vert
+
+    ! Determine vertical level to save
+    call set_save_level
+
+    ! Initialize thresholds to default values 
+    call initialize_thresholds
+    
     ! Uncompress checkpoint data
     if (rank == 0) then
        write (6,'(A,/)') &
@@ -291,15 +318,15 @@ contains
        call system (command)
     end if
 
-    ! Deallocate all dynamic arrays and variables
-    if (resume == NONE) call deallocate_structures
-
     ! Rebalance adaptive grid and re-initialize structures
     call barrier ! Make sure all archive files have been uncompressed
     call init_structures
 
     ! Calculate diffusion length scales
-    if (Laplace_order /= 0 .and. init_restart) call evals_diffusion
+    if (Laplace_order /= 0) call evals_diffusion
+
+    ! Initialize time step and viscosities
+    call initialize_dt_viscosity
     
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load)
@@ -337,11 +364,10 @@ contains
     end if
   end subroutine restart
 
-  subroutine write_checkpoint (custom_dump, custom_load, run_id, init_restart)
+  subroutine write_checkpoint (custom_dump, custom_load, run_id)
     implicit none
     external :: custom_dump, custom_load
     character(*) :: run_id
-    logical      :: init_restart
 
     character(255) :: cmd_archive, cmd_files, command
     
@@ -362,7 +388,7 @@ contains
     end if
     
     ! Must restart after checkpoint and load balance (if compiled with mpi-lb)
-    call restart (set_thresholds, custom_load, run_id, init_restart)
+    call restart (set_thresholds, custom_load, run_id)
   end subroutine write_checkpoint
 
   subroutine init_structures
@@ -407,9 +433,6 @@ contains
     implicit none
 
     integer :: d, i, k, l, v, r
-
-    deallocate (node_level_start, edge_level_start)
-    deallocate (ini_st)
 
     ! Deallocate init_RK_mem allocations
     do k = 1, zlevels
@@ -537,11 +560,16 @@ contains
           deallocate (sol_save(v,k)%data)
        end do
     end do
-   
+
     deallocate (grid)
+    deallocate (node_level_start, edge_level_start)
+    deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
+    deallocate (viscosity_divu, threshold, threshold_def)
     deallocate (sol, sol_save, trend, wav_coeff, trend_wav_coeff)       
     deallocate (exner_fun, horiz_flux, Laplacian_scalar)
     deallocate (n_active_edges, n_active_nodes)
-    deallocate (glo_id, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
+    deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
+    nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &
+         qe, vort, wc_u, wc_m, wc_t)
   end subroutine deallocate_structures
 end module main_mod

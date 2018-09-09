@@ -1384,11 +1384,7 @@ contains
 
     character(3), parameter :: order = "2"
 
-    if (rank == 0) then
-       write (6,'(/,A)') "Finding diffusion lengthscales by power iteration:"
-       write (6,'(/,A,i2)') "Convergence of largest eigenvalues on coarsest grid J = ", min_level
-       write (6,'(A)') "Iteration    err(mass)   err(temp)   err(divu)     err(rotu)"
-    end if
+    if (rank == 0) write (6,'(/,A)') "Finding diffusion lengthscales by power iteration:"
     
     ! Initialize variables to random values and normalize
     call init_rand
@@ -1406,16 +1402,25 @@ contains
        call Ray_quotient
 
        ! Find relative change in eigenvalues
-       call error
+       err = abs (eval - eval_old) / abs (eval)
        
        iter = iter + 1
     end do
 
+    if (rank == 0) then
+       if (iter > iter_max) then
+          write (6,'(2(A,es10.4),A,i3,A)') "Warning: eigenvalue error ",  &
+               maxval (err), " not converged to specified error ", err_max, " after ", iter_max, " iterations"
+       else
+          write (6,'(A,es10.4,A,i3,A)') "Eigenvalues converged to relative error ", maxval (err), " after ", iter-1, " iterations"
+       end if
+    end if
+
     ! Find diffusion length scales
     L_diffusion(1) = 1/sqrt(-interp(eval(1),eval(2)))
     L_diffusion(2:3) = 1/sqrt(-eval(3:4))
-    if (rank == 0) write (6,'(/,3(A,es10.4,1x),/)') &
-         "dx_scalar = ", MATH_PI*L_diffusion(1), "dx_divu = ",MATH_PI*L_diffusion(2),"dx_rotu = ", MATH_PI*L_diffusion(3)
+    if (rank == 0) write (6,'(3(A,es10.4,1x),/)') &
+         "L_scalar = ", MATH_PI*L_diffusion(1), "L_divu = ",MATH_PI*L_diffusion(2),"L_rotu = ", MATH_PI*L_diffusion(3)
   contains
     subroutine init_rand
       ! Applies random initial conditions
@@ -1673,14 +1678,6 @@ contains
          inner_prod(4) = inner_prod(4) + sol_tmp(S_VELO,4)%data(d)%elts(id_e)*sol_tmp(S_VELO,2)%data(d)%elts(id_e)
       end do
     end subroutine cal_inner_prod_velo
-
-    subroutine error
-      ! Finds normalized change in eigenvalues
-      implicit none
-
-      err = abs (eval - eval_old) / abs (eval)
-      if (rank == 0) write (6,'(i5,8x,4(es10.4,4x))') iter, err
-    end subroutine error
 
     subroutine update_evec
       implicit none

@@ -7,15 +7,8 @@ program DCMIP2012c4
   implicit none
 
   logical :: aligned
-
-  ! Basic initialization of structures (grid, geometry etc)
-  call init_main_mod 
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Read test case parameters
-  call read_test_case_parameters ("test_case.in")
- 
   ! Standard (shared) parameter values for the simulation
   radius         = 6.371229d6                  ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
@@ -55,21 +48,15 @@ program DCMIP2012c4
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
-  ! Initialize vertical grid
-  call initialize_a_b_vert
 
-  ! Determine vertical level to save
-  call set_save_level
+  ! Basic initialization of structures (grid, geometry etc)
+  call init_main_mod
 
-  ! Initialize thresholds to default values 
-  call initialize_thresholds
-    
+  ! Read test case parameters
+  call read_test_case_parameters ("test_case.in")
+
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
-
-  ! Initialize time step and viscosities
-  call initialize_dt_viscosity
 
   ! Save initial conditions
   call write_and_export (iwrite)
@@ -78,7 +65,7 @@ program DCMIP2012c4
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
-  open(unit=12, file=trim(run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  open (unit=12, file=trim(run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
@@ -95,7 +82,7 @@ program DCMIP2012c4
         call write_and_export (iwrite)
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, .false.)
+        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
      end if
   end do
 
