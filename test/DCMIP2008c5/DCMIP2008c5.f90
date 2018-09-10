@@ -7,13 +7,9 @@ program DCMIP2008c5
 
   logical :: aligned
 
-  ! Basic initialization of structures (grid, geometry etc)
-  call init_main_mod 
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Read test case parameters
-  call read_test_case_parameters ("test_case.in")
+  ! Initialize mpi, shared variables and domains
+  call init_arch_mod 
+  call init_comm_mpi_mod
  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
@@ -52,25 +48,16 @@ program DCMIP2008c5
   Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
   Hdim           = wave_speed**2/grav_accel     ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
-  ! Initialize vertical grid
-  call initialize_a_b_vert
 
-  ! Determine vertical level to save
-  call set_save_level
+  ! Read test case parameters
+  call read_test_case_parameters ("test_case.in")
 
-  ! Initialize thresholds to default values 
-  call initialize_thresholds
-    
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
 
-  ! Initialize time step and viscosities
-  call initialize_dt_viscosity
-
   ! Save initial conditions
   call write_and_export (iwrite)
-
+ 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
@@ -92,7 +79,7 @@ program DCMIP2008c5
         call write_and_export (iwrite)
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, .false.)
+        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
      end if
   end do
   

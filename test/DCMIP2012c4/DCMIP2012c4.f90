@@ -7,6 +7,10 @@ program DCMIP2012c4
   implicit none
 
   logical :: aligned
+
+  ! Initialize mpi, shared variables and domains
+  call init_arch_mod 
+  call init_comm_mpi_mod
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
@@ -49,12 +53,9 @@ program DCMIP2012c4
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  ! Basic initialization of structures (grid, geometry etc)
-  call init_main_mod
-
   ! Read test case parameters
   call read_test_case_parameters ("test_case.in")
-
+ 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
 

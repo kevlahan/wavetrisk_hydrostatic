@@ -9,14 +9,11 @@ program Held_Suarez
 
   logical :: aligned
 
-  ! Basic initialization of structures (grid, geometry etc)
-  call init_main_mod 
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
+  ! Initialize mpi, shared variables and domains
+  call init_arch_mod 
+  call init_comm_mpi_mod
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Read test case parameters
-  call read_test_case_parameters ("test_case.in")
-
   ! Standard (shared) parameter values for the simulation
   radius         = 6.371d6                  ! mean radius of the Earth in meters
   grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
@@ -54,31 +51,22 @@ program Held_Suarez
   Tdim           = DAY                         ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  ! Initialize vertical grid
-  call initialize_a_b_vert
-
-  ! Determine vertical level to save
-  call set_save_level
-
-  ! Initialize thresholds to default values 
-  call initialize_thresholds
+  ! Read test case parameters
+  call read_test_case_parameters ("test_case.in")
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
 
-  ! Initialize viscosities
-  call initialize_dt_viscosity
-
   ! Save initial conditions
   call write_and_export (iwrite)
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
-  open (unit=12, file=trim(run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
@@ -96,7 +84,7 @@ program Held_Suarez
         call write_and_export (iwrite)
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, .false.)
+        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
      end if
   end do
 
@@ -261,7 +249,6 @@ subroutine time_step_cooling
         end do
         nullify (mass, temp, velo)
      end do
-     sol(S_TEMP:S_VELO,k)%bdry_uptodate = .false.
   end do
 
   sol%bdry_uptodate = .false.

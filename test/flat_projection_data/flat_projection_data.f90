@@ -14,11 +14,11 @@ program flat_projection_data
   character(2)                           :: var_file
   character(130)                         :: command
 
-  ! Basic initialization of structures (grid, geometry etc)
-  call init_main_mod 
-  nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, qe, vort)
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Initialize mpi, shared variables and domains
+  call init_arch_mod 
+  call init_comm_mpi_mod
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters ("flat_projection_data.in")
 
@@ -68,12 +68,9 @@ program flat_projection_data
   resume = check_start
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  ! Initialize vertical grid
-  call initialize_a_b_vert
-
-  ! Initialize thresholds to default values 
-  call initialize_thresholds
-
+  ! Read test case parameters
+  call read_test_case_parameters ("test_case.in")
+ 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
   
@@ -96,7 +93,7 @@ program flat_projection_data
   zonal_av = 0.0_8; zonal_spacetime_av = 0.0_8
   do cp_idx = check_start, check_end
      resume = NONE
-     call restart (set_thresholds, load, run_id, .false.)
+     call restart (set_thresholds, load, run_id)
      call cal_zonal_av 
   end do
   ! Temperature
@@ -110,7 +107,7 @@ program flat_projection_data
   if (rank == 0) write (6,'(/,A,/)') "Perturbation quantities"
   do cp_idx = check_start, check_end
      resume = NONE
-     call restart (set_thresholds, load, run_id, .false.)
+     call restart (set_thresholds, load, run_id)
      call cal_perturb
      if (cp_idx == cp_2d) call latlon
   end do

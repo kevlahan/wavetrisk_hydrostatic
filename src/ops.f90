@@ -1409,17 +1409,17 @@ contains
 
     if (rank == 0) then
        if (iter > iter_max) then
-          write (6,'(2(A,es10.4),A,i3,A)') "Warning: eigenvalue error ",  &
+          write (6,'(2(A,es8.2),A,i3,A)') "Warning: eigenvalue error ",  &
                maxval (err), " not converged to specified error ", err_max, " after ", iter_max, " iterations"
        else
-          write (6,'(A,es10.4,A,i3,A)') "Eigenvalues converged to relative error ", maxval (err), " after ", iter-1, " iterations"
+          write (6,'(A,es8.2,A,i3,A)') "Eigenvalues converged to relative error ", maxval (err), " after ", iter-1, " iterations"
        end if
     end if
 
     ! Find diffusion length scales
     L_diffusion(1) = 1/sqrt(-interp(eval(1),eval(2)))
     L_diffusion(2:3) = 1/sqrt(-eval(3:4))
-    if (rank == 0) write (6,'(3(A,es10.4,1x),/)') &
+    if (rank == 0) write (6,'(3(A,es8.2,1x),/)') &
          "L_scalar = ", MATH_PI*L_diffusion(1), "L_divu = ",MATH_PI*L_diffusion(2),"L_rotu = ", MATH_PI*L_diffusion(3)
   contains
     subroutine init_rand

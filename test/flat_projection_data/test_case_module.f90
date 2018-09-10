@@ -4,8 +4,10 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  integer :: check_end, check_start, cp_2d, iwrite, N, save_zlev
-  real(8) :: initotalmass, mass_error, totalmass
+  integer                              :: check_end, check_start, cp_2d, iwrite, N, save_zlev
+  real(8)                              :: initotalmass, mass_error, totalmass
+  real(8), allocatable, dimension(:,:) :: threshold_def
+  
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
   ! DCMIP2008c5
@@ -44,10 +46,6 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    if (allocated(a_vert)) deallocate(a_vert)
-    if (allocated(b_vert)) deallocate(b_vert)
-    if (allocated(a_vert_mass)) deallocate(a_vert_mass)
-    if (allocated(b_vert_mass)) deallocate(b_vert_mass)
     allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
@@ -197,8 +195,19 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
 
-    allocate (threshold(S_MASS:S_VELO,1:zlevels)); threshold = 0.0_8
+    allocate (threshold(S_MASS:S_VELO,1:zlevels));     threshold     = 0.0_8
+    allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
   end subroutine initialize_thresholds
+
+  subroutine initialize_dt_viscosity 
+    implicit none
+    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
+  end subroutine initialize_dt_viscosity
+
+  subroutine set_save_level
+    implicit none
+    save_zlev = zlevels
+  end subroutine set_save_level
 
   subroutine dump (fid)
     implicit none

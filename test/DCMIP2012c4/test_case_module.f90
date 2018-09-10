@@ -261,6 +261,7 @@ contains
        write (6,'(A)') &
             '********************************************************** Parameters &
             ***********************************************************'
+       write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case           = ", trim (test_case)
        write (6,'(A,A)')      "run_id              = ", trim (run_id)
        write (6,'(A,L1)')     "compressible        = ", compressible
@@ -285,7 +286,33 @@ contains
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end            = ", time_end 
        write (6,'(A,i6)')     "resume              = ", resume
-       write (6,'(A)') ' '
+       
+       write (6,'(/,A)')      "STANDARD PARAMETERS"
+       write (6,'(A,es10.4)') "radius              = ", radius
+       write (6,'(A,es10.4)') "omega               = ", omega
+       write (6,'(A,es10.4)') "ref_press           = ", ref_press
+       write (6,'(A,es10.4)') "ref_surf_press      = ", ref_surf_press
+       write (6,'(A,es10.4)') "R_d                 = ", R_d
+       write (6,'(A,es10.4)') "c_p                 = ", c_p
+       write (6,'(A,es10.4)') "c_v                 = ", c_v
+       write (6,'(A,es10.4)') "gamma               = ", gamma
+       write (6,'(A,es10.4)') "kappa               = ", kappa
+       
+       write (6,'(/,A)')      "TEST CASE PARAMETERS"
+       write (6,'(A,es10.4)') "u_0                 = ", u_0
+       write (6,'(A,es10.4)') "u_p                 = ", u_p
+       write (6,'(A,es10.4)') "R_pert              = ", R_pert
+       write (6,'(A,es10.4)') "T_0                 = ", T_0
+       write (6,'(A,es10.4)') "T_0                 = ", R_pert
+       write (6,'(A,es10.4)') "gamma_T             = ", gamma_T
+       write (6,'(A,es10.4)') "delta_T             = ", delta_T
+       write (6,'(A,es10.4)') "eta_0               = ", eta_0
+       write (6,'(A,es10.4)') "eta_t               = ", eta_t
+       write (6,'(A,es10.4)') "lon_c               = ", lon_c
+       write (6,'(A,es10.4)') "lat_c               = ", lat_c
+       write (6,'(A)') &
+            '*********************************************************************&
+            ***********************************************************'
     end if
     close(fid)
     dt_write = dt_write * MINUTE
@@ -389,10 +416,11 @@ contains
     visc = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
     
     if (rank == 0) then
-       write (6,'(4(A,es8.2), A)')   'dx_min  = ', dx_min, ' k_max  = ', k_max, ' dt_cfl = ', dt_cfl, &
-            ' diffusion stability constant = ', dt_cfl/dx_min**(2*Laplace_order)*visc, " (should be < 0.25)"
-       write (6,'(4(A,es8.2),/)') 'Viscosity_mass = ', viscosity_mass, ' Viscosity_temp = ', viscosity_temp, &
-            ' Viscosity_divu = ', sum (viscosity_divu)/zlevels, ' Viscosity_rotu = ', viscosity_rotu
+       write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
+       write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass, " Viscosity_temp = ", viscosity_temp, &
+            " Viscosity_divu = ", sum (viscosity_divu)/zlevels, " Viscosity_rotu = ", viscosity_rotu
+       write (6,'(A,es10.4,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order)*visc, &
+            " (should be < 0.25, or about < 0.5 for RK45 ssp if CFL <= 1.2)"
     end if
   end subroutine initialize_dt_viscosity
 
@@ -451,8 +479,8 @@ contains
           save_press = lev_press
        end if
     end do
-    if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate pressure = ", save_press/100, " hPa)"
+    if (rank==0) write (6,'(/,A,i2,A,i4,A,/)') "Saving vertical level ", save_zlev, &
+         " (approximate pressure = ", nint (save_press/100), " hPa)"
   end subroutine set_save_level
 
   subroutine dump (fid)

@@ -126,10 +126,6 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    if (allocated(a_vert)) deallocate(a_vert)
-    if (allocated(b_vert)) deallocate(b_vert)
-    if (allocated(a_vert_mass)) deallocate(a_vert_mass)
-    if (allocated(b_vert_mass)) deallocate(b_vert_mass)
     allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
@@ -242,6 +238,7 @@ contains
        write (6,'(A)') &
             '********************************************************** Parameters &
             ***********************************************************'
+       write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case           = ", trim (test_case)
        write (6,'(A,A)')      "run_id              = ", trim (run_id)
        write (6,'(A,L1)')     "compressible        = ", compressible
@@ -266,13 +263,36 @@ contains
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end            = ", time_end 
        write (6,'(A,i6)')     "resume              = ", resume
-       write (6,'(A)') ' '
+       
+       write (6,'(/,A)')      "STANDARD PARAMETERS"
+       write (6,'(A,es10.4)') "radius              = ", radius
+       write (6,'(A,es10.4)') "omega               = ", omega
+       write (6,'(A,es10.4)') "ref_press           = ", ref_press
+       write (6,'(A,es10.4)') "ref_surf_press      = ", ref_surf_press
+       write (6,'(A,es10.4)') "R_d                 = ", R_d
+       write (6,'(A,es10.4)') "c_p                 = ", c_p
+       write (6,'(A,es10.4)') "c_v                 = ", c_v
+       write (6,'(A,es10.4)') "gamma               = ", gamma
+       write (6,'(A,es10.4)') "kappa               = ", kappa
+
+       write (6,'(/,A)')      "TEST CASE PARAMETERS"
+       write (6,'(A,es10.4)') "T_0                 = ", T_0
+       write (6,'(A,es10.4)') "T_mean              = ", T_mean
+       write (6,'(A,es10.4)') "T_tropo             = ", T_tropo
+       write (6,'(A,es10.4)') "eta_b               = ", eta_b
+       write (6,'(A,es10.4)') "eta_b               = ", k_a
+       write (6,'(A,es10.4)') "eta_b               = ", k_f
+       write (6,'(A,es10.4)') "eta_b               = ", k_s
+       write (6,'(A,es10.4)') "delta_T             = ", delta_T
+       write (6,'(A,es10.4)') "delta_theta         = ", delta_theta
+       write (6,'(A)') &
+            '*********************************************************************&
+            ***********************************************************'
     end if
     close(fid)
     dt_write = dt_write * MINUTE
     tau_diffusion = tau_diffusion * HOUR
     time_end = time_end * HOUR
-    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
   end subroutine read_test_case_parameters
 
   subroutine print_log
@@ -326,14 +346,16 @@ contains
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 
-  subroutine initialize_dt_viscosity 
+ subroutine initialize_dt_viscosity 
     ! Initializes viscosity
     use wavelet_mod
     implicit none
     
     integer :: k
-    real(8) :: Area_lozenge, k_max, C_visc, P_k, P_top
+    real(8) :: Area_lozenge, k_max, visc
 
+    allocate (viscosity_divu(1:zlevels))
+    
     ! Average area of smallest lozenges
     Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level + 2)
 
@@ -341,7 +363,7 @@ contains
     dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2))
 
     ! Largest wavenumber on regular lozenge grid
-    k_max = MATH_PI/(sqrt (3.0_8)*dx_min)
+    k_max = MATH_PI/(sqrt(3.0_8)*dx_min)
 
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
@@ -349,9 +371,14 @@ contains
 
     if (fresh_start) then
        ! Viscosity constant from eigenvalues of Laplacian
-       if (Laplace_order == 1 .or. Laplace_order == 2) then
+       if (Laplace_order == 0) then
+          viscosity_mass = 0.0_8
+          viscosity_temp = 0.0_8
+          viscosity_divu = 0.0_8
+          viscosity_rotu = 0.0_8
+       elseif (Laplace_order == 1 .or. Laplace_order == 2) then
           L_diffusion = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
-
+ 
           viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_divu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
@@ -361,15 +388,14 @@ contains
           stop
        end if
     end if
+    visc = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
     
     if (rank == 0) then
-       write (6,'(A,es10.4)')   'dx_min         = ', dx_min
-       write (6,'(A,es10.4,/)') 'k_max          = ', k_max
-       write (6,'(A,es10.4,/)') 'dt_cfl         = ', dt_cfl
-       write (6,'(A,es10.4)') 'Viscosity_mass = ', viscosity_mass
-       write (6,'(A,es10.4)') 'Viscosity_temp = ', viscosity_temp
-       write (6,'(A,es10.4)') 'Viscosity_divu = ', sum (viscosity_divu)/zlevels
-       write (6,'(A,es10.4,/)') 'Viscosity_rotu = ', viscosity_rotu
+       write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
+       write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass, " Viscosity_temp = ", viscosity_temp, &
+            " Viscosity_divu = ", sum (viscosity_divu)/zlevels, " Viscosity_rotu = ", viscosity_rotu
+       write (6,'(A,es10.4,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order)*visc, &
+            " (should be < 0.25, or about < 0.5 for RK45 ssp if CFL <= 1.2)"
     end if
   end subroutine initialize_dt_viscosity
 

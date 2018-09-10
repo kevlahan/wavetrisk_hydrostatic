@@ -15,12 +15,9 @@ module main_mod
   real(8)                                        :: dt_new, time_mult  
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
-  subroutine init_main_mod
+  subroutine init_basic
     implicit none
-    call init_arch_mod
-    call init_domain_mod
     call init_comm_mod
-    call init_comm_mpi_mod
     call init_init_mod
     call init_refine_patch_mod
     call init_time_integr_mod
@@ -29,9 +26,11 @@ contains
     call init_mask_mod
     call init_adapt_mod
     time_mult = 1.0_8
-  end subroutine init_main_mod
+  end subroutine init_basic
 
   subroutine initialize (apply_init_cond, set_thresholds, custom_dump, custom_load, run_id)
+    ! Initialize from checkpoint or adapt to initialize conditions
+    ! Solution is saved and restarted to balance load
     implicit none
     external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
     character(*) :: run_id
@@ -40,10 +39,8 @@ contains
     integer                        :: k, d
     real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
 
-    if (min_level > max_level .and. rank == 0) then
-       write (6,'(3(A,I4))') 'ERROR: max_level < min_level:', max_level, '<', min_level, ' setting max_level = ', min_level
-       max_level = min_level
-    end if
+    ! Initialize basic structures
+    call init_basic
 
     if (resume >= 0) then
        cp_idx = resume
@@ -288,6 +285,7 @@ contains
   end subroutine reset
 
   subroutine restart (set_thresholds, custom_load, run_id)
+    ! Fresh restart from checkpoint data (all structures reset)
     implicit none
     external     :: set_thresholds, custom_load
     character(*) :: run_id
@@ -296,6 +294,9 @@ contains
 
     ! Deallocate all dynamic arrays and variables
     if (resume == NONE) call deallocate_structures
+
+    ! Initialize basic structures
+    call init_basic
 
     ! Initialize vertical grid
     call initialize_a_b_vert
@@ -317,9 +318,9 @@ contains
        write (command, '(A,A)') 'tar xzf ', trim (cmd_archive)
        call system (command)
     end if
+    call barrier ! Make sure all archive files have been uncompressed
 
     ! Rebalance adaptive grid and re-initialize structures
-    call barrier ! Make sure all archive files have been uncompressed
     call init_structures
 
     ! Calculate diffusion length scales

@@ -919,7 +919,7 @@ contains
        write (6,'(A)') '-------------------------------------------------------&
             --------------------------------------------------------------------------'
        write (6,'(A,i2,A,/)') 'Heikes-Randall optimizations of level ', level_start-1, ' grid:'
-       write (6,'(A,2(es10.4,A))') 'Grid quality before optimization = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
+       write (6,'(A,2(es8.2,A))') 'Grid quality before optimization = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
     end if
     
     fid = get_fid()
@@ -961,7 +961,7 @@ contains
     l2error = sqrt (sum_real(l2error))
     maxerror = sync_max_d(maxerror)
     if (rank == 0) then
-       write (6,'(A,2(es10.4,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
+       write (6,'(A,2(es8.2,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
        write (6,'(A)') '(distance between midpoints of primal and dual edges)'
        write (6,'(A,/)') '-------------------------------------------------------&
             --------------------------------------------------------------------------'
