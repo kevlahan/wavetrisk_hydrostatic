@@ -293,7 +293,14 @@ contains
     character(255) :: cmd_archive, cmd_files, command
 
     ! Deallocate all dynamic arrays and variables
-    if (resume == NONE) call deallocate_structures
+    if (resume == NONE) then
+       call deallocate_structures
+       allocate (n_domain(n_process))
+       call init (send_buf_i, 0)
+       call init (recv_buf_i, 0) 
+       call init (send_buf,   0)
+       call init (recv_buf,   0)
+    end if
 
     ! Initialize basic structures
     call init_basic
@@ -430,7 +437,7 @@ contains
   end subroutine init_structures
 
   subroutine deallocate_structures
-    ! Deallocate dynamic arrays and structures for clean restart
+    ! Deallocate all dynamic arrays and structures for clean restart
     implicit none
 
     integer :: d, i, k, l, v, r
@@ -562,14 +569,16 @@ contains
        end do
     end do
 
+    deallocate (recv_buf%elts, send_buf%elts, recv_buf_i%elts, send_buf_i%elts)
+
     deallocate (grid)
-    deallocate (node_level_start, edge_level_start)
+    deallocate (edge_level_start, node_level_start, n_active_edges, n_active_nodes)
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (viscosity_divu, threshold, threshold_def)
-    deallocate (sol, sol_save, trend, wav_coeff, trend_wav_coeff)       
+    deallocate (sol, sol_save, trend, trend_wav_coeff, wav_coeff)       
     deallocate (exner_fun, horiz_flux, Laplacian_scalar)
-    deallocate (n_active_edges, n_active_nodes)
-    deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
+    deallocate (glo_id, ini_st, n_domain, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
+
     nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &
          qe, vort, wc_u, wc_m, wc_t)
   end subroutine deallocate_structures

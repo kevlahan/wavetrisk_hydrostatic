@@ -169,8 +169,8 @@ contains
     implicit none
     call init (send_buf_i, 0)
     call init (recv_buf_i, 0) 
-    call init (send_buf, 0)
-    call init (recv_buf, 0) 
+    call init (send_buf,   0)
+    call init (recv_buf,   0) 
   end subroutine init_comm_mpi_mod
 
   subroutine comm_communication_mpi
@@ -200,12 +200,12 @@ contains
                 d_neigh = grid(d)%neigh(typ)
                 if (d_neigh == POLE) then
                    do i = 1, 2
-                      call handle_neigh(grid(d), grid(d)%neigh_over_pole(i))
+                      call handle_neigh (grid(d), grid(d)%neigh_over_pole(i))
                    end do
                 else if (d_neigh == NONE) then
                    cycle
                 else
-                   call handle_neigh(grid(d), d_neigh)
+                   call handle_neigh (grid(d), d_neigh)
                 end if
              end do
           end do
@@ -227,7 +227,7 @@ contains
          if (dom%src_patch(r0,l)%elts(dom%src_patch(r0,l)%length) == p) return
       end if
 
-      call append(dom%src_patch(r0,l), p)
+      call append (dom%src_patch(r0,l), p)
     end subroutine handle_neigh
   end subroutine recreate_send_patch_lists
 
@@ -247,9 +247,9 @@ contains
           do d_dest = 1, n_domain(r_dest)
              src = d_src
              dest = glo_id(r_dest,d_dest)+1
-             call append(send_buf_i, grid(src)%send_conn(dest)%length)
+             call append (send_buf_i, grid(src)%send_conn(dest)%length)
              do i = 1, grid(src)%send_conn(dest)%length
-                call append(send_buf_i, grid(src)%send_conn(dest)%elts(i))
+                call append (send_buf_i, grid(src)%send_conn(dest)%elts(i))
              end do
              grid(src)%send_conn(dest)%length = 0
           end do
@@ -267,7 +267,7 @@ contains
              length = recv_buf_i%elts(i); i = i + 1
              do k = 1, length, N
                 st = recv_buf_i%elts(i+0:i+(N-1))
-                call unpack_rout(grid(d_dest), glo_id(r_src,d_src), st(1), st(2), st(3), st(4))
+                call unpack_rout (grid(d_dest), glo_id(r_src,d_src), st(1), st(2), st(3), st(4))
                 i = i + N
              end do
           end do
@@ -279,23 +279,21 @@ contains
     implicit none
     integer, dimension(n_process) :: test_recv_len
 
-    call MPI_Alltoall(send_lengths, 1, MPI_INTEGER, &
+    call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, &
          test_recv_len, 1, MPI_INTEGER, &
          MPI_COMM_WORLD, ierror)
 
     write (3000+rank,*) test_recv_len-recv_lengths
 
     close(3000+rank)
-    call MPI_Barrier(MPI_Comm_World, ierror)
+    call MPI_Barrier (MPI_Comm_World, ierror)
   end subroutine check_alltoall_lengths
 
   subroutine alltoall
     implicit none
     integer :: i
 
-    call MPI_Alltoall(send_lengths, 1, MPI_INTEGER, &
-         recv_lengths, 1, MPI_INTEGER, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, recv_lengths, 1, MPI_INTEGER, MPI_COMM_WORLD, ierror)
 
     recv_offsets(1) = 0
 
@@ -310,9 +308,8 @@ contains
        allocate (recv_buf_i%elts(recv_buf_i%length))
     end if
 
-    call MPI_Alltoallv(send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
-         recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Alltoallv (send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, recv_buf_i%elts, &
+         recv_lengths, recv_offsets, MPI_INTEGER, MPI_COMM_WORLD, ierror)
   end subroutine alltoall
 
   subroutine comm_masks_mpi (l)
@@ -339,14 +336,14 @@ contains
              do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
                 id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
                 if (l == NONE .or. l == grid(d_src)%level%elts(id+1)) then
-                   call append(send_buf_i, grid(d_src)%mask_n%elts(abs(id)+1))
+                   call append (send_buf_i, grid(d_src)%mask_n%elts(abs(id)+1))
                 end if
              end do
 
              do i = 1, grid(d_src)%pack(AT_EDGE,dest)%length
                 id = grid(d_src)%pack(AT_EDGE,dest)%elts(i)
                 if (l == NONE .or. l == grid(d_src)%level%elts(id/EDGE+1)) then
-                   call append(send_buf_i, grid(d_src)%mask_e%elts(abs(id)+1))
+                   call append (send_buf_i, grid(d_src)%mask_e%elts(abs(id)+1))
                 end if
              end do
 
@@ -364,13 +361,11 @@ contains
           do d_dest = 1, n_domain(rank+1)
              do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
                 id = abs(grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i))
-                if (l == NONE .or. l == grid(d_dest)%level%elts(id+1)) &
-                     recv_buf_i%length = recv_buf_i%length + 1
+                if (l == NONE .or. l == grid(d_dest)%level%elts(id+1)) recv_buf_i%length = recv_buf_i%length + 1
              end do
              do i = 1, grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%length
-                id = abs(grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%elts(i))
-                if (l == NONE .or. l == grid(d_dest)%level%elts(id/EDGE+1)) &
-                     recv_buf_i%length = recv_buf_i%length + 1
+                id = abs (grid(d_dest)%unpk(AT_EDGE,glo_id(r_src,d_src)+1)%elts(i))
+                if (l == NONE .or. l == grid(d_dest)%level%elts(id/EDGE+1)) recv_buf_i%length = recv_buf_i%length + 1
              end do
           end do
        end do
@@ -383,8 +378,7 @@ contains
 
     !     call check_alltoall_lengths()
     call MPI_Alltoallv (send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
-         recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, &
-         MPI_COMM_WORLD, ierror)
+         recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, MPI_COMM_WORLD, ierror)
 
     ! communicate inside domain
     call comm_masks
@@ -436,7 +430,7 @@ contains
     type(Float_Field) :: field
     integer           :: l
 
-    call update_bdry__start (field, l)
+    call update_bdry__start  (field, l)
     call update_bdry__finish (field, l)
   end subroutine update_bdry
 
@@ -446,8 +440,8 @@ contains
     type(Float_Field), dimension(:) :: field
     integer                         :: l
 
-    call update_vector_bdry__start (field, l)
-    call update_vector_bdry__finish(field, l)
+    call update_vector_bdry__start  (field, l)
+    call update_vector_bdry__finish (field, l)
   end subroutine update_vector_bdry
   
   subroutine update_array_bdry (field, l)
@@ -466,9 +460,9 @@ contains
     integer           ::  l
 
     if (l == NONE) then 
-       call update_bdry__start1(field, level_start-1, level_end)
+       call update_bdry__start1 (field, level_start-1, level_end)
     else
-       call update_bdry__start1(field, l, l)
+       call update_bdry__start1 (field, l, l)
     endif
   end subroutine update_bdry__start
   
@@ -524,9 +518,7 @@ contains
              do i = 1, grid(d_src)%pack(field%pos,dest)%length
                 id = grid(d_src)%pack(field%pos,dest)%elts(i)
                 lev = grid(d_src)%level%elts(id/multipl+1)
-                if (l_start <= lev .and. lev <= l_end) then
-                   call append (send_buf, field%data(d_src)%elts(id+1))
-                end if
+                if (l_start <= lev .and. lev <= l_end) call append (send_buf, field%data(d_src)%elts(id+1))
              end do
           end do
        end do
@@ -541,11 +533,9 @@ contains
           if (r_src == rank+1) cycle 
           do d_dest = 1, n_domain(rank+1)
              do i = 1, grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%length
-                id = abs(grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%elts(i))
+                id = abs (grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%elts(i))
                 lev = grid(d_dest)%level%elts(id/multipl+1)
-                if (l_start <= lev .and. lev <= l_end) then
-                   recv_buf%length = recv_buf%length + 1
-                end if
+                if (l_start <= lev .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
              end do
           end do
        end do
@@ -662,7 +652,7 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_irecv(recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
+       call MPI_irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
             r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
@@ -850,9 +840,7 @@ contains
                 if (l_start <= lev .and. lev <= l_end) then
                    k = k + 1
                    field%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
-                   if (id < 0 .and. field%pos == AT_EDGE) &
-                        field%data(d_dest)%elts(abs(id)+1) = &
-                        -field%data(d_dest)%elts(abs(id)+1)
+                   if (id < 0 .and. field%pos == AT_EDGE) field%data(d_dest)%elts(abs(id)+1) = -field%data(d_dest)%elts(abs(id)+1)
                 end if
              end do
           end do
@@ -860,7 +848,7 @@ contains
     end do
 
     ! assumes routine is either called for one level, or all levels ever to be updated
-    if (l_start < l_end) field%bdry_uptodate = .True.
+    if (l_start < l_end) field%bdry_uptodate = .true.
   end subroutine update_bdry__finish1
 
   subroutine update_vector_bdry__finish1 (field, l_start, l_end)
@@ -913,7 +901,7 @@ contains
     end do
 
     ! assumes routine is either called for one level, or all levels ever to be updated
-    if (l_start < l_end) field%bdry_uptodate = .True.
+    if (l_start < l_end) field%bdry_uptodate = .true.
   end subroutine update_vector_bdry__finish1
   
   subroutine update_array_bdry__finish1 (field, l_start, l_end)
@@ -970,7 +958,7 @@ contains
     end do
 
     ! assumes routine is either called for one level, or all levels ever to be updated
-    if (l_start < l_end) field%bdry_uptodate = .True.
+    if (l_start < l_end) field%bdry_uptodate = .true.
   end subroutine update_array_bdry__finish1
   
   subroutine comm_nodes9_mpi (get, set, l)
@@ -1022,8 +1010,7 @@ contains
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
-         recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
-         MPI_COMM_WORLD, ierror)
+         recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, ierror)
 
     call comm_nodes9 (get, set) ! communicate inside domain
 
@@ -1091,8 +1078,7 @@ contains
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
-         recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
-         MPI_COMM_WORLD, ierror)
+         recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, ierror)
 
     call comm_nodes3 (get, set) ! communicate inside domain
 
@@ -1150,19 +1136,19 @@ contains
                 if (ngh_pa /= 0 .and. d_glo == glo_id(r_dest,d_dest)) then 
                    rot = grid(d_src)%neigh_rot(typ)
                    rot_shift = (rot_direction(grid(d_src), typ)*2 - 1)*rot
-                   call append(send_buf_i, d_dest)
-                   call append(send_buf_i, glo_id(rank+1,d_src))
-                   call append(send_buf_i, p)
+                   call append (send_buf_i, d_dest)
+                   call append (send_buf_i, glo_id(rank+1,d_src))
+                   call append (send_buf_i, p)
                    if (is_pole) then
-                      call append(send_buf_i, c)
+                      call append (send_buf_i, c)
                    else
-                      call append(send_buf_i, modulo(c + rot_shift, 4))
+                      call append (send_buf_i, modulo(c + rot_shift, 4))
                    end if
-                   call append(send_buf_i, ngh_pa)
+                   call append (send_buf_i, ngh_pa)
                    if (is_pole) then
-                      call append(send_buf_i, s)
+                      call append (send_buf_i, s)
                    else
-                      call append(send_buf_i, modulo(s + rot_shift + 2, 4) + 4*(s/4))
+                      call append (send_buf_i, modulo(s + rot_shift + 2, 4) + 4*(s/4))
                    end if
                 end if
              end do
@@ -1181,10 +1167,10 @@ contains
           d = recv_buf_i%elts(k)
           d_src = recv_buf_i%elts(k+1)+1
           st = recv_buf_i%elts(k+2:k+5)
-          call append(grid(d)%recv_pa(d_src), st(1))
-          call append(grid(d)%recv_pa(d_src), st(2))
-          call append(grid(d)%recv_pa(d_src), st(3))
-          call append(grid(d)%recv_pa(d_src), st(4))
+          call append (grid(d)%recv_pa(d_src), st(1))
+          call append (grid(d)%recv_pa(d_src), st(2))
+          call append (grid(d)%recv_pa(d_src), st(3))
+          call append (grid(d)%recv_pa(d_src), st(4))
        end do
     end do
   end subroutine comm_patch_conn_mpi
@@ -1197,11 +1183,11 @@ contains
     real(8)               :: loc_min, glo_min
 
     if (adapt_dt) then
-       dt_loc = 1.0d16
+       dt_loc = 1d16
     else
        dt_loc = dt_init
     end if
-    min_mass_loc = 1.0d16
+    min_mass_loc = 1d16
     n_active_nodes = 0
     n_active_edges = 0
 
@@ -1225,7 +1211,7 @@ contains
     end if
 
     ! Active nodes and edges
-    n_active_loc = (/sum(n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end))/)
+    n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
 
     call MPI_Allreduce (n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
     n_active = n_active_glo
@@ -1305,7 +1291,7 @@ contains
     integer            :: myop
     real, dimension(N) :: garr
 
-    call MPI_Op_create (sync, .True., myop, ierror)  
+    call MPI_Op_create (sync, .true., myop, ierror)  
     call MPI_Reduce (arr, garr, N, MPI_REAL, myop, 0, MPI_COMM_WORLD, ierror)
     if (rank == 0) arr(1:N) = garr(1:N)
   end subroutine sync_array
@@ -1327,6 +1313,6 @@ contains
     call MPI_Reduce (time_loc, time_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
     call MPI_Reduce (time_loc, time_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
 
-    if (rank == 0) write (id,*) time_max, time_min, time_sum
+    if (rank == 0) write (id,'(3(es8.2,1x))') time_max, time_min, time_sum
   end subroutine stop_and_record_timings
 end module comm_mpi_mod

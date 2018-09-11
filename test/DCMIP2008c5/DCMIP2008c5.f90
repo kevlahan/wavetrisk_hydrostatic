@@ -72,14 +72,15 @@ program DCMIP2008c5
      call sum_total_mass (.false.)
      call print_log
 
-     ! Save fields
      if (aligned) then
         iwrite = iwrite + 1
         if (remap) call remap_vertical_coordinates (set_thresholds)
-        call write_and_export (iwrite)
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
+        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
+
+        ! Save fields
+        call write_and_export (iwrite)
      end if
   end do
   

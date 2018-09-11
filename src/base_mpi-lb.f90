@@ -76,8 +76,8 @@ contains
        n_domain(r+1) = n_domain(r+1) + 1
     end do
 
-    if (allocated(glo_id)) deallocate (glo_id)
-    allocate (glo_id(n_process,maxval(n_domain)))
+    if (allocated (glo_id)) deallocate (glo_id)
+    allocate (glo_id(n_process, maxval (n_domain)))
 
     do d = 1, N_GLO_DOMAIN
        glo_id(owner(d)+1,loc_id(d)+1) = d - 1
@@ -86,7 +86,7 @@ contains
 
   subroutine init_arch_mod
     implicit none
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
 
@@ -94,11 +94,11 @@ contains
 
     call MPI_Init (ierror)
     call MPI_Comm_Size (MPI_COMM_WORLD, n_process, ierror)
-    call MPI_Comm_Rank (MPI_COMM_WORLD, rank, ierror)
+    call MPI_Comm_Rank (MPI_COMM_WORLD, rank,      ierror)
 
     allocate (n_domain(n_process))
 
-    initialized = .True.
+    initialized = .true.
   end subroutine init_arch_mod
 
   subroutine finalize
