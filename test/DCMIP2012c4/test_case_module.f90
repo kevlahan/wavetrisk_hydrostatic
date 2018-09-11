@@ -136,12 +136,7 @@ contains
        end if
        threshold_new = tol * lnorm
     end if
-    
-    if (istep /= 0) then
-       threshold = 0.9_8*threshold + 0.1_8*threshold_new
-    else
-       threshold = threshold_new
-    end if
+    threshold = threshold_new
   end subroutine set_thresholds
 
   subroutine initialize_a_b_vert
@@ -372,6 +367,7 @@ contains
 
   subroutine initialize_dt_viscosity 
     ! Initializes viscosity
+    ! diffusion stability constant is independent of max_level
     use wavelet_mod
     implicit none
     
@@ -405,8 +401,8 @@ contains
 
           viscosity_mass = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
-          viscosity_divu = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
-          viscosity_rotu = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
+          viscosity_divu = L_diffusion(2)**(2*Laplace_order) / dt_cfl * C_diffusion
+          viscosity_rotu = L_diffusion(3)**(2*Laplace_order) / dt_cfl * C_diffusion
        elseif (Laplace_order > 2) then
           if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
           stop
@@ -418,8 +414,7 @@ contains
        write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
        write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass, " Viscosity_temp = ", viscosity_temp, &
             " Viscosity_divu = ", sum (viscosity_divu)/zlevels, " Viscosity_rotu = ", viscosity_rotu
-       write (6,'(A,es10.4,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order)*visc, &
-            " (should be < 0.25, or about < 0.5 for RK45 ssp if CFL <= 1.2)"
+       write (6,'(A,es8.2,A)') "Diffusion stability constants = ", dt_cfl/dx_min**(2*Laplace_order)*visc, " (should be < 0.25)"
     end if
   end subroutine initialize_dt_viscosity
 

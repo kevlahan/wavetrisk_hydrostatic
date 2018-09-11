@@ -82,7 +82,7 @@ program Held_Suarez
         if (remap) call remap_vertical_coordinates (set_thresholds)
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite,CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
+        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
 
         ! Save fields
         call write_and_export (iwrite)
