@@ -292,6 +292,13 @@ contains
     
     character(255) :: cmd_archive, cmd_files, command
 
+    if (rank == 0) then
+       write (6,'(A,/)') &
+            '********************************************************* Begin Restart &
+            *********************************************************'
+       write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
+    end if
+
     ! Deallocate all dynamic arrays and variables
     if (resume == NONE) then
        call deallocate_structures
@@ -316,10 +323,6 @@ contains
     
     ! Uncompress checkpoint data
     if (rank == 0) then
-       write (6,'(A,/)') &
-            '********************************************************* Begin Restart &
-            *********************************************************'
-       write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (6,'(A,A,/)') 'Loading file ', trim (cmd_archive)
        write (command, '(A,A)') 'tar xzf ', trim (cmd_archive)
@@ -329,12 +332,6 @@ contains
 
     ! Rebalance adaptive grid and re-initialize structures
     call init_structures
-
-    ! Calculate diffusion length scales
-    if (Laplace_order /= 0) call evals_diffusion
-
-    ! Initialize time step and viscosities
-    call initialize_dt_viscosity
     
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load)
@@ -358,6 +355,12 @@ contains
     ! Initialize total mass value
     call sum_total_mass (.true.)
 
+    ! Calculate diffusion length scales
+    if (Laplace_order /= 0) call evals_diffusion
+
+    ! Initialize time step and viscosities
+    call initialize_dt_viscosity
+
      if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [h] = ', time/HOUR, &
@@ -366,7 +369,7 @@ contains
              ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
             ' Jmax =', level_end, &
             '  dof = ', sum (n_active)
-       write (6,'(A,/)') &
+       write (6,'(A)') &
             '********************************************************** End Restart &
             **********************************************************'
     end if

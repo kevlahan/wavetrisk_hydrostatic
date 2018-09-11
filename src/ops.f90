@@ -1379,7 +1379,6 @@ contains
     integer, parameter                                            :: iter_max = 100, seed = 86456
     real(8), dimension(4)                                         :: err, eval, eval_old, inner_prod
     real(8), dimension(S_MASS:S_VELO,1:zlevels)                   :: lnorm
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: sol_tmp
     real(8), parameter                                            :: err_max = 1d-4
 
     character(3), parameter :: order = "2"
@@ -1426,8 +1425,6 @@ contains
       ! Applies random initial conditions
       implicit none
       integer :: i, m
-
-      sol_tmp = sol
       
       call random_seed (size=m)
       call random_seed (put=(/(i,i=1,m)/))
@@ -1454,10 +1451,10 @@ contains
       id_i = idx(i, j, offs, dims)+1
 
       call random_number (harvest)
-      sol_tmp(S_MASS,1)%data(d)%elts(id_i) = harvest - 0.5_8
+      trend(S_MASS,1)%data(d)%elts(id_i) = harvest - 0.5_8
       
       call random_number (harvest)
-      sol_tmp(S_TEMP,1)%data(d)%elts(id_i) = harvest - 0.5_8
+      trend(S_TEMP,1)%data(d)%elts(id_i) = harvest - 0.5_8
     end subroutine init_rand_scalar
 
     subroutine init_rand_velo (dom, i, j, zlev, offs, dims)
@@ -1477,10 +1474,10 @@ contains
       do e = 1, EDGE
          id_e = EDGE*id+e
          call random_number (harvest)
-         sol_tmp(S_VELO,1)%data(d)%elts(id_e) = harvest - 0.5_8
+         trend(S_VELO,1)%data(d)%elts(id_e) = harvest - 0.5_8
          
          call random_number (harvest)
-         sol_tmp(S_VELO,2)%data(d)%elts(id_e) = harvest - 0.5_8
+         trend(S_VELO,2)%data(d)%elts(id_e) = harvest - 0.5_8
       end do
     end subroutine init_rand_velo
 
@@ -1489,7 +1486,7 @@ contains
       implicit none
 
       ! Find norms
-      call cal_lnorm (sol_tmp, order, lnorm)
+      call cal_lnorm (trend, order, lnorm)
 
       call apply_onescale (normalize_scalar, level_start, z_null, 0, 1)
       call apply_onescale (normalize_velo,   level_start, z_null, 0, 0)
@@ -1511,7 +1508,7 @@ contains
       id_i = idx(i, j, offs, dims)+1
 
       do v = S_MASS, S_TEMP
-         sol_tmp(v,1)%data(d)%elts(id_i) = sol_tmp(v,1)%data(d)%elts(id_i)/lnorm(v,1)
+         trend(v,1)%data(d)%elts(id_i) = trend(v,1)%data(d)%elts(id_i)/lnorm(v,1)
       end do
     end subroutine normalize_scalar
 
@@ -1529,8 +1526,8 @@ contains
       id = idx(i, j, offs, dims)
       do e = 1, EDGE
          id_e = EDGE*id+e
-         sol_tmp(S_VELO,1)%data(d)%elts(id_e) = sol_tmp(S_VELO,1)%data(d)%elts(id_e)/lnorm(S_VELO,1)
-         sol_tmp(S_VELO,2)%data(d)%elts(id_e) = sol_tmp(S_VELO,2)%data(d)%elts(id_e)/lnorm(S_VELO,2)
+         trend(S_VELO,1)%data(d)%elts(id_e) = trend(S_VELO,1)%data(d)%elts(id_e)/lnorm(S_VELO,1)
+         trend(S_VELO,2)%data(d)%elts(id_e) = trend(S_VELO,2)%data(d)%elts(id_e)/lnorm(S_VELO,2)
       end do
     end subroutine normalize_velo
 
@@ -1541,14 +1538,14 @@ contains
 
       ! Find div(u), grad(u)
       do d = 1, size(grid) 
-         velo => sol_tmp(S_VELO,1)%data(d)%elts
+         velo => trend(S_VELO,1)%data(d)%elts
          divu => grid(d)%divu%elts
          do j = 1, grid(d)%lev(level_start)%length
             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 1)
          end do
          nullify (velo, divu)
 
-         velo => sol_tmp(S_VELO,2)%data(d)%elts
+         velo => trend(S_VELO,2)%data(d)%elts
          vort => grid(d)%vort%elts
          do j = 1, grid(d)%lev(level_start)%length
             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_start)%elts(j), z_null, -1, 0)
@@ -1559,17 +1556,17 @@ contains
 
       ! Find Laplacians
       do d = 1, size(grid)
-         mass => sol_tmp(S_MASS,1)%data(d)%elts
-         temp => sol_tmp(S_TEMP,1)%data(d)%elts
-         velo => sol_tmp(S_VELO,1)%data(d)%elts
+         mass => trend(S_MASS,1)%data(d)%elts
+         temp => trend(S_TEMP,1)%data(d)%elts
+         velo => trend(S_VELO,1)%data(d)%elts
          divu => grid(d)%divu%elts
          do j = 1, grid(d)%lev(level_start)%length
-            call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_end)%elts(j),   z_null, 0, 1)
+            call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_start)%elts(j),   z_null, 0, 1)
             call apply_onescale_to_patch (cal_Laplacian_divu,   grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 0)
          end do
          nullify (mass, divu, temp, velo)
          
-         velo => sol_tmp(S_VELO,2)%data(d)%elts
+         velo => trend(S_VELO,2)%data(d)%elts
          vort => grid(d)%vort%elts
          do j = 1, grid(d)%lev(level_start)%length
             call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 0)
@@ -1578,7 +1575,7 @@ contains
       end do
 
       ! Update scalar eigenvector
-      sol_tmp(S_MASS:S_TEMP,1) = Laplacian_scalar
+      trend(S_MASS:S_TEMP,1) = Laplacian_scalar
       
       ! Update boundaries
       call update_evec
@@ -1627,10 +1624,10 @@ contains
       integer :: ii
 
       ! Save current eigenvectors, x (already normalized)
-      sol_tmp(S_MASS,2) = sol_tmp(S_MASS,1)
-      sol_tmp(S_TEMP,2) = sol_tmp(S_TEMP,1)
-      sol_tmp(S_VELO,3) = sol_tmp(S_VELO,1)
-      sol_tmp(S_VELO,4) = sol_tmp(S_VELO,2)
+      trend(S_MASS,2) = trend(S_MASS,1)
+      trend(S_TEMP,2) = trend(S_TEMP,1)
+      trend(S_VELO,3) = trend(S_VELO,1)
+      trend(S_VELO,4) = trend(S_VELO,2)
 
       ! Apply Laplacian operators to find Ax
       call Ax
@@ -1656,8 +1653,8 @@ contains
       d = dom%id+1
       id_i = idx(i, j, offs, dims)+1
 
-      inner_prod(1) = inner_prod(1) + sol_tmp(S_MASS,2)%data(d)%elts(id_i)*sol_tmp(S_MASS,1)%data(d)%elts(id_i)
-      inner_prod(2) = inner_prod(2) + sol_tmp(S_TEMP,2)%data(d)%elts(id_i)*sol_tmp(S_TEMP,1)%data(d)%elts(id_i)
+      inner_prod(1) = inner_prod(1) + trend(S_MASS,2)%data(d)%elts(id_i)*trend(S_MASS,1)%data(d)%elts(id_i)
+      inner_prod(2) = inner_prod(2) + trend(S_TEMP,2)%data(d)%elts(id_i)*trend(S_TEMP,1)%data(d)%elts(id_i)
     end subroutine cal_inner_prod_scalar
 
     subroutine cal_inner_prod_velo (dom, i, j, zlev, offs, dims)
@@ -1674,18 +1671,18 @@ contains
 
       do e = 1, EDGE
          id_e  = EDGE*id+e
-         inner_prod(3) = inner_prod(3) + sol_tmp(S_VELO,3)%data(d)%elts(id_e)*sol_tmp(S_VELO,1)%data(d)%elts(id_e)
-         inner_prod(4) = inner_prod(4) + sol_tmp(S_VELO,4)%data(d)%elts(id_e)*sol_tmp(S_VELO,2)%data(d)%elts(id_e)
+         inner_prod(3) = inner_prod(3) + trend(S_VELO,3)%data(d)%elts(id_e)*trend(S_VELO,1)%data(d)%elts(id_e)
+         inner_prod(4) = inner_prod(4) + trend(S_VELO,4)%data(d)%elts(id_e)*trend(S_VELO,2)%data(d)%elts(id_e)
       end do
     end subroutine cal_inner_prod_velo
 
     subroutine update_evec
       implicit none
 
-      sol_tmp(S_MASS:S_VELO,1)%bdry_uptodate = .false.
-      sol_tmp(S_VELO,2)%bdry_uptodate        = .false.
-      call update_vector_bdry (sol_tmp(S_MASS:S_VELO,1), level_start)
-      call update_bdry        (sol_tmp(S_VELO,2),        level_start)
+      trend(S_MASS:S_VELO,1)%bdry_uptodate = .false.
+      trend(S_VELO,2)%bdry_uptodate        = .false.
+      call update_vector_bdry (trend(S_MASS:S_VELO,1), level_start)
+      call update_bdry        (trend(S_VELO,2),        level_start)
     end subroutine update_evec
   end subroutine evals_diffusion
 end module ops_mod
