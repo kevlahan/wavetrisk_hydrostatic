@@ -7,7 +7,7 @@ module test_case_mod
 
   ! Standard variables
   integer                              :: iwrite, CP_EVERY, save_zlev
-  real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
+  real(8)                              :: C_diffusion, dt_cfl, initotalmass, mass_error, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
 
@@ -248,7 +248,7 @@ contains
     read (fid,*) varname, cfl_num
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order
-    read (fid,*) varname, tau_diffusion
+    read (fid,*) varname, C_diffusion
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
@@ -281,7 +281,7 @@ contains
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order
-       write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion
+       write (6,'(A,es10.4)') "C_diffusion         = ", C_diffusion
        write (6,'(A,es10.4)') "dt_write            = ", dt_write
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end            = ", time_end 
@@ -316,7 +316,6 @@ contains
     end if
     close(fid)
     dt_write = dt_write * MINUTE
-    tau_diffusion = tau_diffusion * HOUR
     time_end = time_end * HOUR
   end subroutine read_test_case_parameters
 
@@ -403,11 +402,11 @@ contains
           viscosity_rotu = 0.0_8
        elseif (Laplace_order == 1 .or. Laplace_order == 2) then
           L_diffusion = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
- 
-          viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
-          viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
-          viscosity_divu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
-          viscosity_rotu = L_diffusion(3)**(2*Laplace_order) / tau_diffusion
+
+          viscosity_mass = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
+          viscosity_temp = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
+          viscosity_divu = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
+          viscosity_rotu = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
        elseif (Laplace_order > 2) then
           if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
           stop
