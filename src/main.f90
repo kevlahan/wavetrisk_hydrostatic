@@ -381,7 +381,12 @@ contains
     
     cp_idx = cp_idx + 1
 
-    if (rank == 0) write (6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/HOUR
+    if (rank == 0) then
+       write (6,'(A,/)') &
+            '***********************************************************************&
+            **********************************************************'
+       write (6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/HOUR
+    end if
     
     call write_load_conn (cp_idx)
     call dump_adapt_mpi (cp_idx, custom_dump)
