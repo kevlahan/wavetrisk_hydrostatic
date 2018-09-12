@@ -57,6 +57,11 @@ else ifeq ($(MACHINE),mac)
   MPIF90 = mpif90
   LIBS   = -llapack
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
+else ifeq ($(MACHINE),froggy)
+  F90    = gfortran
+  MPIF90 = mpif90
+  LIBS   = -llapack -lblas
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else # try gfortran and liblapack as default
   F90    = gfortran
   MPIF90 = mpif90
