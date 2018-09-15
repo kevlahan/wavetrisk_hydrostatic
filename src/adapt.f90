@@ -124,15 +124,15 @@ contains
           end do
           call comm_masks_mpi (l)
        end do
-
-       ! Add nodes and edges required for TRISK operators
-       do l = level_start, level_end
-          call apply_onescale (mask_trsk, l, z_null, 0, 0)
-       end do
-       call comm_masks_mpi (NONE)
     else ! Apply old wavetrisk routines
        call complete_masks
     end if
+
+    ! Add nodes and edges required for TRISK operators
+    do l = level_start, level_end
+       call apply_onescale (mask_trsk, l, z_null, 0, 0)
+    end do
+    call comm_masks_mpi (NONE)
 
     ! Label points required for remap as TRSK
     do l = level_start, level_end
