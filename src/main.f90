@@ -177,17 +177,20 @@ contains
     ! Take time step
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
-    call RK45_opt (trend_ml, dt)
+    call RK4 (trend_ml, dt)
 
     ! Adapt grid
     call adapt_grid (set_thresholds)
 
+    ! If necessary, remap vertical coordinates
+    if (remap .and. min_mass < min_allowed_mass) then
+       call remap_vertical_coordinates (set_thresholds)
+       call adapt_grid (set_thresholds)
+    end if
+    
     ! Set new time step, find change in vertical levels and count active nodes
     dt_new = cpt_dt_mpi() 
 
-    ! If necessary, remap vertical coordinates
-    if (remap .and. min_mass < min_allowed_mass) call remap_vertical_coordinates (set_thresholds)
-    
     itime = itime + idt
     time  = itime/time_mult
   end subroutine time_step
@@ -346,11 +349,6 @@ contains
 
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-
-    ! Initialize time step and counters
-    dt_new = cpt_dt_mpi()
-    itime = nint (time*time_mult, 8)
-    istep = 0
       
     ! Initialize total mass value
     call sum_total_mass (.true.)
@@ -361,7 +359,12 @@ contains
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
 
-     if (rank == 0) then
+    ! Initialize time step and counters
+    dt_new = cpt_dt_mpi()
+    itime = nint (time*time_mult, 8)
+    istep = 0
+
+    if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [h] = ', time/HOUR, &
             '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
