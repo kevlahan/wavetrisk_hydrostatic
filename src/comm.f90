@@ -960,11 +960,9 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: d, e, id, k, l
-    real(8) :: C_visc, col_mass, d_e, init_mass, v_e
+    integer :: d, e, id, id_e, k, l
+    real(8) :: col_mass, d_e, init_mass, v_e
 
-    C_visc = 0.25_8
-    
     id = idx(i, j, offs, dims)
     d  = dom%id + 1
     l  = dom%level%elts(id+1)
@@ -988,13 +986,14 @@ contains
 
        ! Find time step for this node
        do e = 1, EDGE
-          if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+          id_e = EDGE*id+e
+          if (dom%mask_e%elts(id_e) >= ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
              if (adapt_dt) then
-                d_e = dom%len%elts(EDGE*id+e) ! Triangle edge length
+                d_e = dom%len%elts(id_e)/2 ! Hexagon incircle radius
                 do k = 1, zlevels
-                   v_e = abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+e))
-                   dt_loc = min(dt_loc, cfl_num*d_e/(v_e+wave_speed))
+                   v_e = abs (sol(S_VELO,k)%data(d)%elts(id_e))
+                   dt_loc = min (dt_loc, cfl_num*d_e/(v_e+wave_speed))
                 end do
              end if
           end if
