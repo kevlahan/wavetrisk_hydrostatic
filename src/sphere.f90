@@ -277,18 +277,11 @@ contains
     type(Coord), dimension(6) :: corners, midpts
     
     integer :: i
-    real(8) :: area
 
     do i = 1, 6
-       self%part(i) = triarea(centre, corners(i), midpts(i)) + triarea(centre, corners(i), midpts(modulo(i,6)+1))
+       self%part(i) = triarea (centre, corners(i), midpts(i)) + triarea (centre, corners(i), midpts(modulo(i,6)+1))
     end do
-    area = sum(self%part)
-
-    if (area == 0.0) then ! Avoid overflow for unused zero area hexagons (points at origin and 10 lozenge vertices)
-       self%hex_inv = 1.0_8
-    else
-       self%hex_inv = 1/area
-    end if
+    self%hex_inv = 1/sum (self%part)
   end subroutine init_Areas
 
   real(8) function proj_vel (vel_fun, ep1, ep2)

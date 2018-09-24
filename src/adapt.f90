@@ -40,7 +40,7 @@ contains
     ! Find significant wavelets, adaptive grid and all masks
     call adapt (set_thresholds, local_type)
     
-    call inverse_wavelet_transform (wav_coeff, sol, level_start)
+    call inverse_wavelet_transform (wav_coeff, sol)
   end subroutine adapt_grid 
 
   subroutine adapt (set_thresholds, type)
@@ -363,7 +363,7 @@ contains
 
     changes = .false.
     do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
+       do p = 2, grid(d)%patch%length
           call patch_count_active (grid(d), p-1)
        end do
     end do

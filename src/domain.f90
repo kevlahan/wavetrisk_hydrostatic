@@ -442,7 +442,7 @@ contains
        if (.not. dom%penta(c)) cycle
        if (.not. dom%neigh(c) == POLE) cycle
 
-       p=1
+       p = 1
        do while (p > 0)
           p_par = p
           p = dom%patch%elts(p_par+1)%children(c-4)

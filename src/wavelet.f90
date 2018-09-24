@@ -77,7 +77,7 @@ contains
     call update_array_bdry1 (wavelet, level_start, level_end)
     call update_array_bdry1 (scaling, l_start,     level_end)
 
-    scaling%bdry_uptodate = .False.
+    scaling%bdry_uptodate = .false.
 
     do k = 1, zlevels
        do l = l_start, level_end-1
@@ -87,11 +87,7 @@ contains
              temp => scaling(S_TEMP,k)%data(d)%elts
              wc_m => wavelet(S_MASS,k)%data(d)%elts
              wc_t => wavelet(S_TEMP,k)%data(d)%elts
-             if (present(l_start0)) then
-                call apply_interscale_d2 (IWT_prolong_scalar,       grid(d), l, z_null, 0, 1) ! needs wc
-             else
-                call apply_interscale_d2 (IWT_prolong_scalar__fast, grid(d), l, z_null, 0, 1) ! needs wc
-             end if
+             call apply_interscale_d2 (IWT_prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
              nullify (mass, temp, wc_m, wc_t)
           end do
 
@@ -133,7 +129,7 @@ contains
 
           if (l < level_end-1) call update_bdry__start (scaling(S_VELO,k), l+1) ! for next outer velocity
 
-          scaling(:,k)%bdry_uptodate = .False.
+          scaling(:,k)%bdry_uptodate = .false.
        end do
     end do
   end subroutine inverse_wavelet_transform
@@ -575,28 +571,6 @@ contains
     v = q(2)/nrm
   end subroutine normalize2
 
-  subroutine IWT_prolong_scalar__fast (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Prolong scalars at fine points existing at coarse scale by undoing lifting
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: id_par, id_chd
-
-    ! Locally filled, IWT reproduces previous value
-
-    id_par = idx(i_par, j_par, offs_par, dims_par)
-
-    if (dom%mask_n%elts(id_par+1) >= TOLRNZ) return
-
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-
-    mass(id_chd+1) = prolong (mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-    temp(id_chd+1) = prolong (temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-  end subroutine IWT_prolong_scalar__fast
-
   subroutine IWT_prolong_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Prolong scalars at fine points existing at coarse scale by undoing lifting
     implicit none
@@ -1008,7 +982,7 @@ contains
     call init_Overl_Area (dom%overl_areas%elts(idN_chd+1), area)
     call basic_F_restr_wgt (dom, i_par, j_par, UP, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
 
-    call set_coarse_overlay
+    !call set_coarse_overlay ! May be needed for ifort compilers to avoid floating point error on coarsest level
   end subroutine set_RF_wgts
 
   subroutine set_coarse_overlay 
