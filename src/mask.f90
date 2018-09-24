@@ -468,19 +468,46 @@ contains
        ! (already accounted for by masking for above operators)
 
        ! Diffusion
-       if (Laplace_order == 2) then
-          call flux_div_stencil (dom, i+1, j,   offs, dims)
-          call flux_div_stencil (dom, i+1, j+1, offs, dims)
-          call flux_div_stencil (dom, i,   j+1, offs, dims)
-          call flux_div_stencil (dom, i-1, j,   offs, dims)
-          call flux_div_stencil (dom, i-1, j-1, offs, dims)
-          call flux_div_stencil (dom, i,   j-1, offs, dims)
+       if (Laplace_order > 0) then
+          call Laplacian_u_stencil (dom, i, j, offs, dims)
+          if (Laplace_order == 2) then
+             call Laplacian_u_stencil (dom, i+1, j,   offs, dims)
+             call Laplacian_u_stencil (dom, i+1, j+1, offs, dims)
+             call Laplacian_u_stencil (dom, i,   j+1, offs, dims)
+             call Laplacian_u_stencil (dom, i-1, j,   offs, dims)
+             call Laplacian_u_stencil (dom, i-1, j-1, offs, dims)
+             call Laplacian_u_stencil (dom, i,   j-1, offs, dims)
+          end if
        end if
     end if
   end subroutine mask_trsk
 
+  subroutine Laplacian_u_stencil (dom, i, j, offs, dims)
+    ! Stencil for Laplacian(u) operators
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: idE, idN
+    
+    idE    = idx(i+1, j,   offs, dims)
+    idN    = idx(i,   j+1, offs, dims)
+
+    call flux_div_stencil (dom, i+1, j,   offs, dims)
+    call flux_div_stencil (dom, i+1, j+1, offs, dims)
+    call flux_div_stencil (dom, i,   j+1, offs, dims)
+    call flux_div_stencil (dom, i-1, j,   offs, dims)
+    call flux_div_stencil (dom, i-1, j-1, offs, dims)
+    call flux_div_stencil (dom, i,   j-1, offs, dims)
+
+    call set_at_least (dom%mask_e%elts(EDGE*idE+UP+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idN+RT+1), TRSK)
+  end subroutine Laplacian_u_stencil
+  
   subroutine flux_div_stencil (dom, i, j, offs, dims)
-    ! Stencil for flux-divergence and Laplacian(u) operators
+    ! Stencil for flux-divergence operator
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j
@@ -510,10 +537,6 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
-
-    ! For Laplacian(u)
-    call set_at_least (dom%mask_e%elts(EDGE*idE+UP+1), TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*idN+RT+1), TRSK)
   end subroutine flux_div_stencil
 
   subroutine mask_adj_parent_nodes (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)

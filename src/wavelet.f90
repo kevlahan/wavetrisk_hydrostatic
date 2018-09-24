@@ -66,7 +66,7 @@ contains
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
     integer, optional                                             :: l_start0
 
-    integer :: l, d, k, v, l_start
+    integer :: l, d, k, l_start
 
     if (present(l_start0)) then
        l_start = l_start0
