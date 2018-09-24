@@ -468,21 +468,19 @@ contains
        ! (already accounted for by masking for above operators)
 
        ! Diffusion
-       if (Laplace_order > 0) then
-          call flux_div_stencil (dom, i, j, offs, dims)
-          if (Laplace_order == 2) then
-             call flux_div_stencil (dom, i+1, j,   offs, dims)
-             call flux_div_stencil (dom, i+1, j+1, offs, dims)
-             call flux_div_stencil (dom, i,   j+1, offs, dims)
-             call flux_div_stencil (dom, i-1, j,   offs, dims)
-             call flux_div_stencil (dom, i-1, j-1, offs, dims)
-             call flux_div_stencil (dom, i,   j-1, offs, dims)
-          end if
+       if (Laplace_order == 2) then
+          call flux_div_stencil (dom, i+1, j,   offs, dims)
+          call flux_div_stencil (dom, i+1, j+1, offs, dims)
+          call flux_div_stencil (dom, i,   j+1, offs, dims)
+          call flux_div_stencil (dom, i-1, j,   offs, dims)
+          call flux_div_stencil (dom, i-1, j-1, offs, dims)
+          call flux_div_stencil (dom, i,   j-1, offs, dims)
        end if
     end if
   end subroutine mask_trsk
 
   subroutine flux_div_stencil (dom, i, j, offs, dims)
+    ! Stencil for flux-divergence and Laplacian(u) operators
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j
