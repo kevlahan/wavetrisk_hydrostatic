@@ -149,15 +149,15 @@ contains
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: trends
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
     
-    integer :: k, v, d, start
+    integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
           do v = S_MASS, S_VELO
-             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
-                  alpha * sols(v,k)%data(d)%elts(start+1:sols(v,k)%data(d)%length) &
-                  + dt * trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
+             iend = sols(v,k)%data(d)%length
+             dest(v,k)%data(d)%elts(ibeg:iend) = alpha * sols(v,k)%data(d)%elts(ibeg:iend) &
+                  + dt * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
        dest(:,k)%bdry_uptodate = .False.
@@ -170,21 +170,19 @@ contains
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
-    integer k, v, d, start
+    integer k, v, d, ibeg, iend
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
           do v = S_MASS, S_VELO
-             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
-                  alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
-                  + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
-                  + dt*trends(v,k)%data(d)%elts(start+1:trends(v,k)%data(d)%length)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
+             iend = dest(v,k)%data(d)%length
+             dest(v,k)%data(d)%elts(ibeg:iend) = alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) &
+                  + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) + dt*trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
        dest(:,k)%bdry_uptodate = .false.
     end do
-
   end subroutine RK_sub_step2
 
   subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
@@ -195,19 +193,17 @@ contains
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trend1, trend2
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
     
-    integer :: k, v, d, start
+    integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          start = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start ! start of second level
           do v = S_MASS, S_VELO
-             dest(v,k)%data(d)%elts(start+1:dest(v,k)%data(d)%length) = &
-                  alpha(1)*sol1(v,k)%data(d)%elts(start+1:sol1(v,k)%data(d)%length) &
-                  + alpha(2)*sol2(v,k)%data(d)%elts(start+1:sol2(v,k)%data(d)%length) &
-                  + alpha(3)*sol3(v,k)%data(d)%elts(start+1:sol3(v,k)%data(d)%length) &
-                  + alpha(4)*sol4(v,k)%data(d)%elts(start+1:sol4(v,k)%data(d)%length) &
-                  + dt(1)*trend1(v,k)%data(d)%elts(start+1:trend1(v,k)%data(d)%length) &
-                  + dt(2)*trend2(v,k)%data(d)%elts(start+1:trend2(v,k)%data(d)%length)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
+             iend = dest(v,k)%data(d)%length
+             dest(v,k)%data(d)%elts(ibeg:iend) = &
+                    alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) &
+                  + alpha(3)*sol3(v,k)%data(d)%elts(ibeg:iend) + alpha(4)*sol4(v,k)%data(d)%elts(ibeg:iend) &
+                  + dt(1)*trend1(v,k)%data(d)%elts(ibeg:iend) + dt(2)*trend2(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
        dest(:,k)%bdry_uptodate = .False.
