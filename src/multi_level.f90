@@ -173,7 +173,7 @@ contains
   end subroutine trend_ml
 
   subroutine second_order_Laplacian_scalar (q, k, l)
-    ! Computes Laplacian(divu) needed for second order scalar Laplacian
+    ! Computes Laplacian(mass) and Laplacian(temp) needed for second order scalar Laplacian
     implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
     integer :: k, l
