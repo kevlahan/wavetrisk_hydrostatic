@@ -1085,20 +1085,19 @@ contains
     idSW_i = idSW+1
     idS_i  = idS+1
 
-    Laplacian(id_i) = div_grad (grad_flux (sclr))
+    Laplacian(id_i) = div_grad (grad_flux())
   contains
-    function grad_flux (scalar)
+    function grad_flux()
       ! Calculates gradient flux
       implicit none
       real(8), dimension(6) :: grad_flux
-      real(8), dimension(:) :: scalar
 
-      grad_flux(1) =  (scalar(idE_i) - scalar(id_i))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
-      grad_flux(2) =  (scalar(id_i)  - scalar(idNE_i))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
-      grad_flux(3) =  (scalar(idN_i) - scalar(id_i))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
-      grad_flux(4) = -(scalar(idW_i) - scalar(id_i))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
-      grad_flux(5) = -(scalar(id_i)  - scalar(idSW_i))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-      grad_flux(6) = -(scalar(idS_i) - scalar(id_i))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+      grad_flux(1) =  (sclr(idE_i) - sclr(id_i))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
+      grad_flux(2) =  (sclr(id_i)  - sclr(idNE_i))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
+      grad_flux(3) =  (sclr(idN_i) - sclr(id_i))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
+      grad_flux(4) = -(sclr(idW_i) - sclr(id_i))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+      grad_flux(5) = -(sclr(id_i)  - sclr(idSW_i))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+      grad_flux(6) = -(sclr(idS_i) - sclr(id_i))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
     end function grad_flux
 
     real(8) function div_grad (grad)

@@ -21,9 +21,8 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
-       if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, level_end)
-       
        ! Calculate basic dynamical quantities and fluxes
+       if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, level_end)
        do d = 1, size(grid)
           mass      => q(S_MASS,k)%data(d)%elts
           temp      => q(S_TEMP,k)%data(d)%elts
@@ -35,20 +34,17 @@ contains
           divu      => grid(d)%divu%elts
           vort      => grid(d)%vort%elts
           qe        => grid(d)%qe%elts
-          do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
-          end do
           ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case)
           do j = 1, grid(d)%lev(level_end)%length
+             call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 1)
              call step1 (grid(d), grid(d)%lev(level_end)%elts(j), z_null)
           end do
           call apply_to_penta_d (post_step1, grid(d), level_end, z_null)
           nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, vort, qe)
        end do
-
        if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, level_end)
 
-       if (level_start < level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
+       if (level_start < level_end) call update_vector_bdry__start (horiz_flux, level_end)        ! <= comm flux (Jmax)
 
        ! Compute scalar trends at finest level
        do d = 1, size(grid)
@@ -94,11 +90,10 @@ contains
        ! Calculate trend on coarser scales, from fine to coarse !
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do l = level_end-1, level_start, -1
-          if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, l)
-
           call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
           
           ! Calculate basic dynamical quantities and fluxes determine whether to compute or restrict
+          if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, l)
           do d = 1, size(grid)
              mass      =>  q(S_MASS,k)%data(d)%elts
              velo      =>  q(S_VELO,k)%data(d)%elts
@@ -114,8 +109,6 @@ contains
              qe        => grid(d)%qe%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-             end do
-             do j = 1, grid(d)%lev(l)%length
                 call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null)
              end do
              call apply_to_penta_d (post_step1, grid(d), l, z_null)
@@ -124,7 +117,6 @@ contains
              nullify (mass, velo, temp, dmass, dtemp, h_mflux, h_tflux, bernoulli, divu, exner, vort, qe)
           end do
           call update_vector_bdry (horiz_flux, l)
-
           if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
           
           ! Compute scalar trends at level l
@@ -152,7 +144,7 @@ contains
              h_mflux => horiz_flux(S_MASS)%data(d)%elts
              qe      => grid(d)%qe%elts
              vort    => grid(d)%vort%elts
-             if (Laplace_order == 1) then
+             if (Laplace_order <= 1) then
                 divu => grid(d)%divu%elts
              elseif (Laplace_order == 2) then
                 divu => Laplacian_divu%data(d)%elts
@@ -160,7 +152,7 @@ contains
              call cpt_or_restr_du_source (grid(d), k, l)
              nullify (velo, dvelo, h_mflux, divu, qe, vort)
           end do
-          dq(S_VELO,k)%bdry_uptodate = .False.
+          dq(S_VELO,k)%bdry_uptodate = .false.
        end do
 
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
