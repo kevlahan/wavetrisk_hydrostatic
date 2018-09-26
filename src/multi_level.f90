@@ -21,19 +21,7 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
-       ! Find grad(scalars) for second order Laplacian
-       if (Laplace_order == 2) then 
-          do d = 1, size(grid)
-             mass => q(S_MASS,k)%data(d)%elts
-             temp => q(S_TEMP,k)%data(d)%elts
-              do j = 1, grid(d)%lev(level_end)%length
-                call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 1)
-             end do
-             nullify (mass, temp)
-          end do
-          Laplacian_scalar%bdry_uptodate = .false.
-         call update_vector_bdry (Laplacian_scalar, level_end)
-       end if
+       if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, level_end)
        
        ! Calculate basic dynamical quantities and fluxes
        do d = 1, size(grid)
@@ -58,31 +46,7 @@ contains
           nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, vort, qe)
        end do
 
-       ! Calculate div(Laplacian(u)) and rot(Laplacian(u)) for second order Laplacian
-       if (Laplace_order == 2) then 
-          do d = 1, size(grid)
-             velo => q(S_VELO,k)%data(d)%elts
-             divu => grid(d)%divu%elts
-             vort => grid(d)%vort%elts
-             do j = 1, grid(d)%lev(level_end)%length
-                call apply_onescale_to_patch (cal_Laplacian_u, grid(d), grid(d)%lev(level_end)%elts(j), z_null, 0, 0)
-             end do
-             nullify (velo, divu, vort)
-          end do
-          Laplacian_u%bdry_uptodate = .false.
-          call update_bdry (Laplacian_u, level_end)
-          do d = 1, size(grid) 
-             velo => Laplacian_u%data(d)%elts
-             divu => grid(d)%divu%elts
-             vort => grid(d)%vort%elts
-             do j = 1, grid(d)%lev(level_end)%length
-                call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(level_end)%elts(j), z_null,  0, 1)
-                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(level_end)%elts(j), z_null, -1, 0)
-             end do
-             call apply_to_penta_d (post_vort, grid(d), level_end, z_null)
-             nullify (velo, divu, vort)
-          end do
-       end if
+       if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, level_end)
 
        if (level_start < level_end) call update_vector_bdry__start (horiz_flux, level_end) ! <= comm flux (Jmax)
 
@@ -100,8 +64,8 @@ contains
           nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
        end do
 
-       dq(:,k)%bdry_uptodate    = .False.
-       horiz_flux%bdry_uptodate = .False.
+       dq(:,k)%bdry_uptodate    = .false.
+       horiz_flux%bdry_uptodate = .false.
        if (level_start < level_end) then
           call update_vector_bdry__finish (horiz_flux, level_end) ! <= finish non-blocking communicate mass flux (Jmax)
           call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), level_end) ! <= start non-blocking communicate dmass (l+1)
@@ -113,9 +77,13 @@ contains
           velo    =>  q(S_VELO,k)%data(d)%elts
           dvelo   => dq(S_VELO,k)%data(d)%elts
           h_mflux => horiz_flux(S_MASS)%data(d)%elts
-          qe      => grid(d)%qe%elts
-          divu    => grid(d)%divu%elts
           vort    => grid(d)%vort%elts
+          qe      => grid(d)%qe%elts
+          if (Laplace_order == 1) then
+             divu => grid(d)%divu%elts
+          elseif (Laplace_order == 2) then
+             divu => Laplacian_divu%data(d)%elts
+          end if
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
           end do
@@ -126,21 +94,9 @@ contains
        ! Calculate trend on coarser scales, from fine to coarse !
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        do l = level_end-1, level_start, -1
-          call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
+          if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, l)
 
-          ! Find grad(scalars) for second order Laplacian
-          if (Laplace_order == 2) then 
-             do d = 1, size(grid)
-                mass => q(S_MASS,k)%data(d)%elts
-                temp => q(S_TEMP,k)%data(d)%elts
-                do j = 1, grid(d)%lev(l)%length
-                   call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-                end do
-                nullify (mass, temp)
-             end do
-             Laplacian_scalar%bdry_uptodate = .false.
-             call update_vector_bdry (Laplacian_scalar, l)
-          end if
+          call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) ! <= finish non-blocking communicate dmass (l+1)
           
           ! Calculate basic dynamical quantities and fluxes determine whether to compute or restrict
           do d = 1, size(grid)
@@ -169,32 +125,8 @@ contains
           end do
           call update_vector_bdry (horiz_flux, l)
 
-          ! Calculate div(Laplacian(u)) and rot(Laplacian(u)) for second order Laplacian
-          if (Laplace_order == 2) then 
-             do d = 1, size(grid) 
-                velo => q(S_VELO,k)%data(d)%elts
-                divu => grid(d)%divu%elts
-                vort => grid(d)%vort%elts
-                do j = 1, grid(d)%lev(l)%length
-                   call apply_onescale_to_patch (cal_Laplacian_u, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-                end do
-                nullify (velo, divu, vort)
-             end do
-             Laplacian_u%bdry_uptodate = .false.
-             call update_bdry (Laplacian_u, l)
-             do d = 1, size(grid)
-                velo => Laplacian_u%data(d)%elts
-                divu => grid(d)%divu%elts
-                vort => grid(d)%vort%elts
-                do j = 1, grid(d)%lev(l)%length
-                   call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-                   call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
-                end do
-                call apply_to_penta_d (post_vort, grid(d), l, z_null)
-                nullify (velo, divu, vort)
-             end do
-          end if
-
+          if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
+          
           ! Compute scalar trends at level l
           do d = 1, size(grid)
              mass    =>  q(S_MASS,k)%data(d)%elts
@@ -219,8 +151,12 @@ contains
              dvelo   => dq(S_VELO,k)%data(d)%elts
              h_mflux => horiz_flux(S_MASS)%data(d)%elts
              qe      => grid(d)%qe%elts
-             divu    => grid(d)%divu%elts
              vort    => grid(d)%vort%elts
+             if (Laplace_order == 1) then
+                divu => grid(d)%divu%elts
+             elseif (Laplace_order == 2) then
+                divu => Laplacian_divu%data(d)%elts
+             end if
              call cpt_or_restr_du_source (grid(d), k, l)
              nullify (velo, dvelo, h_mflux, divu, qe, vort)
           end do
@@ -243,6 +179,75 @@ contains
        end do
     end do
   end subroutine trend_ml
+
+  subroutine second_order_Laplacian_scalar (q, k, l)
+    ! Computes Laplacian(divu) needed for second order scalar Laplacian
+    implicit none
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
+    integer :: k, l
+
+    integer :: d, j
+
+    do d = 1, size(grid)
+       sclr      => q(S_MASS,k)%data(d)%elts
+       Laplacian => Laplacian_scalar(S_MASS)%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (sclr, Laplacian)
+
+       sclr      => q(S_TEMP,k)%data(d)%elts
+       Laplacian => Laplacian_scalar(S_TEMP)%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (sclr, Laplacian)
+    end do
+    Laplacian_scalar%bdry_uptodate = .false.
+    call update_vector_bdry (Laplacian_scalar, l)
+  end subroutine second_order_Laplacian_scalar
+
+  subroutine second_order_Laplacian_vector (q, k, l)
+    ! Computes rot(rot(vort)) needed for second order vector Laplacian
+    implicit none
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
+    integer :: k, l
+
+    integer :: d, j
+
+    do d = 1, size(grid)
+       sclr      => grid(d)%divu%elts
+       Laplacian => Laplacian_divu%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (sclr, Laplacian)
+
+       vort      => grid(d)%vort%elts
+       Laplacian => Laplacian_rotu%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+       end do
+       nullify (vort, Laplacian)
+    end do
+    Laplacian_divu%bdry_uptodate = .false.
+    call update_bdry (Laplacian_divu, l)
+    
+    Laplacian_rotu%bdry_uptodate = .false.
+    call update_bdry (Laplacian_rotu, l)
+
+    ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
+    !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
+    do d = 1, size(grid)
+       velo => Laplacian_rotu%data(d)%elts
+       vort => grid(d)%vort%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+       end do
+       call apply_to_penta_d (post_vort, grid(d), l, z_null)
+       nullify (velo, vort)
+    end do
+  end subroutine second_order_Laplacian_vector
  
   subroutine cpt_or_restr_Bernoulli_Exner (dom, l)
     implicit none

@@ -69,16 +69,15 @@ program DCMIP2012c4
   open (unit=12, file=trim(run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
-     call start_timing
-     call time_step (dt_write, aligned, set_thresholds)
-     call stop_timing
-     
+     ! Time step
+     call start_timing; call time_step (dt_write, aligned, set_thresholds); call stop_timing
+
+     ! Print data
      call sum_total_mass (.false.)
      call print_log
-     
+
      if (aligned) then
-        iwrite = iwrite + 1
-        
+        iwrite = iwrite+1
         if (remap) call remap_vertical_coordinates (set_thresholds)
 
         ! Save checkpoint (and rebalance)
@@ -215,12 +214,14 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      ! Calculate Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-     diffusion = viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu
+
+     if (Laplace_order == 1) then
+        diffusion =  viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu
+     elseif (Laplace_order == 2) then
+        diffusion =  -(viscosity_divu(zlev) * grad_divu - viscosity_rotu * (-curl_rotu))
+     end if
   end if
   
-  ! Find correct sign of diffusion on right hand side of equation
-  diffusion = (-1)**(Laplace_order-1) * diffusion
-
   ! Total physics for source term of velocity trend
   physics_velo_source =  diffusion
 end function physics_velo_source

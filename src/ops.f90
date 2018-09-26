@@ -1065,12 +1065,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idE, idNE, idN, idW, idSW, idS
+    integer :: id, idE, idNE, idN, idW, idSW, idS
     integer :: id_i, idE_i, idNE_i, idN_i, idW_i, idSW_i, idS_i
     
     id   = idx(i, j, offs, dims)
     id_i = id+1
-    d    = dom%id+1
     
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
@@ -1086,8 +1085,7 @@ contains
     idSW_i = idSW+1
     idS_i  = idS+1
 
-    Laplacian_scalar(S_MASS)%data(d)%elts(id_i) = div_grad (grad_flux (mass))
-    Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) = div_grad (grad_flux (temp))
+    Laplacian(id_i) = div_grad (grad_flux (sclr))
   contains
     function grad_flux (scalar)
       ! Calculates gradient flux
@@ -1112,26 +1110,25 @@ contains
     end function div_grad
   end subroutine cal_Laplacian_scalar
 
-  subroutine cal_Laplacian_u (dom, i, j, zlev, offs, dims)
-    ! Calculate Laplacian(u) = grad(divu) - curl(vort)
+  subroutine cal_Laplacian_rotu (dom, i, j, zlev, offs, dims)
+    ! Curl of vorticity given at triangle circumcentres x_v, i.e. rotational part of vector Laplacian
+    ! output is at edges x_e
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer               :: d, e, id, id_i
-    real(8), dimension(3) :: grad_divu, curl_rotu
+    integer :: id, idS, idW
 
-    grad_divu = gradi_e (divu, dom, i, j, offs, dims)
-    curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
+    id   = idx(i,   j,   offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
 
-    id   = idx(i, j, offs, dims)
-    id_i = id+1
-    d    = dom%id+1
-    
-    Laplacian_u%data(d)%elts(EDGE*id+1:EDGE*id_i) = grad_divu - curl_rotu
-  end subroutine cal_Laplacian_u
+    Laplacian(EDGE*id+RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
+    Laplacian(EDGE*id+DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
+    Laplacian(EDGE*id+UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
+  end subroutine cal_Laplacian_rotu
 
   function gradi_e (scalar, dom, i, j, offs, dims)
     ! Gradient of a scalar at nodes x_i
@@ -1157,12 +1154,12 @@ contains
     gradi_e(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1)
   end function gradi_e
 
-  function curlv_e (curlu, dom, i, j, offs, dims)
-    ! Curl of vorticity given at triangle circumcentres x_v used in calculating curl(curl(u))
+  function curlv_e (curl, dom, i, j, offs, dims)
+    ! Curl of vorticity given at triangle circumcentres x_v, rot(rot(u))
     ! output is at edges x_e
     implicit none
+    real(8), dimension(:), pointer :: curl
     real(8), dimension(3)          :: curlv_e
-    real(8), dimension(:), pointer :: curlu
     type(Domain)                   :: dom
     integer                        :: i, j
     integer, dimension(N_BDRY+1)   :: offs
@@ -1174,9 +1171,9 @@ contains
     idS  = idx(i,   j-1, offs, dims)
     idW  = idx(i-1, j,   offs, dims)
 
-    curlv_e(RT+1) = (dom%vort%elts(TRIAG*id +LORT+1) - dom%vort%elts(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
-    curlv_e(DG+1) = (dom%vort%elts(TRIAG*id +LORT+1) - dom%vort%elts(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
-    curlv_e(UP+1) = (dom%vort%elts(TRIAG*idW+LORT+1) - dom%vort%elts(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
+    curlv_e(RT+1) = (curl(TRIAG*id +LORT+1) - curl(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
+    curlv_e(DG+1) = (curl(TRIAG*id +LORT+1) - curl(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
+    curlv_e(UP+1) = (curl(TRIAG*idW+LORT+1) - curl(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
   end function curlv_e
 
   function div (hflux, dom, i, j, offs, dims)
@@ -1377,7 +1374,7 @@ contains
 
     integer                                                       :: d, iter, j, k
     integer, parameter                                            :: iter_max = 100, seed = 86456
-    real(8), dimension(4)                                         :: err, eval, eval_old, inner_prod
+    real(8), dimension(3)                                         :: err, eval, eval_old, inner_prod
     real(8), dimension(S_MASS:S_VELO,1:zlevels)                   :: lnorm
     real(8), parameter                                            :: err_max = 1d-4
 
@@ -1416,8 +1413,8 @@ contains
     end if
 
     ! Find diffusion length scales
-    L_diffusion(1) = 1/sqrt(-interp(eval(1),eval(2)))
-    L_diffusion(2:3) = 1/sqrt(-eval(3:4))
+    L_diffusion(1) = 1/sqrt(-eval(1))
+    L_diffusion(2:3) = 1/sqrt(-eval(2:3))
     if (rank == 0) write (6,'(3(A,es8.2,1x),/)') &
          "L_scalar = ", MATH_PI*L_diffusion(1), "L_divu = ",MATH_PI*L_diffusion(2),"L_rotu = ", MATH_PI*L_diffusion(3)
   contains
@@ -1452,9 +1449,6 @@ contains
 
       call random_number (harvest)
       trend(S_MASS,1)%data(d)%elts(id_i) = harvest - 0.5_8
-      
-      call random_number (harvest)
-      trend(S_TEMP,1)%data(d)%elts(id_i) = harvest - 0.5_8
     end subroutine init_rand_scalar
 
     subroutine init_rand_velo (dom, i, j, zlev, offs, dims)
@@ -1507,9 +1501,7 @@ contains
       d  = dom%id+1
       id_i = idx(i, j, offs, dims)+1
 
-      do v = S_MASS, S_TEMP
-         trend(v,1)%data(d)%elts(id_i) = trend(v,1)%data(d)%elts(id_i)/lnorm(v,1)
-      end do
+      trend(S_MASS,1)%data(d)%elts(id_i) = trend(S_MASS,1)%data(d)%elts(id_i)/lnorm(S_MASS,1)
     end subroutine normalize_scalar
 
     subroutine normalize_velo (dom, i, j, zlev, offs, dims)
@@ -1536,7 +1528,7 @@ contains
       implicit none
       integer :: d, j
 
-      ! Find div(u), grad(u)
+      ! Find div(u), rot(u)
       do d = 1, size(grid) 
          velo => trend(S_VELO,1)%data(d)%elts
          divu => grid(d)%divu%elts
@@ -1556,15 +1548,15 @@ contains
 
       ! Find Laplacians
       do d = 1, size(grid)
-         mass => trend(S_MASS,1)%data(d)%elts
-         temp => trend(S_TEMP,1)%data(d)%elts
+         sclr => trend(S_MASS,1)%data(d)%elts
          velo => trend(S_VELO,1)%data(d)%elts
          divu => grid(d)%divu%elts
+         Laplacian => Laplacian_scalar(S_MASS)%data(d)%elts
          do j = 1, grid(d)%lev(level_start)%length
-            call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_start)%elts(j),   z_null, 0, 1)
+            call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 1)
             call apply_onescale_to_patch (cal_Laplacian_divu,   grid(d), grid(d)%lev(level_start)%elts(j), z_null, 0, 0)
          end do
-         nullify (mass, divu, temp, velo)
+         nullify (sclr, velo, divu, Laplacian)
          
          velo => trend(S_VELO,2)%data(d)%elts
          vort => grid(d)%vort%elts
@@ -1575,7 +1567,7 @@ contains
       end do
 
       ! Update scalar eigenvector
-      trend(S_MASS:S_TEMP,1) = Laplacian_scalar
+      trend(S_MASS,1) = Laplacian_scalar(S_MASS)
       
       ! Update boundaries
       call update_evec
@@ -1625,7 +1617,6 @@ contains
 
       ! Save current eigenvectors, x (already normalized)
       trend(S_MASS,2) = trend(S_MASS,1)
-      trend(S_TEMP,2) = trend(S_TEMP,1)
       trend(S_VELO,3) = trend(S_VELO,1)
       trend(S_VELO,4) = trend(S_VELO,2)
 
@@ -1636,7 +1627,7 @@ contains
       inner_prod = 0.0_8
       call apply_onescale (cal_inner_prod_scalar, level_start, z_null, 0, 1)
       call apply_onescale (cal_inner_prod_velo,   level_start, z_null, 0, 0)
-      do ii = 1, 4
+      do ii = 1, 3
          eval(ii) = sum_real (inner_prod(ii))
       end do
     end subroutine Ray_quotient
@@ -1653,8 +1644,7 @@ contains
       d = dom%id+1
       id_i = idx(i, j, offs, dims)+1
 
-      inner_prod(1) = inner_prod(1) + trend(S_MASS,2)%data(d)%elts(id_i)*trend(S_MASS,1)%data(d)%elts(id_i)
-      inner_prod(2) = inner_prod(2) + trend(S_TEMP,2)%data(d)%elts(id_i)*trend(S_TEMP,1)%data(d)%elts(id_i)
+      inner_prod = inner_prod + trend(S_MASS,2)%data(d)%elts(id_i)*trend(S_MASS,1)%data(d)%elts(id_i)
     end subroutine cal_inner_prod_scalar
 
     subroutine cal_inner_prod_velo (dom, i, j, zlev, offs, dims)
@@ -1671,18 +1661,18 @@ contains
 
       do e = 1, EDGE
          id_e  = EDGE*id+e
-         inner_prod(3) = inner_prod(3) + trend(S_VELO,3)%data(d)%elts(id_e)*trend(S_VELO,1)%data(d)%elts(id_e)
-         inner_prod(4) = inner_prod(4) + trend(S_VELO,4)%data(d)%elts(id_e)*trend(S_VELO,2)%data(d)%elts(id_e)
+         inner_prod(2) = inner_prod(2) + trend(S_VELO,3)%data(d)%elts(id_e)*trend(S_VELO,1)%data(d)%elts(id_e)
+         inner_prod(3) = inner_prod(3) + trend(S_VELO,4)%data(d)%elts(id_e)*trend(S_VELO,2)%data(d)%elts(id_e)
       end do
     end subroutine cal_inner_prod_velo
 
     subroutine update_evec
       implicit none
 
-      trend(S_MASS:S_VELO,1)%bdry_uptodate = .false.
-      trend(S_VELO,2)%bdry_uptodate        = .false.
-      call update_vector_bdry (trend(S_MASS:S_VELO,1), level_start)
-      call update_bdry        (trend(S_VELO,2),        level_start)
+      trend(S_MASS,1)%bdry_uptodate = .false.
+      trend(S_VELO,1:2)%bdry_uptodate = .false.
+      call update_bdry (trend(S_MASS,1), level_start)
+      call update_vector_bdry (trend(S_VELO,1:2), level_start)
     end subroutine update_evec
   end subroutine evals_diffusion
 end module ops_mod

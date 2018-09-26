@@ -255,61 +255,62 @@ contains
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
-            ***********************************************************'
+            ************************************************************'
        write (6,'(A)')        "RUN PARAMETERS"
-       write (6,'(A,A)')      "test_case           = ", trim (test_case)
-       write (6,'(A,A)')      "run_id              = ", trim (run_id)
-       write (6,'(A,L1)')     "compressible        = ", compressible
-       write (6,'(A,i3)')     "min_level           = ", min_level
-       write (6,'(A,i3)')     "max_level           = ", max_level
-       write (6,'(A,i5)')     "number of domains   = ", N_GLO_DOMAIN
-       write (6,'(A,i3)')     "zlevels             = ", zlevels
-       write (6,'(A,L1)')     "uniform             = ", uniform
-       write (6,'(A,L1)')     "remap               = ", remap
-       write (6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
-       write (6,'(A,L1)')     "adapt_trend         = ", adapt_trend
-       write (6,'(A,L1)')     "default_thresholds  = ", default_thresholds
-       write (6,'(A,L1)')     "perfect             = ", perfect
-       write (6,'(A,es10.4)') "tolerance           = ", tol
-       write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
-       write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
-       write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
-       write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
-       write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order
-       write (6,'(A,es10.4)') "C_diffusion         = ", C_diffusion
-       write (6,'(A,es10.4)') "dt_write            = ", dt_write
-       write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
-       write (6,'(A,es10.4)') "time_end            = ", time_end 
-       write (6,'(A,i6)')     "resume              = ", resume
+       write (6,'(A,A)')      "test_case            = ", trim (test_case)
+       write (6,'(A,A)')      "run_id               = ", trim (run_id)
+       write (6,'(A,L1)')     "compressible         = ", compressible
+       write (6,'(A,i3)')     "min_level            = ", min_level
+       write (6,'(A,i3)')     "max_level            = ", max_level
+       write (6,'(A,i5)')     "number of domains    = ", N_GLO_DOMAIN
+       write (6,'(A,i5)')     "number of processors = ", n_process
+       write (6,'(A,i3)')     "zlevels              = ", zlevels
+       write (6,'(A,L1)')     "uniform              = ", uniform
+       write (6,'(A,L1)')     "remap                = ", remap
+       write (6,'(A,es10.4)') "min_allowed_mass     = ", min_allowed_mass
+       write (6,'(A,L1)')     "adapt_trend          = ", adapt_trend
+       write (6,'(A,L1)')     "default_thresholds   = ", default_thresholds
+       write (6,'(A,L1)')     "perfect              = ", perfect
+       write (6,'(A,es10.4)') "tolerance            = ", tol
+       write (6,'(A,i1)')     "optimize_grid        = ", optimize_grid
+       write (6,'(A,L1)')     "adapt_dt             = ", adapt_dt
+       write (6,'(A,es10.4)') "cfl_num              = ", cfl_num
+       write (6,'(A,es10.4)') "pressure_save (hPa)  = ", press_save
+       write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order
+       write (6,'(A,es10.4)') "C_diffusion          = ", C_diffusion
+       write (6,'(A,es10.4)') "dt_write             = ", dt_write
+       write (6,'(A,i6)')     "CP_EVERY             = ", CP_EVERY
+       write (6,'(A,es10.4)') "time_end             = ", time_end 
+       write (6,'(A,i6)')     "resume               = ", resume
        
        write (6,'(/,A)')      "STANDARD PARAMETERS"
-       write (6,'(A,es10.4)') "radius              = ", radius
-       write (6,'(A,es10.4)') "omega               = ", omega
-       write (6,'(A,es10.4)') "ref_press           = ", ref_press
-       write (6,'(A,es10.4)') "ref_surf_press      = ", ref_surf_press
-       write (6,'(A,es10.4)') "R_d                 = ", R_d
-       write (6,'(A,es10.4)') "c_p                 = ", c_p
-       write (6,'(A,es10.4)') "c_v                 = ", c_v
-       write (6,'(A,es10.4)') "gamma               = ", gamma
-       write (6,'(A,es10.4)') "kappa               = ", kappa
+       write (6,'(A,es10.4)') "radius               = ", radius
+       write (6,'(A,es10.4)') "omega                = ", omega
+       write (6,'(A,es10.4)') "ref_press            = ", ref_press
+       write (6,'(A,es10.4)') "ref_surf_press       = ", ref_surf_press
+       write (6,'(A,es10.4)') "R_d                  = ", R_d
+       write (6,'(A,es10.4)') "c_p                  = ", c_p
+       write (6,'(A,es10.4)') "c_v                  = ", c_v
+       write (6,'(A,es10.4)') "gamma                = ", gamma
+       write (6,'(A,es10.4)') "kappa                = ", kappa
        
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es10.4)') "u_0                 = ", u_0
-       write (6,'(A,es10.4)') "u_p                 = ", u_p
-       write (6,'(A,es10.4)') "R_pert              = ", R_pert
-       write (6,'(A,es10.4)') "T_0                 = ", T_0
-       write (6,'(A,es10.4)') "T_0                 = ", R_pert
-       write (6,'(A,es10.4)') "gamma_T             = ", gamma_T
-       write (6,'(A,es10.4)') "delta_T             = ", delta_T
-       write (6,'(A,es10.4)') "eta_0               = ", eta_0
-       write (6,'(A,es10.4)') "eta_t               = ", eta_t
-       write (6,'(A,es10.4)') "lon_c               = ", lon_c
-       write (6,'(A,es10.4)') "lat_c               = ", lat_c
+       write (6,'(A,es10.4)') "u_0                  = ", u_0
+       write (6,'(A,es10.4)') "u_p                  = ", u_p
+       write (6,'(A,es10.4)') "R_pert               = ", R_pert
+       write (6,'(A,es10.4)') "T_0                  = ", T_0
+       write (6,'(A,es10.4)') "T_0                  = ", R_pert
+       write (6,'(A,es10.4)') "gamma_T              = ", gamma_T
+       write (6,'(A,es10.4)') "delta_T              = ", delta_T
+       write (6,'(A,es10.4)') "eta_0                = ", eta_0
+       write (6,'(A,es10.4)') "eta_t                = ", eta_t
+       write (6,'(A,es10.4)') "lon_c                = ", lon_c
+       write (6,'(A,es10.4)') "lat_c                = ", lat_c
        write (6,'(A)') &
             '*********************************************************************&
-            ***********************************************************'
+            ************************************************************'
     end if
-    close(fid)
+    close (fid)
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
   end subroutine read_test_case_parameters
@@ -372,15 +373,12 @@ contains
     implicit none
     
     integer :: k
-    real(8) :: Area_lozenge, k_max, visc
+    real(8) :: k_max, visc
 
     allocate (viscosity_divu(1:zlevels))
     
-    ! Average area of smallest lozenges
-    Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level + 2)
-
-    ! Smallest triangle edge length
-    dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2))
+    ! Smallest edge length
+    dx_min = 0.9 * sqrt (4*MATH_PI*radius**2/(sqrt(3.0_8)/2*10*4**max_level))
 
     ! Largest wavenumber on regular lozenge grid
     k_max = MATH_PI/(sqrt(3.0_8)*dx_min)

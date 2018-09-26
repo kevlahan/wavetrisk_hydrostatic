@@ -990,7 +990,7 @@ contains
           if (dom%mask_e%elts(id_e) >= ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
              if (adapt_dt) then
-                d_e = dom%len%elts(id_e)/2 ! Hexagon incircle radius
+                d_e = dom%len%elts(id_e) ! Hexagon incircle radius
                 do k = 1, zlevels
                    v_e = abs (sol(S_VELO,k)%data(d)%elts(id_e))
                    dt_loc = min (dt_loc, cfl_num*d_e/(v_e+wave_speed))

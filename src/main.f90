@@ -39,9 +39,6 @@ contains
     integer                        :: k, d
     real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
 
-    ! Initialize basic structures
-    call init_basic
-
     if (resume >= 0) then
        cp_idx = resume
        call restart (set_thresholds, custom_load, run_id)
@@ -51,6 +48,9 @@ contains
        cp_idx = NONE
        resume = NONE
        
+       ! Initialize basic structures
+       call init_basic
+
        ! Initialize vertical grid
        call initialize_a_b_vert
 
@@ -177,7 +177,7 @@ contains
     ! Take time step
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
-    call RK4 (trend_ml, dt)
+    call RK45_opt (trend_ml, dt)
 
     ! Adapt grid
     call adapt_grid (set_thresholds)
@@ -262,7 +262,8 @@ contains
           end do
        end do
 
-       Laplacian_u%data(d)%length = num(AT_EDGE)
+       Laplacian_divu%data(d)%length = num(AT_NODE)
+       Laplacian_rotu%data(d)%length = num(AT_EDGE)
        do v = S_MASS, S_TEMP
           horiz_flux(v)%data(d)%length = num(AT_EDGE)
           Laplacian_scalar(v)%data(d)%length = num(AT_NODE)
@@ -533,7 +534,8 @@ contains
        end do
        deallocate (grid(d)%src_patch)
 
-       deallocate (Laplacian_u%data(d)%elts)
+       deallocate (Laplacian_divu%data(d)%elts)
+       deallocate (Laplacian_rotu%data(d)%elts)
        
        do v = S_MASS, S_TEMP
           deallocate (horiz_flux(v)%data(d)%elts)
@@ -557,7 +559,8 @@ contains
        end do
     end do
     
-    deallocate (Laplacian_u%data)
+    deallocate (Laplacian_divu%data)
+    deallocate (Laplacian_rotu%data)
 
     do k = 1, zlevels+1
        deallocate (exner_fun(k)%data)

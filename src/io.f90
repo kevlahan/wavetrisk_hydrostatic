@@ -772,15 +772,12 @@ contains
                    required(c) = .false.
                 end if
              end do
-
              write (fid_gr(d)) required
           end do
           if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev
        end do
-    end do
-    
-    do d = 1, size(grid)
-       close (fid_no(d)); close (fid_gr(d))
+       close (fid_no(d))
+       close (fid_gr(d))
     end do
   end subroutine dump_adapt_mpi
 

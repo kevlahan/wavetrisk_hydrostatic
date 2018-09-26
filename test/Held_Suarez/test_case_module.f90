@@ -237,7 +237,7 @@ contains
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
-            ***********************************************************'
+            ************************************************************'
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case           = ", trim (test_case)
        write (6,'(A,A)')      "run_id              = ", trim (run_id)
@@ -287,7 +287,7 @@ contains
        write (6,'(A,es10.4)') "delta_theta         = ", delta_theta
        write (6,'(A)') &
             '*********************************************************************&
-            ***********************************************************'
+            ************************************************************'
     end if
     close(fid)
     dt_write = dt_write * MINUTE
@@ -352,15 +352,12 @@ contains
     implicit none
     
     integer :: k
-    real(8) :: Area_lozenge, k_max, visc
+    real(8) :: k_max, visc
 
     allocate (viscosity_divu(1:zlevels))
     
-    ! Average area of smallest lozenges
-    Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level + 2)
-
-    ! Smallest triangle edge length
-    dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2))
+    ! Smallest edge length (scaled to account for non-uniform mesh)
+    dx_min = 0.9 * sqrt (4*MATH_PI*radius**2/(sqrt(3.0_8)/2*10*4**max_level))
 
     ! Largest wavenumber on regular lozenge grid
     k_max = MATH_PI/(sqrt(3.0_8)*dx_min)
@@ -381,8 +378,8 @@ contains
  
           viscosity_mass = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
           viscosity_temp = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
-          viscosity_divu = L_diffusion(2)**(2*Laplace_order) / tau_diffusion
-          viscosity_rotu = L_diffusion(3)**(2*Laplace_order) / tau_diffusion
+          viscosity_divu = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
+          viscosity_rotu = L_diffusion(1)**(2*Laplace_order) / tau_diffusion
        elseif (Laplace_order > 2) then
           if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
           stop

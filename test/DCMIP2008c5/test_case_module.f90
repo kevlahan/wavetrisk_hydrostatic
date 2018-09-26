@@ -238,7 +238,7 @@ contains
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
-            ***********************************************************'
+            ************************************************************'
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,es10.4)') "radius              = ", radius
        write (6,'(A,es10.4)') "omega               = ", omega
@@ -294,7 +294,7 @@ contains
        write (6,'(A,es10.4)') "u_0                 = ", u_0
        write (6,'(A)') &
             '*********************************************************************&
-            ***********************************************************'
+            ************************************************************'
     end if
     close(fid)
     dt_write = dt_write * MINUTE
@@ -359,15 +359,12 @@ contains
     implicit none
     
     integer :: k
-    real(8) :: Area_lozenge, k_max, visc
+    real(8) :: k_max, visc
 
     allocate (viscosity_divu(1:zlevels))
     
-    ! Average area of smallest lozenges
-    Area_lozenge = 4*MATH_PI*radius**2/(10*4**max_level + 2)
-
-    ! Smallest triangle edge length
-    dx_min = sqrt (Area_lozenge/(sqrt(3.0_8)/2))
+    ! Smallest edge length
+    dx_min = 0.9 * sqrt (4*MATH_PI*radius**2/(sqrt(3.0_8)/2*10*4**max_level))
 
     ! Largest wavenumber on regular lozenge grid
     k_max = MATH_PI/(sqrt(3.0_8)*dx_min)

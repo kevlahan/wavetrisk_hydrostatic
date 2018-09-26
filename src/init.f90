@@ -41,7 +41,8 @@ contains
        end do
     end do
 
-    call init_Float_Field (Laplacian_u, AT_EDGE)
+    call init_Float_Field (Laplacian_divu, AT_NODE)
+    call init_Float_Field (Laplacian_rotu, AT_EDGE)
     do v = S_MASS, S_TEMP
        call init_Float_Field (horiz_flux(v), AT_EDGE)
        call init_Float_Field (Laplacian_scalar(v), AT_NODE)
@@ -328,7 +329,8 @@ contains
     end do
 
     do d = 1, size(grid)
-       call init (Laplacian_u%data(d), grid(d)%node%length*EDGE)
+       call init (Laplacian_divu%data(d), grid(d)%node%length)
+       call init (Laplacian_rotu%data(d), grid(d)%node%length*EDGE)
        do v = S_MASS, S_TEMP
           call init (horiz_flux(v)%data(d), grid(d)%node%length*EDGE)
           call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)

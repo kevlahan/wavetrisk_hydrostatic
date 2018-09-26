@@ -176,7 +176,8 @@ contains
     end do
     call extend (exner_fun(zlevels+1)%data(d), num, 0.0_8)
     
-    call extend (Laplacian_u%data(d), num*EDGE, 0.0_8)
+    call extend (Laplacian_divu%data(d), num,      0.0_8)
+    call extend (Laplacian_rotu%data(d), num*EDGE, 0.0_8)
     do v = S_MASS, S_TEMP
        call extend (horiz_flux(v)%data(d),       num*EDGE, 0.0_8)
        call extend (Laplacian_scalar(v)%data(d), num,      0.0_8)

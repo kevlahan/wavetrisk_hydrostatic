@@ -4,10 +4,11 @@ program Held_Suarez
   use main_mod
   use ops_mod
   use test_case_mod
-  use io_mod  
+  use io_mod
   implicit none
 
-  logical :: aligned
+  logical  :: aligned
+  external :: trend_cooling
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -71,14 +72,14 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call time_step_cooling
+     call euler (trend_cooling, dt)
      call stop_timing
 
      call sum_total_mass (.false.)
      call print_log
 
      if (aligned) then
-        iwrite = iwrite + 1
+        iwrite = iwrite+1
         if (remap) call remap_vertical_coordinates (set_thresholds)
 
         ! Save checkpoint (and rebalance)
@@ -209,28 +210,33 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
 
-  if (max (maxval (viscosity_divu), viscosity_rotu) == 0.0_8) then
+  if (max(maxval(viscosity_divu), viscosity_rotu)==0.0_8) then
      diffusion = 0.0_8
-  else ! Calculate Laplacian of velocity
+  else
+     ! Calculate Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-     diffusion = viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu
-  end if
 
-  ! Find correct sign of diffusion on right hand side of equation
-  diffusion = (-1)**(Laplace_order-1) * diffusion
-    
+     if (Laplace_order == 1) then
+        diffusion =  viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu
+     elseif (Laplace_order == 2) then
+        diffusion =  -(viscosity_divu(zlev) * grad_divu - viscosity_rotu * (-curl_rotu))
+     end if
+  end if
+  
   ! Total physics for source term of velocity trend
-  physics_velo_source = diffusion 
+  physics_velo_source =  diffusion
 end function physics_velo_source
 
-subroutine time_step_cooling
-  ! Euler time step to diffuse solution
+subroutine trend_cooling (q, dq)
+  ! Trend for Held-Suarez cooling
   use domain_mod
   use ops_mod
   use time_integr_mod
   implicit none
-  integer :: d, j, k, p
+  type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+  
+  integer :: d, k, p
 
   sol%bdry_uptodate = .false.
   call update_array_bdry (sol, NONE)
@@ -240,24 +246,22 @@ subroutine time_step_cooling
   
   do k = 1, zlevels
      do d = 1, size(grid)
-        mass => sol(S_MASS,k)%data(d)%elts
-        temp => sol(S_TEMP,k)%data(d)%elts
-        velo => sol(S_VELO,k)%data(d)%elts
-        do p = 3, grid(d)%patch%length
-           call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (time_step_mass, grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (time_step_velo, grid(d), p-1, k, 0, 0)
+        mass  =>  q(S_MASS,k)%data(d)%elts
+        temp  =>  q(S_TEMP,k)%data(d)%elts
+        velo  =>  q(S_VELO,k)%data(d)%elts
+        dtemp => dq(S_TEMP,k)%data(d)%elts
+        dvelo => dq(S_VELO,k)%data(d)%elts
+        do p = 2, grid(d)%patch%length
+           call apply_onescale_to_patch (cal_pressure, grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (trend_mass,   grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (trend_velo,   grid(d), p-1, k, 0, 0)
         end do
-        nullify (mass, temp, velo)
+        nullify (mass, temp, velo, dtemp, dvelo)
      end do
   end do
-
-  sol%bdry_uptodate = .false.
-  call update_array_bdry (sol, NONE)
-
-  call WT_after_step (sol, wav_coeff, level_start-1)
+  dq%bdry_uptodate = .false.
 contains
-  subroutine time_step_mass (dom, i, j, zlev, offs, dims)
+  subroutine trend_mass (dom, i, j, zlev, offs, dims)
     ! Euler time step
     use test_case_mod
     use main_mod
@@ -273,15 +277,14 @@ contains
     
     id_i = idx(i, j, offs, dims)+1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+!    if (dom%mask_n%elts(id_i) >= ADJZONE) then
        call cart2sph (dom%node%elts(id_i), lon, lat)
        call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-       !temp(id_i) = temp(id_i) - dt*k_T * (temp(id_i) - theta_equil*mass(id_i)) ! Euler
-       temp(id_i) = theta_equil*mass(id_i) + (temp(id_i)-theta_equil*mass(id_i)) * exp (-dt*k_T) ! Exact
-    end if
-  end subroutine time_step_mass
+       dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i)) 
+!    end if
+  end subroutine trend_mass
 
-  subroutine time_step_velo (dom, i, j, zlev, offs, dims)
+  subroutine trend_velo (dom, i, j, zlev, offs, dims)
     ! Euler time step
     use test_case_mod
     use main_mod
@@ -304,9 +307,9 @@ contains
     ! Euler step for temperature and velocity cooling
     do e = 1, EDGE
        id_e = EDGE*id+e
-       ! if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = (1.0_8 - dt*k_v) * velo(id_e) ! Euler
-       if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = velo(id_e) * exp (-dt*k_v) ! Exact
+       !if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = - k_v * velo(id_e) 
+       dvelo(id_e) = - k_v * velo(id_e)
     end do
-  end subroutine time_step_velo
-end subroutine time_step_cooling
+  end subroutine trend_velo
+end subroutine trend_cooling
 
