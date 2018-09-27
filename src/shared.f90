@@ -317,7 +317,7 @@ module shared_mod
   real(8), parameter :: MATH_PI = acos(-1.0_8)
   
   ! Simulation variables
-  integer                                       :: istep, resume, Laplace_order
+  integer                                       :: cp_idx, istep, iwrite, resume, Laplace_order
   integer(8)                                    :: itime
   
   real(8)                                       :: dt, dt_init, dt_write, dx_min, dx_max, time_end, time
@@ -374,7 +374,9 @@ contains
 
     ! Initialize values
     resume              = NONE
+    cp_idx              = NONE
     istep               = 0
+    iwrite              = 0
     time                = 0.0_8
     min_level           = DOMAIN_LEVEL+PATCH_LEVEL+1
     max_level           = min_level

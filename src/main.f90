@@ -10,7 +10,6 @@ module main_mod
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
-  integer                                        :: cp_idx
   integer,             dimension(:), allocatable :: node_level_start, edge_level_start
   real(8)                                        :: dt_new, time_mult  
   type(Initial_State), dimension(:), allocatable :: ini_st
@@ -44,10 +43,6 @@ contains
        call restart (set_thresholds, custom_load, run_id)
        resume = NONE
     else
-       iwrite = 0
-       cp_idx = NONE
-       resume = NONE
-       
        ! Initialize basic structures
        call init_basic
 
@@ -194,99 +189,6 @@ contains
     itime = itime + idt
     time  = itime/time_mult
   end subroutine time_step
-
-  subroutine reset (init_state)
-    implicit none
-    type(Initial_State), dimension (:), allocatable :: init_state
-    integer                                         :: k, l, d, v, i
-    integer, dimension (AT_NODE:AT_EDGE)            :: num
-
-    do d = 1, size(grid)
-       grid(d)%lev(min_level+1:max_level)%length = 0
-    end do
-
-    level_start = min_level
-    level_end = level_start
-
-    do d = 1, size(grid)
-       num = (/init_state(d)%n_node, init_state(d)%n_edge/)  
-       grid(d)%patch%length       = init_state(d)%n_patch 
-       grid(d)%bdry_patch%length  = init_state(d)%n_bdry_patch 
-       grid(d)%node%length        = init_state(d)%n_node 
-       grid(d)%midpt%length       = init_state(d)%n_edge
-       grid(d)%ccentre%length     = init_state(d)%n_tria
-       grid(d)%areas%length       = init_state(d)%n_node
-       grid(d)%triarea%length     = init_state(d)%n_tria
-       grid(d)%pedlen%length      = init_state(d)%n_edge
-       grid(d)%len%length         = init_state(d)%n_edge
-       grid(d)%coriolis%length    = init_state(d)%n_tria
-       grid(d)%overl_areas%length = init_state(d)%n_node
-       grid(d)%I_u_wgt%length     = init_state(d)%n_node
-       grid(d)%R_F_wgt%length     = init_state(d)%n_node
-       grid(d)%mask_n%length      = init_state(d)%n_node
-       grid(d)%mask_e%length      = init_state(d)%n_edge
-       grid(d)%level%length       = init_state(d)%n_node
-
-       grid(d)%surf_press%length  = init_state(d)%n_node
-       grid(d)%press%length       = init_state(d)%n_node
-       grid(d)%geopot%length      = init_state(d)%n_node
-       grid(d)%u_zonal%length     = init_state(d)%n_node
-       grid(d)%v_merid%length     = init_state(d)%n_node
-       grid(d)%adj_mass%length    = init_state(d)%n_node
-       grid(d)%adj_temp%length    = init_state(d)%n_node
-       grid(d)%adj_geopot%length  = init_state(d)%n_node
-       grid(d)%bernoulli%length   = init_state(d)%n_node
-       grid(d)%divu%length        = init_state(d)%n_node
-       grid(d)%vort%length        = init_state(d)%n_tria
-       grid(d)%qe%length          = init_state(d)%n_edge
-
-       do k = 1, zlevels
-          exner_fun(k)%data(d)%length = num(AT_NODE)
-          do v = S_MASS, S_VELO
-             wav_coeff(v,k)%data(d)%length = num(POSIT(v))
-             trend_wav_coeff(v,k)%data(d)%length = num(POSIT(v))
-             trend(v,k)%data(d)%length = num(POSIT(v))
-             sol(v,k)%data(d)%length = num(POSIT(v))
-             dq1(v,k)%data(d)%length = num(POSIT(v))
-             q1(v,k)%data(d)%length = num(POSIT(v))
-             q2(v,k)%data(d)%length = num(POSIT(v))
-             q3(v,k)%data(d)%length = num(POSIT(v))
-             q4(v,k)%data(d)%length = num(POSIT(v))
-          end do
-       end do
-       exner_fun(zlevels+1)%data(d)%length = num(AT_NODE)
-
-       do k = 1, save_levels
-          do v = S_MASS, S_VELO
-             sol_save(v,k)%data(d)%length = num(POSIT(v))
-          end do
-       end do
-
-       Laplacian_divu%data(d)%length = num(AT_NODE)
-       Laplacian_rotu%data(d)%length = num(AT_EDGE)
-       do v = S_MASS, S_TEMP
-          horiz_flux(v)%data(d)%length = num(AT_EDGE)
-          Laplacian_scalar(v)%data(d)%length = num(AT_NODE)
-       end do
-
-       do i = 1, N_GLO_DOMAIN
-          grid(d)%send_conn(i)%length = 0
-          grid(d)%recv_pa(i)%length = 0
-          do v = AT_NODE, AT_EDGE
-             grid(d)%pack(v,i)%length = init_state(d)%pack_len(v,i)
-             grid(d)%unpk(v,i)%length = init_state(d)%unpk_len(v,i)
-          end do
-       end do
-
-       grid(d)%send_pa_all%length = 0
-       grid(d)%neigh_pa_over_pole%length = level_end*2 + 2
-
-       ! level 2: set patch children to zero
-       do i = 2, 5
-          grid(d)%patch%elts(i+1)%children = 0
-       end do
-    end do
-  end subroutine reset
 
   subroutine restart (set_thresholds, custom_load, run_id)
     ! Fresh restart from checkpoint data (all structures reset)

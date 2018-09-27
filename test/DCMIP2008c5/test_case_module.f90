@@ -6,7 +6,7 @@ Module test_case_mod
   implicit none
 
   ! Standard variables
-  integer                              :: iwrite, CP_EVERY, save_zlev
+  integer                              :: CP_EVERY, save_zlev
   real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
