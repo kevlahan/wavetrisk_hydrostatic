@@ -88,7 +88,7 @@ contains
        h_mflux => horiz_flux(S_MASS)%data(d)%elts
        h_tflux => horiz_flux(S_TEMP)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
        end do
        nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
     end do

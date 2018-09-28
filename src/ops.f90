@@ -1055,6 +1055,7 @@ contains
 
     dmass(id_i) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
     dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
+    if (isnan(dmass(id_i))) write(6,*) "mass trend is NaN", zlev, physics(S_MASS), dom%mask_n%elts(id_i)
   end subroutine scalar_trend
 
   subroutine cal_Laplacian_scalar (dom, i, j, zlev, offs, dims)

@@ -63,9 +63,10 @@ contains
     end if
   end subroutine vort_extrema
 
-  subroutine sum_total_mass (initialgo)
+  subroutine sum_total_mass (initialgo, ierror)
     ! Total mass over all vertical layers
     implicit none
+    integer :: ierror
     logical :: initialgo
 
     integer :: k
@@ -82,8 +83,13 @@ contains
        end do
        mass_error = abs (totalmass-initotalmass)/initotalmass
        if (isnan(mass_error)) then
-          if (rank == 0) write (6,'(A)') "Mass error is NaN"
-          stop
+          if (rank == 0) then
+             write (6,'(A)') "Mass error is NaN"
+             ierror = 1
+             !stop
+          else
+             ierror = 0
+          end if
        end if
     end if
   end subroutine sum_total_mass
@@ -111,7 +117,7 @@ contains
     integer                        :: d, ll, p, i, j, c, id
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8)                        :: s, fun
+    real(8)                        :: s, fun, val
 
     s = 0.0_8
     do d = 1, size(grid)
@@ -121,7 +127,9 @@ contains
           do j = 1, PATCH_SIZE
              do i = 1, PATCH_SIZE
                 id = idx (i-1, j-1, offs, dims)
-                s = s + fun (grid(d), i-1, j-1, k, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
+                val = fun (grid(d), i-1, j-1, k, offs, dims)
+                if (isnan(val)) write (6,*) "mass is Nan", k, id, grid(d)%mask_n%elts(id+1)
+                s = s + val/grid(d)%areas%elts(id+1)%hex_inv
              end do
           end do
        end do
@@ -139,10 +147,14 @@ contains
           call get_offs_Domain (grid(d), p, offs, dims)
           if (c == NORTHWEST) then
              id = idx (0, PATCH_SIZE, offs, dims)
-             s = s + fun (grid(d), 0, PATCH_SIZE, k, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
+             val = fun (grid(d), 0, PATCH_SIZE, k, offs, dims)
+             if (isnan(val)) write (6,*) "mass at NORTHWEST is Nan", k, id, grid(d)%mask_n%elts(id+1)
+             s = s + val/grid(d)%areas%elts(id+1)%hex_inv
           else
              id = idx (PATCH_SIZE, 0, offs, dims)
-             s = s + fun (grid(d), PATCH_SIZE, 0, k, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
+             val = fun (grid(d), PATCH_SIZE, 0, k, offs, dims)
+             if (isnan(val)) write (6,*) "mass at SOUTHEAST is Nan", k, id, grid(d)%mask_n%elts(id+1)
+             s = s + val/grid(d)%areas%elts(id+1)%hex_inv
           end if
        end do
     end do

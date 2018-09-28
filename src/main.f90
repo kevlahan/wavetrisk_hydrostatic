@@ -195,7 +195,8 @@ contains
     implicit none
     external     :: set_thresholds, custom_load
     character(*) :: run_id
-    
+
+    integer :: ierror    
     character(255) :: cmd_archive, cmd_files, command
 
     if (rank == 0) then
@@ -254,7 +255,7 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
       
     ! Initialize total mass value
-    call sum_total_mass (.true.)
+    call sum_total_mass (.true., ierror)
 
     ! Calculate diffusion length scales
     if (Laplace_order /= 0) call evals_diffusion

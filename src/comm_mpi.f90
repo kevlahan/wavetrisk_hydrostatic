@@ -552,14 +552,14 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
             r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
             r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
@@ -652,14 +652,14 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
             r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
             r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
@@ -760,14 +760,14 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
             r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
             r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
