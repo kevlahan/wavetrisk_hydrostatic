@@ -216,12 +216,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      ! Calculate Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-
-     if (Laplace_order == 1) then
-        diffusion =  viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu
-     elseif (Laplace_order == 2) then
-        diffusion =  -(viscosity_divu(zlev) * grad_divu - viscosity_rotu * (-curl_rotu))
-     end if
+     diffusion =  (-1)**(Laplace_order-1) * (viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu)
   end if
   
   ! Total physics for source term of velocity trend
