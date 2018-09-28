@@ -19,11 +19,15 @@ contains
     do k = 1, zlevels
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
-          if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, l)
-          call basic_operators (q, dq, k, l)
-          if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
+          ! Finish non-blocking communication of dq from previous level (l+1)
+          if (l < level_end) call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) 
 
+          call basic_operators   (q, dq, k, l)
           call eval_scalar_trend (q, dq, k, l)
+          
+          ! Start non-blocking communication of dq for use at next level (l-1)
+          if (level_start /= level_end .and. l > level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l) 
+
           call velocity_trend_source (q, dq, k, l)
        end do
        call velocity_trend_grad  (q, dq, k, l)
@@ -38,6 +42,8 @@ contains
 
     integer :: d, j
 
+    if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, l)
+    
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
        temp      => q(S_TEMP,k)%data(d)%elts
@@ -69,7 +75,9 @@ contains
        nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, vort, qe)
     end do
     horiz_flux%bdry_uptodate = .false.
-    if (level_start < level_end) call update_vector_bdry (horiz_flux, l)
+    call update_vector_bdry (horiz_flux, l)
+
+    if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
   end subroutine basic_operators
 
   subroutine eval_scalar_trend (q, dq, k, l)
@@ -93,7 +101,6 @@ contains
        nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
     end do
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
-    if (level_start < level_end .and. l > level_start) call update_vector_bdry (dq(S_MASS:S_TEMP,k), l) 
   end subroutine eval_scalar_trend
 
   subroutine velocity_trend_source  (q, dq, k, l)
