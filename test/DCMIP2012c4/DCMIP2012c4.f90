@@ -74,10 +74,6 @@ program DCMIP2012c4
 
      ! Print data
      call sum_total_mass (.false., ierror)
-     if (ierror == 1) then
-        write (6,*) "Attempting restart after Nan mass error"
-        call restart (set_thresholds, load, run_id)
-     end if
      call print_log
 
      if (aligned) then

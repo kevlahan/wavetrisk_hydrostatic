@@ -175,12 +175,12 @@ contains
     call RK45_opt (trend_ml, dt)
 
     ! Adapt grid
-    call adapt_grid (set_thresholds)
+     if (min_level /= max_level) call adapt_grid (set_thresholds)
 
     ! If necessary, remap vertical coordinates
     if (remap .and. min_mass < min_allowed_mass) then
        call remap_vertical_coordinates (set_thresholds)
-       call adapt_grid (set_thresholds)
+        if (min_level /= max_level) call adapt_grid (set_thresholds)
     end if
     
     ! Set new time step, find change in vertical levels and count active nodes
@@ -309,6 +309,7 @@ contains
        write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim (cmd_archive), ' ', trim (cmd_files)
        call system (command)
     end if
+    call barrier ! Make sure data is archived before restarting
     
     ! Must restart after checkpoint and load balance (if compiled with mpi-lb)
     call restart (set_thresholds, custom_load, run_id)

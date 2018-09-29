@@ -1226,7 +1226,7 @@ contains
 
     integer :: val_glo
 
-    call MPI_Allreduce(val, val_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
     sync_max = val_glo
   end function sync_max
 
