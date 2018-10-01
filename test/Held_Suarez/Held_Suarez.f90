@@ -276,7 +276,7 @@ contains
   end subroutine trend_mass
 
   subroutine trend_temp (dom, i, j, zlev, offs, dims)
-    ! Temperature trend for cooling step
+    ! Temperature trend for cooling step (relaxation to equilibrium temperature)
     use test_case_mod
     use main_mod
     use domain_mod
@@ -291,14 +291,17 @@ contains
 
     id_i = idx(i, j, offs, dims)+1
 
-    call cart2sph (dom%node%elts(id_i), lon, lat)
-    call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-
-    dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i)) 
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       call cart2sph (dom%node%elts(id_i), lon, lat)
+       call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+       dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
+    else
+       dtemp(id_i) = 0.0_8
+    end if
   end subroutine trend_temp
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
-    ! Velocity trend for cooling step
+    ! Velocity trend for cooling step (Rayleigh friction)
     use test_case_mod
     use main_mod
     use domain_mod
@@ -308,16 +311,21 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id, id_i
+    integer :: e, id, id_e, id_i
     real(8) :: k_v
 
     id = idx(i, j, offs, dims)
     id_i = id+1
 
-    ! Rayleigh friction
-    k_v = k_f * max (0.0_8, (dom%press%elts(id_i)/dom%surf_press%elts(id_i) - eta_b)/(1.0_8-eta_b)) 
-
-    dvelo(EDGE*id:EDGE*id_i) = - k_v * velo(EDGE*id:EDGE*id_i)
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+          k_v = k_f * max (0.0_8, (dom%press%elts(id_i)/dom%surf_press%elts(id_i) - eta_b)/(1.0_8-eta_b))
+          dvelo(id_e) = - k_v * velo(id_e)
+       else
+          dvelo(id_e) = 0.0_8
+       end if
+    end do
   end subroutine trend_velo
 end subroutine trend_cooling
 
