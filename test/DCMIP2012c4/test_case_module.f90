@@ -372,8 +372,9 @@ contains
     use wavelet_mod
     implicit none
     
-    integer :: k
-    real(8) :: k_max, visc
+    integer               :: k
+    real(8)               :: k_max, visc
+    real(8), dimension(3) :: L_scaled
 
     allocate (viscosity_divu(1:zlevels))
     
@@ -386,25 +387,23 @@ contains
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
     dt_init = dt_cfl
+    
+    ! Viscosity constant from eigenvalues of Laplacian
+    if (Laplace_order == 0) then
+       viscosity_mass = 0.0_8
+       viscosity_temp = 0.0_8
+       viscosity_divu = 0.0_8
+       viscosity_rotu = 0.0_8
+    elseif (Laplace_order == 1 .or. Laplace_order == 2) then
+       L_scaled = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
 
-    if (fresh_start) then
-       ! Viscosity constant from eigenvalues of Laplacian
-       if (Laplace_order == 0) then
-          viscosity_mass = 0.0_8
-          viscosity_temp = 0.0_8
-          viscosity_divu = 0.0_8
-          viscosity_rotu = 0.0_8
-       elseif (Laplace_order == 1 .or. Laplace_order == 2) then
-          L_diffusion = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
-
-          viscosity_mass = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
-          viscosity_temp = L_diffusion(1)**(2*Laplace_order) / dt_cfl * C_diffusion
-          viscosity_divu = L_diffusion(2)**(2*Laplace_order) / dt_cfl * C_diffusion
-          viscosity_rotu = L_diffusion(3)**(2*Laplace_order) / dt_cfl * C_diffusion
-       elseif (Laplace_order > 2) then
-          if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
-          stop
-       end if
+       viscosity_mass = L_scaled(1)**(2*Laplace_order) / dt_cfl * C_diffusion
+       viscosity_temp = L_scaled(1)**(2*Laplace_order) / dt_cfl * C_diffusion
+       viscosity_divu = L_scaled(2)**(2*Laplace_order) / dt_cfl * C_diffusion
+       viscosity_rotu = L_scaled(3)**(2*Laplace_order) / dt_cfl * C_diffusion
+    elseif (Laplace_order > 2) then
+       if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
+       stop
     end if
     visc = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
     

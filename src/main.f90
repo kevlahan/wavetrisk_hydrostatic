@@ -119,6 +119,7 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt_mpi()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
+       
        call write_checkpoint (custom_dump, custom_load, run_id)
     end if
     call barrier
@@ -227,7 +228,7 @@ contains
 
     ! Initialize thresholds to default values 
     call initialize_thresholds
-    
+    if (rank == 0) write (6,'(/,A,3(es10.4,1x),/)') "(2) Diffusion length scales = ", L_diffusion
     ! Uncompress checkpoint data
     if (rank == 0) then
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
@@ -255,10 +256,10 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
       
     ! Initialize total mass value
-    call sum_total_mass (.true., ierror)
+    call sum_total_mass (.true.)
 
     ! Calculate diffusion length scales
-    if (Laplace_order /= 0) call evals_diffusion
+    if (Laplace_order /= 0 .and. resume /= NONE) call evals_diffusion
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity

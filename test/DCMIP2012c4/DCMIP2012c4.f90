@@ -73,7 +73,7 @@ program DCMIP2012c4
      call start_timing; call time_step (dt_write, aligned, set_thresholds); call stop_timing
 
      ! Print data
-     call sum_total_mass (.false., ierror)
+     call sum_total_mass (.false.)
      call print_log
 
      if (aligned) then

@@ -63,7 +63,7 @@ contains
     end if
   end subroutine vort_extrema
 
-  subroutine sum_total_mass (initialgo, ierror)
+  subroutine sum_total_mass (initialgo)
     ! Total mass over all vertical layers
     implicit none
     integer :: ierror
@@ -85,10 +85,7 @@ contains
        if (isnan(mass_error)) then
           if (rank == 0) then
              write (6,'(A)') "Mass error is NaN"
-             ierror = 1
-             !stop
-          else
-             ierror = 0
+             stop
           end if
        end if
     end if
