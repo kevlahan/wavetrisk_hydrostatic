@@ -228,7 +228,6 @@ contains
 
     ! Initialize thresholds to default values 
     call initialize_thresholds
-    if (rank == 0) write (6,'(/,A,3(es10.4,1x),/)') "(2) Diffusion length scales = ", L_diffusion
     ! Uncompress checkpoint data
     if (rank == 0) then
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
