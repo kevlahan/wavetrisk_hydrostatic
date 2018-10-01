@@ -125,7 +125,6 @@ contains
              do i = 1, PATCH_SIZE
                 id = idx (i-1, j-1, offs, dims)
                 val = fun (grid(d), i-1, j-1, k, offs, dims)
-                if (isnan(val)) write (6,*) "mass is Nan", k, id, grid(d)%mask_n%elts(id+1)
                 s = s + val/grid(d)%areas%elts(id+1)%hex_inv
              end do
           end do
@@ -145,12 +144,10 @@ contains
           if (c == NORTHWEST) then
              id = idx (0, PATCH_SIZE, offs, dims)
              val = fun (grid(d), 0, PATCH_SIZE, k, offs, dims)
-             if (isnan(val)) write (6,*) "mass at NORTHWEST is Nan", k, id, grid(d)%mask_n%elts(id+1)
              s = s + val/grid(d)%areas%elts(id+1)%hex_inv
           else
              id = idx (PATCH_SIZE, 0, offs, dims)
              val = fun (grid(d), PATCH_SIZE, 0, k, offs, dims)
-             if (isnan(val)) write (6,*) "mass at SOUTHEAST is Nan", k, id, grid(d)%mask_n%elts(id+1)
              s = s + val/grid(d)%areas%elts(id+1)%hex_inv
           end if
        end do
