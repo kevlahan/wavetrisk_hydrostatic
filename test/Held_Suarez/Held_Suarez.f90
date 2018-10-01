@@ -244,20 +244,39 @@ subroutine trend_cooling (q, dq)
         mass  =>  q(S_MASS,k)%data(d)%elts
         temp  =>  q(S_TEMP,k)%data(d)%elts
         velo  =>  q(S_VELO,k)%data(d)%elts
+        dmass => dq(S_MASS,k)%data(d)%elts
         dtemp => dq(S_TEMP,k)%data(d)%elts
         dvelo => dq(S_VELO,k)%data(d)%elts
         do p = 2, grid(d)%patch%length
            call apply_onescale_to_patch (cal_pressure, grid(d), p-1, k, 0, 1)
            call apply_onescale_to_patch (trend_mass,   grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (trend_temp,   grid(d), p-1, k, 0, 1)
            call apply_onescale_to_patch (trend_velo,   grid(d), p-1, k, 0, 0)
         end do
-        nullify (mass, temp, velo, dtemp, dvelo)
+        nullify (mass, temp, velo, dmass, dtemp, dvelo)
      end do
   end do
   dq%bdry_uptodate = .false.
 contains
   subroutine trend_mass (dom, i, j, zlev, offs, dims)
-    ! Euler time step
+    ! Mass trend for cooling step
+    use test_case_mod
+    use main_mod
+    use domain_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer     :: id_i
+
+    id_i = idx(i, j, offs, dims)+1
+    dmass(id_i) = 0.0_8
+  end subroutine trend_mass
+
+  subroutine trend_temp (dom, i, j, zlev, offs, dims)
+    ! Temperature trend for cooling step
     use test_case_mod
     use main_mod
     use domain_mod
@@ -269,18 +288,17 @@ contains
 
     integer     :: id_i
     real(8)     :: k_T, lat, lon, theta_equil
-    
+
     id_i = idx(i, j, offs, dims)+1
 
-!    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       call cart2sph (dom%node%elts(id_i), lon, lat)
-       call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-       dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i)) 
-!    end if
-  end subroutine trend_mass
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+    call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+
+    dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i)) 
+  end subroutine trend_temp
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
-    ! Euler time step
+    ! Velocity trend for cooling step
     use test_case_mod
     use main_mod
     use domain_mod
@@ -290,7 +308,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id, id_e, id_i
+    integer :: e, id, id_i
     real(8) :: k_v
 
     id = idx(i, j, offs, dims)
@@ -299,12 +317,7 @@ contains
     ! Rayleigh friction
     k_v = k_f * max (0.0_8, (dom%press%elts(id_i)/dom%surf_press%elts(id_i) - eta_b)/(1.0_8-eta_b)) 
 
-    ! Euler step for temperature and velocity cooling
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       !if (dom%mask_e%elts(id_e) >= ADJZONE) velo(id_e) = - k_v * velo(id_e) 
-       dvelo(id_e) = - k_v * velo(id_e)
-    end do
+    dvelo(EDGE*id:EDGE*id_i) = - k_v * velo(EDGE*id:EDGE*id_i)
   end subroutine trend_velo
 end subroutine trend_cooling
 
