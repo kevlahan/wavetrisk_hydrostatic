@@ -960,28 +960,31 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: d, e, id, id_e, k, l
-    real(8) :: col_mass, d_e, init_mass, v_e
+    integer :: d, e, id, id_e, id_i, k, l
+    real(8) :: col_mass, d_e, mu, init_mass, v_e
 
     id = idx(i, j, offs, dims)
+    id_i = id + 1
     d  = dom%id + 1
-    l  = dom%level%elts(id+1)
+    l  = dom%level%elts(id_i)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
 
        ! Find relative mass for this node
        col_mass = 0.0_8
        do k = 1, zlevels
-          if (sol(S_MASS,k)%data(d)%elts(id+1) < 0.0_8) then
-             write (6,'(A)') "ERROR: mass is negative"
-             stop
+          mu = sol(S_MASS,k)%data(d)%elts(id_i)
+          if (mu < 0.0_8) then
+             write (6,'(A,es10.4,i3)') "ERROR: mass = ",  mu, " is negative at level ", k
+             call finalize
           end if
-          col_mass = col_mass + sol(S_MASS,k)%data(d)%elts(id+1)
+          col_mass = col_mass + mu
        end do
+       
        do k = 1, zlevels
           init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
-          min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id+1)/init_mass)
+          min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
        end do
 
        ! Find time step for this node
@@ -990,7 +993,7 @@ contains
           if (dom%mask_e%elts(id_e) >= ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
              if (adapt_dt) then
-                d_e = dom%len%elts(id_e) ! Hexagon incircle radius
+                d_e = dom%len%elts(id_e) ! Triangle edge length
                 do k = 1, zlevels
                    v_e = abs (sol(S_VELO,k)%data(d)%elts(id_e))
                    dt_loc = min (dt_loc, cfl_num*d_e/(v_e+wave_speed))

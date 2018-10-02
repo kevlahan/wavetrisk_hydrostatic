@@ -228,6 +228,7 @@ contains
 
     ! Initialize thresholds to default values 
     call initialize_thresholds
+
     ! Uncompress checkpoint data
     if (rank == 0) then
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
@@ -250,6 +251,7 @@ contains
        write (command, '(A,A)') '\rm ', trim (cmd_files)
        call system (command)
     end if
+    call barrier
 
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
