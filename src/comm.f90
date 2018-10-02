@@ -976,7 +976,7 @@ contains
        do k = 1, zlevels
           mu = sol(S_MASS,k)%data(d)%elts(id_i)
           if (mu < 0.0_8) then
-             write (6,'(A,es10.4,i3)') "ERROR: mass = ",  mu, " is negative at level ", k
+             write (6,'(A,es10.4,A,i3)') "ERROR: mass = ",  mu, " is negative at level ", k
              stop
           end if
           col_mass = col_mass + mu
