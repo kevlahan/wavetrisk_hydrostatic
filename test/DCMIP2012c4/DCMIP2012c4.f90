@@ -47,7 +47,7 @@ program DCMIP2012c4
   specvoldim     = (R_d*Tempdim)/Pdim          ! specific volume scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim) ! acoustic wave speed
 
-  Udim           = u_0                         ! velocity scale
+  Udim           = 3*u_0                       ! velocity scale (factor 3 from adaptive threshold runs)
   Tdim           = DAY                         ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
@@ -122,7 +122,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      local_type = .false.
   end if
 
-  if (max(viscosity_mass, viscosity_temp) == 0.0_8) then
+  if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8
   else
      ! Calculate gradients
@@ -208,7 +208,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   real(8), dimension(1:EDGE) :: diffusion,  curl_rotu, grad_divu
 
-  if (max(maxval(viscosity_divu), viscosity_rotu)==0.0_8) then
+  if (Laplace_order == 0) then
      diffusion = 0.0_8
   else
      ! Calculate Laplacian of velocity

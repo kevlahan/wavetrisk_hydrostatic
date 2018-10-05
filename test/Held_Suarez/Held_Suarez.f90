@@ -23,7 +23,7 @@ program Held_Suarez
   ref_surf_press = ref_press                   ! reference surface pressure
   R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_p            = 1004.0_8                    ! specific heat at constant pressure in joules per kilogram Kelvin
-  c_v            = 717.6_8                     ! specfic heat at constant volume c_v = R_d - c_p
+  c_v            = 717.6_8                     ! specific heat at constant volume c_v = R_d - c_p
   gamma          = c_p/c_v                     ! heat capacity ratio
   kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
 
@@ -124,7 +124,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      local_type = .false.
   end if
 
-  if (max(viscosity_mass, viscosity_temp) == 0.0_8) then
+  if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8
   else
      ! Calculate gradients
@@ -210,7 +210,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
 
-  if (max(maxval(viscosity_divu), viscosity_rotu)==0.0_8) then
+  if (Laplace_order == 0) then
      diffusion = 0.0_8
   else
      ! Calculate Laplacian of velocity
