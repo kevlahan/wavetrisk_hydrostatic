@@ -85,6 +85,7 @@ contains
        if (isnan(mass_error)) then
           if (rank == 0) then
              write (6,'(A)') "Mass error is NaN"
+             call finalize
              stop
           end if
        end if
