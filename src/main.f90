@@ -173,16 +173,13 @@ contains
     ! Take time step
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
-    call RK45_opt (trend_ml, dt)
+    call RK4 (trend_ml, dt)
 
     ! Adapt grid
-     if (min_level /= max_level) call adapt_grid (set_thresholds)
+    if (min_level /= max_level) call adapt_grid (set_thresholds)
 
     ! If necessary, remap vertical coordinates
-    if (remap .and. min_mass < min_allowed_mass) then
-       call remap_vertical_coordinates (set_thresholds)
-        if (min_level /= max_level) call adapt_grid (set_thresholds)
-    end if
+    if (remap .and. min_mass < min_allowed_mass) call remap_vertical_coordinates (set_thresholds)
     
     ! Set new time step, find change in vertical levels and count active nodes
     dt_new = cpt_dt_mpi() 

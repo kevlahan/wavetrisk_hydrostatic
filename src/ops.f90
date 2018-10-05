@@ -715,14 +715,14 @@ contains
        end if
        dom%adj_mass%elts(id_i) = mass(id_i) ! Save current mass for pressure calculation at next vertical level
 
-       if (zlev == zlevels) then !top zlev, purely diagnostic
-          err = abs((dom%press%elts(id_i) - 0.5*grav_accel*mass(id_i)) - press_infty)/dom%surf_press%elts(id_i)
-          if (err > 1d-10) then
-             write(6,'(A)') 'Warning: upward integration of pressure not resulting in zero at top interface'
-             write(6,'(A,es10.4)') '(observed pressure - pressure_infty)/P_Surface = ', err
-             stop
-          end if
-       end if
+       ! if (zlev == zlevels) then !top zlev, purely diagnostic
+       !    err = abs((dom%press%elts(id_i) - 0.5*grav_accel*mass(id_i)) - press_infty)/dom%surf_press%elts(id_i)
+       !    if (err > 1d-10) then
+       !       write(6,'(A)') 'Warning: upward integration of pressure not resulting in zero at top interface'
+       !       write(6,'(A,es10.4)') '(observed pressure - pressure_infty)/P_Surface = ', err
+       !       stop
+       !    end if
+       ! end if
 
        ! Exner function from pressure
        exner(id_i) = c_p*(dom%press%elts(id_i)/ref_press)**kappa
