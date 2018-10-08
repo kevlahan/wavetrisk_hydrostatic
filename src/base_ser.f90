@@ -44,13 +44,13 @@ contains
     end do
   end subroutine distribute_grid
 
-  subroutine finalize()
+  subroutine finalize
   end subroutine finalize
 
-  subroutine barrier()
+  subroutine barrier
   end subroutine barrier
 
-  subroutine abort()
+  subroutine abort
     stop
   end subroutine abort
 end module arch_mod

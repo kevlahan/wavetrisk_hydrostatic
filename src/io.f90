@@ -66,7 +66,7 @@ contains
   subroutine sum_total_mass (initialgo)
     ! Total mass over all vertical layers
     implicit none
-    integer :: ierror
+    integer :: errcode, ierr
     logical :: initialgo
 
     integer :: k
@@ -85,7 +85,7 @@ contains
        if (isnan(mass_error)) then
           if (rank == 0) then
              write (6,'(A)') "Mass error is NaN"
-             stop
+             call abort
           end if
        end if
     end if

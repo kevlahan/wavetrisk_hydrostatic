@@ -959,7 +959,8 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
+    integer :: errcode, ierr
     integer :: d, e, id, id_e, id_i, k, l
     real(8) :: col_mass, d_e, mu, init_mass, v_e
 
@@ -977,7 +978,7 @@ contains
           mu = sol(S_MASS,k)%data(d)%elts(id_i)
           if (mu < 0.0_8) then
              write (6,'(A,es11.4,A,i3)') "ERROR: mass = ",  mu, " is negative at level ", k
-             stop
+             call abort
           end if
           col_mass = col_mass + mu
        end do
