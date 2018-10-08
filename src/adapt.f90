@@ -419,17 +419,17 @@ contains
        do i0 = st + 1, PATCH_SIZE/2 + en
           i = i0 - 1 + chd_offs(1,c+1)
           id = idx(i, j, offs, dims)
-          required = dom%mask_n%elts(id+1) >= ADJSPACE
+          required = dom%mask_n%elts(id+1) >= ADJSPACE .or. dom%mask_n%elts(id+1) == TRSK
           do e = 1, EDGE
              required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT
           end do
           if (required) then
-             check_child_required = .True.
+             check_child_required = .true.
              return
           end if
        end do
     end do
-    check_child_required = .False.
+    check_child_required = .false.
   end function check_child_required
 
   subroutine init_multi_level_mod
