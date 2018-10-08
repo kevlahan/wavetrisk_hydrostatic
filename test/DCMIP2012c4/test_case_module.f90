@@ -134,9 +134,9 @@ contains
        else
           call cal_lnorm (sol,   order, lnorm)
        end if
-       threshold_new = tol * lnorm
+       threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
     end if
-    threshold = threshold_new
+    threshold = 0.1*threshold_new + 0.9*threshold
   end subroutine set_thresholds
 
   subroutine initialize_a_b_vert
@@ -263,6 +263,8 @@ contains
        write (6,'(A,i3)')     "min_level            = ", min_level
        write (6,'(A,i3)')     "max_level            = ", max_level
        write (6,'(A,i5)')     "number of domains    = ", N_GLO_DOMAIN
+       write (6,'(A,i5)')     "DOMAIN_LEVEL         = ", DOMAIN_LEVEL
+       write (6,'(A,i5)')     "PATCH_LEVEL          = ", PATCH_LEVEL
        write (6,'(A,i5)')     "number of processors = ", n_process
        write (6,'(A,i3)')     "zlevels              = ", zlevels
        write (6,'(A,L1)')     "uniform              = ", uniform
