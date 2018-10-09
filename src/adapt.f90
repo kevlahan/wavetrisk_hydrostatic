@@ -9,7 +9,7 @@ module adapt_mod
 contains
   subroutine init_adapt_mod
     implicit none
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
     call init_comm_mod
@@ -160,8 +160,8 @@ contains
           end do
        end do
     end if
-    wav_coeff%bdry_uptodate = .False.
-    trend_wav_coeff%bdry_uptodate = .False.
+    wav_coeff%bdry_uptodate = .false.
+    trend_wav_coeff%bdry_uptodate = .false.
   end subroutine adapt
 
    subroutine WT_after_step (q, wav, l_start0)
@@ -209,7 +209,7 @@ contains
              call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
              nullify (mass, temp, velo, wc_m, wc_t, wc_u)
           end do
-          wav(:,k)%bdry_uptodate = .False.
+          wav(:,k)%bdry_uptodate = .false.
        end do
 
        do l = level_start+1, level_end
@@ -220,7 +220,7 @@ contains
              call apply_onescale_d (compress, grid(d), l, k, 0, 1)
              nullify (wc_m, wc_t, wc_u)
           end do
-          wav(:,k)%bdry_uptodate = .False.
+          wav(:,k)%bdry_uptodate = .false.
        end do
     end do
 
@@ -248,12 +248,12 @@ contains
     end do
   end subroutine compress
 
-  logical function refine()
+  logical function refine ()
     implicit none
     ! Determines where new patches are needed
-    logical :: required
     integer :: c, d, did_refine, old_n_patch, p_chd, p_par
-
+    logical :: required
+    
     ! Use threshold masks call refine patch where necessary
     did_refine = FALSE
     do d = 1, size(grid)
@@ -264,7 +264,7 @@ contains
              required = check_child_required (grid(d), p_par - 1, c - 1)
              if (required .and. p_chd <= 0) then ! New patch required and does not yet exist
                 if (grid(d)%patch%elts(p_par)%level == max_level) then ! Cannot refine further
-                   max_level_exceeded = .True.
+                   max_level_exceeded = .true.
                 else
                    call refine_patch1 (grid(d), p_par - 1, c - 1)
                    did_refine = TRUE
@@ -354,7 +354,7 @@ contains
     check_children_fillup = dble(active)/dble(N_CHDRN*5*DOF_PER_PATCH)
   end function check_children_fillup
 
-  logical function remove_inside_patches()
+  logical function remove_inside_patches ()
     ! Removes patches that are not required because they are far enough away from the locally finest level
     
     integer               :: d, k, p, l, c, c1
@@ -381,7 +381,7 @@ contains
                 children_fullness = children_fullness + check_children_fillup(grid(d), chdrn(c1))
              end do
           end do
-          children_fullness = children_fullness/16.0_8
+          children_fullness = children_fullness/16
           if (children_fullness > FILLUP_THRESHOLD) then
              do c = 1, N_CHDRN
                 chdrn = get_child_and_neigh_patches(grid(d), p, c)
@@ -404,10 +404,10 @@ contains
     type(Domain) :: dom
     integer      :: p, c
 
+    integer                        :: e, j0, j, i0, i, id, st, en
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer :: e, j0, j, i0, i, id, st, en
-    logical :: required
+    logical                        :: required
 
     st = -BDRY_THICKNESS
     en =  BDRY_THICKNESS
@@ -419,9 +419,9 @@ contains
        do i0 = st + 1, PATCH_SIZE/2 + en
           i = i0 - 1 + chd_offs(1,c+1)
           id = idx(i, j, offs, dims)
-          required = dom%mask_n%elts(id+1) >= ADJSPACE .or. dom%mask_n%elts(id+1) == TRSK
+          required = dom%mask_n%elts(id+1) >= ADJSPACE
           do e = 1, EDGE
-             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT .or. dom%mask_e%elts(EDGE*id+e) == TRSK
+             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT
           end do
           if (required) then
              check_child_required = .true.
@@ -434,14 +434,14 @@ contains
 
   subroutine init_multi_level_mod
     implicit none
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
     call init_comm_mod
     call init_ops_mod
     call init_wavelet_mod
     call init_refine_patch_mod
-    initialized = .True.
+    initialized = .true.
   end subroutine init_multi_level_mod
 
   subroutine add_second_level
@@ -479,9 +479,7 @@ contains
           p_par = grid(d)%lev(level_start)%elts(j)
           do c = 1, N_CHDRN
              p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-             if (p_chd == 0) then
-                call refine_patch (grid(d), p_par, c - 1)
-             end if
+             if (p_chd == 0) call refine_patch (grid(d), p_par, c - 1)
           end do
        end do
     end do
