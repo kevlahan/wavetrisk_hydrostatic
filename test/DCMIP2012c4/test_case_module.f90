@@ -242,7 +242,8 @@ contains
     read (fid,*) varname, adapt_dt
     read (fid,*) varname, cfl_num
     read (fid,*) varname, press_save
-    read (fid,*) varname, Laplace_order
+    read (fid,*) varname, Laplace_order_init
+    read (fid,*) varname, n_diffuse
     read (fid,*) varname, C_diffusion
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
@@ -278,7 +279,8 @@ contains
        write (6,'(A,L1)')     "adapt_dt             = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num              = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa)  = ", press_save
-       write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order
+       write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order_init
+       write (6,'(A,i2)')     "n_diffuse            = ", n_diffuse
        write (6,'(A,es10.4)') "C_diffusion          = ", C_diffusion
        write (6,'(A,es10.4)') "dt_write             = ", dt_write
        write (6,'(A,i6)')     "CP_EVERY             = ", CP_EVERY
@@ -315,6 +317,7 @@ contains
     close (fid)
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
+    Laplace_order = Laplace_order_init
   end subroutine read_test_case_parameters
 
   subroutine print_log
@@ -399,10 +402,10 @@ contains
     elseif (Laplace_order == 1 .or. Laplace_order == 2) then
        L_scaled = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
 
-       viscosity_mass = L_scaled(1)**(2*Laplace_order) / dt_cfl * C_diffusion
-       viscosity_temp = L_scaled(1)**(2*Laplace_order) / dt_cfl * C_diffusion
-       viscosity_divu = L_scaled(2)**(2*Laplace_order) / dt_cfl * C_diffusion
-       viscosity_rotu = L_scaled(3)**(2*Laplace_order) / dt_cfl * C_diffusion
+       viscosity_mass = L_scaled(1)**(2*Laplace_order) / dt_cfl * C_diffusion * n_diffuse
+       viscosity_temp = L_scaled(1)**(2*Laplace_order) / dt_cfl * C_diffusion * n_diffuse
+       viscosity_divu = L_scaled(2)**(2*Laplace_order) / dt_cfl * C_diffusion * n_diffuse
+       viscosity_rotu = L_scaled(3)**(2*Laplace_order) / dt_cfl * C_diffusion * n_diffuse
     elseif (Laplace_order > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -411,8 +414,8 @@ contains
     
     if (rank == 0) then
        write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
-       write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass, " Viscosity_temp = ", viscosity_temp, &
-            " Viscosity_divu = ", sum (viscosity_divu)/zlevels, " Viscosity_rotu = ", viscosity_rotu
+       write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass/n_diffuse, " Viscosity_temp = ", viscosity_temp/n_diffuse, &
+            " Viscosity_divu = ", sum (viscosity_divu)/zlevels/n_diffuse, " Viscosity_rotu = ", viscosity_rotu/n_diffuse
        write (6,'(A,es8.2,A)') "Diffusion stability constants = ", dt_cfl/dx_min**(2*Laplace_order)*visc, " (should be < 0.25)"
     end if
   end subroutine initialize_dt_viscosity

@@ -317,7 +317,7 @@ module shared_mod
   real(8), parameter :: MATH_PI = acos(-1.0_8)
   
   ! Simulation variables
-  integer                                       :: cp_idx, istep, iwrite, resume, Laplace_order
+  integer                                       :: cp_idx, istep, iwrite, n_diffuse, resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   
   real(8)                                       :: dt, dt_init, dt_write, dx_min, dx_max, time_end, time
@@ -397,8 +397,9 @@ contains
     ! these parameters are typically reset in the input file, but are needed for compilation
     cfl_num             = 1.5_8
     level_save          = level_start
-    Laplace_order       = 0                      ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
+    Laplace_order_init  = 0                      ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     min_allowed_mass    = 0.3_8
+    n_diffuse           = 1
     optimize_grid       = HR_GRID
     save_levels         = 1
     tol                 = 0.0_8

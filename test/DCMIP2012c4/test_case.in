@@ -7,16 +7,17 @@ uniform            F             ! uniform (T) or hybrid (F) vertical grid
 remap              T             ! remap vertical grid
 min_allowed_mass   0.3           ! minimum allowed relative mass before remapping
 adapt_trend        T             ! adapt on trend (T) or variables (F)
-default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
+default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)
-tol      	   2.0           ! non-dimensional tolerance
+tol      	   0.6           ! non-dimensional tolerance
 optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
-cfl_num            1.5           ! cfl number
+cfl_num            1.4           ! cfl number
 pressure_save      850           ! save vertical layer closest to this pressure (hPa)
 Laplace_order      2             ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second order Laplacian hyperdiffusion
-C_diffusion        0.1          ! diffusion constant (max stable is about 8.5)
+n_diffuse          1             ! diffuse every n_diffuse time steps
+C_diffusion        0.03          ! diffusion constant (max stable is about 8.5)
 dt_write           240           ! save interval (minutes)
-CP_EVERY           6             ! checkpoint and rebalance every CP_EVERY saves
+CP_EVERY           1             ! checkpoint and rebalance every CP_EVERY saves
 time_end           720           ! final time (hours)
 resume             -1            ! restart from checkpoint (negative means fresh restart)

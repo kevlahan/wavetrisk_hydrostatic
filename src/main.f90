@@ -170,16 +170,23 @@ contains
     if (aligned) idt = ialign - modulo (itime,ialign)
     dt = idt/time_mult ! Modify time step
 
+    ! Determine whether to add diffusion
+    if (modulo (istep, n_diffuse) == 0 .and. Laplace_order_init /= 0) then
+       Laplace_order = Laplace_order_init
+    else
+       Laplace_order = 0
+    end if
+        
     ! Take time step
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
     call RK4 (trend_ml, dt)
+    
+    ! If necessary, remap vertical coordinates
+    if (remap .and. min_mass < min_allowed_mass) call remap_vertical_coordinates (set_thresholds)
 
     ! Adapt grid
     if (min_level /= max_level) call adapt_grid (set_thresholds)
-
-    ! If necessary, remap vertical coordinates
-    if (remap .and. min_mass < min_allowed_mass) call remap_vertical_coordinates (set_thresholds)
     
     ! Set new time step, find change in vertical levels and count active nodes
     dt_new = cpt_dt_mpi() 
