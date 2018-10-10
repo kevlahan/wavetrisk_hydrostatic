@@ -32,3 +32,10 @@ e.g.
 ffmpeg -r 12 -i test.%4d.jpg -vcodec mpeg4 -qscale 0 DCMIP2008c5.avi
 
 where: fps is the number of frames per second, "base" is the base name of the .jpg files and %4d is the frame numbering (e.g. test.0001.jpg, test.0002.jpg etc).
+
+SAVE STATE
+
+To save the state of a session: File -> Save State...
+To load a saved state: File -> Load State...
+
+This save all aspects of a session including window layout, colour bars etc.
