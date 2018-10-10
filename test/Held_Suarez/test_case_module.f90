@@ -94,7 +94,7 @@ contains
     u = 0.0_8
     v = 0.0_8
   end subroutine vel_fun
-  
+
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
     use wavelet_mod
@@ -103,7 +103,7 @@ contains
 
     character(3), parameter :: order = "inf"
 
-    if (default_thresholds .or. istep == 0) then ! Initialize once
+    if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
     else
        if (adapt_trend) then
@@ -111,17 +111,12 @@ contains
        else
           call cal_lnorm (sol,   order, lnorm)
        end if
-       threshold_new = tol * lnorm
+       threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
     end if
-    
-    if (istep /= 0) then
-       threshold = 0.9_8*threshold + 0.1_8*threshold_new
-    else
-       threshold = threshold_new
-    end if
+    threshold = 0.1*threshold_new + 0.9*threshold
   end subroutine set_thresholds
 
- subroutine initialize_a_b_vert
+  subroutine initialize_a_b_vert
     implicit none
     integer :: k
 
@@ -224,7 +219,8 @@ contains
     read (fid,*) varname, adapt_dt
     read (fid,*) varname, cfl_num
     read (fid,*) varname, press_save
-    read (fid,*) varname, Laplace_order
+    read (fid,*) varname, Laplace_order_init
+    read (fid,*) varname, n_diffuse
     read (fid,*) varname, tau_diffusion
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
@@ -259,7 +255,8 @@ contains
        write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
-       write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order
+       write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
+       write (6,'(A,i2)')     "n_diffuse           = ", n_diffuse
        write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion
        write (6,'(A,es10.4)') "dt_write            = ", dt_write
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
@@ -292,9 +289,10 @@ contains
             ************************************************************'
     end if
     close(fid)
-    dt_write = dt_write * MINUTE
     tau_diffusion = tau_diffusion * HOUR
+    dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
+    Laplace_order = Laplace_order_init
   end subroutine read_test_case_parameters
 
   subroutine print_log
@@ -378,10 +376,10 @@ contains
     elseif (Laplace_order == 1 .or. Laplace_order == 2) then
        L_scaled = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
 
-       viscosity_mass = L_scaled(1)**(2*Laplace_order) / tau_diffusion
-       viscosity_temp = L_scaled(1)**(2*Laplace_order) / tau_diffusion
-       viscosity_divu = L_scaled(2)**(2*Laplace_order) / tau_diffusion
-       viscosity_rotu = L_scaled(3)**(2*Laplace_order) / tau_diffusion
+       viscosity_mass = L_scaled(1)**(2*Laplace_order) / tau_diffusion * n_diffuse
+       viscosity_temp = L_scaled(1)**(2*Laplace_order) / tau_diffusion * n_diffuse
+       viscosity_divu = L_scaled(2)**(2*Laplace_order) / tau_diffusion * n_diffuse
+       viscosity_rotu = L_scaled(3)**(2*Laplace_order) / tau_diffusion * n_diffuse
     elseif (Laplace_order > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -392,7 +390,7 @@ contains
        write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
        write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass, " Viscosity_temp = ", viscosity_temp, &
             " Viscosity_divu = ", sum (viscosity_divu)/zlevels, " Viscosity_rotu = ", viscosity_rotu
-       write (6,'(A,es10.4,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order)*visc, &
+       write (6,'(A,es8.2,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order) * visc, &
             " (should be < 0.25, or about < 0.5 for RK45 ssp if CFL <= 1.2)"
     end if
   end subroutine initialize_dt_viscosity

@@ -416,7 +416,7 @@ contains
        write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
        write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass/n_diffuse, " Viscosity_temp = ", viscosity_temp/n_diffuse, &
             " Viscosity_divu = ", sum (viscosity_divu)/zlevels/n_diffuse, " Viscosity_rotu = ", viscosity_rotu/n_diffuse
-       write (6,'(A,es8.2,A)') "Diffusion stability constants = ", dt_cfl/dx_min**(2*Laplace_order)*visc, " (should be < 0.25)"
+       write (6,'(A,es8.2,A)') "Diffusion stability constants = ", dt_cfl/dx_min**(2*Laplace_order) * visc, " (should be < 0.25)"
     end if
   end subroutine initialize_dt_viscosity
 

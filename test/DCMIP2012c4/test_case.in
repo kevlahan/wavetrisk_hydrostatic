@@ -9,7 +9,7 @@ min_allowed_mass   0.3           ! minimum allowed relative mass before remappin
 adapt_trend        T             ! adapt on trend (T) or variables (F)
 default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)
-tol      	   0.6           ! non-dimensional tolerance
+tol      	   0.4           ! non-dimensional tolerance
 optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
 cfl_num            1.4           ! cfl number
