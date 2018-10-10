@@ -170,8 +170,8 @@ contains
     if (aligned) idt = ialign - modulo (itime,ialign)
     dt = idt/time_mult ! Modify time step
 
-    ! Determine whether to add diffusion
-    if (modulo (istep, n_diffuse) == 0 .and. Laplace_order_init /= 0) then
+    ! Add diffusion
+    if (modulo (nint(time/dt_cfl), n_diffuse) == 0 .and. Laplace_order_init /= 0) then
        Laplace_order = Laplace_order_init
     else
        Laplace_order = 0
