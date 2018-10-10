@@ -394,19 +394,19 @@ contains
     dt_init = dt_cfl
     
     ! Viscosity constant from eigenvalues of Laplacian
-    if (Laplace_order == 0) then
+    if (Laplace_order_init == 0) then
        viscosity_mass = 0.0_8
        viscosity_temp = 0.0_8
        viscosity_divu = 0.0_8
        viscosity_rotu = 0.0_8
-    elseif (Laplace_order == 1 .or. Laplace_order == 2) then
+    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        L_scaled = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
 
-       viscosity_mass = L_scaled(1)**(2*Laplace_order) / dt_cfl * C_diffusion * n_diffuse
-       viscosity_temp = L_scaled(1)**(2*Laplace_order) / dt_cfl * C_diffusion * n_diffuse
-       viscosity_divu = L_scaled(2)**(2*Laplace_order) / dt_cfl * C_diffusion * n_diffuse
-       viscosity_rotu = L_scaled(3)**(2*Laplace_order) / dt_cfl * C_diffusion * n_diffuse
-    elseif (Laplace_order > 2) then
+       viscosity_mass = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_temp = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_divu = L_scaled(2)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_rotu = L_scaled(3)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+    elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if

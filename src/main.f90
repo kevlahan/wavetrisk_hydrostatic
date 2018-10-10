@@ -59,7 +59,7 @@ contains
        call apply_init_cond
 
        ! Calculate diffusion length scales
-       if (Laplace_order /= 0) call evals_diffusion
+       if (Laplace_order_init /= 0) call evals_diffusion
 
        ! Initialize time step and viscosities
        call initialize_dt_viscosity

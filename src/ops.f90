@@ -1415,7 +1415,7 @@ contains
     L_diffusion(1) = 1/sqrt(-eval(1))
     L_diffusion(2:3) = 1/sqrt(-eval(2:3))
     if (rank == 0) write (6,'(3(A,es8.2,1x),/)') &
-         "L_scalar = ", MATH_PI*L_diffusion(1), "L_divu = ",MATH_PI*L_diffusion(2),"L_rotu = ", MATH_PI*L_diffusion(3)
+         "dx_scalar = ", MATH_PI*L_diffusion(1), "dx_divu = ",MATH_PI*L_diffusion(2),"dx_rotu = ", MATH_PI*L_diffusion(3)
   contains
     subroutine init_rand
       ! Applies random initial conditions
