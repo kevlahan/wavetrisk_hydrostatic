@@ -256,7 +256,7 @@ contains
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
-       write (6,'(A,i2)')     "n_diffuse           = ", n_diffuse
+       write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
        write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion
        write (6,'(A,es10.4)') "dt_write            = ", dt_write
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
