@@ -172,6 +172,7 @@ contains
 
     ! Add diffusion
     if (modulo (nint(time/dt_cfl), n_diffuse) == 0 .and. Laplace_order_init /= 0) then
+       if (rank == 0) write (6,'(A)') "Diffusion step"
        Laplace_order = Laplace_order_init
     else
        Laplace_order = 0
