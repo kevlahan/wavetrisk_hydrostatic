@@ -251,9 +251,9 @@ contains
        write (6,'(A,i3)')     "min_level           = ", min_level
        write (6,'(A,i3)')     "max_level           = ", max_level
        write (6,'(A,i5)')     "number of domains   = ", N_GLO_DOMAIN
+       write (6,'(A,i5)')     "number of processors = ", n_process
        write (6,'(A,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
        write (6,'(A,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
-       write (6,'(A,i5)')     "number of processors = ", n_process
        write (6,'(A,i3)')     "zlevels             = ", zlevels
        write (6,'(A,L1)')     "uniform             = ", uniform
        write (6,'(A,L1)')     "remap               = ", remap
