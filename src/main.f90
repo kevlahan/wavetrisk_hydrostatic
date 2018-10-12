@@ -156,7 +156,9 @@ contains
 
     integer(8) :: idt, ialign
     
-    istep = istep+1
+    istep       = istep+1
+    istep_cumul = istep_cumul+1
+    
     dt = dt_new
 
     ! Match certain times exactly
@@ -171,7 +173,7 @@ contains
     dt = idt/time_mult ! Modify time step
 
     ! Add diffusion
-    if (modulo (nint(time/dt_cfl), n_diffuse) == 0 .and. Laplace_order_init /= 0) then
+    if (modulo (istep_cumul, n_diffuse) == 0 .and. Laplace_order_init /= 0) then
        if (rank == 0) write (6,'(A)') "Diffusion step"
        Laplace_order = Laplace_order_init
     else
