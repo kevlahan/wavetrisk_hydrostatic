@@ -1159,7 +1159,6 @@ contains
     call post_levelout
     call barrier
     if (rank == 0) call compress_files (iwrite, run_id)
-    call barrier
   end subroutine write_and_export
 
   subroutine compress_files (iwrite, run_id)
