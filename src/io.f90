@@ -1159,6 +1159,7 @@ contains
     call post_levelout
     call barrier
     if (rank == 0) call compress_files (iwrite, run_id)
+    call barrier
   end subroutine write_and_export
 
   subroutine compress_files (iwrite, run_id)
@@ -1175,13 +1176,13 @@ contains
     
     call system (command)
 
-    command = 'tar czf '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files &'
+    command = 'tar cfz '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files'
     call system (command)
 
     command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2' 
     call system (command)
 
-    command = 'tar czf '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files &'
+    command = 'tar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
     call system (command)
   end subroutine compress_files
 end module io_mod

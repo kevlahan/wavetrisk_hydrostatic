@@ -279,12 +279,9 @@ contains
     implicit none
     integer, dimension(n_process) :: test_recv_len
 
-    call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, &
-         test_recv_len, 1, MPI_INTEGER, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, test_recv_len, 1, MPI_INTEGER, MPI_COMM_WORLD, ierror)
 
     write (3000+rank,*) test_recv_len-recv_lengths
-
     close(3000+rank)
     call MPI_Barrier (MPI_Comm_World, ierror)
   end subroutine check_alltoall_lengths

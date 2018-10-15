@@ -315,7 +315,7 @@ contains
     if (rank == 0) then
        write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
-       write (command, '(A,A,A,A)') 'tar c --remove-files -z -f ', trim (cmd_archive), ' ', trim (cmd_files)
+       write (command, '(A,A,A,A,A)') 'tar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
        call system (command)
     end if
     call barrier ! Make sure data is archived before restarting

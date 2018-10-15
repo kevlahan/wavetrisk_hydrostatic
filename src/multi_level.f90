@@ -22,15 +22,15 @@ contains
           ! Finish non-blocking communication of dq from previous level (l+1)
           if (l < level_end) call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) 
 
-          call basic_operators   (q, dq, k, l)
-          call eval_scalar_trend (q, dq, k, l)
+          call basic_operators  (q, dq, k, l)
+          call cal_scalar_trend (q, dq, k, l)
           
           ! Start non-blocking communication of dq for use at next level (l-1)
           if (level_start /= level_end .and. l > level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l) 
 
           call velocity_trend_source (q, dq, k, l)
        end do
-       call velocity_trend_grad  (q, dq, k, l)
+       call velocity_trend_grad (q, dq, k, l)
     end do
   end subroutine trend_ml
 
@@ -80,7 +80,7 @@ contains
     if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
   end subroutine basic_operators
 
-  subroutine eval_scalar_trend (q, dq, k, l)
+  subroutine cal_scalar_trend (q, dq, k, l)
     ! Evaluate scalar trends at level l
     implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
@@ -101,7 +101,7 @@ contains
        nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
     end do
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
-  end subroutine eval_scalar_trend
+  end subroutine cal_scalar_trend
 
   subroutine velocity_trend_source  (q, dq, k, l)
     ! Evaluate source part of velocity trends at level l
