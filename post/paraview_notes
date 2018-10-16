@@ -1,26 +1,27 @@
 PARAVIEW NOTES
 
-Click on window and then on "eye" to left of data set to activate or de-activate data display in the window.
+SELECTING OBJECTS TO DISPLAY
+Click on the window and then in the pipeline browser: click on "eye" to left of object to activate or de-activate its display in the window.
 
 DISPLAY TIME
-
 Filters -> Annotation -> Annotate Time Filter.  Need to click on "Apply" to be able to format font and location.  Uses printf format (e.g. %4.2f). Use shift and scale
 to convert filenumber to correct units.
 
 DISPLAY TEXT
-
 Sources -> Text.  Need to click on "Apply" to be able to format font and location.
 
 EDIT COLOR BAR
-
 View -> Color Map Editor. Click on rainbow with black e (upper right) to edit color bar legend. Click on "Gear" to get all properties. Usually want to unclick "Add Range Labels".
+
+NUMBER FORMAT
+Paraview uses printf formats: e.g. %6.3f
+%#f always prints decimal point (usually don't want that!).
 
 TRANSFORM DATA
 Filter -> Alphabetical -> Cell Data to Point Data
 To convert Cell data (e.g. hexagons) to point data (that can be used by filters like contour).
 
 SAVE ANIMATION
-
 File -> Save Animation. Click on "Save All Views" and then save as .jpg (don't click "transparent view").
 
 Then convert .jpg to .avi usable in Beamer:
@@ -34,7 +35,6 @@ ffmpeg -r 12 -i test.%4d.jpg -vcodec mpeg4 -qscale 0 DCMIP2008c5.avi
 where: fps is the number of frames per second, "base" is the base name of the .jpg files and %4d is the frame numbering (e.g. test.0001.jpg, test.0002.jpg etc).
 
 SAVE STATE
-
 To save the state of a session: File -> Save State...
 To load a saved state: File -> Load State...
 
