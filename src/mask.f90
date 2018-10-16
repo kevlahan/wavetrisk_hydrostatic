@@ -409,7 +409,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN, idNW, idW, idSW, idS, idSE, idN2E, id2E, id2NE, id2N2E, id2N
+    integer :: id, idE, idNE, idN, idNW, idW, idSW, idS, idSE
 
     id     = idx(i,   j,   offs, dims)
     idE    = idx(i+1, j,   offs, dims)
@@ -420,11 +420,6 @@ contains
     idSW   = idx(i-1, j-1, offs, dims)
     idS    = idx(i,   j-1, offs, dims)
     idSE   = idx(i+1, j-1, offs, dims)
-    idN2E  = idx(i+2, j+1, offs, dims)
-    id2E   = idx(i+2, j,   offs, dims)
-    id2N   = idx(i,   j+2, offs, dims)
-    id2NE  = idx(i+1, j+2, offs, dims)
-    id2N2E = idx(i+2, j+2, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        ! Flux divergence stencil
@@ -465,10 +460,12 @@ contains
        call set_at_least (dom%mask_e%elts(EDGE*idNW+RT+1), TRSK)
 
        ! Qperp stencil
-       ! (already accounted for by masking for above operators)
+       call flux_div_stencil (dom, i+1, j,   offs, dims)
+       call flux_div_stencil (dom, i+1, j+1, offs, dims)
+       call flux_div_stencil (dom, i,   j+1, offs, dims)
 
        ! Diffusion
-       if (Laplace_order > 0) then
+       if (Laplace_order /= 0) then
           call Laplacian_u_stencil (dom, i, j, offs, dims)
           if (Laplace_order == 2) then
              call Laplacian_u_stencil (dom, i+1, j,   offs, dims)
