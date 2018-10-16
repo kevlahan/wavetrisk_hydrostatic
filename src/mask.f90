@@ -409,17 +409,14 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN, idNW, idW, idSW, idS, idSE
+    integer :: id, idE, idN, idW, idSW, idS
 
     id     = idx(i,   j,   offs, dims)
     idE    = idx(i+1, j,   offs, dims)
-    idNE   = idx(i+1, j+1, offs, dims)
-    idNW   = idx(i-1, j+1, offs, dims)
     idN    = idx(i,   j+1, offs, dims)
     idW    = idx(i-1, j,   offs, dims)
     idSW   = idx(i-1, j-1, offs, dims)
     idS    = idx(i,   j-1, offs, dims)
-    idSE   = idx(i+1, j-1, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        ! Flux divergence stencil
@@ -430,15 +427,15 @@ contains
        call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
        call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
 
+       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
+
        ! Stencil for gradients of Bernoulli function
-       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),  TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),  TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
     
-       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),  TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),  TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),  TRSK)
-       
        ! Qperp stencil
        call flux_div_stencil (dom, i+1, j,   offs, dims)
        call flux_div_stencil (dom, i+1, j+1, offs, dims)
