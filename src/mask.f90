@@ -425,45 +425,35 @@ contains
        ! Flux divergence stencil
        call flux_div_stencil (dom, i, j, offs, dims)
 
-       ! Kinetic energy and circulation stencil
+       ! Kinetic energy stencil
        call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
        call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
        call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
 
-       ! Circulation stencil
-       call set_at_least (dom%mask_e%elts(EDGE*idE+UP+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*idN+RT+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*idW+DG+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*idS+DG+1), TRSK)
-
-       ! Potential vorticity stencil
-       call set_at_least (dom%mask_n%elts(idW+1), TRSK)
-       call set_at_least (dom%mask_n%elts(idS+1), TRSK)
-
        ! Stencil for gradients of Bernoulli function
-       call set_at_least (dom%mask_n%elts(idE+1), TRSK)
-       call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
-       call set_at_least (dom%mask_n%elts(idN+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),  TRSK)
+    
+       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),  TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),  TRSK)
        
-       call set_at_least (dom%mask_e%elts(EDGE*idE+RT+1),  TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*idE+DG+1),  TRSK)
-
-       call set_at_least (dom%mask_e%elts(EDGE*idSE+UP+1), TRSK)
-
-       call set_at_least (dom%mask_e%elts(EDGE*idNE+RT+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*idNE+DG+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*idNE+UP+1), TRSK)
-
-       call set_at_least (dom%mask_e%elts(EDGE*idN+DG+1),  TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*idN+UP+1),  TRSK)
-
-       call set_at_least (dom%mask_e%elts(EDGE*idNW+RT+1), TRSK)
-
        ! Qperp stencil
        call flux_div_stencil (dom, i+1, j,   offs, dims)
        call flux_div_stencil (dom, i+1, j+1, offs, dims)
        call flux_div_stencil (dom, i,   j+1, offs, dims)
 
+       call qe_stencil (dom, i,   j,   offs, dims)
+       call qe_stencil (dom, i+1, j,   offs, dims)
+       call qe_stencil (dom, i+1, j+1, offs, dims)
+       call qe_stencil (dom, i,   j+1, offs, dims)
+       call qe_stencil (dom, i-1, j,   offs, dims) 
+       call qe_stencil (dom, i-1, j-1, offs, dims) 
+       call qe_stencil (dom, i,   j-1, offs, dims) 
+       call qe_stencil (dom, i+1, j-1, offs, dims) 
+       call qe_stencil (dom, i-1, j+1, offs, dims) 
+       
        ! Diffusion
        if (Laplace_order /= 0) then
           call Laplacian_u_stencil (dom, i, j, offs, dims)
@@ -478,6 +468,43 @@ contains
        end if
     end if
   end subroutine mask_trsk
+  
+  subroutine qe_stencil (dom, i, j, offs, dims)
+    ! Stencil for qe 
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, idE, idNE, idN, idW, idS
+
+    id     = idx(i,   j,   offs, dims)
+    idE    = idx(i+1, j,   offs, dims)
+    idNE   = idx(i+1, j+1, offs, dims)
+    idN    = idx(i,   j+1, offs, dims)
+    idW    = idx(i-1, j,   offs, dims)
+    idS    = idx(i,   j-1, offs, dims)
+
+    ! Circulation stencil
+    call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idE+UP+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idN+RT+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idW+DG+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idS+DG+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1), TRSK)
+
+    ! Potential vorticity stencil
+    call set_at_least (dom%mask_n%elts(id+1),   TRSK)
+    call set_at_least (dom%mask_n%elts(idE+1),  TRSK)
+    call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
+    call set_at_least (dom%mask_n%elts(idN+1),  TRSK)
+    call set_at_least (dom%mask_n%elts(idW+1),  TRSK)
+    call set_at_least (dom%mask_n%elts(idS+1),  TRSK)
+  end subroutine qe_stencil
 
   subroutine Laplacian_u_stencil (dom, i, j, offs, dims)
     ! Stencil for Laplacian(u) operators
