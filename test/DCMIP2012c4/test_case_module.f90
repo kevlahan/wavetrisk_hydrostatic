@@ -217,13 +217,19 @@ contains
     a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
   end subroutine initialize_a_b_vert
 
-  subroutine read_test_case_parameters (filename)
+  subroutine read_test_case_parameters
     implicit none
-    character(*)   :: filename
-
     integer, parameter :: fid = 500
     real(8)            :: press_save
-    character(255)     :: varname
+    character(255)     :: filename, varname
+
+    ! Find input parameters file name
+    if (iargc() >= 1) then
+       CALL getarg (1, filename)
+    else
+       filename = 'test_case.in'
+    end if
+    if (rank == 0) write (6,'(A,A)') "Input file = ", trim (filename)
 
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case

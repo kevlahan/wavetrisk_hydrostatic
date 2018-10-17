@@ -54,7 +54,7 @@ program DCMIP2012c4
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters
-  call read_test_case_parameters ("test_case.in")
+  call read_test_case_parameters
  
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)

@@ -7,8 +7,9 @@ program Held_Suarez
   use io_mod
   implicit none
 
-  logical  :: aligned
-  external :: trend_cooling
+  logical        :: aligned
+  character(256) :: input_file
+  external       :: trend_cooling
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -55,7 +56,7 @@ program Held_Suarez
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters
-  call read_test_case_parameters ("test_case.in")
+  call read_test_case_parameters
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
