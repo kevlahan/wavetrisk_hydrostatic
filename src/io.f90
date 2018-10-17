@@ -675,13 +675,14 @@ contains
     end do
   end subroutine read_scalar
 
-  subroutine dump_adapt_mpi (id, custom_dump)
+  subroutine dump_adapt_mpi (id, custom_dump, run_id)
     ! Save data in check point files for restart
     ! One file per domain
     ! NOTE: modifies grid structure
     implicit none
-    external :: custom_dump
-    integer  :: id
+    external     :: custom_dump
+    integer      :: id
+    character(*) :: run_id
 
     character(255)                          :: filename_gr, filename_no
     integer                                 :: c, d, i, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
@@ -719,8 +720,8 @@ contains
     end do
 
     do d = 1, size(grid)
-       write (filename_no, '(A,I4.4,A,I5.5)') "coef.", id, "_", glo_id(rank+1,d)
-       write (filename_gr, '(A,I4.4,A,I5.5)') "grid.", id, "_", glo_id(rank+1,d)
+       write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
+       write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
 
        open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE')
        open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE')
@@ -787,12 +788,13 @@ contains
     end do
   end subroutine dump_adapt_mpi
 
-  subroutine load_adapt_mpi (id, custom_load)
+  subroutine load_adapt_mpi (id, custom_load, run_id)
     ! Read data from check point files for restart
     ! One file per domain
     implicit none
-    external                             :: custom_load
-    integer                              :: id
+    external     :: custom_load
+    integer      :: id
+    character(*) :: run_id
 
     character(255)                       :: filename_gr, filename_no
     integer                              :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, v
@@ -804,8 +806,8 @@ contains
        fid_no(d) = id*1000 + 1000000 + d
        fid_gr(d) = id*1000 + 3000000 + d
 
-       write (filename_no, '(A,I4.4,A,I5.5)') "coef.", id, "_", glo_id(rank+1,d)
-       write (filename_gr, '(A,I4.4,A,I5.5)') "grid.", id, "_", glo_id(rank+1,d)
+       write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
+       write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
 
        open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ')
        open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ')

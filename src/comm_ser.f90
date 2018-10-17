@@ -59,19 +59,21 @@ contains
     close (funit)
   end subroutine write_level_mpi
 
-  subroutine write_load_conn (id)
+  subroutine write_load_conn (id, run_id)
     ! write out load distribution and connectivity for load balancing
     implicit none
     integer        :: id
-    character(5+4) :: filename
+    character(*)   :: run_id
+    
+    character(255) :: filename
     integer        :: fid
 
     fid = 599
 
-    write(filename,'(A,I4.4)')  "conn.", id
-    open(unit=fid, file=filename)
-    call write_load_conn1(fid)
-    close(fid)
+    write (filename,'(A,A,I4.4)') trim (run_id), "_conn.", id
+    open (unit=fid, file=trim(filename))
+    call write_load_conn1 (fid)
+    close (fid)
   end subroutine write_load_conn
 
   subroutine init_comm_mpi_mod

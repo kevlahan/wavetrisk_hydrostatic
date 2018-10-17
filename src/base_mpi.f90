@@ -7,10 +7,11 @@ module arch_mod
   integer, dimension(N_GLO_DOMAIN)     :: loc_id, owner
   integer, dimension(:,:), allocatable :: glo_id
 contains
-  subroutine distribute_grid (cp_idx)
+  subroutine distribute_grid (cp_idx, run_id)
     ! Allocates each domain to a processor
     implicit none
-    integer :: cp_idx
+    integer      :: cp_idx
+    character(*) :: run_id
     
     integer :: i, d, r, d_ngb, n_domain_floor
 

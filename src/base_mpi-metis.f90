@@ -11,8 +11,9 @@ module arch_mod
   integer, allocatable :: glo_id(:,:)
 
 contains
-  subroutine distribute_grid(k)
+  subroutine distribute_grid(k, run_id)
     integer k
+    character(255) :: run_id
 
     external METIS_PartGraphKway
     integer num
@@ -24,11 +25,11 @@ contains
     integer adj_line(N_GLO_DOMAIN)
     integer i, d, r, d_ngb
     integer n_domain_floor
-    character(5+4) filename
+    character(255) filename
     integer :: fid = 599
-    write(filename, '(A,I4.4)')  "conn.", k
+    write(filename, '(A, A,I4.4)')  trim(run_id), "conn.", k
     if (k .ge. 0 .and. n_process .gt. 1) then
-       open(unit=fid, file=filename)
+       open(unit=fid, file=trim(filename))
        i = 0
        num = N_GLO_DOMAIN
        xadj(1) = 0

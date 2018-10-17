@@ -55,7 +55,7 @@ contains
        ! Initialize thresholds to default values 
        call initialize_thresholds
 
-       call init_structures
+       call init_structures (run_id)
        call apply_init_cond
 
        ! Calculate diffusion length scales
@@ -246,15 +246,16 @@ contains
     call barrier ! Make sure all archive files have been uncompressed
 
     ! Rebalance adaptive grid and re-initialize structures
-    call init_structures
+    call init_structures (run_id)
     
     ! Load checkpoint data
-    call load_adapt_mpi (cp_idx, custom_load)
+    call load_adapt_mpi (cp_idx, custom_load, run_id)
 
     ! Delete temporary files
     call barrier ! Do not delete files before everyone has read them
     if (rank == 0) then
-       write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+       write (cmd_files, '(A,A,I4.4,A,A,A,I4.4)') &
+            trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
        write (command, '(A,A)') '\rm ', trim (cmd_files)
        call system (command)
     end if
@@ -307,13 +308,14 @@ contains
        write (6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/HOUR
     end if
     
-    call write_load_conn (cp_idx)
-    call dump_adapt_mpi (cp_idx, custom_dump)
+    call write_load_conn (cp_idx, run_id)
+    call dump_adapt_mpi (cp_idx, custom_dump, run_id)
     
     ! Archive checkpoint (overwriting existing checkpoint if present)
     call barrier ! Make sure all processors have written data
     if (rank == 0) then
-       write (cmd_files, '(A,I4.4,A,I4.4)') '{grid,coef}.', cp_idx , '_????? conn.', cp_idx
+       write (cmd_files, '(A,A,I4.4,A,A,A,I4.4)') &
+            trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (command, '(A,A,A,A,A)') 'tar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
        call system (command)
@@ -324,15 +326,16 @@ contains
     call restart (set_thresholds, custom_load, run_id)
   end subroutine write_checkpoint
 
-  subroutine init_structures
+  subroutine init_structures (run_id)
     ! Initialize dynamical arrays and structures
     implicit none
+    character(*) :: run_id
 
     level_start = min_level
     level_end = level_start
     
     ! Distribute and balance grid over processors (necessary for correct restart!)
-    call distribute_grid (cp_idx)
+    call distribute_grid (cp_idx, run_id)
     
     call init_grid
     call init_comm_mpi

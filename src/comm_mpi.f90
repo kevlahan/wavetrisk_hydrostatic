@@ -71,16 +71,17 @@ contains
     write_active_per_level = recommended_level_start
   end function write_active_per_level
 
-  subroutine write_load_conn (id)
+  subroutine write_load_conn (id, run_id)
     ! Write out load distribution and connectivity for load balancing
     implicit none
-    integer :: id
+    integer      :: id
+    character(*) :: run_id
     
     integer        :: r, fid
-    character(5+4) :: filename
+    character(255) :: filename
 
     fid = 599
-    write (filename, '(A,I4.4)')  "conn.", id
+    write (filename, '(A,A,I4.4)')  trim (run_id), "_conn.", id
 
     do r = 1, n_process
        if (r /= rank+1) then ! write only if our turn, otherwise only wait at Barrier
@@ -89,9 +90,9 @@ contains
        end if
 
        if (r == 1) then ! first process opens without append to delete old file if existing
-          open (unit=fid, file=filename, recl=333333)
+          open (unit=fid, file=trim(filename), recl=333333)
        else
-          open (unit=fid, file=filename, recl=333333, access='APPEND')
+          open (unit=fid, file=trim(filename), recl=333333, access='APPEND')
        end if
 
        call write_load_conn1 (fid)
