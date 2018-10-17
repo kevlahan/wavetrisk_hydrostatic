@@ -419,7 +419,7 @@ contains
        do i0 = st + 1, PATCH_SIZE/2 + en
           i = i0 - 1 + chd_offs(1,c+1)
           id = idx(i, j, offs, dims)
-          required = dom%mask_n%elts(id+1) >= ADJSPACE
+          required = dom%mask_n%elts(id+1) >= ADJSPACE .or. dom%mask_n%elts(id+1) == TRSK
           do e = 1, EDGE
              required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT
           end do
