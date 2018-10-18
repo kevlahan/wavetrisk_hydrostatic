@@ -4,7 +4,7 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  integer                              :: check_end, check_start, cp_2d, iwrite, N, save_zlev
+  integer                              :: check_end, check_start, cp_2d, N, save_zlev
   real(8)                              :: initotalmass, mass_error, totalmass
   real(8), allocatable, dimension(:,:) :: threshold_def
   
