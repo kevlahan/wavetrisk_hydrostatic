@@ -121,8 +121,6 @@ contains
 
   subroutine read_test_case_parameters
     implicit none
-    character(*)   :: filename
-    
     integer        :: fid = 500
     real(8)        :: press_save
     character(255) :: filename, varname
