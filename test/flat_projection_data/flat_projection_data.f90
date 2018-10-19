@@ -20,7 +20,7 @@ program flat_projection_data
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
-  call read_test_case_parameters ("flat_projection_data.in")
+  call read_test_case_parameters
 
   if (trim (test_case) == 'DCMIP2012c4') then
      compressible   = .true.                      ! Compressible equations
@@ -67,9 +67,6 @@ program flat_projection_data
   end if
   resume = check_start
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  ! Read test case parameters
-  call read_test_case_parameters
  
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
