@@ -30,7 +30,7 @@ contains
 
           call velocity_trend_source (q, dq, k, l)
        end do
-       call velocity_trend_grad (q, dq, k, l)
+       call velocity_trend_grad (q, dq, k)
     end do
   end subroutine trend_ml
 
@@ -136,11 +136,11 @@ contains
     dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_source
 
-  subroutine velocity_trend_grad (q, dq, k, l)
+  subroutine velocity_trend_grad (q, dq, k)
     ! Evaluate complete velocity trend by adding gradient terms to peviously calculated source terms on entire grid
     implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
-    integer :: k, l
+    integer                                                       :: k
 
     integer :: d, j, p
     
