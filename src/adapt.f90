@@ -63,7 +63,6 @@ contains
 
     if (local_type) call set_thresholds
     
-    call apply_onescale__int (set_masks, level_start, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, TOLRNZ)
     ! Initialize all other nodes and edges to ZERO
     do l = level_start+1, level_end
        call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
@@ -71,7 +70,6 @@ contains
 
     ! Set all current masks > ADJZONE to at least ADJZONE for next time step
     call mask_adjacent_initial
-    call comm_masks_mpi (NONE)
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then
@@ -87,7 +85,8 @@ contains
        call apply_interscale (mask_adj_parent_edges, l, z_null, -1, 1)
        call comm_masks_mpi (l)
     end do
-
+    call comm_masks_mpi (NONE)
+    
     ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
        call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
@@ -97,8 +96,14 @@ contains
     ! needed if bdry is only 2 layers for scenario:
     ! mass > threshold @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
     ! => patch needed (contains flux for corrective part of R_F)
-    do l = level_start+1, min(level_end, max_level-1)
+    do l = level_start+1, min (level_end, max_level-1)
        call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
+    end do
+    call comm_masks_mpi (NONE)
+
+    ! Add nodes and edges required for TRISK operators
+    do l = level_start, level_end
+       call apply_onescale (mask_trsk, l, z_null, 0, 0)
     end do
     call comm_masks_mpi (NONE)
     
@@ -130,7 +135,7 @@ contains
     end if
 
     ! Add nodes and edges required for TRISK operators
-    do l = level_start, level_end
+    do l = level_start+1, level_end
        call apply_onescale (mask_trsk, l, z_null, 0, 0)
     end do
     call comm_masks_mpi (NONE)
@@ -140,7 +145,7 @@ contains
        call apply_onescale (mask_remap, l, z_null, -1, 1)
     end do
     call comm_masks_mpi (NONE)
-    
+
     ! Set insignificant wavelet coefficients to zero
     if (local_type) then
        do k = 1, zlevels
@@ -234,23 +239,25 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: e, id, k, v
+    integer :: e, id, id_e, id_i, k, v
 
     id = idx(i, j, offs, dims)
+    id_i = id + 1
     
-    if (dom%mask_n%elts(id+1) < ADJZONE) then
-       wc_m(id+1) = 0.0_8
-       wc_t(id+1) = 0.0_8
+    if (dom%mask_n%elts(id_i) < ADJZONE) then
+       wc_m(id_i) = 0.0_8
+       wc_t(id_i) = 0.0_8
     end if
     
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
+       id_e = EDGE*id+e
+       if (dom%mask_e%elts(id_e) < ADJZONE) wc_u(id_e) = 0.0_8
     end do
   end subroutine compress
 
   logical function refine ()
-    implicit none
     ! Determines where new patches are needed
+    implicit none
     integer :: c, d, did_refine, old_n_patch, p_chd, p_par
     logical :: required
     
@@ -261,12 +268,12 @@ contains
        do p_par = 2, grid(d)%patch%length
           do c = 1, N_CHDRN
              p_chd = grid(d)%patch%elts(p_par)%children(c)
-             required = check_child_required (grid(d), p_par - 1, c - 1)
+             required = check_child_required (grid(d), p_par-1, c-1)
              if (required .and. p_chd <= 0) then ! New patch required and does not yet exist
                 if (grid(d)%patch%elts(p_par)%level == max_level) then ! Cannot refine further
                    max_level_exceeded = .true.
                 else
-                   call refine_patch1 (grid(d), p_par - 1, c - 1)
+                   call refine_patch1 (grid(d), p_par-1, c-1)
                    did_refine = TRUE
                 end if
              end if
@@ -275,7 +282,7 @@ contains
        do p_par = 2, old_n_patch
           do c = 1, N_CHDRN
              p_chd = grid(d)%patch%elts(p_par)%children(c)
-             if (p_chd+1 > old_n_patch) call refine_patch2 (grid(d), p_par - 1, c - 1)
+             if (p_chd+1 > old_n_patch) call refine_patch2 (grid(d), p_par-1, c-1)
           end do
        end do
     end do
@@ -417,11 +424,11 @@ contains
     do j0 = st + 1, PATCH_SIZE/2 + en
        j = j0 - 1 + chd_offs(2,c+1)
        do i0 = st + 1, PATCH_SIZE/2 + en
-          i = i0 - 1 + chd_offs(1,c+1)
-          id = idx(i, j, offs, dims)
+          i = i0 - 1 + chd_offs (1, c+1)
+          id = idx (i, j, offs, dims)
           required = dom%mask_n%elts(id+1) >= ADJSPACE .or. dom%mask_n%elts(id+1) == TRSK
           do e = 1, EDGE
-             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT
+             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT .or. dom%mask_e%elts(EDGE*id+e) == TRSK
           end do
           if (required) then
              check_child_required = .true.

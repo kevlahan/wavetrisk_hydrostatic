@@ -171,14 +171,6 @@ contains
     end if
     if (aligned) idt = ialign - modulo (itime,ialign)
     dt = idt/time_mult ! Modify time step
-
-    ! Add diffusion
-    if (modulo (istep_cumul, n_diffuse) == 0 .and. Laplace_order_init /= 0) then
-       if (rank == 0) write (6,'(A)') "Diffusion step"
-       Laplace_order = Laplace_order_init
-    else
-       Laplace_order = 0
-    end if
         
     ! Take time step
     sol%bdry_uptodate = .false.
@@ -187,6 +179,14 @@ contains
     
     ! If necessary, remap vertical coordinates
     if (remap .and. min_mass < min_allowed_mass) call remap_vertical_coordinates (set_thresholds)
+
+    ! Add diffusion
+    if (modulo (istep_cumul, n_diffuse) == 0 .and. Laplace_order_init /= 0) then
+       if (rank == 0) write (6,'(A)') "Diffusion step"
+       Laplace_order = Laplace_order_init
+    else
+       Laplace_order = 0
+    end if
 
     ! Adapt grid
     if (min_level /= max_level) call adapt_grid (set_thresholds)

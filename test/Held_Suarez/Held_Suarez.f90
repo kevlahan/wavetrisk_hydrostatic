@@ -73,7 +73,6 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call euler (trend_cooling, dt)
      call stop_timing
 
      call sum_total_mass (.false.)
@@ -101,88 +100,11 @@ end program Held_Suarez
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (dom, id, idE, idNE, idN, type)
-  ! Additional physics for the flux term of the scalar trend
-  ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
-  !
-  ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
-  use domain_mod
-  implicit none
-
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-  type(Domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
-  logical, optional                        :: type
-
-  integer                                  :: v
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
-  real(8), dimension(:), pointer           :: flx
-  logical                                  :: local_type
-
-  if (present(type)) then
-     local_type = type
-  else
-     local_type = .false.
-  end if
-
-  if (Laplace_order == 0) then
-     physics_scalar_flux = 0.0_8
-  else
-     ! Calculate gradients
-     if (Laplace_order == 1) then
-        grad(S_MASS,:) = grad_physics (mass)
-        grad(S_TEMP,:) = grad_physics (temp)
-     elseif (Laplace_order == 2) then
-        do v = S_MASS, S_TEMP
-           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(dom%id+1)%elts)
-        end do
-     end if
-
-     ! Fluxes of physics
-     if (.not.local_type) then ! Usual flux at edges E, NE, N
-        physics_scalar_flux(S_MASS,RT+1) = viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-        physics_scalar_flux(S_MASS,DG+1) = viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-        physics_scalar_flux(S_MASS,UP+1) = viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-
-        physics_scalar_flux(S_TEMP,RT+1) = viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-        physics_scalar_flux(S_TEMP,DG+1) = viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-        physics_scalar_flux(S_TEMP,UP+1) = viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-     else ! Flux at edges W, SW, S
-        physics_scalar_flux(S_MASS,RT+1) = viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(S_MASS,DG+1) = viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(S_MASS,UP+1) = viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
-
-        physics_scalar_flux(S_TEMP,RT+1) = viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(S_TEMP,DG+1) = viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(S_TEMP,UP+1) = viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
-     end if
-
-     ! Find correct sign for diffusion on left hand side of the equation
-     physics_scalar_flux = (-1)**Laplace_order * physics_scalar_flux
-  end if
-contains
-  function grad_physics (scalar)
-    implicit none
-    real(8), dimension(1:EDGE) :: grad_physics
-    real(8), dimension(:)      :: scalar
-
-    if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-       grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-    else ! Gradient for southwest edges of hexagon W, SW, S
-       grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-       grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-       grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
-    end if
-  end function grad_physics
-end function physics_scalar_flux
-
 function physics_scalar_source (dom, i, j, zlev, offs, dims)
-  ! Additional physics for the source term of the scalar trend
   ! Newton cooling to equilibrium potential temperature theta_equil
   use domain_mod
   use test_case_mod
+  use ops_mod
   implicit none
 
   real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
@@ -191,7 +113,23 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
-  physics_scalar_source = 0.0_8
+  integer :: id, id_i
+  real(8) :: eta, eta_ref, k_T, lat, lon, theta_equil
+
+  physics_scalar_source(S_MASS) = 0.0_8
+
+  id = idx (i, j, offs, dims)
+  id_i = id + 1
+  eta_ref = dom%press%elts(id_i)/ref_press
+  eta = dom%press%elts(id_i)/dom%surf_press%elts(id_i)
+
+  call cart2sph (dom%node%elts(id_i), lon, lat)
+  
+  call cal_theta_eq (eta_ref, eta, lat, theta_equil, k_T)
+  physics_scalar_source(S_TEMP) = -k_T * (temp(id_i) - theta_equil*mass(id_i))
+
+  if (Laplace_order /= 0) physics_scalar_source(S_TEMP) = physics_scalar_source(S_TEMP) &
+       + temp(id_i)/mass(id_i) * (-1)**(Laplace_order-1)*viscosity_mass*mass_diffuse(id_i)
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -209,7 +147,9 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu
+  integer :: e, id, id_i
+  real(8) :: eta, k_v
+  real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu, Rayleigh
 
   if (Laplace_order == 0) then
      diffusion = 0.0_8
@@ -221,11 +161,20 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   end if
   
   ! Total physics for source term of velocity trend
-  physics_velo_source =  diffusion
+  id = idx (i, j, offs, dims)
+  id_i = id+1
+  eta = dom%press%elts(id_i)/dom%surf_press%elts(id_i)
+  k_v = k_f * max (0.0_8, (eta - eta_b)/(1.0_8-eta_b))
+  do e = 1, EDGE
+     Rayleigh(e) = -k_v * velo(EDGE*id+e)
+  end do
+  
+  physics_velo_source = diffusion + Rayleigh
 end function physics_velo_source
 
 subroutine trend_cooling (q, dq)
   ! Trend for Held-Suarez cooling
+  ! (not used currently since cooling and Rayleigh friction are handled in main trend)
   use domain_mod
   use ops_mod
   use time_integr_mod
@@ -234,7 +183,6 @@ subroutine trend_cooling (q, dq)
   
   integer :: d, k, p
 
-  sol%bdry_uptodate = .false.
   call update_array_bdry (sol, NONE)
 
   ! Current surface pressure
@@ -272,7 +220,7 @@ contains
 
     integer     :: id_i
 
-    id_i = idx(i, j, offs, dims)+1
+    id_i = idx(i, j, offs, dims) + 1
     dmass(id_i) = 0.0_8
   end subroutine trend_mass
 
@@ -290,7 +238,7 @@ contains
     integer     :: id_i
     real(8)     :: k_T, lat, lon, theta_equil
 
-    id_i = idx(i, j, offs, dims)+1
+    id_i = idx (i, j, offs, dims)+1
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        call cart2sph (dom%node%elts(id_i), lon, lat)
@@ -315,7 +263,7 @@ contains
     integer :: e, id, id_e, id_i
     real(8) :: k_v
 
-    id = idx(i, j, offs, dims)
+    id = idx (i, j, offs, dims)
     id_i = id+1
 
     do e = 1, EDGE
