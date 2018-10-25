@@ -73,7 +73,6 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call time_step_cooling
      call stop_timing
 
      call sum_total_mass (.false.)
@@ -193,23 +192,16 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
 
   integer                           :: id_i
   real(8)                           :: cooling, k_T, lat, lon, theta_equil
-  real(8), dimension(S_MASS:S_TEMP) :: diffuse
 
-  ! id_i = idx (i, j, offs, dims) + 1
+  id_i = idx (i, j, offs, dims) + 1
 
-  ! ! Diffusion
-  ! diffuse(S_MASS) = (-1)**(Laplace_order-1)*viscosity_mass * mass_diffuse(id_i)
-  ! diffuse(S_TEMP) = (-1)**(Laplace_order-1)*viscosity_temp * temp_diffuse(id_i)
+  ! Newton cooling
+  call cart2sph (dom%node%elts(id_i), lon, lat)
+  call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+  cooling = -k_T * (temp(id_i) - theta_equil*mass(id_i))
 
-  ! ! Newton cooling
-  ! call cart2sph (dom%node%elts(id_i), lon, lat)
-  ! call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-  ! cooling = -k_T * (temp(id_i) - theta_equil*mass(id_i))
-
-  ! physics_scalar_source(S_MASS) = diffuse(S_MASS)
-  ! physics_scalar_source(S_TEMP) = diffuse(S_TEMP) + cooling
-
-  physics_scalar_source = 0.0_8
+  physics_scalar_source(S_MASS) = 0.0_8
+  physics_scalar_source(S_TEMP) = cooling
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -358,80 +350,6 @@ contains
   end subroutine trend_velo
 end subroutine trend_cooling
 
-subroutine time_step_cooling
-  ! Euler time step to diffuse solution
-  use domain_mod
-  use ops_mod
-  implicit none
-  integer :: d, j, k, p
 
-  interface
-     subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
-       use domain_mod
-       implicit none
-       type(Domain)                     :: dom
-       integer                          :: i, j, zlev
-       integer, dimension(N_BDRY + 1)   :: offs
-       integer, dimension(2,N_BDRY + 1) :: dims
-     end subroutine euler_step_cooling
-  end interface
-
-  ! First integrate pressure down across all grid points in order to compute surface pressure
-  ! do k = zlevels, 1, -1
-  !    do d = 1, size(grid)
-  !       mass => sol(S_MASS,k)%data(d)%elts
-  !       temp => sol(S_TEMP,k)%data(d)%elts
-
-  !       do p = 3, grid(d)%patch%length
-  !          call apply_onescale_to_patch (integrate_pressure_down, grid(d), p-1, k, 0, 1)
-  !       end do
-
-  !       nullify (mass, temp)
-  !    end do
-  ! end do
-
-  ! Current surface pressure
-  call cal_surf_press (sol)
-
-  do k = 1, zlevels
-     do d = 1, size(grid)
-        mass => sol(S_MASS,k)%data(d)%elts
-        temp => sol(S_TEMP,k)%data(d)%elts
-        do p = 3, grid(d)%patch%length
-           call apply_onescale_to_patch (cal_pressure,          grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (euler_step_cooling,    grid(d), p-1, k, 0, 1)
-        end do
-        nullify (mass, temp)
-     end do
-     sol(:,k)%bdry_uptodate = .False.
-  end do
-end subroutine time_step_cooling
-
-subroutine euler_step_cooling (dom, i, j, zlev, offs, dims)
-  ! Euler time step
-  use main_mod
-  use domain_mod
-  implicit none
-  type(Domain)                     :: dom
-  integer                          :: i, j, zlev
-  integer, dimension(N_BDRY + 1)   :: offs
-  integer, dimension(2,N_BDRY + 1) :: dims
-
-  integer :: e, id
-  real(8) :: eta, eta_ref, k_T, lat, lon, press, theta_equil
-
-  id = idx(i, j, offs, dims)
- 
-  call cart2sph (dom%node%elts(id+1), lon, lat) ! Latitude and longitude
-  
-  press = dom%press%elts(id+1)          ! Pressure
-  eta = press/dom%surf_press%elts(id+1) ! Normalized pressure
-  eta_ref = press/ref_press
- 
-  call cal_theta_eq (eta_ref, eta, lat, theta_equil, k_T)
-  
-  ! Exact time integration
-  temp(id+1) = theta_equil*mass(id+1) + (temp(id+1)-theta_equil*mass(id+1))*exp(-dt*k_T)
-end subroutine euler_step_cooling
 
 
