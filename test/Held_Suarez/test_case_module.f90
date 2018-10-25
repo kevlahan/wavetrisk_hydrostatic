@@ -56,18 +56,29 @@ contains
     implicit none
     real(8) :: eta_ref, eta, lat, theta_equil, k_T
 
-    real(8) :: sn2, cs2, theta_force, theta_tropo 
+    real(8) :: sn2, cs2, theta_force, theta_tropo
+    real(8) :: ddsin
 
-    sn2 = sin (lat)**2
-    cs2 = cos (lat)**2
+    ! sn2 = sin (lat)**2
+    ! cs2 = cos (lat)**2
 
-    k_T = k_a + (k_s-k_a) * max (0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cs2**2
+    ! k_T = k_a + (k_s-k_a) * max (0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cs2**2
+
+    ! theta_tropo = T_tropo * eta_ref**(-kappa) ! Potential temperature at tropopause
+
+    ! theta_force = T_mean - delta_T*sn2 - delta_theta*cs2 * log (eta_ref)
+
+    ! theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
+
+    ddsin = sin(lat) 
+
+    k_T = k_a + (k_s-k_a) * max(0.0_8, (eta-eta_b)/(1.0_8-eta_b)) * cos(lat)**4
 
     theta_tropo = T_tropo * eta_ref**(-kappa) ! Potential temperature at tropopause
 
-    theta_force = T_mean - delta_T*sn2 - delta_theta*cs2 * log (eta_ref)
+    theta_force  = T_mean - delta_T*ddsin**2 - delta_theta*(1.0_8 - ddsin**2)*log(eta_ref)
 
-    theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
+    theta_equil = max(theta_tropo, theta_force) ! Equilibrium temperature
   end subroutine cal_theta_eq
 
   real(8) function surf_geopot (x_i)

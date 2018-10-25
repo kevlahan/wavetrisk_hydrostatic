@@ -204,13 +204,16 @@ contains
       qe(EDGE*idSW+DG+1) = interp (pv_LORT_SW, pv_UPLT_SW)
       qe(EDGE*idS+UP+1)  = interp (pv_LORT_SW, pv_UPLT_S)
 
-      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp (mass(id_i), mass(idW_i)) 
-      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (mass(id_i), mass(idSW_i))
-      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp (mass(id_i), mass(idS_i)) 
+      ! Mass and temperature fluxes
+      physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
 
-      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp (temp(id_i), temp(idW_i)) 
-      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (temp(id_i), temp(idSW_i))
-      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp (temp(id_i), temp(idS_i)) 
+      h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp (mass(id_i), mass(idW_i))  + physics(S_MASS,RT+1)
+      h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (mass(id_i), mass(idSW_i)) + physics(S_MASS,DG+1)
+      h_mflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp (mass(id_i), mass(idS_i))  + physics(S_MASS,UP+1)
+
+      h_tflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp (temp(id_i), temp(idW_i))  + physics(S_TEMP,RT+1)
+      h_tflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (temp(id_i), temp(idSW_i)) + physics(S_TEMP,DG+1)
+      h_tflux(EDGE*idS+UP+1)  = u_dual_UP_S  * interp (temp(id_i), temp(idS_i))  + physics(S_TEMP,UP+1)
     end subroutine comp_ijmin
 
     subroutine comput
@@ -321,13 +324,16 @@ contains
       qe(EDGE*id+DG+1) = interp (pv_UPLT,   pv_LORT)
       qe(EDGE*id+UP+1) = interp (pv_UPLT,   pv_LORT_W)
 
-      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp (mass(id_i), mass(idE_i)) 
-      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp (mass(id_i), mass(idNE_i))
-      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp (mass(id_i), mass(idN_i)) 
+      ! Mass and temperature fluxes
+      physics = physics_scalar_flux (dom, id, idE, idNE, idN)
 
-      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp (temp(id_i), temp(idE_i)) 
-      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp (temp(id_i), temp(idNE_i))
-      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp (temp(id_i), temp(idN_i)) 
+      h_mflux(EDGE*id+RT+1) = u_dual_RT * interp (mass(id_i), mass(idE_i))  + physics(S_MASS,RT+1)
+      h_mflux(EDGE*id+DG+1) = u_dual_DG * interp (mass(id_i), mass(idNE_i)) + physics(S_MASS,DG+1)
+      h_mflux(EDGE*id+UP+1) = u_dual_UP * interp (mass(id_i), mass(idN_i))  + physics(S_MASS,UP+1)
+
+      h_tflux(EDGE*id+RT+1) = u_dual_RT * interp (temp(id_i), temp(idE_i))  + physics(S_TEMP,RT+1)
+      h_tflux(EDGE*id+DG+1) = u_dual_DG * interp (temp(id_i), temp(idNE_i)) + physics(S_TEMP,DG+1)
+      h_tflux(EDGE*id+UP+1) = u_dual_UP * interp (temp(id_i), temp(idN_i))  + physics(S_TEMP,UP+1)
     end subroutine comput
   end subroutine step1
 
@@ -1048,13 +1054,8 @@ contains
 
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
-    dmass(id_i) = -div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
-    dtemp(id_i) = -div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
-
-    if (Laplace_order /= 0) then
-       dmass(id_i) = dmass(id_i) + (-1)**(Laplace_order-1)*viscosity_mass * mass_diffuse(id_i)
-       dtemp(id_i) = dtemp(id_i) + (-1)**(Laplace_order-1)*viscosity_temp * temp_diffuse(id_i)
-    end if
+    dmass(id_i) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
+    dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
   end subroutine scalar_trend
 
   subroutine cal_Laplacian_scalar (dom, i, j, zlev, offs, dims)
