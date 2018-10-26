@@ -22,7 +22,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id_i
-    real(8)     :: column_mass, k_T, lev_press, lon, lat, p_top, p_bot, theta_equil
+    real(8)     :: column_mass, harvest, k_T, lev_press, lon, lat, p_top, p_bot, theta_equil
     type(Coord) :: x_i
     
     d = dom%id+1
@@ -43,8 +43,12 @@ contains
     call cart2sph (x_i, lon, lat) 
     call cal_theta_eq (lev_press/ref_press, lev_press/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
 
+    ! Perturb temperature
+    harvest = 0.0_8
+    call random_number (harvest)
+
     ! Mass-weighted potential temperature
-    sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * theta_equil
+    sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * theta_equil * (1.0_8 + 5d-4*harvest)
     
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
