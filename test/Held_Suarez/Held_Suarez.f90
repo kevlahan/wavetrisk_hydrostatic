@@ -106,6 +106,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   !
   ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
   use domain_mod
+  use ops_mod
   implicit none
 
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
@@ -113,9 +114,8 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   integer                                  :: id, idE, idNE, idN
   logical, optional                        :: type
 
-  integer                                  :: v
+  real(8), dimension(1:EDGE)               :: g
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
-  real(8), dimension(:), pointer           :: flx
   logical                                  :: local_type
 
   if (present(type)) then
@@ -129,28 +129,38 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   else
      ! Calculate gradients
      if (Laplace_order == 1) then
-        grad(S_MASS,:) = grad_physics (mass)
-        grad(S_TEMP,:) = grad_physics (temp)
+        if (viscosity_mass /= 0) grad(S_MASS,:) = grad_physics (mass)
+        g = grad_physics (temp/mass)
      elseif (Laplace_order == 2) then
-        do v = S_MASS, S_TEMP
-           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(dom%id+1)%elts)
-        end do
+        if (viscosity_mass /= 0) grad(S_MASS,:) = grad_physics (Laplacian_scalar(S_MASS)%data(dom%id+1)%elts)
+        g = grad_physics (Laplacian_scalar(S_TEMP)%data(dom%id+1)%elts)
      end if
 
+     ! Mass weight gradient of potential temperature
+     grad(S_TEMP,RT+1) = interp (mass(id+1), mass(idE+1))  * g(RT+1)
+     grad(S_TEMP,DG+1) = interp (mass(id+1), mass(idNE+1)) * g(DG+1)
+     grad(S_TEMP,UP+1) = interp (mass(id+1), mass(idN+1))  * g(UP+1)
+        
      ! Fluxes of physics
-     if (.not.local_type) then ! Usual flux at edges E, NE, N
-        physics_scalar_flux(S_MASS,RT+1) = viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-        physics_scalar_flux(S_MASS,DG+1) = viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-        physics_scalar_flux(S_MASS,UP+1) = viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+     if (viscosity_mass /= 0) then
+        if (.not.local_type) then ! Usual flux at edges E, NE, N
+           physics_scalar_flux(S_MASS,RT+1) = viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+           physics_scalar_flux(S_MASS,DG+1) = viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+           physics_scalar_flux(S_MASS,UP+1) = viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+        else ! Flux at edges W, SW, S
+           physics_scalar_flux(S_MASS,RT+1) = viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
+           physics_scalar_flux(S_MASS,DG+1) = viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
+           physics_scalar_flux(S_MASS,UP+1) = viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
+        end if
+     else
+        physics_scalar_flux(S_MASS,:) = 0.0_8
+     end if
 
+     if (.not.local_type) then ! Usual flux at edges E, NE, N
         physics_scalar_flux(S_TEMP,RT+1) = viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
         physics_scalar_flux(S_TEMP,DG+1) = viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
         physics_scalar_flux(S_TEMP,UP+1) = viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
      else ! Flux at edges W, SW, S
-        physics_scalar_flux(S_MASS,RT+1) = viscosity_mass * grad(S_MASS,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(S_MASS,DG+1) = viscosity_mass * grad(S_MASS,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(S_MASS,UP+1) = viscosity_mass * grad(S_MASS,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
-
         physics_scalar_flux(S_TEMP,RT+1) = viscosity_temp * grad(S_TEMP,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
         physics_scalar_flux(S_TEMP,DG+1) = viscosity_temp * grad(S_TEMP,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
         physics_scalar_flux(S_TEMP,UP+1) = viscosity_temp * grad(S_TEMP,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
