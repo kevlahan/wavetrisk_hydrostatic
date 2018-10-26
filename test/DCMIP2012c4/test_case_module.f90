@@ -118,7 +118,7 @@ contains
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
- subroutine set_thresholds
+  subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
     use wavelet_mod
     implicit none
@@ -127,16 +127,15 @@ contains
     character(3), parameter :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
-       threshold_new = threshold_def
+       threshold = threshold_def
     else
        if (adapt_trend) then
           call cal_lnorm (trend, order, lnorm)
        else
           call cal_lnorm (sol,   order, lnorm)
        end if
-       threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
+       threshold = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
     end if
-    threshold = 0.1*threshold_new + 0.9*threshold
   end subroutine set_thresholds
 
   subroutine initialize_a_b_vert
