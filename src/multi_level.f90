@@ -188,6 +188,7 @@ contains
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
+       deallocate (theta)
        nullify (sclr, Laplacian)
     end do
     Laplacian_scalar(S_TEMP)%bdry_uptodate = .false.
