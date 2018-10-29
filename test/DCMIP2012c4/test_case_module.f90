@@ -127,15 +127,21 @@ contains
     character(3), parameter :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
-       threshold = threshold_def
+       threshold_new = threshold_def
     else
        if (adapt_trend) then
           call cal_lnorm (trend, order, lnorm)
        else
           call cal_lnorm (sol,   order, lnorm)
        end if
-       threshold = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
+       threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
     end if
+
+    if (istep > 1) then
+       threshold = 0.9 * threshold + 0.1 * threshold_new
+    else
+       threshold = threshold_new
+     end if
   end subroutine set_thresholds
 
   subroutine initialize_a_b_vert
