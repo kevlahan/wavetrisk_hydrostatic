@@ -118,7 +118,7 @@ contains
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
-  subroutine set_thresholds
+ subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
     use wavelet_mod
     implicit none
@@ -136,12 +136,7 @@ contains
        end if
        threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
     end if
-
-    if (istep > 1) then
-       threshold = 0.9 * threshold + 0.1 * threshold_new
-    else
-       threshold = threshold_new
-     end if
+    threshold = 0.1*threshold_new + 0.9*threshold
   end subroutine set_thresholds
 
   subroutine initialize_a_b_vert
@@ -413,7 +408,7 @@ contains
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        L_scaled = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
 
-       viscosity_mass = 0.0_8
+       viscosity_mass = L_scaled(1)**(2*Laplace_order_init) / dt_cfl * C_diffusion * n_diffuse
        viscosity_temp = L_scaled(1)**(2*Laplace_order_init) / dt_cfl * C_diffusion * n_diffuse
        viscosity_divu = L_scaled(2)**(2*Laplace_order_init) / dt_cfl * C_diffusion * n_diffuse
        viscosity_rotu = L_scaled(3)**(2*Laplace_order_init) / dt_cfl * C_diffusion * n_diffuse

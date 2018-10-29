@@ -105,15 +105,16 @@ contains
     character(3), parameter :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
-       threshold = threshold_def
+       threshold_new = threshold_def
     else
        if (adapt_trend) then
           call cal_lnorm (trend, order, lnorm)
        else
           call cal_lnorm (sol,   order, lnorm)
        end if
-       threshold = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
+       threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
     end if
+    threshold = 0.1*threshold_new + 0.9*threshold
   end subroutine set_thresholds
 
   subroutine initialize_a_b_vert
@@ -389,7 +390,7 @@ contains
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        L_diffusion = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
 
-       viscosity_mass = 0.0_8
+       viscosity_mass = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
        viscosity_temp = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
        viscosity_divu = L_scaled(2)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
        viscosity_rotu = L_scaled(3)**(2*Laplace_order_init) / tau_diffusion * n_diffuse

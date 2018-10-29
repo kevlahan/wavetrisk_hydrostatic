@@ -1055,7 +1055,7 @@ contains
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
     dmass(id_i) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
-    dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP) 
+    dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
   end subroutine scalar_trend
 
   subroutine cal_Laplacian_scalar (dom, i, j, zlev, offs, dims)
