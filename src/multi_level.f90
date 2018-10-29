@@ -176,8 +176,8 @@ contains
           end do
           nullify (sclr, Laplacian)
        end do
-       Laplacian_scalar(S_TEMP)%bdry_uptodate = .false.
-       call update_bdry (Laplacian_scalar(S_TEMP), l)
+       Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (Laplacian_scalar(S_MASS), l)
     end if
 
     ! Laplacian of (non mass-weighted) potential temperature 
