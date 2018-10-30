@@ -175,7 +175,7 @@ contains
     ! Take time step
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
-    call RK45_opt (trend_ml, dt)
+    call RK4 (trend_ml, dt)
     
     ! If necessary, remap vertical coordinates
     if (remap .and. min_mass < min_allowed_mass) call remap_vertical_coordinates (set_thresholds)
