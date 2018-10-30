@@ -1,6 +1,6 @@
 # options: ser mpi mpi-lb
 TEST_CASE  = DCMIP2012c4
-OPTIM      = -O4
+OPTIM      = -O2
 ARCH       = mpi-lb
 PARAM      = param_J4
 GEOM       = sphere
