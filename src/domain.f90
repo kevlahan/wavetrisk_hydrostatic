@@ -79,8 +79,8 @@ module domain_mod
   ! is what they are solving for in the code (and changes some of the equations in the paper, more specifically
   ! the equation below (18) and the equation below (24))
   ! we will solve for theta'_k and Theta'_k
-  real(8), dimension(:), pointer :: mass, dmass, h_mflux, mass_diffuse
-  real(8), dimension(:), pointer :: temp, dtemp, h_tflux, temp_diffuse
+  real(8), dimension(:), pointer :: mass, dmass, h_mflux
+  real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo
   real(8), dimension(:), pointer :: sclr
   real(8), dimension(:), pointer :: Laplacian
