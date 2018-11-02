@@ -165,34 +165,24 @@ contains
     integer :: k, l
 
     integer :: d, j
-    real(8), dimension(:), allocatable, target :: theta
-    
-    if (viscosity_mass /= 0) then
-       do d = 1, size(grid)
-          sclr      => q(S_MASS,k)%data(d)%elts
-          Laplacian => Laplacian_scalar(S_MASS)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (sclr, Laplacian)
-       end do
-       Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (Laplacian_scalar(S_MASS), l)
-    end if
 
-    ! Laplacian of (non mass-weighted) potential temperature 
     do d = 1, size(grid)
-       theta = q(S_TEMP,k)%data(d)%elts/q(S_MASS,k)%data(d)%elts
-       sclr      => theta
+       sclr      => q(S_MASS,k)%data(d)%elts
+       Laplacian => Laplacian_scalar(S_MASS)%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (sclr, Laplacian)
+
+       sclr      => q(S_TEMP,k)%data(d)%elts
        Laplacian => Laplacian_scalar(S_TEMP)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       deallocate (theta)
        nullify (sclr, Laplacian)
     end do
-    Laplacian_scalar(S_TEMP)%bdry_uptodate = .false.
-    call update_bdry (Laplacian_scalar(S_TEMP), l)
+    Laplacian_scalar%bdry_uptodate = .false.
+    call update_vector_bdry (Laplacian_scalar, l)
   end subroutine second_order_Laplacian_scalar
 
   subroutine second_order_Laplacian_vector (q, k, l)
