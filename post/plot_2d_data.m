@@ -4,7 +4,7 @@ run_id = 'DCMIP2012c4_J7';
 %test_case = 'DCMIP2008c5';
 %run_id = 'DCMIP2008c5';
 %test_case = 'Held_Suarez';
-%run_id = 'Held_Suarez_J5';
+%run_id = 'Held_Suarez_J6';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
 itype     = 'vort';  % field to plot
@@ -16,7 +16,7 @@ lines     = true;   % remove lines
 
 % Log data options:
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; j=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = dof;
+ilog = tol_temp;
 Jmin = 4;
 Jmax = 6;
 
@@ -74,15 +74,21 @@ elseif ilog == balance
     ylab = 'Load balance';
 elseif ilog == cpu
     ylab = 'cpu time / dt';
+    
 elseif ilog == cpudof
     ylab = 'cpu time / N';
 elseif ilog == compression
     ylab = 'Compression ratio';
 end
-xlabel('t (days)');ylabel(ylab);
-grid on;
-%axis([8.3 9 0 3e-4]);
-%axis ([0 1200 700 900]);
+
+if ilog < cpudof
+    axis([0 log_data(end,1)/day 0 max(log_data(beg:end,ilog))]);
+elseif ilog == cpudof
+    axis([0 log_data(end,1)/day 0 max(log_data(beg:end,cpu)./log_data(beg:end,dof))]);
+elseif ilog == compression
+    axis([0 log_data(end,1)/day 1 0.5*max(Nmax./log_data(beg:end,dof))]);
+end
+xlabel('t (days)');ylabel(ylab);grid on;
 %% Uncompress data files for 2d plots
 
 % Extract files
