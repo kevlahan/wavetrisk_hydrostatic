@@ -100,6 +100,18 @@ contains
        call apply_onescale (mask_restrict_flux, l, z_null, 0, 0)
     end do
     call comm_masks_mpi (NONE)
+
+    ! Add nodes and edges required for TRISK operators
+    do l = level_start, level_end
+       call apply_onescale (mask_trsk, l, z_null, 0, 0)
+    end do
+    call comm_masks_mpi (NONE)
+
+    ! Label points required for remap as TRSK
+    do l = level_start, level_end
+       call apply_onescale (mask_remap, l, z_null, -1, 1)
+    end do
+    call comm_masks_mpi (NONE)
     
     ! Determine whether any new patches are required
     if (refine()) call post_refine
@@ -420,7 +432,7 @@ contains
           id = idx(i, j, offs, dims)
           required = dom%mask_n%elts(id+1) >= ADJSPACE .or. dom%mask_n%elts(id+1) == TRSK
           do e = 1, EDGE
-             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT
+             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT .or. dom%mask_e%elts(EDGE*id+e) == TRSK
           end do
           if (required) then
              check_child_required = .true.
