@@ -1,7 +1,7 @@
 % Plot 2d data from export_2d or log data
 %test_case = 'DCMIP2008c5'; run_id = 'DCMIP2008c5';
-test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7';
-%test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6';
+%test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7';
+test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
 itype     = 'vort';  % field to plot
@@ -12,8 +12,8 @@ smooth    = false;   % smooth data over two points in each direction
 lines     = true;   % remove lines
 
 % Log data options:
-dt=2; tol_mass=3; tol_temp=4; tol_velo=5; j=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = dt;
+dt=2; tol_mass=3; tol_temp=4; tol_velo=5; J=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
+ilog = dof;
 Jmin = 5;
 Jmax = 7;
 
@@ -27,6 +27,8 @@ elseif (strcmp(machine,'mac'))
 end
 %% Log data plots
 % Load log file
+set(0,'defaulttextinterpreter','latex')
+
 beg = 1;
 %beg = 357;
 
@@ -59,10 +61,10 @@ elseif ilog == tol_temp
     ylab = 'Temperature threshold';
 elseif ilog == tol_velo
     ylab = 'Velocity threshold';
-elseif ilog == j
+elseif ilog == J
     ylab = 'J';
 elseif ilog == dof
-    ylab = 'N (active nodes and edges)';
+    ylab = '${\cal N}$ (active nodes and edges)';
 elseif ilog == min_mass
     ylab = 'Minimum Mass';
 elseif ilog == mass_err
@@ -85,8 +87,8 @@ elseif ilog == cpudof
 elseif ilog == compression
     axis([0 log_data(end,1)/day 1 1*max(Nmax./log_data(beg:end,dof))]);
 end
-xlabel('Time (days)','Interpreter','latex');ylabel(ylab,'Interpreter','latex');grid on;
-set(findall(gcf,'-property','FontSize'),'FontSize',24)
+xlabel('Time (days)');ylabel(ylab);grid on;
+set(findall(gcf,'-property','FontSize'),'FontSize',22)
 %% Uncompress data files for 2d plots
 
 % Extract files
