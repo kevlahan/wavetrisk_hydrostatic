@@ -41,10 +41,9 @@ contains
     integer :: k, l
 
     integer :: d, j
-    real(8), dimension(:), allocatable, target :: theta
 
     if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, l)
-
+    
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
        temp      => q(S_TEMP,k)%data(d)%elts

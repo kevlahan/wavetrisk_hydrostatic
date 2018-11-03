@@ -32,11 +32,11 @@ contains
 
     integer :: e, id
 
-    id = idx (i, j, offs, dims)
+    id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) == mask) write (6,'(A,i8,A,i2)') 'node ', id, ' has value ', mask
+    if (dom%mask_n%elts(id+1)==mask) write(6,*) 'node ', id, ' has value ', mask
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) == mask) write (6,'(A,i8,A,i2)') 'edge ', id, e, ' has value ', mask
+       if (dom%mask_e%elts(EDGE*id+e)==mask) write(6,*) 'edge ', id, e, ' has value ', mask
     end do
   end subroutine check_masks
 
@@ -59,17 +59,15 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id, id_e, id_i
+    integer :: e, id
 
     id = idx(i, j, offs, dims)
-    id_i = id + 1
 
-    if (dom%mask_n%elts(id_i) == FROZEN) return
+    if (dom%mask_n%elts(id+1) == FROZEN) return
 
-    if(dom%mask_n%elts(id_i) > ADJZONE) dom%mask_n%elts(id_i) = ADJZONE
+    if(dom%mask_n%elts(id+1) > ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
     do e = 1, EDGE
-       id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) > ADJZONE) dom%mask_e%elts(id_e) = ADJZONE
+       if (dom%mask_e%elts(EDGE*id+e) > ADJZONE) dom%mask_e%elts(EDGE*id+e) = ADJZONE
     end do
   end subroutine mask_adj
 
@@ -131,7 +129,7 @@ contains
   end subroutine mask_tol
 
   subroutine set_active_mask (mask, wc, tolerance)
-    ! Add active points to mask
+    ! add active points to mask
     implicit none
     integer, intent(inout) :: mask
     real(8), intent(in)    :: wc, tolerance
@@ -425,16 +423,13 @@ contains
        call flux_div_stencil (dom, i, j, offs, dims)
 
        ! Kinetic energy stencil
-       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
-
        call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
        call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
        call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
-       call set_at_least (dom%mask_n%elts(idW+1),  TRSK)
-       call set_at_least (dom%mask_n%elts(idSW+1), TRSK)
-       call set_at_least (dom%mask_n%elts(idS+1),  TRSK)
+
+       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1), TRSK)
+       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
 
        ! Stencil for gradients of Bernoulli function
        call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), TRSK)
