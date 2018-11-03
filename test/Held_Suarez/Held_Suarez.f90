@@ -73,6 +73,7 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
+     call euler (trend_cooling, dt)
      call stop_timing
 
      call sum_total_mass (.false.)
@@ -190,12 +191,13 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   id_i = idx (i, j, offs, dims) + 1
 
   ! Newton cooling
-  call cart2sph (dom%node%elts(id_i), lon, lat)
-  call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-  cooling = -k_T * (temp(id_i) - theta_equil*mass(id_i))
+  ! call cart2sph (dom%node%elts(id_i), lon, lat)
+  ! call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+  ! cooling = -k_T * (temp(id_i) - theta_equil*mass(id_i))
 
-  physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = cooling
+  ! physics_scalar_source(S_MASS) = 0.0_8
+  ! physics_scalar_source(S_TEMP) = cooling
+  physics_scalar_source = 0.0_8
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -227,15 +229,15 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   end if
   
   ! Total physics for source term of velocity trend
-  id = idx (i, j, offs, dims)
-  id_i = id+1
-  eta = dom%press%elts(id_i)/dom%surf_press%elts(id_i)
-  k_v = k_f * max (0.0_8, (eta - eta_b)/(1.0_8-eta_b))
-  do e = 1, EDGE
-     Rayleigh(e) = -k_v * velo(EDGE*id+e)
-  end do
+  ! id = idx (i, j, offs, dims)
+  ! id_i = id+1
+  ! eta = dom%press%elts(id_i)/dom%surf_press%elts(id_i)
+  ! k_v = k_f * max (0.0_8, (eta - eta_b)/(1.0_8-eta_b))
+  ! do e = 1, EDGE
+  !    Rayleigh(e) = -k_v * velo(EDGE*id+e)
+  ! end do
   
-  physics_velo_source = diffusion + Rayleigh
+  physics_velo_source = diffusion !+ Rayleigh
 end function physics_velo_source
 
 subroutine trend_cooling (q, dq)
