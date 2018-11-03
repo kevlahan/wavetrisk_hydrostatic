@@ -13,9 +13,9 @@ lines     = true;   % remove lines
 
 % Log data options:
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; j=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = cpudof;
-Jmin = 4;
-Jmax = 6;
+ilog = dt;
+Jmin = 5;
+Jmax = 7;
 
 machine = 'mac';
 if (strcmp(machine,'if'))
@@ -52,7 +52,7 @@ else
 end
 
 if ilog == dt
-    ylab = 'dt';
+    ylab = '$\Delta t$';
 elseif ilog == tol_mass
     ylab = 'Mass threshold';
 elseif ilog == tol_temp
@@ -70,10 +70,10 @@ elseif ilog == mass_err
 elseif ilog == balance
     ylab = 'Load balance';
 elseif ilog == cpu
-    ylab = 'cpu time / dt';
+    ylab = 'CPU time / dt';
     
 elseif ilog == cpudof
-    ylab = 'cpu time / N';
+    ylab = 'CPU time / N';
 elseif ilog == compression
     ylab = 'Compression ratio';
 end
@@ -83,10 +83,10 @@ if ilog < cpudof
 elseif ilog == cpudof
     axis([0 log_data(end,1)/day 0 max(log_data(beg:end,cpu)./log_data(beg:end,dof))]);
 elseif ilog == compression
-    axis([0 log_data(end,1)/day 1 0.5*max(Nmax./log_data(beg:end,dof))]);
+    axis([0 log_data(end,1)/day 1 1*max(Nmax./log_data(beg:end,dof))]);
 end
-xlabel('time (days)');ylabel(ylab);grid on;
-set(findall(gcf,'-property','FontSize'),'FontSize',20)
+xlabel('Time (days)','Interpreter','latex');ylabel(ylab,'Interpreter','latex');grid on;
+set(findall(gcf,'-property','FontSize'),'FontSize',24)
 %% Uncompress data files for 2d plots
 
 % Extract files
