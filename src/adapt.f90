@@ -63,7 +63,6 @@ contains
 
     if (local_type) call set_thresholds
     
-    call apply_onescale__int (set_masks, level_start, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, TOLRNZ)
     ! Initialize all other nodes and edges to ZERO
     do l = level_start+1, level_end
        call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
@@ -71,7 +70,6 @@ contains
 
     ! Set all current masks > ADJZONE to at least ADJZONE for next time step
     call mask_adjacent_initial
-    call comm_masks_mpi (NONE)
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then
@@ -87,6 +85,7 @@ contains
        call apply_interscale (mask_adj_parent_edges, l, z_null, -1, 1)
        call comm_masks_mpi (l)
     end do
+    call comm_masks_mpi (NONE)
 
     ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
