@@ -45,7 +45,7 @@ contains
 
     ! Perturb temperature
     harvest = 0.0_8
-    call random_number (harvest)
+!    call random_number (harvest)
 
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * theta_equil * (1.0_8 + 5d-4*harvest)
