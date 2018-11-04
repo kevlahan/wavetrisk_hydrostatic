@@ -82,12 +82,6 @@ contains
           totalmass = totalmass + integrate_hex (mu, level_start, k)
        end do
        mass_error = abs (totalmass-initotalmass)/initotalmass
-       if (isnan(mass_error)) then
-          if (rank == 0) then
-             write (6,'(A)') "Mass error is NaN"
-             call abort
-          end if
-       end if
     end if
   end subroutine sum_total_mass
 

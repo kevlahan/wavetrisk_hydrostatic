@@ -317,7 +317,7 @@ module shared_mod
   real(8), parameter :: MATH_PI = acos(-1.0_8)
   
   ! Simulation variables
-  integer                                       :: cp_idx, istep, istep_cumul, iwrite, n_diffuse
+  integer                                       :: cp_idx, err_restart, istep, istep_cumul, iwrite, n_diffuse
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   
@@ -376,6 +376,7 @@ contains
     ! Initialize values
     resume              = NONE
     cp_idx              = NONE
+    err_restart         = 0
     istep               = 0
     istep_cumul         = 0
     iwrite              = 0

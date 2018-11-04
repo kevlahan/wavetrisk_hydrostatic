@@ -72,8 +72,19 @@ program DCMIP2012c4
      ! Time step
      call start_timing; call time_step (dt_write, aligned, set_thresholds); call stop_timing
 
-     ! Print data
      call sum_total_mass (.false.)
+
+     ! Check for mass error
+     if (isnan (mass_error)) then
+        if (rank == 0) write (6,'(A)') "Mass error is NaN"
+        err_restart = err_restart + 1
+        if (err_restart < 10) then
+           call restart (set_thresholds, load, run_id)
+        else
+           call abort
+        end if
+     end if
+
      call print_log
 
      if (aligned) then

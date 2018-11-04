@@ -192,7 +192,10 @@ contains
     if (min_level /= max_level) call adapt_grid (set_thresholds)
     
     ! Set new time step, find change in vertical levels and count active nodes
-    dt_new = cpt_dt_mpi() 
+    dt_new = cpt_dt_mpi()
+
+    ! Attempt to restart from previous checkpoint
+    if (dt_new < 0.0_8) call restart (set_thresholds, load, run_id)
 
     itime = itime + idt
     time  = itime/time_mult

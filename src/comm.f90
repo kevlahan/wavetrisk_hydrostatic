@@ -962,7 +962,7 @@ contains
 
     integer :: errcode, ierr
     integer :: d, e, id, id_e, id_i, k, l
-    real(8) :: col_mass, d_e, mu, init_mass, v_e
+    real(8) :: col_mass, d_e, harvest, mu, init_mass, v_e
 
     id = idx(i, j, offs, dims)
     id_i = id + 1
@@ -976,10 +976,20 @@ contains
        col_mass = 0.0_8
        do k = 1, zlevels
           mu = sol(S_MASS,k)%data(d)%elts(id_i)
+          
+          ! Check for negative mass
           if (mu < 0.0_8) then
              write (6,'(A,es11.4,A,i3)') "ERROR: mass = ",  mu, " is negative at level ", k
-             call abort
+             err_restart = err_restart + 1
+             if (err_restart < 10) then
+                dt_loc = -1.0_8
+                cfl_num = 0.99 * cfl_num
+                return
+             else
+                call abort
+             end if
           end if
+          
           col_mass = col_mass + mu
        end do
        
