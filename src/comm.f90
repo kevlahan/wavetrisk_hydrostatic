@@ -981,7 +981,8 @@ contains
           if (mu < 0.0_8) then
              write (6,'(A,es11.4,A,i3)') "ERROR: mass = ",  mu, " is negative at level ", k
              err_restart = err_restart + 1
-             if (err_restart < 10) then
+             if (err_restart < restart_max) then
+                if (rank == 0) write (6,'(A,i3,A)') "Restart ", err_restart, " after error"
                 dt_loc = -1.0_8
                 cfl_num = 0.99 * cfl_num
                 return

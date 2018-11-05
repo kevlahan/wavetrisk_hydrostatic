@@ -75,7 +75,8 @@ program DCMIP2008c5
      if (isnan (mass_error)) then
         if (rank == 0) write (6,'(A)') "Mass error is NaN"
         err_restart = err_restart + 1
-        if (err_restart < 10) then
+        if (err_restart < restart_max) then
+           f (rank == 0) write (6,'(A,i3,A)') "Restart ", err_restart, " after error"
            call restart (set_thresholds, load, run_id)
         else
            call abort
