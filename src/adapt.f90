@@ -432,7 +432,7 @@ contains
           id = idx(i, j, offs, dims)
           required = dom%mask_n%elts(id+1) >= ADJSPACE .or. dom%mask_n%elts(id+1) == TRSK
           do e = 1, EDGE
-             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT .or. dom%mask_e%elts(EDGE*id+e) == TRSK
+             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT 
           end do
           if (required) then
              check_child_required = .true.

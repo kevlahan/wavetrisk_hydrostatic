@@ -1,7 +1,7 @@
 % Plot 2d data from export_2d or log data
 %test_case = 'DCMIP2008c5'; run_id = 'DCMIP2008c5';
-%test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7';
-test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6';
+test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7';
+%test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
 itype     = 'vort';  % field to plot
@@ -13,9 +13,8 @@ lines     = true;   % remove lines
 
 % Log data options:
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; J=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = dof;
-Jmin = 5;
-Jmax = 7;
+ilog = tol_velo;
+Jmin = 4; Jmax = 6;
 
 machine = 'mac';
 if (strcmp(machine,'if'))
@@ -72,10 +71,10 @@ elseif ilog == mass_err
 elseif ilog == balance
     ylab = 'Load balance';
 elseif ilog == cpu
-    ylab = 'CPU time / dt';
+    ylab = 'CPU time / $\Delta t$ (s)';
     
 elseif ilog == cpudof
-    ylab = 'CPU time / N';
+    ylab = 'CPU time / ${\cal N}$';
 elseif ilog == compression
     ylab = 'Compression ratio';
 end
