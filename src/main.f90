@@ -195,7 +195,17 @@ contains
     dt_new = cpt_dt_mpi()
 
     ! Attempt to restart from previous checkpoint
-    if (dt_new < 0.0_8) call restart (set_thresholds, load, run_id)
+    if (dt_new < 0.0_8) then
+       err_restart = err_restart+1
+       if (err_restart < max_restart) then
+          if (rank == 0) write (6,'(A,i3,A)') "Restart ", err_restart, " after negative mass error"
+          cfl_num = 0.99 * cfl_num
+          call restart (set_thresholds, load, run_id)
+       else
+          write (6,'(A,i3,A)') "Maximum number of restarts ", max_restart, " reached ... aborting"
+          call abort
+       end if
+    end if
 
     itime = itime + idt
     time  = itime/time_mult
