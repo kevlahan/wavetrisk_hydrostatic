@@ -40,37 +40,6 @@ contains
     end do
   end subroutine check_masks
 
-  subroutine mask_adjacent_initial
-    implicit none
-    integer :: k, l
-
-    do k = 1, zlevels
-       call apply_onescale (mask_adj, level_end, k, -1, 2)
-       do l = level_end-1, level_start, -1
-          call apply_onescale (mask_adj, l, k, -1, 2)
-       end do
-    end do
-  end subroutine mask_adjacent_initial
-
-  subroutine mask_adj (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: e, id
-
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) == FROZEN) return
-
-    if(dom%mask_n%elts(id+1) > ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) > ADJZONE) dom%mask_e%elts(EDGE*id+e) = ADJZONE
-    end do
-  end subroutine mask_adj
-
   subroutine mask_active (wavelet)
     implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wavelet
@@ -1521,6 +1490,25 @@ contains
        end do
     end do
   end subroutine mask_adjacent
+
+  subroutine mask_adj (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: e, id
+
+    id = idx(i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) == FROZEN) return
+
+    if(dom%mask_n%elts(id+1) > ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) > ADJZONE) dom%mask_e%elts(EDGE*id+e) = ADJZONE
+    end do
+  end subroutine mask_adj
   
   subroutine complete_masks
     implicit none
