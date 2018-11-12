@@ -274,10 +274,9 @@ contains
     end if
     call barrier
 
-    !    call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
-    call adapt (set_thresholds)
+    call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-      
+    
     ! Initialize total mass value
     call sum_total_mass (.true.)
 

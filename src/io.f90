@@ -860,8 +860,14 @@ contains
        close(fid_no(d)); close(fid_gr(d))
     end do
 
-    wav_coeff%bdry_uptodate       = .False.
-    trend_wav_coeff%bdry_uptodate = .False.
+    sol%bdry_uptodate             = .false.
+    trend%bdry_uptodate           = .false.
+    wav_coeff%bdry_uptodate       = .false.
+    trend_wav_coeff%bdry_uptodate = .false.
+    call update_array_bdry (sol,             NONE)
+    call update_array_bdry (trend,           NONE)
+    call update_array_bdry (wav_coeff,       NONE)
+    call update_array_bdry (trend_wav_coeff, NONE)
   end subroutine load_adapt_mpi
 
   subroutine proj_xz_plane (cin, cout)

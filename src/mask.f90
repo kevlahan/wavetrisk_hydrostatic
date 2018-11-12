@@ -10,23 +10,22 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id
+    integer :: id, id_i
 
     id = idx(i, j, offs, dims)
+    id_i = id + 1
 
-    if (dom%mask_n%elts(id+1) == FROZEN) return
+    if (dom%mask_n%elts(id_i) == FROZEN) return
 
-    dom%mask_n%elts(id+1) = mask
-    do e = 1, EDGE
-       dom%mask_e%elts(EDGE*id+e) = mask
-    end do
+    dom%mask_n%elts(id_i)              = mask
+    dom%mask_e%elts(EDGE*id:EDGE*id_i) = mask
   end subroutine set_masks
 
-  subroutine check_masks (dom, p, i, j, zlev, offs, dims, mask)
+  subroutine check_mask (dom, i, j, zlev, offs, dims)
     ! Checks if some nodes or edges have value mask
     implicit none
     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev, mask
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -34,11 +33,11 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1)==mask) write(6,*) 'node ', id, ' has value ', mask
+    if (dom%mask_n%elts(id+1)>=ADJZONE) write(6,*) 'node ', id, ' has value ', dom%mask_n%elts(id+1)
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e)==mask) write(6,*) 'edge ', id, e, ' has value ', mask
+       if (dom%mask_e%elts(EDGE*id+e)>=ADJZONE) write(6,*) 'edge ', id, e, ' has value ', dom%mask_e%elts(EDGE*id+e)
     end do
-  end subroutine check_masks
+  end subroutine check_mask
 
   subroutine mask_active (wavelet)
     implicit none
@@ -1470,26 +1469,12 @@ contains
         call set_at_least (dom%mask_n%elts(id_par+1), RESTRCT)
   end subroutine mask_adj_scale
 
-  subroutine mask_adjacent
+  subroutine mask_adjacent_initial
+    ! Ensure that grid points that were > ADJZONE on coarsest level are in ADJZONE on next time step
     implicit none
-    integer :: d, j, k, l, v
 
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (mask_adj, grid(d), grid(d)%lev(level_end)%elts(j), k, -1, 2)
-          end do
-       end do
-    
-       do l = level_end-1, level_start, -1
-          do d = 1, size(grid)
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (mask_adj, grid(d), grid(d)%lev(l)%elts(j), k, -1, 2)
-             end do
-          end do
-       end do
-    end do
-  end subroutine mask_adjacent
+    call apply_onescale (mask_adj, level_start, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+  end subroutine mask_adjacent_initial
 
   subroutine mask_adj (dom, i, j, zlev, offs, dims)
     implicit none
@@ -1502,9 +1487,7 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) == FROZEN) return
-
-    if(dom%mask_n%elts(id+1) > ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
+    if (dom%mask_n%elts(id+1) > ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
     do e = 1, EDGE
        if (dom%mask_e%elts(EDGE*id+e) > ADJZONE) dom%mask_e%elts(EDGE*id+e) = ADJZONE
     end do
