@@ -320,7 +320,7 @@ module shared_mod
   integer                                       :: cp_idx, err_restart, istep, istep_cumul, iwrite, n_diffuse
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
-  integer, parameter                            :: max_restart = 100 ! Maximum allowed number of restarts after negative mass event
+  integer, parameter                            :: max_restart = 10 ! Maximum allowed number of restarts after negative mass event
   
   real(8)                                       :: dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, press_infty

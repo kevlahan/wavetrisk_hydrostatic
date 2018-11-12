@@ -199,7 +199,7 @@ contains
        err_restart = err_restart+1
        if (err_restart < max_restart) then
           if (rank == 0) write (6,'(A,i3,A)') "Restart ", err_restart, " after negative mass error"
-          cfl_num = 0.99 * cfl_num
+          tol = 0.95 * tol
           call restart (set_thresholds, load, run_id)
        else
           write (6,'(A,i3,A)') "Maximum number of restarts ", max_restart, " reached ... aborting"
@@ -274,7 +274,8 @@ contains
     end if
     call barrier
 
-    call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
+    !    call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
+    call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
       
     ! Initialize total mass value
