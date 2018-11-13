@@ -21,6 +21,24 @@ contains
     dom%mask_e%elts(EDGE*id:EDGE*id_i) = mask
   end subroutine set_masks
 
+  subroutine mask_adjzone (dom, i, j, zlev, offs, dims)
+    ! Sets grid points to ADJZONE if they are currently > ADJZONE
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: e, id
+
+    id = idx (i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) > ADJZONE) dom%mask_n%elts(id+1) = ADJZONE
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) > ADJZONE) dom%mask_e%elts(EDGE*id+e) = ADJZONE
+    end do
+  end subroutine mask_adjzone
+
   subroutine check_mask (dom, i, j, zlev, offs, dims)
     ! Checks if some nodes or edges have value mask
     implicit none
