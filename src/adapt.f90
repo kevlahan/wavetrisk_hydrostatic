@@ -63,13 +63,10 @@ contains
 
     if (local_type) call set_thresholds
 
-    ! Initialize all nodes and edges to ZERO for finer scales
-    do l = level_start+1, level_end
-       call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
+    ! Set all current masks > ADJZONE to ADJZONE, otherwise set to ZERO
+    do l = level_start, level_end
+       call apply_onescale (mask_adjzone_initial, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
-
-    ! Set all current masks > ADJZONE at level_start scale to ADJZONE 
-    call apply_onescale (mask_adjzone, level_start, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then
