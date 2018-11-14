@@ -1,35 +1,42 @@
 % Plot 2d data from export_2d or log data
-%test_case = 'DCMIP2008c5'; run_id = 'DCMIP2008c5';
-test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7';
-%test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6';
+%test_case = 'DCMIP2008c5'; run_id = 'DCMIP2008c5'; run_dir = '';
+test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7'; run_dir = '';
+%test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4'; run_dir = 'test1/';
+test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6'; run_dir = '';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'vort';  % field to plot
-lon_lat   = true;    % Plot longitude - latitude data
-zonal_avg = false;   % Plot zonally averaged data
+itype     = 'zonal';  % field to plot
+lon_lat   = false;    % Plot longitude - latitude data
+zonal_avg = true;   % Plot zonally averaged data
 shift     = true;    % shift left boundary to zero longitude
 smooth    = false;   % smooth data over two points in each direction
 lines     = true;   % remove lines
 
 % Log data options:
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; J=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = tol_velo;
-Jmin = 4; Jmax = 6;
+ilog = compression;
+
+if (strcmp(test_case,'DCMIP2008c5'))
+    Jmin = 4; Jmax = 6;
+elseif (strcmp(test_case,'Held_Suarez'))
+    Jmin = 4; Jmax = 6;
+elseif (strcmp(test_case,'DCMIP2012c4'))
+    Jmin = 5; Jmax = 7;
+end
 
 machine = 'mac';
 if (strcmp(machine,'if'))
     pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/'];
-    %pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/J5J10_eps_def_4_nodiff/'];
-    %pathid = ['/net/if/1/home/kevlahan/data/jobs/' test_case '/J5J7_eps_def_2_Lap2/'];
 elseif (strcmp(machine,'mac'))
-    pathid = ['/Users/kevlahan/hydro/' test_case '/'];
+    pathid = ['/Users/kevlahan/hydro/' test_case '/' run_dir];
 end
 %% Log data plots
 % Load log file
+%figure;
 set(0,'defaulttextinterpreter','latex')
 
 beg = 1;
-%beg = 357;
+%beg = 47625; % Held-Suarez
 
 % Number of dof on equivalent uniform grid
 Nunif = 4 * 10*4^Jmax;
@@ -42,7 +49,6 @@ for j=Jmin+1:Jmax
 end
 
 log_data = load([pathid run_id '_log']);
-figure;
 day = 24;
 if ilog == cpudof
     plot(log_data(beg:end,1)/day,log_data(beg:end,cpu)./log_data(beg:end,dof),'k-','linewidth',1.5);
@@ -233,6 +239,6 @@ if (zonal_avg)
     fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_zo)));
     plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, smooth, 0)
 end
-%% Erase extracted files
+% Erase extracted files
 file_erase = ['\rm ' file_base '*'];
 system(file_erase);
