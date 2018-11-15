@@ -65,7 +65,7 @@ program flat_projection_data
      write (6,'(A)') "Test case not supported"
      stop
   end if
-  resume = check_start
+  resume = mean_beg
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  
   ! Initialize variables
@@ -74,8 +74,7 @@ program flat_projection_data
   Nx     = (/-N/2, N/2/)
   Ny     = (/-N/4, N/4/)
   Nzonal = Nx(2)-Nx(1)+1
-  Ntimes = check_end-check_start+1
-  Ntot   = Nzonal*Ntimes
+  
   lon_lat_range = (/2*MATH_PI, MATH_PI/)
   dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
   kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
@@ -88,11 +87,13 @@ program flat_projection_data
   ! Calculate zonal average over all check points
   if (rank == 0) write (6,'(A)') "Calculating zonal averages over all checkpoints"
   zonal_av = 0.0_8; zonal_spacetime_av = 0.0_8
-  do cp_idx = check_start, check_end
+  do cp_idx = mean_beg, mean_end
      resume = NONE
      call restart (set_thresholds, load, run_id)
      call cal_zonal_av 
   end do
+  Ntimes = mean_beg-mean_end+1
+  Ntot   = Nzonal*Ntimes
   ! Temperature
   zonal_av(:,:,1) = zonal_spacetime_av(:,:,1) / dble(Ntot)
   ! Temperature variance
@@ -102,12 +103,14 @@ program flat_projection_data
 
   ! Project onto plane and find zonally averaged perturbation quantities
   if (rank == 0) write (6,'(/,A,/)') "Perturbation quantities"
-  do cp_idx = check_start, check_end
+  do cp_idx = fluc_beg, fluc_end
      resume = NONE
      call restart (set_thresholds, load, run_id)
      call cal_perturb
      if (cp_idx == cp_2d) call latlon
   end do
+  Ntimes = fluc_beg-fluc_end+1
+  Ntot   = Nzonal*Ntimes
   zonal_av(:,:,6:8) = zonal_av(:,:,6:8) / dble(Ntot)
   
   call barrier

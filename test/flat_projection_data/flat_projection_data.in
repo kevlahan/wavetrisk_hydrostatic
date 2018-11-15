@@ -1,7 +1,9 @@
 test_case    "Held_Suarez"  ! test case
 test_case    "Held_Suarez_J6"  ! run
-tstart	        29           ! first checkpoint file
-tend	        171           ! last checkpoint file
+mean_beg	1100         ! first checkpoint file for calculating mean
+mean_end	1200         ! last checkpoint file for calculating mean	
+mean_beg	200         ! first checkpoint file for calculating fluctuations
+mean_end	1200         ! last checkpoint file for calculating fluctuations
 cp_2d	        171           ! checkpoint for 2d projection	
 max_level	6           ! maximum level of resolution
 zlevels         18          ! number of vertical levels

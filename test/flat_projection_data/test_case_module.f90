@@ -4,7 +4,7 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  integer                              :: check_end, check_start, cp_2d, N, save_zlev
+  integer                              :: fluc_beg, fluc_end, mean_beg, mean_end, cp_2d, N, save_zlev
   real(8)                              :: initotalmass, mass_error, totalmass
   real(8), allocatable, dimension(:,:) :: threshold_def
   
@@ -136,8 +136,10 @@ contains
     open (unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
-    read (fid,*) varname, check_start
-    read (fid,*) varname, check_end
+    read (fid,*) varname, mean_beg
+    read (fid,*) varname, mean_end
+    read (fid,*) varname, fluc_beg
+    read (fid,*) varname, fluc_end
     read (fid,*) varname, cp_2d
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
@@ -154,18 +156,20 @@ contains
     end if
 
     if (rank==0) then
-       write (6,'(A,A)')      "test_case           = ", trim (test_case)
-       write (6,'(A,A)')      "run_id              = ", trim (run_id)
-       write (6,'(A,i4)')     "first file          = ", check_start
-       write (6,'(A,i4)')     "last file           = ", check_end
-       write (6,'(A,i4)')     "file to save as 2d  = ", cp_2d
-       write (6,'(A,i3)')     "min_level           = ", min_level
-       write (6,'(A,i3)')     "max_level           = ", max_level
-       write (6,'(A,i3)')     "zlevels             = ", zlevels
-       write(6,'(A,L1)')      "uniform             = ", uniform
-       write (6,'(A,i3)')     "level_save          = ", level_save
-       write (6,'(A,i5)')     "N                   = ", N
-       write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
+       write (6,'(A,A)')      "test_case              = ", trim (test_case)
+       write (6,'(A,A)')      "run_id                 = ", trim (run_id)
+       write (6,'(A,i4)')     "first mean file        = ", mean_beg
+       write (6,'(A,i4)')     "last meann file        = ", mean_end
+       write (6,'(A,i4)')     "first fluctuation file = ", fluc_beg
+       write (6,'(A,i4)')     "last fluctuation file  = ", fluc_end
+       write (6,'(A,i4)')     "file to save as 2d     = ", cp_2d
+       write (6,'(A,i3)')     "min_level              = ", min_level
+       write (6,'(A,i3)')     "max_level              = ", max_level
+       write (6,'(A,i3)')     "zlevels                = ", zlevels
+       write(6,'(A,L1)')      "uniform                = ", uniform
+       write (6,'(A,i3)')     "level_save             = ", level_save
+       write (6,'(A,i5)')     "N                      = ", N
+       write (6,'(A,es10.4)') "pressure_save (hPa)    = ", press_save
        write (6,*) ' '
     end if
     
