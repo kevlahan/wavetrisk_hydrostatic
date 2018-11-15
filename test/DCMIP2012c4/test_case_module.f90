@@ -138,7 +138,7 @@ contains
     end if
 
     if (istep > 1) then
-       threshold = 0.9 * threshold + 0.1 * threshold_new
+       threshold = 0.99 * threshold + 0.01 * threshold_new
     else
        threshold = threshold_new
      end if
@@ -395,7 +395,7 @@ contains
     allocate (viscosity_divu(1:zlevels))
     
     ! Smallest edge length
-    dx_min = 0.9 * sqrt (4*MATH_PI*radius**2/(sqrt(3.0_8)/2*10*4**max_level))
+    dx_min = sqrt (4*MATH_PI*radius**2/(3*sqrt(3.0_8)/8*10*4**max_level))
 
     ! Largest wavenumber on regular lozenge grid
     k_max = MATH_PI/(sqrt(3.0_8)*dx_min)
