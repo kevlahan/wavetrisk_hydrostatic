@@ -92,7 +92,7 @@ program flat_projection_data
      call restart (set_thresholds, load, run_id)
      call cal_zonal_av 
   end do
-  Ntimes = mean_beg-mean_end+1
+  Ntimes = mean_end-mean_beg+1
   Ntot   = Nzonal*Ntimes
   ! Temperature
   zonal_av(:,:,1) = zonal_spacetime_av(:,:,1) / dble(Ntot)
@@ -109,7 +109,7 @@ program flat_projection_data
      call cal_perturb
      if (cp_idx == cp_2d) call latlon
   end do
-  Ntimes = fluc_beg-fluc_end+1
+  Ntimes = fluc_end-fluc_beg+1
   Ntot   = Nzonal*Ntimes
   zonal_av(:,:,6:8) = zonal_av(:,:,6:8) / dble(Ntot)
   
