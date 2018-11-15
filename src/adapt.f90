@@ -63,9 +63,9 @@ contains
 
     if (local_type) call set_thresholds
 
-    ! Set all current masks > ADJZONE to ADJZONE, otherwise set to ZERO
-    do l = level_start, level_end
-       call apply_onescale (mask_adjzone_initial, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    ! Initialize all nodes and edges to ZERO at finer scales
+    do l = level_start+1, level_end
+       call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
 
     ! Make nodes and edges with significant wavelet coefficients active
@@ -74,16 +74,7 @@ contains
     else
        call mask_active (wav_coeff)
     end if
-    call comm_masks_mpi (NONE)
-    
-    ! Add neighbouring parent wavelet nodes/edges
-    do l = level_end-1, level_start, -1
-       call apply_interscale (mask_adj_parent_nodes, l, z_null,  0, 1)
-       call apply_interscale (mask_adj_parent_edges, l, z_null, -1, 1)
-       call comm_masks_mpi (l)
-    end do
-    call comm_masks_mpi (NONE)
-
+      
     ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
        call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
