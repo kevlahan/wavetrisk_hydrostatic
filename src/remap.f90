@@ -19,6 +19,8 @@ contains
     ! Remap on finest level
     call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
     call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
+    sol%bdry_uptodate = .false.
+    call update_array_bdry (sol, level_end)
 
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
@@ -51,14 +53,16 @@ contains
              velo => sol(S_VELO,k)%data(d)%elts
              wc_m => wav_coeff(S_MASS,k)%data(d)%elts
              wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 0)
+             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1)
              call apply_interscale_d (restrict_velo,   grid(d), l, k, 0, 0)
              nullify (mass, temp, velo, wc_m, wc_t)
           end do
        end do
+       sol%bdry_uptodate = .false.
+       call update_array_bdry (sol, l)
     end do
-    sol%bdry_uptodate       = .False.
-    wav_coeff%bdry_uptodate = .False.
+    sol%bdry_uptodate       = .false.
+    wav_coeff%bdry_uptodate = .false.
         
     ! Interpolate back onto adapted grid
     call WT_after_step (sol, wav_coeff, level_start-1)
