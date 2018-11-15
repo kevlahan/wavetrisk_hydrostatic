@@ -17,9 +17,9 @@ program Held_Suarez
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6.371d6                  ! mean radius of the Earth in meters
+  radius         = 6.371d6                     ! mean radius of the Earth in meters
   grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
-  omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
+  omega          = 7.292d-5                    ! Earth's angular velocity in radians per second
   ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
   ref_surf_press = ref_press                   ! reference surface pressure
   R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
@@ -321,15 +321,11 @@ contains
     integer     :: id_i
     real(8)     :: k_T, lat, lon, theta_equil
 
-    id_i = idx (i, j, offs, dims)+1
+    id_i = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       call cart2sph (dom%node%elts(id_i), lon, lat)
-       call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-       dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
-    else
-       dtemp(id_i) = 0.0_8
-    end if
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+    call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+    dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
   end subroutine trend_temp
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
@@ -351,12 +347,8 @@ contains
 
     do e = 1, EDGE
        id_e = EDGE*id + e
-       if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-          k_v = k_f * max (0.0_8, (dom%press%elts(id_i)/dom%surf_press%elts(id_i) - eta_b)/(1.0_8-eta_b))
-          dvelo(id_e) = - k_v * velo(id_e)
-       else
-          dvelo(id_e) = 0.0_8
-       end if
+       k_v = k_f * max (0.0_8, (dom%press%elts(id_i)/dom%surf_press%elts(id_i) - eta_b)/(1.0_8-eta_b))
+       dvelo(id_e) = - k_v * velo(id_e)
     end do
   end subroutine trend_velo
 end subroutine trend_cooling
