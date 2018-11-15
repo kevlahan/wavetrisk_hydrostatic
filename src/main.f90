@@ -199,7 +199,7 @@ contains
        err_restart = err_restart+1
        if (err_restart < max_restart) then
           if (rank == 0) write (6,'(A,i3,A)') "Restart ", err_restart, " after negative mass error"
-          cfl = 0.95 * cfl
+          cfl_num = 0.95 * cfl_num
           call restart (set_thresholds, load, run_id)
        else
           write (6,'(A,i3,A)') "Maximum number of restarts ", max_restart, " reached ... aborting"
