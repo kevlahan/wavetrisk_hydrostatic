@@ -2,19 +2,19 @@
 %test_case = 'DCMIP2008c5'; run_id = 'DCMIP2008c5'; run_dir = '';
 test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7'; run_dir = '';
 %test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4'; run_dir = 'test1/';
-test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6'; run_dir = '';
+%test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6'; run_dir = '';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'zonal';  % field to plot
-lon_lat   = false;    % Plot longitude - latitude data
-zonal_avg = true;   % Plot zonally averaged data
+itype     = 'surf_press';  % field to plot
+lon_lat   = true;    % Plot longitude - latitude data
+zonal_avg = false;   % Plot zonally averaged data
 shift     = true;    % shift left boundary to zero longitude
 smooth    = false;   % smooth data over two points in each direction
 lines     = true;   % remove lines
 
 % Log data options:
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; J=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = compression;
+ilog = dof;
 
 if (strcmp(test_case,'DCMIP2008c5'))
     Jmin = 4; Jmax = 6;
@@ -55,7 +55,7 @@ if ilog == cpudof
 elseif ilog == compression
     plot(log_data(beg:end,1)/day,Nmax./log_data(beg:end,dof),'k-','linewidth',1.5);
 else
-    plot(log_data(beg:end,1)/day,log_data(beg:end,ilog),'k-','linewidth',1.5);
+    plot(log_data(beg:end,1)/day,log_data(beg:end,ilog),'r-','linewidth',1.5);
 end
 
 if ilog == dt
@@ -203,7 +203,7 @@ elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
     elseif (strcmp(test_case,'DCMIP2012c4'))
         c_scale = 930:10:1030;
     end
-    v_title = 'Surface pressure';
+    v_title = 'Surface pressure (hPa)';
 elseif (strcmp(itype,'ke')) % Plot zonal kinetic energy
     c_scale = 0:40:480; % Held-Suarez
     v_title = 'Kinetic energy (m^2/s^2)';
