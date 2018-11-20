@@ -142,6 +142,7 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, uniform
+    read (fid,*) varname, adapt_trend
     read (fid,*) varname, level_save
     read (fid,*) varname, N
     read (fid,*) varname, press_save
@@ -163,6 +164,7 @@ contains
        write (6,'(A,i3)')     "max_level              = ", max_level
        write (6,'(A,i3)')     "zlevels                = ", zlevels
        write(6,'(A,L1)')      "uniform                = ", uniform
+       write (6,'(A,L1)')     "adapt_trend            = ", adapt_trend
        write (6,'(A,i3)')     "level_save             = ", level_save
        write (6,'(A,i5)')     "N                      = ", N
        write (6,'(A,es10.4)') "pressure_save (hPa)    = ", press_save

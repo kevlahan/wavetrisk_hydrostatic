@@ -103,8 +103,8 @@ contains
     implicit none
     
     integer                                       :: d, ix, j, k
-    real(8) ,dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
-    real(8) ,dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
+    real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
+    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
@@ -174,7 +174,7 @@ contains
 
     if (rank == 0) write (6,'(A,i6)') "Saving latitude-longitude projection of checkpoint file = ", cp_2d
 
-    ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
+    ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
 
     call cal_surf_press (sol)
@@ -272,7 +272,8 @@ contains
     ! Pressure vertical coordinates
     write (var_file, '(i2)') 22
     open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (a_vert(k)*ref_press/ref_surf_press + b_vert(k), k=zlevels+1,2,-1)
+    write (funit,'(2047(E15.6, 1X))') (0.5*(a_vert(k)+a_vert(k+1))*ref_press/ref_surf_press + 0.5*(b_vert(k)+b_vert(k+1)), &
+         k = zlevels, 1, -1)
     close (funit)
 
     ! Compress files
