@@ -978,7 +978,7 @@ contains
           mu = sol(S_MASS,k)%data(d)%elts(id_i)
           
           ! Check for negative mass
-          if (mu < 0.0_8) dt_loc = -1.0_8
+          if (mu < 0.0_8) call abort
 
           col_mass = col_mass + mu
        end do

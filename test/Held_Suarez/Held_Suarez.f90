@@ -77,22 +77,6 @@ program Held_Suarez
      call stop_timing
 
      call sum_total_mass (.false.)
-     
-     ! Check for mass error
-     if (isnan (mass_error)) then
-        if (rank == 0) write (6,'(A)') "Mass error is NaN"
-        err_restart = err_restart + 1
-        if (err_restart < max_restart) then
-           if (rank == 0) write (6,'(A,i3,A)') "Restart ", err_restart, " after error"
-           cfl_num = 0.99 * cfl_num
-           cp_idx = cp_idx - 1 ! Take previous checkpoint in case checkpoint unstable
-           call restart (set_thresholds, load, run_id)
-        else
-           if (rank == 0) write (6,'(A,i3,A)') "Maximum number of restarts ", max_restart, " reached ... aborting"
-           call abort
-        end if
-     end if
-     
      call print_log
 
      if (aligned) then
