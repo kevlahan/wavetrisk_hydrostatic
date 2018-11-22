@@ -1,16 +1,16 @@
 % Plot 2d data from export_2d or log data
 %test_case = 'DCMIP2008c5'; run_id = 'DCMIP2008c5'; run_dir = '';
-test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7'; run_dir = '';
+%test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7'; run_dir = '';
 %test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4'; run_dir = 'test1/';
-%test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6'; run_dir = '';
+test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J5'; run_dir = '';
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'surf_press';  % field to plot
-lon_lat   = true;    % Plot longitude - latitude data
-zonal_avg = false;   % Plot zonally averaged data
-shift     = true;    % shift left boundary to zero longitude
-smooth    = false;   % smooth data over two points in each direction
-lines     = true;   % remove lines
+itype     = 'zonal';  % field to plot
+lon_lat   = false;  % Plot longitude - latitude data
+zonal_avg = true;   % Plot zonally averaged data
+shift     = true;   % shift left boundary to zero longitude
+smooth    = false;  % smooth data over two points in each direction
+lines     = true;   % plot lines
 
 % Log data options:
 dt=2; tol_mass=3; tol_temp=4; tol_velo=5; J=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
@@ -30,10 +30,11 @@ if (strcmp(machine,'if'))
 elseif (strcmp(machine,'mac'))
     pathid = ['/Users/kevlahan/hydro/' test_case '/' run_dir];
 end
+
+set(0,'defaulttextinterpreter','latex')
 %% Log data plots
 % Load log file
 %figure;
-set(0,'defaulttextinterpreter','latex')
 
 beg = 1;
 %beg = 47625; % Held-Suarez
@@ -97,7 +98,7 @@ set(findall(gcf,'-property','FontSize'),'FontSize',22)
 %% Uncompress data files for 2d plots
 
 % Extract files
-file_base = [run_id '.3.'];
+file_base = [run_id '.3.']; 
 file_tar = ['tar ' 'xf ' pathid file_base 'tgz'];
 disp(['Uncompressing file ' pathid file_base 'tgz']);
 system(file_tar);
@@ -132,8 +133,7 @@ if (strcmp(itype,'temp')) % Plot temperature
     elseif (strcmp(test_case,'DCMIP2012c4'))
         c_scale = 220:10:310;
     elseif (strcmp(test_case,'Held_Suarez'))
-        c_scale = 160:20:300;
-        c_scale2 = 0:0.5:4;
+        c_scale = 160:10:300;
     end
     v_title = 'Temperature (K)';
     if (lon_lat)
@@ -143,7 +143,7 @@ if (strcmp(itype,'temp')) % Plot temperature
         s_zo = s_zo + load([file_base '11']);
     end
 elseif (strcmp(itype,'temp_var')) % Plot temperature variance
-    c_scale = 0:5:40; % Held-Suarez
+    c_scale = 0:2:40; % Held-Suarez
     v_title = 'Temperature variance (K^2)';
     s_zo = s_zo + load([file_base '12']);
 elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
@@ -209,19 +209,19 @@ elseif (strcmp(itype,'ke')) % Plot zonal kinetic energy
     v_title = 'Kinetic energy (m^2/s^2)';
     s_zo = s_zo+load([file_base '15']);
 elseif (strcmp(itype,'eddy_mom')) % Plot zonal eddy momentum flux
-    c_scale = -100:20:100; % Held-Suarez
+    c_scale = -100:10:100; % Held-Suarez
     v_title = 'Eddy momentum flux (m^2/s^2)';
     s_zo = s_zo+load([file_base '16']);
 elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
     if (strcmp(test_case,'DCMIP2008c5'))
         c_scale = 0:5:100;
     elseif (strcmp(test_case,'Held_Suarez'))
-        c_scale = 0:40:480;
+        c_scale = 0:20:480;
     end
     v_title = 'Eddy kinetic energy (m^2/s^2)';
     s_zo = s_zo+load([file_base '17']);
 elseif (strcmp(itype,'eddy_heat_flux')) % Plot zonal eddy heat flux
-    c_scale = -20:5:20; % Held-Suarez
+    c_scale = -20:2:20; % Held-Suarez
     v_title = 'Eddy kinetic energy (K m/s)';
     s_zo = s_zo+load([file_base '18']);
 end
@@ -237,7 +237,7 @@ end
 if (zonal_avg)
     fprintf('Minimum value of variable %s = %8.4e\n', itype, min(min(s_zo)));
     fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_zo)));
-    plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, smooth, 0)
+    plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, smooth, lines, 0)
 end
 % Erase extracted files
 file_erase = ['\rm ' file_base '*'];
