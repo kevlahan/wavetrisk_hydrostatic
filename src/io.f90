@@ -83,7 +83,11 @@ contains
        end do
        mass_error = abs (totalmass-initotalmass)/initotalmass
     end if
-    if (isnan (mass_error)) call abort
+    
+    if (isnan (mass_error)) then
+       write (6,'(A)') "Mass error NaN ... aborting"
+       call abort
+    end if
   end subroutine sum_total_mass
 
   real(8) function mu (dom, i, j, zlev, offs, dims)

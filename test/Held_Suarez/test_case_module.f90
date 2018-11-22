@@ -13,47 +13,8 @@ module test_case_mod
 
   ! Test case variables
   real(8) :: delta_T, delta_theta, eta_b, k_a, k_f, k_s, T_0, T_mean, T_tropo
+  real(8) :: delta_T2, eta_t, eta_v, eta_0, gamma_T, u_0
 contains
-  subroutine init_sol (dom, i, j, zlev, offs, dims)
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer     :: d, id_i
-    real(8)     :: column_mass, harvest, k_T, lev_press, lon, lat, p_top, p_bot, theta_equil
-    type(Coord) :: x_i
-    
-    d = dom%id+1
-    id_i = idx(i, j, offs, dims) + 1
-    x_i = dom%node%elts(id_i)
-    
-    ! Surface pressure
-    dom%surf_press%elts(id_i) = surf_pressure (x_i)
-    column_mass = dom%surf_press%elts(id_i)/grav_accel
-
-    ! Pressure at level zlev
-    lev_press = 0.5*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id_i)
-
-    ! Mass/Area = rho*dz at level zlev
-    sol(S_MASS,zlev)%data(d)%elts(id_i) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
-    
-    ! Initial potential temperature to equilibrium value
-    call cart2sph (x_i, lon, lat) 
-    call cal_theta_eq (lev_press/ref_press, lev_press/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-
-    ! Perturb temperature
-    harvest = 0.0_8
-!    call random_number (harvest)
-
-    ! Mass-weighted potential temperature
-    sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * theta_equil * (1.0_8 + 5d-4*harvest)
-    
-    ! Set initial velocity field
-    call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
-  end subroutine init_sol
-
   subroutine cal_theta_eq (eta_ref, eta, lat, theta_equil, k_T)
     ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
     use domain_mod
@@ -75,12 +36,91 @@ contains
     theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
   end subroutine cal_theta_eq
 
+  subroutine init_sol (dom, i, j, zlev, offs, dims)
+    ! From Jablonowski and Williamson (2006) without perturbation
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    type(Coord) :: x_i, x_E, x_N, x_NE
+    integer     :: id, d, idN, idE, idNE
+    real(8)     :: column_mass, eta, lev_press, pot_temp, p_top, p_bot
+
+    d = dom%id+1
+
+    id   = idx(i,   j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+
+    x_i  = dom%node%elts(id+1)
+    x_E  = dom%node%elts(idE+1)
+    x_N  = dom%node%elts(idN+1)
+    x_NE = dom%node%elts(idNE+1)
+
+    ! Surface pressure
+    dom%surf_press%elts(id+1) = surf_pressure (x_i)
+    column_mass = dom%surf_press%elts(id+1)/grav_accel
+
+    ! Pressure at level zlev
+    lev_press = 0.5*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+
+    ! Normalized pressure
+    eta = lev_press/dom%surf_press%elts(id+1)
+    eta_v = (eta - eta_0) * MATH_PI/2
+
+    ! Mass/Area = rho*dz at level zlev
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
+    
+    ! Potential temperature
+    pot_temp = set_temp (x_i, eta) * (lev_press/ref_press)**(-kappa)
+!     call cal_theta_eq (lev_press/ref_press, lev_press/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+
+    ! Mass-weighted potential temperature
+    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
+
+    ! Set initial velocity field
+    call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
+  end subroutine init_sol
+
+  real(8) function set_temp (x_i, eta)
+    ! From Jablonowski and Williamson (2006)
+    implicit none
+    type(Coord) :: x_i
+    real(8)     :: eta
+
+    real(8) :: cs2, lon, lat, sn2, Tmean
+
+    call cart2sph (x_i, lon, lat)
+    sn2 = sin(lat)**2
+    cs2 = cos(lat)**2
+
+    if (eta >= eta_t) then
+       Tmean = T_0*eta**(R_d*Gamma_T/grav_accel)
+    else
+       Tmean = T_0*eta**(R_d*Gamma_T/grav_accel) + delta_T * (eta_t - eta)**5
+    end if
+
+    set_temp = Tmean + 0.75_8 * eta*MATH_PI*u_0/R_d * sin(eta_v) * sqrt(cos(eta_v)) * &
+         (2*u_0*cos(eta_v)**1.5*(-2*sn2**3*(cs2+1/3.0_8) + 10/63.0_8) + radius*omega*(8/5.0_8*cs2**1.5*(sn2+2/3.0_8) - MATH_PI/4))
+  end function set_temp
+
   real(8) function surf_geopot (x_i)
-    ! Surface geopotential
+    ! Surface geopotential from Jablonowski and Williamson (2006)
     implicit none
     Type(Coord) :: x_i
+    real(8)     :: c1, cs2, lon, lat, sn2
 
-    surf_geopot = 0.0_8
+    ! Find latitude and longitude from Cartesian coordinates
+    call cart2sph (x_i, lon, lat)
+    cs2 = cos(lat)**2
+    sn2 = sin(lat)**2
+
+    c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
+    surf_geopot =  c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
+!    surf_geopot = 0.0_8 ! Uniform
   end function surf_geopot
 
   real(8) function surf_pressure (x_i)
@@ -96,10 +136,15 @@ contains
     implicit none
     real(8) :: lon, lat, u, v
 
-    u = 0.0_8
-    v = 0.0_8
-  end subroutine vel_fun
+    real(8) :: r
 
+    call random_number (r)
+    
+    u = u_0*cos(eta_v)**1.5*sin(2*lat)**2 + r ! Zonal velocity component
+!    u = 0.0_8 ! Uniform
+    v = 0.0_8                                 ! Meridional velocity component
+  end subroutine vel_fun
+ 
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
     use wavelet_mod
@@ -118,7 +163,8 @@ contains
        end if
        threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
     end if
-    threshold = 0.1*threshold_new + 0.9*threshold
+    !threshold = 0.1*threshold_new + 0.9*threshold
+    threshold = threshold_new
   end subroutine set_thresholds
 
   subroutine initialize_a_b_vert
@@ -291,9 +337,9 @@ contains
        write (6,'(A,es10.4)') "T_mean              = ", T_mean
        write (6,'(A,es10.4)') "T_tropo             = ", T_tropo
        write (6,'(A,es10.4)') "eta_b               = ", eta_b
-       write (6,'(A,es10.4)') "eta_b               = ", k_a
-       write (6,'(A,es10.4)') "eta_b               = ", k_f
-       write (6,'(A,es10.4)') "eta_b               = ", k_s
+       write (6,'(A,es10.4)') "k_a                 = ", k_a
+       write (6,'(A,es10.4)') "k_f                 = ", k_f
+       write (6,'(A,es10.4)') "k_s                 = ", k_s
        write (6,'(A,es10.4)') "delta_T             = ", delta_T
        write (6,'(A,es10.4)') "delta_theta         = ", delta_theta
        write (6,'(A)') &
@@ -390,8 +436,8 @@ contains
 
        viscosity_mass = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
        viscosity_temp = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
-       viscosity_divu = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
-       viscosity_rotu = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_divu = L_scaled(2)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_rotu = L_scaled(3)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -465,6 +511,20 @@ contains
     if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
          " (approximate pressure = ", save_press/100, " hPa)"
   end subroutine set_save_level
+
+  subroutine initialize_seed
+    implicit none
+    
+    integer                            :: k
+    integer, dimension(1:8)            :: values
+    integer, dimension(:), allocatable :: seed
+
+    call date_and_time (values=values)
+    call random_seed(size=k)
+    allocate (seed(1:k))
+    seed = values(8)
+    call random_seed (put=seed)
+  end subroutine initialize_seed
 
   subroutine dump (fid)
     implicit none

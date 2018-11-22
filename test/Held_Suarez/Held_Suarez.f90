@@ -15,6 +15,9 @@ program Held_Suarez
   call init_arch_mod 
   call init_comm_mpi_mod
 
+  ! Initialize random number generator
+  call initialize_seed
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
   radius         = 6.371d6                     ! mean radius of the Earth in meters
@@ -38,6 +41,13 @@ program Held_Suarez
   k_s            = 1.0_8/(4*DAY)               ! cooling at surface
   delta_T        = 60.0_8                      ! meridional temperature gradient
   delta_theta    = 10.0_8                      ! vertical temperature gradient
+
+  ! Local test case parameters (Jablonowski and Williamson 2006 zonally symmetric initial conditions)
+  u_0            = 35.0_8                      ! maximum velocity of zonal wind
+  gamma_T        = 5.0d-3                      ! temperature lapse rate
+  delta_T2       = 4.8d5                       ! empirical temperature difference
+  eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
+  eta_t          = 0.2_8                       ! value of eta at the tropopause
 
   ! Dimensions for scaling tendencies
   Tempdim        = T_0                         ! temperature scale (both theta and T from DYNAMICO)
@@ -73,7 +83,6 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call euler (trend_cooling, dt)
      call stop_timing
 
      call sum_total_mass (.false.)
@@ -191,13 +200,12 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   id_i = idx (i, j, offs, dims) + 1
 
   ! Newton cooling
-  ! call cart2sph (dom%node%elts(id_i), lon, lat)
-  ! call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-  ! cooling = -k_T * (temp(id_i) - theta_equil*mass(id_i))
+  call cart2sph (dom%node%elts(id_i), lon, lat)
+  call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+  cooling = -k_T * (temp(id_i) - theta_equil*mass(id_i))
 
-  ! physics_scalar_source(S_MASS) = 0.0_8
-  ! physics_scalar_source(S_TEMP) = cooling
-  physics_scalar_source = 0.0_8
+  physics_scalar_source(S_MASS) = 0.0_8
+  physics_scalar_source(S_TEMP) = cooling
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -229,15 +237,15 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   end if
   
   ! Total physics for source term of velocity trend
-  ! id = idx (i, j, offs, dims)
-  ! id_i = id+1
-  ! eta = dom%press%elts(id_i)/dom%surf_press%elts(id_i)
-  ! k_v = k_f * max (0.0_8, (eta - eta_b)/(1.0_8-eta_b))
-  ! do e = 1, EDGE
-  !    Rayleigh(e) = -k_v * velo(EDGE*id+e)
-  ! end do
+  id = idx (i, j, offs, dims)
+  id_i = id+1
+  eta = dom%press%elts(id_i)/dom%surf_press%elts(id_i)
+  k_v = k_f * max (0.0_8, (eta - eta_b)/(1.0_8-eta_b))
+  do e = 1, EDGE
+     Rayleigh(e) = -k_v * velo(EDGE*id+e)
+  end do
   
-  physics_velo_source = diffusion !+ Rayleigh
+  physics_velo_source = diffusion + Rayleigh
 end function physics_velo_source
 
 subroutine trend_cooling (q, dq)

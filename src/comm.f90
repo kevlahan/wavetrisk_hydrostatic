@@ -978,7 +978,10 @@ contains
           mu = sol(S_MASS,k)%data(d)%elts(id_i)
           
           ! Check for negative mass
-          if (mu < 0.0_8) call abort
+          if (mu < 0.0_8) then
+             write (6,'(A)') "Mass negative ... aborting"
+             call abort
+          end if
 
           col_mass = col_mass + mu
        end do

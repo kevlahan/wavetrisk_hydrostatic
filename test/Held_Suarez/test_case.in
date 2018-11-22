@@ -5,14 +5,14 @@ max_level	   6             ! maximum level of resolution
 zlevels            18            ! number of vertical levels
 uniform            F             ! uniform (T) or hybrid (F) vertical grid
 remap              T             ! remap vertical grid
-min_allowed_mass   0.3           ! minimum allowed relative mass before remapping
+min_allowed_mass   1.0           ! minimum allowed relative mass before remapping
 adapt_trend        T             ! adapt on trend (T) or variables (F)
 default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)	
 tol      	   0.3           ! non-dimensional tolerance
 optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
-cfl_num            1.4           ! cfl number
+cfl_num            1.8           ! cfl number
 pressure_save      850           ! save vertical layer closest to this pressure (hPa)
 Laplace_order      2             ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second order Laplacian hyperdiffusion
 n_diffuse          20            ! diffuse every n_diffuse time steps
