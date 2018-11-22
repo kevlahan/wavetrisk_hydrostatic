@@ -106,14 +106,13 @@ contains
              write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
              stop
           end if
+          ! DCMIP order is opposite to ours
+          a_vert = a_vert(zlevels+1:1:-1)
+          b_vert = b_vert(zlevels+1:1:-1)
        else
           ! LMDZ grid
           call cal_AB
        end if
-
-       ! DCMIP order is opposite to ours
-       a_vert = a_vert(zlevels+1:1:-1)
-       b_vert = b_vert(zlevels+1:1:-1)
     end if
     
     ! Set pressure at infinity
