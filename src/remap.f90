@@ -82,11 +82,11 @@ contains
     ! Remap theta
     do k = 1, zlevels+1
        X = exner_fun(k)%data(d)%elts(id_i)
-       zlev = min (zlevels, floor(X)) ; if (zlev<1) return
+       zlev = min (zlevels, floor (X)) ; if (zlev < 1) return
        X = X - zlev
-       new_cumul_temp(k) = cumul_temp(zlev) + X*sol(S_TEMP,zlev)%data(d)%elts(id_i)
+       new_cumul_temp(k) = cumul_temp(zlev) + X * sol(S_TEMP,zlev)%data(d)%elts(id_i)
     end do
-
+    
     do k = 1, zlevels
        sol(S_TEMP,k)%data(d)%elts(id_i) = new_cumul_temp(k+1) - new_cumul_temp(k)
     end do
@@ -123,7 +123,7 @@ contains
     do k = 1, zlevels+1
        X_e = interp (exner_fun(k)%data(d)%elts(id_i), exner_fun(k)%data(d)%elts(idE_i))
        do e = 1, EDGE
-          zlev = min (zlevels, floor(X_e)) ; if (zlev<1) return
+          zlev = min (zlevels, floor (X_e)) ; if (zlev < 1) return
           X_e = X_e - zlev
        end do
        new_massflux_cumul(k) = massflux_cumul(zlev) + X_e * massflux(zlev)
