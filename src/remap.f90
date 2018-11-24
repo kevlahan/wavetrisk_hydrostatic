@@ -8,10 +8,6 @@ contains
     ! Conserves mass, heat and momentum flux
     integer :: d, j, k, l, p
 
-    ! Ensure boundary values are up to date
-    sol%bdry_uptodate = .false.
-    call update_array_bdry (sol, NONE)
-
     ! Save old mass in trend
     trend = sol
 
