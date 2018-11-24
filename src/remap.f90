@@ -125,7 +125,7 @@ contains
 
        do k = 1, zlevels+1
           X_e = interp (exner_fun(k)%data(d)%elts(id_i), exner_fun(k)%data(d)%elts(id_r(e)))
-          zlev = min (zlevels, floor (X_e))
+          zlev = min (zlevels, floor (X_e)); if (zlev < 1) return
           X_e = X_e - zlev
           new_massflux_cumul(k) = massflux_cumul(zlev) + X_e * massflux(zlev)
        end do
