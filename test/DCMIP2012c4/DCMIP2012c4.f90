@@ -77,7 +77,7 @@ program DCMIP2012c4
 
      if (aligned) then
         iwrite = iwrite+1
-        if (remap) call remap_vertical_coordinates
+        if (remap) call remap_vertical_coordinates (set_thresholds)
 
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
