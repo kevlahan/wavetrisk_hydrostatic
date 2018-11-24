@@ -16,7 +16,7 @@ contains
     trend = sol
 
     ! Remap
-    do l = level_end, level_start, -1
+    do l = level_start, level_end
        call apply_onescale (remap_scalars, l, z_null, 0, 1)
        call apply_onescale (remap_velo_RT, l, z_null, 0, 0)
        call apply_onescale (remap_velo_DG, l, z_null, 0, 0)
