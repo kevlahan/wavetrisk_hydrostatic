@@ -176,15 +176,13 @@ contains
 
     if (present(l_start0)) then
        l_start = l_start0
-       if (max_level > min_level) then
-          do k = 1, zlevels
-             do d = 1, size(grid)
-                velo => q(S_VELO,k)%data(d)%elts
-                call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
-                nullify (velo)
-             end do
+       do k = 1, zlevels
+          do d = 1, size(grid)
+             velo => q(S_VELO,k)%data(d)%elts
+             call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
+             nullify (velo)
           end do
-       end if
+       end do
     else
        l_start = level_start
     end if
