@@ -6,7 +6,7 @@ contains
   subroutine remap_vertical_coordinates
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, heat and momentum flux
-    integer :: d, j, k, l, p
+    integer :: l
 
     ! Save old mass in trend
     trend = sol
