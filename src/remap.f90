@@ -104,9 +104,9 @@ contains
     id    = idx (i, j, offs, dims)
     id_i  = id + 1
 
-    id_r(RT+1) = idx(i+1, j,   offs, dims) + 1
-    id_r(DG+1) = idx(i+1, j+1, offs, dims) + 1
-    id_r(UP+1) = idx(i,   j+1, offs, dims) + 1
+    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
+    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
+    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
     do e = 1, EDGE
        id_e(e) = EDGE*id + e
@@ -125,7 +125,7 @@ contains
 
        do k = 1, zlevels+1
           X_e = interp (exner_fun(k)%data(d)%elts(id_i), exner_fun(k)%data(d)%elts(id_r(e)))
-          zlev = min (zlevels, floor (X_e)); if (zlev < 1) return
+          zlev = min (zlevels, floor (X_e))
           X_e = X_e - zlev
           new_massflux_cumul(k) = massflux_cumul(zlev) + X_e * massflux(zlev)
        end do
