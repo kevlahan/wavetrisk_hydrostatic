@@ -4,7 +4,7 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  
+
   ! Standard variables
   integer                              :: CP_EVERY, save_zlev
   real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
@@ -46,7 +46,7 @@ contains
 
     type(Coord) :: x_i, x_E, x_N, x_NE
     integer     :: id, d, idN, idE, idNE
-    real(8)     :: column_mass, eta, lev_press, pot_temp, p_top, p_bot
+    real(8)     :: column_mass, eta, k_T, lat, lev_press, lon, pot_temp, theta_equil
 
     d = dom%id+1
 
@@ -73,10 +73,11 @@ contains
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
-    
+
     ! Potential temperature
-    pot_temp = set_temp (x_i, eta) * (lev_press/ref_press)**(-kappa)
-!     call cal_theta_eq (lev_press/ref_press, lev_press/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+    !pot_temp = set_temp (x_i, eta) * (lev_press/ref_press)**(-kappa)
+    call cart2sph (x_i, lon, lat)
+    call cal_theta_eq (lev_press/ref_press, lev_press/dom%surf_press%elts(id+1), lat, pot_temp, k_T)
 
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
@@ -113,14 +114,13 @@ contains
     Type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
 
-    ! Find latitude and longitude from Cartesian coordinates
-    call cart2sph (x_i, lon, lat)
-    cs2 = cos(lat)**2
-    sn2 = sin(lat)**2
+    ! call cart2sph (x_i, lon, lat)
+    ! cs2 = cos(lat)**2
+    ! sn2 = sin(lat)**2
+    ! c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
+    ! surf_geopot =  c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
 
-    c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
-    surf_geopot =  c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
-!    surf_geopot = 0.0_8 ! Uniform
+    surf_geopot = 0.0_8
   end function surf_geopot
 
   real(8) function surf_pressure (x_i)
@@ -139,12 +139,12 @@ contains
     real(8) :: r
 
     call random_number (r)
-    
-    u = u_0*cos(eta_v)**1.5*sin(2*lat)**2 + r ! Zonal velocity component
-!    u = 0.0_8 ! Uniform
+
+    !u = u_0*cos(eta_v)**1.5*sin(2*lat)**2 + r ! Zonal velocity component
+    u = 0.0_8
     v = 0.0_8                                 ! Meridional velocity component
   end subroutine vel_fun
- 
+
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
     use wavelet_mod
@@ -184,7 +184,7 @@ contains
        ! LMDZ grid
        call cal_AB
     end if
-    
+
     ! Set pressure at infinity
     press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
 
@@ -302,7 +302,7 @@ contains
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end            = ", time_end 
        write (6,'(A,i6)')     "resume              = ", resume
-       
+
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius              = ", radius
        write (6,'(A,es10.4)') "omega               = ", omega
@@ -345,7 +345,7 @@ contains
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
-    
+
     if (rank == 0) then
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i9,4(a,es8.2,1x))') &
             'time [h] = ', time/HOUR, &
@@ -372,7 +372,7 @@ contains
 
     integer :: k
     real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm
-    
+
     allocate (threshold(S_MASS:S_VELO,1:zlevels));     threshold     = 0.0_8
     allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
 
@@ -386,17 +386,17 @@ contains
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 
- subroutine initialize_dt_viscosity 
+  subroutine initialize_dt_viscosity 
     ! Initializes viscosity
     use wavelet_mod
     implicit none
-    
+
     integer               :: k
     real(8)               :: k_max, visc
     real(8), dimension(3) :: L_scaled
 
     allocate (viscosity_divu(1:zlevels))
-    
+
     ! Smallest edge length (scaled to account for non-uniform mesh)
     dx_min = 0.9 * sqrt (4*MATH_PI*radius**2/(sqrt(3.0_8)/2*10*4**max_level))
 
@@ -416,16 +416,16 @@ contains
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        L_scaled = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
 
-       viscosity_mass = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
-       viscosity_temp = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
-       viscosity_divu = L_scaled(2)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
-       viscosity_rotu = L_scaled(3)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_mass = 0.0_8!L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_temp = 8d15!L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_divu = 8d15!L_scaled(2)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_rotu = 6d14!L_scaled(3)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
     visc = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
-    
+
     if (rank == 0) then
        write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
        write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass/n_diffuse, " Viscosity_temp = ", viscosity_temp/n_diffuse, &
@@ -496,7 +496,7 @@ contains
 
   subroutine initialize_seed
     implicit none
-    
+
     integer                            :: k
     integer, dimension(1:8)            :: values
     integer, dimension(:), allocatable :: seed
