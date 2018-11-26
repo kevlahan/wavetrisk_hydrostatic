@@ -676,7 +676,7 @@ contains
           end do
           nullify (mass)
        end do
-       grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + press_infty
+       grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + p_top
     end do
   contains
     subroutine column_mass (dom, i, j, zlev, offs, dims)
@@ -717,7 +717,7 @@ contains
        dom%adj_mass%elts(id_i) = mass(id_i) ! Save current mass for pressure calculation at next vertical level
 
        ! if (zlev == zlevels) then !top zlev, purely diagnostic
-       !    err = abs((dom%press%elts(id_i) - 0.5*grav_accel*mass(id_i)) - press_infty)/dom%surf_press%elts(id_i)
+       !    err = abs((dom%press%elts(id_i) - 0.5*grav_accel*mass(id_i)) - p_top)/dom%surf_press%elts(id_i)
        !    if (err > 1d-10) then
        !       write(6,'(A)') 'Warning: upward integration of pressure not resulting in zero at top interface'
        !       write(6,'(A,es10.4)') '(observed pressure - pressure_infty)/P_Surface = ', err
@@ -726,7 +726,7 @@ contains
        ! end if
 
        ! Exner function from pressure
-       exner(id_i) = c_p*(dom%press%elts(id_i)/ref_press)**kappa
+       exner(id_i) = c_p*(dom%press%elts(id_i)/p_0)**kappa
 
        ! Specific volume alpha = kappa*theta*pi/p
        spec_vol = kappa * temp(id_i)/mass(id_i) * exner(id_i) / dom%press%elts(id_i)
@@ -747,11 +747,11 @@ contains
        dom%adj_temp%elts(id_i) = temp(id_i)
 
        if (zlev == zlevels) then !top zlev, purely diagnostic
-          if (abs(dom%press%elts(id_i)-0.5*grav_accel*temp(id_i) - press_infty)> 1d-10) then
+          if (abs(dom%press%elts(id_i)-0.5*grav_accel*temp(id_i) - p_top)> 1d-10) then
              print *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
              write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id_i)-0.5*grav_accel*temp(id_i)
-             write(6,'(A,es15.8)') "Press_infty = ", press_infty
-             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id_i)-0.5*grav_accel*temp(id_i) - press_infty
+             write(6,'(A,es15.8)') "p_top = ", p_top
+             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id_i)-0.5*grav_accel*temp(id_i) - p_top
              stop
           end if
        end if

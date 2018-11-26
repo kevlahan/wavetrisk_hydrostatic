@@ -23,8 +23,7 @@ program Held_Suarez
   radius         = 6.371d6                     ! mean radius of the Earth in meters
   grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
   omega          = 7.292d-5                    ! Earth's angular velocity in radians per second
-  ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-  ref_surf_press = ref_press                   ! reference surface pressure
+  p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
   R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_p            = 1004.0_8                    ! specific heat at constant pressure in joules per kilogram Kelvin
   c_v            = 717.6_8                     ! specific heat at constant volume c_v = R_d - c_p
@@ -35,7 +34,8 @@ program Held_Suarez
   T_0            = 300.0_8                     ! reference temperature
   T_mean         = 315.0_8                     ! mean temperature
   T_tropo        = 200.0_8                     ! tropopause temperature
-  eta_b          = 0.7_8                       ! normalized tropopause pressure height
+  sigma_b        = 0.7_8                       ! normalized tropopause pressure height
+  sigma_c        = 1.0_8-sigma_b                     
   k_a            = 1.0_8/(40*DAY)              ! cooling at free surface of atmosphere
   k_f            = 1.0_8/DAY                   ! Rayleigh friction
   k_s            = 1.0_8/(4*DAY)               ! cooling at surface
@@ -46,13 +46,13 @@ program Held_Suarez
   u_0            = 35.0_8                      ! maximum velocity of zonal wind
   gamma_T        = 5.0d-3                      ! temperature lapse rate
   delta_T2       = 4.8d5                       ! empirical temperature difference
-  eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
-  eta_t          = 0.2_8                       ! value of eta at the tropopause
+  sigma_0        = 0.252_8                     ! value of sigma at reference level (level of the jet)
+  sigma_t        = 0.2_8                       ! value of sigma at the tropopause
 
   ! Dimensions for scaling tendencies
   Tempdim        = T_0                         ! temperature scale (both theta and T from DYNAMICO)
   dTempdim       = 7.0d1                       ! temperature scale for tolerances
-  Pdim           = ref_surf_press              ! pressure scale
+  Pdim           = p_0                         ! pressure scale
   dPdim          = 8.0d3                       ! scale of surface pressure variation determining mass tolerance scale
 
   ! Dimensional scaling
@@ -90,7 +90,7 @@ program Held_Suarez
 
      if (aligned) then
         iwrite = iwrite+1
-        if (remap) call remap_vertical_coordinates
+        !if (remap) call remap_vertical_coordinates
 
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
@@ -201,9 +201,10 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
 
   ! Newton cooling
   call cart2sph (dom%node%elts(id_i), lon, lat)
-  call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-  cooling = -k_T * (temp(id_i) - theta_equil*mass(id_i))
+  call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+  cooling = - k_T * (temp(id_i) - theta_equil*mass(id_i))
 
+  ! Complete physics scalar source
   physics_scalar_source(S_MASS) = 0.0_8
   physics_scalar_source(S_TEMP) = cooling
 end function physics_scalar_source
@@ -223,10 +224,13 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer :: e, id, id_i
-  real(8) :: eta, k_v
+  integer                    :: id, id_i
+  real(8)                    :: k_v, sigma
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu, Rayleigh
 
+  id = idx (i, j, offs, dims)
+  id_i = id+1
+   
   if (Laplace_order == 0) then
      diffusion = 0.0_8
   else
@@ -235,16 +239,13 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
      diffusion =  (-1)**(Laplace_order-1) * (viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu)
   end if
-  
+
+  ! Rayleigh friction
+  sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
+  k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
+  Rayleigh = - k_v * velo(EDGE*id+1:EDGE*id_i)
+
   ! Total physics for source term of velocity trend
-  id = idx (i, j, offs, dims)
-  id_i = id+1
-  eta = dom%press%elts(id_i)/dom%surf_press%elts(id_i)
-  k_v = k_f * max (0.0_8, (eta - eta_b)/(1.0_8-eta_b))
-  do e = 1, EDGE
-     Rayleigh(e) = -k_v * velo(EDGE*id+e)
-  end do
-  
   physics_velo_source = diffusion + Rayleigh
 end function physics_velo_source
 
@@ -317,7 +318,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     call cart2sph (dom%node%elts(id_i), lon, lat)
-    call cal_theta_eq (dom%press%elts(id_i)/ref_press, dom%press%elts(id_i)/dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+    call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
     dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
   end subroutine trend_temp
 
@@ -332,17 +333,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id, id_e, id_i
-    real(8) :: k_v
+    integer :: id, id_i
+    real(8) :: k_v, sigma
 
     id = idx (i, j, offs, dims)
     id_i = id+1
 
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-       k_v = k_f * max (0.0_8, (dom%press%elts(id_i)/dom%surf_press%elts(id_i) - eta_b)/(1.0_8-eta_b))
-       dvelo(id_e) = - k_v * velo(id_e)
-    end do
+    sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
+
+    k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
+    dvelo(EDGE:id+1:EDGE*id_i) = - k_v * velo(EDGE*id+1:EDGE*id_i)
   end subroutine trend_velo
 end subroutine trend_cooling
 

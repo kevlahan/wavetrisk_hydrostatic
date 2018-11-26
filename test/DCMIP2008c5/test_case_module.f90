@@ -23,7 +23,7 @@ contains
 
     type(Coord) :: x_i, x_E, x_N, x_NE
     integer     :: id, d, idN, idE, idNE
-    real(8)     :: column_mass, lev_press, pot_temp, p_top, p_bot
+    real(8)     :: p, p_s, pot_temp
 
     d = dom%id+1
 
@@ -39,16 +39,16 @@ contains
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure (x_i)
-    column_mass = dom%surf_press%elts(id+1)/grav_accel
+    p_s = dom%surf_press%elts(id+1)
 
     ! Pressure at level zlev
-    lev_press = 0.5*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+    p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
 
     ! Mass/Area = rho*dz at level zlev
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*p_s/grav_accel
 
     ! Horizontally uniform potential temperature
-    pot_temp =  T_0 * (lev_press/ref_press)**(-kappa)
+    pot_temp =  T_0 * (p/p_0)**(-kappa)
 
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
@@ -127,7 +127,7 @@ contains
 
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * press_infty/ref_press
+          a_vert(k) = dble(k-1)/dble(zlevels) * press_infty
           b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
        end do
     else
@@ -183,16 +183,16 @@ contains
        end if
 
        ! DCMIP order is opposite to ours
-       a_vert = a_vert(zlevels+1:1:-1)
+       a_vert = a_vert(zlevels+1:1:-1) * p_0
        b_vert = b_vert(zlevels+1:1:-1)
     end if
     
     ! Set pressure at infinity
-    press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+    p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
 
     ! Set mass coefficients
-    b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
-    a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
+    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1)) / grav_accel
+    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
   end subroutine initialize_a_b_vert
 
   subroutine read_test_case_parameters
@@ -244,7 +244,6 @@ contains
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,es10.4)') "radius              = ", radius
        write (6,'(A,es10.4)') "omega               = ", omega
-       write (6,'(A,es10.4)') "ref_press           = ", ref_press
        write (6,'(A,es10.4)') "ref_surf_press      = ", ref_surf_press
        write (6,'(A,es10.4)') "R_d                 = ", R_d
        write (6,'(A,es10.4)') "c_p                 = ", c_p
@@ -283,8 +282,8 @@ contains
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius              = ", radius
        write (6,'(A,es10.4)') "omega               = ", omega
-       write (6,'(A,es10.4)') "ref_press           = ", ref_press
-       write (6,'(A,es10.4)') "ref_surf_press      = ", ref_surf_press
+       write (6,'(A,es10.4)') "p_0                 = ", p_0
+       write (6,'(A,es10.4)') "p_top                 = ", p_top
        write (6,'(A,es10.4)') "R_d                 = ", R_d
        write (6,'(A,es10.4)') "c_p                 = ", c_p
        write (6,'(A,es10.4)') "c_v                 = ", c_v
@@ -453,15 +452,15 @@ contains
     ! Determines closest vertical level to desired pressure
     implicit none
     integer :: k
-    real(8) :: dpress, lev_press, save_press
+    real(8) :: dpress, p, save_press
 
     dpress = 1d16; save_zlev = 0
     do k = 1, zlevels
-       lev_press = 0.5*ref_press*(a_vert(k)+a_vert(k+1) + b_vert(k)+b_vert(k+1))
-       if (abs(lev_press-pressure_save(1)) < dpress) then
-          dpress = abs(lev_press-pressure_save(1))
+       p = 0.5 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*ref_surf_press)
+       if (abs(p-pressure_save(1)) < dpress) then
+          dpress = abs(p-pressure_save(1))
           save_zlev = k
-          save_press = lev_press
+          save_press = p
        end if
     end do
     if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &

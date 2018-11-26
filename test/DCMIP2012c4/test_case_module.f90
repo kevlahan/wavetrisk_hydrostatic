@@ -12,7 +12,7 @@ module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Test case variables
-  real(8) :: delta_T, eta, eta_t, eta_v, eta_0, gamma_T, lat_c, lon_c,  R_pert, T_0, u_p, u_0
+  real(8) :: delta_T, sigma, sigma_t, sigma_v, sigma_0, gamma_T, lat_c, lon_c,  R_pert, T_0, u_p, u_0
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -23,7 +23,7 @@ contains
 
     type(Coord) :: x_i, x_E, x_N, x_NE
     integer     :: id, d, idN, idE, idNE
-    real(8)     :: column_mass, lev_press, pot_temp, p_top, p_bot
+    real(8)     :: p, p_s, pot_temp
 
     d = dom%id+1
 
@@ -39,20 +39,20 @@ contains
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure (x_i)
-    column_mass = dom%surf_press%elts(id+1)/grav_accel
+    p_s = dom%surf_press%elts(id+1)
 
     ! Pressure at level zlev
-    lev_press = 0.5*(a_vert(zlev)+a_vert(zlev+1))*ref_press + 0.5*(b_vert(zlev)+b_vert(zlev+1))*dom%surf_press%elts(id+1)
+    p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
 
     ! Normalized pressure
-    eta = lev_press/dom%surf_press%elts(id+1)
-    eta_v = (eta - eta_0) * MATH_PI/2
+    sigma = (p - p_top)/(p_s - p_top)
+    sigma_v = (sigma - sigma_0) * MATH_PI/2
 
     ! Mass/Area = rho*dz at level zlev
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*column_mass
+    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*p_s/grav_accel
     
     ! Potential temperature
-    pot_temp =  set_temp(x_i) * (lev_press/ref_press)**(-kappa)
+    pot_temp =  set_temp(x_i, sigma) * (p/p_0)**(-kappa)
 
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
@@ -61,39 +61,42 @@ contains
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
 
-  real(8) function set_temp (x_i)
+   real(8) function set_temp (x_i, sigma)
+    ! From Jablonowski and Williamson (2006)
     implicit none
     type(Coord) :: x_i
+    real(8)     :: sigma
 
     real(8) :: cs2, lon, lat, sn2, Tmean
 
     call cart2sph (x_i, lon, lat)
-    sn2 = sin(lat)**2
-    cs2 = cos(lat)**2
+    sn2 = sin (lat)**2
+    cs2 = cos (lat)**2
 
-    if (eta>=eta_t) then
-       Tmean = T_0*eta**(R_d*Gamma_T/grav_accel)
+    if (sigma >= sigma_t) then
+       Tmean = T_0*sigma**(R_d*Gamma_T/grav_accel)
     else
-       Tmean = T_0*eta**(R_d*Gamma_T/grav_accel) + delta_T * (eta_t - eta)**5
+       Tmean = T_0*sigma**(R_d*Gamma_T/grav_accel) + delta_T * (sigma_t - sigma)**5
     end if
 
-    set_temp = Tmean + 0.75_8 * eta*MATH_PI*u_0/R_d * sin(eta_v) * sqrt(cos(eta_v)) * &
-         (2*u_0*cos(eta_v)**1.5*(-2*sn2**3*(cs2+1/3.0_8) + 10/63.0_8) + radius*omega*(8/5.0_8*cs2**1.5*(sn2+2/3.0_8) - MATH_PI/4))
+    set_temp = Tmean + 0.75_8 * sigma*MATH_PI*u_0/R_d * sin(sigma_v) * sqrt(cos(sigma_v)) * &
+         (2*u_0*cos(sigma_v)**1.5*(-2*sn2**3*(cs2+1/3.0_8) + 10/63.0_8) + radius*omega*(8/5.0_8*cs2**1.5*(sn2+2/3.0_8) - MATH_PI/4))
   end function set_temp
 
   real(8) function surf_geopot (x_i)
-    ! Surface geopotential
+    ! Surface geopotential from Jablonowski and Williamson (2006)
     implicit none
     Type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
-    cs2 = cos(lat)**2
-    sn2 = sin(lat)**2
+    cs2 = cos (lat)**2
+    sn2 = sin (lat)**2
 
-    c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
+    c1 = u_0*cos((1.0_8-sigma_0)*MATH_PI/2)**1.5
     surf_geopot =  c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
+!    surf_geopot = 0.0_8 ! Uniform
   end function surf_geopot
 
   real(8) function surf_pressure (x_i)
@@ -101,7 +104,7 @@ contains
     implicit none
     type(Coord) :: x_i
 
-    surf_pressure = ref_press
+    surf_pressure = p_0
   end function surf_pressure
 
   subroutine vel_fun (lon, lat, u, v)
@@ -114,7 +117,7 @@ contains
     ! Great circle distance
     rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
-    u = u_0*cos(eta_v)**1.5*sin(2*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2)  ! Zonal velocity component
+    u = u_0*cos(sigma_v)**1.5*sin(2*lat)**2 + u_p*exp__flush(-(rgrc/R_pert)**2)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
 
@@ -154,7 +157,7 @@ contains
 
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * press_infty/ref_press
+          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
           b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
        end do
     else
@@ -210,16 +213,16 @@ contains
        end if
 
        ! DCMIP order is opposite to ours
-       a_vert = a_vert(zlevels+1:1:-1)
+       a_vert = a_vert(zlevels+1:1:-1) * p_0
        b_vert = b_vert(zlevels+1:1:-1)
     end if
     
     ! Set pressure at infinity
-    press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+    p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
 
-    ! Set mass coefficients
-    b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
-    a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
+    ! Set mass coefficients 
+    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1)) / grav_accel
+    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
   end subroutine initialize_a_b_vert
 
   subroutine read_test_case_parameters
@@ -301,8 +304,8 @@ contains
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius               = ", radius
        write (6,'(A,es10.4)') "omega                = ", omega
-       write (6,'(A,es10.4)') "ref_press            = ", ref_press
-       write (6,'(A,es10.4)') "ref_surf_press       = ", ref_surf_press
+       write (6,'(A,es10.4)') "p_0                  = ", p_0
+       write (6,'(A,es10.4)') "p_top                = ", p_top
        write (6,'(A,es10.4)') "R_d                  = ", R_d
        write (6,'(A,es10.4)') "c_p                  = ", c_p
        write (6,'(A,es10.4)') "c_v                  = ", c_v
@@ -317,8 +320,8 @@ contains
        write (6,'(A,es10.4)') "T_0                  = ", R_pert
        write (6,'(A,es10.4)') "gamma_T              = ", gamma_T
        write (6,'(A,es10.4)') "delta_T              = ", delta_T
-       write (6,'(A,es10.4)') "eta_0                = ", eta_0
-       write (6,'(A,es10.4)') "eta_t                = ", eta_t
+       write (6,'(A,es10.4)') "sigma_0              = ", sigma_0
+       write (6,'(A,es10.4)') "sigma_t              = ", sigma_t
        write (6,'(A,es10.4)') "lon_c                = ", lon_c
        write (6,'(A,es10.4)') "lat_c                = ", lat_c
        write (6,'(A)') &
@@ -476,15 +479,15 @@ contains
     ! Determines closest vertical level to desired pressure
     implicit none
     integer :: k
-    real(8) :: dpress, lev_press, save_press
+    real(8) :: dpress, p, save_press
 
     dpress = 1d16; save_zlev = 0
     do k = 1, zlevels
-       lev_press = 0.5*ref_press*(a_vert(k)+a_vert(k+1) + b_vert(k)+b_vert(k+1))
-       if (abs(lev_press-pressure_save(1)) < dpress) then
-          dpress = abs(lev_press-pressure_save(1))
+       p = 0.5 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_0)
+       if (abs(p-pressure_save(1)) < dpress) then
+          dpress = abs (p-pressure_save(1))
           save_zlev = k
-          save_press = lev_press
+          save_press = p
        end if
     end do
     if (rank==0) write (6,'(/,A,i2,A,i4,A,/)') "Saving vertical level ", save_zlev, &

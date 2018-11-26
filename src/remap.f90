@@ -34,7 +34,7 @@ contains
     real(8), dimension (zlevels+1)   :: cumul_mass, cumul_temp, new_cumul_temp
 
     d    = dom%id + 1
-    id   = idx(i, j, offs, dims)
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
 
     if (dom%mask_n%elts(id_i) < TRSK) return
@@ -53,7 +53,7 @@ contains
     new_cumul_mass = 0.0_8
     do k = 1, zlevels
        trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * column_mass
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k)*column_mass
        
        cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
 

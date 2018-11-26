@@ -306,32 +306,31 @@ contains
     ! Compute temperature in compressible case
     implicit none
     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8), dimension(zlevels) :: pressure
+    real(8), dimension(zlevels) :: p
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
     ! Integrate the pressure upwards
-    pressure(1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
+    p(1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
     do k = 2, zlevels
-       pressure(k) = pressure(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
+       p(k) = p(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
     end do
 
     ! Temperature at all vertical levels (saved in exner_fun)
     do k = 1, zlevels
-       exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) &
-            * (pressure(k)/ref_press)**kappa
+       exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * (p(k)/p_0)**kappa
     end do
 
     ! temperature at save levels (saved in horiz_flux)
     do k = 1, save_levels
        horiz_flux(k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
-            (pressure_save(k)/ref_press)**kappa
+            (pressure_save(k)/p_0)**kappa
     end do
   end subroutine cal_temp
 
@@ -416,7 +415,7 @@ contains
     idS  = idx(i,   j-1, offs, dims)
 
     ! Temperature in layer zlev
-    outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/sol(S_MASS,zlev)%data(d)%elts(id+1)*(dom%press%elts(id+1)/ref_press)**kappa
+    outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/sol(S_MASS,zlev)%data(d)%elts(id+1)*(dom%press%elts(id+1)/p_0)**kappa
 
     ! Zonal and meridional velocities
     outv(2) = dom%u_zonal%elts(id+1)

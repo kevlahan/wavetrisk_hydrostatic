@@ -16,7 +16,7 @@ program DCMIP2008c5
   radius         = 6.371229d6                   ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8                    ! gravitational acceleration in meters per second squared
   omega          = 7.29211d-5                   ! Earth’s angular velocity in radians per second
-  ref_press      = 100145.6_8                   ! reference pressure (mean surface pressure) in Pascals
+  p_0            = 100145.6_8                   ! reference pressure (mean surface pressure) in Pascals
   ref_surf_press = 930.0d2                      ! reference surface pressure
   R_d            = 287.04_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_p            = 1004.64_8                    ! specific heat at constant pressure in joules per kilogram Kelvin
