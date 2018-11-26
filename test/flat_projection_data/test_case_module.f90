@@ -134,8 +134,8 @@ contains
 
     snorm  = 0.0_8
     do l = 1, zlevels
-       dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
-       !dsig(l) = 1.0_8 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
+       !dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
+       dsig(l) = 1.0_8 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
        !dsig(l) = 1.0_8 + 7 * sin (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at surface
        snorm = snorm + dsig(l)
     end do
@@ -197,6 +197,10 @@ contains
     if (rank==0) then
        write (6,'(A,A)')      "test_case              = ", trim (test_case)
        write (6,'(A,A)')      "run_id                 = ", trim (run_id)
+       write (6,'(A,i5)')     "number of domains      = ", N_GLO_DOMAIN
+       write (6,'(A,i5)')     "number of processors   = ", n_process
+       write (6,'(A,i5)')     "DOMAIN_LEVEL           = ", DOMAIN_LEVEL
+       write (6,'(A,i5)')     "PATCH_LEVEL            = ", PATCH_LEVEL
        write (6,'(A,i4)')     "first mean file        = ", mean_beg
        write (6,'(A,i4)')     "last mean file         = ", mean_end
        write (6,'(A,i4)')     "file to save as 2d     = ", cp_2d
