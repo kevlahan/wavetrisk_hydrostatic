@@ -59,6 +59,7 @@ program DCMIP2012c4
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
 
   ! Save initial conditions
+  call print_test_case_parameters
   call write_and_export (iwrite)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

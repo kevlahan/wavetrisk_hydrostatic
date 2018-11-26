@@ -195,7 +195,7 @@ contains
     b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
   end subroutine initialize_a_b_vert
 
-  subroutine read_test_case_parameters
+   subroutine read_test_case_parameters
     implicit none
     integer, parameter :: fid = 500
     real(8)            :: press_save
@@ -208,7 +208,7 @@ contains
        filename = 'test_case.in'
     end if
     if (rank == 0) write (6,'(A,A)') "Input file = ", trim (filename)
-    
+
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
@@ -233,23 +233,20 @@ contains
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
     read (fid,*) varname, resume
-
+    close(fid)
+    
     allocate (pressure_save(1))
-    pressure_save(1) = press_save*100
+    pressure_save(1) = 1.0d2*press_save
+  end subroutine read_test_case_parameters
 
-    if (rank==0) then
+  subroutine print_test_case_parameters
+    implicit none
+    
+     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
             ************************************************************'
        write (6,'(A)')        "RUN PARAMETERS"
-       write (6,'(A,es10.4)') "radius              = ", radius
-       write (6,'(A,es10.4)') "omega               = ", omega
-       write (6,'(A,es10.4)') "ref_surf_press      = ", ref_surf_press
-       write (6,'(A,es10.4)') "R_d                 = ", R_d
-       write (6,'(A,es10.4)') "c_p                 = ", c_p
-       write (6,'(A,es10.4)') "c_v                 = ", c_v
-       write (6,'(A,es10.4)') "gamma               = ", gamma
-       write (6,'(A,es10.4)') "kappa               = ", kappa
        write (6,'(A,A)')      "test_case           = ", trim (test_case)
        write (6,'(A,A)')      "run_id              = ", trim (run_id)
        write (6,'(A,L1)')     "compressible        = ", compressible
@@ -270,9 +267,9 @@ contains
        write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
-       write (6,'(A,es10.4)') "pressure_save (hPa) = ", press_save
+       write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
-       write (6,'(A,i2)')     "n_diffuse           = ", n_diffuse
+       write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
        write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion
        write (6,'(A,es10.4)') "dt_write            = ", dt_write
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
@@ -282,8 +279,8 @@ contains
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius              = ", radius
        write (6,'(A,es10.4)') "omega               = ", omega
-       write (6,'(A,es10.4)') "p_0                 = ", p_0
-       write (6,'(A,es10.4)') "p_top                 = ", p_top
+       write (6,'(A,es10.4)') "p_0   (hPa)         = ", p_0/100
+       write (6,'(A,es10.4)') "p_top (hPa)         = ", p_top/100
        write (6,'(A,es10.4)') "R_d                 = ", R_d
        write (6,'(A,es10.4)') "c_p                 = ", c_p
        write (6,'(A,es10.4)') "c_v                 = ", c_v
@@ -291,22 +288,24 @@ contains
        write (6,'(A,es10.4)') "kappa               = ", kappa
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es10.4)') "d2                  = ", d2
-       write (6,'(A,es10.4)') "h_0                 = ", h_0
-       write (6,'(A,es10.4)') "lon_c               = ", lon_c
-       write (6,'(A,es10.4)') "lat_c               = ", lat_c
        write (6,'(A,es10.4)') "T_0                 = ", T_0
-       write (6,'(A,es10.4)') "u_0                 = ", u_0
+       write (6,'(A,es10.4)') "T_mean              = ", T_mean
+       write (6,'(A,es10.4)') "T_tropo             = ", T_tropo
+       write (6,'(A,es10.4)') "sigma_b             = ", sigma_b
+       write (6,'(A,es10.4)') "k_a                 = ", k_a
+       write (6,'(A,es10.4)') "k_f                 = ", k_f
+       write (6,'(A,es10.4)') "k_s                 = ", k_s
+       write (6,'(A,es10.4)') "delta_T             = ", delta_T
+       write (6,'(A,es10.4)') "delta_theta         = ", delta_theta
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
     end if
-    close(fid)
     tau_diffusion = tau_diffusion * HOUR
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
     Laplace_order = Laplace_order_init
-  end subroutine read_test_case_parameters
+  end subroutine print_test_case_parameters
 
   subroutine print_log
     ! Prints out and saves logged data to a file
