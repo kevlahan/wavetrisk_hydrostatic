@@ -31,8 +31,8 @@ program flat_projection_data
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
      omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
-     ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-     ref_surf_press = ref_press                   ! reference surface pressure
+     p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
+     ref_surf_press = p_0                         ! reference surface pressure
      R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
 
@@ -44,7 +44,7 @@ program flat_projection_data
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
      omega          = 7.29211d-5                  ! Earth’s angular velocity in radians per second
-     ref_press      = 100145.6_8                  ! reference pressure (mean surface pressure) in Pascals
+     p_0            = 100145.6_8                  ! reference pressure (mean surface pressure) in Pascals
      ref_surf_press = 930.0d2                     ! reference surface pressure
      R_d            = 287.04_8                    ! ideal gas constant for dry air in joules per kilogram Kelvin
      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
@@ -59,8 +59,8 @@ program flat_projection_data
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
      omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
-     ref_press      = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-     ref_surf_press = ref_press                   ! reference surface pressure
+     p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
+     ref_surf_press = p_0                         ! reference surface pressure
      R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
      gamma          = c_p/c_v                     ! heat capacity ratio
      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
@@ -269,11 +269,10 @@ contains
     write (funit,'(2047(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
-    ! Pressure vertical coordinates
+    ! Non-dimensional pressure based vertical coordinates p_k/p_s
     write (var_file, '(i2)') 22
     open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (0.5*(a_vert(k)+a_vert(k+1))*ref_press/ref_surf_press + 0.5*(b_vert(k)+b_vert(k+1)), &
-         k = zlevels, 1, -1)
+    write (funit,'(2047(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
     close (funit)
 
     ! Compress files
@@ -287,8 +286,8 @@ contains
   subroutine initialize_stat
     implicit none
 
-    Nx     = (/-N/2, N/2/)
-    Ny     = (/-N/4, N/4/)
+    Nx = (/-N/2, N/2/)
+    Ny = (/-N/4, N/4/)
 
     lon_lat_range = (/2*MATH_PI, MATH_PI/)
     dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
@@ -705,26 +704,26 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, d, e, k, kk
-    real(8) :: dpressure, pressure_lower, pressure_upper, spress
+    real(8) :: dpressure, pressure_lower, pressure_upper, p_s
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    spress = 0.0_8
+    p_s = 0.0_8
     do k = 1, zlevels
-       spress = spress + sol(S_MASS,k)%data(d)%elts(id+1)
+       p_s = p_s + sol(S_MASS,k)%data(d)%elts(id+1)
     end do
-    spress = press_infty + grav_accel*spress
+    p_s = p_top + grav_accel*p_s
 
     do kk = 1, save_levels
        ! Find pressure at current levels (not interfaces)
-       pressure_lower = spress
-       pressure_upper = 0.5*(a_vert(1)+a_vert(2))*ref_press + 0.5*(b_vert(1)+b_vert(2))*spress
+       pressure_lower = p_s
+       pressure_upper = 0.5*(a_vert(1)+a_vert(2) + (b_vert(1)+b_vert(2))*p_s)
        k = 1
        do while (pressure_upper > pressure_save(kk))
           k = k+1
           pressure_lower = pressure_upper
-          pressure_upper = 0.5*(a_vert(k)+a_vert(k+1))*ref_press + 0.5*(b_vert(k)+b_vert(k+1))*spress
+          pressure_upper = 0.5*(a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_s)
        end do
        if (k==1) return ! Skip incorrect values for pentagons
        dpressure =  (pressure_save(kk)-pressure_upper)/(pressure_lower-pressure_upper)

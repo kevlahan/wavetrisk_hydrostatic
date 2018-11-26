@@ -5,7 +5,7 @@ module test_case_mod
   use comm_mpi_mod
   implicit none
   integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev
-  real(8)                              :: initotalmass, mass_error, totalmass
+  real(8)                              :: initotalmass, mass_error, totalmass, ref_surf_press
   real(8), allocatable, dimension(:,:) :: threshold_def
   
   ! DCMIP2012c4
@@ -46,12 +46,12 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+    allocate (a_vert(1:zlevels+1),    b_vert(1:zlevels+1))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * press_infty/ref_press
+          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
           b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
        end do
     else
@@ -107,7 +107,7 @@ contains
              stop
           end if
           ! DCMIP order is opposite to ours
-          a_vert = a_vert(zlevels+1:1:-1)
+          a_vert = a_vert(zlevels+1:1:-1) * p_0
           b_vert = b_vert(zlevels+1:1:-1)
        else
           ! LMDZ grid
@@ -116,11 +116,11 @@ contains
     end if
     
     ! Set pressure at infinity
-    press_infty = a_vert(zlevels+1)*ref_press ! note that b_vert at top level is 0, a_vert is small but non-zero
+    p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
 
     ! Set mass coefficients
-    b_vert_mass = b_vert(1:zlevels)-b_vert(2:zlevels+1)
-    a_vert_mass = ((a_vert(1:zlevels)-a_vert(2:zlevels+1))*ref_press + b_vert_mass*press_infty)/grav_accel
+    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
+    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
   end subroutine initialize_a_b_vert
 
   subroutine cal_AB
@@ -134,7 +134,7 @@ contains
 
     snorm  = 0.0_8
     do l = 1, zlevels
-       dsig(l) = 1.0_8 + 7.0_8 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2
+       dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2
        snorm = snorm + dsig(l)
     end do
 
@@ -149,12 +149,12 @@ contains
 
     b_vert(zlevels+1) = 0.0_8
     do  l = 1, zlevels
-       b_vert(l) = exp (1.0_8 - 1.0_8/sig(l)**2)
-       a_vert(l) = sig(l) - b_vert(l)
+       b_vert(l) = exp (1.0_8 - 1/sig(l)**2)
+       a_vert(l) = (sig(l) - b_vert(l)) * p_0
     end do
     b_vert(1) = 1.0_8
     a_vert(1) = 0.0_8
-    a_vert(zlevels+1) = sig(zlevels+1) - b_vert(zlevels+1)
+    a_vert(zlevels+1) = (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
   end subroutine cal_AB
 
   subroutine read_test_case_parameters
