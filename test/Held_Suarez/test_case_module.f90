@@ -205,7 +205,9 @@ contains
 
     snorm  = 0.0_8
     do l = 1, zlevels
-       dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2
+       dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
+       !dsig(l) = 1.0_8 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
+       !dsig(l) = 1.0_8 + 7 * sin (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at surface
        snorm = snorm + dsig(l)
     end do
 
