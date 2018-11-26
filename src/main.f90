@@ -178,7 +178,7 @@ contains
     call RK4 (trend_ml, dt)
     
     ! If necessary, remap vertical coordinates
-    if (remap .and. min_mass < min_allowed_mass) call remap_vertical_coordinates
+    if (remap .and. min_mass <= min_allowed_mass) call remap_vertical_coordinates
 
     ! Add diffusion
     if (modulo (istep_cumul, n_diffuse) == 0 .and. Laplace_order_init /= 0) then

@@ -10,9 +10,9 @@ contains
 
     ! Remap
     do l = level_start, level_end
-       call apply_onescale (remap_eta,   l, z_null, 0, 1)
-       call apply_onescale (remap_theta, l, z_null, 0, 1)
-       call apply_onescale (remap_velo,  l, z_null, 0, 0)
+       call apply_onescale (remap_eta_mass, l, z_null, 0, 1)
+       call apply_onescale (remap_theta,    l, z_null, 0, 1)
+       call apply_onescale (remap_velo,     l, z_null, 0, 0)
     end do
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
@@ -21,71 +21,7 @@ contains
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine remap_vertical_coordinates
 
-  subroutine remap_scalars (dom, i, j, z_null, offs, dims)
-    ! Remap mass and vertical variable eta onto grid defined by A, B coefficients
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                          :: current_zlev, d, id, id_i, k, zlev
-    real(8)                          :: column_mass, cumul_mass_zlev, cumul_mass_target, new_cumul_mass, cumul_mass_upper, X
-    real(8)                          :: new_mass
-    real(8), dimension (zlevels+1)   :: cumul_mass, cumul_temp, new_cumul_temp
-
-    d    = dom%id + 1
-    id   = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    if (dom%mask_n%elts(id_i) < TRSK) return
-    
-    ! Calculate cumulative mass and total mass of column
-    cumul_mass(1) = 0.0_8
-    cumul_temp(1) = 0.0_8
-    do k = 1, zlevels
-       cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id_i)
-       cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id_i)
-    end do
-    column_mass = cumul_mass(zlevels+1)
-
-    current_zlev = 1
-    exner_fun(1)%data(d)%elts(id_i) = 1.0_8
-    new_cumul_mass = 0.0_8
-    do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k)*column_mass
-       
-       cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
-
-       do zlev = current_zlev, zlevels
-          cumul_mass_upper = cumul_mass(zlev+1)
-          if (cumul_mass_target <= cumul_mass_upper) exit
-       end do
-
-       if (zlev > zlevels) zlev = zlevels
-       cumul_mass_zlev = cumul_mass(zlev)
-
-       current_zlev = zlev
-       new_cumul_mass = cumul_mass_target
-
-       ! New vertical coordinate (saved in exner_fun)
-       exner_fun(k+1)%data(d)%elts(id_i) = zlev + (cumul_mass_target - cumul_mass_zlev)/(cumul_mass_upper - cumul_mass_zlev)
-    end do
-
-    ! Remap theta
-    do k = 1, zlevels+1
-       X = exner_fun(k)%data(d)%elts(id_i)
-       zlev = min (zlevels, floor (X)) 
-       X = X - zlev
-       new_cumul_temp(k) = cumul_temp(zlev) + X * sol(S_TEMP,zlev)%data(d)%elts(id_i)
-    end do
-    
-    do k = 1, zlevels
-       sol(S_TEMP,k)%data(d)%elts(id_i) = new_cumul_temp(k+1) - new_cumul_temp(k)
-    end do
-  end subroutine remap_scalars
-
-  subroutine remap_eta (dom, i, j, z_null, offs, dims)
+  subroutine remap_eta_mass (dom, i, j, z_null, offs, dims)
     ! Remap coordinates and mass
     implicit none
     type (Domain)                   :: dom
@@ -93,42 +29,45 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                          :: cur_lev, d, id, id_i, k, level
-    real(8)                          :: column_mass, mass_col, mass_cum_lev, mass_cum_levp1,  mass_cum_target, new_mass_cum
-    real(8), dimension (1:zlevels+1) :: mass_cum
+    integer                          :: current_zlev, d, id_i, k, zlev
+    real(8)                          :: column_mass, cumul_mass_lower, cumul_mass_upper, cumul_mass_target, new_cumul_mass
+    real(8), dimension (1:zlevels+1) :: cumul_mass
 
     d    = dom%id + 1
-    id   = idx (i, j, offs, dims)
-    id_i = id + 1
+    id_i = idx (i, j, offs, dims) + 1
 
-    mass_cum(1) = 0.0_8
+    if (dom%mask_n%elts(id_i) < TRSK) return
+
+    cumul_mass(1) = 0.0_8
     do k = 1, zlevels
-       mass_cum(k+1) = mass_cum(k) + sol(S_MASS,k)%data(d)%elts(id_i)
+       cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id_i)
     end do
-    column_mass = mass_cum(zlevels+1)
+    column_mass = cumul_mass(zlevels+1)
 
-    cur_lev = 1
-    new_mass_cum = 0.0_8
+    current_zlev = 1
+    new_cumul_mass = 0.0_8
     exner_fun(1)%data(d)%elts(id_i) = 1.0_8
     do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)          ! Old mass
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)          ! Save old mass for velocity interpolation
        sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k)*column_mass ! New mass
-       
-       mass_cum_target = new_mass_cum + sol(S_MASS,k)%data(d)%elts(id_i)
 
-       do level = cur_lev, zlevels
-          mass_cum_levp1 = mass_cum(level+1)
-          if (mass_cum_target <= mass_cum_levp1) exit
+       cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
+
+       do zlev = current_zlev, zlevels
+          cumul_mass_upper = cumul_mass(zlev+1)
+          if (cumul_mass_target <= cumul_mass_upper) exit
        end do
-       if (level > zlevels) level = zlevels
-       mass_cum_lev = mass_cum(level)
+       if (zlev > zlevels) zlev = zlevels
+       cumul_mass_lower = cumul_mass(zlev)
+
+       new_cumul_mass = cumul_mass_target
        
-       ! Now mass_cum_lev <= mass_cum_target <= mass_cum_levp1
-       cur_lev = level
-       new_mass_cum = mass_cum_target
-       exner_fun(k+1)%data(d)%elts(id_i) = level + (mass_cum_target - mass_cum_lev)/(mass_cum_levp1 - mass_cum_lev)
+       ! Now cumul_mass_lower <= cumul_mass_target <= cumul_mass_upper
+       current_zlev = zlev
+       new_cumul_mass = cumul_mass_target
+       exner_fun(k+1)%data(d)%elts(id_i) = zlev + (cumul_mass_target - cumul_mass_lower)/(cumul_mass_upper - cumul_mass_lower)
     end do
-  end subroutine remap_eta
+  end subroutine remap_eta_mass
 
   subroutine remap_theta (dom, i, j, z_null, offs, dims)
     ! Remap mass and vertical variable eta onto grid defined by A, B coefficients
@@ -137,13 +76,12 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                          :: d, id, id_i, k, zlev
+    integer                          :: d, id_i, k, zlev
     real(8)                          :: X
     real(8), dimension (zlevels+1)   :: cumul_temp, new_cumul_temp
 
     d    = dom%id + 1
-    id   = idx (i, j, offs, dims)
-    id_i = id + 1
+    id_i = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id_i) < TRSK) return
 
