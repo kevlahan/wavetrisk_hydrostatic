@@ -237,6 +237,10 @@ contains
     
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
+    tau_diffusion = tau_diffusion * HOUR
+    dt_write = dt_write * MINUTE
+    time_end = time_end * HOUR
+    Laplace_order = Laplace_order_init
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
@@ -270,10 +274,10 @@ contains
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
-       write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion
-       write (6,'(A,es10.4)') "dt_write            = ", dt_write
+       write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion/HOUR
+       write (6,'(A,es10.4)') "dt_write (min)      = ", dt_write/MINUTE
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
-       write (6,'(A,es10.4)') "time_end            = ", time_end 
+       write (6,'(A,es10.4)') "time_end (h)        = ", time_end/HOUR
        write (6,'(A,i6)')     "resume              = ", resume
        
        write (6,'(/,A)')      "STANDARD PARAMETERS"
@@ -301,10 +305,6 @@ contains
             '*********************************************************************&
             ************************************************************'
     end if
-    tau_diffusion = tau_diffusion * HOUR
-    dt_write = dt_write * MINUTE
-    time_end = time_end * HOUR
-    Laplace_order = Laplace_order_init
   end subroutine print_test_case_parameters
 
   subroutine print_log
