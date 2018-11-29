@@ -84,6 +84,7 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
+     call euler (trend_cooling, dt)
      call stop_timing
 
      call sum_total_mass (.false.)
@@ -195,19 +196,7 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
-  integer                           :: id_i
-  real(8)                           :: cooling, k_T, lat, lon, theta_equil
-
-  id_i = idx (i, j, offs, dims) + 1
-
-  ! Newton cooling
-  call cart2sph (dom%node%elts(id_i), lon, lat)
-  call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-  cooling = - k_T * (temp(id_i) - theta_equil*mass(id_i))
-
-  ! Complete physics scalar source
-  physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = cooling
+  physics_scalar_source = 0.0_8
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -225,29 +214,18 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: id, id_i
-  real(8)                    :: k_v, sigma
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu, Rayleigh
 
-  id = idx (i, j, offs, dims)
-  id_i = id+1
-   
   if (Laplace_order == 0) then
      diffusion = 0.0_8
   else
-     ! Calculate Laplacian of velocity
+     ! Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
      diffusion =  (-1)**(Laplace_order-1) * (viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu)
   end if
 
-  ! Rayleigh friction
-  sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
-  k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
-  Rayleigh = - k_v * velo(EDGE*id+1:EDGE*id_i)
-
-  ! Total physics for source term of velocity trend
-  physics_velo_source = diffusion + Rayleigh
+  physics_velo_source = diffusion
 end function physics_velo_source
 
 subroutine trend_cooling (q, dq)
@@ -275,35 +253,17 @@ subroutine trend_cooling (q, dq)
         dtemp => dq(S_TEMP,k)%data(d)%elts
         dvelo => dq(S_VELO,k)%data(d)%elts
         do p = 2, grid(d)%patch%length
-           call apply_onescale_to_patch (cal_pressure, grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (trend_mass,   grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (trend_temp,   grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (trend_velo,   grid(d), p-1, k, 0, 0)
+           call apply_onescale_to_patch (cal_pressure,  grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
         end do
         nullify (mass, temp, velo, dmass, dtemp, dvelo)
      end do
   end do
   dq%bdry_uptodate = .false.
 contains
-  subroutine trend_mass (dom, i, j, zlev, offs, dims)
-    ! Mass trend for cooling step
-    use test_case_mod
-    use main_mod
-    use domain_mod
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer     :: id_i
-
-    id_i = idx(i, j, offs, dims) + 1
-    dmass(id_i) = 0.0_8
-  end subroutine trend_mass
-
-  subroutine trend_temp (dom, i, j, zlev, offs, dims)
-    ! Temperature trend for cooling step (relaxation to equilibrium temperature)
+  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
+    ! Trend for cooling step (relaxation to equilibrium temperature)
     use test_case_mod
     use main_mod
     use domain_mod
@@ -317,11 +277,12 @@ contains
     real(8)     :: k_T, lat, lon, theta_equil
 
     id_i = idx (i, j, offs, dims) + 1
-
     call cart2sph (dom%node%elts(id_i), lon, lat)
     call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+
+    dmass(id_i) = 0.0_8
     dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
-  end subroutine trend_temp
+  end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
     ! Velocity trend for cooling step (Rayleigh friction)
@@ -341,9 +302,9 @@ contains
     id_i = id+1
 
     sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
-
     k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
-    dvelo(EDGE:id+1:EDGE*id_i) = - k_v * velo(EDGE*id+1:EDGE*id_i)
+
+    dvelo(EDGE*id+1:EDGE*id_i) = - k_v * velo(EDGE*id+1:EDGE*id_i)
   end subroutine trend_velo
 end subroutine trend_cooling
 

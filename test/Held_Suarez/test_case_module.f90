@@ -21,9 +21,8 @@ contains
     implicit none
     real(8) :: p, p_s, lat, theta_equil, k_T
 
-    real(8) :: sn2, cs2, sigma, theta_force, theta_tropo
+    real(8) :: cs2, sigma, theta_force, theta_tropo
 
-    sn2 = sin (lat)**2
     cs2 = cos (lat)**2
 
     sigma = (p - p_top) / (p_s - p_top)
@@ -32,7 +31,7 @@ contains
 
     theta_tropo = T_tropo * (p/p_0)**(-kappa) ! Potential temperature at tropopause
 
-    theta_force = T_mean - delta_T*sn2 - delta_theta*cs2 * log (p/p_0)
+    theta_force = T_mean - delta_T*(1.0_8-cs2) - delta_theta*cs2 * log (p/p_0)
 
     theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
   end subroutine cal_theta_eq
