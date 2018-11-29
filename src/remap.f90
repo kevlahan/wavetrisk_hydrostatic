@@ -1,155 +1,223 @@
 module remap_mod
-  use time_integr_mod
+  use geom_mod
+  use domain_mod
+  use arch_mod
+  use comm_mpi_mod
+  use ops_mod
   use wavelet_mod
+  use time_integr_mod
   implicit none
-contains
-  subroutine remap_vertical_coordinates
-    ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
-    ! Conserves mass, heat and momentum flux
-    integer :: l
 
-    ! Remap
-    do l = level_start, level_end
-       call apply_onescale (remap_eta_mass, l, z_null, 0, 1)
-       call apply_onescale (remap_theta,    l, z_null, 0, 1)
-       call apply_onescale (remap_velo,     l, z_null, 0, 0)
-    end do
-    sol%bdry_uptodate = .false.
+  integer                             :: order
+  integer, dimension (:), allocatable :: stencil
+contains
+  subroutine remap_vertical_coordinates 
+    ! Remap the Lagrangian layers to target vertical grid given a_vert and b_vert vertical coordinate parameters 
+    ! Conserves mass, heat and momentum flux
+    integer            :: d, j, k, l, p
+    integer, parameter :: order_default = 3 ! order must be odd
+
+    ! Set order of Newton interpolation
+    order = min (zlevels+1, order_default)
+    if (allocated (stencil)) deallocate (stencil)
+    allocate (stencil(1:order))
+    if (zlevels+1 < 3) then
+       write (6,'(A)') "Cannot remap fewer than 3 vertical levels"
+       stop
+    end if
+
+    ! Ensure boundary values are up to date
     call update_array_bdry (sol, NONE)
-        
-    ! Wavelet transform and interpolate back onto adapted grid
+
+    do l = level_start, level_end
+       call apply_onescale (remap_scalars,  l, z_null, 0, 1)
+       call apply_onescale (remap_velocity, l, z_null, 0, 0)
+    end do
+
+    ! Re-adapt grid after remapping
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine remap_vertical_coordinates
 
-  subroutine remap_eta_mass (dom, i, j, z_null, offs, dims)
-    ! Remap coordinates and mass
-    implicit none
+  subroutine remap_scalars (dom, i, j, zlev, offs, dims)
+    ! Remap scalars to target grid
     type (Domain)                   :: dom
-    integer                         :: i, j, z_null
+    integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                          :: current_zlev, d, id_i, k, zlev
-    real(8)                          :: column_mass, cumul_mass_lower, cumul_mass_upper, cumul_mass_target, new_cumul_mass
-    real(8), dimension (1:zlevels+1) :: cumul_mass
+    integer                          :: d, id, id_i, k, kb, kc, kk, m
+    real(8)                          :: new_p, p_surf, diff, dmin
+    real(8), dimension (zlevels+1)   :: cumul_temp, new_temp, p
 
     d    = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
+    id   = idx(i, j, offs, dims)
+    id_i = id + 1
 
-    if (dom%mask_n%elts(id_i) < TRSK) return
-
-    cumul_mass(1) = 0.0_8
-    do k = 1, zlevels
-       cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id_i)
-    end do
-    column_mass = cumul_mass(zlevels+1)
-
-    current_zlev = 1
-    new_cumul_mass = 0.0_8
-    exner_fun(1)%data(d)%elts(id_i) = 1.0_8
-    do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)          ! Save old mass for velocity interpolation
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k)*column_mass ! New mass
-
-       cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id_i)
-
-       do zlev = current_zlev, zlevels
-          cumul_mass_upper = cumul_mass(zlev+1)
-          if (cumul_mass_target <= cumul_mass_upper) exit
-       end do
-       if (zlev > zlevels) zlev = zlevels
-       cumul_mass_lower = cumul_mass(zlev)
-
-       new_cumul_mass = cumul_mass_target
-       
-       ! Now cumul_mass_lower <= cumul_mass_target <= cumul_mass_upper
-       current_zlev = zlev
-       new_cumul_mass = cumul_mass_target
-       exner_fun(k+1)%data(d)%elts(id_i) = zlev + (cumul_mass_target - cumul_mass_lower)/(cumul_mass_upper - cumul_mass_lower)
-    end do
-  end subroutine remap_eta_mass
-
-  subroutine remap_theta (dom, i, j, z_null, offs, dims)
-    ! Remap mass and vertical variable eta onto grid defined by A, B coefficients
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                          :: d, id_i, k, zlev
-    real(8)                          :: X
-    real(8), dimension (zlevels+1)   :: cumul_temp, new_cumul_temp
-
-    d    = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id_i) < TRSK) return
-
+    ! Integrate full full mass-weighted potential temperature vertically downward from the top
+    ! All quantities located at interfaces
     cumul_temp(1) = 0.0_8
-    do k = 1, zlevels
-       cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id_i)
-    end do
-    
-    do k = 1, zlevels+1
-       X = exner_fun(k)%data(d)%elts(id_i)
-       zlev = min (zlevels, floor (X)) 
-       X = X - zlev
-       new_cumul_temp(k) = cumul_temp(zlev) + X * sol(S_TEMP,zlev)%data(d)%elts(id_i)
-    end do
-    
-    do k = 1, zlevels
-       sol(S_TEMP,k)%data(d)%elts(id_i) = new_cumul_temp(k+1) - new_cumul_temp(k)
-    end do
-  end subroutine remap_theta
+    do kb = 2, zlevels + 1
+       k = zlevels-kb+2 ! Actual zlevel
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) ! Save current mass for momentum interpolation
 
-  subroutine remap_velo (dom, i, j, z_null, offs, dims)
-    ! Remap velocity onto original vertical grid by linear interpolation of mass flux
+       cumul_temp(kb) = cumul_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i)
+    end do
+
+    ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
+    p(1) = p_top
+    do kb = 2, zlevels + 1
+       k = zlevels-kb+2
+       p(kb) = p(kb-1) + grav_accel * sol(S_MASS,k)%data(d)%elts(id_i)
+    end do
+    p_surf = p(zlevels+1)
+
+    ! Interpolate using the moving stencil centred at each interpolation point computed downward from top
+    new_temp(1) = 0.0_8
+    do kb = 2, zlevels
+       k = zlevels-kb+2
+       ! Pressure at bottom interface of cells of new vertical grid
+       new_p = a_vert(k) + b_vert(k)*p_surf
+
+       ! Find index of pressure on old vertical grid closest to new_pressure on new grid
+       dmin = 1d16
+       do kk = 1, zlevels+1
+          diff = abs (p(kk)-new_p)
+          if (diff < dmin) then
+             kc = kk
+             dmin = diff
+          end if
+       end do
+
+       ! Set interpolation stencil based on new_pressure
+       if (kc < (order-1)/2+1) then
+          stencil = (/ (m, m = 1, order) /)
+       else if (kc > zlevels+1-(order-1)/2) then
+          stencil = (/ (m, m = zlevels+1-(order-1), zlevels+1) /)
+       else
+          stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
+       end if
+
+       ! Interpolate cumul temperature at top interfaces of new vertical grid
+       new_temp(kb) = Newton_interp(p(stencil), cumul_temp(stencil), new_p)
+    end do
+    new_temp(zlevels+1) = cumul_temp(zlevels+1)
+
+    ! Variables on new vertical grid
+    do k = 1, zlevels
+       kb = zlevels-k+1
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k)*p_surf/grav_accel
+       sol(S_TEMP,k)%data(d)%elts(id_i) = new_temp(kb+1) - new_temp(kb)
+    end do
+  end subroutine remap_scalars
+
+  subroutine remap_velocity (dom, i, j, zlev, offs, dims)
+    ! Remap velocity to target vertical grid
     type (Domain)                   :: dom
-    integer                         :: i, j, z_null
+    integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                       :: d, e, id, id_i, idE_i, k, zlev
-    integer, dimension(1:EDGE)    :: id_e, id_r
-    
-    real(8)                       :: mass_e, X_e
-    real(8), dimension(zlevels)   :: massflux
-    real(8), dimension(zlevels+1) :: massflux_cumul, new_massflux_cumul
+    integer                               :: d, e, id, id_i, k, kb, kc, kk, m
+    integer, dimension(1:EDGE)            :: idr
 
-    d     = dom%id + 1
-    id    = idx (i, j, offs, dims)
-    id_i  = id + 1
+    real(8)                               :: diff, dmin, new_p, p_s
+    real(8), dimension (zlevels+1)        :: p
+    real(8), dimension (zlevels+1,1:EDGE) :: old_flux, new_flux
 
-    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
-    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
-    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
+    d    = dom%id + 1
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
 
-    do e = 1, EDGE
-       id_e(e) = EDGE*id + e
+    idr(RT+1) = idx (i,   j+1, offs, dims) + 1
+    idr(DG+1) = idx (i+1, j,   offs, dims) + 1
+    idr(UP+1) = idx (i+1, j+1, offs, dims) + 1
+
+    ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
+    p(1) = p_top
+    do kb = 2, zlevels+1
+       k = zlevels-kb+2
+       p(kb) = p(kb-1) + grav_accel*trend(S_MASS,k)%data(d)%elts(id_i)
+    end do
+    p_s = p(zlevels+1)
+
+    ! Integrate full momentum flux vertically downward from the top
+    ! All quantities located at interfaces
+    old_flux(1,:) = 0.0_8
+    do kb = 2, zlevels+1
+       k = zlevels-kb+2 ! Actual zlevel
+
+       do e = 1, EDGE
+          old_flux(kb,e) = old_flux(kb-1,e) + sol(S_VELO,k)%data(d)%elts(EDGE*id+e) &
+               * (trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idr(e)))
+       end do
     end do
 
-    ! Do not remap inactive nodes
-    if (dom%mask_n%elts(id_i) < TRSK .or. minval (dom%mask_e%elts(id_e)) < TRSK) return 
-    
-    do e = 1, EDGE
-       massflux_cumul(1) = 0.0_8
-       do k = 1, zlevels
-          mass_e = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(id_r(e))
-          massflux(k) = sol(S_VELO,k)%data(d)%elts(id_e(e)) * mass_e 
-          massflux_cumul(k+1) = massflux_cumul(k) + massflux(k)
+    ! Interpolate using the moving stencil centred at each interpolation point computed downward from top
+    new_flux(1,:) = 0.0_8
+    do kb = 2, zlevels
+       k = zlevels-kb+2
+       new_p = a_vert(k) + b_vert(k)*p_s
+
+       ! Index of pressure on old vertical grid closest to new_pressure on new grid
+       dmin = 1d16
+       do kk = 1, zlevels+1
+          diff = abs (p(kk)-new_p)
+          if (diff < dmin) then
+             kc = kk
+             dmin = diff
+          end if
        end do
 
-       do k = 1, zlevels+1
-          X_e = interp (exner_fun(k)%data(d)%elts(id_i), exner_fun(k)%data(d)%elts(id_r(e)))
-          zlev = min (zlevels, floor (X_e))
-          X_e = X_e - zlev
-          new_massflux_cumul(k) = massflux_cumul(zlev) + X_e * massflux(zlev)
-       end do
+       ! Set interpolation stencil based on new_pressure
+       if (kc < (order-1)/2+1) then
+          stencil = (/ (m, m = 1, order) /)
+       else if (kc > zlevels+1-(order-1)/2) then
+          stencil = (/ (m, m = zlevels+1-(order-1), zlevels+1) /)
+       else
+          stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
+       end if
 
-       do k = 1, zlevels
-          mass_e = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_r(e))
-          sol(S_VELO,k)%data(d)%elts(id_e(e)) = (new_massflux_cumul(k+1) - new_massflux_cumul(k)) / mass_e
+       ! Cumulative mass flux at top interfaces of new vertical grid
+       do e = 1, EDGE
+          new_flux(kb,e) = Newton_interp(p(stencil), old_flux(stencil,e), new_p)
        end do
     end do
-  end subroutine remap_velo
+    new_flux(zlevels+1,:) = old_flux(zlevels+1,:)
+
+    ! Find velocity on new grid from mass flux
+    do k = 1, zlevels
+       kb = zlevels-k+1
+       do e = 1, EDGE
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) &
+               / (sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idr(e)))
+       end do
+    end do
+  end subroutine remap_velocity
+
+  function Newton_interp (xv, yv, xd)
+    ! Order point Newton form polynomial interpolation scheme as in Yang (2001)
+    ! Uses the p values xv and yv to interpolate the value yd at given point xd
+    ! order must be odd >= 3
+
+    real(8)                               :: Newton_interp
+    real(8), dimension(order), intent(in) :: xv, yv
+    real(8),                   intent(in) :: xd
+
+    real(8), dimension(order,order) :: interp_diff
+    integer                         :: mi, ni
+
+    ! Construct interpolating polynomial by calculating Newton differences
+    interp_diff(1,1:order) = yv ! zeroth order finite differences for x_0 thru x_6
+    do mi = 1, order-1
+       do ni = 0, (order-1)-mi
+          interp_diff(mi+1,ni+1) = (interp_diff(mi,ni+2)-interp_diff(mi,ni+1))/(xv(ni+mi+1)-xv(ni+1))
+       end do
+    end do
+
+    ! Evaluate the polynomial using Horner's algorithm
+    Newton_interp = interp_diff(order,1)
+    do mi = order-2, 0, -1
+       Newton_interp = interp_diff(mi+1,1)+(xd-xv(mi+1)) * Newton_interp
+    end do
+  end function Newton_interp
 end module remap_mod
