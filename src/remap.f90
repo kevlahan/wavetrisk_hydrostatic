@@ -93,7 +93,7 @@ contains
 
     real(8)                               :: new_p, p_s
     real(8), dimension (zlevels+1)        :: p
-    real(8), dimension (zlevels+1,1:EDGE) :: old_flux, new_cumul_flux
+    real(8), dimension (zlevels+1,1:EDGE) :: cumul_flux, new_cumul_flux
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -107,11 +107,11 @@ contains
 
     ! Integrate full momentum flux vertically downward from the top
     ! All quantities located at interfaces
-    old_flux(1,:) = 0.0_8
+    cumul_flux(1,:) = 0.0_8
     do kb = 2, zlevels+1
        k = zlevels-kb+2 ! Actual zlevel
        do e = 1, EDGE
-          old_flux(kb,e) = old_flux(kb-1,e) + sol(S_VELO,k)%data(d)%elts(EDGE*id+e) &
+          cumul_flux(kb,e) = cumul_flux(kb-1,e) + sol(S_VELO,k)%data(d)%elts(EDGE*id+e) &
                * (trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idr(e)))
        end do
     end do
@@ -123,10 +123,10 @@ contains
        new_p = a_vert(k) + b_vert(k)*p_s
        call find_stencil (p, new_p)
        do e = 1, EDGE
-          new_cumul_flux(kb,e) = Newton_interp (p(stencil), old_flux(stencil,e), new_p)
+          new_cumul_flux(kb,e) = Newton_interp (p(stencil), cumul_flux(stencil,e), new_p)
        end do
     end do
-    new_cumul_flux(zlevels+1,:) = old_flux(zlevels+1,:)
+    new_cumul_flux(zlevels+1,:) = cumul_flux(zlevels+1,:)
 
     ! Find velocity on new grid from mass flux
     do k = 1, zlevels
