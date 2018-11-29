@@ -7,7 +7,7 @@ module test_case_mod
   
   ! Standard variables
   integer                              :: CP_EVERY, save_zlev
-  real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
+  real(8)                              :: dt_cfl, initotalmass, mass_error, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
 
@@ -205,6 +205,8 @@ contains
     snorm  = 0.0_8
     do l = 1, zlevels
        dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
+       !dsig(l) = 1.0_8 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
+       !dsig(l) = 1.0_8 + 7 * sin (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at surface
        snorm = snorm + dsig(l)
     end do
 
@@ -259,8 +261,6 @@ contains
     read (fid,*) varname, cfl_num
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order_init
-    read (fid,*) varname, n_diffuse
-    read (fid,*) varname, tau_diffusion
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
@@ -269,9 +269,8 @@ contains
     
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
-    tau_diffusion = tau_diffusion * HOUR
-    dt_write = dt_write * MINUTE
-    time_end = time_end * HOUR
+    dt_write = dt_write * DAY
+    time_end = time_end * DAY
     Laplace_order = Laplace_order_init
   end subroutine read_test_case_parameters
 
@@ -305,11 +304,9 @@ contains
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
-       write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
-       write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion/HOUR
-       write (6,'(A,es10.4)') "dt_write (min)      = ", dt_write/MINUTE
+       write (6,'(A,es10.4)') "dt_write (day)      = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
-       write (6,'(A,es10.4)') "time_end (h)        = ", time_end/HOUR
+       write (6,'(A,es10.4)') "time_end (day)      = ", time_end/DAY
        write (6,'(A,i6)')     "resume              = ", resume
        
        write (6,'(/,A)')      "STANDARD PARAMETERS"
@@ -390,19 +387,15 @@ contains
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 
- subroutine initialize_dt_viscosity 
+  subroutine initialize_dt_viscosity 
     ! Initializes viscosity
     use wavelet_mod
     implicit none
-    
-    integer               :: k
-    real(8)               :: k_max, visc
-    real(8), dimension(3) :: L_scaled
+    real(8)            :: k_max, visc
 
     allocate (viscosity_divu(1:zlevels))
     
-    ! Smallest edge length (scaled to account for non-uniform mesh)
-    dx_min = 0.9 * sqrt (4*MATH_PI*radius**2/(sqrt(3.0_8)/2*10*4**max_level))
+    dx_min = sqrt (4*MATH_PI*radius**2/(10.0_8*4**max_level + 2.0_8))
 
     ! Largest wavenumber on regular lozenge grid
     k_max = MATH_PI/(sqrt(3.0_8)*dx_min)
@@ -410,20 +403,17 @@ contains
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
     dt_init = dt_cfl
-
-    ! Viscosity constant from eigenvalues of Laplacian
+    
     if (Laplace_order_init == 0) then
        viscosity_mass = 0.0_8
        viscosity_temp = 0.0_8
-       viscosity_divu = 0.0_8
        viscosity_rotu = 0.0_8
+       viscosity_divu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       L_scaled = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
-
-       viscosity_mass = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
-       viscosity_temp = L_scaled(1)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
-       viscosity_divu = L_scaled(2)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
-       viscosity_rotu = L_scaled(3)**(2*Laplace_order_init) / tau_diffusion * n_diffuse
+       viscosity_mass = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_temp = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_rotu = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_divu = 1.5d-1 * dx_min**(2*Laplace_order_init)/dt_cfl
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop

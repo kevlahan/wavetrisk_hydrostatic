@@ -390,18 +390,13 @@ contains
 
   subroutine initialize_dt_viscosity 
     ! Initializes viscosity
-    ! diffusion stability constant is independent of max_level
     use wavelet_mod
     implicit none
-    
-    integer               :: k
-    real(8)               :: k_max, visc
-    real(8), dimension(3) :: L_scaled
+    real(8)            :: k_max, visc
 
     allocate (viscosity_divu(1:zlevels))
     
-    ! Smallest edge length
-    dx_min = sqrt (4*MATH_PI*radius**2/(3*sqrt(3.0_8)/8*10*4**max_level))
+    dx_min = sqrt (4*MATH_PI*radius**2/(10.0_8*4**max_level + 2.0_8))
 
     ! Largest wavenumber on regular lozenge grid
     k_max = MATH_PI/(sqrt(3.0_8)*dx_min)
@@ -409,20 +404,17 @@ contains
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
     dt_init = dt_cfl
-    
-    ! Viscosity constant from eigenvalues of Laplacian
+
     if (Laplace_order_init == 0) then
        viscosity_mass = 0.0_8
        viscosity_temp = 0.0_8
-       viscosity_divu = 0.0_8
        viscosity_rotu = 0.0_8
+       viscosity_divu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       L_scaled = L_diffusion / 2**(max_level-min_level) ! Correct length scales for finest grid
-
-       viscosity_mass = L_scaled(1)**(2*Laplace_order_init) / dt_cfl * C_diffusion * n_diffuse
-       viscosity_temp = L_scaled(1)**(2*Laplace_order_init) / dt_cfl * C_diffusion * n_diffuse
-       viscosity_divu = L_scaled(2)**(2*Laplace_order_init) / dt_cfl * C_diffusion * n_diffuse
-       viscosity_rotu = L_scaled(3)**(2*Laplace_order_init) / dt_cfl * C_diffusion * n_diffuse
+       viscosity_mass = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_temp = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_rotu = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_divu = 1.0d-1 * dx_min**(2*Laplace_order_init)/dt_cfl
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -433,11 +425,11 @@ contains
        write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
        write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass/n_diffuse, " Viscosity_temp = ", viscosity_temp/n_diffuse, &
             " Viscosity_divu = ", sum (viscosity_divu)/zlevels/n_diffuse, " Viscosity_rotu = ", viscosity_rotu/n_diffuse
-       write (6,'(A,es8.2,A)') &
-            "Diffusion stability constants = ", dt_cfl/dx_min**(2*Laplace_order_init) * visc, " (should be < 0.25)"
+       write (6,'(A,es8.2,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order_init) * visc, &
+            " (should be < 0.25, or about < 0.5 for RK45 ssp if CFL <= 1.2)"
     end if
   end subroutine initialize_dt_viscosity
-
+  
   subroutine apply_initial_conditions
     implicit none
     integer :: k, l

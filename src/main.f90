@@ -58,9 +58,6 @@ contains
        call init_structures (run_id)
        call apply_init_cond
 
-       ! Calculate diffusion length scales
-       if (Laplace_order_init /= 0) call evals_diffusion
-
        ! Initialize time step and viscosities
        call initialize_dt_viscosity
 
@@ -265,9 +262,6 @@ contains
     
     ! Initialize total mass value
     call sum_total_mass (.true.)
-
-    ! Calculate diffusion length scales
-    if (Laplace_order /= 0 .and. resume /= NONE) call evals_diffusion
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
