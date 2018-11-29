@@ -7,15 +7,14 @@ module remap_mod
   use wavelet_mod
   use time_integr_mod
   implicit none
-
   integer                             :: order
   integer, dimension (:), allocatable :: stencil
 contains
   subroutine remap_vertical_coordinates 
     ! Remap the Lagrangian layers to target vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, heat and momentum flux
-    integer            :: d, j, k, l, p
-    integer, parameter :: order_default = 3 ! order must be odd
+    integer            :: l
+    integer, parameter :: order_default = 7 ! order must be odd
 
     ! Set order of Newton interpolation
     order = min (zlevels+1, order_default)
@@ -45,68 +44,40 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                          :: d, id, id_i, k, kb, kc, kk, m
-    real(8)                          :: new_p, p_surf, diff, dmin
-    real(8), dimension (zlevels+1)   :: cumul_temp, new_temp, p
+    integer                          :: d, id, id_i, k, kb
+    real(8)                          :: new_p, p_s
+    real(8), dimension (zlevels+1)   :: cumul_temp, new_cumul_temp, p
 
     d    = dom%id + 1
-    id   = idx(i, j, offs, dims)
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
+    
+    call cal_p (p, p_s, d, id_i)
 
     ! Integrate full full mass-weighted potential temperature vertically downward from the top
     ! All quantities located at interfaces
     cumul_temp(1) = 0.0_8
     do kb = 2, zlevels + 1
-       k = zlevels-kb+2 ! Actual zlevel
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) ! Save current mass for momentum interpolation
-
+       k = zlevels-kb+2 
        cumul_temp(kb) = cumul_temp(kb-1) + sol(S_TEMP,k)%data(d)%elts(id_i)
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) ! Save current mass for momentum interpolation
     end do
-
-    ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
-    p(1) = p_top
-    do kb = 2, zlevels + 1
-       k = zlevels-kb+2
-       p(kb) = p(kb-1) + grav_accel * sol(S_MASS,k)%data(d)%elts(id_i)
-    end do
-    p_surf = p(zlevels+1)
 
     ! Interpolate using the moving stencil centred at each interpolation point computed downward from top
-    new_temp(1) = 0.0_8
+    new_cumul_temp(1) = 0.0_8
     do kb = 2, zlevels
        k = zlevels-kb+2
-       ! Pressure at bottom interface of cells of new vertical grid
-       new_p = a_vert(k) + b_vert(k)*p_surf
-
-       ! Find index of pressure on old vertical grid closest to new_pressure on new grid
-       dmin = 1d16
-       do kk = 1, zlevels+1
-          diff = abs (p(kk)-new_p)
-          if (diff < dmin) then
-             kc = kk
-             dmin = diff
-          end if
-       end do
-
-       ! Set interpolation stencil based on new_pressure
-       if (kc < (order-1)/2+1) then
-          stencil = (/ (m, m = 1, order) /)
-       else if (kc > zlevels+1-(order-1)/2) then
-          stencil = (/ (m, m = zlevels+1-(order-1), zlevels+1) /)
-       else
-          stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
-       end if
-
-       ! Interpolate cumul temperature at top interfaces of new vertical grid
-       new_temp(kb) = Newton_interp(p(stencil), cumul_temp(stencil), new_p)
+       new_p = a_vert(k) + b_vert(k)*p_s
+       call find_stencil (p, new_p)
+       new_cumul_temp(kb) = Newton_interp (p(stencil), cumul_temp(stencil), new_p)
     end do
-    new_temp(zlevels+1) = cumul_temp(zlevels+1)
+    new_cumul_temp(zlevels+1) = cumul_temp(zlevels+1)
 
     ! Variables on new vertical grid
     do k = 1, zlevels
        kb = zlevels-k+1
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k)*p_surf/grav_accel
-       sol(S_TEMP,k)%data(d)%elts(id_i) = new_temp(kb+1) - new_temp(kb)
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k)*p_s/grav_accel
+       sol(S_TEMP,k)%data(d)%elts(id_i) = new_cumul_temp(kb+1) - new_cumul_temp(kb)
     end do
   end subroutine remap_scalars
 
@@ -117,12 +88,12 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                               :: d, e, id, id_i, k, kb, kc, kk, m
+    integer                               :: d, e, id, id_i, k, kb
     integer, dimension(1:EDGE)            :: idr
 
-    real(8)                               :: diff, dmin, new_p, p_s
+    real(8)                               :: new_p, p_s
     real(8), dimension (zlevels+1)        :: p
-    real(8), dimension (zlevels+1,1:EDGE) :: old_flux, new_flux
+    real(8), dimension (zlevels+1,1:EDGE) :: old_flux, new_cumul_flux
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -132,20 +103,13 @@ contains
     idr(DG+1) = idx (i+1, j,   offs, dims) + 1
     idr(UP+1) = idx (i+1, j+1, offs, dims) + 1
 
-    ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
-    p(1) = p_top
-    do kb = 2, zlevels+1
-       k = zlevels-kb+2
-       p(kb) = p(kb-1) + grav_accel*trend(S_MASS,k)%data(d)%elts(id_i)
-    end do
-    p_s = p(zlevels+1)
+    call cal_p (p, p_s, d, id_i)
 
     ! Integrate full momentum flux vertically downward from the top
     ! All quantities located at interfaces
     old_flux(1,:) = 0.0_8
     do kb = 2, zlevels+1
        k = zlevels-kb+2 ! Actual zlevel
-
        do e = 1, EDGE
           old_flux(kb,e) = old_flux(kb-1,e) + sol(S_VELO,k)%data(d)%elts(EDGE*id+e) &
                * (trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(idr(e)))
@@ -153,46 +117,70 @@ contains
     end do
 
     ! Interpolate using the moving stencil centred at each interpolation point computed downward from top
-    new_flux(1,:) = 0.0_8
+    new_cumul_flux(1,:) = 0.0_8
     do kb = 2, zlevels
        k = zlevels-kb+2
        new_p = a_vert(k) + b_vert(k)*p_s
-
-       ! Index of pressure on old vertical grid closest to new_pressure on new grid
-       dmin = 1d16
-       do kk = 1, zlevels+1
-          diff = abs (p(kk)-new_p)
-          if (diff < dmin) then
-             kc = kk
-             dmin = diff
-          end if
-       end do
-
-       ! Set interpolation stencil based on new_pressure
-       if (kc < (order-1)/2+1) then
-          stencil = (/ (m, m = 1, order) /)
-       else if (kc > zlevels+1-(order-1)/2) then
-          stencil = (/ (m, m = zlevels+1-(order-1), zlevels+1) /)
-       else
-          stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
-       end if
-
-       ! Cumulative mass flux at top interfaces of new vertical grid
+       call find_stencil (p, new_p)
        do e = 1, EDGE
-          new_flux(kb,e) = Newton_interp(p(stencil), old_flux(stencil,e), new_p)
+          new_cumul_flux(kb,e) = Newton_interp (p(stencil), old_flux(stencil,e), new_p)
        end do
     end do
-    new_flux(zlevels+1,:) = old_flux(zlevels+1,:)
+    new_cumul_flux(zlevels+1,:) = old_flux(zlevels+1,:)
 
     ! Find velocity on new grid from mass flux
     do k = 1, zlevels
        kb = zlevels-k+1
        do e = 1, EDGE
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_flux(kb+1,e) - new_flux(kb,e)) &
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_cumul_flux(kb+1,e) - new_cumul_flux(kb,e)) &
                / (sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(idr(e)))
        end do
     end do
   end subroutine remap_velocity
+
+  subroutine cal_p (p, p_s, d, id_i)
+    ! Calculate pressure at interfaces of current vertical grid, used as independent coordinate
+    implicit none
+    integer                        :: d, id_i
+    real(8)                        :: p_s
+    real(8), dimension (zlevels+1) :: p
+
+    integer :: k, kb
+    
+    p(1) = p_top
+    do kb = 2, zlevels + 1
+       k = zlevels-kb+2
+       p(kb) = p(kb-1) + grav_accel * sol(S_MASS,k)%data(d)%elts(id_i)
+    end do
+    p_s = p(zlevels+1)
+  end subroutine cal_p
+
+  subroutine find_stencil (p, new_p)
+    ! Find stencil associated with new pressure level
+    implicit none
+    real(8)                        :: new_p
+    real(8), dimension (zlevels+1) :: p
+
+    integer                        :: kc, kk, m
+    real(8)                        :: diff, dmin
+    
+    dmin = 1d16
+    do kk = 1, zlevels+1
+       diff = abs (p(kk)-new_p)
+       if (diff < dmin) then
+          kc = kk
+          dmin = diff
+       end if
+    end do
+
+    if (kc < (order-1)/2+1) then
+       stencil = (/ (m, m = 1, order) /)
+    else if (kc > zlevels+1-(order-1)/2) then
+       stencil = (/ (m, m = zlevels+1-(order-1), zlevels+1) /)
+    else
+       stencil = (/ (m, m = kc-(order-1)/2, kc+(order-1)/2) /)
+    end if
+  end subroutine find_stencil
 
   function Newton_interp (xv, yv, xd)
     ! Order point Newton form polynomial interpolation scheme as in Yang (2001)
