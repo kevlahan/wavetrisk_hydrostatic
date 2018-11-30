@@ -12,7 +12,7 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Test case variables
-  real(8) :: d2, delta_T, eta, eta_t, eta_v, eta_0, gamma_T, h_0, lat_c, lon_c, N_freq, R_pert, T_0, u_0
+  real(8) :: d2, delta_T, eta, eta_t, eta_v, eta_0, gamma_T, h_0, lat_c, lon_c, N_freq, ref_surf_press, R_pert, T_0, u_0
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -127,7 +127,7 @@ contains
 
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * press_infty
+          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
           b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
        end do
     else
@@ -292,15 +292,14 @@ contains
        write (6,'(A,es10.4)') "kappa               = ", kappa
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
+       write (6,'(A,es10.4)') "d2                  = ", d2
+       write (6,'(A,es10.4)') "h_0                 = ", h_0
+       write (6,'(A,es10.4)') "lon_c               = ", lon_c
+       write (6,'(A,es10.4)') "lat_c               = ", lat_c
+       write (6,'(A,es10.4)') "ref_surf_press      = ", ref_surf_press
        write (6,'(A,es10.4)') "T_0                 = ", T_0
-       write (6,'(A,es10.4)') "T_mean              = ", T_mean
-       write (6,'(A,es10.4)') "T_tropo             = ", T_tropo
-       write (6,'(A,es10.4)') "sigma_b             = ", sigma_b
-       write (6,'(A,es10.4)') "k_a                 = ", k_a
-       write (6,'(A,es10.4)') "k_f                 = ", k_f
-       write (6,'(A,es10.4)') "k_s                 = ", k_s
-       write (6,'(A,es10.4)') "delta_T             = ", delta_T
-       write (6,'(A,es10.4)') "delta_theta         = ", delta_theta
+       write (6,'(A,es10.4)') "u_0                 = ", u_0
+
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
