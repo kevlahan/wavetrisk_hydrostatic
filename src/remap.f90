@@ -14,7 +14,7 @@ contains
     ! Remap the Lagrangian layers to target vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, heat and momentum flux
     integer            :: l
-    integer, parameter :: order_default = 7 ! order must be odd
+    integer, parameter :: order_default = 3 ! order must be odd
 
     ! Set order of Newton interpolation
     order = min (zlevels+1, order_default)
@@ -26,6 +26,7 @@ contains
     end if
 
     ! Ensure boundary values are up to date
+    sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE)
 
     do l = level_start, level_end
@@ -51,7 +52,7 @@ contains
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
-    
+
     call cal_p (p, p_s, d, id_i)
 
     ! Integrate full full mass-weighted potential temperature vertically downward from the top
