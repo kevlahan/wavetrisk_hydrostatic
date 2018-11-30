@@ -12,7 +12,7 @@ module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Test case variables
-  real(8) :: delta_T, sigma, sigma_t, sigma_v, sigma_0, gamma_T, lat_c, lon_c,  R_pert, T_0, u_p, u_0
+  real(8) :: delta_T, sigma, sigma_t, sigma_v, sigma_0, gamma_T, lat_c, lon_c,  R_pert, T_0, tau_diffusion, u_p, u_0
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -322,15 +322,18 @@ contains
        write (6,'(A,es10.4)') "kappa               = ", kappa
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es10.4)') "T_0                 = ", T_0
-       write (6,'(A,es10.4)') "T_mean              = ", T_mean
-       write (6,'(A,es10.4)') "T_tropo             = ", T_tropo
-       write (6,'(A,es10.4)') "sigma_b             = ", sigma_b
-       write (6,'(A,es10.4)') "k_a                 = ", k_a
-       write (6,'(A,es10.4)') "k_f                 = ", k_f
-       write (6,'(A,es10.4)') "k_s                 = ", k_s
-       write (6,'(A,es10.4)') "delta_T             = ", delta_T
-       write (6,'(A,es10.4)') "delta_theta         = ", delta_theta
+       write (6,'(A,es10.4)') "u_0                  = ", u_0
+       write (6,'(A,es10.4)') "u_p                  = ", u_p
+       write (6,'(A,es10.4)') "R_pert               = ", R_pert
+       write (6,'(A,es10.4)') "T_0                  = ", T_0
+       write (6,'(A,es10.4)') "T_0                  = ", R_pert
+       write (6,'(A,es10.4)') "gamma_T              = ", gamma_T
+       write (6,'(A,es10.4)') "delta_T              = ", delta_T
+       write (6,'(A,es10.4)') "sigma_0              = ", sigma_0
+       write (6,'(A,es10.4)') "sigma_t              = ", sigma_t
+       write (6,'(A,es10.4)') "lon_c                = ", lon_c
+       write (6,'(A,es10.4)') "lat_c                = ", lat_c
+
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
