@@ -28,7 +28,7 @@ contains
     ! remap2W        = parabolic WENO reconstruction
     ! remap4_tile    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_type => remap1_tile
+    interp_type => remap4_tile
 
     ! Current surface pressure
     call cal_surf_press (sol)
@@ -108,7 +108,7 @@ contains
        call interp_type (zlevels, flux_new, z_new, flux_old, z_old)
 
        do k = 1, zlevels
-          sol(S_VELO,1:zlevels)%data(d)%elts(id_e) = flux_new
+          sol(S_VELO,k)%data(d)%elts(id_e) = flux_new(k)
        end do
     end do
   end subroutine remap_velo
@@ -185,7 +185,7 @@ contains
     ! MINMOD version: The distribution in each grid-box is assumed to be
     !        linear with the slope equal to the smaller of two elementary
     !        slopes computed by linear differencing (set to 0, if the two
-    !        slopes are of different signs. This method is commonly known
+    !        slopes are of different signs). This method is commonly known
     !        as that of van Leer. It guarantees monotonicity.
     !                                                              2*X*Y
     ! default version: minmod(X,Y) is replaced with harmonic mean -------
