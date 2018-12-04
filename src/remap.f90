@@ -15,19 +15,20 @@ contains
   subroutine remap_vertical_coordinates
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, potential temperature and velocity divergence
+    implicit none
     integer :: l
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander F. Shchepetkin (IGPP, UCLA)]
     !
     ! remap0         = piecewise-constant reconstruction (checks that grid is not changing too fast)
-    ! remap1_tile    = piecewise-linear reconstruction with van Leer limiter to guarantee monotonicity
-    ! remap2PPM_tile = Reconstruction by PPM code of Colella and Woodward (1984) (could have higher errors at boundaries)
-    ! remap2S        = Basic parabolic spline reconstruction
-    ! remap2W        = Parabolic WENO reconstruction
-    ! remap4_tile    = Parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
-    !                  ensures continuity of both value and first derivative at each interface
-    interp_type => remap4_tile
+    ! remap1_tile    = piecewise-linear reconstruction with van Leer limiter to ensure monotonicity
+    ! remap2PPM_tile = reconstruction by PPM code of Colella and Woodward (1984) (could have higher errors at boundaries)
+    ! remap2S        = basic parabolic spline reconstruction
+    ! remap2W        = parabolic WENO reconstruction
+    ! remap4_tile    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
+    !                  (ensures continuity of both value and first derivative at each interface)
+    interp_type => remap1_tile
 
     ! Current surface pressure
     call cal_surf_press (sol)
@@ -87,26 +88,27 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                        :: d, e, id, id_i, k
+    integer                        :: d, e, id, id_e, id_i, k
     real(8), dimension (1:zlevels) :: flux_new, flux_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
-    id = idx (i, j, offs, dims) 
+    id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
     call find_coordinates (z_new, z_old, d, id_i)
 
     do e = 1, EDGE
+       id_e = EDGE*id+e
+       
        do k = 1, zlevels
-          flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+          flux_old(k) = sol(S_VELO,k)%data(d)%elts(id_e)
        end do
 
-       ! Remap velocity
        call interp_type (zlevels, flux_new, z_new, flux_old, z_old)
 
        do k = 1, zlevels
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k)
+          sol(S_VELO,1:zlevels)%data(d)%elts(id_e) = flux_new
        end do
     end do
   end subroutine remap_velo
@@ -216,21 +218,20 @@ contains
        FC(N) = FC(N-1)
     end if
 
-    do k=1,N
+    do k = 1, N
        if (FC(k)*FC(k-1) < Zero) then
           cff = Zero
        else
           cff = 2*FC(k)*FC(k-1) / (FC(k) + FC(k-1))
        end if
-
        aR(k) = var_old(k) + cff*Hz(k)
        aL(k) = var_old(k) - cff*Hz(k)
     end do     !--> discard FC
 
     if (ENHANCE) then
-       do iter = 1, 10                                  ! Reconcile side 
-          do k = 1, N-1                                 ! values at each interface, then 
-             FC(k) = Half* (aR(k) + aL(k+1))   ! use minmod limiter  again to maintain monotonicity
+       do iter = 1, 10                        ! Reconcile side 
+          do k = 1, N-1                       ! values at each interface, then 
+             FC(k) = Half * (aR(k) + aL(k+1)) ! use minmod limiter  again to maintain monotonicity
           end do
           FC(N) = aR(N)
           FC(0) = aL(1)
@@ -267,7 +268,7 @@ contains
     FC(0)=Zero
     FC(N)=Zero
 
-    do k=1,N
+    do k = 1, N
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k)-z_new(k-1))
     end do
   end subroutine remap1_tile
@@ -294,12 +295,12 @@ contains
 
     do k = 1, N-1
        cff = One / (Hz(k) + Hz(k+1))
-       CF(k) = cff*(var_old(k+1)*Hz(k) + var_old(k)*Hz(k+1))
-       FC(k) = cff*(var_old(k+1) - var_old(k))
+       CF(k) = cff * (var_old(k+1)*Hz(k) + var_old(k)*Hz(k+1))
+       FC(k) = cff * (var_old(k+1) - var_old(k))
     enddo
 
     do k = 2, N-1
-       cff = Hz(k) * ((Two*Hz(k-1)+Hz(k))*FC(k)+(Two*Hz(k+1)+Hz(k))*FC(k-1))/(Hz(k-1)+Hz(k)+Hz(k+1))
+       cff = Hz(k) * ((Two*Hz(k-1) + Hz(k))*FC(k) + (Two*Hz(k+1) + Hz(k))*FC(k-1)) / (Hz(k-1) + Hz(k) + Hz(k+1))
        if (LIMIT_SLOPES) then
           cffR = Two * (var_old(k+1) - var_old(k))
           cffL = Two * (var_old(k) - var_old(k-1))
@@ -375,7 +376,7 @@ contains
           cffL  =  FC(k)
        end if
        alpha = dz / alpha
-       FC(k) = dz * (cff + alpha*(cffR-cffL*(Three-Two*alpha)))
+       FC(k) = dz * (cff + alpha*(cffR - cffL*(Three - Two*alpha)))
     end do
     FC(0) = Zero
     FC(N) = Zero
@@ -571,15 +572,14 @@ contains
     end if
     !
     ! Remapping step: This operation consists essentially of three
-    !---------------- stages: (1) whithin each grid box compute averaged 
+    !---------------- stages: (1) within each grid box compute averaged 
     ! slope (stored as dR) and curvature (stored as dL); then (2) compute
-    ! interfacial fluxes FC; and (3) apply these fluxes to complete
-    ! remapping step.
+    ! interfacial fluxes FC; and (3) apply these fluxes to complete remapping step.
     !
     do k = 1, N
        if (LIMIT_INTERIOR) then               ! Constrain parabolic
           deltaR = r(k) - var_old(k)          ! segment monotonicity
-          deltaL = var_old(k) - r(k-1)        ! like in PPM. 
+          deltaL = var_old(k) - r(k-1)        ! like in PPM 
           cffR = Two * deltaR
           cffL = Two * deltaL
           if (deltaR*deltaL < Zero) then
@@ -681,8 +681,8 @@ contains
        aR(k) = var_old(k) + deltaR
        aL(k) = var_old(k) - deltaL
 
-       dR(k) = (Two*deltaR-deltaL)**2
-       dL(k) = (Two*deltaL-deltaR)**2
+       dR(k) = (Two*deltaR - deltaL)**2
+       dL(k) = (Two*deltaL - deltaR)**2
     end do
 
     aL(N) = aR(N-1)
@@ -711,7 +711,7 @@ contains
        r1(0) = Two*var_old(1) - r1(1)
     end if
     !
-    ! Power-law reconciliation: It starts with computation of side
+    ! Power-law reconciliation: Starts with computation of side
     !------ --- --------------- limits dR,dL of the first derivative
     ! assuming parabolic distributions within each grid box. In this
     ! version of the code, before doing so (see "else" branch of 3-way
@@ -724,29 +724,29 @@ contains
     ! parabolic version of the code is commented out, but left here
     ! for reference.
     !
-    do k=1,N
-       deltaR = r1(k)-var_old(k)
-       deltaL = var_old(k)-r1(k-1)
-       cff = deltaR*deltaL
+    do k = 1, N
+       deltaR = r1(k) - var_old(k)
+       deltaL = var_old(k) - r1(k-1)
+       cff = deltaR * deltaL
        if (cff > eps) then
-          cff = (deltaR+deltaL)/cff
+          cff = (deltaR + deltaL)/cff
        else
           cff = Zero
        end if
-       cffL = cff*deltaL
-       cffR = cff*deltaR
+       cffL = cff * deltaL
+       cffR = cff * deltaR
 
        if (cffL > Three) then
-          cffL = cffL*deltaL
+          cffL = cffL * deltaL
           cffR = Zero
        elseif (cffR > Three) then
           cffL = Zero
-          cffR = cffR*deltaR
+          cffR = cffR * deltaR
        else
           cffL = Four*deltaL - Two*deltaR
           cffR = Four*deltaR - Two*deltaL
        end if
-       cff = One/Hz(k)
+       cff = One / Hz(k)
        dR(k) = cff * cffR
        dL(k) = cff * cffL
     end do
@@ -763,10 +763,10 @@ contains
     do k = N-1, 1, -1
        d(k) = FC(k) * (Hz(k+1)*dL(k+1) + Hz(k)*dR(k))
 
-       cffR = 8*(dR(k)+Two*dL(k))
-       cffL = 8*(dL(k+1)+Two*dR(k+1))
-       if (abs(d(k)) > abs(cffR)) d(k)=cffR
-       if (abs(d(k)) > abs(cffL)) d(k)=cffL
+       cffR = 8*(dR(k)   + Two*dL(k))
+       cffL = 8*(dL(k+1) + Two*dR(k+1))
+       if (abs(d(k)) > abs(cffR)) d(k) = cffR
+       if (abs(d(k)) > abs(cffL)) d(k) = cffL
 
        if ((dL(k+1)-dR(k))*(var_old(k+1)-var_old(k)) > Zero) then
           Hdd = Hz(k) * (d(k) - dR(k))
@@ -775,13 +775,13 @@ contains
           Hdd = Hz(k+1) * (dL(k+1) - d(k))
           rr = r1(k+1) - var_old(k+1)
        endif
-       rr=abs(rr)
+       rr = abs (rr)
 
        Ampl = OneFifth * Hdd * rr
        Hdd = abs (Hdd)
        cff = rr**2 + 0.0763636363636363636*Hdd * (rr + 0.004329004329004329*Hdd)
        if (cff > eps) then
-          Ampl = Ampl * (rr + 0.0363636363636363636*Hdd)/cff
+          Ampl = Ampl * (rr + 0.0363636363636363636*Hdd) / cff
        else
           Ampl = Zero
        endif
@@ -813,7 +813,7 @@ contains
        dL(k) = Hz(k) * (d(k)-d(k-1)) - Six*aR(k)
     end do
 
-    do k=1,N-1
+    do k = 1, N-1
        dz = z_new(k) - z_old(k)
        if (dz > Zero) then
           alpha = Hz(k+1)   
@@ -826,7 +826,7 @@ contains
           cffR  = -dR(k)
           cffL  =  dL(k)
        end if
-       alpha = dz/alpha
+       alpha = dz / alpha
        FC(k) = dz * (r(k) + Half*dz*d(k) + alpha**2*(cff - cffR*(0.5_8-0.25*alpha) + cffL*(1.0_8-alpha*(1.25_8-0.5*alpha))))
     end do
     FC(0) = 0.0_8
