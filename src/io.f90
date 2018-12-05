@@ -85,7 +85,7 @@ contains
     end if
     
     if (isnan (mass_error)) then
-       write (6,'(A)') "Mass error NaN ... aborting"
+       if (rank == 0) write (6,'(A)') "Mass error NaN ... aborting"
        call abort
     end if
   end subroutine sum_total_mass
