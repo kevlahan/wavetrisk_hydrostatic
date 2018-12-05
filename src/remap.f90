@@ -16,10 +16,10 @@ contains
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, potential temperature and velocity divergence
     implicit none
-    integer :: l
+    integer :: d, k, l
 
     ! Choose interpolation method:
-    ! [these methods are modified from routines provided by Alexander F. Shchepetkin (IGPP, UCLA)]
+    ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
     !
     ! remap0         = piecewise-constant reconstruction (checks that grid is not changing too fast)
     ! remap1_tile    = piecewise-linear reconstruction with van Leer limiter to ensure monotonicity
@@ -28,7 +28,7 @@ contains
     ! remap2W        = parabolic WENO reconstruction
     ! remap4_tile    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_type => remap4_tile
+    interp_type => remap1_tile
 
     ! Current surface pressure
     call cal_surf_press (sol)
@@ -38,15 +38,14 @@ contains
        call apply_onescale (remap_scalars, l, z_null, 0, 1)
        call apply_onescale (remap_velo,    l, z_null, 0, 0)
     end do
-    sol%bdry_uptodate = .false.
-    call update_array_bdry (sol, NONE)
 
     ! Wavelet transform and interpolate back onto adapted grid
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine remap_vertical_coordinates
 
   subroutine remap_scalars (dom, i, j, z_null, offs, dims)
-    ! Remap theta onto new grid
+    ! Remap mass-weighted potential temperature
+    ! (potential temperature is remapped and then multiplied by new mass)
     type (Domain)                   :: dom
     integer                         :: i, j, z_null
     integer, dimension (N_BDRY+1)   :: offs
@@ -75,7 +74,7 @@ contains
 
     call interp_type (zlevels, theta_new, z_new, theta_old, z_old)
 
-    ! Find mass-weighted potential temperature
+    ! Mass-weighted potential temperature
     do k = 1, zlevels
        sol(S_TEMP,k)%data(d)%elts(id_i) = theta_new(k) * sol(S_MASS,k)%data(d)%elts(id_i)
     end do
@@ -95,7 +94,7 @@ contains
     d    = dom%id + 1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
-
+    
     call find_coordinates (z_new, z_old, d, id_i)
 
     do e = 1, EDGE
@@ -159,7 +158,6 @@ contains
     do k = 1, N-1
        dz = z_new(k) - z_old(k)
        FC(k) = min (dz, Zero) * var_old(k) + max (dz, Zero) * var_old(k+1)
-
        if (dz > Zero) then
           if (dz > Hz(k+1)) ierr = ierr+1
        else
@@ -173,9 +171,7 @@ contains
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
     end do
     
-    if (ierr /= 0) then
-       write (6,'(A)') 'ERROR: Grid is changing too fast.'
-    endif
+    if (ierr /= 0 .and. rank == 0)  write (6,'(A)') 'ERROR: Grid is changing too fast.'
   end subroutine remap0
 
   subroutine remap1_tile (N, var_new, z_new, var_old, z_old)

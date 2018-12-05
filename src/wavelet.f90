@@ -1303,38 +1303,47 @@ contains
 
     integer :: k, l, v
 
+    abstract interface
+       subroutine norm_scalar (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end subroutine norm_scalar
+       subroutine norm_velo (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end subroutine norm_velo
+    end interface
+    procedure (norm_scalar), pointer :: scalar_norm => null ()
+    procedure (norm_velo),   pointer :: velo_norm   => null ()
+
+    select case (order)
+    case ("1")  
+       scalar_norm => l1_scalar
+       velo_norm   => l1_velo
+    case ("2")  
+       scalar_norm => l2_scalar
+       velo_norm   => l2_velo
+    case ("inf")
+       scalar_norm => linf_scalar
+       velo_norm   => linf_velo
+    end select
+       
     lnorm = 0.0_8
     do k = 1, zlevels
-       if (trim (order) == "1") then ! l1 norm
-          do l = level_start, level_end
-             call apply_onescale (l1_scalar, l, k, 0, 1)
-             call apply_onescale (l1_velo,   l, k, 0, 0)
-          end do
-          do v = S_MASS, S_TEMP
-             lnorm(v,k) = sum_real (lnorm(v,k))
-          end do
-          lnorm(S_VELO,k) = sum_real (lnorm(S_VELO,k))
-       elseif (trim (order) == "2") then ! l2 norm
-          do l = level_start, level_end
-             call apply_onescale (l2_scalar, l, k, 0, 1)
-             call apply_onescale (l2_velo,   l, k, 0, 0)
-          end do
-          do v = S_MASS, S_TEMP
-             lnorm(v,k) = sqrt (sum_real (lnorm(v,k)))
-          end do
-          lnorm(S_VELO,k) = sqrt (sum_real (lnorm(S_VELO,k)))
-       elseif (trim (order) == "inf") then ! l infinity norm
-          do l = level_start, level_end
-             call apply_onescale (linf_scalar, l, k, 0, 1)
-             call apply_onescale (linf_velo,   l, k, 0, 0)
-          end do
-          do v = S_MASS, S_VELO
-             lnorm(v,k) = sync_max_d (lnorm(v,k))
-          end do
-       else
-          write(6,'(A,A,A)') "Order ", order, " not supported"
-          stop
-       end if
+       do l = level_start, level_end
+          call apply_onescale (scalar_norm, l, k, 0, 1)
+          call apply_onescale (velo_norm,   l, k, 0, 0)
+       end do
+       do v = S_MASS, S_TEMP
+          lnorm(v,k) = sum_real (lnorm(v,k))
+       end do
+       lnorm(S_VELO,k) = sum_real (lnorm(S_VELO,k))
     end do
   contains
     subroutine l1_scalar (dom, i, j, zlev, offs, dims)
