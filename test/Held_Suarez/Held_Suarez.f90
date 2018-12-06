@@ -84,7 +84,7 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call euler (trend_cooling, dt)
+     !call euler (trend_cooling, dt)
      call stop_timing
 
      call sum_total_mass (.false.)
@@ -196,7 +196,15 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
-  physics_scalar_source = 0.0_8
+  integer :: id_i
+  real(8) :: k_T, lat, lon, theta_equil
+
+  physics_scalar_source(S_MASS) = 0.0_8
+  
+  id_i = idx (i, j, offs, dims) + 1
+  call cart2sph (dom%node%elts(id_i), lon, lat)
+  call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+  physics_scalar_source(S_TEMP) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -214,6 +222,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
+  integer                    :: id, id_i
+  real(8)                    :: sigma, k_v
   real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu, Rayleigh
 
   if (Laplace_order == 0) then
@@ -224,8 +234,14 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
      diffusion =  (-1)**(Laplace_order-1) * (viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu)
   end if
+  
+  id = idx (i, j, offs, dims)
+  id_i = id+1
 
-  physics_velo_source = diffusion
+  sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
+  k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
+
+  physics_velo_source = diffusion - k_v * velo(EDGE*id+1:EDGE*id_i)
 end function physics_velo_source
 
 subroutine trend_cooling (q, dq)

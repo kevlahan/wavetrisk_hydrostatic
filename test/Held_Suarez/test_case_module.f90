@@ -391,29 +391,27 @@ contains
     ! Initializes viscosity
     use wavelet_mod
     implicit none
-    real(8)            :: k_max, visc
+    real(8)            :: visc
+    real(8), parameter :: C = 2.68d-3 ! Diffusion constant
 
     allocate (viscosity_divu(1:zlevels))
     
     dx_min = sqrt (4*MATH_PI*radius**2/(10.0_8*4**max_level + 2.0_8))
 
-    ! Largest wavenumber on regular lozenge grid
-    k_max = MATH_PI/(sqrt(3.0_8)*dx_min)
-
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
     dt_init = dt_cfl
-    
+
     if (Laplace_order_init == 0) then
        viscosity_mass = 0.0_8
        viscosity_temp = 0.0_8
        viscosity_rotu = 0.0_8
        viscosity_divu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       viscosity_mass = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_temp = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_rotu = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_divu = 1.5d-1 * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_mass = C * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_temp = C * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_divu = C * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_rotu = C/10 * dx_min**(2*Laplace_order_init)/dt_cfl
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -421,7 +419,7 @@ contains
     visc = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
     
     if (rank == 0) then
-       write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
+       write (6,'(2(A,es8.2),/)') "dx_min  = ", dx_min, " dt_cfl = ", dt_cfl
        write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass/n_diffuse, " Viscosity_temp = ", viscosity_temp/n_diffuse, &
             " Viscosity_divu = ", sum (viscosity_divu)/zlevels/n_diffuse, " Viscosity_rotu = ", viscosity_rotu/n_diffuse
        write (6,'(A,es8.2,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order_init) * visc, &
