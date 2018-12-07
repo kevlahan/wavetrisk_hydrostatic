@@ -28,7 +28,7 @@ contains
     ! remap2W        = parabolic WENO reconstruction
     ! remap4_tile    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_type => remap4_tile
+    interp_type => remap1_tile
 
     ! Current surface pressure
     call cal_surf_press (sol)

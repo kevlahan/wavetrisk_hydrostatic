@@ -392,7 +392,7 @@ contains
     use wavelet_mod
     implicit none
     real(8)            :: visc
-    real(8), parameter :: C = 2.68d-3 ! Diffusion constant
+    real(8), parameter :: C = 8d-3 ! Diffusion constant
 
     allocate (viscosity_divu(1:zlevels))
     
