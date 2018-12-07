@@ -7,12 +7,12 @@ module test_case_mod
 
   ! Standard variables
   integer                              :: CP_EVERY, save_zlev
-  real(8)                              :: C_diffusion, dt_cfl, initotalmass, mass_error, totalmass, total_cpu_time
+  real(8)                              :: dt_cfl, initotalmass, mass_error, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Test case variables
-  real(8) :: delta_T, sigma, sigma_t, sigma_v, sigma_0, gamma_T, lat_c, lon_c,  R_pert, T_0, tau_diffusion, u_p, u_0
+  real(8) :: delta_T, sigma, sigma_t, sigma_v, sigma_0, gamma_T, lat_c, lon_c,  R_pert, T_0, u_p, u_0
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -258,7 +258,6 @@ contains
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, n_diffuse
-    read (fid,*) varname, tau_diffusion
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
@@ -267,7 +266,6 @@ contains
     
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
-    tau_diffusion = tau_diffusion * HOUR
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
     Laplace_order = Laplace_order_init
@@ -304,7 +302,6 @@ contains
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
-       write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion/HOUR
        write (6,'(A,es10.4)') "dt_write (min)      = ", dt_write/MINUTE
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end (h)        = ", time_end/HOUR
@@ -395,14 +392,12 @@ contains
     ! Initializes viscosity
     use wavelet_mod
     implicit none
-    real(8)            :: k_max, visc
+    real(8)            :: visc
+    real(8), parameter :: C = 8d-3 ! Diffusion constant
 
     allocate (viscosity_divu(1:zlevels))
     
     dx_min = sqrt (4*MATH_PI*radius**2/(10.0_8*4**max_level + 2.0_8))
-
-    ! Largest wavenumber on regular lozenge grid
-    k_max = MATH_PI/(sqrt(3.0_8)*dx_min)
 
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
@@ -414,10 +409,10 @@ contains
        viscosity_rotu = 0.0_8
        viscosity_divu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       viscosity_mass = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_temp = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_rotu = 2.0d-3 * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_divu = 1.0d-1 * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_mass = C * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_temp = C * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_divu = C * dx_min**(2*Laplace_order_init)/dt_cfl
+       viscosity_rotu = C/10 * dx_min**(2*Laplace_order_init)/dt_cfl
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -425,7 +420,7 @@ contains
     visc = max (viscosity_mass, viscosity_temp, maxval (viscosity_divu), viscosity_rotu)
     
     if (rank == 0) then
-       write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " k_max  = ", k_max, " dt_cfl = ", dt_cfl
+       write (6,'(2(A,es8.2),/)') "dx_min  = ", dx_min, " dt_cfl = ", dt_cfl
        write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass/n_diffuse, " Viscosity_temp = ", viscosity_temp/n_diffuse, &
             " Viscosity_divu = ", sum (viscosity_divu)/zlevels/n_diffuse, " Viscosity_rotu = ", viscosity_rotu/n_diffuse
        write (6,'(A,es8.2,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order_init) * visc, &
