@@ -257,7 +257,6 @@ contains
     read (fid,*) varname, cfl_num
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order_init
-    read (fid,*) varname, n_diffuse
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
@@ -301,7 +300,6 @@ contains
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
-       write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write (min)      = ", dt_write/MINUTE
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(A,es10.4)') "time_end (h)        = ", time_end/HOUR
@@ -393,7 +391,7 @@ contains
     use wavelet_mod
     implicit none
     real(8)            :: visc
-    real(8), parameter :: C = 8d-3 ! Diffusion constant
+    real(8), parameter :: C = 5d-3 ! Diffusion constant
 
     allocate (viscosity_divu(1:zlevels))
     
