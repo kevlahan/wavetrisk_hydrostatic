@@ -10,7 +10,8 @@ module remap_mod
        real(8), dimension(0:N) :: z_new, z_old
      end subroutine interpolation
   end interface
-  procedure (interpolation), pointer :: interp_type => null ()
+  procedure (interpolation), pointer :: interp_scalar => null ()
+  procedure (interpolation), pointer :: interp_velo   => null ()
 contains
   subroutine remap_vertical_coordinates
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
@@ -29,7 +30,8 @@ contains
     ! remap2W        = parabolic WENO reconstruction
     ! remap4_tile    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_type => remap1_tile
+    interp_scalar => remap1_tile
+    interp_velo   => remap1_tile
 
     ! Current surface pressure
     call cal_surf_press (sol)
@@ -88,7 +90,7 @@ contains
        theta_old(k) = sol(S_TEMP,k)%data(d)%elts(id_i) / trend(S_MASS,k)%data(d)%elts(id_i)
     end do
 
-    call interp_type (zlevels, theta_new, z_new, theta_old, z_old)
+    call interp_scalar (zlevels, theta_new, z_new, theta_old, z_old)
 
     ! Mass-weighted potential temperature
     do k = 1, zlevels
@@ -114,16 +116,14 @@ contains
     call find_coordinates (z_new, z_old, d, id_i)
 
     do e = 1, EDGE
-       id_e = EDGE*id+e
-       
        do k = 1, zlevels
-          flux_old(k) = sol(S_VELO,k)%data(d)%elts(id_e)
+          flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
        end do
 
-       call interp_type (zlevels, flux_new, z_new, flux_old, z_old)
+       call interp_velo (zlevels, flux_new, z_new, flux_old, z_old)
 
        do k = 1, zlevels
-          sol(S_VELO,k)%data(d)%elts(id_e) = flux_new(k)
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k)
        end do
     end do
   end subroutine remap_velo
@@ -160,7 +160,7 @@ contains
        p_upper = p_s - z_old(k)
 
        theta = sol(S_TEMP,k)%data(d)%elts(id_i) / trend(S_MASS,k)%data(d)%elts(id_i)
-       T_mean = theta * ((p_lower/p_0)**kappa - (p_upper/p_0)**kappa) / log (p_lower/p_upper) / kappa
+       T_mean = theta * (p_lower**kappa - p_upper**kappa) / log (p_lower/p_upper) / kappa
 
        phi_upper = phi_lower + R_d * T_mean * log (p_lower/p_upper) 
        phi = (p_upper*phi_upper - p_lower*phi_lower) / (p_lower - p_upper)
@@ -172,7 +172,7 @@ contains
        phi_lower = phi_upper
     end do
 
-    call interp_type (zlevels, energy_new, z_new, energy_old, z_old)
+    call interp_scalar (zlevels, energy_new, z_new, energy_old, z_old)
 
     ! Store new total energy in exner function
     do k = 1, zlevels
@@ -207,7 +207,7 @@ contains
             / (1.0_8 + kappa * p_upper * log (p_lower/p_upper) / (p_lower-p_upper)) / c_p
        nullify (velo)
        
-       theta = kappa * log (p_lower/p_upper) / ((p_lower/p_0)**kappa - (p_upper/p_0)**kappa) * T_mean
+       theta = kappa * log (p_lower/p_upper) / (p_lower**kappa - p_upper**kappa) * T_mean
 
        sol(S_TEMP,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) * theta
 
@@ -226,7 +226,7 @@ contains
     real(8) :: u_prim_RT,   u_prim_UP,   u_prim_DG,    u_dual_RT,   u_dual_UP,   u_dual_DG
     real(8) :: u_prim_RT_W, u_prim_UP_S, u_prim_DG_SW, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
 
-    id    = idx (i, j, offs, dims)
+    id    = idx (i,   j,   offs, dims)
     idW   = idx (i-1, j,   offs, dims)
     idS   = idx (i,   j-1, offs, dims)
     idSW  = idx (i-1, j-1, offs, dims) 
