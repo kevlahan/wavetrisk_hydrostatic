@@ -31,7 +31,7 @@ contains
     ! remap4_tile    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
     interp_scalar => remap1_tile
-    interp_velo   => remap1_tile
+    interp_velo   => remap4_tile
 
     ! Current surface pressure
     call cal_surf_press (sol)
@@ -69,18 +69,15 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: col_mass, p_s
     real(8), dimension (1:zlevels) :: theta_new, theta_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    p_s = dom%surf_press%elts(id_i)
-    col_mass = p_s/grav_accel
     do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)         ! Save old mass
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * col_mass ! New mass
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)                                     ! Save old mass
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * dom%surf_press%elts(id_i)/grav_accel ! New mass
     end do
 
     call find_coordinates (z_new, z_old, d, id_i)

@@ -390,12 +390,13 @@ contains
     ! Initializes viscosity
     use wavelet_mod
     implicit none
-    real(8)            :: visc
-    real(8), parameter :: C = 5d-3 ! Diffusion constant
+    real(8)            :: area, visc
+    real(8), parameter :: C = 1d-2 ! Diffusion constant
 
     allocate (viscosity_divu(1:zlevels))
-    
-    dx_min = sqrt (4*MATH_PI*radius**2/(10.0_8*4**max_level + 2.0_8))
+
+    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
+    dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge lenth of average triangle
 
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
