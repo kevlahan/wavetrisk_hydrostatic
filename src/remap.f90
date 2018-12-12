@@ -2,7 +2,6 @@ module remap_mod
   use time_integr_mod
   use wavelet_mod
   implicit none
-  logical :: int_energy, is_pole
   abstract interface
      subroutine interpolation (N, var_new, z_new, var_old, z_old)
        implicit none
@@ -40,14 +39,9 @@ contains
           call apply_onescale (remap_scalars, l, z_null, 0, 1)
           call apply_onescale (remap_velo,    l, z_null, 0, 0)
        end do
-    else ! Lin (2004) (remap internal energy)
-       int_energy = .true. ; is_pole = .false.
+    else ! Lin (2004) (remap total energy)
        do l = level_start, level_end
-          call apply_onescale (remap_internal_energy, l, z_null, 0, 0)
-       end do
-       is_pole = .true.
-       do d = 1, size (grid) 
-          call apply_to_pole (remap_internal_energy_pole, min_level-1, z_null, 0, .true.)
+          call apply_onescale (remap_total_energy, l, z_null, 0, 1)
        end do
 
        do l = level_start, level_end
@@ -55,13 +49,8 @@ contains
        end do
        call update_vector_bdry (sol(S_VELO,:), NONE)
 
-       int_energy = .false. ; is_pole = .false.
        do l = level_start, level_end
-          call apply_onescale (remap_internal_energy, l, z_null, 0, 0)
-       end do
-       is_pole = .true.
-       do d = 1, size (grid)
-          call apply_to_pole (remap_internal_energy_pole, min_level-1, z_null, 0, .true.)
+          call apply_onescale (recover_theta, l, z_null, 0, 1)
        end do
     end if
 
@@ -78,14 +67,15 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: col_mass
+    real(8)                        :: col_mass, p_s
     real(8), dimension (1:zlevels) :: theta_new, theta_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    col_mass = dom%surf_press%elts(id_i)/grav_accel
+    p_s = dom%surf_press%elts(id_i)
+    col_mass = p_s/grav_accel
     do k = 1, zlevels
        trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)         ! Save old mass
        sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * col_mass ! New mass
@@ -138,180 +128,128 @@ contains
     end do
   end subroutine remap_velo
 
-  subroutine remap_internal_energy (dom, i, j, z_null, offs, dims)
-    ! Remap mass-weighted potential temperature
-    ! (potential temperature is remapped and then multiplied by new mass)
+  subroutine remap_total_energy (dom, i, j, z_null, offs, dims)
+    ! Remap mass and total energy
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, z_null
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer                        :: d, id, id_i, k
+    real(8)                        :: alpha, p_s, p_lower, p_upper, phi, phi_lower, phi_upper, theta, T_mean
+    real(8), dimension (1:zlevels) :: energy_new, energy_old
+    real(8), dimension (0:zlevels) :: z_new, z_old
+
+    d    = dom%id + 1
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    p_s = dom%surf_press%elts(id_i)
+    do k = 1, zlevels
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)               ! Save old mass
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * p_s/grav_accel ! New mass
+    end do
+
+    call find_coordinates (z_new, z_old, d, id_i)
+
+    ! Total energy
+    phi_lower = surf_geopot (dom%node%elts(id_i))
+    do k = 1, zlevels
+       p_lower = p_s - z_old(k-1)
+       p_upper = p_s - z_old(k)
+
+       theta = sol(S_TEMP,k)%data(d)%elts(id_i) / trend(S_MASS,k)%data(d)%elts(id_i)
+       T_mean = theta * ((p_lower/p_0)**kappa - (p_upper/p_0)**kappa) / log (p_lower/p_upper) / kappa
+
+       phi_upper = phi_lower + R_d * T_mean * log (p_lower/p_upper) 
+       phi = (p_upper*phi_upper - p_lower*phi_lower) / (p_lower - p_upper)
+
+       velo => sol(S_VELO,k)%data(d)%elts
+       energy_old(k) = c_p*T_mean + phi + ke (dom, i, j, offs, dims)
+       nullify (velo)
+
+       phi_lower = phi_upper
+    end do
+
+    call interp_type (zlevels, energy_new, z_new, energy_old, z_old)
+
+    ! Store new total energy in exner function
+    do k = 1, zlevels
+       exner_fun(k)%data(d)%elts(id_i) = energy_new(k)
+    end do
+  end subroutine remap_total_energy
+  
+  subroutine recover_Theta (dom, i, j, z_null, offs, dims)
+    ! Recover mass-weighted potential temperature from remapped total energy
     type (Domain)                   :: dom
     integer                         :: i, j, z_null
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: col_mass
-    real(8), dimension (1:zlevels) :: internal_energy_new, internal_energy_old
+    real(8)                        :: alpha, p_s, p_lower, p_upper, phi_lower, T_mean, theta
     real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
-
-    col_mass = dom%surf_press%elts(id_i)/grav_accel
-    do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)         ! Save old mass
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * col_mass ! New mass
-    end do
-
+    
     call find_coordinates (z_new, z_old, d, id_i)
-
-    ! Internal energy
-    call cal_internal_energy (i, j, offs, dom)
+    
+    p_s = dom%surf_press%elts(id_i)
+    phi_lower = surf_geopot (dom%node%elts(id_i))
     do k = 1, zlevels
-       internal_energy_old(k) = exner_fun(k)%data(d)%elts(id_i)
+       p_lower = p_s - z_new(k-1) 
+       p_upper = p_s - z_new(k)   
+       
+       velo => sol(S_VELO,k)%data(d)%elts
+       T_mean = (exner_fun(k)%data(d)%elts(id_i) + phi_lower -  ke (dom, i, j, offs, dims)) &
+            / (1.0_8 + kappa * p_upper * log (p_lower/p_upper) / (p_lower-p_upper)) / c_p
+       nullify (velo)
+       
+       theta = kappa * log (p_lower/p_upper) / ((p_lower/p_0)**kappa - (p_upper/p_0)**kappa) * T_mean
+
+       sol(S_TEMP,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) * theta
+
+       phi_lower = phi_lower +  R_d * T_mean * log (p_lower/p_upper) 
     end do
+  end subroutine recover_Theta
 
-    call interp_type (zlevels, internal_energy_new, z_new, internal_energy_old, z_old)
-
-    ! Store new intental energy in exner function
-    do k = 1, zlevels
-       exner_fun(k)%data(d)%elts(id_i) = internal_energy_new(k)
-    end do
-  end subroutine remap_internal_energy
-
-  subroutine remap_internal_energy_pole (dom, p, i, j, z_null, offs, dims, fid_null)
-    ! Remap mass-weighted potential temperature at the poles
-    ! (potential temperature is remapped and then multiplied by new mass)
-    type(Domain)                   :: dom
-    integer                        :: fid_null, i, j, p, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                        :: d, id_i, k
-    real(8)                        :: col_mass
-    real(8), dimension (1:zlevels) :: internal_energy_new, internal_energy_old
-    real(8), dimension (0:zlevels) :: z_new, z_old
-
-    d    = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
-
-    col_mass = dom%surf_press%elts(id_i)/grav_accel
-    do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)         ! Save old mass
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * col_mass ! New mass
-    end do
-
-    call find_coordinates (z_new, z_old, d, id_i)
-
-    ! Internal energy
-    call cal_internal_energy (i, j, offs, dom)
-    do k = 1, zlevels
-       internal_energy_old(k) = exner_fun(k)%data(d)%elts(id_i)
-    end do
-
-    call interp_type (zlevels, internal_energy_new, z_new, internal_energy_old, z_old)
-
-    ! Store new intental energy in exner function
-    do k = 1, zlevels
-       exner_fun(k)%data(d)%elts(id_i) = internal_energy_new(k)
-    end do
-  end subroutine remap_internal_energy_pole
-
-  subroutine cal_internal_energy (i, j, offs, dom)
-    ! Calculates internal energy (stored in exner_fun) on all vertical levels if int_energy = .true. 
-    ! or recovers mass-weighted potential temperature on all vertical levels if int_energy = .false. 
-    implicit none
+  real(8) function ke (dom, i, j, offs, dims)
     type (Domain)                   :: dom
     integer                         :: i, j
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
     
-    integer :: d, id, id_i, k
-    real(8) :: geopot, mass_k, mass_l, p, spec_vol, temperature, theta
+    ! Kinetic energy
+    integer :: id, idS, idSW, idW
+    real(8) :: u_prim_RT,   u_prim_UP,   u_prim_DG,    u_dual_RT,   u_dual_UP,   u_dual_DG
+    real(8) :: u_prim_RT_W, u_prim_UP_S, u_prim_DG_SW, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
 
-    d    = dom%id + 1
-    id   = idx (i, j, offs, dims) 
-    id_i = id + 1
+    id    = idx (i, j, offs, dims)
+    idW   = idx (i-1, j,   offs, dims)
+    idS   = idx (i,   j-1, offs, dims)
+    idSW  = idx (i-1, j-1, offs, dims) 
 
-    if (int_energy) then ! Use old mass
-       mass_k = trend(S_MASS,1)%data(d)%elts(id_i)
-    else ! Use new mass
-       mass_k = sol(S_MASS,1)%data(d)%elts(id_i)
-    end if
-    
-    p = dom%surf_press%elts(id_i) - 0.5*grav_accel*mass_k
-    
-    theta = sol(S_TEMP,1)%data(d)%elts(id_i) / mass_k
-    temperature =  theta * (p/p_0)**(-kappa)
-    
-    geopot = surf_geopot (dom%node%elts(id_i))
+    u_prim_RT    = velo(EDGE*id  +RT+1) * dom%len%elts(EDGE*id+RT+1)
+    u_dual_RT    = velo(EDGE*id  +RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+    u_prim_UP    = velo(EDGE*id  +UP+1) * dom%len%elts(EDGE*id+UP+1)
+    u_prim_DG    = velo(EDGE*id  +DG+1) * dom%len%elts(EDGE*id+DG+1)
+    u_dual_DG    = velo(EDGE*id  +DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_UP    = velo(EDGE*id  +UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+    u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS+UP+1)
+    u_dual_UP_S  = velo(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS+UP+1)
+    u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW+RT+1)
+    u_dual_RT_W  = velo(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW+RT+1)
+    u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
+    u_dual_DG_SW = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
 
-    velo => sol(S_VELO,1)%data(d)%elts
-    if (int_energy) then
-       exner_fun(1)%data(d)%elts(id_i) = c_v*temperature + geopot + ke ()
-    else
-       sol(S_TEMP,1)%data(d)%elts(id_i) = mass_k * (exner_fun(1)%data(d)%elts(id_i) - geopot - ke ()) * (p/p_0)**kappa/c_v
-    end if
-    nullify (velo)
-
-    do k = 2, zlevels
-       if (int_energy) then ! Use old mass
-          mass_k = trend(S_MASS,k)%data(d)%elts(id_i)
-          mass_l = interp (trend(S_MASS,k)%data(d)%elts(id_i), trend(S_MASS,k-1)%data(d)%elts(id_i))
-       else ! Use new mass
-          mass_k = sol(S_MASS,k)%data(d)%elts(id_i)
-          mass_l = interp (sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k-1)%data(d)%elts(id_i))
-       end if
-
-       p = p - grav_accel * mass_l
-
-       theta = sol(S_TEMP,k)%data(d)%elts(id_i) / mass_k
-       temperature = theta * (p/p_0)**(-kappa)
-
-       spec_vol = kappa * theta *  c_p * (p/p_0)**kappa / p
-       geopot = geopot + grav_accel*mass_k*spec_vol
-
-       velo =>  sol(S_VELO,k)%data(d)%elts
-       if (int_energy) then
-          exner_fun(k)%data(d)%elts(id_i) = c_v*temperature + geopot + ke ()
-       else
-          sol(S_TEMP,k)%data(d)%elts(id_i) = mass_k * (exner_fun(k)%data(d)%elts(id_i) - geopot - ke ()) * (p/p_0)**kappa/c_v
-       end if
-       nullify (velo)
-    end do
-  contains
-    real(8) function ke ()
-      ! Kinetic energy
-      integer :: idS, idSW, idW
-      real(8) :: u_prim_RT,   u_prim_UP,   u_prim_DG,    u_dual_RT,   u_dual_UP,   u_dual_DG
-      real(8) :: u_prim_RT_W, u_prim_UP_S, u_prim_DG_SW, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
-
-      idW   = idx (i-1, j,   offs, dims)
-      idS   = idx (i,   j-1, offs, dims)
-      idSW  = idx (i-1, j-1, offs, dims) 
-      
-      u_prim_RT   = velo(EDGE*id  +RT+1)*dom%len%elts(EDGE*id+RT+1)
-      u_dual_RT   = velo(EDGE*id  +RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
-      u_prim_UP   = velo(EDGE*id  +UP+1)*dom%len%elts(EDGE*id+UP+1)
-      u_prim_DG   = velo(EDGE*id  +DG+1)*dom%len%elts(EDGE*id+DG+1)
-      u_dual_DG   = velo(EDGE*id  +DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
-      u_dual_UP   = velo(EDGE*id  +UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
-      u_prim_UP_S = velo(EDGE*idS +UP+1)*dom%len%elts(EDGE*idS+UP+1)
-      u_dual_UP_S = velo(EDGE*idS +UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
-      u_prim_RT_W = velo(EDGE*idW +RT+1)*dom%len%elts(EDGE*idW+RT+1)
-      u_dual_RT_W = velo(EDGE*idW +RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
-      if (.not. is_pole) then
-         u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
-         u_dual_DG_SW = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
-      else
-         u_prim_DG_SW = 0.0_8
-         u_dual_DG_SW = 0.0_8
-      end if
-
-      ke = (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
-           u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W) * dom%areas%elts(id_i)%hex_inv/4
-    end function ke
-  end subroutine cal_internal_energy
+    ke = (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
+         u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W) * dom%areas%elts(id+1)%hex_inv/4
+  end function ke
 
   subroutine find_coordinates (z_new, z_old, d, id_i)
-    ! Calculates old and new mass-based z coordinates ordered from top to bottom of atmosphere
+    ! Calculates old and new pressure-based z coordinates
     implicit none
     integer                       :: d, id_i
     real(8), dimension(0:zlevels) :: z_new, z_old
@@ -320,10 +258,10 @@ contains
     real(8) :: col_mass
 
     z_old(0) = 0.0_8
-    z_new(0) = 0.0_8
+    z_new(0) = z_old(0)
     do k = 1, zlevels
-       z_old(k) = z_old(k-1) + trend(S_MASS,k)%data(d)%elts(id_i)
-       z_new(k) = z_new(k-1) +   sol(S_MASS,k)%data(d)%elts(id_i)
+       z_old(k) = z_old(k-1) + grav_accel * trend(S_MASS,k)%data(d)%elts(id_i)
+       z_new(k) = z_new(k-1) + grav_accel *   sol(S_MASS,k)%data(d)%elts(id_i)
     end do
   end subroutine find_coordinates
 
