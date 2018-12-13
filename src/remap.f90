@@ -17,8 +17,8 @@ contains
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, potential temperature and velocity divergence
     implicit none
-    integer            :: d, l
-    logical, parameter :: standard = .false.
+    integer            :: l
+    logical, parameter :: standard = .true.
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -157,7 +157,7 @@ contains
        p_upper = p_s - z_old(k)
 
        theta = sol(S_TEMP,k)%data(d)%elts(id_i) / trend(S_MASS,k)%data(d)%elts(id_i)
-       T_mean = theta * (p_lower**kappa - p_upper**kappa) / log (p_lower/p_upper) / kappa
+       T_mean = theta * ((p_lower/p_0)**kappa - (p_upper/p_0)**kappa) / log (p_lower/p_upper) / kappa
 
        phi_upper = phi_lower + R_d * T_mean * log (p_lower/p_upper) 
        phi = (p_upper*phi_upper - p_lower*phi_lower) / (p_lower - p_upper)
@@ -204,7 +204,7 @@ contains
             / (1.0_8 + kappa * p_upper * log (p_lower/p_upper) / (p_lower-p_upper)) / c_p
        nullify (velo)
        
-       theta = kappa * log (p_lower/p_upper) / (p_lower**kappa - p_upper**kappa) * T_mean
+       theta = kappa * log (p_lower/p_upper) / ((p_lower/p_0)**kappa - (p_upper/p_0)**kappa) * T_mean
 
        sol(S_TEMP,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) * theta
 
@@ -377,8 +377,8 @@ contains
              end if
              aR(k) = var_old(k) + cff
              aL(k) = var_old(k) - cff
-          enddo
-       enddo
+          end do
+       end do
     !end if
 
     ! Remapping: compute
