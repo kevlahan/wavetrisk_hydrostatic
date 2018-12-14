@@ -276,7 +276,7 @@ contains
            u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W) * dom%areas%elts(id_i)%hex_inv/4
 
       ! Interpolate geopotential from interfaces to level
-      Phi_k = interp (dom%geopot%elts(id_i), dom%adj_geopot%elts(id_i))
+      Phi_k = interp (dom%geopot%elts(id_i), dom%geopot_lower%elts(id_i))
 
       ! Bernoulli function
       if (compressible) then 
@@ -704,31 +704,28 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: err, spec_vol
+    real(8) :: p_lower, p_upper
 
-    id_i = idx(i, j, offs, dims)+1
+    id_i = idx (i, j, offs, dims) + 1
 
     if (compressible) then ! Compressible case
-       if (zlev == 1) then
-          dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*mass(id_i)
-       else ! Interpolate mass=rho*dz to lower interface of current level
-          dom%press%elts(id_i) = dom%press%elts(id_i) - grav_accel*interp (mass(id_i), dom%adj_mass%elts(id_i))
+       if (zlev /= 1) then
+          p_lower = dom%press_lower%elts(id_i)
+       else 
+          p_lower = dom%surf_press%elts(id_i)
        end if
-       dom%adj_mass%elts(id_i) = mass(id_i) ! Save current mass for pressure calculation at next vertical level
-
-       ! Exner function from pressure
-       exner(id_i) = c_p*(dom%press%elts(id_i)/p_0)**kappa
-
-       ! Specific volume alpha = kappa*theta*pi/p
-       spec_vol = kappa * temp(id_i)/mass(id_i) * exner(id_i) / dom%press%elts(id_i)
+       p_upper = p_lower - grav_accel*mass(id_i)
+       dom%press%elts(id_i) = interp (p_lower, p_upper)
+       dom%press_lower%elts(id_i) = p_upper
 
        ! Find geopotential at upper interface of current level using (18) in DYNAMICO
-       if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
-          dom%adj_geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
+       if (zlev /= 1) then 
+          dom%geopot_lower%elts(id_i) = dom%geopot%elts(id_i) 
        else
-          dom%adj_geopot%elts(id_i) = dom%geopot%elts(id_i)
+          dom%geopot_lower%elts(id_i) = surf_geopot (dom%node%elts(id_i))
        end if
-       dom%geopot%elts(id_i) = dom%adj_geopot%elts(id_i) + grav_accel*mass(id_i)*spec_vol
+       exner(id_i) = c_p * (dom%press%elts(id_i)/p_0)**kappa
+       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*kappa*temp(id_i)*exner(id_i)/dom%press%elts(id_i)
     else ! Incompressible case
        if (zlev == 1) then 
           dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*temp(id_i)
@@ -751,11 +748,11 @@ contains
        ! Note: since mu is associated with the kinematic mass = inert mass (not the gravitational mass defined by the buyoancy)
        ! we divide by the constant reference density. This is the Boussinesq approximation.
        if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
-          dom%adj_geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
+          dom%geopot_lower%elts(id_i) = surf_geopot (dom%node%elts(id_i))
        else
-          dom%adj_geopot%elts(id_i) = dom%geopot%elts(id_i)
+          dom%geopot_lower%elts(id_i) = dom%geopot%elts(id_i)
        end if
-       dom%geopot%elts(id_i) = dom%adj_geopot%elts(id_i) + grav_accel*mass(id_i)/ref_density
+       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i)/ref_density
     end if
   end subroutine integrate_pressure_up
 
@@ -768,16 +765,19 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
+    real(8) :: p_lower, p_upper
 
     id_i = idx(i, j, offs, dims)+1
 
     if (compressible) then ! Compressible case
-       if (zlev == 1) then
-          dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*mass(id_i)
-       else ! Interpolate mass=rho*dz to lower interface of current level
-          dom%press%elts(id_i) = dom%press%elts(id_i) - grav_accel*interp (mass(id_i), dom%adj_mass%elts(id_i))
+        if (zlev /= 1) then
+          p_lower = dom%press_lower%elts(id_i)
+       else 
+          p_lower = dom%surf_press%elts(id_i)
        end if
-       dom%adj_mass%elts(id_i) = mass(id_i) ! Save current mass for pressure calculation at next vertical level
+       p_upper = p_lower - grav_accel*mass(id_i)
+       dom%press%elts(id_i) = interp (p_lower, p_upper)
+       dom%press_lower%elts(id_i) = p_upper
     else ! Incompressible case
        if (zlev == 1) then 
           dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*temp(id_i)

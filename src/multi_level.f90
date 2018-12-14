@@ -192,38 +192,41 @@ contains
 
     integer :: d, j
 
-    do d = 1, size(grid)
+    do d = 1, size (grid)
        sclr      => grid(d)%divu%elts
        Laplacian => Laplacian_divu%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
        nullify (sclr, Laplacian)
-
-       vort      => grid(d)%vort%elts
-       Laplacian => Laplacian_rotu%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-       end do
-       nullify (vort, Laplacian)
     end do
     Laplacian_divu%bdry_uptodate = .false.
     call update_bdry (Laplacian_divu, l)
-    
-    Laplacian_rotu%bdry_uptodate = .false.
-    call update_bdry (Laplacian_rotu, l)
 
-    ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
-    !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
-    do d = 1, size(grid)
-       velo => Laplacian_rotu%data(d)%elts
-       vort => grid(d)%vort%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+    if (viscosity_rotu /= 0.0_8) then
+       do d = 1, size (grid)
+          vort      => grid(d)%vort%elts
+          Laplacian => Laplacian_rotu%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+          end do
+          nullify (vort, Laplacian)
        end do
-       call apply_to_penta_d (post_vort, grid(d), l, z_null)
-       nullify (velo, vort)
-    end do
+       Laplacian_rotu%bdry_uptodate = .false.
+       call update_bdry (Laplacian_rotu, l)
+
+       ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
+       !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
+       do d = 1, size(grid)
+          velo => Laplacian_rotu%data(d)%elts
+          vort => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), l, z_null)
+          nullify (velo, vort)
+       end do
+    end if
   end subroutine second_order_Laplacian_vector
  
   subroutine cpt_or_restr_Bernoulli_Exner (dom, l)

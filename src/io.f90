@@ -347,11 +347,11 @@ contains
     ! Integrate geopotential upwards from surface
     pressure_lower = dom%surf_press%elts(id+1)
     pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
-    dom%adj_geopot%elts(id+1) = surf_geopot (dom%node%elts(id+1))/grav_accel
+    dom%geopot_lower%elts(id+1) = surf_geopot (dom%node%elts(id+1))/grav_accel
 
     k = 1
     do while (pressure_upper > pressure_save(1))
-       dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) + &
+       dom%geopot_lower%elts(id+1) = dom%geopot_lower%elts(id+1) + &
             R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_upper))
 
        k = k+1
@@ -360,7 +360,7 @@ contains
     end do
 
     ! Add additional contribution up to pressure level pressure_save(1)
-    dom%adj_geopot%elts(id+1) = dom%adj_geopot%elts(id+1) &
+    dom%geopot_lower%elts(id+1) = dom%geopot_lower%elts(id+1) &
          + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
 
@@ -380,7 +380,7 @@ contains
     idSW = idx(i-1, j-1, offs, dims)
     idS  = idx(i,   j-1, offs, dims)
 
-    dom%adj_mass%elts(id+1) = ( &
+    dom%press_lower%elts(id+1) = ( &
          dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1)   + &
          dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1)   + &
          dom%areas%elts(id+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1)  + &
@@ -426,7 +426,7 @@ contains
     outv(6) = dom%surf_press%elts(id+1)
 
     ! Vorticity at hexagon points
-    outv(7) =  dom%adj_mass%elts(id+1)
+    outv(7) =  dom%press_lower%elts(id+1)
     ! (dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1) + &
     ! dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1) + &
     ! dom%areas%elts(idW+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1) + &
@@ -1137,7 +1137,7 @@ contains
           nullify (velo, vort)
        end do
 
-       ! Calculate vorticity at hexagon points (stored in adj_mass)
+       ! Calculate vorticity at hexagon points (stored in press_lower)
        call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
 
        call write_level_mpi (write_primal, u+l, l, save_zlev, .true., run_id)
