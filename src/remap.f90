@@ -18,7 +18,7 @@ contains
     ! Conserves mass, potential temperature and velocity divergence
     implicit none
     integer            :: l
-    logical, parameter :: standard = .true.
+    logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme (!! unstable for Held-Suarez!!)
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -30,7 +30,7 @@ contains
     ! remap2W        = parabolic WENO reconstruction
     ! remap4_tile    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap1_tile
+    interp_scalar => remap4_tile
     interp_velo   => remap4_tile
 
     ! Current surface pressure
@@ -38,19 +38,18 @@ contains
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
-          call apply_onescale (remap_scalars, l, z_null, 0, 1)
           call apply_onescale (remap_velo,    l, z_null, 0, 0)
+          call apply_onescale (remap_scalars, l, z_null, 0, 1)
        end do
     else ! Lin (2004) (remap total energy)
        do l = level_start, level_end
           call apply_onescale (remap_total_energy, l, z_null, 0, 1)
        end do
-
        do l = level_start, level_end
           call apply_onescale (remap_velo, l, z_null, 0, 0)
+          call apply_onescale (remap_mass, l, z_null, 0, 1)
        end do
        call update_vector_bdry (sol(S_VELO,:), NONE)
-
        do l = level_start, level_end
           call apply_onescale (recover_theta, l, z_null, 0, 1)
        end do
@@ -69,29 +68,26 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
+    real(8)                        :: p_s
     real(8), dimension (1:zlevels) :: theta_new, theta_old 
-    real(8), dimension (0:zlevels) :: z_new, z_old
+    real(8), dimension (0:zlevels) :: p_new, p_old
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
+    p_s = dom%surf_press%elts(id_i)
+    call find_coordinates (p_new, p_old, d, id_i, p_s)
+
     do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)                                     ! Save old mass
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * dom%surf_press%elts(id_i)/grav_accel ! New mass
+       theta_old(zlevels-k+1) = sol(S_TEMP,k)%data(d)%elts(id_i) / sol(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * p_s/grav_accel ! New mass
     end do
-
-    call find_coordinates (z_new, z_old, d, id_i)
-
-    ! Potential temperature
-    do k = 1, zlevels
-       theta_old(k) = sol(S_TEMP,k)%data(d)%elts(id_i) / trend(S_MASS,k)%data(d)%elts(id_i)
-    end do
-
-    call interp_scalar (zlevels, theta_new, z_new, theta_old, z_old)
+  
+    call interp_scalar (zlevels, theta_new, p_new, theta_old, p_old)
 
     ! Mass-weighted potential temperature
     do k = 1, zlevels
-       sol(S_TEMP,k)%data(d)%elts(id_i) = theta_new(k) * sol(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = theta_new(zlevels-k+1) * sol(S_MASS,k)%data(d)%elts(id_i)
     end do
   end subroutine remap_scalars
 
@@ -104,23 +100,23 @@ contains
 
     integer                        :: d, e, id, id_e, id_i, k
     real(8), dimension (1:zlevels) :: flux_new, flux_old 
-    real(8), dimension (0:zlevels) :: z_new, z_old
+    real(8), dimension (0:zlevels) :: p_new, p_old
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
-    
-    call find_coordinates (z_new, z_old, d, id_i)
+
+    call find_coordinates (p_new, p_old, d, id_i, dom%surf_press%elts(id_i))
 
     do e = 1, EDGE
        do k = 1, zlevels
-          flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+          flux_old(k) = sol(S_VELO,zlevels-k+1)%data(d)%elts(EDGE*id+e)
        end do
 
-       call interp_velo (zlevels, flux_new, z_new, flux_old, z_old)
+       call interp_velo (zlevels, flux_new, p_new, flux_old, p_old)
 
        do k = 1, zlevels
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k)
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1)
        end do
     end do
   end subroutine remap_velo
@@ -134,48 +130,58 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id, id_i, k
-    real(8)                        :: alpha, p_s, p_lower, p_upper, phi, phi_lower, phi_upper, theta, T_mean
-    real(8), dimension (1:zlevels) :: energy_new, energy_old
-    real(8), dimension (0:zlevels) :: z_new, z_old
+    real(8)                        :: alpha, p_s, T_mean
+    real(8), dimension (1:zlevels) :: energy_new, energy_old, theta
+    real(8), dimension (0:zlevels) :: p_new, p_old, phi
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
 
     p_s = dom%surf_press%elts(id_i)
+    call find_coordinates (p_new, p_old, d, id_i, p_s)
+
+    phi(zlevels) = surf_geopot (dom%node%elts(id_i))
+    do k = zlevels, 1, -1
+       theta(k) = sol(S_TEMP,zlevels-k+1)%data(d)%elts(id_i) / sol(S_MASS,zlevels-k+1)%data(d)%elts(id_i)
+       phi(k-1) = phi(k) + c_p * theta(k) * (p_old(k)**kappa - p_old(k-1)**kappa)
+    end do
+    
+    ! Total energy: integrate down
     do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)               ! Save old mass
+       T_mean = theta(k) * (p_old(k)**kappa - p_old(k-1)**kappa) / log (p_old(k)/p_old(k-1)) / kappa
+       velo => sol(S_VELO,k)%data(d)%elts
+       energy_old(k) = c_p*T_mean + (p_old(k)*phi(k)-p_old(k-1)*phi(k-1)) / (p_old(k)-p_old(k-1)) + ke (dom, i, j, offs, dims)
+       nullify (velo)
+    end do
+
+    call interp_scalar (zlevels, energy_new, p_new, energy_old, p_old)
+    
+    do k = 1, zlevels
+       exner_fun(k)%data(d)%elts(id_i) = energy_new(k)     ! Store new total energy in exner function
        sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * p_s/grav_accel ! New mass
     end do
-
-    call find_coordinates (z_new, z_old, d, id_i)
-
-    ! Total energy
-    phi_lower = surf_geopot (dom%node%elts(id_i))
-    do k = 1, zlevels
-       p_lower = p_s - z_old(k-1)
-       p_upper = p_s - z_old(k)
-
-       theta = sol(S_TEMP,k)%data(d)%elts(id_i) / trend(S_MASS,k)%data(d)%elts(id_i)
-       T_mean = theta * ((p_lower/p_0)**kappa - (p_upper/p_0)**kappa) / log (p_lower/p_upper) / kappa
-
-       phi_upper = phi_lower + R_d * T_mean * log (p_lower/p_upper) 
-       phi = (p_upper*phi_upper - p_lower*phi_lower) / (p_lower - p_upper)
-
-       velo => sol(S_VELO,k)%data(d)%elts
-       energy_old(k) = c_p*T_mean + phi + ke (dom, i, j, offs, dims)
-       nullify (velo)
-
-       phi_lower = phi_upper
-    end do
-
-    call interp_scalar (zlevels, energy_new, z_new, energy_old, z_old)
-
-    ! Store new total energy in exner function
-    do k = 1, zlevels
-       exner_fun(k)%data(d)%elts(id_i) = energy_new(k)
-    end do
   end subroutine remap_total_energy
+
+  subroutine remap_mass (dom, i, j, z_null, offs, dims)
+    ! Remap mass 
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, z_null
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer  :: d, id_i, k
+    real (8) :: p_s
+
+    d    = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    p_s = dom%surf_press%elts(id_i)
+    do k = 1, zlevels
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * p_s/grav_accel ! New mass
+    end do
+  end subroutine remap_mass
   
   subroutine recover_Theta (dom, i, j, z_null, offs, dims)
     ! Recover mass-weighted potential temperature from remapped total energy
@@ -185,30 +191,28 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: alpha, p_s, p_lower, p_upper, phi_lower, T_mean, theta
-    real(8), dimension (0:zlevels) :: z_new, z_old
+    real(8)                        :: alpha, phi_lower, p_s, T_mean, theta
+    real(8), dimension (0:zlevels) :: p_new, p_old
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
     
-    call find_coordinates (z_new, z_old, d, id_i)
-    
     p_s = dom%surf_press%elts(id_i)
+    call find_coordinates (p_new, p_old, d, id_i, p_s)
+
+    ! Integrate up from surface
     phi_lower = surf_geopot (dom%node%elts(id_i))
-    do k = 1, zlevels
-       p_lower = p_s - z_new(k-1) 
-       p_upper = p_s - z_new(k)   
-       
+    do k = zlevels, 1, -1
        velo => sol(S_VELO,k)%data(d)%elts
-       T_mean = (exner_fun(k)%data(d)%elts(id_i) + phi_lower -  ke (dom, i, j, offs, dims)) &
-            / (1.0_8 + kappa * p_upper * log (p_lower/p_upper) / (p_lower-p_upper)) / c_p
+       T_mean = (exner_fun(k)%data(d)%elts(id_i) - phi_lower -  ke (dom, i, j, offs, dims)) &
+            / (1.0_8 - kappa * p_new(k-1) * log (p_new(k)/p_new(k-1)) / (p_new(k)-p_new(k-1))) / c_p
        nullify (velo)
        
-       theta = kappa * log (p_lower/p_upper) / ((p_lower/p_0)**kappa - (p_upper/p_0)**kappa) * T_mean
+       theta = kappa * log (p_new(k)/p_new(k-1)) / (p_new(k)**kappa - p_new(k-1)**kappa) * T_mean
 
-       sol(S_TEMP,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) * theta
+       sol(S_TEMP,zlevels-k+1)%data(d)%elts(id_i) = sol(S_MASS,zlevels-k+1)%data(d)%elts(id_i) * theta
 
-       phi_lower = phi_lower +  R_d * T_mean * log (p_lower/p_upper) 
+       phi_lower = phi_lower +  R_d * T_mean * log (p_new(k)/p_new(k-1)) 
     end do
   end subroutine recover_Theta
 
@@ -245,21 +249,20 @@ contains
          u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W) * dom%areas%elts(id+1)%hex_inv/4
   end function ke
 
-  subroutine find_coordinates (z_new, z_old, d, id_i)
+  subroutine find_coordinates (p_new, p_old, d, id_i, p_s)
     ! Calculates old and new pressure-based z coordinates
     implicit none
     integer                       :: d, id_i
-    real(8), dimension(0:zlevels) :: z_new, z_old
+    real(8)                       :: p_s
+    real(8), dimension(0:zlevels) :: p_new, p_old
 
     integer :: k
-    real(8) :: col_mass
 
-    z_old(0) = 0.0_8
-    z_new(0) = z_old(0)
+    p_old(0) = p_top
     do k = 1, zlevels
-       z_old(k) = z_old(k-1) + grav_accel * trend(S_MASS,k)%data(d)%elts(id_i)
-       z_new(k) = z_new(k-1) + grav_accel *   sol(S_MASS,k)%data(d)%elts(id_i)
+       p_old(k) = p_old(k-1) + grav_accel * sol(S_MASS,zlevels-k+1)%data(d)%elts(id_i)
     end do
+    p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1)*p_s
   end subroutine find_coordinates
 
   subroutine remap0 (N, var_new, z_new, var_old, z_old)
