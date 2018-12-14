@@ -1193,7 +1193,7 @@ contains
     implicit none
     real(8) :: e1, e2
 
-    interp = (e1 + e2)/2.0_8
+    interp = 0.5 * (e1 + e2)
   end function interp
 
   subroutine du_grad (dom, i, j, zlev, offs, dims)
