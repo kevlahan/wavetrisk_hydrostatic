@@ -25,10 +25,10 @@ program Held_Suarez
   omega          = 7.292d-5                    ! Earth's angular velocity in radians per second
   p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
   c_p            = 1004.0_8                    ! specific heat at constant pressure in joules per kilogram Kelvin
-  gamma          = c_p/c_v                     ! heat capacity ratio
   kappa          = 2.0_8/7.0_8                 ! kappa
   R_d            = kappa*c_p                   ! ideal gas constant for dry air in joules per kilogram Kelvin
-  c_v            = R_d-c_p                     ! specific heat at constant volume c_v = R_d - c_p
+  c_v            = c_p - R_d                   ! specific heat at constant volume c_v = c_p - R_d
+  gamma          = c_p/c_v                     ! heat capacity ratio
   
   ! Local test case parameters
   T_0            = 300.0_8                     ! reference temperature
