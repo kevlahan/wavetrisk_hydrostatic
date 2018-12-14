@@ -24,12 +24,12 @@ program Held_Suarez
   grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
   omega          = 7.292d-5                    ! Earth's angular velocity in radians per second
   p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-  R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_p            = 1004.0_8                    ! specific heat at constant pressure in joules per kilogram Kelvin
-  c_v            = 717.6_8                     ! specific heat at constant volume c_v = R_d - c_p
   gamma          = c_p/c_v                     ! heat capacity ratio
-  kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
-
+  kappa          = 2.0_8/7.0_8                 ! kappa
+  R_d            = kappa*c_p                   ! ideal gas constant for dry air in joules per kilogram Kelvin
+  c_v            = R_d-c_p                     ! specific heat at constant volume c_v = R_d - c_p
+  
   ! Local test case parameters
   T_0            = 300.0_8                     ! reference temperature
   T_mean         = 315.0_8                     ! mean temperature
@@ -231,7 +231,11 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   else
      ! Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
-     curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
+     if (viscosity_rotu /= 0.0_8) then
+        curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
+     else
+        curl_rotu = 0.0_8
+     end if
      diffusion =  (-1)**(Laplace_order-1) * (viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu)
   end if
   
