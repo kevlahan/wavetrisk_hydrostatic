@@ -231,11 +231,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   else
      ! Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
-     if (viscosity_rotu /= 0.0_8) then
-        curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-     else
-        curl_rotu = 0.0_8
-     end if
+     curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
      diffusion =  (-1)**(Laplace_order-1) * (viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu)
   end if
   
