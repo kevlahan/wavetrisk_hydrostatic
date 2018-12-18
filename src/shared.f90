@@ -325,7 +325,7 @@ module shared_mod
   real(8)                                       :: dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density
   real(8)                                       :: viscosity_rotu, viscosity_mass, viscosity_temp
-  real(8)                                       :: p_0, p_top, gamma, kappa, c_p, c_v, R_d, wave_speed
+  real(8)                                       :: p_0, p_top, gamma, gk, kappa, c_p, c_v, R_d, wave_speed
   real(8)                                       :: min_mass, min_allowed_mass
   real(8), dimension(:),         allocatable    :: pressure_save
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu

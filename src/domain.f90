@@ -52,7 +52,6 @@ module domain_mod
      type(Float_Array) :: u_zonal     ! zonal velocity
      type(Float_Array) :: v_merid     ! meridional velocity
      type(Float_Array) :: press_lower    ! mass in adjacent vertical cell
-     type(Float_Array) :: adj_temp    ! temp in adjacent vertical cell
      type(Float_Array) :: geopot_lower  ! geopotential in adjacent vertical cell
      type(Float_Array) :: vort        ! vorticity
      type(Float_Array) :: bernoulli   ! Bernoulli function

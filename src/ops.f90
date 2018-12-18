@@ -656,7 +656,8 @@ contains
 
   subroutine cal_surf_press (q)
     implicit none
-    ! Compute surface pressure
+    ! Compute surface pressure and save in press_lower for upward integration
+    ! Set geopotential to surface geopotential for upward integration
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
 
     integer :: d, k, mass_type, p
@@ -677,10 +678,11 @@ contains
           nullify (mass)
        end do
        grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + p_top
+       grid(d)%press_lower%elts = grid(d)%surf_press%elts
     end do
   contains
     subroutine column_mass (dom, i, j, zlev, offs, dims)
-      ! Sum up total mass over column id
+      ! Sum up total mass over column id and set surface geopotential
       implicit none
       type (Domain)                  :: dom
       integer                        :: i, j, zlev
@@ -692,6 +694,7 @@ contains
       id_i = idx(i, j, offs, dims) + 1
 
       dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
+      dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
     end subroutine column_mass
   end subroutine cal_surf_press
 
@@ -704,56 +707,28 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: p_lower, p_upper
+    real(8) :: p_upper
 
     id_i = idx (i, j, offs, dims) + 1
 
+    dom%geopot_lower%elts(id_i) = dom%geopot%elts(id_i)
     if (compressible) then ! Compressible case
-       if (zlev /= 1) then
-          p_lower = dom%press_lower%elts(id_i)
-       else 
-          p_lower = dom%surf_press%elts(id_i)
-       end if
-       p_upper = p_lower - grav_accel*mass(id_i)
-       dom%press%elts(id_i) = interp (p_lower, p_upper)
-       dom%press_lower%elts(id_i) = p_upper
+       p_upper = dom%press_lower%elts(id_i) - grav_accel*mass(id_i)
+       dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
 
-       ! Find geopotential at upper interface of current level using (18) in DYNAMICO
-       if (zlev /= 1) then 
-          dom%geopot_lower%elts(id_i) = dom%geopot%elts(id_i) 
-       else
-          dom%geopot_lower%elts(id_i) = surf_geopot (dom%node%elts(id_i))
-       end if
        exner(id_i) = c_p * (dom%press%elts(id_i)/p_0)**kappa
+
        dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*kappa*temp(id_i)*exner(id_i)/dom%press%elts(id_i)
     else ! Incompressible case
-       if (zlev == 1) then 
-          dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*temp(id_i)
-       else ! Interpolate to lower interface of current level
-          dom%press%elts(id_i) = dom%press%elts(id_i) - grav_accel*interp (dom%adj_temp%elts(id_i), temp(id_i))
-       end if
-       dom%adj_temp%elts(id_i) = temp(id_i)
-
-       if (zlev == zlevels) then !top zlev, purely diagnostic
-          if (abs(dom%press%elts(id_i)-0.5*grav_accel*temp(id_i) - p_top)> 1d-10) then
-             print *, 'warning: upward integration of Lagrange multiplier not resulting in zero at top interface'
-             write(6,'(A,es15.8)') "Pressure at infinity = ", dom%press%elts(id_i)-0.5*grav_accel*temp(id_i)
-             write(6,'(A,es15.8)') "p_top = ", p_top
-             write(6,'(A,es15.8)') "Difference = ", dom%press%elts(id_i)-0.5*grav_accel*temp(id_i) - p_top
-             stop
-          end if
-       end if
-
+       p_upper = dom%press_lower%elts(id_i) - grav_accel*temp(id_i)
+       dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
+       
        ! Find geopotential at interfaces using (18) in DYNAMICO
        ! Note: since mu is associated with the kinematic mass = inert mass (not the gravitational mass defined by the buyoancy)
        ! we divide by the constant reference density. This is the Boussinesq approximation.
-       if (zlev == 1) then ! Save geopotential at lower interface of level zlev for interpolation in Bernoulli function
-          dom%geopot_lower%elts(id_i) = surf_geopot (dom%node%elts(id_i))
-       else
-          dom%geopot_lower%elts(id_i) = dom%geopot%elts(id_i)
-       end if
        dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i)/ref_density
     end if
+    dom%press_lower%elts(id_i) = p_upper
   end subroutine integrate_pressure_up
 
   subroutine cal_pressure (dom, i, j, zlev, offs, dims)
@@ -765,27 +740,17 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: p_lower, p_upper
+    real(8) :: p_upper
 
     id_i = idx(i, j, offs, dims)+1
 
     if (compressible) then ! Compressible case
-        if (zlev /= 1) then
-          p_lower = dom%press_lower%elts(id_i)
-       else 
-          p_lower = dom%surf_press%elts(id_i)
-       end if
-       p_upper = p_lower - grav_accel*mass(id_i)
-       dom%press%elts(id_i) = interp (p_lower, p_upper)
-       dom%press_lower%elts(id_i) = p_upper
+       p_upper = dom%press_lower%elts(id_i) - grav_accel*mass(id_i)
     else ! Incompressible case
-       if (zlev == 1) then 
-          dom%press%elts(id_i) = dom%surf_press%elts(id_i) - 0.5*grav_accel*temp(id_i)
-       else ! Interpolate to lower interface of current level
-          dom%press%elts(id_i) = dom%press%elts(id_i) - grav_accel*interp (dom%adj_temp%elts(id_i), temp(id_i))
-       end if
-       dom%adj_temp%elts(id_i) = temp(id_i)
+       p_upper = dom%press_lower%elts(id_i) - grav_accel*temp(id_i)
     end if
+    dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
+    dom%press_lower%elts(id_i) = p_upper
   end subroutine cal_pressure
 
   subroutine du_source (dom, i, j, zlev, offs, dims)

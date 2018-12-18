@@ -29,6 +29,7 @@ program Held_Suarez
   R_d            = kappa*c_p                   ! ideal gas constant for dry air in joules per kilogram Kelvin
   c_v            = c_p - R_d                   ! specific heat at constant volume c_v = c_p - R_d
   gamma          = c_p/c_v                     ! heat capacity ratio
+  gk             = grav_accel*kappa
   
   ! Local test case parameters
   T_0            = 300.0_8                     ! reference temperature

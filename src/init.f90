@@ -344,7 +344,6 @@ contains
        call init (grid(d)%u_zonal,      grid(d)%node%length)
        call init (grid(d)%v_merid,      grid(d)%node%length)
        call init (grid(d)%press_lower,     grid(d)%node%length)
-       call init (grid(d)%adj_temp,     grid(d)%node%length)
        call init (grid(d)%geopot_lower,   grid(d)%node%length)
        call init (grid(d)%bernoulli,    grid(d)%node%length)
        call init (grid(d)%divu,         grid(d)%node%length)

@@ -155,7 +155,6 @@ contains
     call extend (dom%u_zonal,     num, 0.0_8)
     call extend (dom%v_merid,     num, 0.0_8)
     call extend (dom%press_lower, num, 0.0_8)
-    call extend (dom%adj_temp,    num, 0.0_8)
     call extend (dom%geopot_lower,num, 0.0_8)
     call extend (dom%bernoulli,   num, 0.0_8)
     call extend (dom%divu,        num, 0.0_8)

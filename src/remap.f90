@@ -17,7 +17,6 @@ contains
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, potential temperature and velocity divergence
     ! remap0 is too diffusive, remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
-    ! remap1 is usually the best choice.
     implicit none
     integer            :: l
     logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme (!! unstable for Held-Suarez!!)
@@ -32,8 +31,8 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap1
-    interp_velo   => remap1
+    interp_scalar => remap4
+    interp_velo   => remap4
 
     ! Current surface pressure
     call cal_surf_press (sol)
@@ -375,7 +374,7 @@ contains
     !          dL = var_old(k) - FC(k-1)
     !          if (dR*dL < Zero) then
     !             cff = Zero
-    !          elseif (abs(dR) > abs(dL)) then
+    !          else if (abs(dR) > abs(dL)) then
     !             cff = dL
     !          else
     !             cff = dR

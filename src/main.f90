@@ -406,7 +406,6 @@ contains
        deallocate (grid(d)%u_zonal%elts)
        deallocate (grid(d)%v_merid%elts)
        deallocate (grid(d)%press_lower%elts)
-       deallocate (grid(d)%adj_temp%elts)
        deallocate (grid(d)%geopot_lower%elts)
        deallocate (grid(d)%vort%elts)
        deallocate (grid(d)%qe%elts)
