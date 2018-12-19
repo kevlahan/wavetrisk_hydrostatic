@@ -386,10 +386,10 @@ contains
                 call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
                 call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
 
-                val   = grid(d)%adj_geopot%elts(id+1)
-                valN  = grid(d)%adj_geopot%elts(idN+1)
-                valE  = grid(d)%adj_geopot%elts(idE+1)
-                valNE = grid(d)%adj_geopot%elts(idNE+1)
+                val   = grid(d)%geopot_lower%elts(id+1)
+                valN  = grid(d)%geopot_lower%elts(idN+1)
+                valE  = grid(d)%geopot_lower%elts(idE+1)
+                valNE = grid(d)%geopot_lower%elts(idNE+1)
 
                 if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
@@ -498,10 +498,10 @@ contains
                 call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
                 call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
 
-                val   = grid(d)%adj_mass%elts(id+1)
-                valN  = grid(d)%adj_mass%elts(idN+1)
-                valE  = grid(d)%adj_mass%elts(idE+1)
-                valNE = grid(d)%adj_mass%elts(idNE+1)
+                val   = grid(d)%press_lower%elts(id+1)
+                valN  = grid(d)%press_lower%elts(idN+1)
+                valE  = grid(d)%press_lower%elts(idE+1)
+                valNE = grid(d)%press_lower%elts(idNE+1)
 
                 if (abs(cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
