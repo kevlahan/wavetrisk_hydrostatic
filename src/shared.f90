@@ -317,19 +317,21 @@ module shared_mod
   real(8), parameter :: MATH_PI = acos(-1.0_8)
   
   ! Simulation variables
-  integer                                       :: cp_idx, err_restart, istep, istep_cumul, iwrite, n_diffuse
+  integer                                       :: cp_idx, err_restart, ibin, istep, istep_cumul, iwrite, n_diffuse, nbins
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   integer, parameter                            :: max_restart = 10 ! Maximum allowed number of restarts after negative mass event
+  integer, dimension(:,:), allocatable          :: Nstats
   
-  real(8)                                       :: dt, dt_init, dt_write, dx_min, dx_max, time_end, time
+  real(8)                                       :: dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density
   real(8)                                       :: viscosity_rotu, viscosity_mass, viscosity_temp
   real(8)                                       :: p_0, p_top, gamma, gk, kappa, c_p, c_v, R_d, wave_speed
   real(8)                                       :: min_mass, min_allowed_mass
-  real(8), dimension(:),         allocatable    :: pressure_save
+  real(8), dimension(:),         allocatable    :: pressure_save, bounds
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu
   real(8), dimension(:,:),       allocatable    :: threshold
+  real(8), dimension(:,:,:),     allocatable    :: zonal_avg
   real(8), dimension(3)                         :: L_diffusion
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
@@ -424,6 +426,12 @@ contains
     viscosity_rotu = 0.0_8
     viscosity_mass = 0.0_8
     viscosity_temp = 0.0_8
+
+    ! Bins for zonal statistics
+    nbins = 128
+    allocate (bounds(1:nbins-1))
+    dbin = 180/nbins
+    bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)
   end subroutine init_shared_mod
 
   real(8) function eps()

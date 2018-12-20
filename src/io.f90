@@ -364,6 +364,133 @@ contains
          + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
 
+  subroutine zonal_average
+    ! Zonal average means and covariances over all checkpoints using stable online algorithm
+    ! Uses Welford's stable onlne algorithm
+    use domain_mod
+    implicit none
+    
+    integer :: bin, d, ivar, k, p
+
+    call cal_surf_press (sol)
+
+    do k = 1, zlevels
+       do d = 1, size (grid)
+          mass => sol(S_MASS,k)%data(d)%elts
+          temp => sol(S_TEMP,k)%data(d)%elts
+          velo => sol(S_VELO,k)%data(d)%elts
+          do p = 2, grid(d)%patch%length
+             call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (statistics,     grid(d), p-1, k, 0, 0)
+          end do
+          nullify (mass, temp, velo)
+       end do
+       do bin = 1, nbins
+          Nstats(k,bin) = sum_int (Nstats(k,bin))
+          do ivar = 1, 8
+             zonal_avg(k,bin,ivar) = sum_real (zonal_avg(k,bin,ivar))
+          end do
+       end do
+    end do
+  contains
+    subroutine statistics (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: bin, id_i
+      real(8) :: lat, lon, temperature, Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
+
+      d = dom%id + 1
+      id_i = idx (i, j, offs, dims) + 1
+
+      call cart2sph (dom%node%elts(id_i), lon, lat)
+
+      temperature = temp(id_i) * (dom%press%elts(id_i)/p_0)**kappa
+      
+      do bin = 1, nbins
+         if (lat <= bounds(bin)) then
+            Nstats(zlev,bin) = Nstats(zlev,bin) + 1
+
+            Tprime = temperature            - zonal_avg(zlev,bin,1)
+            Uprime = dom%u_zonal%elts(id_i) - zonal_avg(zlev,bin,3)
+            Vprime = dom%v_merid%elts(id_i) - zonal_avg(zlev,bin,4)
+
+            ! Mean values
+            zonal_avg(zlev,bin,1) = zonal_avg(zlev,bin,1) + Tprime/Nstats(zlev,bin)
+            zonal_avg(zlev,bin,3) = zonal_avg(zlev,bin,3) + Uprime/Nstats(zlev,bin)
+            zonal_avg(zlev,bin,4) = zonal_avg(zlev,bin,4) + Vprime/Nstats(zlev,bin)
+            zonal_avg(zlev,bin,5) = zonal_avg(zlev,bin,5) +  0.5 * (Uprime**2 + Vprime**2)/Nstats(zlev,bin)
+
+            Tprime_new = temperature            - zonal_avg(zlev,bin,1)
+            Uprime_new = dom%u_zonal%elts(id_i) - zonal_avg(zlev,bin,3)
+            Vprime_new = dom%v_merid%elts(id_i) - zonal_avg(zlev,bin,4)
+
+            ! Temperature variance
+            zonal_avg(zlev,bin,2) = zonal_avg(zlev,bin,2) + Tprime * Tprime_new
+
+            ! Eddy momentum flux (covariance)
+            zonal_avg(zlev,bin,6) = zonal_avg(zlev,bin,6) + Uprime * Vprime_new
+
+            ! Eddy kinetic energy (covariance)
+            zonal_avg(zlev,bin,7) = zonal_avg(zlev,bin,7) + 0.5 * (Uprime * Uprime_new + Vprime * Vprime_new)
+
+            ! Eddy heat flux (covariance)
+            zonal_avg(zlev,bin,8) = zonal_avg(zlev,bin,8) + Vprime * Tprime_new
+         end if
+      end do
+    end subroutine statistics
+  end subroutine zonal_average
+
+  subroutine write_out_stats
+    ! Writes out zonal average statistics
+    integer            :: i, k, v
+    integer, parameter :: funit = 400, nvar_zonal = 8
+    real(8)            :: dbin
+    character(2)       :: var_file
+    character(130)     :: command
+  
+    do v = 1, nvar_zonal
+       write (var_file, '(i2)') v+10
+       open (unit=funit, file=trim(run_id)//'.3.'//var_file)
+       do k = zlevels,1,-1
+          write (funit,'(2047(E15.6, 1X))') zonal_avg(k,:,v)
+       end do
+       close (funit)
+    end do
+
+    ! Coordinates
+
+     dbin = 180/nbins
+
+    ! Longitude values (dummy)
+    write (var_file, '(i2)') 20
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
+    write (funit,'(2047(E15.6, 1X))') (-90+dbin/2 + dbin*(/ (i, i = 0, nbins-1) /))
+    close (funit)
+
+    ! Latitude values
+    write (var_file, '(i2)') 21
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
+    write (funit,'(2047(E15.6, 1X))') (-90+dbin + dbin*(/ (i, i = 0, nbins-1) /))
+    close (funit)
+
+    ! Non-dimensional pressure based vertical coordinates p_k/p_s
+    write (var_file, '(i2)') 22
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
+    write (funit,'(2047(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/p_0 + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
+    close (funit)
+
+    ! Compress files
+    command = 'ls -1 '//trim(run_id)//'.3.?? > tmp' 
+    call system (command)
+    command = 'tar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
+    call system (command)
+  end subroutine write_out_stats
+
   subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
     ! Approximate vorticity at hexagon points
     implicit none
