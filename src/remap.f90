@@ -333,7 +333,7 @@ contains
     real(8), parameter      :: Zero=0.0_8, Half=0.5_8
     real(8), dimension(0:N) :: aL, aR, FC
     real(8), dimension(1:N) :: Hz
-    logical, parameter      :: NEUMANN = .true., ENHANCE = .false.   
+    logical, parameter      :: NEUMANN = .true., ENHANCE = .true.   
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
