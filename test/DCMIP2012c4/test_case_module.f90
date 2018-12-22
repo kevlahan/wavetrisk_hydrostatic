@@ -348,7 +348,7 @@ contains
     
     if (rank == 0) then
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i9,4(a,es8.2,1x))') &
-            'time [h] = ', time/HOUR, &
+            'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
             ' temp tol = ', sum (threshold(S_TEMP,:))/zlevels, &
