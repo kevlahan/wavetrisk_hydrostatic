@@ -1173,55 +1173,54 @@ contains
     end do
   end subroutine comm_patch_conn_mpi
 
-  real(8) function cpt_dt_mpi()
+  real(8) function cpt_dt_mpi ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
-    integer               :: l, ierror, n_level_glo
-    integer, dimension(2) :: n_active_loc, n_active_glo
-    real(8)               :: loc_min, glo_min
-
+    integer               :: l, ierror
+    integer, dimension(2) :: n_active_loc
+    
     if (adapt_dt) then
        dt_loc = 1d16
     else
        dt_loc = dt_init
     end if
-    min_mass_loc = 1d16
     n_active_nodes = 0
     n_active_edges = 0
 
-    ! Calculate minimum time step, number of active nodes and edges and minimum mass
+    ! Calculate minimum time step, number of active nodes and edges
     do l = level_start, level_end
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
 
-    ! Minimum relative mass over all nodes and vertical layers
-    loc_min = min_mass_loc
-    call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    min_mass = glo_min
-
     ! Time step
     if (adapt_dt) then
-       loc_min = dt_loc
-       call MPI_Allreduce (loc_min, glo_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-       cpt_dt_mpi = glo_min
+       call MPI_Allreduce (dt_loc, cpt_dt_mpi, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
     else
        cpt_dt_mpi = dt_loc
     end if
 
     ! Active nodes and edges
     n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
-
-    call MPI_Allreduce (n_active_loc, n_active_glo, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    n_active = n_active_glo
-
-    call MPI_Allreduce (level_end, n_level_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
-    level_end = n_level_glo
+    call MPI_Allreduce (n_active_loc, n_active, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (level_end, level_end, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
   end function cpt_dt_mpi
+
+  real(8) function cpt_min_mass_mpi ()
+    ! Calculates minimum relative mass
+    implicit none
+    integer :: ierror, l
+
+    min_mass_loc = 1d16
+    do l = level_start, level_end
+       call apply_onescale (cal_min_mass, l, z_null, 0, 1)
+    end do
+
+    call MPI_Allreduce (min_mass_loc, cpt_min_mass_mpi, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+  end function cpt_min_mass_mpi
 
   integer function sync_max (val)
     implicit none
     integer :: val
-
     integer :: val_glo
 
     call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)

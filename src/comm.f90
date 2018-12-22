@@ -960,9 +960,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: errcode, ierr
     integer :: d, e, id, id_e, id_i, k, l
-    real(8) :: col_mass, d_e, harvest, mu, init_mass, v_e
+    real(8) :: d_e, harvest, v_e
 
     id = idx(i, j, offs, dims)
     id_i = id + 1
@@ -971,27 +970,6 @@ contains
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1
-
-       ! Find relative mass for this node
-       col_mass = 0.0_8
-       do k = 1, zlevels
-          mu = sol(S_MASS,k)%data(d)%elts(id_i)
-          
-          ! Check for negative mass
-          if (mu < 0.0_8 .or. isnan (mu)) then
-             write (6,'(A)') "Mass negative ... aborting"
-             call abort
-          end if
-
-          col_mass = col_mass + mu
-       end do
-       
-       do k = 1, zlevels
-          init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
-          min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
-       end do
-
-       ! Find time step for this node
        do e = 1, EDGE
           id_e = EDGE*id+e
           if (dom%mask_e%elts(id_e) >= ADJZONE) then
@@ -1007,6 +985,38 @@ contains
        end do
     end if
   end subroutine min_dt
+
+  subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
+    ! Calculates minimum mass 
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, e, id_i, k, l
+    real(8) :: col_mass, mu, init_mass
+
+    id_i = idx (i, j, offs, dims) + 1
+    d  = dom%id + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       col_mass = 0.0_8
+       do k = 1, zlevels
+          mu = sol(S_MASS,k)%data(d)%elts(id_i)
+          if (mu < 0.0_8 .or. isnan (mu)) then
+             write (6,'(A)') "Mass negative ... aborting"
+             call abort
+          end if
+          col_mass = col_mass + mu
+       end do
+       
+       do k = 1, zlevels
+          init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
+          min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
+       end do
+    end if
+  end subroutine cal_min_mass
 
   integer function domain_load (dom)
     implicit none

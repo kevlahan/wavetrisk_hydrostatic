@@ -172,10 +172,8 @@ contains
     ! Take time step
     call RK4 (trend_ml, dt)
 
-    ! Set new time step, find change in vertical levels and count active nodes
-    dt_new = cpt_dt_mpi()
-    
     ! If necessary, remap vertical coordinates
+    min_mass = cpt_min_mass_mpi ()
     if (remap .and. min_mass <= min_allowed_mass) call remap_vertical_coordinates
 
     ! Add diffusion
@@ -187,6 +185,9 @@ contains
 
     ! Adapt grid
     if (min_level /= max_level) call adapt_grid (set_thresholds)
+
+    ! Set new time step, find change in vertical levels and count active nodes
+    dt_new = cpt_dt_mpi ()
     
     itime = itime + idt
     time  = itime/time_mult

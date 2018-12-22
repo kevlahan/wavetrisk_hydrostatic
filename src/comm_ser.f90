@@ -228,29 +228,41 @@ contains
     integer                           :: l
   end subroutine update_array_bdry__finish
 
-  real(8) function cpt_dt_mpi()
+  real(8) function cpt_dt_mpi ()
     implicit none
 
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer                        :: d, i, ierror, j, l, p
+    integer                        :: l
 
     if (adapt_dt) then
        dt_loc = 1d16
     else
        dt_loc = dt_init
     end if
-    min_mass_loc = 1.0d16
     n_active_nodes = 0
     n_active_edges = 0
 
     do l = level_start, level_end
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
-    min_mass = min_mass_loc
     n_active = (/ sum(n_active_nodes), sum(n_active_edges) /)
     cpt_dt_mpi = dt_loc
   end function cpt_dt_mpi
+
+  real(8) function cpt_min_mass ()
+    implicit none
+
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer                        :: l
+
+    min_mass_loc = 1.0d16
+    do l = level_start, level_end
+       call apply_onescale (cal_min_mass, l, z_null, 0, 1)
+    end do
+    cpt_min_mass = min_mass_loc
+  end function cpt_min_mass
 
   integer function sync_max (val)
     implicit none
