@@ -18,7 +18,7 @@ contains
     ! Conserves mass, potential temperature and velocity divergence
     ! remap0 is too diffusive, remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
-    integer            :: l
+    integer            :: d, k, l
     logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme (!! unstable for Held-Suarez!!)
 
     ! Choose interpolation method:
@@ -31,30 +31,76 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap4
-    interp_velo   => remap4
+    interp_scalar => remap1
+    interp_velo   => remap1
 
     ! Current surface pressure
     call cal_surf_press (sol)
     
-    if (standard) then ! Standard (remap potential temperature)
-       do l = level_start, level_end
-          call apply_onescale (remap_velo,    l, z_null, 0, 0)
-          call apply_onescale (remap_scalars, l, z_null, 0, 1)
+    ! if (standard) then ! Standard (remap potential temperature)
+    !    do l = level_start, level_end
+    !       call apply_onescale (remap_velo,    l, z_null, 0, 0)
+    !       call apply_onescale (remap_scalars, l, z_null, 0, 1)
+    !    end do
+    ! else ! Lin (2004) (remap total energy)
+    !    do l = level_start, level_end
+    !       call apply_onescale (remap_total_energy, l, z_null, 0, 1)
+    !    end do
+    !    do l = level_start, level_end
+    !       call apply_onescale (remap_velo, l, z_null, 0, 0)
+    !       call apply_onescale (remap_mass, l, z_null, 0, 1)
+    !    end do
+    !    call update_vector_bdry (sol(S_VELO,:), NONE)
+    !    do l = level_start, level_end
+    !       call apply_onescale (recover_theta, l, z_null, 0, 1)
+    !    end do
+    ! end if
+
+     ! Remap on finest level
+    call apply_onescale (remap_velo,    level_end, z_null, 0, 0)
+    call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
+    sol%bdry_uptodate = .false.
+    call update_array_bdry (sol, level_end)
+
+    ! Remap scalars at coarser levels
+    do l = level_end-1, level_start-1, -1
+       sol%bdry_uptodate = .false.
+       call update_array_bdry (sol, l+1)
+
+       ! Compute scalar wavelet coefficients
+       do d = 1, size(grid)
+          do k = 1, zlevels
+             mass => sol(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+             nullify (wc_m, wc_t, mass, temp)
+          end do
        end do
-    else ! Lin (2004) (remap total energy)
-       do l = level_start, level_end
-          call apply_onescale (remap_total_energy, l, z_null, 0, 1)
+       wav_coeff%bdry_uptodate = .false.
+       call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), l+1)
+
+       ! Remap at level l (over-written if value available from restriction)
+       call apply_onescale (remap_velo,    l, z_null, 0, 0)
+       call apply_onescale (remap_scalars, l, z_null, 0, 1)
+
+       ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
+       do d = 1, size(grid)
+          do k = 1, zlevels
+             mass => sol(S_MASS,k)%data(d)%elts
+             temp => sol(S_TEMP,k)%data(d)%elts
+             velo => sol(S_VELO,k)%data(d)%elts
+             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
+             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
+             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1)
+             call apply_interscale_d (restrict_velo,   grid(d), l, k, 0, 0)
+             nullify (mass, temp, velo, wc_m, wc_t)
+          end do
        end do
-       do l = level_start, level_end
-          call apply_onescale (remap_velo, l, z_null, 0, 0)
-          call apply_onescale (remap_mass, l, z_null, 0, 1)
-       end do
-       call update_vector_bdry (sol(S_VELO,:), NONE)
-       do l = level_start, level_end
-          call apply_onescale (recover_theta, l, z_null, 0, 1)
-       end do
-    end if
+       sol%bdry_uptodate = .false.
+       call update_array_bdry (sol, l)
+    end do
 
     ! Wavelet transform and interpolate back onto adapted grid
     call WT_after_step (sol, wav_coeff, level_start-1)
@@ -287,7 +333,7 @@ contains
     real(8), dimension(0:N) :: FC
     real(8), dimension(1:N) :: Hz
 
-     do k = 1, N
+    do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
     end do
     
@@ -333,8 +379,7 @@ contains
     real(8), parameter      :: Zero=0.0_8, Half=0.5_8
     real(8), dimension(0:N) :: aL, aR, FC
     real(8), dimension(1:N) :: Hz
-    logical, parameter      :: NEUMANN = .true.   ! commented in (zero slope at boundaries)
-    logical, parameter      :: ENHANCE = .false.  ! commented out
+    logical, parameter      :: NEUMANN = .true., ENHANCE = .false.   
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -344,13 +389,13 @@ contains
        FC(k) = (var_old(k+1) - var_old(k)) / (Hz(k+1) + Hz(k))
     end do
 
-    ! if (NEUMANN) then
-    FC(0) = Zero
-    FC(N) = Zero
-    ! else
-    !    FC(0) = FC(1)
-    !    FC(N) = FC(N-1)
-    ! end if
+    if (NEUMANN) then
+       FC(0) = Zero
+       FC(N) = Zero
+    else
+       FC(0) = FC(1)
+       FC(N) = FC(N-1)
+    end if
 
     do k = 1, N
        if (FC(k)*FC(k-1) < Zero) then
@@ -360,33 +405,33 @@ contains
        end if
        aR(k) = var_old(k) + cff*Hz(k)
        aL(k) = var_old(k) - cff*Hz(k)
-    end do     !--> discard FC
+    end do !--> discard FC
     
-    ! if (ENHANCE) then
-    !    do iter = 1, 10                        ! Reconcile side 
-    !       do k = 1, N-1                       ! values at each interface, then 
-    !          FC(k) = Half * (aR(k) + aL(k+1)) ! use minmod limiter again to maintain monotonicity
-    !       end do
-    !       FC(N) = aR(N)
-    !       FC(0) = aL(1)
-    !       do k = 1, N
-    !          dR = FC(k) - var_old(k)
-    !          dL = var_old(k) - FC(k-1)
-    !          if (dR*dL < Zero) then
-    !             cff = Zero
-    !          else if (abs(dR) > abs(dL)) then
-    !             cff = dL
-    !          else
-    !             cff = dR
-    !          end if
-    !          aR(k) = var_old(k) + cff
-    !          aL(k) = var_old(k) - cff
-    !       end do
-    !    end do
-    ! end if
+    if (ENHANCE) then ! reconcile side values at each interface, then use minmod limiter again to maintain monotonicity
+       do iter = 1, 10                        
+          do k = 1, N-1                        
+             FC(k) = Half * (aR(k) + aL(k+1))  
+          end do
+          FC(N) = aR(N)
+          FC(0) = aL(1)
+          do k = 1, N
+             dR = FC(k) - var_old(k)
+             dL = var_old(k) - FC(k-1)
+             if (dR*dL < Zero) then
+                cff = Zero
+             else if (abs(dR) > abs(dL)) then
+                cff = dL
+             else
+                cff = dR
+             end if
+             aR(k) = var_old(k) + cff
+             aL(k) = var_old(k) - cff
+          end do
+       end do
+    end if
 
     ! Remapping: compute
-    do k = 1, N-1                          ! finite volume fluxes
+    do k = 1, N-1 ! finite volume fluxes
        dz = z_new(k)-z_old(k)
        if (dz > Zero) then
           cff = aL(k+1)
