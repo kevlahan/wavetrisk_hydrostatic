@@ -259,7 +259,7 @@ contains
 
     min_mass_loc = 1.0d16
     do l = level_start, level_end
-       call apply_onescale (cal_min_mass, l, z_null, 0, 1)
+       call apply_onescale (cal_min_mass, l, z_null, 0, 0)
     end do
     cpt_min_mass = min_mass_loc
   end function cpt_min_mass

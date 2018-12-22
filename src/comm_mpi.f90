@@ -1212,7 +1212,7 @@ contains
 
     min_mass_loc = 1d16
     do l = level_start, level_end
-       call apply_onescale (cal_min_mass, l, z_null, 0, 1)
+       call apply_onescale (cal_min_mass, l, z_null, 0, 0)
     end do
 
     call MPI_Allreduce (min_mass_loc, cpt_min_mass_mpi, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)

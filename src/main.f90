@@ -184,7 +184,7 @@ contains
     end if
 
     ! Adapt grid
-    if (min_level /= max_level .and. .not. aligned) call adapt_grid (set_thresholds)
+    if (min_level /= max_level) call adapt_grid (set_thresholds)
 
     itime = itime + idt
     time  = itime/time_mult
