@@ -32,7 +32,7 @@ contains
        local_type = .true.
     end if
 
-    if (adapt_trend) then
+    if (adapt_trend .and. local_type) then
        call trend_ml (sol, trend)
        call forward_wavelet_transform (trend, trend_wav_coeff)
     end if

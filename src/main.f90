@@ -184,13 +184,13 @@ contains
     end if
 
     ! Adapt grid
-    if (min_level /= max_level) call adapt_grid (set_thresholds)
+    if (min_level /= max_level .and. .not. aligned) call adapt_grid (set_thresholds)
 
-    ! Set new time step, find change in vertical levels and count active nodes
-    dt_new = cpt_dt_mpi ()
-    
     itime = itime + idt
     time  = itime/time_mult
+    
+    ! Set new time step, find change in vertical levels and count active nodes
+    dt_new = cpt_dt_mpi ()
   end subroutine time_step
 
   subroutine restart (set_thresholds, custom_load, run_id)
@@ -266,7 +266,7 @@ contains
     call initialize_dt_viscosity
 
     ! Initialize time step and counters
-    dt_new = cpt_dt_mpi()
+    dt_new = cpt_dt_mpi ()
     itime = nint (time*time_mult, 8)
     istep = 0
 
