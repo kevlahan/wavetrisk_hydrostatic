@@ -18,7 +18,7 @@ contains
     ! Conserves mass, potential temperature and velocity divergence
     ! remap0 is too diffusive, remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
-    integer            :: d, k, l
+    integer            :: l
     logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme (!! unstable for Held-Suarez!!)
 
     ! Choose interpolation method:
@@ -33,9 +33,6 @@ contains
     !                  (ensures continuity of both value and first derivative at each interface)
     interp_scalar => remap1
     interp_velo   => remap1
-
-    ! Current surface pressure
-    call cal_surf_press (sol)
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
@@ -76,7 +73,6 @@ contains
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    p_s = dom%surf_press%elts(id_i)
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     do k = 1, zlevels
@@ -100,6 +96,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, e, id, id_e, id_i, k
+    real(8)                        :: p_s
     real(8), dimension (1:zlevels) :: flux_new, flux_old 
     real(8), dimension (0:zlevels) :: p_new, p_old
 
@@ -107,7 +104,7 @@ contains
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    call find_coordinates (p_new, p_old, d, id_i, dom%surf_press%elts(id_i))
+    call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     do e = 1, EDGE
        do k = 1, zlevels
@@ -139,7 +136,6 @@ contains
     id   = idx (i, j, offs, dims)
     id_i = id + 1
 
-    p_s = dom%surf_press%elts(id_i)
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     phi(zlevels) = surf_geopot (dom%node%elts(id_i))
@@ -172,13 +168,15 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer  :: d, id_i, k
-    real (8) :: p_s
+    integer :: d, id_i, k
+    real(8) :: p_s
+    real(8), dimension (0:zlevels) :: p_new, p_old
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    p_s = dom%surf_press%elts(id_i)
+    call find_coordinates (p_new, p_old, d, id_i, p_s)
+
     do k = 1, zlevels
        sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * p_s/grav_accel ! New mass
     end do
@@ -263,7 +261,9 @@ contains
     do k = 1, zlevels
        p_old(k) = p_old(k-1) + grav_accel * sol(S_MASS,zlevels-k+1)%data(d)%elts(id_i)
     end do
-    p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1)*p_s
+    p_s = p_old(zlevels)
+    
+    p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1) * p_s
   end subroutine find_coordinates
 
   subroutine remap0 (N, var_new, z_new, var_old, z_old)
