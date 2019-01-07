@@ -19,7 +19,7 @@ contains
     ! remap0 is too diffusive, remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
     integer            :: l
-    logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme (!! unstable for Held-Suarez!!)
+    logical, parameter :: standard = .false. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential energy)
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -119,7 +119,7 @@ contains
   end subroutine remap_velo
 
   subroutine remap_total_energy (dom, i, j, z_null, offs, dims)
-    ! Remap mass and total energy
+    ! Remap total energy
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, z_null
@@ -127,9 +127,9 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id, id_i, k, kb
-    real(8)                        :: alpha, p_s, T_mean
-    real(8), dimension (1:zlevels) :: energy_new, energy_old, theta
-    real(8), dimension (0:zlevels) :: p_new, p_old, phi
+    real(8)                        :: p_s, phi_lower, phi_upper, theta, T_mean
+    real(8), dimension (1:zlevels) :: energy_new, energy_old
+    real(8), dimension (0:zlevels) :: p_new, p_old
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -137,23 +137,23 @@ contains
 
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
-    ! Geopotential and potential temperature: integrate up
-    phi(zlevels) = surf_geopot (dom%node%elts(id_i))
+    ! Integrate up
+    phi_lower = surf_geopot (dom%node%elts(id_i))
     do k = zlevels, 1, -1
        kb = zlevels-k+1
-       theta(k) = sol(S_TEMP,kb)%data(d)%elts(id_i) / sol(S_MASS,kb)%data(d)%elts(id_i)
-       phi(k-1) = phi(k) + c_p * theta(k) * (p_old(k)**kappa - p_old(k-1)**kappa)
+       
+       theta = sol(S_TEMP,kb)%data(d)%elts(id_i) / sol(S_MASS,kb)%data(d)%elts(id_i)
+       
+       T_mean = theta * (p_old(k)**kappa - p_old(k-1)**kappa) / log (p_old(k)/p_old(k-1)) / kappa
+
+       phi_upper = phi_lower +  R_d * T_mean * log (p_old(k)/p_old(k-1))
+       
+       velo => sol(S_VELO,kb)%data(d)%elts
+       energy_old(k) = c_p*T_mean + (p_old(k)*phi_lower-p_old(k-1)*phi_upper) / (p_old(k)-p_old(k-1)) + ke (dom, i, j, offs, dims)
+       nullify (velo)
+       phi_lower = phi_upper
     end do
     
-    ! Total energy: integrate down
-    do k = 1, zlevels
-       kb = zlevels-k+1
-       T_mean = theta(k) * (p_old(k)**kappa - p_old(k-1)**kappa) / log (p_old(k)/p_old(k-1)) / kappa
-       velo => sol(S_VELO,kb)%data(d)%elts
-       energy_old(k) = c_p*T_mean + (p_old(k)*phi(k)-p_old(k-1)*phi(k-1)) / (p_old(k)-p_old(k-1)) + ke (dom, i, j, offs, dims)
-       nullify (velo)
-    end do
-
     call interp_scalar (zlevels, energy_new, p_new, energy_old, p_old)
     
     do k = 1, zlevels
@@ -169,7 +169,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k, kb
-    real(8)                        :: alpha, phi_lower, p_s, T_mean, theta
+    real(8)                        :: phi_lower, p_s, T_mean, theta
     real(8), dimension (0:zlevels) :: p_new, p_old
 
     d    = dom%id + 1
@@ -181,15 +181,18 @@ contains
     phi_lower = surf_geopot (dom%node%elts(id_i))
     do k = zlevels, 1, -1
        kb = zlevels-k+1
+       
        velo => sol(S_VELO,kb)%data(d)%elts
-       T_mean = (exner_fun(k)%data(d)%elts(id_i) - phi_lower -  ke (dom, i, j, offs, dims)) &
+       T_mean = (exner_fun(k)%data(d)%elts(id_i) - ke (dom, i, j, offs, dims) - phi_lower) &
             / (1.0_8 - kappa * p_new(k-1) * log (p_new(k)/p_new(k-1)) / (p_new(k)-p_new(k-1))) / c_p
+       nullify (velo)
+
        theta = kappa * log (p_new(k)/p_new(k-1)) / (p_new(k)**kappa - p_new(k-1)**kappa) * T_mean
-       phi_lower = phi_lower +  R_d * T_mean * log (p_new(k)/p_new(k-1))
 
        sol(S_MASS,kb)%data(d)%elts(id_i) = a_vert_mass(kb) + b_vert_mass(kb) * p_s/grav_accel ! New mass
-       sol(S_TEMP,kb)%data(d)%elts(id_i) = sol(S_MASS,kb)%data(d)%elts(id_i) * theta  ! New temp
-       nullify (velo)
+       sol(S_TEMP,kb)%data(d)%elts(id_i) = sol(S_MASS,kb)%data(d)%elts(id_i) * theta          ! New temp
+
+       phi_lower = phi_lower +  R_d * T_mean * log (p_new(k)/p_new(k-1))
     end do
   end subroutine recover_Theta
 
