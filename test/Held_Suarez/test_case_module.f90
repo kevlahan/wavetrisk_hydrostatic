@@ -406,9 +406,9 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
-       visc_divu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
-       visc_rotu = C_visc/4**Laplace_order_init * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
+       visc_sclr = C_visc * dx_min**(2*Laplace_order_init) * n_diffuse
+       visc_divu = C_visc * dx_min**(2*Laplace_order_init) * n_diffuse
+       visc_rotu = C_visc/4**Laplace_order_init * dx_min**(2*Laplace_order_init) * n_diffuse
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
