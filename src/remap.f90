@@ -31,8 +31,8 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap1
-    interp_velo   => remap1
+    interp_scalar => remap4
+    interp_velo   => remap4
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
@@ -144,7 +144,7 @@ contains
        
        theta = sol(S_TEMP,kb)%data(d)%elts(id_i) / sol(S_MASS,kb)%data(d)%elts(id_i)
        
-       T_mean = theta * (p_old(k)**kappa - p_old(k-1)**kappa) / log (p_old(k)/p_old(k-1)) / kappa
+       T_mean = theta * (p_old(k)**kappa - p_old(k-1)**kappa) / log (p_old(k)/p_old(k-1)) / kappa 
 
        phi_upper = phi_lower +  R_d * T_mean * log (p_old(k)/p_old(k-1))
        

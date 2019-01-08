@@ -495,7 +495,7 @@ contains
     deallocate (grid)
     deallocate (edge_level_start, node_level_start, n_active_edges, n_active_nodes)
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
-    deallocate (viscosity_divu, threshold, threshold_def)
+    deallocate (threshold, threshold_def)
     deallocate (sol, sol_save, trend, trend_wav_coeff, wav_coeff)       
     deallocate (exner_fun, horiz_flux, Laplacian_scalar)
     deallocate (glo_id, ini_st, n_domain, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)

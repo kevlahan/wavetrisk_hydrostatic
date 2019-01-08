@@ -390,10 +390,9 @@ contains
     ! Initializes viscosity
     use wavelet_mod
     implicit none
-    real(8)            :: area
-    real(8), parameter :: C = 1e-2 ! Diffusion constant
+    real(8) :: area
 
-    allocate (viscosity_divu(1:zlevels))
+    C_visc = 1d-2
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -403,15 +402,14 @@ contains
     dt_init = dt_cfl
 
     if (Laplace_order_init == 0) then
-       viscosity_mass = 0.0_8
-       viscosity_temp = 0.0_8
-       viscosity_rotu = 0.0_8
-       viscosity_divu = 0.0_8
-    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       viscosity_mass = C * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_temp = C * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_divu = C * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_rotu = C/4**Laplace_order_init * dx_min**(2*Laplace_order_init)/dt_cfl
+       visc_sclr = 0.0_8
+       visc_divu = 0.0_8
+       visc_rotu = 0.0_8
+    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then !!! Divided by dt when Laplacian is evaluated !!!
+       visc_sclr(S_MASS) = C_visc * dx_min**(2*Laplace_order_init) * n_diffuse
+       visc_sclr(S_TEMP) = C_visc * dx_min**(2*Laplace_order_init) * n_diffuse
+       visc_divu         = C_visc * dx_min**(2*Laplace_order_init) * n_diffuse
+       visc_rotu = C_visc/4**Laplace_order_init * dx_min**(2*Laplace_order_init) * n_diffuse
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -419,10 +417,12 @@ contains
 
     if (rank == 0) then
        write (6,'(2(A,es8.2),/)') "dx_min  = ", dx_min, " dt_cfl = ", dt_cfl
-       write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass/n_diffuse, " Viscosity_temp = ", viscosity_temp/n_diffuse, &
-            " Viscosity_divu = ", sum (viscosity_divu)/zlevels/n_diffuse, " Viscosity_rotu = ", viscosity_rotu/n_diffuse
+       write (6,'(4(A,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse/dt_cfl, &
+            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse/dt_cfl, &
+            " Viscosity_divu = ", visc_divu/n_diffuse/dt_cfl, " Viscosity_rotu = ", visc_rotu/n_diffuse/dt_cfl
        if (Laplace_order_init /= 0) &
-            write (6,'(A,es8.2,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order_init) * viscosity_mass
+            write (6,'(A,es8.2,A)') "Diffusion stability constant = ", &
+            dt_cfl/dx_min**(2*Laplace_order_init) * maxval (visc_sclr)/dt_cfl
        if (Laplace_order_init == 1) then
           write (6,'(A)') " (should be <= 0.4)"
        else

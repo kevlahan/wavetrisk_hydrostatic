@@ -32,6 +32,7 @@ program Held_Suarez
   gk             = grav_accel*kappa
   
   ! Local test case parameters
+  p_top          = 200.0_8                     ! top of atmosphere pressure
   T_0            = 300.0_8                     ! reference temperature
   T_mean         = 315.0_8                     ! mean temperature
   T_tropo        = 200.0_8                     ! tropopause temperature
@@ -155,16 +156,16 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      ! Fluxes of physics
      if (.not.local_type) then ! Usual flux at edges E, NE, N
         do v = S_MASS, S_TEMP
-           physics_scalar_flux(v,:) = viscosity_mass * grad(v,:) * dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
+           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
         end do
      else ! Flux at edges W, SW, S
-        physics_scalar_flux(:,RT+1) = viscosity_mass * grad(:,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(:,DG+1) = viscosity_mass * grad(:,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(:,UP+1) = viscosity_mass * grad(:,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
+        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
+        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
+        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
      end if
 
      ! Find correct sign for diffusion on left hand side of the equation
-     physics_scalar_flux = (-1)**Laplace_order * physics_scalar_flux
+     physics_scalar_flux = (-1)**Laplace_order * physics_scalar_flux/max(dt_init/10, dt)
   end if
 contains
   function grad_physics (scalar)
@@ -233,7 +234,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      ! Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-     diffusion =  (-1)**(Laplace_order-1) * (viscosity_divu(zlev) * grad_divu - viscosity_rotu * curl_rotu)
+     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu - visc_rotu * curl_rotu)/max(dt_init/10, dt)
   end if
   
   id = idx (i, j, offs, dims)

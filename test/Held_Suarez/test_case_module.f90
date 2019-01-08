@@ -185,9 +185,6 @@ contains
        call cal_AB
     end if
     
-    ! Set pressure at infinity
-    p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
-
     ! Set mass coefficients
     a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
     b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
@@ -226,7 +223,7 @@ contains
     end do
     b_vert(1) = 1.0_8
     a_vert(1) = 0.0_8
-    a_vert(zlevels+1) = (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
+    a_vert(zlevels+1) = p_top + (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
   end subroutine cal_AB
 
   subroutine read_test_case_parameters
@@ -395,10 +392,8 @@ contains
     use wavelet_mod
     implicit none
     real(8)            :: area
-    real(8), parameter :: C = 5e-3 ! Diffusion constant
 
-    allocate (viscosity_divu(1:zlevels))
-
+    C_visc = 1d-2
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
 
@@ -407,15 +402,13 @@ contains
     dt_init = dt_cfl
 
     if (Laplace_order_init == 0) then
-       viscosity_mass = 0.0_8
-       viscosity_temp = 0.0_8
-       viscosity_rotu = 0.0_8
-       viscosity_divu = 0.0_8
+       visc_sclr = 0.0_8
+       visc_divu = 0.0_8
+       visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       viscosity_mass = C * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_temp = C * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_divu = C * dx_min**(2*Laplace_order_init)/dt_cfl
-       viscosity_rotu = C/4**Laplace_order_init * dx_min**(2*Laplace_order_init)/dt_cfl
+       visc_sclr = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
+       visc_divu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
+       visc_rotu = C_visc/4**Laplace_order_init * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -423,10 +416,12 @@ contains
 
     if (rank == 0) then
        write (6,'(2(A,es8.2),/)') "dx_min  = ", dx_min, " dt_cfl = ", dt_cfl
-       write (6,'(4(A,es8.2))') "Viscosity_mass = ", viscosity_mass/n_diffuse, " Viscosity_temp = ", viscosity_temp/n_diffuse, &
-            " Viscosity_divu = ", sum (viscosity_divu)/zlevels/n_diffuse, " Viscosity_rotu = ", viscosity_rotu/n_diffuse
+       write (6,'(4(A,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse/dt_cfl, &
+            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse/dt_cfl, &
+            " Viscosity_divu = ", visc_divu/n_diffuse/dt_cfl, " Viscosity_rotu = ", visc_rotu/n_diffuse/dt_cfl
        if (Laplace_order_init /= 0) &
-            write (6,'(A,es8.2,A)') "Diffusion stability constant = ", dt_cfl/dx_min**(2*Laplace_order_init) * viscosity_mass
+            write (6,'(A,es8.2,A)') "Diffusion stability constant = ", &
+            dt_cfl/dx_min**(2*Laplace_order_init) * maxval (visc_sclr)/dt_cfl
        if (Laplace_order_init == 1) then
           write (6,'(A)') " (should be <= 0.4)"
        else

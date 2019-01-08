@@ -323,13 +323,14 @@ module shared_mod
   integer, parameter                            :: max_restart = 10 ! Maximum allowed number of restarts after negative mass event
   integer, dimension(:,:), allocatable          :: Nstats
   
-  real(8)                                       :: dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
+  real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density
-  real(8)                                       :: viscosity_rotu, viscosity_mass, viscosity_temp
+  real(8)                                       :: visc_divu, visc_rotu
+  real(8), dimension(S_MASS:S_TEMP)             :: visc_sclr
   real(8)                                       :: p_0, p_top, gamma, gk, kappa, c_p, c_v, R_d, wave_speed
   real(8)                                       :: min_mass, min_allowed_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
-  real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass, viscosity_divu
+  real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
   real(8), dimension(:,:),       allocatable    :: threshold
   real(8), dimension(:,:,:),     allocatable    :: zonal_avg
   real(8), dimension(3)                         :: L_diffusion
@@ -401,7 +402,8 @@ contains
 
     ! Default run values
     ! these parameters are typically reset in the input file, but are needed for compilation
-    cfl_num             = 1.5_8
+    cfl_num             = 1.4_8
+    C_visc              = 1d-2
     level_save          = level_start
     Laplace_order_init  = 0                      ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     min_allowed_mass    = 0.3_8
@@ -416,16 +418,18 @@ contains
     c_p            = 1004.64_8                   ! specific heat at constant pressure in joules per kilogram Kelvin
     c_v            = 717.6_8                     ! specfic heat at constant volume c_v = R_d - c_p
     grav_accel     = 9.80616_8
-    p_top          = 0.0_8                       ! pressure at upper interface of top vertical layer
+    p_top          = 200.0_8                     ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
     R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
     ref_density    = 1.0_8
     kappa          = R_d/c_p
     omega          = 7.292d-05
     radius         = 6371220.0_8
     p_0            = 1000.0d2
-    viscosity_rotu = 0.0_8
-    viscosity_mass = 0.0_8
-    viscosity_temp = 0.0_8
+
+    visc_sclr = 0.0_8
+    visc_divu = 0.0_8
+    visc_rotu = 0.0_8
+
 
     ! Bins for zonal statistics
     nbins = 128
