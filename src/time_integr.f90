@@ -4,8 +4,27 @@ module time_integr_mod
   implicit none
   type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
 contains
+  subroutine RK22_opt (trend_fun, dt)
+    ! Optimal second order, two stage strong stability preserving Runge-Kutta method derived by Shu and Osher (1988).
+    ! Stable for hyperbolic equations for CFL<=1.
+    ! See Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) 
+    implicit none
+    external :: trend_fun
+    real(8)  :: dt
+  
+    call manage_q1_mem
+
+    call trend_fun (sol, trend) 
+    call RK_sub_step (sol, trend, dt, q1)
+    call WT_after_step (q1, wav_coeff)
+
+    call trend_fun (q1, trend)
+    call RK_sub_step2 (sol, q1, trend, (/ 0.5_8, 0.5_8 /), dt/2, q3)
+    call WT_after_step (sol, wav_coeff, level_start-1)
+  end subroutine RK22_opt
+  
   subroutine RK34_opt (trend_fun, dt)
-    ! Third order, four stage strong stability preserving Runge-Kutta method
+    ! Optimal third order, four stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
@@ -32,7 +51,7 @@ contains
   end subroutine RK34_opt
 
   subroutine RK45_opt (trend_fun, dt)
-    ! Fourth order, five stage strong stability preserving Runge-Kutta method stable with optimal maximum CFL coefficient of 1.51
+    ! Optimal fourth order, five stage strong stability preserving Runge-Kutta method stable with optimal maximum CFL coefficient of 1.51
     ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiteri and Ruuth 2002
     implicit none
     external :: trend_fun
