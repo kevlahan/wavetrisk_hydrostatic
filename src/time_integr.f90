@@ -19,7 +19,7 @@ contains
     call WT_after_step (q1, wav_coeff)
 
     call trend_fun (q1, trend)
-    call RK_sub_step2 (sol, q1, trend, (/ 0.5_8, 0.5_8 /), dt/2, q3)
+    call RK_sub_step2 (sol, q1, trend, (/ 0.5_8, 0.5_8 /), dt/2, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK22_opt
   
@@ -163,7 +163,7 @@ contains
 
   subroutine RK_sub_step1 (sols, trends, alpha, dt, dest)
     implicit none
-    real(8) :: alpha, dt
+    real(8)                                                              :: alpha, dt
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: sols
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: trends
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
@@ -185,11 +185,13 @@ contains
 
   subroutine RK_sub_step2 (sol1, sol2, trends, alpha, dt, dest)
     implicit none
-    real(8) :: alpha(2), dt
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trends
+    real(8)                                                              :: dt
+    real(8), dimension(2)                                                :: alpha
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: sol1, sol2
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: trends
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
-    integer k, v, d, ibeg, iend
+    
+    integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -206,10 +208,10 @@ contains
 
   subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
     implicit none
-    real(8), dimension(2) :: dt
-    real(8), dimension(4) :: alpha
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels) :: trend1, trend2
+    real(8), dimension(2)                                                :: dt
+    real(8), dimension(4)                                                :: alpha
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: sol1, sol2, sol3, sol4
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: trend1, trend2
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
     
     integer :: k, v, d, ibeg, iend
