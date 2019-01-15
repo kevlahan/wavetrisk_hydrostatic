@@ -4,24 +4,28 @@ module time_integr_mod
   implicit none
   type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
 contains
-  subroutine RK22_opt (trend_fun, dt)
-    ! Optimal second order, two stage strong stability preserving Runge-Kutta method derived by Shu and Osher (1988).
-    ! Stable for hyperbolic equations for CFL<=1.
-    ! See Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) 
+  subroutine RK33_opt (trend_fun, dt)
+    ! Optimal third order, three stage strong stability preserving Runge-Kutta method
+    ! Stable for hyperbolic equations for CFL<2
+    ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
     external :: trend_fun
     real(8)  :: dt
   
-    call manage_q1_mem
+    call manage_RK_mem
 
     call trend_fun (sol, trend) 
     call RK_sub_step (sol, trend, dt, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_fun (q1, trend)
-    call RK_sub_step2 (sol, q1, trend, (/ 0.5_8, 0.5_8 /), dt/2, sol)
+    call trend_fun (q1, trend) 
+    call RK_sub_step2 (sol, q1, trend, (/ 0.75_8, 0.25_8 /), dt/4, q2)
+    call WT_after_step (q2, wav_coeff)
+
+    call trend_fun (q2, trend)
+    call RK_sub_step2 (sol, q2, trend, (/ 1.0_8/3, 2.0_8/3 /), dt*2/3, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
-  end subroutine RK22_opt
+  end subroutine RK33_opt
   
   subroutine RK34_opt (trend_fun, dt)
     ! Optimal third order, four stage strong stability preserving Runge-Kutta method
@@ -34,11 +38,11 @@ contains
     call manage_RK_mem
 
     call trend_fun (sol, trend) 
-    call RK_sub_step1 (sol, trend, 1.0_8, dt/2, q1)
+    call RK_sub_step (sol, trend, dt/2, q1)
     call WT_after_step (q1, wav_coeff)
 
     call trend_fun (q1, trend) 
-    call RK_sub_step1 (q1, trend, 1.0_8, dt/2, q2)
+    call RK_sub_step (q1, trend, dt/2, q2)
     call WT_after_step (q2, wav_coeff)
 
     call trend_fun (q2, trend)
@@ -46,7 +50,7 @@ contains
     call WT_after_step (q3, wav_coeff)
     
     call trend_fun (q3, trend) 
-    call RK_sub_step1 (q3, trend, 1.0_8, dt/2, sol)
+    call RK_sub_step (q3, trend, dt/2, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK34_opt
 
