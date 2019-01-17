@@ -36,8 +36,9 @@ contains
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
-          call apply_onescale (remap_velo,    l, z_null, 0, 0)
           call apply_onescale (remap_scalars, l, z_null, 0, 1)
+          call apply_onescale (remap_velo,    l, z_null, 0, 0)
+          ! call apply_onescale (remap_momentum, l, z_null, 0, 0)
        end do
     else ! Lin (2004) (remap total energy)
        do l = level_start, level_end
@@ -45,6 +46,7 @@ contains
        end do
        do l = level_start, level_end
           call apply_onescale (remap_velo, l, z_null, 0, 0)
+          ! call apply_onescale (remap_momentum, l, z_null, 0, 0)
        end do
        call update_vector_bdry (sol(S_VELO,:), NONE)
        do l = level_start, level_end
@@ -72,6 +74,11 @@ contains
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
+    ! Save old mass
+    do k = 1, zlevels
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+    end do
+    
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     do k = 1, zlevels
@@ -94,7 +101,7 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                        :: d, e, id, id_e, id_i, k
+    integer                        :: d, e, id, id_i, k
     real(8)                        :: p_s
     real(8), dimension (1:zlevels) :: flux_new, flux_old 
     real(8), dimension (0:zlevels) :: p_new, p_old
@@ -102,12 +109,12 @@ contains
     d    = dom%id + 1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
-
+    
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     do e = 1, EDGE
        do k = 1, zlevels
-          flux_old(k) = sol(S_VELO,zlevels-k+1)%data(d)%elts(EDGE*id+e)
+          flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
        end do
 
        call interp_velo (zlevels, flux_new, p_new, flux_old, p_old)
@@ -117,6 +124,44 @@ contains
        end do
     end do
   end subroutine remap_velo
+
+  subroutine remap_momentum (dom, i, j, z_null, offs, dims)
+    ! Remap momentum and then recover remapped velocity
+    type (Domain)                   :: dom
+    integer                         :: i, j, z_null
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer                        :: d, e, id, id_i, k
+    integer, dimension(1:EDGE)     :: id_r
+    real(8)                        :: mass_e, p_s
+    real(8), dimension (1:zlevels) :: flux_new, flux_old 
+    real(8), dimension (0:zlevels) :: p_new, p_old
+
+    d    = dom%id + 1
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
+    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
+    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1 
+
+    call find_coordinates (p_new, p_old, d, id_i, p_s)
+
+    do e = 1, EDGE
+       do k = 1, zlevels
+          mass_e = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(id_r(e))
+          flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e
+       end do
+
+       call interp_velo (zlevels, flux_new, p_new, flux_old, p_old)
+
+       do k = 1, zlevels
+          mass_e = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_r(e))
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1) / mass_e
+       end do
+    end do
+  end subroutine remap_momentum
 
   subroutine remap_total_energy (dom, i, j, z_null, offs, dims)
     ! Remap total energy
@@ -134,6 +179,11 @@ contains
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
+
+    ! Save old mass
+    do k = 1, zlevels
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+    end do
 
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
@@ -158,6 +208,7 @@ contains
     
     do k = 1, zlevels
        exner_fun(k)%data(d)%elts(id_i) = energy_new(k) ! Store new total energy in exner function
+       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * p_s/grav_accel ! New mass
     end do
   end subroutine remap_total_energy
   
@@ -188,8 +239,7 @@ contains
        nullify (velo)
 
        theta = kappa * log (p_new(k)/p_new(k-1)) / (p_new(k)**kappa - p_new(k-1)**kappa) * T_mean
-
-       sol(S_MASS,kb)%data(d)%elts(id_i) = a_vert_mass(kb) + b_vert_mass(kb) * p_s/grav_accel ! New mass
+       
        sol(S_TEMP,kb)%data(d)%elts(id_i) = sol(S_MASS,kb)%data(d)%elts(id_i) * theta          ! New temp
 
        phi_lower = phi_lower +  R_d * T_mean * log (p_new(k)/p_new(k-1))
@@ -240,7 +290,7 @@ contains
 
     p_old(0) = p_top
     do k = 1, zlevels
-       p_old(k) = p_old(k-1) + grav_accel * sol(S_MASS,zlevels-k+1)%data(d)%elts(id_i)
+       p_old(k) = p_old(k-1) + grav_accel * trend(S_MASS,zlevels-k+1)%data(d)%elts(id_i)
     end do
     p_s = p_old(zlevels)
     
@@ -249,47 +299,29 @@ contains
 
   subroutine remap0 (N, var_new, z_new, var_old, z_old)
     !
-    ! The simplest remapping procedure which assumes that distribution
-    ! of var_old(z) is piecewise constant in each grid box, (i.e. similar to
-    ! donor-cell first-order upstream advection).
-    ! In addition to remapping it also checks that grid is not changing
-    ! too fast, i.e. z_new(k) stands within bounds of z(k-1) and z(k+1).
-    ! If this condition is violated, it simply reports the error, but
-    ! calculation proceeds. 
+    ! The simplest remapping procedure which assumes that the distribution of var_old(z) is piecewise constant 
+    ! in each grid box, (i.e. similar to donor-cell first-order upstream advection).
     !
     implicit none
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new, z_old
     
-    integer                 :: ierr, k
+    integer                 :: k
     real(8)                 :: dz
     real(8), parameter      :: Zero=0.0_8
     real(8), dimension(0:N) :: FC
-    real(8), dimension(1:N) :: Hz
-
-    do k = 1, N
-       Hz(k) = z_old(k) - z_old(k-1)
-    end do
     
-    ierr = 0
     do k = 1, N-1
        dz = z_new(k) - z_old(k)
        FC(k) = min (dz, Zero) * var_old(k) + max (dz, Zero) * var_old(k+1)
-       if (dz > Zero) then
-          if (dz > Hz(k+1)) ierr = ierr+1
-       else
-          if (abs(dz) > Hz(k)) ierr = ierr+1
-       end if
     end do
     FC(0) = 0.0_8
     FC(N) = 0.0_8
     
     do k = 1, N
-       var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
+       var_new(k) = ((z_old(k)-z_old(k-1))*var_old(k) + FC(k)-FC(k-1)) / (z_new(k)-z_new(k-1))
     end do
-    
-    if (ierr /= 0 .and. rank == 0)  write (6,'(A)') 'ERROR: Grid is changing too fast.'
   end subroutine remap0
 
   subroutine remap1 (N, var_new, z_new, var_old, z_old)
@@ -314,7 +346,7 @@ contains
     real(8), parameter      :: Zero=0.0_8, Half=0.5_8
     real(8), dimension(0:N) :: aL, aR, FC
     real(8), dimension(1:N) :: Hz
-    logical, parameter      :: NEUMANN = .true., ENHANCE = .false.   
+    logical, parameter      :: NEUMANN = .false., ENHANCE = .true.   
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -401,9 +433,9 @@ contains
     real(8), parameter      :: Zero=0.0_8, Half=0.5_8, One=1.0_8, ThreeHalfth=1.5_8, Two=2.0_8, Three=3.0_8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, CF, FC, FC1
-    logical, parameter      :: LIMIT_INTERIOR = .false. ! commented out
-    logical, parameter      :: LIMIT_SLOPES   = .true.  ! commented in
-    logical, parameter      :: NEUMANN        = .true.  ! commented in
+    logical, parameter      :: LIMIT_INTERIOR = .false.
+    logical, parameter      :: LIMIT_SLOPES   = .true. 
+    logical, parameter      :: NEUMANN        = .false. 
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -417,16 +449,16 @@ contains
     
     do k = 2, N-1
        cff = Hz(k) * ((Two*Hz(k-1) + Hz(k))*FC(k) + (Two*Hz(k+1) + Hz(k))*FC(k-1)) / (Hz(k-1) + Hz(k) + Hz(k+1))
-       ! if (LIMIT_SLOPES) then
-       cffR = Two * (var_old(k+1) - var_old(k))
-       cffL = Two * (var_old(k) - var_old(k-1))
-       if (cffR*cffL > Zero) then
-          if (abs(cffL) < abs(cff)) cff = cffL
-          if (abs(cffR) < abs(cff)) cff = cffR
-       else
-          cff = Zero
+       if (LIMIT_SLOPES) then
+          cffR = Two * (var_old(k+1) - var_old(k))
+          cffL = Two * (var_old(k) - var_old(k-1))
+          if (cffR*cffL > Zero) then
+             if (abs(cffL) < abs(cff)) cff = cffL
+             if (abs(cffR) < abs(cff)) cff = cffR
+          else
+             cff = Zero
+          end if
        end if
-       ! end if
        FC1(k) = cff
     end do
     FC1(N) = Hz(N) * FC(N-1)
@@ -442,29 +474,29 @@ contains
        aR(k) = CF(k) + Two*Hz(k)*Hz(k+1) * (cffL-cffR)*FC(k) - cffL*Hz(k)*FC1(k+1) + cffR*Hz(k+1)*FC1(k)
        aL(k+1) = aR(k)    
     end do
-
-    ! if (NEUMANN) then
-    aR(N) = ThreeHalfth*var_old(N) - Half*aL(N)
-    aL(1) = ThreeHalfth*var_old(1) - Half*aR(1)
-    ! else
-    ! aR(N) = Two*var_old(N) - aL(N)
-    ! aL(1) = Two*var_old(1) - aR(1)
-    ! end if
     
-    ! if (LIMIT_INTERIOR) then
-    !    do k = 1, N
-    !       dR = aR(k) - var_old(k)
-    !       dL = var_old(k) - aL(k)
-    !       if (dR*dL < Zero) then
-    !          dR = Zero
-    !          dL = Zero
-    !       end if
-    !       if (abs(dR) > Two*abs(dL)) dR = Two * dL
-    !       if (abs(dL) > Two*abs(dR)) dL = Two * dR
-    !       aR(k) = var_old(k) + dR
-    !       aL(k) = var_old(k) - dL
-    !    end do
-    ! end if
+    if (NEUMANN) then
+       aR(N) = ThreeHalfth*var_old(N) - Half*aL(N)
+       aL(1) = ThreeHalfth*var_old(1) - Half*aR(1)
+    else
+       aR(N) = Two*var_old(N) - aL(N)
+       aL(1) = Two*var_old(1) - aR(1)
+    end if
+    
+    if (LIMIT_INTERIOR) then
+       do k = 1, N
+          dR = aR(k) - var_old(k)
+          dL = var_old(k) - aL(k)
+          if (dR*dL < Zero) then
+             dR = Zero
+             dL = Zero
+          end if
+          if (abs(dR) > Two*abs(dL)) dR = Two * dL
+          if (abs(dL) > Two*abs(dR)) dL = Two * dR
+          aR(k) = var_old(k) + dR
+          aL(k) = var_old(k) - dL
+       end do
+    end if
     
     !
     ! Remapping step: This operation consists essentially of three
@@ -517,25 +549,25 @@ contains
     real(8), parameter      :: Half = 0.5_8, ThreeHalfth=1.5_8, Zero = 0.0_8, One = 1.0_8, Two = 2.0_8, Three = 3.0_8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: dL, dR, FC, r
-    logical, parameter      :: NEUMANN                = .false. ! commented out
-    logical, parameter      :: LINEAR_CONTINUATION    = .false. ! commented out
-    logical, parameter      :: PARABOLIC_CONTINUATION = .true.  ! commented in
+    logical, parameter      :: NEUMANN                = .false.
+    logical, parameter      :: LINEAR_CONTINUATION    = .false.
+    logical, parameter      :: PARABOLIC_CONTINUATION = .true. 
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
     end do
 
-    ! if (NEUMANN) then
-    !    FC(1) = Half
-    !    r(0) = ThreeHalfth * var_old(1)
-    ! elseif (LINEAR_CONTINUATION) then
-    !    FC(1) = One
-    !    r(0) = Two * var_old(1)
-    ! elseif (PARABOLIC_CONTINUATION) then
-    cff = Hz(1) / Hz(2)
-    FC(1) = One + cff
-    r(0) = Two*var_old(1) + cff*( var_old(1) + cff*var_old(2) )/FC(1)
-    ! end if
+    if (NEUMANN) then
+       FC(1) = Half
+       r(0) = ThreeHalfth * var_old(1)
+    elseif (LINEAR_CONTINUATION) then
+       FC(1) = One
+       r(0) = Two * var_old(1)
+    elseif (PARABOLIC_CONTINUATION) then
+       cff = Hz(1) / Hz(2)
+       FC(1) = One + cff
+       r(0) = Two*var_old(1) + cff*( var_old(1) + cff*var_old(2) )/FC(1)
+    end if
 
     do k = 1, N-1, +1
        cff = One / (Two*Hz(k) + Hz(k+1)*(Two-FC(k)))
@@ -543,15 +575,15 @@ contains
        r(k) = cff * (Three*(var_old(k+1)*Hz(k) + var_old(k)*Hz(k+1)) - Hz(k+1)*r(k-1))
     end do
 
-    ! if (PARABOLIC_CONTINUATION) then
-    cff = Hz(N) / Hz(N-1)
-    cff1 = One + cff
-    r(N) = (cff*(var_old(N) + cff*var_old(N-1)) + cff1*(Two*var_old(N) - cff1*r(N-1)))/(cff1*(One - cff1*FC(N)))
-    ! elseif (LINEAR_CONTINUATION) then
-    !    r(N) = (Two*var_old(N) - r(N-1)) / (One - FC(N))
-    ! elseif (NEUMANN) then
-    !    r(N) = (Three*var_old(N) - r(N-1)) / (Two - FC(N))
-    ! end if
+    if (PARABOLIC_CONTINUATION) then
+       cff = Hz(N) / Hz(N-1)
+       cff1 = One + cff
+       r(N) = (cff*(var_old(N) + cff*var_old(N-1)) + cff1*(Two*var_old(N) - cff1*r(N-1)))/(cff1*(One - cff1*FC(N)))
+    elseif (LINEAR_CONTINUATION) then
+       r(N) = (Two*var_old(N) - r(N-1)) / (One - FC(N))
+    elseif (NEUMANN) then
+       r(N) = (Three*var_old(N) - r(N-1)) / (Two - FC(N))
+    end if
 
     do k = N-1, 0, -1
        r(k) = r(k) - FC(k+1)*r(k+1)
@@ -610,7 +642,7 @@ contains
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, dL, dR, FC, r
     logical, parameter      :: LIMIT_INTERIOR = .true. ! commented in 
-    logical, parameter      :: NEUMANN        = .true. ! commented out
+    logical, parameter      :: NEUMANN        = .false. ! commented out
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -644,35 +676,35 @@ contains
        dR(k) = (Two*deltaR - deltaL)**2
        dL(k) = (Two*deltaL - deltaR)**2
     end do
+    
+    if (LIMIT_INTERIOR) then
+       aR(N) = var_old(N)     ! Boundary conditions for strictly monotonic option: The only way to
+       aL(N) = var_old(N)     ! avoid extrapolation toward the
+       dR(N) = Zero           ! boundary is to assume that field 
+       dL(N) = Zero           ! is simply constant within topmost 
+       aR(1) = var_old(1)     ! and bottommost grid boxes. Note 
+       aL(1) = var_old(1)     ! that even for NEUMANN boundary 
+       dR(1) = Zero           ! conditions, the extrapolated 
+       dL(1) = Zero           ! values aR(N) and aL(0) exceed corresponding grid box values.
+    else 
+       aL(N) = aR(N-1)
+       if (NEUMANN) then
+          aR(N) = ThreeHalfth*var_old(N) - Half*aL(N)
+       else
+          aR(N) = Two*var_old(N) - aL(N)
+       end if
+       dR(N) = (Two*aR(N) + aL(N) - Three*var_old(N))**2
+       dL(N) = (Three*var_old(N) - Two*aL(N) - aR(N))**2
 
-    ! if (LIMIT_INTERIOR) then
-    aR(N) = var_old(N)     ! Boundary conditions for strictly monotonic option: The only way to
-    aL(N) = var_old(N)     ! avoid extrapolation toward the
-    dR(N) = Zero           ! boundary is to assume that field 
-    dL(N) = Zero           ! is simply constant within topmost 
-    aR(1) = var_old(1)     ! and bottommost grid boxes. Note 
-    aL(1) = var_old(1)     ! that even for NEUMANN boundary 
-    dR(1) = Zero           ! conditions, the extrapolated 
-    dL(1) = Zero           ! values aR(N) and aL(0) exceed corresponding grid box values.
-    ! else 
-    !    aL(N) = aR(N-1)
-    !    if (NEUMANN) then
-    !       aR(N) = ThreeHalfth*var_old(N) - Half*aL(N)
-    !    else
-    !       aR(N) = Two*var_old(N) - aL(N)
-    !    end if
-    !    dR(N) = (Two*aR(N) + aL(N) - Three*var_old(N))**2
-    !    dL(N) = (Three*var_old(N) - Two*aL(N) - aR(N))**2
-
-    !    aR(1)=aL(2)
-    !    if (NEUMANN) then
-    !       aL(1) = ThreeHalfth*var_old(1) - Half*aR(1)
-    !    else
-    !       aL(1) = Two*var_old(1) - aR(1)
-    !    end if
-    !    dR(1) = (Two*aR(1) + aL(1) - Three*var_old(1))**2
-    !    dL(1) = (Three*var_old(1) - Two*aL(1) - aR(1))**2
-    ! end if
+       aR(1)=aL(2)
+       if (NEUMANN) then
+          aL(1) = ThreeHalfth*var_old(1) - Half*aR(1)
+       else
+          aL(1) = Two*var_old(1) - aR(1)
+       end if
+       dR(1) = (Two*aR(1) + aL(1) - Three*var_old(1))**2
+       dL(1) = (Three*var_old(1) - Two*aL(1) - aR(1))**2
+    end if
 
     ! Reconcile interfacial values aR, aL using WENO 
     do k = 1, N-1                        
@@ -760,7 +792,7 @@ contains
     real(8), parameter      :: Zero=0.0_8, One=1.0_8, Two=2.0_8, Three=3.0_8, Four=4.0_8, Six=6.0_8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, dL, dR, d, FC, r, r1
-    logical, parameter      :: NEUMANN = .true. ! Neumann option commented in for efficiency
+    logical, parameter      :: NEUMANN = .false.
     !
     ! Parabolic WENO reconstruction: The second and third loops below
     !---------- ---- --------------- compute left and right side limits
@@ -821,13 +853,13 @@ contains
        r1(k) = (deltaR*aR(k) + deltaL*aL(k+1)) / (deltaR + deltaL)
     end do      !--> discard aR,aL,dR,dL
 
-    !if (NEUMANN) then
-    r1(N) = ThreeHalfth*var_old(N) - Half*r1(N-1)
-    r1(0) = ThreeHalfth*var_old(1) - Half*r1(1)
-    ! else
-    !    r1(N) = Two*var_old(N) - r1(N-1)
-    !    r1(0) = Two*var_old(1) - r1(1)
-    ! end if
+    if (NEUMANN) then
+       r1(N) = ThreeHalfth*var_old(N) - Half*r1(N-1)
+       r1(0) = ThreeHalfth*var_old(1) - Half*r1(1)
+    else
+       r1(N) = Two*var_old(N) - r1(N-1)
+       r1(0) = Two*var_old(1) - r1(1)
+    end if
     !
     ! Power-law reconciliation: Starts with computation of side
     !------ --- --------------- limits dR,dL of the first derivative
@@ -905,19 +937,19 @@ contains
        end if
        r(k) = r1(k) + Ampl
     end do
+    
+    if (NEUMANN) then
+       r(0) = ThreeHalfth*var_old(1) - Half*r(1)
+       r(N) = ThreeHalfth*var_old(N) - Half*r(N-1)
+       d(0) = Zero
+       d(N) = Zero
+    else
+       r(0) = Two*var_old(1) - r(1)
+       r(N) = Two*var_old(N) - r(N-1)
+       d(0) = d(1)
+       d(N) = d(N-1)
+    end if
 
-    ! if (NEUMANN) then
-    r(0) = ThreeHalfth*var_old(1) - Half*r(1)
-    r(N) = ThreeHalfth*var_old(N) - Half*r(N-1)
-    d(0) = Zero
-    d(N) = Zero
-    ! else
-    !    r(0) = Two*var_old(1) - r(1)
-    !    r(N) = Two*var_old(N) - r(N-1)
-    !    d(0) = d(1)
-    !    d(N) = d(N-1)
-    ! end if
-    !
     ! Remapping step: This operation consists essentially of three
     !---------- ----- stages: (1) within each grid box compute three
     ! auxiliary fields, which are analogous to approximations for the

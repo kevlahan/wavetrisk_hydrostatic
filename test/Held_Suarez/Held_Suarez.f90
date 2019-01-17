@@ -32,7 +32,6 @@ program Held_Suarez
   gk             = grav_accel*kappa
   
   ! Local test case parameters
-  p_top          = 200.0_8                     ! top of atmosphere pressure
   T_0            = 300.0_8                     ! reference temperature
   T_mean         = 315.0_8                     ! mean temperature
   T_tropo        = 200.0_8                     ! tropopause temperature
@@ -165,7 +164,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      end if
 
      ! Find correct sign for diffusion on left hand side of the equation
-     physics_scalar_flux = (-1)**Laplace_order * physics_scalar_flux/max(dt_init/10, dt)
+     physics_scalar_flux = (-1)**Laplace_order * physics_scalar_flux
   end if
 contains
   function grad_physics (scalar)
@@ -234,7 +233,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      ! Laplacian of velocity
      grad_divu = gradi_e (divu, dom, i, j, offs, dims)
      curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu - visc_rotu * curl_rotu)/max(dt_init/10, dt)
+     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu - visc_rotu * curl_rotu)
   end if
   
   id = idx (i, j, offs, dims)
