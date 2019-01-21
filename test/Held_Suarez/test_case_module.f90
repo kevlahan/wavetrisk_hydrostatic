@@ -452,7 +452,7 @@ contains
     if (Laplace_order_init == 1) then
        C_visc = 6d-3
     elseif (Laplace_order_init == 2) then
-       C_visc = 6d-3
+       C_visc = 1d-2
     end if
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
@@ -469,7 +469,7 @@ contains
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        visc_sclr = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
        visc_divu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
-       visc_rotu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse/4!/4**Laplace_order_init
+       visc_rotu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse/4**Laplace_order_init
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
