@@ -3,11 +3,12 @@ module remap_mod
   use wavelet_mod
   implicit none
   abstract interface
-     subroutine interpolation (N, var_new, z_new, var_old, z_old)
+     subroutine interpolation (N, var_new, z_new, var_old, z_old, neumann)
        implicit none
        integer                 :: N
        real(8), dimension(1:N) :: var_new, var_old
        real(8), dimension(0:N) :: z_new, z_old
+       logical                 :: neumann
      end subroutine interpolation
   end interface
   procedure (interpolation), pointer :: interp_scalar => null ()
@@ -86,7 +87,7 @@ contains
        sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * p_s/grav_accel ! New mass
     end do
   
-    call interp_scalar (zlevels, theta_new, p_new, theta_old, p_old)
+    call interp_scalar (zlevels, theta_new, p_new, theta_old, p_old, .false.)
 
     ! Mass-weighted potential temperature
     do k = 1, zlevels
@@ -117,7 +118,7 @@ contains
           flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
        end do
 
-       call interp_velo (zlevels, flux_new, p_new, flux_old, p_old)
+       call interp_velo (zlevels, flux_new, p_new, flux_old, p_old, .false.)
 
        do k = 1, zlevels
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1)
@@ -154,7 +155,7 @@ contains
           flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e
        end do
 
-       call interp_velo (zlevels, flux_new, p_new, flux_old, p_old)
+       call interp_velo (zlevels, flux_new, p_new, flux_old, p_old, .false.)
 
        do k = 1, zlevels
           mass_e = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_r(e))
@@ -204,7 +205,7 @@ contains
        phi_lower = phi_upper
     end do
     
-    call interp_scalar (zlevels, energy_new, p_new, energy_old, p_old)
+    call interp_scalar (zlevels, energy_new, p_new, energy_old, p_old, .false.)
     
     do k = 1, zlevels
        exner_fun(k)%data(d)%elts(id_i) = energy_new(k) ! Store new total energy in exner function
@@ -297,7 +298,7 @@ contains
     p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1) * p_s
   end subroutine find_coordinates
 
-  subroutine remap0 (N, var_new, z_new, var_old, z_old)
+  subroutine remap0 (N, var_new, z_new, var_old, z_old, neumann)
     !
     ! The simplest remapping procedure which assumes that the distribution of var_old(z) is piecewise constant 
     ! in each grid box, (i.e. similar to donor-cell first-order upstream advection).
@@ -306,6 +307,7 @@ contains
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new, z_old
+    logical                 :: neumann
     
     integer                 :: k
     real(8)                 :: dz
@@ -324,7 +326,7 @@ contains
     end do
   end subroutine remap0
 
-  subroutine remap1 (N, var_new, z_new, var_old, z_old)
+  subroutine remap1 (N, var_new, z_new, var_old, z_old, neumann)
     !
     ! Remapping procedure using piecewise-linear reconstruction: 
     !---------- --------- ----- --------- ------ ---------------
@@ -340,13 +342,14 @@ contains
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new, z_old
+    logical                 :: neumann
 
     integer                 :: k, iter
     real(8)                 :: cff, cff1, dh, dL, dR, dz
     real(8), parameter      :: Zero=0.0_8, Half=0.5_8
     real(8), dimension(0:N) :: aL, aR, FC
     real(8), dimension(1:N) :: Hz
-    logical, parameter      :: NEUMANN = .false., ENHANCE = .true.   
+    logical, parameter      :: ENHANCE = .true.   
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -419,7 +422,7 @@ contains
     end do
   end subroutine remap1
 
-  subroutine remap2PPM (N, var_new, z_new, var_old, z_old)
+  subroutine remap2PPM (N, var_new, z_new, var_old, z_old, neumann)
     !
     ! Reconstruction by PPM code of Colella--Woodward, 1984.
     !
@@ -427,6 +430,7 @@ contains
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new, z_old
+    logical                 :: neumann
 
     integer                 :: k, k1, k2
     real(8)                 :: alpha, cff, cffL, cffR, dL, dR, dz
@@ -435,7 +439,6 @@ contains
     real(8), dimension(0:N) :: aL, aR, CF, FC, FC1
     logical, parameter      :: LIMIT_INTERIOR = .false.
     logical, parameter      :: LIMIT_SLOPES   = .true. 
-    logical, parameter      :: NEUMANN        = .false. 
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -534,7 +537,7 @@ contains
     end do
   end subroutine remap2PPM
 
-  subroutine remap2S (N, var_new, z_new, var_old, z_old)
+  subroutine remap2S (N, var_new, z_new, var_old, z_old, neumann)
     !
     ! Basic parabolic spline reconstruction
     !------ --------- ------ --------------
@@ -543,15 +546,17 @@ contains
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new,  z_old
+    logical                 :: neumann
 
     integer                 :: k
     real(8)                 :: alpha, cff, cff1, dz
     real(8), parameter      :: Half = 0.5_8, ThreeHalfth=1.5_8, Zero = 0.0_8, One = 1.0_8, Two = 2.0_8, Three = 3.0_8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: dL, dR, FC, r
-    logical, parameter      :: NEUMANN                = .false.
     logical, parameter      :: LINEAR_CONTINUATION    = .false.
-    logical, parameter      :: PARABOLIC_CONTINUATION = .true. 
+    logical, parameter      :: PARABOLIC_CONTINUATION = .true.
+
+    neumann = .false.
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -622,7 +627,7 @@ contains
     end do
   end subroutine remap2S
 
-  subroutine remap2W (N, var_new, z_new, var_old, z_old)
+  subroutine remap2W (N, var_new, z_new, var_old, z_old, neumann)
     !
     ! Parabolic WENO reconstruction: The second and third loops below
     !---------- ---- --------------- compute left and right side limits
@@ -635,6 +640,7 @@ contains
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new, z_old
+    logical                 :: neumann
 
     integer                 :: k
     real(8)                 :: alpha, cff, cffL, cffR, deltaL, deltaR, dz
@@ -642,7 +648,6 @@ contains
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, dL, dR, FC, r
     logical, parameter      :: LIMIT_INTERIOR = .true. ! commented in 
-    logical, parameter      :: NEUMANN        = .false. ! commented out
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -774,7 +779,7 @@ contains
     end do
   end subroutine remap2W
 
-  subroutine remap4 (N, var_new, z_new, var_old, z_old)
+  subroutine remap4 (N, var_new, z_new, var_old, z_old, neumann)
     ! Parabolic WENO enhanced by quartic power-law reconciliation step. 
     ! Profile in each grid box is then given by a quartic polynomial.
     !
@@ -784,6 +789,7 @@ contains
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new, z_old
+    logical                 :: neumann
 
     integer                 :: k
     real(8)                 :: alpha, Ampl, cff, cffL, cffR, deltaL, deltaR, dz, Hdd, rr
@@ -792,7 +798,6 @@ contains
     real(8), parameter      :: Zero=0.0_8, One=1.0_8, Two=2.0_8, Three=3.0_8, Four=4.0_8, Six=6.0_8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, dL, dR, d, FC, r, r1
-    logical, parameter      :: NEUMANN = .false.
     !
     ! Parabolic WENO reconstruction: The second and third loops below
     !---------- ---- --------------- compute left and right side limits
