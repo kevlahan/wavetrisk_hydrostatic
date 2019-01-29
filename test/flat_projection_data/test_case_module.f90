@@ -6,6 +6,7 @@ module test_case_mod
   implicit none
   integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev
   real(8)                              :: initotalmass, mass_error, totalmass, ref_surf_press
+  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
   
   ! DCMIP2012c4
@@ -34,7 +35,9 @@ contains
 
        surf_geopot = grav_accel*h_0*exp__flush (-rgrc**2/d2)
     elseif (trim (test_case) == "Held_Suarez") then
-       surf_geopot = 0.0_8
+       c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
+       surf_geopot = c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
+       ! surf_geopot = 0.0_8
     else
        write(6,'(A)') "Test case not supported"
        stop
@@ -55,7 +58,7 @@ contains
           b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
        end do
     else
-       if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4') then
+       if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4' .or. trim (test_case) == 'Held_Suarez') then
           if (zlevels==18) then
              a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
                   0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
@@ -251,7 +254,6 @@ contains
 
   subroutine initialize_dt_viscosity 
     implicit none
-    allocate (viscosity_divu(1:zlevels)); viscosity_divu = 0.0_8
   end subroutine initialize_dt_viscosity
 
   subroutine set_save_level

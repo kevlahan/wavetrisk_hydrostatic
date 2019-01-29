@@ -64,13 +64,16 @@ program flat_projection_data
      R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
      gamma          = c_p/c_v                     ! heat capacity ratio
      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
+     
+     u_0            = 35.0_8                      ! maximum velocity of zonal wind
+     eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
   else
      write (6,'(A)') "Test case not supported"
      stop
   end if
   resume = mean_beg
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- 
+
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
 
