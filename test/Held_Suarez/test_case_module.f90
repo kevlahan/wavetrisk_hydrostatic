@@ -167,11 +167,15 @@ contains
        !    threshold_new(v,:) = tol * maxval (lnorm(v,:))
        ! end do
     end if
-    !threshold = 0.1*threshold_new + 0.9*threshold
-    threshold = threshold_new
+
+    if (istep >= 10) then
+       threshold = 0.01*threshold_new + 0.99*threshold
+    else
+       threshold = threshold_new
+    end if
   end subroutine set_thresholds
 
-   subroutine initialize_a_b_vert
+  subroutine initialize_a_b_vert
     implicit none
     integer :: k
 
@@ -316,6 +320,7 @@ contains
     read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
+    read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
     read (fid,*) varname, resume
     close(fid)
@@ -340,7 +345,7 @@ contains
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case           = ", trim (test_case)
        write (6,'(A,A)')      "run_id              = ", trim (run_id)
-       write (6,'(A,L1)')     "compressible        = ", compressible
+       write (6,'(A,l1)')     "compressible        = ", compressible
        write (6,'(A,i3)')     "min_level           = ", min_level
        write (6,'(A,i3)')     "max_level           = ", max_level
        write (6,'(A,i5)')     "number of domains   = ", N_GLO_DOMAIN
@@ -348,20 +353,21 @@ contains
        write (6,'(A,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
        write (6,'(A,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
        write (6,'(A,i3)')     "zlevels             = ", zlevels
-       write (6,'(A,L1)')     "uniform             = ", uniform
-       write (6,'(A,L1)')     "remap               = ", remap
+       write (6,'(A,l1)')     "uniform             = ", uniform
+       write (6,'(A,l1)')     "remap               = ", remap
        write (6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
        write (6,'(A,L1)')     "adapt_trend         = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds  = ", default_thresholds
        write (6,'(A,L1)')     "perfect             = ", perfect
        write (6,'(A,es10.4)') "tolerance           = ", tol
        write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
-       write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
+       write (6,'(A,l1)')     "adapt_dt            = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(A,es10.4)') "dt_write (day)      = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
+       write (6,'(A,l1)')     "rebalance           = ", rebalance
        write (6,'(A,es10.4)') "time_end (day)      = ", time_end/DAY
        write (6,'(A,i6)')     "resume              = ", resume
        
@@ -449,12 +455,8 @@ contains
     implicit none
     real(8) :: area
 
-    if (Laplace_order_init == 1) then
-       C_visc = 6d-3
-    elseif (Laplace_order_init == 2) then
-       C_visc = 1d-2
-    end if
-
+    C_visc = 4e-2
+    
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
 
@@ -467,9 +469,9 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
+       visc_sclr = 0.0_8!C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse 
        visc_divu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
-       visc_rotu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse/4**Laplace_order_init
+       visc_rotu = 0.0_8!C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse  / 4**Laplace_order_init
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop

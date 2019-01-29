@@ -117,7 +117,7 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt_mpi()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
        
-       call write_checkpoint (custom_dump, custom_load, run_id)
+       call write_checkpoint (custom_dump, custom_load, run_id, .true.)
     end if
     call barrier
   end subroutine initialize
@@ -284,10 +284,11 @@ contains
     end if
   end subroutine restart
 
-  subroutine write_checkpoint (custom_dump, custom_load, run_id)
+  subroutine write_checkpoint (custom_dump, custom_load, run_id, rebal)
     implicit none
-    external :: custom_dump, custom_load
+    external     :: custom_dump, custom_load
     character(*) :: run_id
+    logical      :: rebal
 
     character(255) :: cmd_archive, cmd_files, command
     
@@ -297,7 +298,7 @@ contains
        write (6,'(A,/)') &
             '***********************************************************************&
             **********************************************************'
-       write (6,'(A,i4,A,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [h] = ', time/HOUR
+       write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
     end if
     
     call write_load_conn (cp_idx, run_id)
@@ -314,8 +315,8 @@ contains
     end if
     call barrier ! Make sure data is archived before restarting
     
-    ! Must restart after checkpoint and load balance (if compiled with mpi-lb)
-    call restart (set_thresholds, custom_load, run_id)
+    ! Must restart if want to load balance (compiled with mpi-lb)
+    if (rebal) call restart (set_thresholds, custom_load, run_id)
   end subroutine write_checkpoint
 
   subroutine init_structures (run_id)

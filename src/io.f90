@@ -804,10 +804,14 @@ contains
     integer      :: id
     character(*) :: run_id
 
-    character(255)                          :: filename_gr, filename_no
-    integer                                 :: c, d, i, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
-    integer, dimension(1:size(grid))        :: fid_no, fid_gr
-    logical, dimension(N_CHDRN)             :: required
+    integer                               :: c, d, i, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
+    integer, dimension(1:size(grid))      :: fid_no, fid_gr
+    character(255)                        :: filename_gr, filename_no
+    logical, dimension(1:N_CHDRN)         :: required
+    type(Domain), dimension(1:size(grid)) :: grid_tmp
+
+    ! Make copy of grid since grid is modified when saving checkpoint
+    grid_tmp = grid
     
     fid_no = id+1000000
     fid_gr = id+3000000
@@ -854,9 +858,9 @@ contains
        ! Write data at coarsest scale (scaling functions)
        p_par = 1
        do k = 1, zlevels
-          call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
+          call apply_to_pole_d (write_scalar, grid_tmp(d), min_level-1, k, fid_no(d), .true.)
           do v = S_MASS, S_VELO
-             ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+             ibeg = MULT(v)*grid_tmp(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
              write (fid_no(d))   sol(v,k)%data(d)%elts(ibeg:iend)
              write (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
@@ -866,12 +870,12 @@ contains
        ! Write wavelets at finer scales
        do l = min_level, level_end
           p_lev = 0
-          do j = 1, grid(d)%lev(l)%length
-             p_par = grid(d)%lev(l)%elts(j)
-             if (grid(d)%patch%elts(p_par+1)%deleted) then
+          do j = 1, grid_tmp(d)%lev(l)%length
+             p_par = grid_tmp(d)%lev(l)%elts(j)
+             if (grid_tmp(d)%patch%elts(p_par+1)%deleted) then
                 do c = 1, N_CHDRN
-                   p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-                   if (p_chd > 0) grid(d)%patch%elts(p_chd+1)%deleted = .true.
+                   p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
+                   if (p_chd > 0) grid_tmp(d)%patch%elts(p_chd+1)%deleted = .true. 
                 end do
                 cycle ! No data to write
              end if
@@ -887,13 +891,13 @@ contains
 
              ! Record whether patch needs to be refined
              do c = 1, N_CHDRN
-                p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
                 if (p_chd > 0) then
-                   required(c) = check_child_required(grid(d), p_par, c-1)
-                   grid(d)%patch%elts(p_chd+1)%deleted = .not. required(c)
+                   required(c) = check_child_required(grid_tmp(d), p_par, c-1)
+                   grid_tmp(d)%patch%elts(p_chd+1)%deleted = .not. required(c) 
                    if (required(c)) then
                       p_lev = p_lev + 1
-                      grid(d)%lev(l+1)%elts(p_lev) = p_chd
+                      grid_tmp(d)%lev(l+1)%elts(p_lev) = p_chd ! ** grid modified **
                    end if
                 else
                    required(c) = .false.
@@ -901,7 +905,7 @@ contains
              end do
              write (fid_gr(d)) required
           end do
-          if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev
+          if (l+1 <= max_level) grid_tmp(d)%lev(l+1)%length = p_lev ! ** grid modified **
        end do
        close (fid_no(d))
        close (fid_gr(d))
@@ -950,10 +954,11 @@ contains
     end do
     
     ! Load finer scales (wavelets) if present
+    ! (level_end is initially level_start and is incremented by refine_patch1 if children are present)
     l = 1
     do while (level_end > l) ! New level was added -> proceed to it
        l = level_end 
-       if (rank == 0) write (6,'(A,i2)') 'Loading level ', l
+       if (rank == 0) write (6,'(a,i2)') 'Loading level ', l
        do d = 1, size(grid)
           old_n_patch = grid(d)%patch%length
           do j = 1, grid(d)%lev(l)%length
@@ -969,13 +974,13 @@ contains
 
              read (fid_gr(d)) required
              do c = 1, N_CHDRN
-                if (required(c)) call refine_patch1 (grid(d), p_par, c - 1)
+                if (required(c)) call refine_patch1 (grid(d), p_par, c-1)
              end do
           end do
           do p_par = 2, old_n_patch
              do c = 1, N_CHDRN
                 p_chd = grid(d)%patch%elts(p_par)%children(c)
-                if (p_chd+1 > old_n_patch) call refine_patch2 (grid(d), p_par - 1, c - 1)
+                if (p_chd+1 > old_n_patch) call refine_patch2 (grid(d), p_par-1, c-1)
              end do
           end do
        end do

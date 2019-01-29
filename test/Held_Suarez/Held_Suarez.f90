@@ -96,7 +96,7 @@ program Held_Suarez
         if (remap .and. min_allowed_mass /= 1.0_8) call remap_vertical_coordinates
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id)
+        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, rebalance)
 
         ! Save fields
         call write_and_export (iwrite)
