@@ -300,13 +300,11 @@ module shared_mod
   integer :: min_level, max_level ! minimum and maximum grid refinement levels in pseudo-horizontal directions
   integer :: zlevels ! number of levels in vertical direction
   integer :: save_levels ! number of vertical levels to save
-  integer :: level_start, level_end, level_save
-
-  real(8) :: tol ! relative tolerance for all variables
-
+  integer :: level_start, level_end, level_save, optimize_grid
+  
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
-
-  integer :: optimize_grid
+  
+  real(8) :: tol ! relative tolerance for all variables
 
   ! Basic constants (assumes basic unit of time is seconds)
   integer, parameter :: SECOND = 1
@@ -339,7 +337,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, lagrangian_vertical, perfect, remap, uniform
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, lagrangian_vertical, perfect, rebalance, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -392,10 +390,11 @@ contains
     
     ! Default logical switches, most are reset in the input file
     adapt_dt            = .true. ! Dynamically adapt time step (T) or use time step based on initial conditions (F) 
-    adapt_trend         = .true. ! Adapt on trend (T) or on solution (F)
+    adapt_trend         = .false. ! Adapt on trend (T) or on solution (F)
     compressible        = .true. ! Compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true. ! Use default thresholds (T) or calculate dynamically (F)
-    perfect             = .true. ! Use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
+    perfect             = .false. ! Use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
+    rebalance           = .true. ! Rebalance computational load at each checkpoint if T
     remap               = .true. ! Remap Lagrangian coordinates (T) or no remapping (F)
     lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates (only option implement is T, mass-based coordinates not implemented)
     uniform             = .true. ! Uniform vertical grid in pressure (T) or hybrid (F)
