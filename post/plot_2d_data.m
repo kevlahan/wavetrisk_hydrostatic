@@ -1,11 +1,15 @@
 % Plot 2d data from export_2d or log data
 %test_case = 'DCMIP2008c5'; run_id = 'DCMIP2008c5'; run_dir = '';
-%test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7'; run_dir = '';
-%test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4'; run_dir = 'test1/';
-test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J4'; run_dir = '';
+%test_case = 'DCMIP2012c4'; run_id = 'DCMIP201 2c4_J7'; run_dir = '';
+%test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J5J7_vars'; run_dir = '';
+%test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J4J5_L30'; run_dir = '';
+%test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J4J6_L18'; run_dir = '';
+test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J5L18'; run_dir = '';
+
+unix ('scp -q if:"~/hydro/Held_Suarez/Held_Suarez_J5L18.3.tgz" ~/hydro/H*/.');
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'eddy_heat_flux';  % field to plot
+itype     = 'eddy_ke';  % field to plot
 lon_lat   = false;  % Plot longitude - latitude data
 zonal_avg = true;   % Plot zonally averaged data
 shift     = true;   % shift left boundary to zero longitude
@@ -19,9 +23,19 @@ ilog = dof;
 if (strcmp(test_case,'DCMIP2008c5'))
     Jmin = 4; Jmax = 6;
 elseif (strcmp(test_case,'Held_Suarez'))
-    Jmin = 4; Jmax = 6;
+    Jmin = 5; Jmax = 7;
 elseif (strcmp(test_case,'DCMIP2012c4'))
     Jmin = 5; Jmax = 7;
+end
+
+% Number of dof on equivalent uniform grid
+Nunif = 4 * 10*4^Jmax;
+
+% Total number of degrees of freedom over all scales (this is what is
+% counted)
+Nmax = 4 * 10*4^Jmin;
+for j=Jmin+1:Jmax
+    Nmax = Nmax + 4 * 10*4^j;
 end
 
 machine = 'mac';
@@ -32,7 +46,7 @@ elseif (strcmp(machine,'mac'))
 end
 
 set(0,'defaulttextinterpreter','latex')
-%% Uncompress data files for 2d plots
+% Uncompress data files for 2d plots
 
 % Extract files
 file_base = [run_id '.3.']; 
@@ -146,7 +160,7 @@ elseif (strcmp(itype,'ke')) % Plot zonal kinetic energy
     v_title = 'Kinetic energy (m^2/s^2)';
     s_zo = s_zo+load([file_base '15']);
 elseif (strcmp(itype,'eddy_mom')) % Plot zonal eddy momentum flux
-    c_scale = -100:20:100; % Held-Suarez
+    c_scale = -100:10:100; % Held-Suarez
     v_title = 'Eddy momentum flux (m^2/s^2)';
     s_zo = s_zo+load([file_base '16']);
 elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
@@ -158,7 +172,7 @@ elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
     v_title = 'Eddy kinetic energy (m^2/s^2)';
     s_zo = s_zo+load([file_base '17']);
 elseif (strcmp(itype,'eddy_heat_flux')) % Plot zonal eddy heat flux
-    c_scale = -20:5:20; % Held-Suarez
+    c_scale = -20:2:20; % Held-Suarez
     v_title = 'Eddy kinetic energy (K m/s)';
     s_zo = s_zo+load([file_base '18']);
 end
@@ -184,17 +198,7 @@ system(file_erase);
 %figure;
 
 beg = 1;
-%beg = 47625; % Held-Suarez
-
-% Number of dof on equivalent uniform grid
-Nunif = 4 * 10*4^Jmax;
-
-% Total number of degrees of freedom over all scales (this is what is
-% counted)
-Nmax = 4 * 10*4^Jmin;
-for j=Jmin+1:Jmax
-    Nmax = Nmax + 4 * 10*4^j;
-end
+%beg = 30000; % Held-Suarez
 
 log_data = load([pathid run_id '_log']);
 day = 24;
@@ -234,7 +238,7 @@ elseif ilog == compression
 end
 
 if ilog < cpudof
-    axis([0 log_data(end,1)/day 0 max(log_data(beg:end,ilog))]);
+    axis([0 log_data(end,1)/day 0.9 max(log_data(beg:end,ilog))]);
 elseif ilog == cpudof
     axis([0 log_data(end,1)/day 0 max(log_data(beg:end,cpu)./log_data(beg:end,dof))]);
 elseif ilog == compression
