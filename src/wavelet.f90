@@ -87,7 +87,12 @@ contains
              temp => scaling(S_TEMP,k)%data(d)%elts
              wc_m => wavelet(S_MASS,k)%data(d)%elts
              wc_t => wavelet(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d2 (IWT_prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
+             !call apply_interscale_d2 (IWT_prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
+             if (present(l_start0)) then
+                call apply_interscale_d2 (IWT_prolong_scalar,       grid(d), l, z_null, 0, 1) ! needs wc
+             else
+                call apply_interscale_d2 (IWT_prolong_scalar__fast, grid(d), l, z_null, 0, 1) ! needs wc
+             end if
              nullify (mass, temp, wc_m, wc_t)
           end do
 
@@ -589,6 +594,28 @@ contains
     mass(id_chd+1) = prolong(mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     temp(id_chd+1) = prolong(temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine IWT_prolong_scalar
+
+  subroutine IWT_prolong_scalar__fast (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Prolong scalars at fine points existing at coarse scale by undoing lifting
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_par, id_chd
+
+    ! Locally filled, IWT reproduces previous value
+
+    id_par = idx(i_par, j_par, offs_par, dims_par)
+
+    if (dom%mask_n%elts(id_par+1) >= TOLRNZ) return
+
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+
+    mass(id_chd+1) = prolong (mass(id_par+1), wc_m, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    temp(id_chd+1) = prolong (temp(id_par+1), wc_t, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+  end subroutine IWT_prolong_scalar__fast
 
   function prolong (scalar, wavelet, dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     ! Prolongation at fine points existing at coarse scale by undoing lifting
