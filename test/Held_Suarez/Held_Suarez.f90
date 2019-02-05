@@ -85,6 +85,7 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
+     if (time >= 200*DAY .and. modulo (istep, 50) == 0) call statistics
      !call euler (trend_cooling, dt)
      call stop_timing
 
@@ -95,8 +96,13 @@ program Held_Suarez
         iwrite = iwrite+1
         if (remap .and. min_allowed_mass /= 1.0_8) call remap_vertical_coordinates
 
-        ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, rebalance)
+        if (modulo (iwrite, CP_EVERY) == 0) then
+           call write_checkpoint (dump, load, run_id, rebalance) ! save checkpoint (and rebalance)
+
+           ! Save statistics
+           call combine_stats
+           if (rank == 0) call write_out_stats
+        end if
 
         ! Save fields
         call write_and_export (iwrite)

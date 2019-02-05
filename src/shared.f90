@@ -318,8 +318,9 @@ module shared_mod
   integer                                       :: cp_idx, err_restart, ibin, istep, istep_cumul, iwrite, n_diffuse, nbins
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
-  integer, parameter                            :: max_restart = 10 ! Maximum allowed number of restarts after negative mass event
-  integer, dimension(:,:), allocatable          :: Nstats
+  integer, parameter                            :: max_restart = 10 ! maximum allowed number of restarts after negative mass event
+  integer, parameter                            :: nvar_zonal = 8   ! number of zonal statistics to calculate
+  integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
   
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density
@@ -330,7 +331,7 @@ module shared_mod
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
   real(8), dimension(:,:),       allocatable    :: threshold
-  real(8), dimension(:,:,:),     allocatable    :: zonal_avg
+  real(8), dimension(:,:,:),     allocatable    :: zonal_avg, zonal_avg_glo
   real(8), dimension(3)                         :: L_diffusion
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
@@ -428,12 +429,6 @@ contains
     visc_sclr = 0.0_8
     visc_divu = 0.0_8
     visc_rotu = 0.0_8
-
-    ! Bins for zonal statistics
-    nbins = 128
-    allocate (bounds(1:nbins-1))
-    dbin = 180/nbins
-    bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)
   end subroutine init_shared_mod
 
   real(8) function eps()

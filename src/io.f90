@@ -364,13 +364,13 @@ contains
          + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
 
-  subroutine zonal_average
-    ! Zonal average means and covariances over all checkpoints using stable online algorithm
-    ! Uses Welford's stable onlne algorithm
+  subroutine statistics
+    ! Calculates zonal statistics
     use domain_mod
     implicit none
-    
-    integer :: bin, d, ivar, k, p
+    integer :: d, k, p
+
+    if (rank == 0) write (6,'(a,/)') 'Incrementing zonal averages ...'
 
     call cal_surf_press (sol)
 
@@ -380,21 +380,17 @@ contains
           temp => sol(S_TEMP,k)%data(d)%elts
           velo => sol(S_VELO,k)%data(d)%elts
           do p = 2, grid(d)%patch%length
-             call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
              call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
-             call apply_onescale_to_patch (statistics,     grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (cal_zonal_avg,  grid(d), p-1, k, 0, 0)
           end do
           nullify (mass, temp, velo)
        end do
-       do bin = 1, nbins
-          Nstats(k,bin) = sum_int (Nstats(k,bin))
-          do ivar = 1, 8
-             zonal_avg(k,bin,ivar) = sum_real (zonal_avg(k,bin,ivar))
-          end do
-       end do
     end do
   contains
-    subroutine statistics (dom, i, j, zlev, offs, dims)
+    subroutine cal_zonal_avg (dom, i, j, zlev, offs, dims)
+      ! Zonal average means and covariances over all checkpoints using stable online algorithm
+      ! Uses Welford's stable onlne algorithm
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
@@ -409,10 +405,10 @@ contains
 
       call cart2sph (dom%node%elts(id_i), lon, lat)
 
-      temperature = temp(id_i) * (dom%press%elts(id_i)/p_0)**kappa
+      temperature = (temp(id_i)/mass(id_i)) * (dom%press%elts(id_i)/p_0)**kappa
       
       do bin = 1, nbins
-         if (lat <= bounds(bin)) then
+         if (lat*1.8d2/MATH_PI <= bounds(bin)) then
             Nstats(zlev,bin) = Nstats(zlev,bin) + 1
 
             Tprime = temperature            - zonal_avg(zlev,bin,1)
@@ -429,58 +425,148 @@ contains
             Uprime_new = dom%u_zonal%elts(id_i) - zonal_avg(zlev,bin,3)
             Vprime_new = dom%v_merid%elts(id_i) - zonal_avg(zlev,bin,4)
 
-            ! Temperature variance
-            zonal_avg(zlev,bin,2) = zonal_avg(zlev,bin,2) + Tprime * Tprime_new
+            ! Update sums of squares (for variance calculation)
+
+            ! Temperature 
+            zonal_avg(zlev,bin,2) = (zonal_avg(zlev,bin,2) + Tprime * Tprime_new)
 
             ! Eddy momentum flux (covariance)
-            zonal_avg(zlev,bin,6) = zonal_avg(zlev,bin,6) + Uprime * Vprime_new
+            zonal_avg(zlev,bin,6) = (zonal_avg(zlev,bin,6) + Uprime * Vprime_new)
 
             ! Eddy kinetic energy (covariance)
-            zonal_avg(zlev,bin,7) = zonal_avg(zlev,bin,7) + 0.5 * (Uprime * Uprime_new + Vprime * Vprime_new)
+            zonal_avg(zlev,bin,7) = (zonal_avg(zlev,bin,7) + 0.5 * (Uprime * Uprime_new + Vprime * Vprime_new))
 
             ! Eddy heat flux (covariance)
-            zonal_avg(zlev,bin,8) = zonal_avg(zlev,bin,8) + Vprime * Tprime_new
+            zonal_avg(zlev,bin,8) = (zonal_avg(zlev,bin,8) + Vprime * Tprime_new)
+
+            exit
          end if
       end do
-    end subroutine statistics
-  end subroutine zonal_average
+    end subroutine cal_zonal_avg
+  end subroutine statistics
+
+  subroutine combine_stats
+    ! Uses Chan, Golub and LeVeque (1983) algorithm for partitioned data sets to combine zonal average results from each rank
+    !   T.F. Chan, G.H. Golub & R.J. LeVeque (1983):
+    !   "Algorithms for computing the sample variance: Analysis and recommendations." The American Statistician 37: 242–247.
+    implicit none
+    integer                             :: bin, ivar, k, r
+    integer, dimension(MPI_STATUS_SIZE) :: status
+    integer, dimension(zlevels,nbins)   :: Nstats_loc
+    real(8), dimension(zlevels,nbins,8) :: zonal_avg_loc
+
+    ! Initialize to values on rank 0
+    if (rank == 0) then
+       Nstats_glo    = Nstats
+       zonal_avg_glo = zonal_avg
+    end if
+       
+    do r = 1, n_process - 1
+       if (rank == r) then
+          call MPI_Send (Nstats,     zlevels*nbins,   MPI_INT,              0, 0, MPI_COMM_WORLD, ierror)
+          call MPI_Send (zonal_avg,  zlevels*nbins*8, MPI_DOUBLE_PRECISION, 0, 0, MPI_COMM_WORLD, ierror)
+       elseif (rank == 0) then
+          call MPI_Recv (Nstats_loc,     zlevels*nbins,   MPI_INT,              r, 0, MPI_COMM_WORLD, status, ierror)
+          call MPI_Recv (zonal_avg_loc,  zlevels*nbins*8, MPI_DOUBLE_PRECISION, r, 0, MPI_COMM_WORLD, status, ierror)
+
+          do k = 1, zlevels
+             do bin = 1, nbins
+                if (Nstats_loc(k,bin) /= 0) call combine_var
+             end do
+          end do
+       end if
+    end do
+  contains
+    subroutine combine_var
+      integer :: nA, nB, nAB
+      real(8) :: delta_KE, delta_T, delta_U, delta_V
+      real(8) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_TKE, mB_TKE, mA_VT, mB_VT, mA_UV, mB_UV
+
+      nA = Nstats_glo(k,bin)
+      nB = Nstats_loc(k,bin)
+      nAB = nA + nB
+
+      delta_T  = zonal_avg_loc(k,bin,1) - zonal_avg_glo(k,bin,1)
+      delta_U  = zonal_avg_loc(k,bin,3) - zonal_avg_glo(k,bin,3)
+      delta_V  = zonal_avg_loc(k,bin,4) - zonal_avg_glo(k,bin,4)
+      delta_KE = zonal_avg_loc(k,bin,5) - zonal_avg_glo(k,bin,5)
+
+      mA_T   = zonal_avg_glo(k,bin,2)
+      mB_T   = zonal_avg_loc(k,bin,2)
+
+      mA_UV  = zonal_avg_glo(k,bin,6)
+      mB_UV  = zonal_avg_loc(k,bin,6)
+
+      mA_TKE = zonal_avg_glo(k,bin,7)
+      mB_TKE = zonal_avg_loc(k,bin,7)
+
+      mA_VT  = zonal_avg_glo(k,bin,8)
+      mB_VT  = zonal_avg_loc(k,bin,8)
+
+      ! Combine means
+      zonal_avg_glo(k,bin,1) = zonal_avg_glo(k,bin,1) + delta_T  * nB/nAB
+      zonal_avg_glo(k,bin,3) = zonal_avg_glo(k,bin,3) + delta_U  * nB/nAB
+      zonal_avg_glo(k,bin,4) = zonal_avg_glo(k,bin,4) + delta_V  * nB/nAB
+      zonal_avg_glo(k,bin,5) = zonal_avg_glo(k,bin,5) + delta_KE * nB/nAB
+
+      ! Combine sums of squares (for variances)
+      zonal_avg_glo(k,bin,2) = mA_T   + mB_T   + delta_T**2              * nA*nB/nAB ! temperature variance
+      zonal_avg_glo(k,bin,6) = mA_UV  + mB_UV  + delta_U*delta_V         * nA*nB/nAB ! velocity covariance
+      zonal_avg_glo(k,bin,7) = mA_TKE + mB_TKE + (delta_U**2+delta_V**2) * nA*nB/nAB ! eddy kinetic energy
+      zonal_avg_glo(k,bin,8) = mA_VT  + mB_VT  + delta_V*delta_T         * nA*nB/nAB ! V-T covariance (eddy heat flux)
+
+      ! Update total number of data points
+      Nstats_glo(k,bin) = nAB
+    end subroutine combine_var
+  end subroutine combine_stats
 
   subroutine write_out_stats
     ! Writes out zonal average statistics
-    integer            :: i, k, v
-    integer, parameter :: funit = 400, nvar_zonal = 8
-    real(8)            :: dbin
+    implicit none
+    integer            :: ibin, k, v
+    integer, parameter :: funit = 400
     character(2)       :: var_file
     character(130)     :: command
-  
+
+    write (6,'(a,/)') 'Saving statistics'
+
+    ! Find sample covariances from sums of squares
+    zonal_avg_glo(:,:,2) = zonal_avg_glo(:,:,2) / (Nstats_glo - 1)
+    zonal_avg_glo(:,:,6) = zonal_avg_glo(:,:,6) / (Nstats_glo - 1)
+    zonal_avg_glo(:,:,7) = zonal_avg_glo(:,:,7) / (Nstats_glo - 1)
+    zonal_avg_glo(:,:,8) = zonal_avg_glo(:,:,8) / (Nstats_glo - 1)
+
+    ! Save number of data points
+    write (var_file, '(i2.2)') 00
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='WRITE')
+    write (funit) Nstats_glo
+    close (funit)
+
+    ! Save zonal statistics (means and covariances)
     do v = 1, nvar_zonal
        write (var_file, '(i2)') v+10
-       open (unit=funit, file=trim(run_id)//'.3.'//var_file)
+       open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE')
        do k = zlevels,1,-1
-          write (funit,'(2047(E15.6, 1X))') zonal_avg(k,:,v)
+          write (funit,'(2047(E15.6, 1X))') zonal_avg_glo(k,:,v)
        end do
        close (funit)
     end do
 
-    ! Coordinates
-
-     dbin = 180/nbins
-
     ! Longitude values (dummy)
     write (var_file, '(i2)') 20
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (-90+dbin/2 + dbin*(/ (i, i = 0, nbins-1) /))
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE') 
+    write (funit,'(2047(E15.6, 1X))') bounds
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (-90+dbin + dbin*(/ (i, i = 0, nbins-1) /))
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE') 
+    write (funit,'(2047(E15.6, 1X))') bounds - dbin/2
     close (funit)
 
     ! Non-dimensional pressure based vertical coordinates p_k/p_s
     write (var_file, '(i2)') 22
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE') 
     write (funit,'(2047(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/p_0 + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
     close (funit)
 

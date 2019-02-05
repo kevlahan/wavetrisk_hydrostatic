@@ -288,17 +288,20 @@ contains
 
   subroutine read_test_case_parameters
     implicit none
-    integer, parameter :: fid = 500
+    integer            :: k, v
+    integer, parameter :: fid = 500, funit = 400
     real(8)            :: press_save
-    character(255)     :: filename, varname
-
+    character(255)     :: command, filename, varname
+    character(2)       :: var_file
+    logical            :: file_exists
+    
     ! Find input parameters file name
     if (iargc() >= 1) then
        CALL getarg (1, filename)
     else
        filename = 'test_case.in'
     end if
-    if (rank == 0) write (6,'(A,A)') "Input file = ", trim (filename)
+    if (rank == 0) write (6,'(a,A)') "Input file = ", trim (filename)
 
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
@@ -331,68 +334,102 @@ contains
     time_end = time_end * DAY
     Laplace_order = Laplace_order_init
 
-    allocate (Nstats(zlevels,nbins)) ; Nstats = 0.0_8
-    allocate (zonal_avg(zlevels,nbins,8)) ; zonal_avg = 0.0_8
+    ! Bins for zonal statistics
+    nbins = sqrt (10d0*4**max_level/2) ! consistent with maximum resolution
+    allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
+    allocate (zonal_avg(zlevels,nbins,8), zonal_avg_glo(zlevels,nbins,8)) ; zonal_avg = 0.0_8; zonal_avg_glo = 0.0_8
+    allocate (bounds(1:nbins-1))
+    dbin = 1.8d2/nbins
+    bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)
+
+    ! Initialize rank 0 with saved statistics data if present
+    if (rank == 0) then
+       inquire (file = trim(run_id)//'.3.tgz', exist = file_exists)
+       if (file_exists) then
+          command = 'tar xzf '//trim(run_id)//'.3.tgz'
+          call system (command)
+          
+          write (var_file, '(i2.2)') 00
+          open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='READ')
+          read (funit) Nstats
+          close (funit)
+          
+          do v = 1, nvar_zonal
+             write (var_file, '(i2)') v+10
+             open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='READ')
+             do k = zlevels, 1, -1
+                read (funit,*) zonal_avg(k,:,v)
+             end do
+             close (funit)
+          end do
+
+          ! Convert variances to sums of squares for statistics computation
+          zonal_avg(:,:,2) = zonal_avg(:,:,2) * (Nstats - 1)
+          zonal_avg(:,:,6) = zonal_avg(:,:,6) * (Nstats - 1)
+          zonal_avg(:,:,7) = zonal_avg(:,:,7) * (Nstats - 1)
+          zonal_avg(:,:,8) = zonal_avg(:,:,8) * (Nstats - 1)
+       end if
+    end if
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
     implicit none
     
      if (rank==0) then
-       write (6,'(A)') &
+       write (6,'(a)') &
             '********************************************************** Parameters &
             ************************************************************'
-       write (6,'(A)')        "RUN PARAMETERS"
-       write (6,'(A,A)')      "test_case           = ", trim (test_case)
-       write (6,'(A,A)')      "run_id              = ", trim (run_id)
-       write (6,'(A,l1)')     "compressible        = ", compressible
-       write (6,'(A,i3)')     "min_level           = ", min_level
-       write (6,'(A,i3)')     "max_level           = ", max_level
-       write (6,'(A,i5)')     "number of domains   = ", N_GLO_DOMAIN
-       write (6,'(A,i5)')     "number of processors = ", n_process
-       write (6,'(A,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
-       write (6,'(A,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
-       write (6,'(A,i3)')     "zlevels             = ", zlevels
-       write (6,'(A,l1)')     "uniform             = ", uniform
-       write (6,'(A,l1)')     "remap               = ", remap
-       write (6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
-       write (6,'(A,L1)')     "adapt_trend         = ", adapt_trend
-       write (6,'(A,L1)')     "default_thresholds  = ", default_thresholds
-       write (6,'(A,L1)')     "perfect             = ", perfect
-       write (6,'(A,es10.4)') "tolerance           = ", tol
-       write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
-       write (6,'(A,l1)')     "adapt_dt            = ", adapt_dt
-       write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
-       write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
-       write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
-       write (6,'(A,es10.4)') "dt_write (day)      = ", dt_write/DAY
-       write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
-       write (6,'(A,l1)')     "rebalance           = ", rebalance
-       write (6,'(A,es10.4)') "time_end (day)      = ", time_end/DAY
-       write (6,'(A,i6)')     "resume              = ", resume
+       write (6,'(a)')        "RUN PARAMETERS"
+       write (6,'(a,a)')      "test_case           = ", trim (test_case)
+       write (6,'(a,a)')      "run_id              = ", trim (run_id)
+       write (6,'(a,l1)')     "compressible        = ", compressible
+       write (6,'(a,i3)')     "min_level           = ", min_level
+       write (6,'(a,i3)')     "max_level           = ", max_level
+       write (6,'(a,i5)')     "number of domains   = ", N_GLO_DOMAIN
+       write (6,'(a,i5)')     "number of processors = ", n_process
+       write (6,'(a,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
+       write (6,'(a,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
+       write (6,'(a,i3)')     "zlevels             = ", zlevels
+       write (6,'(a,l1)')     "uniform             = ", uniform
+       write (6,'(a,l1)')     "remap               = ", remap
+       write (6,'(a,es10.4)') "min_allowed_mass    = ", min_allowed_mass
+       write (6,'(a,l1)')     "adapt_trend         = ", adapt_trend
+       write (6,'(a,l1)')     "default_thresholds  = ", default_thresholds
+       write (6,'(a,l1)')     "perfect             = ", perfect
+       write (6,'(a,es10.4)') "tolerance           = ", tol
+       write (6,'(a,i1)')     "optimize_grid       = ", optimize_grid
+       write (6,'(a,l1)')     "adapt_dt            = ", adapt_dt
+       write (6,'(a,es10.4)') "cfl_num             = ", cfl_num
+       write (6,'(a,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
+       write (6,'(a,i1)')     "Laplace_order       = ", Laplace_order_init
+       write (6,'(a,es10.4)') "dt_write (day)      = ", dt_write/DAY
+       write (6,'(a,i6)')     "CP_EVERY            = ", CP_EVERY
+       write (6,'(a,l1)')     "rebalance           = ", rebalance
+       write (6,'(a,es10.4)') "time_end (day)      = ", time_end/DAY
+       write (6,'(a,i6)')     "resume              = ", resume
        
-       write (6,'(/,A)')      "STANDARD PARAMETERS"
-       write (6,'(A,es10.4)') "radius              = ", radius
-       write (6,'(A,es10.4)') "omega               = ", omega
-       write (6,'(A,es10.4)') "p_0   (hPa)         = ", p_0/100
-       write (6,'(A,es10.4)') "p_top (hPa)         = ", p_top/100
-       write (6,'(A,es10.4)') "R_d                 = ", R_d
-       write (6,'(A,es10.4)') "c_p                 = ", c_p
-       write (6,'(A,es10.4)') "c_v                 = ", c_v
-       write (6,'(A,es10.4)') "gamma               = ", gamma
-       write (6,'(A,es10.4)') "kappa               = ", kappa
+       write (6,'(/,a)')      "STANDARD PARAMETERS"
+       write (6,'(a,es10.4)') "radius              = ", radius
+       write (6,'(a,es10.4)') "omega               = ", omega
+       write (6,'(a,es10.4)') "p_0   (hPa)         = ", p_0/100
+       write (6,'(a,es10.4)') "p_top (hPa)         = ", p_top/100
+       write (6,'(a,es10.4)') "R_d                 = ", R_d
+       write (6,'(a,es10.4)') "c_p                 = ", c_p
+       write (6,'(a,es10.4)') "c_v                 = ", c_v
+       write (6,'(a,es10.4)') "gamma               = ", gamma
+       write (6,'(a,es10.4)') "kappa               = ", kappa
 
-       write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es10.4)') "T_0                 = ", T_0
-       write (6,'(A,es10.4)') "T_mean              = ", T_mean
-       write (6,'(A,es10.4)') "T_tropo             = ", T_tropo
-       write (6,'(A,es10.4)') "sigma_b             = ", sigma_b
-       write (6,'(A,es10.4)') "k_a                 = ", k_a
-       write (6,'(A,es10.4)') "k_f                 = ", k_f
-       write (6,'(A,es10.4)') "k_s                 = ", k_s
-       write (6,'(A,es10.4)') "delta_T             = ", delta_T
-       write (6,'(A,es10.4)') "delta_theta         = ", delta_theta
-       write (6,'(A)') &
+       write (6,'(/,a)')      "TEST CASE PARAMETERS"
+       write (6,'(a,es10.4)') "T_0                 = ", T_0
+       write (6,'(a,es10.4)') "T_mean              = ", T_mean
+       write (6,'(a,es10.4)') "T_tropo             = ", T_tropo
+       write (6,'(a,es10.4)') "sigma_b             = ", sigma_b
+       write (6,'(a,es10.4)') "k_a                 = ", k_a
+       write (6,'(a,es10.4)') "k_f                 = ", k_f
+       write (6,'(a,es10.4)') "k_s                 = ", k_s
+       write (6,'(a,es10.4)') "delta_T             = ", delta_T
+       write (6,'(a,es10.4)') "delta_theta         = ", delta_theta
+       write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'
     end if
@@ -453,42 +490,46 @@ contains
     ! Initializes viscosity
     use wavelet_mod
     implicit none
-    real(8) :: area
+    real(8) :: area, tau
 
-    C_visc = 4e-2
+    C_visc = 1d-3
     
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
 
     ! CFL limit for time step
-    dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
+    dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
     dt_init = dt_cfl
+
+    !tau = 6 * HOUR
+    tau = dt_cfl/C_visc
     
     if (Laplace_order_init == 0) then
        visc_sclr = 0.0_8
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = 0.0_8!C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse 
-       visc_divu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
-       visc_rotu = 0.0_8!C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse  / 4**Laplace_order_init
+       visc_divu = 3d-2 * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! fixed at a relatively high value to stabilize layers
+       
+       visc_sclr = dx_min**(2*Laplace_order_init)/tau * n_diffuse 
+       visc_rotu = dx_min**(2*Laplace_order_init)/tau * n_diffuse / 4**Laplace_order_init
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
 
     if (rank == 0) then
-       write (6,'(2(A,es8.2),/)') "dx_min  = ", dx_min, " dt_cfl = ", dt_cfl
-       write (6,'(4(A,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse/dt_cfl, &
-            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse/dt_cfl, &
-            " Viscosity_divu = ", visc_divu/n_diffuse/dt_cfl, " Viscosity_rotu = ", visc_rotu/n_diffuse/dt_cfl
+       write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " dt_cfl = ", dt_cfl, " tau = ", tau
+       write (6,'(4(A,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
+            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
+            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
        if (Laplace_order_init /= 0) &
-            write (6,'(A,es8.2,A)') "Diffusion stability constant = ", &
-            dt_cfl/dx_min**(2*Laplace_order_init) * maxval (visc_sclr)/dt_cfl
+            write (6,'(A,es8.2,A)',advance='no') "Diffusion stability constant = ", &
+            dt_cfl/dx_min**(2*Laplace_order_init) * (maxval (visc_sclr)+visc_divu) ! sum determines stability
        if (Laplace_order_init == 1) then
           write (6,'(A)') " (should be <= 0.4)"
        else
-          write (6,'(A)')" (should be <= 0.06)"
+          write (6,'(A)')" (should be <= 0.043)"
        end if
     end if
   end subroutine initialize_dt_viscosity
