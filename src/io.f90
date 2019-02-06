@@ -370,7 +370,7 @@ contains
     implicit none
     integer :: d, k, p
 
-    if (rank == 0) write (6,'(a,/)') 'Incrementing zonal averages ...'
+    if (rank == 0) write (6,'(a)') 'Incrementing zonal averages'
 
     call cal_surf_press (sol)
 
@@ -403,6 +403,9 @@ contains
       d = dom%id + 1
       id_i = idx (i, j, offs, dims) + 1
 
+      ! Only include locally finest level points
+      !if (dom%mask_n%elts(id_i) == RESTRCT) return
+      
       call cart2sph (dom%node%elts(id_i), lon, lat)
 
       temperature = (temp(id_i)/mass(id_i)) * (dom%press%elts(id_i)/p_0)**kappa
@@ -528,7 +531,7 @@ contains
     character(2)       :: var_file
     character(130)     :: command
 
-    write (6,'(a,/)') 'Saving statistics'
+    write (6,'(a)') 'Saving statistics'
 
     ! Find sample covariances from sums of squares
     zonal_avg_glo(:,:,2) = zonal_avg_glo(:,:,2) / (Nstats_glo - 1)

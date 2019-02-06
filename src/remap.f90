@@ -17,7 +17,7 @@ contains
   subroutine remap_vertical_coordinates
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, potential temperature and velocity divergence
-    ! remap0 is too diffusive, remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
+    ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
     integer            :: l
     logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential energy)
@@ -39,6 +39,7 @@ contains
        do l = level_start, level_end
           call apply_onescale (remap_scalars, l, z_null, 0, 1)
           call apply_onescale (remap_velo,    l, z_null, 0, 0)
+          ! call update_array_bdry (sol, NONE)
           ! call apply_onescale (remap_momentum, l, z_null, 0, 0)
        end do
     else ! Lin (2004) (remap total energy)
@@ -47,6 +48,7 @@ contains
        end do
        do l = level_start, level_end
           call apply_onescale (remap_velo, l, z_null, 0, 0)
+          ! call update_array_bdry (sol, NONE)
           ! call apply_onescale (remap_momentum, l, z_null, 0, 0)
        end do
        call update_vector_bdry (sol(S_VELO,:), NONE)
