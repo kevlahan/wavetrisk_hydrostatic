@@ -431,16 +431,16 @@ contains
             ! Update sums of squares (for variance calculation)
 
             ! Temperature 
-            zonal_avg(zlev,bin,2) = (zonal_avg(zlev,bin,2) + Tprime * Tprime_new)
+            zonal_avg(zlev,bin,2) = zonal_avg(zlev,bin,2) + Tprime * Tprime_new
 
             ! Eddy momentum flux (covariance)
-            zonal_avg(zlev,bin,6) = (zonal_avg(zlev,bin,6) + Uprime * Vprime_new)
+            zonal_avg(zlev,bin,6) = zonal_avg(zlev,bin,6) + Uprime * Vprime_new
 
             ! Eddy kinetic energy (covariance)
-            zonal_avg(zlev,bin,7) = (zonal_avg(zlev,bin,7) + 0.5 * (Uprime * Uprime_new + Vprime * Vprime_new))
+            zonal_avg(zlev,bin,7) = zonal_avg(zlev,bin,7) + 0.5 * (Uprime * Uprime_new + Vprime * Vprime_new)
 
             ! Eddy heat flux (covariance)
-            zonal_avg(zlev,bin,8) = (zonal_avg(zlev,bin,8) + Vprime * Tprime_new)
+            zonal_avg(zlev,bin,8) = zonal_avg(zlev,bin,8) + Vprime * Tprime_new
 
             exit
          end if
