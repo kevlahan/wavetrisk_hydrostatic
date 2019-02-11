@@ -492,7 +492,7 @@ contains
     implicit none
     real(8) :: area, tau
 
-    C_visc = 1d-3
+    C_visc = 5d-3
     
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -509,9 +509,10 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_divu = 3d-2 * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! fixed at a relatively high value to stabilize layers
-       
+       visc_divu = 1d-2 * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! fixed at a relatively high value to stabilize layers
        visc_sclr = dx_min**(2*Laplace_order_init)/tau * n_diffuse 
+
+       !visc_divu = dx_min**(2*Laplace_order_init)/tau * n_diffuse
        visc_rotu = dx_min**(2*Laplace_order_init)/tau * n_diffuse / 4**Laplace_order_init
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
@@ -519,8 +520,8 @@ contains
     end if
 
     if (rank == 0) then
-       write (6,'(3(A,es8.2),/)') "dx_min  = ", dx_min, " dt_cfl = ", dt_cfl, " tau = ", tau
-       write (6,'(4(A,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
+       write (6,'(3(a,es8.2),a,/)') "dx_min  = ", dx_min/1d3, " [km] dt_cfl = ", dt_cfl, " [s] tau = ", tau/HOUR, " [h]"
+       write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
        if (Laplace_order_init /= 0) &

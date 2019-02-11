@@ -32,8 +32,8 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap1
-    interp_velo   => remap1
+    interp_scalar => remap2PPM
+    interp_velo   => remap2PPM
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end

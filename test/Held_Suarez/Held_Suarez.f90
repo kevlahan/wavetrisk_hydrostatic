@@ -85,8 +85,8 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     if (time >= 200*DAY .and. modulo (istep, 50) == 0) call statistics
-     !call euler (trend_cooling, dt)
+     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+     call euler (trend_cooling, dt)
      call stop_timing
 
      call sum_total_mass (.false.)
@@ -206,12 +206,12 @@ function physics_scalar_source (dom, i, j, zlev, offs, dims)
   integer :: id_i
   real(8) :: k_T, lat, lon, theta_equil
 
-  physics_scalar_source(S_MASS) = 0.0_8
+  physics_scalar_source = 0.0_8
   
-  id_i = idx (i, j, offs, dims) + 1
-  call cart2sph (dom%node%elts(id_i), lon, lat)
-  call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-  physics_scalar_source(S_TEMP) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
+  ! id_i = idx (i, j, offs, dims) + 1
+  ! call cart2sph (dom%node%elts(id_i), lon, lat)
+  ! call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+  ! physics_scalar_source(S_TEMP) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)
@@ -242,18 +242,17 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu - visc_rotu * curl_rotu)
   end if
   
-  id = idx (i, j, offs, dims)
-  id_i = id+1
+  ! id = idx (i, j, offs, dims)
+  ! id_i = id+1
 
-  sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
-  k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
+  ! sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
+  ! k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
 
-  physics_velo_source = diffusion - k_v * velo(EDGE*id+1:EDGE*id_i)
+  physics_velo_source = diffusion !- k_v * velo(EDGE*id+1:EDGE*id_i)
 end function physics_velo_source
 
 subroutine trend_cooling (q, dq)
   ! Trend for Held-Suarez cooling
-  ! (not used currently since cooling and Rayleigh friction are handled in main trend)
   use domain_mod
   use ops_mod
   use time_integr_mod
