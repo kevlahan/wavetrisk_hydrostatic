@@ -6,7 +6,7 @@ program flat_projection_data
   implicit none
   
   integer                                :: nt, Ncumul
-  integer, parameter                     :: nvar_save=6, nvar_zonal=8 ! Number of variables to save
+  integer, parameter                     :: nvar_save=6 ! Number of variables to save
   integer, dimension(2)                  :: Nx, Ny
   
   real(4), dimension(:,:),   allocatable :: field2d
@@ -241,7 +241,7 @@ contains
     ! 2d projections
     do v = 1, nvar_save*save_levels
        write (var_file, '(i1)') v
-       open (unit=funit, file=trim(run_id)//'.3.0'//var_file)
+       open (unit=funit, file=trim(run_id)//'.4.0'//var_file)
        do i = Ny(1), Ny(2)
           write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
        end do
@@ -251,7 +251,7 @@ contains
     ! Zonal average of solution over all vertical levels
     do v = 1, nvar_zonal
        write (var_file, '(i2)') v+10
-       open (unit=funit, file=trim(run_id)//'.3.'//var_file)
+       open (unit=funit, file=trim(run_id)//'.4.'//var_file)
        do k = zlevels,1,-1
           write (funit,'(2047(E15.6, 1X))') zonal_av(k,:,v)
        end do
@@ -262,26 +262,26 @@ contains
 
     ! Longitude values
     write (var_file, '(i2)') 20
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
     write (funit,'(2047(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
     write (funit,'(2047(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
     ! Non-dimensional pressure based vertical coordinates p_k/p_s
     write (var_file, '(i2)') 22
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
     write (funit,'(2047(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
     close (funit)
 
     ! Compress files
-    command = 'ls -1 '//trim(run_id)//'.3.?? > tmp' 
+    command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
     call system (command)
-    command = 'tar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
+    command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
     call system (command)
     deallocate (field2d, field2d_save, zonal_av)
   end subroutine write_out
