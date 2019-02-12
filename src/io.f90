@@ -102,13 +102,23 @@ contains
   real(8) function integrate_hex (fun, l, k)
     ! Integrate function defined by fun over hexagons
     implicit none
-    external :: fun
     integer  :: l, k
 
     integer                        :: d, ll, p, i, j, c, id
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8)                        :: s, fun, val
+    real(8)                        :: s, val
+
+    interface
+       real(8) function fun (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end function fun
+    end interface
 
     s = 0.0_8
     do d = 1, size(grid)
@@ -151,13 +161,23 @@ contains
 
   real(8) function integrate_tri (fun, k)
     implicit none
-    external :: fun
     integer  :: k
 
     integer                        :: d, ll, p, i, j, t, id
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8)                        :: s, fun
+    real(8)                        :: s
+
+    interface
+       real(8) function fun (dom, i, j, zlev, t, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, t, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end function fun
+    end interface
 
     s = 0.0_8
     do d = 1, size(grid)
@@ -889,7 +909,6 @@ contains
     ! One file per domain
     ! NOTE: modifies grid structure
     implicit none
-    external     :: custom_dump
     integer      :: id
     character(*) :: run_id
 
@@ -898,6 +917,13 @@ contains
     character(255)                        :: filename_gr, filename_no
     logical, dimension(1:N_CHDRN)         :: required
     type(Domain), dimension(1:size(grid)) :: grid_tmp
+
+    interface
+       subroutine custom_dump (fid)
+         implicit none
+         integer :: fid
+       end subroutine custom_dump
+    end interface
 
     ! Make copy of grid since grid is modified when saving checkpoint
     grid_tmp = grid
@@ -1005,7 +1031,6 @@ contains
     ! Read data from check point files for restart
     ! One file per domain
     implicit none
-    external     :: custom_load
     integer      :: id
     character(*) :: run_id
 
@@ -1013,6 +1038,13 @@ contains
     integer                              :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, v
     integer, dimension(1:size(grid))     :: fid_no, fid_gr
     logical, dimension(N_CHDRN)          :: required
+
+     interface
+       subroutine custom_load (fid)
+         implicit none
+         integer :: fid
+       end subroutine custom_load
+    end interface
 
     ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
