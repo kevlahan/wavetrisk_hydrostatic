@@ -987,7 +987,8 @@ contains
   end subroutine min_dt
 
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
-    ! Calculates minimum mass 
+    ! Calculates minimum mass
+    use, intrinsic :: ieee_arithmetic
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
