@@ -1004,7 +1004,7 @@ contains
        col_mass = 0.0_8
        do k = 1, zlevels
           mu = sol(S_MASS,k)%data(d)%elts(id_i)
-          if (mu < 0.0_8 .or. isnan (mu)) then
+          if (mu < 0.0_8 .or. ieee_is_nan (mu)) then
              write (6,'(A,i8,A,i2,A)') "Mass negative at id = ", id_i, " with mask = ", dom%mask_n%elts(id_i), " ... aborting"
              call abort
           end if
