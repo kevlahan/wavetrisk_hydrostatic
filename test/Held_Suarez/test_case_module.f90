@@ -296,7 +296,7 @@ contains
     logical            :: file_exists
     
     ! Find input parameters file name
-    if (iargc() >= 1) then
+    if (command_argument_count() >= 1) then
        CALL getarg (1, filename)
     else
        filename = 'test_case.in'
