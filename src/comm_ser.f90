@@ -228,7 +228,7 @@ contains
     integer                           :: l
   end subroutine update_array_bdry__finish
 
-  real(8) function cpt_dt_mpi ()
+  real(8) function cpt_dt ()
     implicit none
 
     integer, dimension(N_BDRY+1)   :: offs
@@ -247,8 +247,8 @@ contains
        call apply_onescale (min_dt, l, z_null, 0, 0)
     end do
     n_active = (/ sum(n_active_nodes), sum(n_active_edges) /)
-    cpt_dt_mpi = dt_loc
-  end function cpt_dt_mpi
+    cpt_dt = dt_loc
+  end function cpt_dt
 
   real(8) function cpt_min_mass ()
     implicit none
@@ -307,4 +307,10 @@ contains
     integer            :: N
     real, dimension(N) :: arr
   end subroutine sync_array
+  
+  subroutine combine_stats
+    implicit none
+    Nstats_glo    = Nstats
+    zonal_avg_glo = zonal_avg
+  end subroutine combine_stats
 end module comm_mpi_mod

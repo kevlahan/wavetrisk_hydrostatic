@@ -27,7 +27,7 @@ contains
     integer, dimension(level_start:level_end)       :: n_active_per_lev
     real(8)                                         :: dt
 
-    dt = cpt_dt_mpi() ! to set n_active_*
+    dt = cpt_dt() ! to set n_active_*
 
     n_lev_cur = level_end - level_start + 1
 
@@ -1173,7 +1173,7 @@ contains
     end do
   end subroutine comm_patch_conn_mpi
 
-  real(8) function cpt_dt_mpi ()
+  real(8) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
     integer               :: l, ierror
@@ -1194,18 +1194,18 @@ contains
 
     ! Time step
     if (adapt_dt) then
-       call MPI_Allreduce (dt_loc, cpt_dt_mpi, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+       call MPI_Allreduce (dt_loc, cpt_dt, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
     else
-       cpt_dt_mpi = dt_loc
+       cpt_dt = dt_loc
     end if
 
     ! Active nodes and edges
     n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
     call MPI_Allreduce (n_active_loc, n_active, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
     call MPI_Allreduce (level_end, level_end, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
-  end function cpt_dt_mpi
+  end function cpt_dt
 
-  real(8) function cpt_min_mass_mpi ()
+  real(8) function cpt_min_mass ()
     ! Calculates minimum relative mass
     implicit none
     integer :: ierror, l
@@ -1215,8 +1215,8 @@ contains
        call apply_onescale (cal_min_mass, l, z_null, 0, 0)
     end do
 
-    call MPI_Allreduce (min_mass_loc, cpt_min_mass_mpi, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-  end function cpt_min_mass_mpi
+    call MPI_Allreduce (min_mass_loc, cpt_min_mass, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+  end function cpt_min_mass
 
   integer function sync_max (val)
     implicit none
@@ -1312,4 +1312,79 @@ contains
 
     if (rank == 0) write (id,'(3(es8.2,1x))') time_max, time_min, time_sum
   end subroutine stop_and_record_timings
+
+  subroutine combine_stats
+    ! Uses Chan, Golub and LeVeque (1983) algorithm for partitioned data sets to combine zonal average results from each rank
+    !   T.F. Chan, G.H. Golub & R.J. LeVeque (1983):
+    !   "Algorithms for computing the sample variance: Analysis and recommendations." The American Statistician 37: 242–247.
+    implicit none
+    integer                             :: bin, ivar, k, r
+    integer, dimension(MPI_STATUS_SIZE) :: status
+    integer, dimension(zlevels,nbins)   :: Nstats_loc
+    real(8), dimension(zlevels,nbins,8) :: zonal_avg_loc
+
+    ! Initialize to values on rank 0
+    if (rank == 0) then
+       Nstats_glo    = Nstats
+       zonal_avg_glo = zonal_avg
+    end if
+       
+    do r = 1, n_process - 1
+       if (rank == r) then
+          call MPI_Send (Nstats,     zlevels*nbins,   MPI_INT,              0, 0, MPI_COMM_WORLD, ierror)
+          call MPI_Send (zonal_avg,  zlevels*nbins*8, MPI_DOUBLE_PRECISION, 0, 0, MPI_COMM_WORLD, ierror)
+       elseif (rank == 0) then
+          call MPI_Recv (Nstats_loc,     zlevels*nbins,   MPI_INT,              r, 0, MPI_COMM_WORLD, status, ierror)
+          call MPI_Recv (zonal_avg_loc,  zlevels*nbins*8, MPI_DOUBLE_PRECISION, r, 0, MPI_COMM_WORLD, status, ierror)
+
+          do k = 1, zlevels
+             do bin = 1, nbins
+                if (Nstats_loc(k,bin) /= 0) call combine_var
+             end do
+          end do
+       end if
+    end do
+  contains
+    subroutine combine_var
+      integer :: nA, nB, nAB
+      real(8) :: delta_KE, delta_T, delta_U, delta_V
+      real(8) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_TKE, mB_TKE, mA_VT, mB_VT, mA_UV, mB_UV
+
+      nA = Nstats_glo(k,bin)
+      nB = Nstats_loc(k,bin)
+      nAB = nA + nB
+
+      delta_T  = zonal_avg_loc(k,bin,1) - zonal_avg_glo(k,bin,1)
+      delta_U  = zonal_avg_loc(k,bin,3) - zonal_avg_glo(k,bin,3)
+      delta_V  = zonal_avg_loc(k,bin,4) - zonal_avg_glo(k,bin,4)
+      delta_KE = zonal_avg_loc(k,bin,5) - zonal_avg_glo(k,bin,5)
+
+      mA_T   = zonal_avg_glo(k,bin,2)
+      mB_T   = zonal_avg_loc(k,bin,2)
+
+      mA_UV  = zonal_avg_glo(k,bin,6)
+      mB_UV  = zonal_avg_loc(k,bin,6)
+
+      mA_TKE = zonal_avg_glo(k,bin,7)
+      mB_TKE = zonal_avg_loc(k,bin,7)
+
+      mA_VT  = zonal_avg_glo(k,bin,8)
+      mB_VT  = zonal_avg_loc(k,bin,8)
+
+      ! Combine means
+      zonal_avg_glo(k,bin,1) = zonal_avg_glo(k,bin,1) + delta_T  * nB/nAB
+      zonal_avg_glo(k,bin,3) = zonal_avg_glo(k,bin,3) + delta_U  * nB/nAB
+      zonal_avg_glo(k,bin,4) = zonal_avg_glo(k,bin,4) + delta_V  * nB/nAB
+      zonal_avg_glo(k,bin,5) = zonal_avg_glo(k,bin,5) + delta_KE * nB/nAB
+
+      ! Combine sums of squares (for variances)
+      zonal_avg_glo(k,bin,2) = mA_T   + mB_T   + delta_T**2              * nA*nB/nAB ! temperature variance
+      zonal_avg_glo(k,bin,6) = mA_UV  + mB_UV  + delta_U*delta_V         * nA*nB/nAB ! velocity covariance
+      zonal_avg_glo(k,bin,7) = mA_TKE + mB_TKE + (delta_U**2+delta_V**2) * nA*nB/nAB ! eddy kinetic energy
+      zonal_avg_glo(k,bin,8) = mA_VT  + mB_VT  + delta_V*delta_T         * nA*nB/nAB ! V-T covariance (eddy heat flux)
+
+      ! Update total number of data points
+      Nstats_glo(k,bin) = nAB
+    end subroutine combine_var
+  end subroutine combine_stats
 end module comm_mpi_mod

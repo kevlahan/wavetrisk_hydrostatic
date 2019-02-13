@@ -74,7 +74,7 @@ contains
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
-          dt_new = cpt_dt_mpi()
+          dt_new = cpt_dt()
           call adapt (set_thresholds)
 
           call apply_init_cond
@@ -114,7 +114,7 @@ contains
             '------------------------------------------------- Finished adapting initial grid &
             ------------------------------------------------'
 
-       call adapt (set_thresholds) ; dt_new = cpt_dt_mpi()
+       call adapt (set_thresholds) ; dt_new = cpt_dt()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
        
        call write_checkpoint (custom_dump, custom_load, run_id, .true.)
@@ -173,7 +173,7 @@ contains
     call RK4 (trend_ml, dt)
 
     ! If necessary, remap vertical coordinates
-    min_mass = cpt_min_mass_mpi ()
+    min_mass = cpt_min_mass ()
     if (remap .and. min_mass <= min_allowed_mass) call remap_vertical_coordinates
     
     ! Add diffusion
@@ -190,7 +190,7 @@ contains
     time  = itime/time_mult
     
     ! Set new time step, find change in vertical levels and count active nodes
-    dt_new = cpt_dt_mpi ()
+    dt_new = cpt_dt ()
   end subroutine time_step
 
   subroutine restart (set_thresholds, custom_load, run_id)
@@ -212,11 +212,6 @@ contains
     ! Deallocate all dynamic arrays and variables
     if (resume == NONE) then
        call deallocate_structures
-       allocate (n_domain(n_process))
-       call init (send_buf_i, 0)
-       call init (recv_buf_i, 0) 
-       call init (send_buf,   0)
-       call init (recv_buf,   0)
     end if
 
     ! Initialize basic structures
@@ -266,7 +261,7 @@ contains
     call initialize_dt_viscosity
 
     ! Initialize time step and counters
-    dt_new = cpt_dt_mpi ()
+    dt_new = cpt_dt ()
     itime = nint (time*time_mult, 8)
     istep = 0
 
@@ -491,15 +486,13 @@ contains
        end do
     end do
 
-    deallocate (recv_buf%elts, send_buf%elts, recv_buf_i%elts, send_buf_i%elts)
-
     deallocate (grid)
     deallocate (edge_level_start, node_level_start, n_active_edges, n_active_nodes)
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)
     deallocate (sol, sol_save, trend, trend_wav_coeff, wav_coeff)       
     deallocate (exner_fun, horiz_flux, Laplacian_scalar)
-    deallocate (glo_id, ini_st, n_domain, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
+    deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
 
     nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &
          qe, vort, wc_u, wc_m, wc_t)
