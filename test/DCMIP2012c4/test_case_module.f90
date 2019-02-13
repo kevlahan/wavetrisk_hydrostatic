@@ -259,6 +259,7 @@ contains
     read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
+    read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
     read (fid,*) varname, resume
     close(fid)
@@ -302,6 +303,7 @@ contains
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(A,es10.4)') "dt_write (min)      = ", dt_write/MINUTE
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
+       write (6,'(a,l1)')     "rebalance           = ", rebalance
        write (6,'(A,es10.4)') "time_end (h)        = ", time_end/HOUR
        write (6,'(A,i6)')     "resume              = ", resume
        
