@@ -35,18 +35,12 @@ ifeq ($(MACHINE),if)
   MPIF90 = mpif90
   LIBS   = -llapack
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
-else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra))
-  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163                                                               
-  F90    = gfortran	
+else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra, nia))
+  # Need module load intel; module load openmpi
+  F90    = ifort	
   MPIF90 = mpif90
-  LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
-  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
-else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
-  # Need to load: module load gcc/6.4.0, module load imkl/2018.1.163                                                                                                             
-  F90    = gfortran
-  MPIF90 = mpif90
-  LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
-  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all -I${MKLROOT}/include
+  LIBS   = -mkl
+  FLAGS  = -fpe0 -traceback -module $(BUILD_DIR) -diag-disable 8291
 else ifeq ($(MACHINE),$(filter $(MACHINE),login)) # occigen
   # Need to load: module load openmpi/gnu/2.0.2 mkl/18.1                                                                                                           
   F90    = gfortran
@@ -55,6 +49,7 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),login)) # occigen
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all -B /opt/software/common/intel/compilers_and_libraries_2018.1.163/linux/mkl/lib/intel64
 else ifeq ($(MACHINE),mac)
   F90    = gfortran
+  LIBS   = -llapack	
   MPIF90 = mpif90
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else ifeq ($(MACHINE),froggy)

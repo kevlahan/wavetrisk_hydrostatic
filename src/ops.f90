@@ -163,11 +163,10 @@ contains
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
 
       interface
-         function physics_scalar_flux (dom, id, idE, idNE, idN, type)
-           use domain_mod
+         function physics_scalar_flux (d, id, idE, idNE, idN, type)
+           use shared_mod
            real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-           type(Domain)                             :: dom
-           integer                                  :: id, idE, idNE, idN
+           integer                                  :: d, id, idE, idNE, idN
            logical, optional                        :: type
          end function physics_scalar_flux
       end interface
@@ -205,7 +204,7 @@ contains
       qe(EDGE*idS+UP+1)  = interp (pv_LORT_SW, pv_UPLT_S)
 
       ! Mass and temperature fluxes
-      physics = physics_scalar_flux (dom, id, idW, idSW, idS, .true.)
+      physics = physics_scalar_flux (dom%id+1, id, idW, idSW, idS, .true.)
 
       h_mflux(EDGE*idW+RT+1)  = u_dual_RT_W  * interp (mass(id_i), mass(idW_i))  + physics(S_MASS,RT+1)
       h_mflux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (mass(id_i), mass(idSW_i)) + physics(S_MASS,DG+1)
@@ -228,11 +227,10 @@ contains
       type (Coord), dimension(6)               :: hex_nodes
 
       interface
-         function physics_scalar_flux (dom, id, idE, idNE, idN, type)
-           use domain_mod
+         function physics_scalar_flux (d, id, idE, idNE, idN, type)
+           use shared_mod
            real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-           type(Domain)                             :: dom
-           integer                                  :: id, idE, idNE, idN
+           integer                                  :: d, id, idE, idNE, idN
            logical, optional                        :: type
          end function physics_scalar_flux
       end interface
@@ -325,7 +323,7 @@ contains
       qe(EDGE*id+UP+1) = interp (pv_UPLT,   pv_LORT_W)
 
       ! Mass and temperature fluxes
-      physics = physics_scalar_flux (dom, id, idE, idNE, idN)
+      physics = physics_scalar_flux (dom%id+1, id, idE, idNE, idN)
 
       h_mflux(EDGE*id+RT+1) = u_dual_RT * interp (mass(id_i), mass(idE_i))  + physics(S_MASS,RT+1)
       h_mflux(EDGE*id+DG+1) = u_dual_DG * interp (mass(id_i), mass(idNE_i)) + physics(S_MASS,DG+1)
@@ -763,11 +761,10 @@ contains
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
 
     interface
-       function physics_velo_source (dom, i, j, zlev, offs, dims)
-         use domain_mod
+       function physics_velo_source (d, i, j, zlev, offs, dims)
+         use shared_mod
          real(8), dimension(1:EDGE)     :: physics_velo_source
-         type(Domain)                   :: dom
-         integer                        :: i, j, zlev
+         integer                        :: d, i, j, zlev
          integer, dimension(N_BDRY+1)   :: offs
          integer, dimension(2,N_BDRY+1) :: dims
        end function physics_velo_source
@@ -776,14 +773,14 @@ contains
     integer                :: id, id_i
     real(8), dimension (3) :: Qperp_e, physics
 
-    id = idx(i, j, offs, dims)
+    id = idx (i, j, offs, dims)
     id_i = id+1
 
     ! Calculate Q_perp
     Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
     ! Calculate physics
-    physics = physics_velo_source (dom, i, j, zlev, offs, dims)
+    physics = physics_velo_source (dom%id+1, i, j, zlev, offs, dims)
 
     dvelo(EDGE*id+1:EDGE*id_i) = - Qperp_e + physics*dom%len%elts(EDGE*id+1:EDGE*id_i)
   end subroutine du_source

@@ -30,7 +30,7 @@ program Held_Suarez
   c_v            = c_p - R_d                   ! specific heat at constant volume c_v = c_p - R_d
   gamma          = c_p/c_v                     ! heat capacity ratio
   gk             = grav_accel*kappa
-  
+
   ! Local test case parameters
   T_0            = 300.0_8                     ! reference temperature
   T_mean         = 315.0_8                     ! mean temperature
@@ -64,7 +64,7 @@ program Held_Suarez
   Tdim           = DAY                         ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters
   call read_test_case_parameters
@@ -76,7 +76,7 @@ program Held_Suarez
   call print_test_case_parameters
   call write_and_export (iwrite)
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
@@ -85,7 +85,7 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+     if (time >= 100*DAY .and. modulo (istep, 100) == 0) call statistics
      call euler (trend_cooling, dt)
      call stop_timing
 
@@ -119,21 +119,21 @@ end program Held_Suarez
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (dom, id, idE, idNE, idN, type)
+function physics_scalar_flux (d, id, idE, idNE, idN, type)
   ! Additional physics for the flux term of the scalar trend
   ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
   !
-  ! NOTE: call with arguments (dom, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
+  ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
   use domain_mod
-  use ops_mod
   implicit none
 
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-  type(Domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
+  integer                                  :: d, id, idE, idNE, idN
   logical, optional                        :: type
 
   integer                                  :: id_i, v
+  real(8)                                  :: dx, visc
+  real(8), parameter                       :: C = 1d-2
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
   logical                                  :: local_type
 
@@ -144,7 +144,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   end if
 
   id_i = id + 1
-  
+
   if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8
   else
@@ -154,19 +154,19 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
         grad(S_TEMP,:) = grad_physics (temp)
      elseif (Laplace_order == 2) then
         do v = S_MASS, S_TEMP
-           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(dom%id+1)%elts)
+           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(d)%elts)
         end do
      end if
 
      ! Fluxes of physics
      if (.not.local_type) then ! Usual flux at edges E, NE, N
         do v = S_MASS, S_TEMP
-           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
+           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * grid(d)%pedlen%elts(EDGE*id+1:EDGE*id_i)
         end do
      else ! Flux at edges W, SW, S
-        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
+        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * grid(d)%pedlen%elts(EDGE*idE+RT+1)
+        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * grid(d)%pedlen%elts(EDGE*idNE+DG+1)
+        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * grid(d)%pedlen%elts(EDGE*idN+UP+1)
      end if
 
      ! Find correct sign for diffusion on left hand side of the equation
@@ -179,76 +179,83 @@ contains
     real(8), dimension(:)      :: scalar
 
     if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-       grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
+       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /grid(d)%len%elts(EDGE*id+RT+1) 
+       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/grid(d)%len%elts(EDGE*id+DG+1) 
+       grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /grid(d)%len%elts(EDGE*id+UP+1) 
     else ! Gradient for southwest edges of hexagon W, SW, S
-       grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-       grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-       grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
+       grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /grid(d)%len%elts(EDGE*idE+RT+1) 
+       grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/grid(d)%len%elts(EDGE*idNE+DG+1)
+       grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /grid(d)%len%elts(EDGE*idN+UP+1) 
     end if
   end function grad_physics
 end function physics_scalar_flux
 
-function physics_scalar_source (dom, i, j, zlev, offs, dims)
-  ! Newton cooling to equilibrium potential temperature theta_equil
+function physics_scalar_source (i, j, zlev, offs, dims)
+  ! Additional physics for the source term of the scalar trend
   use domain_mod
-  use test_case_mod
-  use ops_mod
   implicit none
 
   real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
-  type(Domain)                      :: dom
-  integer                           :: i, j, zlev
+  integer                           :: d, i, j, zlev
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
-  integer :: id_i
-  real(8) :: k_T, lat, lon, theta_equil
-
   physics_scalar_source = 0.0_8
-  
-  ! id_i = idx (i, j, offs, dims) + 1
-  ! call cart2sph (dom%node%elts(id_i), lon, lat)
-  ! call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-  ! physics_scalar_source(S_TEMP) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
 end function physics_scalar_source
 
-function physics_velo_source (dom, i, j, zlev, offs, dims)
+function physics_velo_source (d, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
-  !
-  ! In this test case we add Rayleigh friction and Laplacian diffusion
   use domain_mod
-  use ops_mod
-  use test_case_mod
   implicit none
 
   real(8), dimension(1:EDGE)     :: physics_velo_source
-  type(Domain)                   :: dom
-  integer                        :: i, j, zlev
+  integer                        :: d, i, j, zlev
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: id, id_i
-  real(8)                    :: sigma, k_v
-  real(8), dimension(1:EDGE) :: diffusion, curl_rotu, grad_divu, Rayleigh
+  integer                    :: id
+  real(8), dimension(1:EDGE) :: diffusion
+
+  id = idx (i, j, offs, dims)
 
   if (Laplace_order == 0) then
      diffusion = 0.0_8
   else
-     ! Laplacian of velocity
-     grad_divu = gradi_e (divu, dom, i, j, offs, dims)
-     curl_rotu = curlv_e (vort, dom, i, j, offs, dims)
-     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu - visc_rotu * curl_rotu)
+     ! Calculate Laplacian of velocity
+     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
   end if
-  
-  ! id = idx (i, j, offs, dims)
-  ! id_i = id+1
 
-  ! sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
-  ! k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
+  ! Total physics for source term of velocity trend
+  physics_velo_source =  diffusion
+contains
+  function grad_divu()
+    implicit none
+    real(8), dimension(3) :: grad_divu
 
-  physics_velo_source = diffusion !- k_v * velo(EDGE*id+1:EDGE*id_i)
+    integer :: idE, idN, idNE
+
+    idE  = idx (i+1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+
+    grad_divu(RT+1) = (divu(idE+1) - divu(id+1))  /grid(d)%len%elts(EDGE*id+RT+1)
+    grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1))/grid(d)%len%elts(EDGE*id+DG+1)
+    grad_divu(UP+1) = (divu(idN+1) - divu(id+1))  /grid(d)%len%elts(EDGE*id+UP+1)
+  end function grad_divu
+
+  function curl_rotu()
+    implicit none
+    real(8), dimension(3) :: curl_rotu
+
+    integer :: idS, idW
+
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    
+    curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/grid(d)%pedlen%elts(EDGE*id+RT+1)
+    curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/grid(d)%pedlen%elts(EDGE*id+DG+1)
+    curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/grid(d)%pedlen%elts(EDGE*id+UP+1)
+  end function curl_rotu
 end function physics_velo_source
 
 subroutine trend_cooling (q, dq)
@@ -258,14 +265,14 @@ subroutine trend_cooling (q, dq)
   use time_integr_mod
   implicit none
   type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
-  
+
   integer :: d, k, p
 
   call update_array_bdry (sol, NONE)
 
   ! Current surface pressure
   call cal_surf_press (sol)
-  
+
   do k = 1, zlevels
      do d = 1, size(grid)
         mass  =>  q(S_MASS,k)%data(d)%elts

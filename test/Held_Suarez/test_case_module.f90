@@ -509,10 +509,9 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_divu = 1d-2 * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! fixed at a relatively high value to stabilize layers
-       visc_sclr = dx_min**(2*Laplace_order_init)/tau * n_diffuse 
-
+       visc_divu = 4d-2 * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! fixed at a relatively high value to stabilize layers
        !visc_divu = dx_min**(2*Laplace_order_init)/tau * n_diffuse
+       visc_sclr = dx_min**(2*Laplace_order_init)/tau * n_diffuse 
        visc_rotu = dx_min**(2*Laplace_order_init)/tau * n_diffuse / 4**Laplace_order_init
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
