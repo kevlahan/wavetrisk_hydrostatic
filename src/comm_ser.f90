@@ -264,19 +264,19 @@ contains
     cpt_min_mass = min_mass_loc
   end function cpt_min_mass
 
-  integer function sync_max (val)
+  integer function sync_max_int (val)
     implicit none
     integer :: val
     
-    sync_max = val
-  end function sync_max
+    sync_max_int = val
+  end function sync_max_int
 
-  real(8) function sync_max_d (val)
+  real(8) function sync_max_real (val)
     implicit none
     real(8) :: val
     
-    sync_max_d = val
-  end function sync_max_d
+    sync_max_real = val
+  end function sync_max_real
 
   real(8) function sum_real (val)
     implicit none

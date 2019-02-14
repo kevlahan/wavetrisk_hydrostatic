@@ -147,19 +147,20 @@ contains
  
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
+    use lnorms_mod
     use wavelet_mod
     implicit none
     integer                                     :: v
-    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm, threshold_new
+    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: threshold_new
     character(3), parameter                     :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
     else
        if (adapt_trend) then
-          call cal_lnorm (trend, order, lnorm)
+          call cal_lnorm_trend (trend, order)
        else
-          call cal_lnorm (sol,   order, lnorm)
+          call cal_lnorm_sol (sol,   order)
        end if
        !threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
        threshold_new = tol*lnorm
@@ -471,7 +472,6 @@ contains
     implicit none
 
     integer :: k
-    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: lnorm
     
     allocate (threshold(S_MASS:S_VELO,1:zlevels));     threshold     = 0.0_8
     allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
