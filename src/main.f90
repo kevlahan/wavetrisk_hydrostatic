@@ -52,14 +52,14 @@ contains
        ! Determine vertical level to save
        call set_save_level
 
-       ! Initialize thresholds to default values 
-       call initialize_thresholds
-
        call init_structures (run_id)
        call apply_init_cond
 
        ! Initialize time step and viscosities
        call initialize_dt_viscosity
+
+       ! Initialize thresholds to default values 
+       call initialize_thresholds
 
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
@@ -223,9 +223,6 @@ contains
     ! Determine vertical level to save
     call set_save_level
 
-    ! Initialize thresholds to default values 
-    call initialize_thresholds
-
     ! Uncompress checkpoint data
     if (rank == 0) then
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
@@ -250,6 +247,9 @@ contains
        call system (command)
     end if
     call barrier
+
+    ! Initialize thresholds to default values 
+    call initialize_thresholds
 
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
@@ -491,7 +491,7 @@ contains
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)
     deallocate (sol, sol_save, trend, trend_wav_coeff, wav_coeff)       
-    deallocate (exner_fun, horiz_flux, Laplacian_scalar)
+    deallocate (exner_fun, horiz_flux, Laplacian_scalar, lnorm)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
 
     nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &

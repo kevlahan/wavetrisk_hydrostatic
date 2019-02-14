@@ -550,7 +550,7 @@ contains
     implicit none
     integer :: d, p
 
-    level_end = sync_max(level_end)
+    level_end = sync_max_int (level_end)
 
     do d = 1, n_domain(rank+1)
        do p = 2, grid(d)%patch%length

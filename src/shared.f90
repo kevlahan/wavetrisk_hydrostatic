@@ -330,7 +330,7 @@ module shared_mod
   real(8)                                       :: min_mass, min_allowed_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
-  real(8), dimension(:,:),       allocatable    :: threshold
+  real(8), dimension(:,:),       allocatable    :: lnorm, threshold
   real(8), dimension(:,:,:),     allocatable    :: zonal_avg, zonal_avg_glo
   real(8), dimension(3)                         :: L_diffusion
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs

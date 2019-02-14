@@ -276,7 +276,7 @@ contains
           end do
        end do
     end do
-    refine = sync_max(did_refine) == TRUE
+    refine = sync_max_int (did_refine) == TRUE
     return
   end function refine
 

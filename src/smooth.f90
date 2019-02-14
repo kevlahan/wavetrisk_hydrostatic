@@ -77,8 +77,8 @@ contains
     l2error  = 0.0_8
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
 
-    l2error = sqrt(sum_real(l2error))
-    maxerror = sync_max_d(maxerror)
+    l2error = sqrt (sum_real (l2error))
+    maxerror = sync_max_real (maxerror)
     if (rank == 0) then
        write (6,'(A)') '-------------------------------------------------------&
             --------------------------------------------------------------------------'
@@ -96,7 +96,7 @@ contains
 
        call apply_onescale (Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
        call apply_onescale (Xu_smooth_assign, level_end-1, z_null, 0, 0)
-       maxerror = sync_max_d (maxerror)
+       maxerror = sync_max_real (maxerror)
        k = k + 1
     end do
 
@@ -116,7 +116,7 @@ contains
     l2error = 0.0_8
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
     l2error = sqrt (sum_real (l2error))
-    maxerror = sync_max_d (maxerror)
+    maxerror = sync_max_real (maxerror)
 
     if (rank == 0) then
        write (6,'(A,2(es8.2,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'

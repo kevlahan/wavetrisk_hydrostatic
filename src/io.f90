@@ -647,70 +647,6 @@ contains
     end if
   end subroutine write_dual
 
-  subroutine zonal_meridional_vel (dom, i, j, offs, dims, zlev, vel_latlon)
-    ! Finds lat-lon velocity (with components in zonal and meridional directions) given index information of node
-    ! using lapack least squares routine dgels
-    implicit none
-    type (Domain)                :: dom
-    integer                      :: i, j, zlev
-    integer, dimension(N_BDRY+1) :: offs
-    integer, dimension(2,N_BDRY+1)      :: dims
-    real(8), dimension (3)       :: uvw
-    real(8), dimension (2)       :: vel_latlon
-
-    integer                     :: d, e, id, id_i, id_e, idN, idE, idNE
-    type (Coord)                :: co_node, co_east, co_north, co_northeast, e_merid, e_zonal
-    type (Coord), dimension (3) :: dir 
-    real(8)                     :: lon, lat
-
-    ! For least squares solver dgels
-    integer                    :: info
-    real(8), dimension (3,2)   :: A
-    integer, parameter         :: lwork = 2*3*2
-    real(8), dimension (lwork) :: work
-
-    d = dom%id+1
-
-    id = idx(i, j, offs, dims)
-
-    id_i = id + 1
-    id_e = EDGE*id + 1
-    idN  = idx(i, j + 1,     offs, dims) + 1
-    idE  = idx(i + 1, j,     offs, dims) + 1
-    idNE = idx(i + 1, j + 1, offs, dims) + 1
-
-    uvw(1) = sol(S_VELO,zlev)%data(d)%elts(id_e+RT) ! RT velocity
-    uvw(2) = sol(S_VELO,zlev)%data(d)%elts(id_e+DG) ! DG velocity
-    uvw(3) = sol(S_VELO,zlev)%data(d)%elts(id_e+UP) ! UP velocity
-
-    ! Calculate velocity directions
-    co_node      = dom%node%elts(id_i) 
-    co_east      = dom%node%elts(idE)
-    co_northeast = dom%node%elts(idNE)
-    co_north     = dom%node%elts(idN)
-
-    dir(1) = direction (co_node,      co_east)  ! RT direction
-    dir(2) = direction (co_northeast, co_node)  ! DG direction
-    dir(3) = direction (co_node,      co_north) ! UP direction
-
-    ! Find longitude and latitude coordinates of node
-    call cart2sph (co_node, lon, lat)
-
-    e_zonal = Coord (-sin(lon),           cos(lon),             0.0_8) ! Zonal direction
-    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
-
-    ! Least squares overdetermined matrix 
-    do e = 1, EDGE
-       A(e,1) = inner(dir(e), e_zonal)
-       A(e,2) = inner(dir(e), e_merid)
-    end do
-
-    ! Solve least squares problem to find zonal and meridional velocities
-    call dgels ('N', 3, 2, 1, A, 3, uvw, 3, work, lwork, info)
-
-    vel_latlon = uvw(1:2)
-  end subroutine zonal_meridional_vel
-
   function get_vort (dom, i, j, offs, dims)
     ! Averages vorticity to get smooth field for visualization
     implicit none
@@ -1094,8 +1030,8 @@ contains
     call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
     call apply_onescale (check_d,  level_end-1, z_null,  0, 0)
 
-    l2error = sqrt(sum_real(l2error))
-    maxerror = sync_max_d(maxerror)
+    l2error = sqrt (sum_real (l2error))
+    maxerror = sync_max_real (maxerror)
 
     if (rank == 0) then
        write (6,'(A)') '-------------------------------------------------------&
@@ -1141,7 +1077,7 @@ contains
     call apply_onescale (check_d,  level_end-1, z_null,  0, 0)
 
     l2error = sqrt (sum_real(l2error))
-    maxerror = sync_max_d(maxerror)
+    maxerror = sync_max_real (maxerror)
     if (rank == 0) then
        write (6,'(A,2(es8.2,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
        write (6,'(A)') '(distance between midpoints of primal and dual edges)'
@@ -1321,8 +1257,8 @@ contains
        call write_level_mpi (write_primal, u+l, l, save_zlev, .true., run_id)
 
        do i = 1, N_VAR_OUT
-          minv(i) = -sync_max_d(-minv(i))
-          maxv(i) =  sync_max_d( maxv(i))
+          minv(i) = -sync_max_real (-minv(i))
+          maxv(i) =  sync_max_real ( maxv(i))
        end do
        if (rank == 0) then
           write (var_file, '(i7)') u

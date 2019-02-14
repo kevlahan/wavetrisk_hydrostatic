@@ -1218,24 +1218,25 @@ contains
     call MPI_Allreduce (min_mass_loc, cpt_min_mass, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
   end function cpt_min_mass
 
-  integer function sync_max (val)
+  integer function sync_max_int (val)
     implicit none
     integer :: val
+    
     integer :: val_glo
 
     call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
-    sync_max = val_glo
-  end function sync_max
+    sync_max_int = val_glo
+  end function sync_max_int
 
-  real(8) function sync_max_d (val)
+  real(8) function sync_max_real (val)
     implicit none
     real(8) :: val
 
     real(8) :: val_glo
 
     call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-    sync_max_d = val_glo
-  end function sync_max_d
+    sync_max_real = val_glo
+  end function sync_max_real
 
   real(8) function sum_real (val)
     implicit none

@@ -25,6 +25,7 @@ contains
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
     allocate (exner_fun(1:zlevels+1))
     allocate (horiz_flux(S_MASS:S_TEMP), Laplacian_scalar(S_MASS:S_TEMP))
+    allocate (lnorm(S_MASS:S_VELO,1:zlevels))
 
     do k = 1, zlevels
        call init_Float_Field (exner_fun(k), AT_NODE)
