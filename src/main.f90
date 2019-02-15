@@ -210,9 +210,7 @@ contains
     end if
 
     ! Deallocate all dynamic arrays and variables
-    if (resume == NONE) then
-       call deallocate_structures
-    end if
+    if (resume == NONE) call deallocate_structures
 
     ! Initialize basic structures
     call init_basic
@@ -234,7 +232,10 @@ contains
 
     ! Rebalance adaptive grid and re-initialize structures
     call init_structures (run_id)
-    
+
+    ! Initialize thresholds to default values 
+    call initialize_thresholds
+
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, custom_load, run_id)
 
@@ -247,9 +248,6 @@ contains
        call system (command)
     end if
     call barrier
-
-    ! Initialize thresholds to default values 
-    call initialize_thresholds
 
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)

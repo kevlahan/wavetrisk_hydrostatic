@@ -771,6 +771,7 @@ contains
     ! NOTE: modifies grid structure
     implicit none
     integer      :: id
+    external     :: custom_dump
     character(*) :: run_id
 
     integer                               :: c, d, i, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
@@ -893,6 +894,7 @@ contains
     ! One file per domain
     implicit none
     integer      :: id
+    external     :: custom_load
     character(*) :: run_id
 
     character(255)                       :: filename_gr, filename_no
