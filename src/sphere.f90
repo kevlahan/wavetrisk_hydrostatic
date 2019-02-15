@@ -281,7 +281,8 @@ contains
     do i = 1, 6
        self%part(i) = triarea (centre, corners(i), midpts(i)) + triarea (centre, corners(i), midpts(modulo(i,6)+1))
     end do
-    self%hex_inv = 1/sum (self%part)
+    self%hex_inv = 1.0_8
+    if (sum(self%part) /= 0.0_8) self%hex_inv = 1/sum (self%part)
   end subroutine init_Areas
 
   real(8) function proj_vel (vel_fun, ep1, ep2)

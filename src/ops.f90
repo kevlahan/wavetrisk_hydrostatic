@@ -1243,9 +1243,9 @@ contains
     integer :: id, idE, idN
     real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_UP_E, u_prim_RT_N
 
-    id   = idx(i,   j,   offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
+    id  = idx (i,   j,   offs, dims)
+    idE = idx (i+1, j,   offs, dims)
+    idN = idx (i,   j+1, offs, dims)
 
     u_prim_RT   = velo(EDGE*id+RT +1)*dom%len%elts(EDGE*id+RT+1)
     u_prim_DG   = velo(EDGE*id+DG +1)*dom%len%elts(EDGE*id+DG+1)
@@ -1253,8 +1253,17 @@ contains
     u_prim_UP_E = velo(EDGE*idE+UP+1)*dom%len%elts(EDGE*idE+UP+1)
     u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1)
 
-    vort(TRIAG*id+LORT+1) =   (u_prim_RT + u_prim_UP_E + u_prim_DG)  /dom%triarea%elts(TRIAG*id+LORT+1) 
-    vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N)/dom%triarea%elts(TRIAG*id+UPLT+1)
+    if (dom%triarea%elts(TRIAG*id+LORT+1) /= 0.0_8) then
+       vort(TRIAG*id+LORT+1) = (u_prim_RT + u_prim_UP_E + u_prim_DG)  /dom%triarea%elts(TRIAG*id+LORT+1)
+    else
+       vort(TRIAG*id+LORT+1) = 0.0_8
+    end if
+
+    if (dom%triarea%elts(TRIAG*id+UPLT+1) /= 0) then
+       vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N)/dom%triarea%elts(TRIAG*id+UPLT+1)
+    else
+       vort(TRIAG*id+UPLT+1) = 0.0_8
+    end if
   end subroutine cal_vort
 
   subroutine sum_mass_temp (dom, i, j, zlev, offs, dims)
