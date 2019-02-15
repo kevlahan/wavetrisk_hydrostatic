@@ -1254,13 +1254,13 @@ contains
     u_prim_RT_N = velo(EDGE*idN+RT+1)*dom%len%elts(EDGE*idN+RT+1)
 
     if (dom%triarea%elts(TRIAG*id+LORT+1) /= 0.0_8) then
-       vort(TRIAG*id+LORT+1) = (u_prim_RT + u_prim_UP_E + u_prim_DG)  /dom%triarea%elts(TRIAG*id+LORT+1)
+       vort(TRIAG*id+LORT+1) = (u_prim_RT + u_prim_UP_E + u_prim_DG) / dom%triarea%elts(TRIAG*id+LORT+1)
     else
        vort(TRIAG*id+LORT+1) = 0.0_8
     end if
 
     if (dom%triarea%elts(TRIAG*id+UPLT+1) /= 0) then
-       vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N)/dom%triarea%elts(TRIAG*id+UPLT+1)
+       vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP + u_prim_RT_N) / dom%triarea%elts(TRIAG*id+UPLT+1)
     else
        vort(TRIAG*id+UPLT+1) = 0.0_8
     end if
