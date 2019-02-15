@@ -111,7 +111,7 @@ contains
 
     interface
        real(8) function fun (dom, i, j, zlev, offs, dims)
-         use domain_mod
+         import
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -170,7 +170,7 @@ contains
 
     interface
        real(8) function fun (dom, i, j, zlev, t, offs, dims)
-         use domain_mod
+         import 
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, t, zlev

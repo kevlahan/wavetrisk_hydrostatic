@@ -119,7 +119,7 @@ end program Held_Suarez
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (d, id, idE, idNE, idN, type)
+function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   ! Additional physics for the flux term of the scalar trend
   ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
   !
@@ -128,7 +128,8 @@ function physics_scalar_flux (d, id, idE, idNE, idN, type)
   implicit none
 
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-  integer                                  :: d, id, idE, idNE, idN
+  type(domain)                             :: dom
+  integer                                  :: id, idE, idNE, idN
   logical, optional                        :: type
 
   integer                                  :: id_i, v
@@ -143,7 +144,7 @@ function physics_scalar_flux (d, id, idE, idNE, idN, type)
      local_type = .false.
   end if
 
-  id_i = id + 1
+  id_i = id + 1  
 
   if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8
@@ -154,19 +155,19 @@ function physics_scalar_flux (d, id, idE, idNE, idN, type)
         grad(S_TEMP,:) = grad_physics (temp)
      elseif (Laplace_order == 2) then
         do v = S_MASS, S_TEMP
-           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(d)%elts)
+           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(dom%id+1)%elts)
         end do
      end if
 
      ! Fluxes of physics
      if (.not.local_type) then ! Usual flux at edges E, NE, N
         do v = S_MASS, S_TEMP
-           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * grid(d)%pedlen%elts(EDGE*id+1:EDGE*id_i)
+           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
         end do
      else ! Flux at edges W, SW, S
-        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * grid(d)%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * grid(d)%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * grid(d)%pedlen%elts(EDGE*idN+UP+1)
+        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
+        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
+        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
      end if
 
      ! Find correct sign for diffusion on left hand side of the equation
@@ -179,37 +180,39 @@ contains
     real(8), dimension(:)      :: scalar
 
     if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /grid(d)%len%elts(EDGE*id+RT+1) 
-       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/grid(d)%len%elts(EDGE*id+DG+1) 
-       grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /grid(d)%len%elts(EDGE*id+UP+1) 
+       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
+       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
+       grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
     else ! Gradient for southwest edges of hexagon W, SW, S
-       grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /grid(d)%len%elts(EDGE*idE+RT+1) 
-       grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/grid(d)%len%elts(EDGE*idNE+DG+1)
-       grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /grid(d)%len%elts(EDGE*idN+UP+1) 
+       grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
+       grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
+       grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
     end if
   end function grad_physics
 end function physics_scalar_flux
 
-function physics_scalar_source (i, j, zlev, offs, dims)
+function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the scalar trend
   use domain_mod
   implicit none
 
   real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
-  integer                           :: d, i, j, zlev
+  type(domain)                      :: dom
+  integer                           :: i, j, zlev
   integer, dimension(N_BDRY+1)      :: offs
   integer, dimension(2,N_BDRY+1)    :: dims
 
   physics_scalar_source = 0.0_8
 end function physics_scalar_source
 
-function physics_velo_source (d, i, j, zlev, offs, dims)
+function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
   use domain_mod
   implicit none
 
   real(8), dimension(1:EDGE)     :: physics_velo_source
-  integer                        :: d, i, j, zlev
+  type(domain)                   :: dom
+  integer                        :: i, j, zlev
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
@@ -238,9 +241,9 @@ contains
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
 
-    grad_divu(RT+1) = (divu(idE+1) - divu(id+1))  /grid(d)%len%elts(EDGE*id+RT+1)
-    grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1))/grid(d)%len%elts(EDGE*id+DG+1)
-    grad_divu(UP+1) = (divu(idN+1) - divu(id+1))  /grid(d)%len%elts(EDGE*id+UP+1)
+    grad_divu(RT+1) = (divu(idE+1) - divu(id+1))  /dom%len%elts(EDGE*id+RT+1)
+    grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+    grad_divu(UP+1) = (divu(idN+1) - divu(id+1))  /dom%len%elts(EDGE*id+UP+1)
   end function grad_divu
 
   function curl_rotu()
@@ -252,9 +255,9 @@ contains
     idS  = idx (i,   j-1, offs, dims)
     idW  = idx (i-1, j,   offs, dims)
     
-    curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/grid(d)%pedlen%elts(EDGE*id+RT+1)
-    curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/grid(d)%pedlen%elts(EDGE*id+DG+1)
-    curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/grid(d)%pedlen%elts(EDGE*id+UP+1)
+    curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
+    curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
+    curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
   end function curl_rotu
 end function physics_velo_source
 
