@@ -396,77 +396,86 @@ contains
 
     do k = 1, zlevels
        do d = 1, size (grid)
+          do p = 2, grid(d)%patch%length
+             !call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (zonal_meridional_vel, grid(d), p-1, k, 0, 0)
+          end do
+       end do
+
+       do d = 1, size (grid)
           mass => sol(S_MASS,k)%data(d)%elts
           temp => sol(S_TEMP,k)%data(d)%elts
           velo => sol(S_VELO,k)%data(d)%elts
           do p = 2, grid(d)%patch%length
              call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
              call apply_onescale_to_patch (cal_zonal_avg,  grid(d), p-1, k, 0, 0)
           end do
           nullify (mass, temp, velo)
        end do
     end do
-  contains
-    subroutine cal_zonal_avg (dom, i, j, zlev, offs, dims)
-      ! Zonal average means and covariances over all checkpoints using stable online algorithm
-      ! Uses Welford's stable onlne algorithm
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: bin, id_i
-      real(8) :: lat, lon, temperature, Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
-
-      d = dom%id + 1
-      id_i = idx (i, j, offs, dims) + 1
-
-      ! Only include locally finest level points
-      !if (dom%mask_n%elts(id_i) == RESTRCT) return
-      
-      call cart2sph (dom%node%elts(id_i), lon, lat)
-
-      temperature = (temp(id_i)/mass(id_i)) * (dom%press%elts(id_i)/p_0)**kappa
-      
-      do bin = 1, nbins
-         if (lat*1.8d2/MATH_PI <= bounds(bin)) then
-            Nstats(zlev,bin) = Nstats(zlev,bin) + 1
-
-            Tprime = temperature            - zonal_avg(zlev,bin,1)
-            Uprime = dom%u_zonal%elts(id_i) - zonal_avg(zlev,bin,3)
-            Vprime = dom%v_merid%elts(id_i) - zonal_avg(zlev,bin,4)
-
-            ! Mean values
-            zonal_avg(zlev,bin,1) = zonal_avg(zlev,bin,1) + Tprime/Nstats(zlev,bin)
-            zonal_avg(zlev,bin,3) = zonal_avg(zlev,bin,3) + Uprime/Nstats(zlev,bin)
-            zonal_avg(zlev,bin,4) = zonal_avg(zlev,bin,4) + Vprime/Nstats(zlev,bin)
-            zonal_avg(zlev,bin,5) = zonal_avg(zlev,bin,5) +  0.5 * (Uprime**2 + Vprime**2)/Nstats(zlev,bin)
-
-            Tprime_new = temperature            - zonal_avg(zlev,bin,1)
-            Uprime_new = dom%u_zonal%elts(id_i) - zonal_avg(zlev,bin,3)
-            Vprime_new = dom%v_merid%elts(id_i) - zonal_avg(zlev,bin,4)
-
-            ! Update sums of squares (for variance calculation)
-
-            ! Temperature 
-            zonal_avg(zlev,bin,2) = zonal_avg(zlev,bin,2) + Tprime * Tprime_new
-
-            ! Eddy momentum flux (covariance)
-            zonal_avg(zlev,bin,6) = zonal_avg(zlev,bin,6) + Uprime * Vprime_new
-
-            ! Eddy kinetic energy (covariance)
-            zonal_avg(zlev,bin,7) = zonal_avg(zlev,bin,7) + 0.5 * (Uprime * Uprime_new + Vprime * Vprime_new)
-
-            ! Eddy heat flux (covariance)
-            zonal_avg(zlev,bin,8) = zonal_avg(zlev,bin,8) + Vprime * Tprime_new
-
-            exit
-         end if
-      end do
-    end subroutine cal_zonal_avg
   end subroutine statistics
+
+  subroutine cal_zonal_avg (dom, i, j, zlev, offs, dims)
+    ! Zonal average means and covariances over all checkpoints using stable online algorithm
+    ! Uses Welford's stable onlne algorithm
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: bin, d, id_i
+    real(8) :: lat, lon, temperature, Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
+
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    ! Only include locally finest level points
+    !if (dom%mask_n%elts(id_i) == RESTRCT) return
+
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+
+    temperature = (temp(id_i)/mass(id_i)) * (dom%press%elts(id_i)/p_0)**kappa
+
+    do bin = 1, nbins
+       if (lat*1.8d2/MATH_PI <= bounds(bin)) then
+          Nstats(zlev,bin) = Nstats(zlev,bin) + 1
+
+          Tprime = temperature            - zonal_avg(zlev,bin,1)
+          Uprime = dom%u_zonal%elts(id_i) - zonal_avg(zlev,bin,3)
+          Vprime = dom%v_merid%elts(id_i) - zonal_avg(zlev,bin,4)
+
+          ! Mean values
+          zonal_avg(zlev,bin,1) = zonal_avg(zlev,bin,1) + Tprime/Nstats(zlev,bin)
+          zonal_avg(zlev,bin,3) = zonal_avg(zlev,bin,3) + Uprime/Nstats(zlev,bin)
+          zonal_avg(zlev,bin,4) = zonal_avg(zlev,bin,4) + Vprime/Nstats(zlev,bin)
+          zonal_avg(zlev,bin,5) = zonal_avg(zlev,bin,5) +  0.5 * (Uprime**2 + Vprime**2)/Nstats(zlev,bin)
+
+          Tprime_new = temperature            - zonal_avg(zlev,bin,1)
+          Uprime_new = dom%u_zonal%elts(id_i) - zonal_avg(zlev,bin,3)
+          Vprime_new = dom%v_merid%elts(id_i) - zonal_avg(zlev,bin,4)
+
+          ! Update sums of squares (for variance calculation)
+
+          ! Temperature 
+          zonal_avg(zlev,bin,2) = zonal_avg(zlev,bin,2) + Tprime * Tprime_new
+
+          ! Eddy momentum flux (covariance)
+          zonal_avg(zlev,bin,6) = zonal_avg(zlev,bin,6) + Uprime * Vprime_new
+
+          ! Zonal velocity variance
+          zonal_avg(zlev,bin,7) = zonal_avg(zlev,bin,7) + Uprime * Uprime_new 
+
+          ! Meridional velocity variance
+          zonal_avg(zlev,bin,8) = zonal_avg(zlev,bin,8) + Vprime * Vprime_new 
+
+          ! Eddy heat flux (covariance)
+          zonal_avg(zlev,bin,9) = zonal_avg(zlev,bin,9) + Vprime * Tprime_new
+
+          exit
+       end if
+    end do
+  end subroutine cal_zonal_avg
 
   subroutine write_out_stats
     ! Writes out zonal average statistics
@@ -483,6 +492,7 @@ contains
     zonal_avg_glo(:,:,6) = zonal_avg_glo(:,:,6) / (Nstats_glo - 1)
     zonal_avg_glo(:,:,7) = zonal_avg_glo(:,:,7) / (Nstats_glo - 1)
     zonal_avg_glo(:,:,8) = zonal_avg_glo(:,:,8) / (Nstats_glo - 1)
+    zonal_avg_glo(:,:,9) = zonal_avg_glo(:,:,9) / (Nstats_glo - 1)
 
     ! Save number of data points
     write (var_file, '(i2.2)') 00
@@ -1302,4 +1312,70 @@ contains
     command = 'tar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
     call system (command)
   end subroutine compress_files
+  
+  subroutine zonal_meridional_vel (dom, i, j, zlev, offs, dims)
+    ! Finds lat-lon velocity (with components in zonal and meridional directions) given index information of node
+    ! using lapack least squares routine dgels
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    real(8), dimension (3)         :: uvw
+    real(8), dimension (2)         :: vel_latlon
+
+    integer                     :: d, e, id, id_i, id_e, idN, idE, idNE
+    type (Coord)                :: co_node, co_east, co_north, co_northeast, e_merid, e_zonal
+    type (Coord), dimension (3) :: dir 
+    real(8)                     :: lon, lat
+
+    ! For least squares solver dgels
+    integer                    :: info
+    real(8), dimension (3,2)   :: A
+    integer, parameter         :: lwork = 2*3*2
+    real(8), dimension (lwork) :: work
+
+    d = dom%id+1
+
+    id = idx (i, j, offs, dims)
+
+    id_i = id + 1
+    id_e = EDGE*id + 1
+    idN  = idx (i,   j+1, offs, dims) + 1
+    idE  = idx (i+1, j,   offs, dims) + 1
+    idNE = idx (i+1, j+1, offs, dims) + 1
+
+    uvw(1) = sol(S_VELO,zlev)%data(d)%elts(id_e+RT) ! RT velocity
+    uvw(2) = sol(S_VELO,zlev)%data(d)%elts(id_e+DG) ! DG velocity
+    uvw(3) = sol(S_VELO,zlev)%data(d)%elts(id_e+UP) ! UP velocity
+
+    ! Calculate velocity directions
+    co_node      = dom%node%elts(id_i) 
+    co_east      = dom%node%elts(idE)
+    co_northeast = dom%node%elts(idNE)
+    co_north     = dom%node%elts(idN)
+
+    dir(1) = direction (co_node,      co_east)  ! RT direction
+    dir(2) = direction (co_northeast, co_node)  ! DG direction
+    dir(3) = direction (co_node,      co_north) ! UP direction
+
+    ! Find longitude and latitude coordinates of node
+    call cart2sph (co_node, lon, lat)
+
+    e_zonal = Coord (-sin(lon),           cos(lon),             0.0_8) ! Zonal direction
+    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+
+    ! Least squares overdetermined matrix 
+    do e = 1, EDGE
+       A(e,1) = inner (dir(e), e_zonal)
+       A(e,2) = inner (dir(e), e_merid)
+    end do
+
+    ! Solve least squares problem to find zonal and meridional velocities
+    call dgels ('N', 3, 2, 1, A, 3, uvw, 3, work, lwork, info)
+
+    dom%u_zonal%elts(id_i) = uvw(1)
+    dom%v_merid%elts(id_i) = uvw(2)
+  end subroutine zonal_meridional_vel
 end module io_mod

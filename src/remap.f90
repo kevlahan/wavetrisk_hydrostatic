@@ -20,7 +20,7 @@ contains
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
     integer            :: l
-    logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential energy)
+    logical, parameter :: standard = .false. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential energy)
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]

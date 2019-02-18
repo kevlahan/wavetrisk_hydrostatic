@@ -94,7 +94,7 @@ program flat_projection_data
 
   ! Finish covariance calculations
   zonal_av(:,:,2)   = zonal_av(:,:,2)   / (Ncumul-1)
-  zonal_av(:,:,6:8) = zonal_av(:,:,6:8) / (Ncumul-1)
+  zonal_av(:,:,6:9) = zonal_av(:,:,6:9) / (Ncumul-1)
   
   if (rank==0) call write_out
   call finalize
@@ -161,11 +161,14 @@ contains
           ! Eddy momentum flux (covariance)
           zonal_av(k,:,6) = zonal_av(k,:,6) + Uprime * Vprime_new
        
-          ! Eddy kinetic energy (covariance)
-          zonal_av(k,:,7) = zonal_av(k,:,7) + 0.5 * (Uprime * Uprime_new + Vprime * Vprime_new)
+          ! Zonal velocity variance
+          zonal_av(k,:,7) = zonal_av(k,:,7) + Uprime * Uprime_new
+
+          ! Meridional velocity variance
+          zonal_av(k,:,8) = zonal_av(k,:,8) + Vprime * Vprime_new
 
           ! Eddy heat flux (covariance)
-          zonal_av(k,:,8) = zonal_av(k,:,8) + Vprime * Tprime_new
+          zonal_av(k,:,9) = zonal_av(k,:,9) + Vprime * Tprime_new
        end do
     end do
   end subroutine cal_zonal_av

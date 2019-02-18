@@ -319,7 +319,7 @@ module shared_mod
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   integer, parameter                            :: max_restart = 10 ! maximum allowed number of restarts after negative mass event
-  integer, parameter                            :: nvar_zonal = 8   ! number of zonal statistics to calculate
+  integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
   
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time

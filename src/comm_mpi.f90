@@ -1319,10 +1319,10 @@ contains
     !   T.F. Chan, G.H. Golub & R.J. LeVeque (1983):
     !   "Algorithms for computing the sample variance: Analysis and recommendations." The American Statistician 37: 242–247.
     implicit none
-    integer                             :: bin, ivar, k, r
-    integer, dimension(MPI_STATUS_SIZE) :: status
-    integer, dimension(zlevels,nbins)   :: Nstats_loc
-    real(8), dimension(zlevels,nbins,8) :: zonal_avg_loc
+    integer                                      :: bin, ivar, k, r
+    integer, dimension(MPI_STATUS_SIZE)          :: status
+    integer, dimension(zlevels,nbins)            :: Nstats_loc
+    real(8), dimension(zlevels,nbins,nvar_zonal) :: zonal_avg_loc
 
     ! Initialize to values on rank 0
     if (rank == 0) then
@@ -1349,7 +1349,7 @@ contains
     subroutine combine_var
       integer :: nA, nB, nAB
       real(8) :: delta_KE, delta_T, delta_U, delta_V
-      real(8) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_TKE, mB_TKE, mA_VT, mB_VT, mA_UV, mB_UV
+      real(8) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_zonal, mB_zonal, mA_merid, mB_merid, mA_VT, mB_VT, mA_UV, mB_UV
 
       nA = Nstats_glo(k,bin)
       nB = Nstats_loc(k,bin)
@@ -1366,11 +1366,14 @@ contains
       mA_UV  = zonal_avg_glo(k,bin,6)
       mB_UV  = zonal_avg_loc(k,bin,6)
 
-      mA_TKE = zonal_avg_glo(k,bin,7)
-      mB_TKE = zonal_avg_loc(k,bin,7)
+      mA_zonal = zonal_avg_glo(k,bin,7)
+      mB_zonal = zonal_avg_loc(k,bin,7)
 
-      mA_VT  = zonal_avg_glo(k,bin,8)
-      mB_VT  = zonal_avg_loc(k,bin,8)
+      mA_merid = zonal_avg_glo(k,bin,8)
+      mB_merid = zonal_avg_loc(k,bin,8)
+
+      mA_VT  = zonal_avg_glo(k,bin,9)
+      mB_VT  = zonal_avg_loc(k,bin,9)
 
       ! Combine means
       zonal_avg_glo(k,bin,1) = zonal_avg_glo(k,bin,1) + delta_T  * nB/nAB
@@ -1379,10 +1382,11 @@ contains
       zonal_avg_glo(k,bin,5) = zonal_avg_glo(k,bin,5) + delta_KE * nB/nAB
 
       ! Combine sums of squares (for variances)
-      zonal_avg_glo(k,bin,2) = mA_T   + mB_T   + delta_T**2              * nA*nB/nAB ! temperature variance
-      zonal_avg_glo(k,bin,6) = mA_UV  + mB_UV  + delta_U*delta_V         * nA*nB/nAB ! velocity covariance
-      zonal_avg_glo(k,bin,7) = mA_TKE + mB_TKE + (delta_U**2+delta_V**2) * nA*nB/nAB ! eddy kinetic energy
-      zonal_avg_glo(k,bin,8) = mA_VT  + mB_VT  + delta_V*delta_T         * nA*nB/nAB ! V-T covariance (eddy heat flux)
+      zonal_avg_glo(k,bin,2) = mA_T     + mB_T     + delta_T**2      * nA*nB/nAB ! temperature variance
+      zonal_avg_glo(k,bin,6) = mA_UV    + mB_UV    + delta_U*delta_V * nA*nB/nAB ! velocity covariance
+      zonal_avg_glo(k,bin,7) = mA_zonal + mB_zonal + delta_U**2      * nA*nB/nAB ! zonal wind variance
+      zonal_avg_glo(k,bin,8) = mA_merid + mB_merid + delta_V**2      * nA*nB/nAB ! meridional wind variance
+      zonal_avg_glo(k,bin,9) = mA_VT    + mB_VT    + delta_V*delta_T * nA*nB/nAB ! V-T covariance (eddy heat flux)
 
       ! Update total number of data points
       Nstats_glo(k,bin) = nAB

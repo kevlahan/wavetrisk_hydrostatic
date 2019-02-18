@@ -150,7 +150,7 @@ contains
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                     :: v
+    integer                                     :: k
     real(8), dimension(S_MASS:S_VELO,1:zlevels) :: threshold_new
     character(3), parameter                     :: order = "inf"
 
@@ -160,7 +160,7 @@ contains
        if (adapt_trend) then
           call cal_lnorm_trend (trend, order)
        else
-          call cal_lnorm_sol (sol,   order)
+          call cal_lnorm_sol (sol, order)
        end if
        !threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
        threshold_new = tol*lnorm
@@ -338,7 +338,8 @@ contains
     ! Bins for zonal statistics
     nbins = sqrt (10d0*4**max_level/2) ! consistent with maximum resolution
     allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
-    allocate (zonal_avg(zlevels,nbins,8), zonal_avg_glo(zlevels,nbins,8)) ; zonal_avg = 0.0_8; zonal_avg_glo = 0.0_8
+    allocate (zonal_avg(zlevels,nbins,nvar_zonal), zonal_avg_glo(zlevels,nbins,nvar_zonal))
+    zonal_avg = 0.0_8; zonal_avg_glo = 0.0_8
     allocate (bounds(1:nbins-1))
     dbin = 1.8d2/nbins
     bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)

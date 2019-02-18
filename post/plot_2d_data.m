@@ -4,12 +4,13 @@
 %test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J5J7_vars'; run_dir = '';
 %test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J4J5_L30'; run_dir = '';
 %test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J4J6_L18'; run_dir = '';
-test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J5L18'; run_dir = '';
+test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J4L18'; run_dir = '';
 
-unix ('scp -q if:"~/hydro/Held_Suarez/Held_Suarez_J5L18.3.tgz" ~/hydro/H*/.');
+unix ('scp -q if:"~/hydro/Held_Suarez/Held_Suarez_J4L18.3.tgz" ~/hydro/H*/.');
 
-% 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'temp_var' 'eddy_mom' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'eddy_ke';  % field to plot
+% 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 
+% 'temp_var' 'eddy_mom' 'zonal_var' 'merid_var' 'eddy_ke' 'eddy_heat_flux'
+itype     = 'temp';  % field to plot
 lon_lat   = false;  % Plot longitude - latitude data
 zonal_avg = true;   % Plot zonally averaged data
 shift     = true;   % shift left boundary to zero longitude
@@ -88,15 +89,15 @@ if (strcmp(itype,'temp')) % Plot temperature
     end
     v_title = 'Temperature (K)';
     if (lon_lat)
-        s_ll = s_ll+load([file_base '01']);
+        s_ll = load([file_base '01']);
     end
     if (zonal_avg)
-        s_zo = s_zo + load([file_base '11']);
+        s_zo = load([file_base '11']);
     end
 elseif (strcmp(itype,'temp_var')) % Plot temperature variance
     c_scale = 0:5:40; % Held-Suarez
     v_title = 'Temperature variance (K^2)';
-    s_zo = s_zo + load([file_base '12']);
+    s_zo = load([file_base '12']);
 elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
     if (strcmp(test_case,'DCMIP2008c5'))
         c_scale = -15:5:50;
@@ -107,10 +108,10 @@ elseif (strcmp(itype,'zonal')) % Plot zonal velocity data
     end
     v_title = 'Zonal wind (m/s)';
     if (lon_lat)
-        s_ll = s_ll+load([file_base '02']);
+        s_ll = load([file_base '02']);
     end
     if (zonal_avg)
-        s_zo = s_zo+load([file_base '13']);
+        s_zo = load([file_base '13']);
     end
 elseif (strcmp(itype,'merid')) % Plot meridional velocity data
     if (strcmp(test_case,'DCMIP2008c5'))
@@ -120,10 +121,10 @@ elseif (strcmp(itype,'merid')) % Plot meridional velocity data
     end
     v_title = 'Meridional wind (m/s)';
     if (lon_lat)
-        s_ll = s_ll+load([file_base '03']);
+        s_ll = load([file_base '03']);
     end
     if (zonal_avg)
-        s_zo = s_zo+load([file_base '14']);
+        s_zo = load([file_base '14']);
     end
 elseif (strcmp(itype,'geopot')) % Plot geopotential data
     if (strcmp(test_case,'DCMIP2008c5'))
@@ -132,9 +133,9 @@ elseif (strcmp(itype,'geopot')) % Plot geopotential data
         c_scale = 750:100:1500;
     end
     v_title = 'Geopotential (m)';
-    s_ll = s_ll+load([file_base '04']);
+    s_ll = load([file_base '04']);
 elseif (strcmp(itype,'vort')) % Plot relative vorticity data
-    s_ll = s_ll+load([file_base '05']);
+    s_ll = load([file_base '05']);
     if (strcmp(test_case,'DCMIP2008c5'))
         c_scale = -3e-5:1e-5:6e-5;
     elseif (strcmp(test_case,'DCMIP2012c4'))
@@ -148,33 +149,49 @@ elseif (strcmp(itype,'vort')) % Plot relative vorticity data
     end
     v_title = 'Relative vorticity';
 elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
-    s_ll = s_ll+load([file_base '06']);
+    s_ll = load([file_base '06']);
     if (strcmp(test_case,'DCMIP2008c5'))
         c_scale = 800:20:1030;
     elseif (strcmp(test_case,'DCMIP2012c4'))
         c_scale = 930:10:1030;
     end
     v_title = 'Surface pressure (hPa)';
-elseif (strcmp(itype,'ke')) % Plot zonal kinetic energy
+elseif (strcmp(itype,'ke')) % Plot kinetic energy
     c_scale = 0:40:480; % Held-Suarez
     v_title = 'Kinetic energy (m^2/s^2)';
-    s_zo = s_zo+load([file_base '15']);
-elseif (strcmp(itype,'eddy_mom')) % Plot zonal eddy momentum flux
+    s_zo = load([file_base '15']);
+elseif (strcmp(itype,'eddy_mom')) % Plot eddy momentum flux
     c_scale = -100:10:100; % Held-Suarez
     v_title = 'Eddy momentum flux (m^2/s^2)';
-    s_zo = s_zo+load([file_base '16']);
-elseif (strcmp(itype,'eddy_ke')) % Plot zonal eddy kinetic energy
+    s_zo = load([file_base '16']);
+elseif (strcmp(itype,'zonal_var')) % Plot zonal wind variance
+    if (strcmp(test_case,'DCMIP2008c5'))
+        c_scale = 0:5:100;
+    elseif (strcmp(test_case,'Held_Suarez'))
+        c_scale = 0:40:400;
+    end
+    v_title = 'Zonal wind variance(m^2/s^2)';
+    s_zo = load([file_base '17']);
+elseif (strcmp(itype,'merid_var')) % Plot meridional eddy kinetic energy
+    if (strcmp(test_case,'DCMIP2008c5'))
+        c_scale = 0:5:100;
+    elseif (strcmp(test_case,'Held_Suarez'))
+        c_scale = 0:40:480;
+    end
+    v_title = 'Meridional wind variance (m^2/s^2)';
+    s_zo = load([file_base '18']);
+elseif (strcmp(itype,'eddy_ke')) % Plot eddy kinetic energy
     if (strcmp(test_case,'DCMIP2008c5'))
         c_scale = 0:5:100;
     elseif (strcmp(test_case,'Held_Suarez'))
         c_scale = 0:40:480;
     end
     v_title = 'Eddy kinetic energy (m^2/s^2)';
-    s_zo = s_zo+load([file_base '17']);
+    s_zo = 0.5*(load([file_base '17']) + load([file_base '18']));
 elseif (strcmp(itype,'eddy_heat_flux')) % Plot zonal eddy heat flux
     c_scale = -20:2:20; % Held-Suarez
-    v_title = 'Eddy kinetic energy (K m/s)';
-    s_zo = s_zo+load([file_base '18']);
+    v_title = 'Eddy heat flux (K m/s)';
+    s_zo = load([file_base '19']);
 end
 
 % Plot data
@@ -230,7 +247,6 @@ elseif ilog == balance
     ylab = 'Load balance';
 elseif ilog == cpu
     ylab = 'CPU time / $\Delta t$ (s)';
-    
 elseif ilog == cpudof
     ylab = 'CPU time / ${\cal N}$';
 elseif ilog == compression
