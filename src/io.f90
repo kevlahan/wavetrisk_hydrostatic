@@ -156,14 +156,14 @@ contains
           end if
        end do
     end do
-    integrate_hex = sum_real(s)
+    integrate_hex = sum_real (s)
   end function integrate_hex
 
   real(8) function integrate_tri (fun, k)
     implicit none
     integer  :: k
 
-    integer                        :: d, ll, p, i, j, t, id
+    integer                        :: d, l, ll, p, i, j, t, id
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     real(8)                        :: s
@@ -180,30 +180,115 @@ contains
     end interface
 
     s = 0.0_8
-    do d = 1, size(grid)
-       do ll = 1, grid(d)%lev(level_start)%length
-          p = grid(d)%lev(level_start)%elts(ll)
-          call get_offs_Domain (grid(d), p, offs, dims)
-          do j = 1, PATCH_SIZE
-             do i = 1, PATCH_SIZE
-                id = idx(i-1, j-1, offs, dims)
-                do t = LORT, UPLT
-                   s = s + fun(grid(d), i-1, j-1, k, t, offs, dims) * grid(d)%triarea%elts(id*TRIAG+t+1)
+    do l = level_start, level_end
+       do d = 1, size(grid)
+          do ll = 1, grid(d)%lev(l)%length
+             p = grid(d)%lev(l)%elts(ll)
+             call get_offs_Domain (grid(d), p, offs, dims)
+             do j = 1, PATCH_SIZE
+                do i = 1, PATCH_SIZE
+                   id = idx (i-1, j-1, offs, dims)
+                   do t = LORT, UPLT
+                      s = s + fun (grid(d), i-1, j-1, k, t, offs, dims) * grid(d)%triarea%elts(TRIAG*id+t+1)
+                   end do
                 end do
              end do
           end do
        end do
     end do
-    integrate_tri = sum_real(s)
+    integrate_tri = sum_real (s)
   end function integrate_tri
-
-  real(8) function only_area (dom, i, j, offs, dims)
+  
+  real(8) function adaptive_area (routine)
+    ! Integrates value define in routine over adaptive grid
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), external :: routine
 
+    integer ::  l
+        
+    hex_int = 0.0_8
+    do l = level_start, level_end-1
+       call fine_hex_area (only_area, l)
+       call coarse_hex_area (only_area, l)
+    end do
+    call fine_hex_area (only_area, level_end)
+    adaptive_area = sum_real (hex_int)
+  end function adaptive_area
+  
+  subroutine coarse_hex_area (routine, l)
+    ! Remove cells that are not at locally finest scale
+    implicit none
+    integer :: l
+    real(8), external :: routine
+    
+    integer                          :: c, d, i, id, i_par, j, j_par, jj,  p_chd, p_par
+    integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
+    integer, dimension(2,N_BDRY+1)   :: dims_chd, dims_par
+    integer, dimension(JPlUS:IMINUS) :: bdry
+    logical, dimension(JPlUS:IMINUS) :: inner_bdry
+
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          p_par = grid(d)%lev(l)%elts(jj)
+          call get_offs_Domain (grid(d), p_par, offs_par, dims_par)
+
+          do c = 1, N_CHDRN
+             p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+             if (p_chd == 0) cycle
+
+             call get_offs_Domain (grid(d), p_chd, offs_chd, dims_chd, inner_bdry)
+
+             bdry = (/0, 0, 0, 0/)
+
+             where (inner_bdry) bdry = 0
+
+             do j = bdry(JMINUS) + 1, PATCH_SIZE/2 + bdry(JPLUS)
+                j_par = j-1 + chd_offs(2,c)
+                do i = bdry(IMINUS) + 1, PATCH_SIZE/2 + bdry(IPLUS)
+                   i_par = i-1 + chd_offs(1,c)
+                   id = idx (i_par, j_par, offs_par, dims_par)
+                   hex_int = hex_int - routine(id)/grid(d)%areas%elts(id+1)%hex_inv
+                end do
+             end do
+          end do
+       end do
+    end do
+  end subroutine coarse_hex_area
+
+  subroutine fine_hex_area (routine, l)
+    implicit none
+    integer :: l
+    real(8), external :: routine
+    
+    integer                          :: d, i, id, j, jj, p
+    integer, dimension(N_BDRY+1)     :: offs
+    integer, dimension(2,N_BDRY+1)   :: dims
+    integer, dimension(JPlUS:IMINUS) :: bdry
+    logical, dimension(JPlUS:IMINUS) :: inner_bdry
+
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          p = grid(d)%lev(l)%elts(jj)
+          call get_offs_Domain (grid(d), p, offs, dims, inner_bdry)
+
+          bdry = (/0, 0, 0, 0/)
+
+          where (inner_bdry) bdry = 0
+
+          do j = bdry(JMINUS) + 1, PATCH_SIZE + bdry(JPLUS)
+             do i = bdry(IMINUS) + 1, PATCH_SIZE + bdry(IPLUS)
+                id = idx (i, j, offs, dims)
+                hex_int = hex_int + routine(id)/grid(d)%areas%elts(id+1)%hex_inv
+             end do
+          end do
+       end do
+    end do
+  end subroutine fine_hex_area
+
+  real(8) function only_area (id)
+    implicit none
+    integer :: id
+    
     only_area = 1.0_8
   end function only_area
 
@@ -236,10 +321,10 @@ contains
     energy = bernoulli(id+1) * sol(S_MASS,zlev)%data(d)%elts(id+1)
   end function energy
 
-  real(8) function tri_only_area (dom, i, j, t, offs, dims)
+  real(8) function tri_only_area (dom, i, j, zlev, t, offs, dims)
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j, t
+    integer                        :: i, j, zlev, t
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -396,17 +481,11 @@ contains
 
     do k = 1, zlevels
        do d = 1, size (grid)
-          do p = 2, grid(d)%patch%length
-             !call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
-             call apply_onescale_to_patch (zonal_meridional_vel, grid(d), p-1, k, 0, 0)
-          end do
-       end do
-
-       do d = 1, size (grid)
           mass => sol(S_MASS,k)%data(d)%elts
           temp => sol(S_TEMP,k)%data(d)%elts
           velo => sol(S_VELO,k)%data(d)%elts
           do p = 2, grid(d)%patch%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
              call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
              call apply_onescale_to_patch (cal_zonal_avg,  grid(d), p-1, k, 0, 0)
           end do
@@ -431,7 +510,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     ! Only include locally finest level points
-    !if (dom%mask_n%elts(id_i) == RESTRCT) return
+    ! if (dom%mask_n%elts(id_i) == RESTRCT) return
 
     call cart2sph (dom%node%elts(id_i), lon, lat)
 

@@ -9,7 +9,13 @@ program Held_Suarez
 
   logical        :: aligned
   character(256) :: input_file
-  external       :: trend_cooling
+    
+  interface
+     subroutine trend_cooling (q, dq)
+       import
+       type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+     end subroutine trend_cooling
+  end interface
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -119,7 +125,7 @@ end program Held_Suarez
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (dom, id, idE, idNE, idN, type)
+function physics_scalar_flux (dom, id, idE, idNE, idN, zlev, type)
   ! Additional physics for the flux term of the scalar trend
   ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
   !
@@ -129,7 +135,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
 
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
   type(domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
+  integer                                  :: id, idE, idNE, idN, zlev
   logical, optional                        :: type
 
   integer                                  :: id_i, v
@@ -144,7 +150,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      local_type = .false.
   end if
 
-  id_i = id + 1  
+  id_i = id + 1
 
   if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8

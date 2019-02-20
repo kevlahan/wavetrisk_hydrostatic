@@ -327,6 +327,7 @@ module shared_mod
   real(8)                                       :: visc_divu, visc_rotu
   real(8), dimension(S_MASS:S_TEMP)             :: visc_sclr
   real(8)                                       :: p_0, p_top, gamma, gk, kappa, c_p, c_v, R_d, wave_speed
+  real(8)                                       :: hex_int
   real(8)                                       :: min_mass, min_allowed_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
