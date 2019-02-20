@@ -17,6 +17,8 @@ program flat_projection_data
   character(2)                           :: var_file
   character(130)                         :: command
 
+  logical, parameter                     :: welford = .true. ! use Welford's one-pass algorithm or naive two-pass algorithm
+
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -87,10 +89,26 @@ program flat_projection_data
      Nt = Nt + 1
      resume = NONE
      call restart (set_thresholds, load, run_id)
-     call cal_zonal_av
+     if (welford) then
+        call cal_zonal_av
+     else
+        call cal_average
+     end if
      if (cp_idx == cp_2d) call latlon
   end do
-  call barrier
+  
+  if (.not. welford) then
+     zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
+     zonal_av(:,:,3:5) = zonal_av(:,:,3:5) / Ncumul
+     call barrier
+
+     do cp_idx = mean_beg, mean_end
+        resume = NONE
+        call restart (set_thresholds, load, run_id)
+        call cal_variance
+     end do
+     call barrier
+  end if
 
   ! Finish covariance calculations
   zonal_av(:,:,2)   = zonal_av(:,:,2)   / (Ncumul-1)
@@ -172,6 +190,115 @@ contains
        end do
     end do
   end subroutine cal_zonal_av
+
+  subroutine cal_average
+    ! Zonal average means over all checkpoints
+    use domain_mod
+    implicit none
+    
+    integer                                       :: d, ix, j, k
+    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
+
+    ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
+    call fill_up_grid_and_IWT (level_save)
+
+    ! Calculate temperature at all vertical levels (saved in exner_fun)
+    call cal_surf_press (sol)
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    exner_fun%bdry_uptodate = .false.
+    call update_vector_bdry (exner_fun, NONE)
+
+    ! Zonal averages
+    do k = 1, zlevels
+       ! Temperature
+       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
+       Tproj = field2d
+
+       ! Zonal and meridional velocities
+       do d = 1, size(grid)
+          velo => sol(S_VELO,k)%data(d)%elts
+          do j = 1, grid(d)%lev(level_save)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+          end do
+          nullify (velo)
+       end do
+       call project_uzonal_onto_plane (level_save, 0.0_8)
+       Uproj = field2d
+       call project_vmerid_onto_plane (level_save, 0.0_8)
+       Vproj = field2d
+
+       ! Update means
+       do ix = Nx(1), Nx(2)
+          Ncumul = (Nt-1)*(Nx(2)-Nx(1)+1) + ix-Nx(1)+1
+
+          zonal_av(k,:,1) = zonal_av(k,:,1) + Tproj(ix,:)
+          zonal_av(k,:,3) = zonal_av(k,:,3) + Uproj(ix,:)
+          zonal_av(k,:,4) = zonal_av(k,:,4) + Vproj(ix,:)
+          zonal_av(k,:,5) = zonal_av(k,:,5) +  0.5 * (Uproj(ix,:)**2 + Vproj(ix,:)**2)
+       end do
+    end do
+  end subroutine cal_average
+
+  subroutine cal_variance
+    ! Zonal average variances over all checkpoints 
+    use domain_mod
+    implicit none
+    
+    integer                                       :: d, ix, j, k
+    real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime
+    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
+
+    ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
+    call fill_up_grid_and_IWT (level_save)
+
+    ! Calculate temperature at all vertical levels (saved in exner_fun)
+    call cal_surf_press (sol)
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    exner_fun%bdry_uptodate = .false.
+    call update_vector_bdry (exner_fun, NONE)
+
+    ! Zonal averages
+    do k = 1, zlevels
+       ! Temperature
+       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
+       Tproj = field2d
+
+       ! Zonal and meridional velocities
+       do d = 1, size(grid)
+          velo => sol(S_VELO,k)%data(d)%elts
+          do j = 1, grid(d)%lev(level_save)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+          end do
+          nullify (velo)
+       end do
+       call project_uzonal_onto_plane (level_save, 0.0_8)
+       Uproj = field2d
+       call project_vmerid_onto_plane (level_save, 0.0_8)
+       Vproj = field2d
+
+       ! Update covariances
+       do ix = Nx(1), Nx(2)          
+          Tprime = Tproj(ix,:) - zonal_av(k,:,1)
+          Uprime = Uproj(ix,:) - zonal_av(k,:,3)
+          Vprime = Vproj(ix,:) - zonal_av(k,:,4)
+
+          ! Temperature variance
+          zonal_av(k,:,2) = zonal_av(k,:,2) + Tprime**2
+
+          ! Eddy momentum flux (covariance)
+          zonal_av(k,:,6) = zonal_av(k,:,6) + Uprime * Vprime
+       
+          ! Zonal velocity variance
+          zonal_av(k,:,7) = zonal_av(k,:,7) + Uprime**2
+
+          ! Meridional velocity variance
+          zonal_av(k,:,8) = zonal_av(k,:,8) + Vprime**2
+
+          ! Eddy heat flux (covariance)
+          zonal_av(k,:,9) = zonal_av(k,:,9) + Vprime * Tprime
+       end do
+    end do
+  end subroutine cal_variance
 
   subroutine latlon
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
