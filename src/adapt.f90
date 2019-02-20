@@ -70,9 +70,13 @@ contains
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then
-       call mask_active (trend_wav_coeff)
+       trend_wav_coeff%bdry_uptodate = .false.
+       call update_array_bdry1 (trend_wav_coeff, level_start, level_end)
+       call mask_active ("trend")
     else
-       call mask_active (wav_coeff)
+       wav_coeff%bdry_uptodate = .false.
+       call update_array_bdry1 (wav_coeff, level_start, level_end)
+       call mask_active ("vars")
     end if
       
     ! Add nearest neighbour wavelets of active nodes and edges at same scale

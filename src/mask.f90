@@ -21,78 +21,132 @@ contains
     dom%mask_e%elts(EDGE*id:EDGE*id_i) = mask
   end subroutine set_masks
  
-  subroutine mask_active (wavelet)
+  subroutine mask_active (type)
     ! Determine active grid points
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wavelet
-
+    character(*) :: type
+    
     integer :: d, j, k, l
 
-    wavelet%bdry_uptodate = .false.
-    call update_array_bdry1 (wavelet, level_start, level_end)
-
     ! Set active grid at finest scale
-    call apply_onescale (mask_tol, level_end, z_null, -1, 2)
+    select case (type)
+    case ("vars")
+       call apply_onescale (mask_tol_vars, level_end, z_null, -1, 2)
+    case ("trend")
+       call apply_onescale (mask_tol_trend, level_end, z_null, -1, 2)
+    end select
     call comm_masks_mpi (level_end)
        
+    ! Set active grid at coarser scales
     do l = level_end-1, level_start, -1
-       ! Set active grid 
-       call apply_onescale (mask_tol, l, z_null, -1, 2)
-       
+       select case (type)
+       case ("vars")
+          call apply_onescale (mask_tol_vars, l, z_null, -1, 2)
+       case ("trend")
+          call apply_onescale (mask_tol_trend, l, z_null, -1, 2)
+       end select
+
        ! Make parents active
        call apply_interscale (mask_parent_nodes, l, z_null,  0, 1)
        call apply_interscale (mask_parent_edges, l, z_null, -1, 1)
        call comm_masks_mpi (l)
     end do
     call comm_masks_mpi (NONE)
-  contains
-    subroutine mask_tol (dom, i, j, zlev, offs, dims)
-      ! Set active wavelets (determines which grid points are active at adjacent finer scale)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, e, id, id_e, id_i, k
-      logical :: active
-
-      id = idx (i, j, offs, dims)
-      id_i = id + 1
-      d = dom%id + 1
-
-      if (dom%mask_n%elts(id_i) == FROZEN) return
-
-      ! Scalars
-      active = .false.
-      do k = 1, zlevels
-         if (abs (wavelet(S_MASS,k)%data(d)%elts(id_i)) >= threshold(S_MASS,k) .or. &
-             abs (wavelet(S_TEMP,k)%data(d)%elts(id_i)) >= threshold(S_TEMP,k)) active = .true.
-      end do
-
-      if (active) then
-         dom%mask_n%elts(id_i) = TOLRNZ
-      else
-         if (dom%mask_n%elts(id_i) > ADJZONE) dom%mask_n%elts(id_i) = ADJZONE
-      end if
-
-      ! Velocity
-      do e = 1, EDGE
-         id_e = EDGE*id + e
-
-         active = .false.
-         do k = 1, zlevels
-            if (abs (wavelet(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k)) active = .true.
-         end do
-
-         if (active) then
-            dom%mask_e%elts(id_e) = TOLRNZ
-         else
-            if (dom%mask_e%elts(id_e) > ADJZONE) dom%mask_e%elts(id_e) = ADJZONE
-         end if
-      end do
-    end subroutine mask_tol
   end subroutine mask_active
+  
+  subroutine mask_tol_vars (dom, i, j, zlev, offs, dims)
+    ! Set active wavelets (determines which grid points are active at adjacent finer scale)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, e, id, id_e, id_i, k
+    logical :: active
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+    d = dom%id + 1
+
+    if (dom%mask_n%elts(id_i) == FROZEN) return
+
+    ! Scalars
+    active = .false.
+    do k = 1, zlevels
+       if (abs (wav_coeff(S_MASS,k)%data(d)%elts(id_i)) >= threshold(S_MASS,k) .or. &
+            abs (wav_coeff(S_TEMP,k)%data(d)%elts(id_i)) >= threshold(S_TEMP,k)) active = .true.
+    end do
+
+    if (active) then
+       dom%mask_n%elts(id_i) = TOLRNZ
+    else
+       if (dom%mask_n%elts(id_i) > ADJZONE) dom%mask_n%elts(id_i) = ADJZONE
+    end if
+
+    ! Velocity
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+
+       active = .false.
+       do k = 1, zlevels
+          if (abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k)) active = .true.
+       end do
+
+       if (active) then
+          dom%mask_e%elts(id_e) = TOLRNZ
+       else
+          if (dom%mask_e%elts(id_e) > ADJZONE) dom%mask_e%elts(id_e) = ADJZONE
+       end if
+    end do
+  end subroutine mask_tol_vars
+
+   subroutine mask_tol_trend (dom, i, j, zlev, offs, dims)
+    ! Set active wavelets (determines which grid points are active at adjacent finer scale)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, e, id, id_e, id_i, k
+    logical :: active
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+    d = dom%id + 1
+
+    if (dom%mask_n%elts(id_i) == FROZEN) return
+
+    ! Scalars
+    active = .false.
+    do k = 1, zlevels
+       if (abs (trend_wav_coeff(S_MASS,k)%data(d)%elts(id_i)) >= threshold(S_MASS,k) .or. &
+            abs (trend_wav_coeff(S_TEMP,k)%data(d)%elts(id_i)) >= threshold(S_TEMP,k)) active = .true.
+    end do
+
+    if (active) then
+       dom%mask_n%elts(id_i) = TOLRNZ
+    else
+       if (dom%mask_n%elts(id_i) > ADJZONE) dom%mask_n%elts(id_i) = ADJZONE
+    end if
+
+    ! Velocity
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+
+       active = .false.
+       do k = 1, zlevels
+          if (abs (trend_wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k)) active = .true.
+       end do
+
+       if (active) then
+          dom%mask_e%elts(id_e) = TOLRNZ
+       else
+          if (dom%mask_e%elts(id_e) > ADJZONE) dom%mask_e%elts(id_e) = ADJZONE
+       end if
+    end do
+  end subroutine mask_tol_trend
 
   subroutine mask_parent_nodes (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Make parent node active if any child is active, also make child active if any child neighbours are active
