@@ -125,7 +125,7 @@ end program Held_Suarez
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (dom, id, idE, idNE, idN, zlev, type)
+function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   ! Additional physics for the flux term of the scalar trend
   ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
   !
@@ -135,7 +135,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, zlev, type)
 
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
   type(domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN, zlev
+  integer                                  :: id, idE, idNE, idN
   logical, optional                        :: type
 
   integer                                  :: id_i, v
