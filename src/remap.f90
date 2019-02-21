@@ -32,8 +32,8 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap2S
-    interp_velo   => remap2S
+    interp_scalar => remap2W
+    interp_velo   => remap2W
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
@@ -44,9 +44,7 @@ contains
        do l = level_start, level_end
           call apply_onescale (remap_total_energy, l, z_null, 0, 1)
           call apply_onescale (remap_velo, l, z_null, 0, 0)
-       end do
-       call update_vector_bdry (sol(S_VELO,:), NONE)
-       do l = level_start, level_end
+          call update_vector_bdry (sol(S_VELO,l), NONE)
           call apply_onescale (recover_theta, l, z_null, 0, 1)
        end do
     end if
