@@ -509,9 +509,6 @@ contains
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    ! Only include locally finest level points
-    ! if (dom%mask_n%elts(id_i) == RESTRCT) return
-
     call cart2sph (dom%node%elts(id_i), lon, lat)
 
     temperature = (temp(id_i)/mass(id_i)) * (dom%press%elts(id_i)/p_0)**kappa
