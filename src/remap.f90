@@ -32,8 +32,8 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap2PPM
-    interp_velo   => remap2PPM
+    interp_scalar => remap2S
+    interp_velo   => remap2S
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
@@ -533,7 +533,7 @@ contains
     end do
   end subroutine remap2PPM
 
-  subroutine remap2S (N, var_new, z_new, var_old, z_old, neumann)
+  subroutine remap2S (N, var_new, z_new, var_old, z_old, dummy)
     !
     ! Basic parabolic spline reconstruction
     !------ --------- ------ --------------
@@ -542,17 +542,16 @@ contains
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new,  z_old
-    logical                 :: neumann
+    logical                 :: dummy
 
     integer                 :: k
     real(8)                 :: alpha, cff, cff1, dz
     real(8), parameter      :: Half = 0.5_8, ThreeHalfth=1.5_8, Zero = 0.0_8, One = 1.0_8, Two = 2.0_8, Three = 3.0_8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: dL, dR, FC, r
+    logical, parameter      :: NEUMANN                = .true.
     logical, parameter      :: LINEAR_CONTINUATION    = .false.
     logical, parameter      :: PARABOLIC_CONTINUATION = .true.
-
-    neumann = .false.
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
