@@ -39,17 +39,11 @@ contains
        do l = level_start, level_end
           call apply_onescale (remap_scalars, l, z_null, 0, 1)
           call apply_onescale (remap_velo,    l, z_null, 0, 0)
-          ! call update_array_bdry (sol, NONE)
-          ! call apply_onescale (remap_momentum, l, z_null, 0, 0)
        end do
     else ! Lin (2004) (remap total energy)
        do l = level_start, level_end
           call apply_onescale (remap_total_energy, l, z_null, 0, 1)
-       end do
-       do l = level_start, level_end
           call apply_onescale (remap_velo, l, z_null, 0, 0)
-          ! call update_array_bdry (sol, NONE)
-          ! call apply_onescale (remap_momentum, l, z_null, 0, 0)
        end do
        call update_vector_bdry (sol(S_VELO,:), NONE)
        do l = level_start, level_end
