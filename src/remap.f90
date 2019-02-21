@@ -20,7 +20,7 @@ contains
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
     integer            :: l
-    logical, parameter :: standard = .false. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential energy)
+    logical, parameter :: standard = .false. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential temperature)
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -43,8 +43,8 @@ contains
     else ! Lin (2004) (remap total energy)
        do l = level_start, level_end
           call apply_onescale (remap_total_energy, l, z_null, 0, 1)
-          call apply_onescale (remap_velo, l, z_null, 0, 0)
-       call update_vector_bdry (sol(S_VELO,:), l)
+          call apply_onescale (remap_velo,         l, z_null, 0, 0)
+          call update_vector_bdry (sol(S_VELO,:), l)
           call apply_onescale (recover_theta, l, z_null, 0, 1)
        end do
     end if
