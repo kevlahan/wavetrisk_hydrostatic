@@ -44,7 +44,7 @@ contains
        do l = level_start, level_end
           call apply_onescale (remap_total_energy, l, z_null, 0, 1)
           call apply_onescale (remap_velo, l, z_null, 0, 0)
-          call update_vector_bdry (sol(S_VELO,l), NONE)
+       call update_vector_bdry (sol(S_VELO,:), l)
           call apply_onescale (recover_theta, l, z_null, 0, 1)
        end do
     end if
