@@ -20,7 +20,7 @@ contains
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
     integer            :: l
-    logical, parameter :: standard = .false. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential temperature)
+    logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential temperature)
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -32,18 +32,18 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap2W
-    interp_velo   => remap2W
+    interp_scalar => remap1
+    interp_velo   => remap1
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
-          call apply_onescale (remap_scalars, l, z_null, 0, 1)
-          call apply_onescale (remap_velo,    l, z_null, 0, 0)
+          call apply_onescale (remap_scalars,  l, z_null, 0, 1)
+          call apply_onescale (remap_momentum, l, z_null, 0, 0)
        end do
     else ! Lin (2004) (remap total energy)
        do l = level_start, level_end
           call apply_onescale (remap_total_energy, l, z_null, 0, 1)
-          call apply_onescale (remap_velo,         l, z_null, 0, 0)
+          call apply_onescale (remap_momentum,     l, z_null, 0, 0)
           call update_vector_bdry (sol(S_VELO,:), l)
           call apply_onescale (recover_theta, l, z_null, 0, 1)
        end do
@@ -68,6 +68,8 @@ contains
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) < TRSK) return
 
     ! Save old mass
     do k = 1, zlevels
@@ -104,6 +106,8 @@ contains
     d    = dom%id + 1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
+
+    if (minval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) < ADJZONE) return
     
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
@@ -139,8 +143,10 @@ contains
 
     id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
     id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
-    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1 
+    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
+    if (minval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) < ADJZONE) return 
+    
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     do e = 1, EDGE
@@ -174,6 +180,8 @@ contains
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
+
+    if (dom%mask_n%elts(id_i) < TRSK) return
 
     ! Save old mass
     do k = 1, zlevels
@@ -220,6 +228,8 @@ contains
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) < ADJZONE) return
     
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 

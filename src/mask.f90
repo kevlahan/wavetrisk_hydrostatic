@@ -481,15 +481,15 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    if (dom%mask_e%elts(EDGE*id+RT+1) >= TRSK) then
+    if (dom%mask_e%elts(EDGE*id+RT+1) >= ADJZONE) then
        call set_at_least (dom%mask_n%elts(id+1),  TRSK)
        call set_at_least (dom%mask_n%elts(idE+1), TRSK)
     end if
-    if (dom%mask_e%elts(EDGE*id+DG+1) >= TRSK) then
+    if (dom%mask_e%elts(EDGE*id+DG+1) >= ADJZONE) then
        call set_at_least (dom%mask_n%elts(id+1),   TRSK)
        call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
     end if
-    if (dom%mask_e%elts(EDGE*id+UP+1) >= TRSK) then
+    if (dom%mask_e%elts(EDGE*id+UP+1) >= ADJZONE) then
        call set_at_least (dom%mask_n%elts(id+1),  TRSK)
        call set_at_least (dom%mask_n%elts(idN+1), TRSK)
     end if

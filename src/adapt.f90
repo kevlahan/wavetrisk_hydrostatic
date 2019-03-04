@@ -39,9 +39,16 @@ contains
 
     ! Find significant wavelets, adaptive grid and all masks
     call adapt (set_thresholds, local_type)
-    
+
+    ! Interpolate onto active grid
     call inverse_wavelet_transform (wav_coeff, sol)
-  end subroutine adapt_grid 
+
+    ! Set insignificant wavelet coefficients to zero
+    if (local_type) then
+       call compress_wavelets (wav_coeff)
+       if (adapt_trend) call compress_wavelets (trend_wav_coeff)
+    end if
+  end subroutine adapt_grid
 
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
@@ -70,11 +77,9 @@ contains
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then
-       trend_wav_coeff%bdry_uptodate = .false.
        call update_array_bdry1 (trend_wav_coeff, level_start, level_end)
        call mask_active ("trend")
     else
-       wav_coeff%bdry_uptodate = .false.
        call update_array_bdry1 (wav_coeff, level_start, level_end)
        call mask_active ("vars")
     end if
@@ -93,18 +98,6 @@ contains
     end do
     call comm_masks_mpi (NONE)
 
-    ! Add nodes and edges required for TRISK operators
-    do l = level_start, level_end
-       call apply_onescale (mask_trsk, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
-
-    ! Label points required for remap as TRSK
-    do l = level_start, level_end
-       call apply_onescale (mask_remap, l, z_null, -1, 1)
-    end do
-    call comm_masks_mpi (NONE)
-    
     ! Determine whether any new patches are required
     if (refine()) call post_refine
 
@@ -132,42 +125,56 @@ contains
        call complete_masks
     end if
 
-    ! Add nodes and edges required for TRISK operators
-    do l = level_start, level_end
-       call apply_onescale (mask_trsk, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
-
     ! Label points required for remap as TRSK
-    do l = level_start, level_end
-       call apply_onescale (mask_remap, l, z_null, -1, 1)
+    do l = level_start+1, level_end
+       call apply_onescale (mask_remap, l, z_null, 0, 1)
     end do
-    call comm_masks_mpi (NONE)
-    
-    ! Set insignificant wavelet coefficients to zero
-    if (local_type) then
-       do k = 1, zlevels
-          do l = level_start+1, level_end
-             do d = 1, size(grid)
-                wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-                wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-                wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-                call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
-                nullify (wc_m, wc_t, wc_u)
-                wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
-                wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
-                wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
-                call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
-                nullify (wc_m, wc_t, wc_u)
-             end do
-          end do
-       end do
-    end if
-    wav_coeff%bdry_uptodate       = .false.
-    trend_wav_coeff%bdry_uptodate = .false.
   end subroutine adapt
 
-   subroutine WT_after_step (q, wav, l_start0)
+   subroutine compress_wavelets (wav)
+    ! Sets wavelets associated with inactive grid points to zero
+    implicit none
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
+
+    integer :: d, k, l
+    
+    do k = 1, zlevels
+       do l = level_start+1, level_end
+          do d = 1, size (grid)
+             wc_m => wav(S_MASS,k)%data(d)%elts
+             wc_t => wav(S_TEMP,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
+             call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
+             nullify (wc_m, wc_t, wc_u)
+          end do
+       end do
+       wav(:,k)%bdry_uptodate = .false.
+    end do
+  end subroutine compress_wavelets
+
+  subroutine compress (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: e, id, id_i, k, v
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+    
+    if (dom%mask_n%elts(id_i) < ADJZONE) then
+       wc_m(id_i) = 0.0_8
+       wc_t(id_i) = 0.0_8
+    end if
+    
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
+    end do
+  end subroutine compress
+
+  subroutine WT_after_step (q, wav, l_start0)
     !  Everything needed in terms of forward and backward wavelet transform
     !  after one time step (e.g. RK sub-step)
     !    A) compute wavelets and perform backwards transform to conserve mass
@@ -213,41 +220,11 @@ contains
           wav(:,k)%bdry_uptodate = .false.
        end do
 
-       do l = level_start+1, level_end
-          do d = 1, size(grid)
-             wc_m => wav(S_MASS,k)%data(d)%elts
-             wc_t => wav(S_TEMP,k)%data(d)%elts
-             wc_u => wav(S_VELO,k)%data(d)%elts
-             call apply_onescale_d (compress, grid(d), l, k, 0, 1)
-             nullify (wc_m, wc_t, wc_u)
-          end do
-          wav(:,k)%bdry_uptodate = .false.
-       end do
+       call compress_wavelets (wav)
     end do
 
     call inverse_wavelet_transform (wav, q)
   end subroutine WT_after_step
-
-  subroutine compress (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: e, id, k, v
-
-    id = idx(i, j, offs, dims)
-    
-    if (dom%mask_n%elts(id+1) < ADJZONE) then
-       wc_m(id+1) = 0.0_8
-       wc_t(id+1) = 0.0_8
-    end if
-    
-    do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
-    end do
-  end subroutine compress
 
   logical function refine ()
     implicit none
