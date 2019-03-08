@@ -127,7 +127,7 @@ contains
 
     ! Label points required for remap as TRSK
     do l = level_start+1, level_end
-       call apply_onescale (mask_remap, l, z_null, 0, 1)
+       call apply_onescale (mask_trsk, l, z_null, 0, 1)
     end do
   end subroutine adapt
 
@@ -164,13 +164,13 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
     
-    if (dom%mask_n%elts(id_i) < ADJZONE) then
+    if (dom%mask_n%elts(id_i) < TRSK) then
        wc_m(id_i) = 0.0_8
        wc_t(id_i) = 0.0_8
     end if
     
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
+       if (dom%mask_e%elts(EDGE*id+e) < TRSK) wc_u(EDGE*id+e) = 0.0_8
     end do
   end subroutine compress
 
