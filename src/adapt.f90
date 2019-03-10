@@ -164,13 +164,13 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
     
-    if (dom%mask_n%elts(id_i) < TRSK) then
+    if (dom%mask_n%elts(id_i) < ADJZONE) then
        wc_m(id_i) = 0.0_8
        wc_t(id_i) = 0.0_8
     end if
     
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) < TRSK) wc_u(EDGE*id+e) = 0.0_8
+       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
     end do
   end subroutine compress
 
