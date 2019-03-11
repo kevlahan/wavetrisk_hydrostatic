@@ -1332,11 +1332,11 @@ contains
        
     do r = 1, n_process - 1
        if (rank == r) then
-          call MPI_Send (Nstats,     zlevels*nbins,   MPI_INT,              0, 0, MPI_COMM_WORLD, ierror)
-          call MPI_Send (zonal_avg,  zlevels*nbins*8, MPI_DOUBLE_PRECISION, 0, 0, MPI_COMM_WORLD, ierror)
+          call MPI_Send (Nstats,     zlevels*nbins,            MPI_INT,              0, 0, MPI_COMM_WORLD, ierror)
+          call MPI_Send (zonal_avg,  zlevels*nbins*nvar_zonal, MPI_DOUBLE_PRECISION, 0, 0, MPI_COMM_WORLD, ierror)
        elseif (rank == 0) then
-          call MPI_Recv (Nstats_loc,     zlevels*nbins,   MPI_INT,              r, 0, MPI_COMM_WORLD, status, ierror)
-          call MPI_Recv (zonal_avg_loc,  zlevels*nbins*8, MPI_DOUBLE_PRECISION, r, 0, MPI_COMM_WORLD, status, ierror)
+          call MPI_Recv (Nstats_loc,     zlevels*nbins,            MPI_INT,              r, 0, MPI_COMM_WORLD, status, ierror)
+          call MPI_Recv (zonal_avg_loc,  zlevels*nbins*nvar_zonal, MPI_DOUBLE_PRECISION, r, 0, MPI_COMM_WORLD, status, ierror)
 
           do k = 1, zlevels
              do bin = 1, nbins
