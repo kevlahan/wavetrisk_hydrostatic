@@ -136,21 +136,46 @@ contains
     implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
 
-    integer :: d, k, l
+    integer :: d, e, k, l
     
     do k = 1, zlevels
-       do l = level_start+1, level_end
-          do d = 1, size (grid)
-             wc_m => wav(S_MASS,k)%data(d)%elts
-             wc_t => wav(S_TEMP,k)%data(d)%elts
-             wc_u => wav(S_VELO,k)%data(d)%elts
+       do d = 1, size (grid)
+          wc_m => wav(S_MASS,k)%data(d)%elts
+          wc_t => wav(S_TEMP,k)%data(d)%elts
+          wc_u => wav(S_VELO,k)%data(d)%elts
+          do l = level_start+1, level_end
              call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
-             nullify (wc_m, wc_t, wc_u)
           end do
+          !call apply_onescale_d (compress_maxlevel, grid(d), max_level, z_null, 0, 1) ! dealiase
+          nullify (wc_m, wc_t, wc_u)
        end do
        wav(:,k)%bdry_uptodate = .false.
     end do
   end subroutine compress_wavelets
+
+  subroutine compress_maxlevel (dom, i, j, zlev, offs, dims)
+    ! Dealiase by setting wavelet coefficients to zero at maximum level
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: e, id, id_e, id_i
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+    
+    dom%mask_n%elts(id_i) = min (ADJZONE, dom%mask_n%elts(id_i))
+    wc_m(id_i) = 0.0_8
+    wc_t(id_i) = 0.0_8
+    
+    do e = 1, EDGE
+       id_e = EDGE*id+e
+       dom%mask_e%elts(id_e) = min (ADJZONE, dom%mask_e%elts(id_e))
+       wc_u(id_e) = 0.0_8
+    end do
+  end subroutine compress_maxlevel
 
   subroutine compress (dom, i, j, zlev, offs, dims)
     implicit none
@@ -159,18 +184,19 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: e, id, id_i, k, v
+    integer :: e, id, id_e, id_i
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
-    
+
     if (dom%mask_n%elts(id_i) < ADJZONE) then
        wc_m(id_i) = 0.0_8
        wc_t(id_i) = 0.0_8
     end if
     
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
+       id_e = EDGE*id+e
+       if (dom%mask_e%elts(id_e) < ADJZONE) wc_u(id_e) = 0.0_8
     end do
   end subroutine compress
 
