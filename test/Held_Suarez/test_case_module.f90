@@ -368,10 +368,9 @@ contains
 
           ! Convert variances to sums of squares for statistics computation
           zonal_avg(:,:,2) = zonal_avg(:,:,2) * (Nstats - 1)
-          zonal_avg(:,:,6) = zonal_avg(:,:,6) * (Nstats - 1)
-          zonal_avg(:,:,7) = zonal_avg(:,:,7) * (Nstats - 1)
-          zonal_avg(:,:,8) = zonal_avg(:,:,8) * (Nstats - 1)
-          zonal_avg(:,:,9) = zonal_avg(:,:,9) * (Nstats - 1)
+          do v = 6, nvar_zonal
+             zonal_avg(:,:,v) = zonal_avg(:,:,v) * (Nstats - 1)
+          end do
        end if
     end if
   end subroutine read_test_case_parameters
@@ -495,7 +494,7 @@ contains
     implicit none
     real(8) :: area, tau
 
-    C_visc = 1d-3
+    C_visc = 1d-2
     
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -512,7 +511,7 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_divu = 3d-2 * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! large value to damp  high frequency acoustic oscillations of vertical layers
+       visc_divu = 6d-2 * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! large value to damp  high frequency acoustic oscillations of vertical layers
        visc_sclr = dx_min**(2*Laplace_order_init)/tau * n_diffuse
        visc_rotu = dx_min**(2*Laplace_order_init)/tau * n_diffuse / 4**Laplace_order_init
     elseif (Laplace_order_init > 2) then
