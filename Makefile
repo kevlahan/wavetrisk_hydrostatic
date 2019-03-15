@@ -41,6 +41,12 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra, nia))
   MPIF90 = mpif90
   LIBS   = -mkl
   FLAGS  = -fpe0 -traceback -module $(BUILD_DIR) -diag-disable 8291
+# else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
+#   # Need to load: module load gcc/7.3.0 openmpi/3.1.0 mkl/2018.2                                                                                                        
+#   F90    = gfortran
+#   MPIF90 = mpif90
+#   LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
+#   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all -I${MKLROOT}/include
 else ifeq ($(MACHINE),$(filter $(MACHINE),login)) # occigen
   # Need to load: module load openmpi/gnu/2.0.2 mkl/18.1                                                                                                           
   F90    = gfortran
