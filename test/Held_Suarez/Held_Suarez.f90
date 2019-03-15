@@ -138,7 +138,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   integer                                  :: id, idE, idNE, idN
   logical, optional                        :: type
 
-  integer                                  :: id_i, v
+  integer                                  :: id_i, v, visc_scale
   real(8)                                  :: dx, visc
   real(8), parameter                       :: C = 1d-2
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
@@ -151,6 +151,8 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   end if
 
   id_i = id + 1
+
+  visc_scale = 1.0_8!(max_level/dom%level%elts(id_i))**(2*Laplace_order_init-1)
 
   if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8
@@ -168,12 +170,12 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      ! Fluxes of physics
      if (.not.local_type) then ! Usual flux at edges E, NE, N
         do v = S_MASS, S_TEMP
-           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
+           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * dom%pedlen%elts(EDGE*id+1:EDGE*id_i) * visc_scale
         end do
      else ! Flux at edges W, SW, S
-        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
+        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)  * visc_scale
+        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1) * visc_scale
+        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)  * visc_scale
      end if
 
      ! Find correct sign for diffusion on left hand side of the equation
@@ -222,16 +224,18 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: id
+  integer                    :: id, visc_scale
   real(8), dimension(1:EDGE) :: diffusion
 
   id = idx (i, j, offs, dims)
+
+  visc_scale = 1.0_8!(max_level/dom%level%elts(id+1))**(2*Laplace_order_init-1)
 
   if (Laplace_order == 0) then
      diffusion = 0.0_8
   else
      ! Calculate Laplacian of velocity
-     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu()) * visc_scale
   end if
 
   ! Total physics for source term of velocity trend
