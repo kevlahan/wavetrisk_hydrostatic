@@ -41,8 +41,8 @@ contains
           end do
        end do
 
-       scaling(:,k)%bdry_uptodate = .False.
-       wavelet(S_MASS:S_TEMP,k)%bdry_uptodate = .False.
+       scaling(:,k)%bdry_uptodate             = .false.
+       wavelet(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
 
        call update_bdry (scaling(S_VELO,k), NONE)
 
@@ -95,10 +95,7 @@ contains
              end if
              nullify (mass, temp, wc_m, wc_t)
           end do
-
-          if (l > l_start) call update_bdry__finish (scaling(S_VELO,k), l) ! for next outer velocity
-
-          call update_vector_bdry__start (scaling(S_MASS:S_TEMP,k), l+1)
+          call update_vector_bdry (scaling(S_MASS:S_TEMP,k), l+1)
 
           ! Reconstruct outer velocities at finer edges (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
@@ -109,8 +106,7 @@ contains
              nullify (velo, wc_u)
           end do
 
-          call update_vector_bdry__finish (scaling(S_MASS:S_TEMP,k), l+1)
-          call update_bdry__start (scaling(S_VELO,k), l+1)
+          call update_bdry (scaling(S_VELO,k), l+1)
 
           ! Reconstruct scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
@@ -122,8 +118,6 @@ contains
              nullify (mass, temp, wc_m, wc_t)
           end do
 
-          call update_bdry__finish (scaling(S_VELO,k), l+1)
-
           ! Reconstruct inner velocities at finer edges (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
              velo => scaling(S_VELO,k)%data(d)%elts
@@ -132,8 +126,7 @@ contains
              nullify (velo, wc_u)
           end do
 
-          if (l < level_end-1) call update_bdry__start (scaling(S_VELO,k), l+1) ! for next outer velocity
-
+          if (l < level_end-1) call update_bdry (scaling(S_VELO,k), l+1) ! for next outer velocity`
           scaling(:,k)%bdry_uptodate = .false.
        end do
     end do
@@ -210,16 +203,16 @@ contains
     ij_nbp_pm = (/i, j/) + nghb_pt(:,hex_s_offs(e+1)+3+1)
     ij_nbp_mm = (/i, j/) + nghb_pt(:,hex_s_offs(e+1)+2+1)
 
-    ije(:,VMP +1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides(:,hex_s_offs(e+1)+4-2+1)
-    ije(:,VMPP+1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides(:,hex_s_offs(e+1)+1+4+1)
-    ije(:,UZP +1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides(:,hex_s_offs(e+1)+0+4+1)
-    ije(:,WPPP+1) = (/ij_nbp_pp(1), ij_nbp_pp(2), 0/) + hex_sides(:,hex_s_offs(e+1)+4-4+1)
-    ije(:,WPP +1) = (/ij_nbp_pp(1), ij_nbp_pp(2), 0/) + hex_sides(:,hex_s_offs(e+1)+1+2+1)
-    ije(:,VPM +1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides(:,hex_s_offs(e+1)+1+4+1)
-    ije(:,VPMM+1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides(:,hex_s_offs(e+1)+4-2+1)
-    ije(:,UZM +1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides(:,hex_s_offs(e+1)+3-2+1)
-    ije(:,WMMM+1) = (/ij_nbp_mm(1), ij_nbp_mm(2), 0/) + hex_sides(:,hex_s_offs(e+1)+1+2+1)
-    ije(:,WMM +1) = (/ij_nbp_mm(1), ij_nbp_mm(2), 0/) + hex_sides(:,hex_s_offs(e+1)+4-4+1)
+    ije(:,VMP +1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+4-2+1)
+    ije(:,VMPP+1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+1+4+1)
+    ije(:,UZP +1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+0+4+1)
+    ije(:,WPPP+1) = (/ij_nbp_pp(1), ij_nbp_pp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+4-4+1)
+    ije(:,WPP +1) = (/ij_nbp_pp(1), ij_nbp_pp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+1+2+1)
+    ije(:,VPM +1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+1+4+1)
+    ije(:,VPMM+1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+4-2+1)
+    ije(:,UZM +1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+3-2+1)
+    ije(:,WMMM+1) = (/ij_nbp_mm(1), ij_nbp_mm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+1+2+1)
+    ije(:,WMM +1) = (/ij_nbp_mm(1), ij_nbp_mm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+4-4+1)
 
     k = 1
     if (dist(dom%ccentre%elts(tri_idx(i_par,j_par,adj_tri(:,k+1,e+1),offs_par, dims_par)+1), &
@@ -237,7 +230,7 @@ contains
           ije_lcsd = ije(:,UZP+1)
        end if
 
-       wgt = interp_F_wgts(e, k, ije_lcsd, dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,k+1,e+1), offs_par, dims_par)+1), &
+       wgt = interp_F_wgts (e, k, ije_lcsd, dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,k+1,e+1), offs_par, dims_par)+1), &
             ije, (/VPP, WMP, UZP, UPZ, WPP, VMP, UMZ, WPPP, VMPP/))
 
        if (e == RT) then
@@ -265,7 +258,7 @@ contains
           ije_lcsd = ije(:,UZM+1)
        end if
 
-       wgt = interp_F_wgts(e, k, ije_lcsd, dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,k+1,e+1), offs_par, dims_par)+1), &
+       wgt = interp_F_wgts (e, k, ije_lcsd, dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,k+1,e+1), offs_par, dims_par)+1), &
             ije, (/VMM, WPM, UZM, UMZ, WMM, VPM, UPZ, WMMM, VPMM/))
 
        if (e == UP) then
@@ -293,23 +286,23 @@ contains
       real(8), dimension(6)   :: b
       type(Coord)             :: endpt, x, y
 
-      id_tri = tri_idx(ije_lcsd(1), ije_lcsd(2), adj_tri(:,-k1+2,ije_lcsd(3)+1), offs, dims)
+      id_tri = tri_idx (ije_lcsd(1), ije_lcsd(2), adj_tri(:,-k1+2,ije_lcsd(3)+1), offs, dims)
 
       call local_coord (dom%ccentre%elts(id_tri+1), dom%ccentre%elts(id_tri+1), &
            dom%midpt%elts(ed_idx(0, 0, ije_lcsd, offs, dims)+1), x, y)
 
-      G(:,1) = coords_to_row(ije(:,stencil(1)+1), x, y)
-      G(:,2) = coords_to_row(ije(:,stencil(2)+1), x, y)
-      G(:,3) = coords_to_row(ije(:,stencil(3)+1), x, y)
-      G(:,4) = coords_to_row(ije(:,stencil(4)+1), x, y) - coords_to_row(ije(:,stencil(5)+1), x, y)
-      G(:,5) = coords_to_row(ije(:,stencil(6)+1), x, y) - coords_to_row(ije(:,stencil(7)+1), x, y)
-      G(:,6) = coords_to_row(ije(:,stencil(8)+1), x, y) - coords_to_row(ije(:,stencil(9)+1), x, y)
+      G(:,1) = coords_to_row (ije(:,stencil(1)+1), x, y)
+      G(:,2) = coords_to_row (ije(:,stencil(2)+1), x, y)
+      G(:,3) = coords_to_row (ije(:,stencil(3)+1), x, y)
+      G(:,4) = coords_to_row (ije(:,stencil(4)+1), x, y) - coords_to_row (ije(:,stencil(5)+1), x, y)
+      G(:,5) = coords_to_row (ije(:,stencil(6)+1), x, y) - coords_to_row (ije(:,stencil(7)+1), x, y)
+      G(:,6) = coords_to_row (ije(:,stencil(8)+1), x, y) - coords_to_row (ije(:,stencil(9)+1), x, y)
 
       endpt = endpt_o
       b = coords_to_row_perp ((/dom%ccentre%elts(id_tri+1), endpt/), x, y)
       ipiv = 0
       info = 0
-      call dgesv(6, 1, G, 6, ipiv, b, 6, info)
+      call dgesv (6, 1, G, 6, ipiv, b, 6, info)
       interp_F_wgts = b
       return
     end function interp_F_wgts
@@ -322,9 +315,9 @@ contains
 
       type(Coord) :: dirvec, midpt
 
-      midpt = mid_pt(coords(1), coords(2))
-      dirvec = cross(vector(coords(1), coords(2)), midpt)
-      coords_to_row_perp = coords_to_rowd(midpt, dirvec, x, y)*dist(coords(1), coords(2))
+      midpt = mid_pt (coords(1), coords(2))
+      dirvec = cross (vector(coords(1), coords(2)), midpt)
+      coords_to_row_perp = coords_to_rowd (midpt, dirvec, x, y)*dist(coords(1), coords(2))
     end function coords_to_row_perp
 
     function coords_to_row (ije0, x, y)
@@ -347,9 +340,9 @@ contains
       pedlen = dist(dom%ccentre%elts(tri_idx(i, j, adj_tri(:,1,e+1), offs, dims)+1), &
           dom%ccentre%elts(tri_idx(i, j, adj_tri(:,2,e+1), offs, dims)+1))
 
-      midpt = mid_pt(endpt1, endpt2)
+      midpt = mid_pt (endpt1, endpt2)
 
-      coords_to_row = coords_to_rowd(midpt, vector(endpt1, endpt2), x, y)*pedlen
+      coords_to_row = coords_to_rowd (midpt, vector(endpt1, endpt2), x, y)*pedlen
     end function coords_to_row
   end subroutine basic_F_restr_wgt
 
@@ -365,15 +358,15 @@ contains
     real(8)               :: u
     real(8), dimension(6) :: u_inner
 
-    id_chd   = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_chd   = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
-    idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
 
     do e = 1, EDGE
-       id1 = idx(i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
-       id2 = idx(i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
+       id1 = idx (i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
+       id2 = idx (i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
 
        if (dom%mask_e%elts(EDGE*id2+e) < ADJZONE) cycle
 
@@ -383,7 +376,7 @@ contains
        wc_u(EDGE*id2+e) = -wc_u(EDGE*id1+e)
     end do
 
-    u_inner = Interp_velo_inner(dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, &
+    u_inner = Interp_velo_inner (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, &
          offs_chd, dims_chd, EDGE*idE_chd + UP, EDGE*idE_chd + DG, &
          EDGE*idNE_chd + RT, EDGE*idN_chd + RT, EDGE*idN_chd + DG, EDGE*idNE_chd + UP)
 
@@ -416,8 +409,8 @@ contains
     call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
 
     if (c == IMINUSJPLUS) then
-       id_chd  = idx(0, LAST-1, offs_chd, dims_chd)
-       idN_chd = idx(0, LAST,   offs_chd, dims_chd)
+       id_chd  = idx (0, LAST-1, offs_chd, dims_chd)
+       idN_chd = idx (0, LAST,   offs_chd, dims_chd)
 
        v = -(Iu_Base_Wgt(8) + dble(dom%I_u_wgt%elts(idN_chd+1)%enc(8)))*( &
             velo(idx(0, PATCH_SIZE, offs, dims)*EDGE + UP+1) &
@@ -429,8 +422,8 @@ contains
        end if
     else
        if (c == IPLUSJMINUS) then
-          id_chd = idx(LAST-1, 0, offs_chd, dims_chd)
-          idE_chd = idx(LAST, 0, offs_chd, dims_chd)
+          id_chd = idx (LAST-1, 0, offs_chd, dims_chd)
+          idE_chd = idx (LAST, 0, offs_chd, dims_chd)
 
           v = (Iu_Base_Wgt(7) + dble(dom%I_u_wgt%elts(idE_chd+1)%enc(7)))*( &
                velo(idx(PATCH_SIZE, 0, offs, dims)*EDGE+RT+1) +velo(idx(PATCH_SIZE,-1, offs, dims)*EDGE+UP+1))
@@ -444,11 +437,11 @@ contains
 
     if (.not. c == IJMINUS) return
 
-    id_chd  = idx(0, 0, offs_chd, dims_chd)
-    idN_chd = idx(0, 1, offs_chd, dims_chd)
-    idE_chd = idx(1, 0, offs_chd, dims_chd)
+    id_chd  = idx (0, 0, offs_chd, dims_chd)
+    idN_chd = idx (0, 1, offs_chd, dims_chd)
+    idE_chd = idx (1, 0, offs_chd, dims_chd)
 
-    u = velo_interp_penta_corr(dom, offs, dims, offs_chd, dims_chd)
+    u = velo_interp_penta_corr (dom, offs, dims, offs_chd, dims_chd)
 
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) then
        wc_u(EDGE*id_chd+UP+1)  = wc_u(EDGE*id_chd +UP+1) + u(1)
@@ -531,8 +524,8 @@ contains
     area(2) = triarea(hex(3), hex(4), pt)
 
     do i = 1, 2
-       call arc_inters(tri(1,i), tri(2,i), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
-       call arc_inters(tri(3,i), tri(2,i), hex(3*i),   hex(3*i-1), inters_pt1, does_inters1, troubles)
+       call arc_inters (tri(1,i), tri(2,i), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
+       call arc_inters (tri(3,i), tri(2,i), hex(3*i),   hex(3*i-1), inters_pt1, does_inters1, troubles)
        if (does_inters0 .and. does_inters1) then
           area(i+4) = triarea(inters_pt0, tri(2,i), hex(3*i-1))
           area(i+6) = triarea(tri(2,i), hex(3*i-1), inters_pt1)
@@ -543,8 +536,8 @@ contains
        else
           if (.not. does_inters0 .and. .not. does_inters1) then
              area(i+2) = 0.0_8
-             call arc_inters(tri(2,1), tri(2,2), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
-             call arc_inters(tri(2,2), tri(2,1), hex(3*i-1), hex(3*i),   inters_pt1, does_inters1, troubles)
+             call arc_inters (tri(2,1), tri(2,2), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
+             call arc_inters (tri(2,2), tri(2,1), hex(3*i-1), hex(3*i),   inters_pt1, does_inters1, troubles)
              if (.not. does_inters0 .and. does_inters1) then
                 area(i) = area(i) + triarea(hex(3*i-2), hex(3*i-1), pt) + triarea(hex(3*i-1), inters_pt1, pt)
                 area(-i+3) = area(-i+3) + triarea(inters_pt1, hex(3*i), pt)
@@ -683,29 +676,29 @@ contains
 
     integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
 
-    id_chd    = idx(i_chd,   j_chd,   offs_chd, dims_chd)
-    idN_chd   = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
-    idE_chd   = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-    id2N_chd  = idx(i_chd,   j_chd+2, offs_chd, dims_chd)
-    id2E_chd  = idx(i_chd+2, j_chd,   offs_chd, dims_chd)
-    id2S_chd  = idx(i_chd,   j_chd-2, offs_chd, dims_chd)
-    id2W_chd  = idx(i_chd-2, j_chd,   offs_chd, dims_chd)
-    id2NE_chd = idx(i_chd+2, j_chd+2, offs_chd, dims_chd)
+    id_chd    = idx (i_chd,   j_chd,   offs_chd, dims_chd)
+    idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    id2N_chd  = idx (i_chd,   j_chd+2, offs_chd, dims_chd)
+    id2E_chd  = idx (i_chd+2, j_chd,   offs_chd, dims_chd)
+    id2S_chd  = idx (i_chd,   j_chd-2, offs_chd, dims_chd)
+    id2W_chd  = idx (i_chd-2, j_chd,   offs_chd, dims_chd)
+    id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
 
      if (dom%mask_n%elts(idE_chd+1) >= ADJZONE) then
-       wc_m(idE_chd+1) = mass(idE_chd+1) - Interp_node(dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
-       wc_t(idE_chd+1) = temp(idE_chd+1) - Interp_node(dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+       wc_m(idE_chd+1) = mass(idE_chd+1) - Interp_node (dom, mass, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+       wc_t(idE_chd+1) = temp(idE_chd+1) - Interp_node (dom, temp, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
     end if
 
     if (dom%mask_n%elts(idNE_chd+1) >= ADJZONE) then
-       wc_m(idNE_chd+1) = mass(idNE_chd+1) - Interp_node(dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
-       wc_t(idNE_chd+1) = temp(idNE_chd+1) - Interp_node(dom, temp, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
+       wc_m(idNE_chd+1) = mass(idNE_chd+1) - Interp_node (dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
+       wc_t(idNE_chd+1) = temp(idNE_chd+1) - Interp_node (dom, temp, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
     end if
 
     if (dom%mask_n%elts(idN_chd+1) >= ADJZONE) then
-       wc_m(idN_chd+1) = mass(idN_chd+1) - Interp_node(dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
-       wc_t(idN_chd+1) = temp(idN_chd+1) - Interp_node(dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
+       wc_m(idN_chd+1) = mass(idN_chd+1) - Interp_node (dom, mass, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
+       wc_t(idN_chd+1) = temp(idN_chd+1) - Interp_node (dom, temp, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
     end if
   end subroutine compute_scalar_wavelets
 
@@ -719,17 +712,17 @@ contains
 
     integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
     if (dom%mask_n%elts(id_chd+1) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
-    idN_chd   = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
-    idE_chd   = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-    id2N_chd  = idx(i_chd,   j_chd+2, offs_chd, dims_chd)
-    id2E_chd  = idx(i_chd+2, j_chd,   offs_chd, dims_chd)
-    id2S_chd  = idx(i_chd,   j_chd-2, offs_chd, dims_chd)
-    id2W_chd  = idx(i_chd-2, j_chd,   offs_chd, dims_chd)
-    id2NE_chd = idx(i_chd+2, j_chd+2, offs_chd, dims_chd)
+    idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    id2N_chd  = idx (i_chd,   j_chd+2, offs_chd, dims_chd)
+    id2E_chd  = idx (i_chd+2, j_chd,   offs_chd, dims_chd)
+    id2S_chd  = idx (i_chd,   j_chd-2, offs_chd, dims_chd)
+    id2W_chd  = idx (i_chd-2, j_chd,   offs_chd, dims_chd)
+    id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
 
     ! Interpolate scalars and add wavelets to reconstruct values at fine scale
     mass(idNE_chd+1) = Interp_node (dom, mass, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) + wc_m(idNE_chd+1)
@@ -759,9 +752,9 @@ contains
 
     type(Coord) :: y0
 
-    x = direction(endpt1, endpt2)
-    y0 = cross(x, midpt)
-    y = normalize_Coord(y0)
+    x = direction (endpt1, endpt2)
+    y0 = cross (x, midpt)
+    y = normalize_Coord (y0)
     return
   end subroutine local_coord
 
@@ -778,9 +771,9 @@ contains
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
 
     do e = 1, EDGE
-       id1    = idx(i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
-       id2    = idx(i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
-       id_par = idx(i_par, j_par, offs_par, dims_par)
+       id1    = idx (i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
+       id2    = idx (i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
+       id_par = idx (i_par, j_par, offs_par, dims_par)
 
        u = Interp_outer_velo (dom, i_par, j_par, e-1, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
 
@@ -800,9 +793,9 @@ contains
     integer :: ide
     real(8) :: wgt(9)
 
-    ide = idx(i_chd+end_pt(1,2,e+1),j_chd+end_pt(2,2,e+1),offs_chd,dims_chd)
+    ide = idx (i_chd+end_pt(1,2,e+1),j_chd+end_pt(2,2,e+1),offs_chd,dims_chd)
 
-    wgt = Iu_Base_Wgt + dble(dom%I_u_wgt%elts(ide+1)%enc)
+    wgt = Iu_Base_Wgt + dble (dom%I_u_wgt%elts(ide+1)%enc)
 
     interp_outer_velo = sum (wgt* &
          (/velo(idx(i, j, offs, dims)*EDGE + e+1), &
@@ -842,11 +835,11 @@ contains
     integer               :: id_chd, idN_chd, idE_chd, idNE_chd
     real(8), dimension(6) :: u_inner
 
-    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
+    id_chd   = idx (i_chd,     j_chd,     offs_chd, dims_chd)
 
-    idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
-    idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
 
     u_inner = Interp_velo_inner (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, &
          offs_chd, dims_chd, EDGE*idE_chd + UP, EDGE*idE_chd + DG, &
@@ -878,24 +871,24 @@ contains
 
     curl_u = 0.0_8
     do k = 1, TRIAG
-       id1_par = idx(i_par-k+2, j_par,     offs_par, dims_par)
-       id2_par = idx(i_par,     j_par+k-1, offs_par, dims_par)
+       id1_par = idx (i_par-k+2, j_par,     offs_par, dims_par)
+       id2_par = idx (i_par,     j_par+k-1, offs_par, dims_par)
        curl_u(k) = (velo(EDGE*id_par +DG+1)*dom%len%elts(EDGE*id_par+DG+1) &
                   + velo(EDGE*id1_par+UP+1)*dom%len%elts(EDGE*id1_par+UP+1) &
                   + velo(EDGE*id2_par+RT+1)*dom%len%elts(EDGE*id2_par+RT+1)) / dom%triarea%elts(TRIAG*id_par+k)
     end do
 
-    id    = idx(i_chd, j_chd, offs_chd, dims_chd)
-    idN   = idx(i_chd, j_chd+1, offs_chd, dims_chd)
+    id    = idx (i_chd, j_chd, offs_chd, dims_chd)
+    idN   = idx (i_chd, j_chd+1, offs_chd, dims_chd)
     idUP  = EDGE*id + UP
     idDG  = EDGE*id + DG
     idRT  = EDGE*id + RT
-    idE   = idx(i_chd+1, j_chd,     offs_chd, dims_chd)
-    idNE  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN2E = idx(i_chd+2, j_chd+1, offs_chd, dims_chd)
-    id2NE = idx(i_chd+1, j_chd+2, offs_chd, dims_chd)
-    idN2  = idx(i_chd,     j_chd+2, offs_chd, dims_chd)
-    idE2  = idx(i_chd+2, j_chd,     offs_chd, dims_chd)
+    idE   = idx (i_chd+1, j_chd,     offs_chd, dims_chd)
+    idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
+    id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
+    idN2  = idx (i_chd,     j_chd+2, offs_chd, dims_chd)
+    idE2  = idx (i_chd+2, j_chd,     offs_chd, dims_chd)
 
     u = 0.0_8
 
@@ -943,13 +936,13 @@ contains
 
     if (p_chd == 0) return
 
-    call get_offs_Domain(dom, p_chd, offs_chd, dims_chd)
+    call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
 
     if (c == IMINUSJPLUS) then
-       id_chd  = idx(0, LAST-1, offs_chd, dims_chd)
-       idN_chd = idx(0, LAST,     offs_chd, dims_chd)
+       id_chd  = idx (0, LAST-1, offs_chd, dims_chd)
+       idN_chd = idx (0, LAST,     offs_chd, dims_chd)
 
-       v = (Iu_Base_Wgt(8) + dble(dom%I_u_wgt%elts(idN_chd+1)%enc(8)))*( &
+       v = (Iu_Base_Wgt(8) + dble (dom%I_u_wgt%elts(idN_chd+1)%enc(8)))*( &
               velo(EDGE*idx( 0, PATCH_SIZE, offs, dims)+UP+1) &
             + velo(EDGE*idx(-1, PATCH_SIZE, offs, dims)+RT+1))
 
@@ -957,8 +950,8 @@ contains
        velo(EDGE*idN_chd+UP+1) = velo(EDGE*idN_chd+UP+1) + v
     else
        if (c == IPLUSJMINUS) then
-          id_chd  = idx(LAST-1, 0, offs_chd, dims_chd)
-          idE_chd = idx(LAST,   0, offs_chd, dims_chd)
+          id_chd  = idx (LAST-1, 0, offs_chd, dims_chd)
+          idE_chd = idx (LAST,   0, offs_chd, dims_chd)
 
           v = -(Iu_Base_Wgt(7) + dble(dom%I_u_wgt%elts(idE_chd+1)%enc(7)))*( &
                  velo(EDGE*idx(PATCH_SIZE,  0, offs, dims)+RT+1) &
@@ -971,11 +964,11 @@ contains
 
     if (.not. c == IJMINUS) return
 
-    id_chd  = idx(0, 0, offs_chd, dims_chd)
-    idN_chd = idx(0, 1, offs_chd, dims_chd)
-    idE_chd = idx(1, 0, offs_chd, dims_chd)
+    id_chd  = idx (0, 0, offs_chd, dims_chd)
+    idN_chd = idx (0, 1, offs_chd, dims_chd)
+    idE_chd = idx (1, 0, offs_chd, dims_chd)
 
-    u = velo_interp_penta_corr(dom, offs, dims, offs_chd, dims_chd)
+    u = velo_interp_penta_corr (dom, offs, dims, offs_chd, dims_chd)
 
     velo(EDGE*id_chd +UP+1) = velo(EDGE*id_chd +UP+1) - u(1)
     velo(EDGE*idN_chd+UP+1) = velo(EDGE*idN_chd+UP+1) + u(1)
@@ -993,10 +986,10 @@ contains
     integer, dimension(2) :: typ
     real(8), dimension(8) :: area
 
-    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,     j_chd+1, offs_chd, dims_chd)
-    idE_chd  = idx(i_chd+1, j_chd,     offs_chd, dims_chd)
-    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    id_chd   = idx (i_chd,     j_chd,     offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,     j_chd+1, offs_chd, dims_chd)
+    idE_chd  = idx (i_chd+1, j_chd,     offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
 
     call get_overl_areas (dom, i_par, j_par, i_chd+1, j_chd, offs_par, dims_par, offs_chd, dims_chd, RT, area, typ)
     call init_Overl_Area (dom%overl_areas%elts(idE_chd+1), area)
@@ -1044,13 +1037,13 @@ contains
 
     integer :: id_chd, idN_chd, idE_chd
 
-    id_chd  = idx(i_chd,   j_chd,   offs_chd, dims_chd)
-    idN_chd = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
-    idE_chd = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    id_chd  = idx (i_chd,   j_chd,   offs_chd, dims_chd)
+    idN_chd = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE_chd = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
 
-    dom%I_u_wgt%elts(idE_chd+1) = outer_velo_weights(dom, p_chd, i_par, j_par, RT, offs_par, dims_par)
-    dom%I_u_wgt%elts(id_chd+1)  = outer_velo_weights(dom, p_chd, i_par, j_par, DG, offs_par, dims_par)
-    dom%I_u_wgt%elts(idN_chd+1) = outer_velo_weights(dom, p_chd, i_par, j_par, UP, offs_par, dims_par)
+    dom%I_u_wgt%elts(idE_chd+1) = outer_velo_weights (dom, p_chd, i_par, j_par, RT, offs_par, dims_par)
+    dom%I_u_wgt%elts(id_chd+1)  = outer_velo_weights (dom, p_chd, i_par, j_par, DG, offs_par, dims_par)
+    dom%I_u_wgt%elts(idN_chd+1) = outer_velo_weights (dom, p_chd, i_par, j_par, UP, offs_par, dims_par)
   end subroutine set_WT_wgts
 
   subroutine restrict_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -1062,12 +1055,12 @@ contains
 
     integer :: id_chd, idN_chd, idE_chd, idNE_chd, id_par
 
-    id_par   = idx(i_par, j_par, offs_par, dims_par)
+    id_par   = idx (i_par, j_par, offs_par, dims_par)
 
-    id_chd   = idx(i_chd,     j_chd,     offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,     j_chd+1, offs_chd, dims_chd)
-    idE_chd  = idx(i_chd+1, j_chd,     offs_chd, dims_chd)
-    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    id_chd   = idx (i_chd,     j_chd,     offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,     j_chd+1, offs_chd, dims_chd)
+    idE_chd  = idx (i_chd+1, j_chd,     offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
 
     if (dom%mask_e%elts(EDGE*id_chd+RT+1) > 0) velo(EDGE*id_par+RT+1) = 0.5*(velo(EDGE*id_chd+RT+1)   + velo(EDGE*idE_chd+RT+1))
     if (dom%mask_e%elts(EDGE*id_chd+DG+1) > 0) velo(EDGE*id_par+DG+1) = 0.5*(velo(EDGE*idNE_chd+DG+1) + velo(EDGE*id_chd+DG+1))
@@ -1084,21 +1077,21 @@ contains
     integer :: id_chd, id_par, idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
     real(8) :: ratio
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx (i_par, j_par, offs_par, dims_par)
 
-    idE   = idx(i_chd+1, j_chd,     offs_chd, dims_chd)
-    idNE  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN2E = idx(i_chd+2, j_chd+1, offs_chd, dims_chd)
-    id2NE = idx(i_chd+1, j_chd+2, offs_chd, dims_chd)
-    idN   = idx(i_chd,     j_chd+1, offs_chd, dims_chd)
-    idW   = idx(i_chd-1, j_chd,     offs_chd, dims_chd)
-    idNW  = idx(i_chd-1, j_chd+1, offs_chd, dims_chd)
-    idS2W = idx(i_chd-2, j_chd-1, offs_chd, dims_chd)
-    idSW  = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
-    idS   = idx(i_chd,     j_chd-1, offs_chd, dims_chd)
-    id2SW = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
-    idSE  = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
+    idE   = idx (i_chd+1, j_chd,     offs_chd, dims_chd)
+    idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
+    id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
+    idN   = idx (i_chd,     j_chd+1, offs_chd, dims_chd)
+    idW   = idx (i_chd-1, j_chd,     offs_chd, dims_chd)
+    idNW  = idx (i_chd-1, j_chd+1, offs_chd, dims_chd)
+    idS2W = idx (i_chd-2, j_chd-1, offs_chd, dims_chd)
+    idSW  = idx (i_chd-1, j_chd-1, offs_chd, dims_chd)
+    idS   = idx (i_chd,     j_chd-1, offs_chd, dims_chd)
+    id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
+    idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
 
     ratio = (1/dom%areas%elts(id_chd+1)%hex_inv + &
          dom%overl_areas%elts(idE+1)%a(1) + &
@@ -1124,11 +1117,11 @@ contains
 
     integer :: id_chd, id_par
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
     if (dom%mask_n%elts(id_chd+1) == 0) return
 
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_par = idx (i_par, j_par, offs_par, dims_par)
 
     mass(id_par+1) = restrict_s (mass(id_chd+1), wc_m)
     temp(id_par+1) = restrict_s (temp(id_chd+1), wc_t)
@@ -1141,18 +1134,18 @@ contains
 
       integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
 
-      idE   = idx(i_chd+1, j_chd,     offs_chd, dims_chd)
-      idNE  = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-      idN2E = idx(i_chd+2, j_chd+1, offs_chd, dims_chd)
-      id2NE = idx(i_chd+1, j_chd+2, offs_chd, dims_chd)
-      idN   = idx(i_chd,     j_chd+1, offs_chd, dims_chd)
-      idW   = idx(i_chd-1, j_chd,     offs_chd, dims_chd)
-      idNW  = idx(i_chd-1, j_chd+1, offs_chd, dims_chd)
-      idS2W = idx(i_chd-2, j_chd-1, offs_chd, dims_chd)
-      idSW  = idx(i_chd-1, j_chd-1, offs_chd, dims_chd)
-      idS   = idx(i_chd,     j_chd-1, offs_chd, dims_chd)
-      id2SW = idx(i_chd-1, j_chd-2, offs_chd, dims_chd)
-      idSE  = idx(i_chd+1, j_chd-1, offs_chd, dims_chd)
+      idE   = idx (i_chd+1, j_chd,     offs_chd, dims_chd)
+      idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+      idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
+      id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
+      idN   = idx (i_chd,     j_chd+1, offs_chd, dims_chd)
+      idW   = idx (i_chd-1, j_chd,     offs_chd, dims_chd)
+      idNW  = idx (i_chd-1, j_chd+1, offs_chd, dims_chd)
+      idS2W = idx (i_chd-2, j_chd-1, offs_chd, dims_chd)
+      idSW  = idx (i_chd-1, j_chd-1, offs_chd, dims_chd)
+      idS   = idx (i_chd,     j_chd-1, offs_chd, dims_chd)
+      id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
+      idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
 
       restrict_s = scalar + &
            (wavelet(idE+1)*dom%overl_areas%elts(idE+1)%a(1) + &
@@ -1191,27 +1184,27 @@ contains
     weights = 0.0_8
 
     do k = 1, 2
-       id = idx(i0, j0, offs, dims)
+       id = idx (i0, j0, offs, dims)
 
        G = 0.0_8
 
-       G(:,1) = coords_to_row(i0, j0, (/0, 0/), (/0, 0, e0/), e0)
+       G(:,1) = coords_to_row (i0, j0, (/0, 0/), (/0, 0, e0/), e0)
 
-       G(:,2) = coords_to_row(i0, j0, end_pt(:,-k+3,e0+1), hex_sides(:,hex_s_offs(e0+1)+2+3*k-3+1), e0)
+       G(:,2) = coords_to_row (i0, j0, end_pt(:,-k+3,e0+1), hex_sides(:,hex_s_offs(e0+1)+2+3*k-3+1), e0)
 
-       G(:,3) = coords_to_row(i0, j0, end_pt(:,k,e0+1),    hex_sides(:,(hex_s_offs(e0+1)+3)-(3*k-3)+1), e0)
+       G(:,3) = coords_to_row (i0, j0, end_pt(:,k,e0+1),    hex_sides(:,(hex_s_offs(e0+1)+3)-(3*k-3)+1), e0)
 
-       G(:,4) = coords_to_row(i0, j0, opp_no(:,k,e0+1), hex_sides(:,hex_s_offs(e0+1)+1+3*k-3+1), e0) - &
-                coords_to_row(i0, j0, end_pt(:,k,e0+1), hex_sides(:,hex_s_offs(e0+1)+2+3*k-3+1), e0)
+       G(:,4) = coords_to_row (i0, j0, opp_no(:,k,e0+1), hex_sides(:,hex_s_offs(e0+1)+1+3*k-3+1), e0) - &
+                coords_to_row (i0, j0, end_pt(:,k,e0+1), hex_sides(:,hex_s_offs(e0+1)+2+3*k-3+1), e0)
 
-       G(:,5) = coords_to_row(i0, j0, end_pt(:,-k+3,e0+1), hex_sides(:,(hex_s_offs(e0+1)+3)-(3*k-3)+1), e0) - &
-                coords_to_row(i0, j0, opp_no(:, k,  e0+1), hex_sides(:,(hex_s_offs(e0+1)+4)-(3*k-3)+1), e0)
+       G(:,5) = coords_to_row (i0, j0, end_pt(:,-k+3,e0+1), hex_sides(:,(hex_s_offs(e0+1)+3)-(3*k-3)+1), e0) - &
+                coords_to_row (i0, j0, opp_no(:, k,  e0+1), hex_sides(:,(hex_s_offs(e0+1)+4)-(3*k-3)+1), e0)
 
-       G(:,6) = coords_to_row(i0, j0, end_pt(:, k,  e0+1), hex_sides(:,(hex_s_offs(e0+1)+5)-(3*k-3)+1), e0) - &
-                coords_to_row(i0, j0, end_pt(:,-k+3,e0+1), hex_sides(:, hex_s_offs(e0+1)+0+3*k-3+1),    e0)
+       G(:,6) = coords_to_row (i0, j0, end_pt(:, k,  e0+1), hex_sides(:,(hex_s_offs(e0+1)+5)-(3*k-3)+1), e0) - &
+                coords_to_row (i0, j0, end_pt(:,-k+3,e0+1), hex_sides(:, hex_s_offs(e0+1)+0+3*k-3+1),    e0)
 
-       b = coords_to_rowd(mid_pt(dom%midpt%elts(EDGE*id+e0+1), dom%node%elts(idx2(i0, j0, end_pt(:,2,e0+1), offs, dims) + 1)), &
-            vector(dom%node%elts(idx2(i0, j0, end_pt(:,1,e0+1), offs, dims)+1), &
+       b = coords_to_rowd (mid_pt(dom%midpt%elts(EDGE*id+e0+1), dom%node%elts(idx2(i0, j0, end_pt(:,2,e0+1), offs, dims) + 1)), &
+            vector (dom%node%elts(idx2(i0, j0, end_pt(:,1,e0+1), offs, dims)+1), &
             dom%node%elts(idx2(i0, j0, end_pt(:,2,e0+1), offs, dims)+1)), x, y)
 
        ipiv = 0
@@ -1242,10 +1235,10 @@ contains
 
       e = n_offs2(3)
 
-      endpt1 = get_coord(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), e00)
-      endpt2 = get_coord(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), e00)
+      endpt1 = get_coord (i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), e00)
+      endpt2 = get_coord (i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), e00)
 
-      coords_to_row = coords_to_rowd(mid_pt(endpt1, endpt2), vector(endpt1, endpt2), x, y)
+      coords_to_row = coords_to_rowd (mid_pt(endpt1, endpt2), vector(endpt1, endpt2), x, y)
     end function coords_to_row
 
     function get_coord (i, j, e)
@@ -1253,7 +1246,7 @@ contains
       integer     :: i, j, e
 
       if (i == -1) then
-         if (j == -1 .and. is_penta(dom, p, IJMINUS-1)) then
+         if (j == -1 .and. is_penta (dom, p, IJMINUS-1)) then
             if (e == RT) then
                get_coord = dom%node%elts(nidx(LAST_BDRY, 0, IMINUS, offs, dims)+1)
                return
@@ -1315,8 +1308,8 @@ contains
     real(8)               :: u, v
     real(8), dimension(2) :: xy
 
-    call normalize2(coord2local(dirvec, x, y), u, v)
-    xy = coord2local(midpt, x, y)
+    call normalize2 (coord2local(dirvec, x, y), u, v)
+    xy = coord2local (midpt, x, y)
     coords_to_rowd = (/u, u*xy(1), u*xy(2), v, v*xy(1), v*xy(2)/)
   end function coords_to_rowd
 end module wavelet_mod

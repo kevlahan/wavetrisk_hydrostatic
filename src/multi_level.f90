@@ -19,15 +19,9 @@ contains
     do k = 1, zlevels
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
-          ! Finish non-blocking communication of dq from previous level (l+1)
-          if (l < level_end) call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) 
-
           call basic_operators  (q, dq, k, l)
           call cal_scalar_trend (q, dq, k, l)
-          
-          ! Start non-blocking communication of dq for use at next level (l-1)
-          if (level_start /= level_end .and. l > level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l) 
-
+          if (level_start /= level_end .and. l > level_start) call update_vector_bdry (dq(S_MASS:S_TEMP,k), l) 
           call velocity_trend_source (q, dq, k, l)
        end do
        call velocity_trend_grad (q, dq, k)
@@ -74,8 +68,7 @@ contains
        
        nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, vort, qe)
     end do
-    horiz_flux%bdry_uptodate = .false.
-    call update_vector_bdry (horiz_flux, l)
+    if (level_start /= level_end) call update_vector_bdry (horiz_flux, l)
 
     if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
   end subroutine basic_operators
@@ -161,7 +154,7 @@ contains
     ! Computes Laplacian(mass) and Laplacian(temp) needed for second order scalar Laplacian
     implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
-    integer :: k, l
+    integer                                                       :: k, l
 
     integer :: d, j
 
@@ -188,7 +181,7 @@ contains
     ! Computes rot(rot(vort)) needed for second order vector Laplacian
     implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
-    integer :: k, l
+    integer                                                       :: k, l
 
     integer :: d, j
 
@@ -207,11 +200,6 @@ contains
        end do
        nullify (vort, Laplacian)
     end do
-    Laplacian_divu%bdry_uptodate = .false.
-    call update_bdry (Laplacian_divu, l)
-    
-    Laplacian_rotu%bdry_uptodate = .false.
-    call update_bdry (Laplacian_rotu, l)
 
     ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
     !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
@@ -231,8 +219,8 @@ contains
     type(Domain) :: dom
     integer      :: l
 
-    integer :: j, p_par, c, p_chd
-    logical :: restrict(N_CHDRN)
+    integer                     :: j, p_par, c, p_chd
+    logical, dimension(N_CHDRN) :: restrict
 
     do j = 1, dom%lev(l)%length
        p_par = dom%lev(l)%elts(j)
