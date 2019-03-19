@@ -40,7 +40,7 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra, nia))
   F90    = ifort	
   MPIF90 = mpif90
   LIBS   = -mkl
-  FLAGS  = -fpe0 -traceback -module $(BUILD_DIR) -diag-disable 8291
+  FLAGS  = -traceback -module $(BUILD_DIR) -diag-disable 8291
 # else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
 #   # Need to load: module load gcc/7.3.0 openmpi/3.1.0 mkl/2018.2                                                                                                        
 #   F90    = gfortran
