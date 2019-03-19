@@ -337,7 +337,7 @@ contains
 
     ! Bins for zonal statistics
     nbins = sqrt (10d0*4**max_level/2) ! consistent with maximum resolution
-    nbins = 150
+    !nbins = 150
     allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
     allocate (zonal_avg(zlevels,nbins,nvar_zonal), zonal_avg_glo(zlevels,nbins,nvar_zonal))
     zonal_avg = 0.0_8; zonal_avg_glo = 0.0_8
@@ -405,6 +405,7 @@ contains
        write (6,'(a,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(a,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(a,i1)')     "Laplace_order       = ", Laplace_order_init
+       write (6,'(a,i2)')     "n_diffuse           = ", n_diffuse
        write (6,'(a,es10.4)') "dt_write (day)      = ", dt_write/DAY
        write (6,'(a,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance           = ", rebalance
@@ -494,7 +495,9 @@ contains
     implicit none
     real(8) :: area, tau
 
-    C_visc = 1d-2
+    n_diffuse = 4
+
+    C_visc = 5d-3/n_diffuse
     
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -511,7 +514,7 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_divu = 6d-2 * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! large value to damp  high frequency acoustic oscillations of vertical layers
+       visc_divu = 4d-2/n_diffuse * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! large value to damp  high frequency acoustic oscillations of vertical layers
        visc_sclr = dx_min**(2*Laplace_order_init)/tau * n_diffuse
        visc_rotu = dx_min**(2*Laplace_order_init)/tau * n_diffuse / 4**Laplace_order_init
     elseif (Laplace_order_init > 2) then
@@ -526,11 +529,11 @@ contains
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
        if (Laplace_order_init /= 0) &
             write (6,'(A,es8.2,A)',advance='no') "Diffusion stability constant = ", &
-            dt_cfl/dx_min**(2*Laplace_order_init) * max (maxval (visc_sclr), visc_divu) ! sum determines stability
+            dt_cfl/dx_min**(2*Laplace_order_init) * (maxval (visc_sclr) + visc_divu) ! sum determines stability
        if (Laplace_order_init == 1) then
           write (6,'(A)') " (should be <= 0.4)"
        else
-          write (6,'(A)')" (should be <= 0.07)"
+          write (6,'(A)')" (should be <= 0.05)"
        end if
     end if
   end subroutine initialize_dt_viscosity

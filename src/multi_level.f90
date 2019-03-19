@@ -196,7 +196,7 @@ contains
        vort      => grid(d)%vort%elts
        Laplacian => Laplacian_rotu%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
        nullify (vort, Laplacian)
     end do
