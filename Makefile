@@ -1,6 +1,5 @@
 # options: ser mpi mpi-lb
 TEST_CASE  = DCMIP2012c4
-OPTIM      = -O2
 ARCH       = mpi-lb
 PARAM      = param_J4
 GEOM       = sphere
@@ -33,38 +32,45 @@ endif
 ifeq ($(MACHINE),if)
   F90    = gfortran	
   MPIF90 = mpif90
+  OPTIM  = -O2		
   LIBS   = -llapack
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra, nia))
   # Need module load intel; module load openmpi
   F90    = ifort	
   MPIF90 = mpif90
+  OPTIM  = -fast
   LIBS   = -mkl
   FLAGS  = -traceback -module $(BUILD_DIR) -diag-disable 8291
 # else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
 #   # Need to load: module load gcc/7.3.0 openmpi/3.1.0 mkl/2018.2                                                                                                        
 #   F90    = gfortran
 #   MPIF90 = mpif90
+#   OPTIM  = -O2
 #   LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
 #   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all -I${MKLROOT}/include
 else ifeq ($(MACHINE),$(filter $(MACHINE),login)) # occigen
   # Need to load: module load openmpi/gnu/2.0.2 mkl/18.1                                                                                                           
   F90    = gfortran
   MPIF90 = mpif90
+  OPTIM  = -O2
   LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all -B /opt/software/common/intel/compilers_and_libraries_2018.1.163/linux/mkl/lib/intel64
 else ifeq ($(MACHINE),mac)
   F90    = gfortran
+  OPTIM  = -O2
   LIBS   = -llapack	
   MPIF90 = mpif90
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else ifeq ($(MACHINE),froggy)
   F90    = gfortran
   MPIF90 = mpif90
+  OPTIM  = -O2
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 else # try gfortran as default
   F90    = gfortran
   MPIF90 = mpif90
+  OPTIM  = -O2
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
 endif
 
