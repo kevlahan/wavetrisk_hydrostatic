@@ -143,7 +143,7 @@ contains
        dvelo     => dq(S_VELO,k)%data(d)%elts
        exner     => exner_fun(k)%data(d)%elts
        bernoulli => grid(d)%bernoulli%elts
-       do p = 2, grid(d)%patch%length
+       do p = 3, grid(d)%patch%length
           call apply_onescale_to_patch (du_grad, grid(d), p-1, k, 0, 0)
        end do
        nullify (mass, temp, dvelo, exner, bernoulli)
@@ -541,7 +541,7 @@ contains
     level_end = sync_max_int (level_end)
 
     do d = 1, n_domain(rank+1)
-       do p = 2, grid(d)%patch%length
+       do p = 3, grid(d)%patch%length
           call connect_children (grid(d), p-1)
        end do
     end do

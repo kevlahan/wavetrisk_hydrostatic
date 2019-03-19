@@ -1009,7 +1009,7 @@ contains
     ! Set overlay quantities on coarsest level
     integer :: d, p
 
-    p = 2
+    p = 3
     do d = 1, size(grid)
        call apply_onescale_to_patch (zero_overlay, grid(d), p-1, z_null, 0, 1)
     end do

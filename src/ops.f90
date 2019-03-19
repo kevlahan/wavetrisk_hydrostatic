@@ -668,11 +668,13 @@ contains
        mass_type = S_TEMP
     end if
 
+    call apply (set_surf_geopot, z_null)
+
     do d = 1, size(grid)
        grid(d)%surf_press%elts = 0.0_8
        do k = 1, zlevels
           mass => q(mass_type,k)%data(d)%elts
-          do p = 2, grid(d)%patch%length
+          do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (column_mass, grid(d), p-1, k, 0, 1)
           end do
           nullify (mass)
@@ -680,26 +682,41 @@ contains
        grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + p_top
        grid(d)%press_lower%elts = grid(d)%surf_press%elts
     end do
-  contains
-    subroutine column_mass (dom, i, j, zlev, offs, dims)
-      ! Sum up total mass over column id and set surface geopotential
-      implicit none
-      type (Domain)                  :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: id_i
-
-      id_i = idx(i, j, offs, dims) + 1
-
-      dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
-      dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
-    end subroutine column_mass
   end subroutine cal_surf_press
+
+  subroutine column_mass (dom, i, j, zlev, offs, dims)
+    ! Sum up total mass over column id and set surface geopotential
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx(i, j, offs, dims) + 1
+
+    dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
+  end subroutine column_mass
+
+  subroutine set_surf_geopot (dom, i, j, zlev, offs, dims)
+    ! Sum up total mass over column id and set surface geopotential
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx(i, j, offs, dims) + 1
+
+    dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
+  end subroutine set_surf_geopot
 
   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
     ! Integrate pressure (compressible case)/Lagrange multiplier (incompressible case) and geopotential up from surface to top layer
+    use, intrinsic :: ieee_arithmetic
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1081,8 +1098,15 @@ contains
     idS  = idx(i,   j-1, offs, dims)
     idW  = idx(i-1, j,   offs, dims)
 
+    if (dom%pedlen%elts(EDGE*id+RT+1) == 0.0_8) write (6,*) 'hi1'
+    if (dom%pedlen%elts(EDGE*id+UP+1) == 0.0_8) write (6,*) 'hi3'
     Laplacian(EDGE*id+RT+1) = -(vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
-    Laplacian(EDGE*id+DG+1) = -(vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
+
+    if (dom%pedlen%elts(EDGE*id+DG+1) /= 0.0_8) then
+       Laplacian(EDGE*id+DG+1) = -(vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
+    else
+       Laplacian(EDGE*id+DG+1) = 0.0_8
+    end if
     Laplacian(EDGE*id+UP+1) = -(vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
   end subroutine cal_Laplacian_rotu
 

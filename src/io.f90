@@ -484,7 +484,7 @@ contains
           mass => sol(S_MASS,k)%data(d)%elts
           temp => sol(S_TEMP,k)%data(d)%elts
           velo => sol(S_VELO,k)%data(d)%elts
-          do p = 2, grid(d)%patch%length
+          do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
              call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
              call apply_onescale_to_patch (cal_zonal_avg,  grid(d), p-1, k, 0, 0)
