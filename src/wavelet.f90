@@ -1002,14 +1002,14 @@ contains
     call init_Overl_Area (dom%overl_areas%elts(idN_chd+1), area)
     call basic_F_restr_wgt (dom, i_par, j_par, UP, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, typ)
 
-    call set_coarse_overlay ! May be needed for ifort compilers to avoid floating point error on coarsest level
+    !call set_coarse_overlay ! May be needed for ifort compilers to avoid floating point error on coarsest level
   end subroutine set_RF_wgts
 
   subroutine set_coarse_overlay 
     ! Set overlay quantities on coarsest level
     integer :: d, p
 
-    p = 3
+    p = 2
     do d = 1, size(grid)
        call apply_onescale_to_patch (zero_overlay, grid(d), p-1, z_null, 0, 1)
     end do
