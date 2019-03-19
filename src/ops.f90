@@ -674,7 +674,7 @@ contains
        grid(d)%surf_press%elts = 0.0_8
        do k = 1, zlevels
           mass => q(mass_type,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
+          do p = 2, grid(d)%patch%length
              call apply_onescale_to_patch (column_mass, grid(d), p-1, k, 0, 1)
           end do
           nullify (mass)
