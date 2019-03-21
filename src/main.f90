@@ -265,7 +265,7 @@ contains
 
     if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
-            'time [h] = ', time/DAY, &
+            'time [d] = ', time/DAY, &
             '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
              ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &
              ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
