@@ -91,7 +91,7 @@ program Held_Suarez
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     if (time >= 100*DAY .and. modulo (istep, 100) == 0) call statistics
+     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call euler (trend_cooling, dt)
      call stop_timing
 

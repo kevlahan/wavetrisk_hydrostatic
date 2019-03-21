@@ -495,7 +495,7 @@ contains
     implicit none
     real(8) :: area, tau
 
-    n_diffuse = 4
+    n_diffuse = 1
 
     C_visc = 5d-3/n_diffuse
     
