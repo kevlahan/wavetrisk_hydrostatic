@@ -32,8 +32,8 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    interp_scalar => remap1
-    interp_velo   => remap1
+    interp_scalar => remap2W
+    interp_velo   => remap2W
     
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
@@ -68,8 +68,6 @@ contains
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id_i) < TRSK) return
 
     ! Save old mass
     do k = 1, zlevels
@@ -107,8 +105,6 @@ contains
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    if (minval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) < ADJZONE) return
-    
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     do e = 1, EDGE
@@ -145,8 +141,6 @@ contains
     id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
     id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
-    if (minval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) < ADJZONE) return 
-    
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     do e = 1, EDGE
@@ -180,8 +174,6 @@ contains
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
-
-    if (dom%mask_n%elts(id_i) < TRSK) return
 
     ! Save old mass
     do k = 1, zlevels
@@ -229,8 +221,6 @@ contains
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id_i) < ADJZONE) return
-    
     call find_coordinates (p_new, p_old, d, id_i, p_s)
 
     ! Integrate up from surface
@@ -557,41 +547,41 @@ contains
     real(8), parameter      :: Half = 0.5_8, ThreeHalfth=1.5_8, Zero = 0.0_8, One = 1.0_8, Two = 2.0_8, Three = 3.0_8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: dL, dR, FC, r
-    logical, parameter      :: NEUMANN                = .true.
-    logical, parameter      :: LINEAR_CONTINUATION    = .false.
-    logical, parameter      :: PARABOLIC_CONTINUATION = .true.
+    character(255)          :: bc = "PARABOLIC_CONTINUATION" ! options are 'NEUMANN', 'LINEAR_CONTINUATION', 'PARABOLIC_CONTINUATION'
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
     end do
 
-    if (NEUMANN) then
-       FC(1) = Half
-       r(0) = ThreeHalfth * var_old(1)
-    elseif (LINEAR_CONTINUATION) then
-       FC(1) = One
-       r(0) = Two * var_old(1)
-    elseif (PARABOLIC_CONTINUATION) then
+    select case (bc)
+    case ("PARABOLIC_CONTINUATION")
        cff = Hz(1) / Hz(2)
        FC(1) = One + cff
        r(0) = Two*var_old(1) + cff*( var_old(1) + cff*var_old(2) )/FC(1)
-    end if
+    case ('LINEAR_CONTINUATION') 
+       FC(1) = One
+       r(0) = Two * var_old(1)
+    case ('NEUMANN')
+       FC(1) = Half
+       r(0) = ThreeHalfth * var_old(1)
+    end select
 
     do k = 1, N-1, +1
        cff = One / (Two*Hz(k) + Hz(k+1)*(Two-FC(k)))
        FC(k+1) = cff * Hz(k)
        r(k) = cff * (Three*(var_old(k+1)*Hz(k) + var_old(k)*Hz(k+1)) - Hz(k+1)*r(k-1))
     end do
-
-    if (PARABOLIC_CONTINUATION) then
+    
+    select case (bc)
+    case ('PARABOLIC_CONTINUATION')
        cff = Hz(N) / Hz(N-1)
        cff1 = One + cff
        r(N) = (cff*(var_old(N) + cff*var_old(N-1)) + cff1*(Two*var_old(N) - cff1*r(N-1)))/(cff1*(One - cff1*FC(N)))
-    elseif (LINEAR_CONTINUATION) then
+    case ('LINEAR_CONTINUATION') 
        r(N) = (Two*var_old(N) - r(N-1)) / (One - FC(N))
-    elseif (NEUMANN) then
+    case ('NEUMANN')
        r(N) = (Three*var_old(N) - r(N-1)) / (Two - FC(N))
-    end if
+    end select
 
     do k = N-1, 0, -1
        r(k) = r(k) - FC(k+1)*r(k+1)
@@ -650,7 +640,7 @@ contains
     real(8), parameter      :: Zero=0.0_8, Half=0.5_8, One=1.0_8, ThreeHalfth=1.5_8, Two=2.0_8, Three=3.0_8, eps = 1.0d-8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, dL, dR, FC, r
-    logical, parameter      :: LIMIT_INTERIOR = .true. ! commented in 
+    logical, parameter      :: LIMIT_INTERIOR = .false.
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -735,25 +725,25 @@ contains
     ! interfacial fluxes FC; and (3) apply these fluxes to complete remapping step.
     !
     do k = 1, N
-       ! if (LIMIT_INTERIOR) then               ! Constrain parabolic
-       deltaR = r(k) - var_old(k)          ! segment monotonicity
-       deltaL = var_old(k) - r(k-1)        ! like in PPM 
-       cffR = Two * deltaR
-       cffL = Two * deltaL
-       if (deltaR*deltaL < Zero) then
-          deltaR = Zero
-          deltaL = Zero
-       else if (abs(deltaR) > abs(cffL)) then
-          deltaR = cffL
-       else if (abs(deltaL) > abs(cffR)) then
-          deltaL = cffR
-       endif
-       aR(k) = var_old(k) + deltaR
-       aL(k) = var_old(k) - deltaL
-       ! else
-       !    aR(k) = r(k)
-       !    aL(k) = r(k-1)
-       ! end if
+       if (LIMIT_INTERIOR) then               ! Constrain parabolic
+          deltaR = r(k) - var_old(k)          ! segment monotonicity
+          deltaL = var_old(k) - r(k-1)        ! like in PPM 
+          cffR = Two * deltaR
+          cffL = Two * deltaL
+          if (deltaR*deltaL < Zero) then
+             deltaR = Zero
+             deltaL = Zero
+          else if (abs(deltaR) > abs(cffL)) then
+             deltaR = cffL
+          else if (abs(deltaL) > abs(cffR)) then
+             deltaL = cffR
+          endif
+          aR(k) = var_old(k) + deltaR
+          aL(k) = var_old(k) - deltaL
+       else
+          aR(k) = r(k)
+          aL(k) = r(k-1)
+       end if
        dL(k) = Half * (aR(k) - aL(k))
        dR(k) = Half * (aR(k) + aL(k)) - var_old(k)
     end do
