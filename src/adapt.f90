@@ -368,7 +368,7 @@ contains
 
     changes = .false.
     do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
+       do p = 2, grid(d)%patch%length
           call patch_count_active (grid(d), p-1)
        end do
     end do
