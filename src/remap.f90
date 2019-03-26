@@ -640,7 +640,7 @@ contains
     real(8), parameter      :: Zero=0.0_8, Half=0.5_8, One=1.0_8, ThreeHalfth=1.5_8, Two=2.0_8, Three=3.0_8, eps = 1.0d-8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, dL, dR, FC, r
-    logical, parameter      :: LIMIT_INTERIOR = .false.
+    logical, parameter      :: LIMIT_INTERIOR = .true.
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
