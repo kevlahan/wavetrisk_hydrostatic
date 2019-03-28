@@ -491,13 +491,13 @@ contains
 
   subroutine initialize_dt_viscosity 
     ! Initializes viscosity
-    use wavelet_mod
     implicit none
-    real(8) :: area, tau
+    real(8) :: area, C_divu, C_stability, tau_divu, tau_visc
 
     n_diffuse = 1
 
-    C_visc = 5d-3/n_diffuse
+    C_visc = 1.5d-2/n_diffuse ! diffusion constant for scalars and rotu
+    C_divu = 5.0d-2/n_diffuse ! diffusion constant for divu
     
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -507,33 +507,41 @@ contains
     dt_init = dt_cfl
 
     !tau = 6 * HOUR
-    tau = dt_cfl/C_visc
+    tau_visc = dt_cfl/C_visc
+    tau_divu = dt_cfl/C_divu
     
     if (Laplace_order_init == 0) then
        visc_sclr = 0.0_8
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_divu = 5d-2/n_diffuse * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse ! large value to damp  high frequency acoustic oscillations of vertical layers
-       visc_sclr = dx_min**(2*Laplace_order_init)/tau * n_diffuse
-       visc_rotu = dx_min**(2*Laplace_order_init)/tau * n_diffuse / 4**Laplace_order_init
+       visc_divu = dx_min**(2*Laplace_order_init)/tau_divu * n_diffuse
+       visc_sclr = dx_min**(2*Laplace_order_init)/tau_visc * n_diffuse
+       visc_rotu = dx_min**(2*Laplace_order_init)/tau_visc * n_diffuse / 4**Laplace_order_init
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
 
     if (rank == 0) then
-       write (6,'(3(a,es8.2),a,/)') "dx_min  = ", dx_min/1d3, " [km] dt_cfl = ", dt_cfl, " [s] tau = ", tau/HOUR, " [h]"
+       write (6,'(3(a,es8.2),a,/)') "dx_min  = ", dx_min/1d3, " [km] dt_cfl = ", dt_cfl, " [s] tau = ", tau_visc/HOUR, " [h]"
        write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-       if (Laplace_order_init /= 0) &
-            write (6,'(A,es8.2,A)',advance='no') "Diffusion stability constant = ", &
-            dt_cfl/dx_min**(2*Laplace_order_init) * (maxval (visc_sclr) + visc_divu) ! sum determines stability
        if (Laplace_order_init == 1) then
           write (6,'(A)') " (should be <= 0.4)"
-       else
-          write (6,'(A)')" (should be <= 0.05)"
+       elseif (Laplace_order_init == 2) then
+          if (C_visc /= 0.0_8 .and. C_divu /= 0.0_8) then
+             C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (maxval (visc_sclr) + visc_divu)
+             write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
+          elseif (C_visc == 0.0_8 .or. C_divu == 0.0_8) then
+             C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (max(maxval (visc_sclr), visc_divu))
+             write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
+          end if
+          if (C_stability >= 7d-2 .or. C_visc > 5d-2 .or. C_divu > 5d-2) then
+             write (6,'(A)') "!!!! ERROR: diffusion too large for stability ... aborting !!!!"
+             call abort
+          end if
        end if
     end if
   end subroutine initialize_dt_viscosity
