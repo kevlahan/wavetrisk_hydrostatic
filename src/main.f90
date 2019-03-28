@@ -170,7 +170,7 @@ contains
     dt = idt/time_mult ! Modify time step
         
     ! Take time step
-    call RK4 (trend_ml, dt)
+    call RK33_opt (trend_ml, dt)
 
     ! If necessary, remap vertical coordinates
     min_mass = cpt_min_mass ()
@@ -490,7 +490,7 @@ contains
     deallocate (threshold, threshold_def)
     deallocate (sol, sol_save, trend, trend_wav_coeff, wav_coeff)       
     deallocate (exner_fun, horiz_flux, Laplacian_scalar, lnorm)
-    deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets, stat_ray)
+    deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
 
     nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &
          qe, vort, wc_u, wc_m, wc_t)
