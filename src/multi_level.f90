@@ -10,7 +10,7 @@ contains
 
     integer :: k, l
 
-    call update_array_bdry (q, NONE)
+    call update_array_bdry (q, NONE, 9)
 
     ! Compute surface pressure on all grids
     call cal_surf_press (q)
@@ -21,7 +21,7 @@ contains
        do l = level_end, level_start, -1
           call basic_operators  (q, dq, k, l)
           call cal_scalar_trend (q, dq, k, l)
-          if (level_start /= level_end .and. l > level_start) call update_vector_bdry (dq(S_MASS:S_TEMP,k), l) 
+          if (level_start /= level_end .and. l > level_start) call update_vector_bdry (dq(S_MASS:S_TEMP,k), l, 10) 
           call velocity_trend_source (q, dq, k, l)
        end do
        call velocity_trend_grad (q, dq, k)
@@ -68,7 +68,7 @@ contains
        
        nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, vort, qe)
     end do
-    if (level_start /= level_end) call update_vector_bdry (horiz_flux, l)
+    if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
 
     if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
   end subroutine basic_operators
@@ -96,7 +96,7 @@ contains
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
   end subroutine cal_scalar_trend
 
-  subroutine velocity_trend_source  (q, dq, k, l)
+  subroutine velocity_trend_source (q, dq, k, l)
     ! Evaluate source part of velocity trends at level l
     implicit none
     type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
@@ -174,7 +174,7 @@ contains
        nullify (sclr, Laplacian)
     end do
     Laplacian_scalar%bdry_uptodate = .false.
-    call update_vector_bdry (Laplacian_scalar, l)
+    call update_vector_bdry (Laplacian_scalar, l, 12)
   end subroutine second_order_Laplacian_scalar
 
   subroutine second_order_Laplacian_vector (q, k, l)

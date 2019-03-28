@@ -281,7 +281,7 @@ subroutine trend_cooling (q, dq)
 
   integer :: d, k, p
 
-  call update_array_bdry (sol, NONE)
+  call update_array_bdry (sol, NONE, 27)
 
   ! Current surface pressure
   call cal_surf_press (sol)

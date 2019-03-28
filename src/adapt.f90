@@ -77,10 +77,10 @@ contains
 
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then
-       call update_array_bdry1 (trend_wav_coeff, level_start, level_end)
+       call update_array_bdry1 (trend_wav_coeff, level_start, level_end, 14)
        call mask_active ("trend")
     else
-       call update_array_bdry1 (wav_coeff, level_start, level_end)
+       call update_array_bdry1 (wav_coeff, level_start, level_end, 15)
        call mask_active ("vars")
     end if
       
@@ -127,7 +127,8 @@ contains
 
     ! Label points required for remap as TRSK
     do l = level_start+1, level_end
-       call apply_onescale (mask_trsk, l, z_null, 0, 1)
+       call apply_onescale (mask_remap, l, z_null, 0, 1)
+       call apply_onescale (mask_trsk,  l, z_null, 0, 1)
     end do
   end subroutine adapt
 
@@ -225,7 +226,7 @@ contains
     end if
 
     q%bdry_uptodate = .false.
-    call update_array_bdry (q, NONE)
+    call update_array_bdry (q, NONE, 16)
 
     do k = 1, zlevels
        do l = l_start, level_end-1
@@ -505,6 +506,6 @@ contains
     end do
     call inverse_wavelet_transform (wav_coeff, sol, old_level_start)
     sol%bdry_uptodate = .false.
-    call update_array_bdry (sol, NONE)
+    call update_array_bdry (sol, NONE, 17)
   end subroutine fill_up_grid_and_IWT
 end module adapt_mod

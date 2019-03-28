@@ -576,12 +576,12 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
-             src_id = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
              grid(dest_loc)%mask_n%elts(abs(dest_id)+1) = grid(src_loc)%mask_n%elts(abs(src_id)+1) 
           end do
           do i = 1, grid(src_loc)%pack(AT_EDGE,dest_glo+1)%length
-             src_id = grid(src_loc)%pack(AT_EDGE,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc)%pack(AT_EDGE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_EDGE,src_glo+1)%elts(i)
              grid(dest_loc)%mask_e%elts(abs(dest_id)+1) = grid(src_loc)%mask_e%elts(abs(src_id)+1) 
           end do
@@ -601,7 +601,7 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(AT_EDGE,dest_glo+1)%length
-             src_id = grid(src_loc)%pack(AT_EDGE,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc)%pack(AT_EDGE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_EDGE,src_glo+1)%elts(i)
              call set (grid(dest_loc), dest_id, get(grid(src_loc), src_id))
           end do
@@ -844,13 +844,11 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
-             src_id = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
-             
              field%data(dest_loc)%elts(abs(dest_id)+1) = field%data(src_loc)%elts(src_id+1)
-             
-             if (dest_id < 0 .and. pos == AT_EDGE) field%data(dest_loc)%elts(abs(dest_id)+1) = &
-                  -field%data(dest_loc)%elts(abs(dest_id)+1)
+             if (dest_id < 0 .and. pos == AT_EDGE) &
+                  field%data(dest_loc)%elts(abs(dest_id)+1) = - field%data(dest_loc)%elts(abs(dest_id)+1)
           end do
        end do
     end do
@@ -860,25 +858,20 @@ contains
     implicit none
     type(Float_Field), dimension(:) :: field
     
-    integer :: i, i1, dest_id, dest_loc, dest_glo, pos, src_id, src_loc, src_glo, sz
-
-    ! Find size of field
-    sz = size(field)
+    integer :: i, i1, dest_id, dest_loc, dest_glo, pos, src_id, src_loc, src_glo
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
-          do i1 = 1, sz
+          do i1 = 1, size(field)
              pos = field(i1)%pos
              do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
-                src_id = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
+                src_id  = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
                 dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
-
                 field(i1)%data(dest_loc)%elts(abs(dest_id)+1) = field(i1)%data(src_loc)%elts(src_id+1)
-
-                if (dest_id < 0 .and. pos == AT_EDGE) field(i1)%data(dest_loc)%elts(abs(dest_id)+1) = &
-                     -field(i1)%data(dest_loc)%elts(abs(dest_id)+1)
+                if (dest_id < 0 .and. pos == AT_EDGE) &
+                     field(i1)%data(dest_loc)%elts(abs(dest_id)+1) = - field(i1)%data(dest_loc)%elts(abs(dest_id)+1)
              end do
           end do
        end do
@@ -889,26 +882,20 @@ contains
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: i, i1, i2, dest_id, dest_loc, dest_glo, pos, src_id, src_loc, src_glo
-    integer, dimension(2)             :: sz
-
-    ! Find size of field
-    sz = shape(field)
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
-          do i2 = 1, sz(2)
-             do i1 = 1, sz(1)
+          do i2 = 1, size(field,2)
+             do i1 = 1, size(field,1)
                 pos = field(i1,i2)%pos
                 do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
-                   src_id = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
+                   src_id  = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
                    dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
-
                    field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1) = field(i1,i2)%data(src_loc)%elts(src_id+1)
-
-                   if (dest_id < 0 .and. pos == AT_EDGE) field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1) = &
-                        -field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1)
+                   if (dest_id < 0 .and. pos == AT_EDGE) &
+                        field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1) = - field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1)
                 end do
              end do
           end do
@@ -953,7 +940,7 @@ contains
   end subroutine set_areas
 
   subroutine min_dt (dom, i, j, zlev, offs, dims)
-    ! Calculates time step, minimum mass and number of active nodes and edges
+    ! Calculates time step and number of active nodes and edges
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -961,7 +948,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, e, id, id_e, id_i, k, l
-    real(8) :: d_e, harvest, v_e
+    real(8) :: d_e, v_e
 
     id = idx(i, j, offs, dims)
     id_i = id + 1
@@ -975,7 +962,7 @@ contains
           if (dom%mask_e%elts(id_e) >= ADJZONE) then
              n_active_edges(l) = n_active_edges(l) + 1
              if (adapt_dt) then
-                d_e = dom%len%elts(id_e) ! Triangle edge length
+                d_e = dom%len%elts(id_e) ! triangle edge length
                 do k = 1, zlevels
                    v_e = abs (sol(S_VELO,k)%data(d)%elts(id_e))
                    dt_loc = min (dt_loc, cfl_num*d_e/(v_e+wave_speed))
@@ -1035,7 +1022,7 @@ contains
     integer :: d, n_active_d
 
     do d = 1, size(grid)
-       ! the following adds load for boundaries, but that seem just fair
+       ! The following includes load for boundaries, but that seem just fair
        n_active_d = domain_load(grid(d))
        write(fid,'(I10, 99999(1X,I8))') n_active_d, ( &
             grid(d)%pack(AT_NODE,:)%length + grid(d)%pack(AT_EDGE,:)%length + &

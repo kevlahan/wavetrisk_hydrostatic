@@ -13,7 +13,7 @@ contains
 
     do k = 1, zlevels
        do l = level_end-1, level_start-1, -1
-          call update_vector_bdry (scaling(S_MASS:S_TEMP,k), l+1)
+          call update_vector_bdry (scaling(S_MASS:S_TEMP,k), l+1, 1)
 
           ! Compute scalar wavelet coefficients
           do d = 1, size(grid)
@@ -25,7 +25,7 @@ contains
              nullify (wc_m, wc_t, mass, temp)
           end do
 
-          call update_vector_bdry (wavelet(S_MASS:S_TEMP,k), l+1)
+          call update_vector_bdry (wavelet(S_MASS:S_TEMP,k), l+1, 2)
 
           ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
           do d = 1, size(grid)
@@ -44,7 +44,7 @@ contains
        scaling(:,k)%bdry_uptodate             = .false.
        wavelet(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
 
-       call update_bdry (scaling(S_VELO,k), NONE)
+       call update_bdry (scaling(S_VELO,k), NONE, 3)
 
        ! Compute velocity wavelet coefficients
        do l = level_end-1, level_start-1, -1
@@ -74,8 +74,8 @@ contains
        l_start = level_start
     end if
 
-    call update_array_bdry1 (wavelet, level_start, level_end)
-    call update_array_bdry1 (scaling, l_start,     level_end)
+    call update_array_bdry1 (wavelet, level_start, level_end, 4)
+    call update_array_bdry1 (scaling, l_start,     level_end, 5)
 
     scaling%bdry_uptodate = .false.
 
@@ -95,7 +95,7 @@ contains
              end if
              nullify (mass, temp, wc_m, wc_t)
           end do
-          call update_vector_bdry (scaling(S_MASS:S_TEMP,k), l+1)
+          call update_vector_bdry (scaling(S_MASS:S_TEMP,k), l+1, 6)
 
           ! Reconstruct outer velocities at finer edges (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
@@ -106,7 +106,7 @@ contains
              nullify (velo, wc_u)
           end do
 
-          call update_bdry (scaling(S_VELO,k), l+1)
+          call update_bdry (scaling(S_VELO,k), l+1, 7)
 
           ! Reconstruct scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
@@ -126,7 +126,7 @@ contains
              nullify (velo, wc_u)
           end do
 
-          if (l < level_end-1) call update_bdry (scaling(S_VELO,k), l+1) ! for next outer velocity`
+          if (l < level_end-1) call update_bdry (scaling(S_VELO,k), l+1, 8) ! for next outer velocity`
           scaling(:,k)%bdry_uptodate = .false.
        end do
     end do

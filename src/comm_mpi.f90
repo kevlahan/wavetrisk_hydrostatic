@@ -6,7 +6,6 @@ module comm_mpi_mod
   type(Int_Array)                      :: recv_buf_i, send_buf_i
   type(Float_Array)                    :: recv_buf, send_buf
   integer, dimension(:),   allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
-  integer, dimension(:,:), allocatable :: stat_ray
   real(8), dimension(2)                :: times
 contains
   subroutine init_comm_mpi
@@ -14,13 +13,12 @@ contains
     allocate (send_lengths(n_process), send_offsets(n_process))
     allocate (recv_lengths(n_process), recv_offsets(n_process))
     allocate (req(2*n_process))
-    allocate (stat_ray(MPI_STATUS_SIZE,2*n_process))
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi
 
-  integer function write_active_per_level()
-    ! write out distribution of active nodes over levels
+  integer function write_active_per_level ()
+    ! Write out distribution of active nodes over levels
     implicit none
     integer                                         :: l, n_full, fillin, n_lev_cur, recommended_level_start
     integer, dimension(2*(level_end-level_start+1)) :: n_active_all_loc, n_active_all_glo
@@ -47,7 +45,7 @@ contains
     do l = level_start, level_end
        n_full = max_nodes_per_level(l) + max_nodes_per_level(l,EDGE)
 
-       ! fill-in: additional nodes on level `l` if it'd become lowest level 
+       ! Fill-in: additional nodes on level `l` if it'd become lowest level 
        ! minus the nodes on lower levels which would be removed
        fillin = n_full-n_active_per_lev(l)-sum(n_active_per_lev(level_start:l-1))
 
@@ -183,7 +181,7 @@ contains
 
   subroutine recreate_send_patch_lists
     implicit none
-    integer :: l, r, d, k, p, s, n, typ, d_neigh, i
+    integer :: d, d_neigh, i, k, l, n, p, r, s, typ 
 
     do l = level_start, level_end
        do d = 1, size(grid)
@@ -224,8 +222,7 @@ contains
       if (r0 == rank+1) return
 
       if (dom%src_patch(r0,l)%length > 0) then
-         ! skip if just added
-         if (dom%src_patch(r0,l)%elts(dom%src_patch(r0,l)%length) == p) return
+         if (dom%src_patch(r0,l)%elts(dom%src_patch(r0,l)%length) == p) return ! skip if just added
       end if
 
       call append (dom%src_patch(r0,l), p)
@@ -235,9 +232,9 @@ contains
   subroutine alltoall_dom (unpack_rout, N)
     implicit none
     external :: unpack_rout
-    integer :: N
+    integer  :: N
     
-    integer :: src, dest, r_src, r_dest, d_src, d_dest, i, k, length
+    integer               :: d_dest, d_src, dest, i, k, length, r_dest, r_src, src
     integer, dimension(N) :: st
 
     send_buf_i%length = 0 ! reset
@@ -283,7 +280,7 @@ contains
     call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, test_recv_len, 1, MPI_INTEGER, MPI_COMM_WORLD, ierror)
 
     write (3000+rank,*) test_recv_len-recv_lengths
-    close(3000+rank)
+    close (3000+rank)
     call MPI_Barrier (MPI_Comm_World, ierror)
   end subroutine check_alltoall_lengths
 
@@ -311,46 +308,38 @@ contains
   end subroutine alltoall
 
   subroutine comm_masks_mpi (l)
+    ! Communication of mask information in a subdomain between different processes
     implicit none
-    ! communication of mask information in a subdomain between different processes
     integer :: l
     
-    integer :: r_dest, r_src, d_src, d_dest, dest, id, i, kk
+    integer :: d_dest, d_src, dest, i, id, kk, r_dest, r_src
 
     send_buf_i%length = 0 ! reset
 
     do r_dest = 1, n_process ! destination for inter process communication
-
        send_offsets(r_dest) = send_buf_i%length
-
        do d_src = 1, n_domain(rank+1)
-
           if (r_dest == rank+1) cycle ! TODO communicate inside domain
-
           do d_dest = 1, n_domain(r_dest)
-
              dest = glo_id(r_dest,d_dest)+1
-
              do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
                 id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
                 if (l == NONE .or. l == grid(d_src)%level%elts(id+1)) then
                    call append (send_buf_i, grid(d_src)%mask_n%elts(abs(id)+1))
                 end if
              end do
-
              do i = 1, grid(d_src)%pack(AT_EDGE,dest)%length
                 id = grid(d_src)%pack(AT_EDGE,dest)%elts(i)
                 if (l == NONE .or. l == grid(d_src)%level%elts(id/EDGE+1)) then
                    call append (send_buf_i, grid(d_src)%mask_e%elts(abs(id)+1))
                 end if
              end do
-
           end do
        end do
        send_lengths(r_dest) = send_buf_i%length - send_offsets(r_dest)
     end do
 
-    ! determine recv buff lengths
+    ! Determine recv buff lengths
     recv_buf_i%length = 0
     do r_src = 1, n_process 
        recv_offsets(r_src) = recv_buf_i%length
@@ -374,11 +363,12 @@ contains
        allocate (recv_buf_i%elts(recv_buf_i%length))
     end if
 
-    !     call check_alltoall_lengths()
+    ! Call check_alltoall_lengths()
     call MPI_Alltoallv (send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
-         recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, MPI_COMM_WORLD, ierror)
+                        recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, &
+                        MPI_COMM_WORLD, ierror)
 
-    ! communicate inside domain
+    ! Communicate inside domain
     call comm_masks
 
     kk = 0
@@ -405,50 +395,75 @@ contains
     end do
   end subroutine comm_masks_mpi
 
-  subroutine update_bdry1 (field, l_start, l_end)
+  subroutine deadlock_test (flag)
+    ! Detects deadlock and aborts
+    implicit none
+    integer                         :: flag
+
+    logical            :: got_data
+    real(8)            :: t_start
+    real(8), parameter :: timeout_time = 1.0d2
+
+    t_start = MPI_Wtime() 
+    call MPI_Test (req, got_data, MPI_STATUS_IGNORE, ierror)
+    do while (.not. got_data .and. MPI_Wtime()-t_start < timeout_time) 
+       call MPI_Test (req, got_data, MPI_STATUS_IGNORE, ierror)
+    end do
+    if (.not. got_data) then
+       write (6,'(A,i2,A,i5)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
+       call abort
+    end if
+  end subroutine deadlock_test
+
+  subroutine update_bdry1 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field) :: field
-    integer l_start, l_end
+    integer           :: flag, l_start, l_end
 
-    call update_bdry__start1 (field, l_start, l_end)
+    call update_bdry__start1  (field, l_start, l_end)
+    call deadlock_test (flag)
     call update_bdry__finish1 (field, l_start, l_end)
   end subroutine update_bdry1
 
-  subroutine update_array_bdry1 (field, l_start, l_end)
+  subroutine update_array_bdry1 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field), dimension(:,:) :: field
-    integer l_start, l_end
+    integer                           :: flag, l_start, l_end
 
-    call update_array_bdry__start1 (field, l_start, l_end)
-    call update_array_bdry__finish1(field, l_start, l_end)
+    call update_array_bdry__start1  (field, l_start, l_end)
+    call deadlock_test (flag)
+    call update_array_bdry__finish1 (field, l_start, l_end)
   end subroutine update_array_bdry1
 
-  subroutine update_bdry (field, l)
+  subroutine update_bdry (field, l, flag)
     implicit none
     type(Float_Field) :: field
-    integer           :: l
+    integer           :: flag, l
 
     call update_bdry__start  (field, l)
+    call deadlock_test (flag)
     call update_bdry__finish (field, l)
   end subroutine update_bdry
 
-  subroutine update_vector_bdry (field, l)
+  subroutine update_vector_bdry (field, l, flag)
     implicit none
     ! Updates field array
     type(Float_Field), dimension(:) :: field
-    integer                         :: l
+    integer                         :: flag, l
 
     call update_vector_bdry__start  (field, l)
+    call deadlock_test (flag)
     call update_vector_bdry__finish (field, l)
   end subroutine update_vector_bdry
   
-  subroutine update_array_bdry (field, l)
+  subroutine update_array_bdry (field, l, flag)
     ! Updates field array
     implicit none
     type(Float_Field), dimension(:,:) :: field
-    integer                           :: l
+    integer                           :: flag, l
 
     call update_array_bdry__start  (field, l)
+    call deadlock_test (flag)
     call update_array_bdry__finish (field, l)
   end subroutine update_array_bdry
 
@@ -495,7 +510,7 @@ contains
     type(Float_Field) :: field
     integer           :: l_start, l_end
     
-    integer :: r_dest, r_src, d_src, d_dest, dest, id, i, k, r, multipl, lev
+    integer :: d_src, d_dest, dest, i, id, k, lev, multipl, r, r_dest, r_src
 
     if (field%bdry_uptodate) return
 
@@ -523,7 +538,7 @@ contains
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
     end do
 
-    ! determine recv buff lengths
+    ! Determine recv buff lengths
     recv_buf%length = 0
     do r_src = 1, n_process 
        recv_offsets(r_src) = recv_buf%length
@@ -545,23 +560,23 @@ contains
        allocate (recv_buf%elts(recv_buf%length))
     end if
 
-    ! Post all receives first
+    ! Post all receives first so buffer is available
     nreq = 0
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
-            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+            MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
-            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+            MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
-    ! communicate inside domain
+    ! Communicate inside domain
     call cp_bdry_inside (field)
   end subroutine update_bdry__start1
 
@@ -571,15 +586,12 @@ contains
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
     
-    integer :: i1, sz, r_dest, r_src, d_src, d_dest, dest, id, i, k, r, multipl, lev, pos
+    integer :: d_dest, d_src, dest, i, i1, id, k, lev, multipl, pos, r, r_dest, r_src
     logical :: ret
 
-    ! Find shape of field
-    sz = size(field)
-    
     ! Check if boundaries of all field elements are up to date
     ret = .true.
-    do i1 = 1, sz
+    do i1 = 1, size(field)
        if (.not. field(i1)%bdry_uptodate) ret=.false.
     end do
     if (ret) return
@@ -593,7 +605,7 @@ contains
           do d_dest = 1, n_domain(r_dest)
              dest = glo_id(r_dest,d_dest)+1
              ! Loop over each element of field array
-             do i1 = 1, sz
+             do i1 = 1, size(field)
                 pos = field(i1)%pos
                 if (pos == AT_NODE) then
                    multipl = 1
@@ -602,7 +614,6 @@ contains
                 end if
                 do i = 1, grid(d_src)%pack(pos,dest)%length
                    id = grid(d_src)%pack(pos,dest)%elts(i)
-
                    lev = grid(d_src)%level%elts(id/multipl+1)
                    if (l_start <= lev .and. lev <= l_end) call append (send_buf, field(i1)%data(d_src)%elts(id+1))
                 end do
@@ -612,7 +623,7 @@ contains
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
     end do
 
-    ! determine recv buff lengths
+    ! Determine recv buff lengths
     recv_buf%length = 0
     do r_src = 1, n_process 
        recv_offsets(r_src) = recv_buf%length
@@ -620,7 +631,7 @@ contains
           if (r_src == rank+1) cycle 
           do d_dest = 1, n_domain(rank+1)
              ! Loop over each element of field array
-             do i1 = 1, sz
+             do i1 = 1, size(field)
                 pos = field(i1)%pos
                 if (pos == AT_NODE) then
                    multipl = 1
@@ -629,12 +640,10 @@ contains
                 end if
                 do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                    id = abs(grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i))
-
                    lev = grid(d_dest)%level%elts(id/multipl+1)
                    if (l_start <= lev .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
                 end do
              end do
-
           end do
        end do
        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
@@ -645,23 +654,23 @@ contains
        allocate (recv_buf%elts(recv_buf%length))
     end if
 
-    ! Post all receives first
+    ! Post all receives first so buffer is available
     nreq = 0
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
-            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+            MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
-            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+            MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
-    ! communicate inside domain
+    ! Communicate inside domain
     call cp_bdry_inside_vector (field)
   end subroutine update_vector_bdry__start1
 
@@ -671,17 +680,13 @@ contains
     type(Float_Field), dimension(:,:) :: field
     integer                           ::  l_start, l_end
     
-    integer               :: i1, i2, r_dest, r_src, d_src, d_dest, dest, id, i, k, r, multipl, lev, pos
-    integer, dimension(2) :: sz
-    logical               :: ret
-
-    ! Find shape of field
-    sz = shape(field)
+    integer :: d_dest, d_src, dest, i, i1, i2, id, k, lev, multipl, pos, r, r_dest, r_src
+    logical :: ret
 
     ! Check if boundaries of all field elements are up to date
     ret = .true.
-    do i2 = 1, sz(2)
-       do i1 = 1, sz(1)
+    do i2 = 1, size(field,2)
+       do i1 = 1, size(field,1)
           if (.not. field(i1,i2)%bdry_uptodate) ret=.false.
        end do
     end do
@@ -695,10 +700,9 @@ contains
           if (r_dest == rank+1) cycle ! TODO communicate inside domain
           do d_dest = 1, n_domain(r_dest)
              dest = glo_id(r_dest,d_dest)+1
-
              ! Loop over each element of field array
-             do i2 = 1, sz(2)
-                do i1 = 1, sz(1)
+             do i2 = 1, size(field,2)
+                do i1 = 1, size(field,1)
                    pos = field(i1,i2)%pos
                    if (pos == AT_NODE) then
                       multipl = 1
@@ -707,7 +711,6 @@ contains
                    end if
                    do i = 1, grid(d_src)%pack(pos,dest)%length
                       id = grid(d_src)%pack(pos,dest)%elts(i)
-
                       lev = grid(d_src)%level%elts(id/multipl+1)
                       if (l_start <= lev .and. lev <= l_end) call append (send_buf, field(i1,i2)%data(d_src)%elts(id+1))
                    end do
@@ -718,17 +721,16 @@ contains
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
     end do
 
-    ! determine recv buff lengths
+    ! Determine recv buff lengths
     recv_buf%length = 0
     do r_src = 1, n_process 
        recv_offsets(r_src) = recv_buf%length
        do d_src = 1, n_domain(r_src)
           if (r_src == rank+1) cycle 
           do d_dest = 1, n_domain(rank+1)
-
              ! Loop over each element of field array
-             do i2 = 1, sz(2)
-                do i1 = 1, sz(1)
+             do i2 = 1, size(field,2)
+                do i1 = 1, size(field,1)
                    pos = field(i1,i2)%pos
                    if (field(i1,i2)%pos == AT_NODE) then
                       multipl = 1
@@ -737,7 +739,6 @@ contains
                    end if
                    do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                       id = abs(grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i))
-
                       lev = grid(d_dest)%level%elts(id/multipl+1)
                       if (l_start <= lev .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
                    end do
@@ -753,23 +754,23 @@ contains
        allocate (recv_buf%elts(recv_buf%length))
     end if
 
-    ! Post all receives first
+    ! Post all receives first so buffer is available
     nreq = 0
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, &
-            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+            MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, &
-            r-1, 1, MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+            MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
-    ! communicate inside domain
+    ! Communicate inside domain
     call cp_bdry_inside_array (field)
   end subroutine update_array_bdry__start1
 
@@ -826,8 +827,9 @@ contains
        multipl = EDGE
     end if
 
+    call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE, ierror)
+
     k = 0
-    call MPI_Waitall (nreq, req, stat_ray, ierror)
     do r_src = 1, n_process 
        if (r_src == rank+1) cycle ! inside domain
        do d_src = 1, n_domain(r_src)
@@ -845,7 +847,7 @@ contains
        end do
     end do
 
-    ! assumes routine is either called for one level, or all levels ever to be updated
+    ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
   end subroutine update_bdry__finish1
 
@@ -855,27 +857,24 @@ contains
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
     
-    integer :: i1, sz, r_dest, r_src, d_src, d_dest, dest, id, i, k, multipl, lev, pos
+    integer :: d_dest, d_src, dest, id, i, i1, k, lev, multipl, pos, r_dest, r_src
     logical :: ret
-
-    ! Find shape of field
-    sz = size(field)
 
     ! Check if boundaries of all field elements are up to date
     ret = .true.
-    do i1 = 1, sz
+    do i1 = 1, size(field)
        if (.not. field(i1)%bdry_uptodate) ret=.false.
     end do
     if (ret) return
 
-    k = 0
-    call MPI_Waitall (nreq, req, stat_ray, ierror)
+    call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE, ierror)
     
+    k = 0
     do r_src = 1, n_process 
        if (r_src == rank+1) cycle ! inside domain
        do d_src = 1, n_domain(r_src)
           do d_dest = 1, n_domain(rank+1)
-             do i1 = 1, sz
+             do i1 = 1, size(field)
                 pos = field(i1)%pos 
                 if (pos == AT_NODE) then
                    multipl = 1
@@ -884,7 +883,6 @@ contains
                 end if
                 do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                    id = grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i)
-
                    lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
                    if (l_start <= lev .and. lev <= l_end) then
                       k = k + 1
@@ -898,7 +896,7 @@ contains
        end do
     end do
 
-    ! assumes routine is either called for one level, or all levels ever to be updated
+    ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
   end subroutine update_vector_bdry__finish1
   
@@ -908,31 +906,27 @@ contains
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
     
-    integer               ::  i1, i2, r_dest, r_src, d_src, d_dest, dest, id, i, k, multipl, lev, pos
-    integer, dimension(2) :: sz
-    logical               :: ret
-
-    ! Find shape of field
-    sz = shape(field)
+    integer :: d_dest, d_src, dest, i, i1, i2, id, k, lev, multipl, pos, r_dest, r_src
+    logical :: ret
 
     ! Check if boundaries of all field elements are up to date
     ret = .true.
-    do i2 = 1, sz(2)
-       do i1 = 1, sz(1)
+    do i2 = 1, size(field,2)
+       do i1 = 1, size(field,1)
           if (.not. field(i1,i2)%bdry_uptodate) ret=.false.
        end do
     end do
     if (ret) return
 
-    k = 0
-    call MPI_Waitall (nreq, req, stat_ray, ierror)
+    call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE, ierror)
 
+    k = 0
     do r_src = 1, n_process 
        if (r_src == rank+1) cycle ! inside domain
        do d_src = 1, n_domain(r_src)
           do d_dest = 1, n_domain(rank+1)
-             do i2 = 1, sz(2)
-                do i1 = 1, sz(1)
+             do i2 = 1, size(field,2)
+                do i1 = 1, size(field,1)
                    pos = field(i1,i2)%pos
                    if (pos == AT_NODE) then
                       multipl = 1
@@ -955,7 +949,7 @@ contains
        end do
     end do
 
-    ! assumes routine is either called for one level, or all levels ever to be updated
+    ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
   end subroutine update_array_bdry__finish1
   
@@ -1008,7 +1002,8 @@ contains
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
-         recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, ierror)
+                        recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
+                        MPI_COMM_WORLD, ierror)
 
     call comm_nodes9 (get, set) ! communicate inside domain
 
@@ -1055,7 +1050,7 @@ contains
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
     end do
 
-    ! determine recv buff lengths
+    ! Determine recv buff lengths
     recv_buf%length = 0
     do r_src = 1, n_process 
        recv_offsets(r_src) = recv_buf%length
@@ -1076,7 +1071,8 @@ contains
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
-         recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, ierror)
+                        recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
+                        MPI_COMM_WORLD, ierror)
 
     call comm_nodes3 (get, set) ! communicate inside domain
 
@@ -1130,7 +1126,7 @@ contains
                 else
                    ngh_pa = grid(d_src)%bdry_patch%elts(b+1)%neigh
                 end if
-                ! also skips if dest == 0
+                ! Also skips if dest == 0
                 if (ngh_pa /= 0 .and. d_glo == glo_id(r_dest,d_dest)) then 
                    rot = grid(d_src)%neigh_rot(typ)
                    rot_shift = (rot_direction(grid(d_src), typ)*2 - 1)*rot
@@ -1176,7 +1172,7 @@ contains
   real(8) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
-    integer               :: l, ierror
+    integer               :: l, ierror, level_end_glo
     integer, dimension(2) :: n_active_loc
     
     if (adapt_dt) then
@@ -1201,8 +1197,9 @@ contains
 
     ! Active nodes and edges
     n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
-    call MPI_Allreduce (n_active_loc, n_active, 2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    call MPI_Allreduce (level_end, level_end, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (n_active_loc, n_active,      2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (level_end,    level_end_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
+    level_end = level_end_glo
   end function cpt_dt
 
   real(8) function cpt_min_mass ()
