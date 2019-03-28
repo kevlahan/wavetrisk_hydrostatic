@@ -1172,7 +1172,7 @@ contains
   real(8) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
-    integer               :: l, ierror
+    integer               :: l, ierror, level_end_glo
     integer, dimension(2) :: n_active_loc
     
     if (adapt_dt) then
@@ -1196,9 +1196,10 @@ contains
     end if
 
     ! Active nodes and edges
-    n_active_loc = (/ sum(n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
-    call MPI_Allreduce (n_active_loc, n_active,  2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    call MPI_Allreduce (MPI_IN_PLACE, level_end, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
+    n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
+    call MPI_Allreduce (n_active_loc, n_active,      2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (level_end,    level_end_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
+    level_end = level_end_glo
   end function cpt_dt
 
   real(8) function cpt_min_mass ()
