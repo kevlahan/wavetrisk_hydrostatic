@@ -56,10 +56,11 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),login)) # occigen
   OPTIM  = -fast
   LIBS   = -mkl
   FLAGS  = -traceback -module $(BUILD_DIR) -diag-disable 8291
-  # Need to load: module load openmpi/gnu/2.0.2 mkl/18.1                                                                                                                
-  # F90    = gfortran                                                                                                                                                   
-  # MPIF90 = mpif90                           
-  # OPTIM  = -O2                                                                                                                                                          # LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm                                                
+  # Need to load: module load openmpi/gnu/2.0.2 mkl/18.1
+  # F90    = gfortran
+  # MPIF90 = mpif90
+  # OPTIM  = -O2
+  # LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
   # FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all -B /opt/software/common/intel/compilers_and_libraries_2018.1.163/linux/mkl/lib/intel64
 else ifeq ($(MACHINE),mac)
   F90    = gfortran
