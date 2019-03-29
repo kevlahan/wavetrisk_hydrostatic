@@ -6,7 +6,7 @@ module test_case_mod
   implicit none
   
   ! Standard variables
-  integer                              :: CP_EVERY, save_zlev
+  integer                              :: CP_EVERY, resume_init, save_zlev
   real(8)                              :: dt_cfl, initotalmass, mass_error, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
@@ -326,13 +326,14 @@ contains
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
-    read (fid,*) varname, resume
+    read (fid,*) varname, resume_init
     close(fid)
     
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
     dt_write = dt_write * DAY
     time_end = time_end * DAY
+    resume   = resume_init
     Laplace_order = Laplace_order_init
 
     ! Bins for zonal statistics
@@ -410,7 +411,7 @@ contains
        write (6,'(a,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance           = ", rebalance
        write (6,'(a,es10.4)') "time_end (day)      = ", time_end/DAY
-       write (6,'(a,i6)')     "resume              = ", resume
+       write (6,'(a,i6)')     "resume              = ", resume_init
        
        write (6,'(/,a)')      "STANDARD PARAMETERS"
        write (6,'(a,es10.4)') "radius              = ", radius
