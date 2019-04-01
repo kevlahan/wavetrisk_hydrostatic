@@ -134,7 +134,7 @@ contains
     call cal_surf_press (sol)
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
-    call update_vector_bdry (exner_fun, NONE)
+    call update_vector_bdry (exner_fun, NONE, 41)
 
     ! Zonal averages
     do k = 1, zlevels
@@ -206,7 +206,7 @@ contains
     call cal_surf_press (sol)
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
-    call update_vector_bdry (exner_fun, NONE)
+    call update_vector_bdry (exner_fun, NONE, 42)
 
     ! Zonal averages
     do k = 1, zlevels
@@ -255,7 +255,7 @@ contains
     call cal_surf_press (sol)
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
-    call update_vector_bdry (exner_fun, NONE)
+    call update_vector_bdry (exner_fun, NONE, 43)
 
     ! Zonal averages
     do k = 1, zlevels
@@ -319,7 +319,7 @@ contains
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
-    call update_vector_bdry (exner_fun, NONE)
+    call update_vector_bdry (exner_fun, NONE, 44)
 
     ! Latitude-longitude projections
     do k = 1, save_levels
