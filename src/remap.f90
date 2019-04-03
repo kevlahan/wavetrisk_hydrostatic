@@ -38,8 +38,8 @@ contains
        interp_scalar => remap0
        interp_velo   => remap0
     else
-       interp_scalar => remap_PPR
-       interp_velo   => remap_PPR
+       interp_scalar => remap2W
+       interp_velo   => remap2W
     end if
     
     if (standard) then ! Standard (remap potential temperature)
@@ -992,7 +992,7 @@ contains
   end subroutine remap4
 
   subroutine remap_PPR (N, var_new, z_new, var_old, z_old)
-    ! PPR remapping
+    ! PPR remapping using Engwirda and Kelley (2016) algorithms
     use ppr_1d
     implicit none
     integer                 :: N
@@ -1009,13 +1009,15 @@ contains
 
     ! Order of edge interpolation: p1e (linear), p3e (cubic), p5e (quintic)
     opts%edge_meth = p5e_method 
-    ! PPM method in cells: pcm (piecewise constant), plm (piecewise linear), ppm (piecewise parabolic), pqm (slope-limited piecewise quartic)
-    opts%cell_meth = ppm_method
-    ! Slope limiter (null, mono, weno)
-    opts%cell_lims = null_limit 
 
-    ! Set boundary conditions at endpoints
-    bc_l%bcopt = bcon_loose ! loose (extrapolate), value (Dirichlet), slope (Neumann)
+    ! PPM method in cells: pcm (piecewise constant), plm (piecewise linear), ppm (piecewise parabolic), pqm (slope-limited piecewise quartic)
+    opts%cell_meth = pqm_method
+
+    ! Slope limiter (null, mono, weno)
+    opts%cell_lims = mono_limit 
+
+    ! Set boundary conditions at endpoints: loose (extrapolate), value (Dirichlet), slope (Neumann)
+    bc_l%bcopt = bcon_loose
     bc_r%bcopt = bcon_loose
 
     ! Initialize method workspace
