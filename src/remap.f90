@@ -32,6 +32,7 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
+    ! remap_PPR = a selection of piecewise polynomial reconstructions written by Darren Engwirda (the options are specified in subroutine)
 
     if (istep <= 10) then ! use more diffusive remapping just after restart to avoid instability
        interp_scalar => remap0
