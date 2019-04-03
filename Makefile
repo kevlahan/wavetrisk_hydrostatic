@@ -18,7 +18,7 @@ vpath %.f90 src
 SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
       base_$(ARCH).f90 domain.f90 init.f90 comm.f90 comm_$(ARCH).f90 \
       wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 test_case_module.f90 ops.f90 \
-      multi_level.f90 adapt.f90 io.f90 time_integr.f90 remap.f90 main.f90
+      multi_level.f90 adapt.f90 io.f90 time_integr.f90 remap.f90 main.f90 
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
 SYSTEM = $(shell uname -a | cut -c 1-6 -)
@@ -55,7 +55,7 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),login)) # occigen
   MPIF90 = mpif90
   OPTIM  = -fast
   LIBS   = -mkl
-  FLAGS  = -traceback -module $(BUILD_DIR) -diag-disable 8291
+  FLAGS  = -traceback -module $(BUILD_DIR) -cpp -diag-disable 8291
   # Need to load: module load openmpi/gnu/2.0.2 mkl/18.1
   # F90    = gfortran
   # MPIF90 = mpif90
@@ -67,17 +67,17 @@ else ifeq ($(MACHINE),mac)
   OPTIM  = -O2
   LIBS   = -llapack	
   MPIF90 = mpif90
-  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
 else ifeq ($(MACHINE),froggy)
   F90    = gfortran
   MPIF90 = mpif90
   OPTIM  = -O2
-  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
 else # try gfortran as default
   F90    = gfortran
   MPIF90 = mpif90
   OPTIM  = -O2
-  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -fbacktrace -fcheck=all
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
 endif
 
 ifeq ($(ARCH),ser)
