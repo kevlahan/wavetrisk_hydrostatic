@@ -95,7 +95,10 @@ contains
              end if
              nullify (mass, temp, wc_m, wc_t)
           end do
-          call update_vector_bdry (scaling(S_MASS:S_TEMP,k), l+1, 6)
+
+          if (l > l_start) call update_bdry__finish (scaling(S_VELO,k), l) ! for next outer velocity
+
+          call update_vector_bdry__start (scaling(S_MASS:S_TEMP,k), l+1)
 
           ! Reconstruct outer velocities at finer edges (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
@@ -106,7 +109,8 @@ contains
              nullify (velo, wc_u)
           end do
 
-          call update_bdry (scaling(S_VELO,k), l+1, 7)
+          call update_vector_bdry__finish (scaling(S_MASS:S_TEMP,k), l+1)
+          call update_bdry__start (scaling(S_VELO,k), l+1)
 
           ! Reconstruct scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
@@ -118,6 +122,8 @@ contains
              nullify (mass, temp, wc_m, wc_t)
           end do
 
+          call update_bdry__finish (scaling(S_VELO,k), l+1)
+
           ! Reconstruct inner velocities at finer edges (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
              velo => scaling(S_VELO,k)%data(d)%elts
@@ -126,12 +132,13 @@ contains
              nullify (velo, wc_u)
           end do
 
-          if (l < level_end-1) call update_bdry (scaling(S_VELO,k), l+1, 8) ! for next outer velocity`
+          if (l < level_end-1) call update_bdry__start (scaling(S_VELO,k), l+1) ! for next outer velocity
+
           scaling(:,k)%bdry_uptodate = .false.
        end do
     end do
   end subroutine inverse_wavelet_transform
-
+ 
   function velo_interp_penta_corr (dom, offs, dims, offs_chd, dims_chd)
     implicit none
     real(8), dimension(2)          :: velo_interp_penta_corr

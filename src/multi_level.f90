@@ -19,15 +19,21 @@ contains
     do k = 1, zlevels
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
+          ! Finish non-blocking communication of dq from previous level (l+1)
+          if (l < level_end) call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) 
+
           call basic_operators  (q, dq, k, l)
           call cal_scalar_trend (q, dq, k, l)
-          if (level_start /= level_end .and. l > level_start) call update_vector_bdry (dq(S_MASS:S_TEMP,k), l, 10) 
+          
+          ! Start non-blocking communication of dq for use at next level (l-1)
+          if (level_start /= level_end .and. l > level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l) 
+
           call velocity_trend_source (q, dq, k, l)
        end do
        call velocity_trend_grad (q, dq, k)
     end do
   end subroutine trend_ml
-
+ 
   subroutine basic_operators (q, dq, k, l)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     implicit none
