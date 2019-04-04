@@ -5,7 +5,7 @@ max_level	   6             ! maximum level of resolution
 zlevels            18            ! number of vertical levels
 uniform            F             ! uniform (T) or hybrid (F) vertical grid
 remap              T             ! remap vertical grid
-min_allowed_mass   1.0           ! minimum allowed relative mass before remapping
+iremap             10            ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)	

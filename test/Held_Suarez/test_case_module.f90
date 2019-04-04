@@ -312,7 +312,7 @@ contains
     read (fid,*) varname, zlevels
     read (fid,*) varname, uniform
     read (fid,*) varname, remap
-    read (fid,*) varname, min_allowed_mass
+    read (fid,*) varname, iremap
     read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
     read (fid,*) varname, perfect
@@ -396,7 +396,7 @@ contains
        write (6,'(a,i3)')     "zlevels             = ", zlevels
        write (6,'(a,l1)')     "uniform             = ", uniform
        write (6,'(a,l1)')     "remap               = ", remap
-       write (6,'(a,es10.4)') "min_allowed_mass    = ", min_allowed_mass
+       write (6,'(a,es10.4)') "iremap              = ", iremap
        write (6,'(a,l1)')     "adapt_trend         = ", adapt_trend
        write (6,'(a,l1)')     "default_thresholds  = ", default_thresholds
        write (6,'(a,l1)')     "perfect             = ", perfect
@@ -466,7 +466,7 @@ contains
             ' cpu = ', timing
 
        write (12,'(5(es15.9,1x),i2,1x,i9,1x,4(es15.9,1x))')  &
-            time/HOUR, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
+            time/DAY, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
             sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
@@ -497,8 +497,8 @@ contains
 
     n_diffuse = 1
 
-    C_visc = 1.5d-2/n_diffuse ! diffusion constant for scalars and rotu
-    C_divu = 5.0d-2/n_diffuse ! diffusion constant for divu
+    C_visc = 5d-3/n_diffuse ! diffusion constant for scalars and rotu
+    C_divu = 4d-2/n_diffuse ! diffusion constant for divu
     
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -530,7 +530,17 @@ contains
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
        if (Laplace_order_init == 1) then
-          write (6,'(A)') " (should be <= 0.4)"
+           if (C_visc /= 0.0_8 .and. C_divu /= 0.0_8) then
+             C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (maxval (visc_sclr) + visc_divu)
+             write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
+          elseif (C_visc == 0.0_8 .or. C_divu == 0.0_8) then
+             C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (max(maxval (visc_sclr), visc_divu))
+             write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
+          end if
+          if (C_stability >= 4.5d-1 .or. C_visc > 3.5d-1 .or. C_divu > 3.5d-1) then
+             write (6,'(A)') "!!!! ERROR: diffusion too large for stability ... aborting !!!!"
+             call abort
+          end if
        elseif (Laplace_order_init == 2) then
           if (C_visc /= 0.0_8 .and. C_divu /= 0.0_8) then
              C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (maxval (visc_sclr) + visc_divu)
@@ -539,7 +549,7 @@ contains
              C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (max(maxval (visc_sclr), visc_divu))
              write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
           end if
-          if (C_stability >= 7d-2 .or. C_visc > 5d-2 .or. C_divu > 5d-2) then
+          if (C_stability > 7d-2 .or. C_visc > 5d-2 .or. C_divu > 5d-2) then
              write (6,'(A)') "!!!! ERROR: diffusion too large for stability ... aborting !!!!"
              call abort
           end if

@@ -315,10 +315,9 @@ module shared_mod
   real(8), parameter :: MATH_PI = acos(-1.0_8)
   
   ! Simulation variables
-  integer                                       :: cp_idx, err_restart, ibin, istep, istep_cumul, iwrite, n_diffuse, nbins
+  integer                                       :: cp_idx, err_restart, ibin, iremap, istep, istep_cumul, iwrite, n_diffuse, nbins
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
-  integer, parameter                            :: max_restart = 10 ! maximum allowed number of restarts after negative mass event
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
   
@@ -407,7 +406,8 @@ contains
     C_visc              = 1d-2
     level_save          = level_start
     Laplace_order_init  = 0                      ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
-    min_allowed_mass    = 0.3_8
+    iremap              = 1
+    min_allowed_mass    = 1.0_8
     n_diffuse           = 1
     optimize_grid       = HR_GRID
     save_levels         = 1
