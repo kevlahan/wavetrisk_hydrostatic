@@ -829,7 +829,6 @@ contains
 
     do v = S_MASS, S_TEMP
        write (fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
-       write (fid) trend(v,zlev)%data(d)%elts(id+1) ! for pole`
     end do
   end subroutine write_scalar
 
@@ -847,7 +846,6 @@ contains
 
     do v = S_MASS, S_TEMP
        read (fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
-       read (fid) trend(v,zlev)%data(d)%elts(id+1) ! for pole
     end do
   end subroutine read_scalar
 
@@ -860,11 +858,10 @@ contains
     external     :: custom_dump
     character(*) :: run_id
 
-    integer                               :: c, d, i, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
+    integer                               :: c, d, ibeg, iend, j, k, l, p_par, v
     integer, dimension(1:size(grid))      :: fid_no, fid_gr
     character(255)                        :: filename_gr, filename_no
     logical, dimension(1:N_CHDRN)         :: required
-    type(Domain), dimension(1:size(grid)) :: grid_tmp
 
     interface
        subroutine custom_dump (fid)
@@ -872,21 +869,11 @@ contains
          integer :: fid
        end subroutine custom_dump
     end interface
-
-    ! Make copy of grid since grid is modified when saving checkpoint
-    grid_tmp = grid
     
     fid_no = id+1000000
     fid_gr = id+3000000
-
-    sol%bdry_uptodate             = .false.
-    trend%bdry_uptodate           = .false.
-    wav_coeff%bdry_uptodate       = .false.
-    trend_wav_coeff%bdry_uptodate = .false.
-    call update_array_bdry (sol,             NONE, 18)
-    call update_array_bdry (trend,           NONE, 19)
-    call update_array_bdry (wav_coeff,       NONE, 20)
-    call update_array_bdry (trend_wav_coeff, NONE, 21)
+    
+    call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), NONE, 20)
 
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -894,13 +881,6 @@ contains
           temp => sol(S_TEMP,k)%data(d)%elts
           wc_m => wav_coeff(S_MASS,k)%data(d)%elts
           wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-          call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
-          nullify (mass, temp, wc_m, wc_t)
-
-          mass => trend(S_MASS,k)%data(d)%elts
-          temp => trend(S_TEMP,k)%data(d)%elts
-          wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
-          wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
           call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
           nullify (mass, temp, wc_m, wc_t)
        end do
@@ -921,54 +901,33 @@ contains
        ! Write data at coarsest scale (scaling functions)
        p_par = 1
        do k = 1, zlevels
-          call apply_to_pole_d (write_scalar, grid_tmp(d), min_level-1, k, fid_no(d), .true.)
+          call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
           do v = S_MASS, S_VELO
-             ibeg = MULT(v)*grid_tmp(d)%patch%elts(p_par+1)%elts_start + 1
+             ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
-             write (fid_no(d))   sol(v,k)%data(d)%elts(ibeg:iend)
-             write (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
+             write (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
 
        ! Write wavelets at finer scales
        do l = min_level, level_end
-          p_lev = 0
-          do j = 1, grid_tmp(d)%lev(l)%length
-             p_par = grid_tmp(d)%lev(l)%elts(j)
-             if (grid_tmp(d)%patch%elts(p_par+1)%deleted) then
-                do c = 1, N_CHDRN
-                   p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
-                   if (p_chd > 0) grid_tmp(d)%patch%elts(p_chd+1)%deleted = .true. 
-                end do
-                cycle ! No data to write
-             end if
- 
-            do k = 1, zlevels
+          do j = 1, grid(d)%lev(l)%length
+             p_par = grid(d)%lev(l)%elts(j)
+             do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
-                   write (fid_no(d))       wav_coeff(v,k)%data(d)%elts(ibeg:iend)
-                   write (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
+                   write (fid_no(d)) wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
              end do
 
              ! Record whether patch needs to be refined
+             required = .false.
              do c = 1, N_CHDRN
-                p_chd = grid_tmp(d)%patch%elts(p_par+1)%children(c)
-                if (p_chd > 0) then
-                   required(c) = check_child_required(grid_tmp(d), p_par, c-1)
-                   grid_tmp(d)%patch%elts(p_chd+1)%deleted = .not. required(c) 
-                   if (required(c)) then
-                      p_lev = p_lev + 1
-                      grid_tmp(d)%lev(l+1)%elts(p_lev) = p_chd ! ** grid modified **
-                   end if
-                else
-                   required(c) = .false.
-                end if
+                if (grid(d)%patch%elts(p_par+1)%children(c) > 0) required(c) = .true.
              end do
              write (fid_gr(d)) required
           end do
-          if (l+1 <= max_level) grid_tmp(d)%lev(l+1)%length = p_lev ! ** grid modified **
        end do
        close (fid_no(d))
        close (fid_gr(d))
@@ -983,10 +942,10 @@ contains
     external     :: custom_load
     character(*) :: run_id
 
-    character(255)                       :: filename_gr, filename_no
-    integer                              :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, v
-    integer, dimension(1:size(grid))     :: fid_no, fid_gr
-    logical, dimension(N_CHDRN)          :: required
+    character(255)                   :: filename_gr, filename_no
+    integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, v
+    integer, dimension(1:size(grid)) :: fid_no, fid_gr
+    logical, dimension(1:N_CHDRN)    :: required
 
      interface
        subroutine custom_load (fid)
@@ -1017,8 +976,7 @@ contains
           do v = S_MASS, S_VELO
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
-             read (fid_no(d))   sol(v,k)%data(d)%elts(ibeg:iend)
-             read (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
+             read (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
     end do
@@ -1037,8 +995,7 @@ contains
                 do v = S_MASS, S_VELO
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
-                   read (fid_no(d))       wav_coeff(v,k)%data(d)%elts(ibeg:iend)
-                   read (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
+                   read (fid_no(d)) wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
              end do
 
@@ -1061,14 +1018,8 @@ contains
        close(fid_no(d)); close(fid_gr(d))
     end do
 
-    sol%bdry_uptodate             = .false.
-    trend%bdry_uptodate           = .false.
-    wav_coeff%bdry_uptodate       = .false.
-    trend_wav_coeff%bdry_uptodate = .false.
-    call update_array_bdry (sol,             NONE, 22)
-    call update_array_bdry (trend,           NONE, 23)
-    call update_array_bdry (wav_coeff,       NONE, 24)
-    call update_array_bdry (trend_wav_coeff, NONE, 25)
+    sol%bdry_uptodate       = .false.
+    wav_coeff%bdry_uptodate = .false.
   end subroutine load_adapt_mpi
 
   subroutine proj_xz_plane (cin, cout)
