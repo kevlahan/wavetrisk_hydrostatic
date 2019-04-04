@@ -396,7 +396,7 @@ contains
        write (6,'(a,i3)')     "zlevels             = ", zlevels
        write (6,'(a,l1)')     "uniform             = ", uniform
        write (6,'(a,l1)')     "remap               = ", remap
-       write (6,'(a,es10.4)') "iremap              = ", iremap
+       write (6,'(a,i3)')     "iremap              = ", iremap
        write (6,'(a,l1)')     "adapt_trend         = ", adapt_trend
        write (6,'(a,l1)')     "default_thresholds  = ", default_thresholds
        write (6,'(a,l1)')     "perfect             = ", perfect
