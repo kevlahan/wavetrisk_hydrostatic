@@ -41,7 +41,7 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra, nia))
   MPIF90 = mpif90
   OPTIM  = -fast
   LIBS   = -mkl
-  FLAGS  = -traceback -module $(BUILD_DIR) -cpp -diag-disable 8291
+  FLAGS  = -traceback -module $(BUILD_DIR) -Isrc/ppr -cpp -diag-disable 8291
 # else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
 #   # Need to load: module load gcc/7.3.0 openmpi/3.1.0 mkl/2018.2
 #   F90    = gfortran
