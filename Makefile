@@ -35,7 +35,7 @@ ifeq ($(MACHINE),if)
   OPTIM  = -O2		
   LIBS   = -llapack
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
-else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra, nia))
+else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
   # Need module load intel; module load intelmpi
   F90    = ifort	
   MPIF90 = mpif90
