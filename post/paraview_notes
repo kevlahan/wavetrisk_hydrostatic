@@ -1,7 +1,7 @@
 PARAVIEW NOTES
 
 SELECTING OBJECTS TO DISPLAY
-Click on the window and then in the pipeline browser: click on "eye" to left of object to activate or de-activate its display in the window.
+Click on the window and then in the pipeline browser: click on "eye" to left of object to activate or de-activate its display in the window. May to open "Properties" window.
 
 DISPLAY TIME
 Filters -> Annotation -> Annotate Time Filter.  Need to click on "Apply" to be able to format font and location.  Uses printf format (e.g. %4.2f). Use shift and scale
