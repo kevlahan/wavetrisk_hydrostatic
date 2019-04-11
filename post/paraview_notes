@@ -1,7 +1,7 @@
 PARAVIEW NOTES
 
 SELECTING OBJECTS TO DISPLAY
-Click on the window and then in the pipeline browser: click on "eye" to left of object to activate or de-activate its display in the window. May to open "Properties" window.
+Click on the window and then in the pipeline browser: click on "eye" to left of object to activate or de-activate its display in the window. May need to open "Properties" window.
 
 DISPLAY TIME
 Filters -> Annotation -> Annotate Time Filter.  Need to click on "Apply" to be able to format font and location.  Uses printf format (e.g. %4.2f). Use shift and scale
@@ -33,6 +33,9 @@ e.g.
 ffmpeg -r 12 -i test.%4d.jpg -vcodec mpeg4 -qscale 0 DCMIP2008c5.avi
 
 where: fps is the number of frames per second, "base" is the base name of the .jpg files and %4d is the frame numbering (e.g. test.0001.jpg, test.0002.jpg etc).
+NB: need to include -start_number option if first file does not start at zero 0, for example:
+
+ffmpeg -r 12 -start_number 10 -i test.%4d.jpg -vcodec mpeg4 -qscale 0 DCMIP2008c5.avi
 
 SAVE STATE
 To save the state of a session: File -> Save State...
