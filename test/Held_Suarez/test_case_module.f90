@@ -495,13 +495,14 @@ contains
     implicit none
     real(8) :: area, C_divu, C_stability, tau_divu, tau_visc
 
-    n_diffuse = 1
-
-    C_visc = 5d-3/n_diffuse ! diffusion constant for scalars and rotu
-    C_divu = 4d-2/n_diffuse ! diffusion constant for divu
-    
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
+      
+    n_diffuse = 1
+
+    ! C_visc*n_diffuse hould be <= 0.0175 for hyperdiffusion (lower than exact limit 0.028 due to non-uniform grid)
+    C_visc = 5d-3/n_diffuse    ! diffusion constant for scalars and rotu
+    C_divu = 1.75d-2/n_diffuse ! diffusion constant for divu            
 
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
@@ -527,33 +528,8 @@ contains
     if (rank == 0) then
        write (6,'(3(a,es8.2),a,/)') "dx_min  = ", dx_min/1d3, " [km] dt_cfl = ", dt_cfl, " [s] tau = ", tau_visc/HOUR, " [h]"
        write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
-            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
-            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-       if (Laplace_order_init == 1) then
-           if (C_visc /= 0.0_8 .and. C_divu /= 0.0_8) then
-             C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (maxval (visc_sclr) + visc_divu)
-             write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
-          elseif (C_visc == 0.0_8 .or. C_divu == 0.0_8) then
-             C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (max(maxval (visc_sclr), visc_divu))
-             write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
-          end if
-          if (C_stability >= 4.5d-1 .or. C_visc > 3.5d-1 .or. C_divu > 3.5d-1) then
-             write (6,'(A)') "!!!! ERROR: diffusion too large for stability ... aborting !!!!"
-             call abort
-          end if
-       elseif (Laplace_order_init == 2) then
-          if (C_visc /= 0.0_8 .and. C_divu /= 0.0_8) then
-             C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (maxval (visc_sclr) + visc_divu)
-             write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
-          elseif (C_visc == 0.0_8 .or. C_divu == 0.0_8) then
-             C_stability = dt_cfl/dx_min**(2*Laplace_order_init) * (max(maxval (visc_sclr), visc_divu))
-             write (6,'(A,es8.2)') "Diffusion stability constant = ", C_stability
-          end if
-          if (C_stability > 7d-2 .or. C_visc > 5d-2 .or. C_divu > 5d-2) then
-             write (6,'(A)') "!!!! ERROR: diffusion too large for stability ... aborting !!!!"
-             call abort
-          end if
-       end if
+          " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
+          " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
   end subroutine initialize_dt_viscosity
 

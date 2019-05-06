@@ -252,16 +252,29 @@ contains
 
   real(8) function cpt_min_mass ()
     implicit none
-
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    integer                        :: l
+    integer :: l
+    real(8) :: beta_sclr, beta_divu, beta_rotu
 
     min_mass_loc = 1.0d16
+    beta_sclr_loc = -1d16; beta_divu_loc = -1d16; beta_rotu_loc = -1d16
     do l = level_start, level_end
        call apply_onescale (cal_min_mass, l, z_null, 0, 0)
     end do
     cpt_min_mass = min_mass_loc
+    
+    beta_sclr = beta_sclr_loc
+    beta_divu = beta_divu_loc
+    beta_rotu = beta_rotu_loc
+
+    if (beta_sclr > (1.0_8/6)**Laplace_order_init) &
+         write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &
+         " is larger than ",  (1.0_8/6)**Laplace_order_init
+    if (beta_divu > (1.0_8/6)**Laplace_order_init) &
+         write (6,'(2(a,es8.2))') "WARNING: divu diffusion coefficient = ", beta_divu, &
+         " is larger than ",  (1.0_8/6)**Laplace_order_init
+    if (beta_rotu > (1.0_8/6/4)**Laplace_order_init) &
+         write (6,'(2(a,es8.2))') "WARNING: rotu diffusion coefficient = ", beta_rotu, &
+         " is larger than ",  (1.0_8/6/4)**Laplace_order_init
   end function cpt_min_mass
 
   integer function sync_max_int (val)

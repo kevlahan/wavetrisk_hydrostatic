@@ -4,7 +4,7 @@ module comm_mod
   implicit none
   integer, dimension(4,4)            :: shift_arr
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes
-  real(8)                            :: min_mass_loc, dt_loc, sync_val
+  real(8)                            :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, dt_loc, min_mass_loc, sync_val
 contains
   subroutine init_comm_mod
     implicit none
@@ -14,7 +14,7 @@ contains
     call init_arch_mod
     call init_domain_mod
     shift_arr = reshape ((/0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0/), (/4, 4/))
-    initialized = .True.
+    initialized = .true.
   end subroutine init_comm_mod
 
   subroutine init_comm
@@ -974,7 +974,7 @@ contains
   end subroutine min_dt
 
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
-    ! Calculates minimum mass
+    ! Calculates minimum mass and diffusion stability limits
     use, intrinsic :: ieee_arithmetic
     implicit none
     type(Domain)                   :: dom
@@ -982,10 +982,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id_i, k, l
-    real(8) :: col_mass, mu, init_mass
+    integer :: d, e, id, id_i, k, l
+    real(8) :: col_mass, d_e, fac, mu, init_mass
 
-    id_i = idx (i, j, offs, dims) + 1
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
     d  = dom%id + 1
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
@@ -1003,6 +1004,15 @@ contains
        do k = 1, zlevels
           init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
           min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
+       end do
+       
+       ! Check diffusion stability
+       do e = 1, EDGE
+          d_e = dom%len%elts(EDGE*id+e) ! triangle edge length
+          fac = dt/d_e**(2*Laplace_order)
+          beta_sclr_loc = max (beta_sclr_loc, maxval(visc_sclr) * fac)
+          beta_divu_loc = max (beta_divu_loc, visc_divu * fac)
+          beta_rotu_loc = max (beta_rotu_loc, visc_rotu * fac)
        end do
     end if
   end subroutine cal_min_mass
