@@ -59,7 +59,7 @@ contains
        ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case) etc
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-          call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null)
+          call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null, 1)
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
 
@@ -72,7 +72,7 @@ contains
           nullify (dmass, dtemp)
        end if
        
-       nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, vort, qe)
+       nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, qe, vort)
     end do
     if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
 
@@ -120,7 +120,7 @@ contains
        if (Laplace_order <= 1) then
           divu => grid(d)%divu%elts
        elseif (Laplace_order == 2) then
-          divu => Laplacian_divu%data(d)%elts
+          divu => Laplacian_vector(S_DIVU)%data(d)%elts
        end if
        
        if (l == level_end) then
@@ -193,14 +193,14 @@ contains
 
     do d = 1, size(grid)
        sclr      => grid(d)%divu%elts
-       Laplacian => Laplacian_divu%data(d)%elts
+       Laplacian => Laplacian_vector(S_DIVU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
        nullify (sclr, Laplacian)
 
        vort      => grid(d)%vort%elts
-       Laplacian => Laplacian_rotu%data(d)%elts
+       Laplacian => Laplacian_vector(S_ROTU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
@@ -210,10 +210,10 @@ contains
     ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
     !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
     do d = 1, size(grid)
-       velo => Laplacian_rotu%data(d)%elts
+       velo => Laplacian_vector(S_ROTU)%data(d)%elts
        vort => grid(d)%vort%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+          call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null, 0)
        end do
        call apply_to_penta_d (post_vort, grid(d), l, z_null)
        nullify (velo, vort)

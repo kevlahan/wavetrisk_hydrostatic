@@ -25,6 +25,7 @@ contains
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
     allocate (exner_fun(1:zlevels+1))
     allocate (horiz_flux(S_MASS:S_TEMP), Laplacian_scalar(S_MASS:S_TEMP))
+    allocate (Laplacian_vector(S_DIVU:S_ROTU))
     allocate (lnorm(S_MASS:S_VELO,1:zlevels))
 
     do k = 1, zlevels
@@ -42,8 +43,8 @@ contains
        end do
     end do
 
-    call init_Float_Field (Laplacian_divu, AT_NODE)
-    call init_Float_Field (Laplacian_rotu, AT_EDGE)
+    call init_Float_Field (Laplacian_vector(S_DIVU), AT_NODE)
+    call init_Float_Field (Laplacian_vector(S_ROTU), AT_EDGE)
     do v = S_MASS, S_TEMP
        call init_Float_Field (horiz_flux(v), AT_EDGE)
        call init_Float_Field (Laplacian_scalar(v), AT_NODE)
@@ -330,8 +331,8 @@ contains
     end do
 
     do d = 1, size(grid)
-       call init (Laplacian_divu%data(d), grid(d)%node%length)
-       call init (Laplacian_rotu%data(d), grid(d)%node%length*EDGE)
+       call init (Laplacian_vector(S_DIVU)%data(d), grid(d)%node%length)
+       call init (Laplacian_vector(S_ROTU)%data(d), grid(d)%node%length*EDGE)
        do v = S_MASS, S_TEMP
           call init (horiz_flux(v)%data(d), grid(d)%node%length*EDGE)
           call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
@@ -344,8 +345,8 @@ contains
        call init (grid(d)%geopot,       grid(d)%node%length)
        call init (grid(d)%u_zonal,      grid(d)%node%length)
        call init (grid(d)%v_merid,      grid(d)%node%length)
-       call init (grid(d)%press_lower,     grid(d)%node%length)
-       call init (grid(d)%geopot_lower,   grid(d)%node%length)
+       call init (grid(d)%press_lower,  grid(d)%node%length)
+       call init (grid(d)%geopot_lower, grid(d)%node%length)
        call init (grid(d)%bernoulli,    grid(d)%node%length)
        call init (grid(d)%divu,         grid(d)%node%length)
        call init (grid(d)%vort,         grid(d)%node%length*TRIAG)

@@ -436,8 +436,8 @@ contains
        end do
        deallocate (grid(d)%src_patch)
 
-       deallocate (Laplacian_divu%data(d)%elts)
-       deallocate (Laplacian_rotu%data(d)%elts)
+       deallocate (Laplacian_vector(S_DIVU)%data(d)%elts)
+       deallocate (Laplacian_vector(S_ROTU)%data(d)%elts)
        
        do v = S_MASS, S_TEMP
           deallocate (horiz_flux(v)%data(d)%elts)
@@ -461,8 +461,8 @@ contains
        end do
     end do
     
-    deallocate (Laplacian_divu%data)
-    deallocate (Laplacian_rotu%data)
+    deallocate (Laplacian_vector(S_DIVU)%data)
+    deallocate (Laplacian_vector(S_ROTU)%data)
 
     do k = 1, zlevels+1
        deallocate (exner_fun(k)%data)
@@ -490,7 +490,7 @@ contains
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)
     deallocate (sol, sol_save, trend, trend_wav_coeff, wav_coeff)       
-    deallocate (exner_fun, horiz_flux, Laplacian_scalar, lnorm)
+    deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
 
     nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &

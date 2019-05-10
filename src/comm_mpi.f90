@@ -1220,6 +1220,7 @@ contains
     call MPI_Allreduce (beta_divu_loc, beta_divu, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
     call MPI_Allreduce (beta_rotu_loc, beta_rotu, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
 
+    ! Check Klemp (2018) diffusion stability limits are satisfied
     if (rank == 0) then
        if (beta_sclr > (1.0_8/6)**Laplace_order_init) &
             write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &

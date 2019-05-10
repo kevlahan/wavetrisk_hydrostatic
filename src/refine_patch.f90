@@ -149,18 +149,18 @@ contains
     call extend (dom%coriolis, TRIAG*num, 0.0_8)
     call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -1, 1)
     
-    call extend (dom%surf_press,  num, 0.0_8)
-    call extend (dom%press,       num, 0.0_8)
-    call extend (dom%geopot,      num, 0.0_8)
-    call extend (dom%u_zonal,     num, 0.0_8)
-    call extend (dom%v_merid,     num, 0.0_8)
-    call extend (dom%press_lower, num, 0.0_8)
-    call extend (dom%geopot_lower,num, 0.0_8)
-    call extend (dom%bernoulli,   num, 0.0_8)
-    call extend (dom%divu,        num, 0.0_8)
+    call extend (dom%surf_press,   num, 0.0_8)
+    call extend (dom%press,        num, 0.0_8)
+    call extend (dom%geopot,       num, 0.0_8)
+    call extend (dom%u_zonal,      num, 0.0_8)
+    call extend (dom%v_merid,      num, 0.0_8)
+    call extend (dom%press_lower,  num, 0.0_8)
+    call extend (dom%geopot_lower, num, 0.0_8)
+    call extend (dom%bernoulli,    num, 0.0_8)
+    call extend (dom%divu,         num, 0.0_8)
     
-    call extend (dom%qe,          EDGE*num, 0.0_8)
-    call extend (dom%vort,       TRIAG*num, 0.0_8)
+    call extend (dom%qe,      EDGE*num, 0.0_8)
+    call extend (dom%vort,   TRIAG*num, 0.0_8)
     
     do k = 1, zlevels
        call extend (exner_fun(k)%data(d), num, 0.0_8)
@@ -175,8 +175,8 @@ contains
     end do
     call extend (exner_fun(zlevels+1)%data(d), num, 0.0_8)
     
-    call extend (Laplacian_divu%data(d), num,      0.0_8)
-    call extend (Laplacian_rotu%data(d), num*EDGE, 0.0_8)
+    call extend (Laplacian_vector(S_DIVU)%data(d), num,      0.0_8)
+    call extend (Laplacian_vector(S_ROTU)%data(d), num*EDGE, 0.0_8)
     do v = S_MASS, S_TEMP
        call extend (horiz_flux(v)%data(d),       num*EDGE, 0.0_8)
        call extend (Laplacian_scalar(v)%data(d), num,      0.0_8)

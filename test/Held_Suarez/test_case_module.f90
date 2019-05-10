@@ -500,9 +500,10 @@ contains
       
     n_diffuse = 1
 
-    ! C_visc*n_diffuse hould be <= 0.0175 for hyperdiffusion (lower than exact limit 0.028 due to non-uniform grid)
-    C_visc = 5d-3/n_diffuse    ! diffusion constant for scalars and rotu
-    C_divu = 1.75d-2/n_diffuse ! diffusion constant for divu            
+    ! C_visc*n_diffuse should be approximately <= 0.0175 for hyperdiffusion
+    ! (lower than exact limit 0.028 due to non-uniform grid)
+    C_visc = 5d-3/n_diffuse ! diffusion constant for scalars and rotu
+    C_divu = 1.75d-2/n_diffuse ! diffusion constant for divu       
 
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value

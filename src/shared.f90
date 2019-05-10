@@ -284,7 +284,7 @@ module shared_mod
   data O2 /2,3, 3,1, 1,2/ 
 
   ! Indices of prognostic variables in sol, trend etc
-  integer, parameter :: S_MASS = 1, S_TEMP = 2, S_VELO = 3
+  integer, parameter :: S_MASS = 1, S_TEMP = 2, S_VELO = 3, S_DIVU = 1, S_ROTU = 2
 
   ! Number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
   integer, dimension(S_MASS:S_VELO) :: MULT

@@ -51,9 +51,9 @@ module domain_mod
      type(Float_Array) :: geopot      ! geopotential
      type(Float_Array) :: u_zonal     ! zonal velocity
      type(Float_Array) :: v_merid     ! meridional velocity
-     type(Float_Array) :: press_lower    ! mass in adjacent vertical cell
-     type(Float_Array) :: geopot_lower  ! geopotential in adjacent vertical cell
-     type(Float_Array) :: vort        ! vorticity
+     type(Float_Array) :: press_lower ! mass in adjacent vertical cell
+     type(Float_Array) :: geopot_lower! geopotential in adjacent vertical cell
+     type(Float_Array) :: vort        ! vorticity on triangles
      type(Float_Array) :: bernoulli   ! Bernoulli function
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          !
@@ -67,8 +67,8 @@ module domain_mod
 
   type(Domain), dimension(:), allocatable, target        :: grid
 
-  type(Float_Field),                              target :: Laplacian_divu, Laplacian_rotu
-  type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, Laplacian_scalar
+  type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux
+  type(Float_Field), dimension(:),   allocatable, target :: Laplacian_scalar, Laplacian_vector
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_save, trend, wav_coeff, trend_wav_coeff
 
   ! Note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)

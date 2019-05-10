@@ -38,8 +38,8 @@ contains
        interp_scalar => remap0
        interp_velo   => remap0
     else
-       interp_scalar => remap2W
-       interp_velo   => remap2W
+       interp_scalar => remap_PPR
+       interp_velo   => remap_PPR
     end if
     
     if (standard) then ! Standard (remap potential temperature)
