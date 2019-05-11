@@ -59,7 +59,7 @@ contains
        ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case) etc
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-          call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null, 1)
+          call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null)
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
 
@@ -213,7 +213,7 @@ contains
        velo => Laplacian_vector(S_ROTU)%data(d)%elts
        vort => grid(d)%vort%elts
        do j = 1, grid(d)%lev(l)%length
-          call step1 (grid(d), grid(d)%lev(l)%elts(j), z_null, 0)
+          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
        end do
        call apply_to_penta_d (post_vort, grid(d), l, z_null)
        nullify (velo, vort)
