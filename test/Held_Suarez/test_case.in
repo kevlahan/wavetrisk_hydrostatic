@@ -4,7 +4,9 @@ compressible       T             ! compressible (T) or incompressible (F) equati
 max_level	   6             ! maximum level of resolution
 zlevels            18            ! number of vertical levels
 uniform            F             ! uniform (T) or hybrid (F) vertical grid
-remap              T             ! remap vertical grid
+remap              T             ! remap vertical gr
+remapscalar_type   "PPR"         ! remap method for scalars  ("0", "1", "2PPM", "2S", "2W", "4", "PPR")
+remapvelo_type     "PPR"         ! remap method for velocity ("0", "1", "2PPM", "2S", "2W", "4", "PPR")
 iremap             10            ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)

@@ -32,14 +32,45 @@ contains
     ! remap2W   = parabolic WENO reconstruction
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
-    ! remap_PPR = a selection of piecewise polynomial reconstructions written by Darren Engwirda (the options are specified in subroutine)
+    ! remapPPR = a selection of piecewise polynomial reconstructions written by Darren Engwirda (the options are specified in subroutine)
 
-    if (istep <= 10) then ! use more diffusive remapping just after restart to avoid instability
+    if (istep <= 1) then ! use more diffusive remapping just after restart to avoid instability
        interp_scalar => remap0
        interp_velo   => remap0
     else
-       interp_scalar => remap_PPR
-       interp_velo   => remap_PPR
+       select case (remapscalar_type)
+       case ("0")
+          interp_scalar => remap0
+       case ("1")
+          interp_scalar => remap1
+       case ("2PPM") 
+          interp_scalar => remap2PPM
+       case ("2S") 
+          interp_scalar => remap2S
+       case ("2W")
+          interp_scalar => remap2W
+       case ("4") 
+          interp_scalar => remap4
+       case ("PPR")
+          interp_scalar => remapPPR
+       end select
+
+       select case (remapvelo_type)
+       case ("0")
+          interp_velo => remap0
+       case ("1")
+          interp_velo => remap1
+       case ("2PPM") 
+          interp_velo => remap2PPM
+       case ("2S") 
+          interp_velo => remap2S
+       case ("2W")
+          interp_velo => remap2W
+       case ("4") 
+          interp_velo => remap4
+       case ("PPR")
+          interp_velo => remapPPR
+       end select
     end if
     
     if (standard) then ! Standard (remap potential temperature)
@@ -327,7 +358,7 @@ contains
     end do
   end subroutine remap0
 
-  subroutine remap1 (N, var_new, z_new, var_old, z_old, neumann)
+  subroutine remap1 (N, var_new, z_new, var_old, z_old)
     !
     ! Remapping procedure using piecewise-linear reconstruction: 
     !---------- --------- ----- --------- ------ ---------------
@@ -343,14 +374,13 @@ contains
     integer                 :: N
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new, z_old
-    logical                 :: neumann
 
     integer                 :: k, iter
     real(8)                 :: cff, cff1, dh, dL, dR, dz
     real(8), parameter      :: Zero=0.0_8, Half=0.5_8
     real(8), dimension(0:N) :: aL, aR, FC
     real(8), dimension(1:N) :: Hz
-    logical, parameter      :: ENHANCE = .true.   
+    logical, parameter      :: ENHANCE = .true., NEUMANN = .false. 
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -991,7 +1021,7 @@ contains
     end do
   end subroutine remap4
 
-  subroutine remap_PPR (N, var_new, z_new, var_old, z_old)
+  subroutine remapPPR (N, var_new, z_new, var_old, z_old)
     ! PPR remapping using Engwirda and Kelley (2016) algorithms
     use ppr_1d
     implicit none
@@ -1030,5 +1060,5 @@ contains
 
     ! Clear method workspace
     call work%free
-  end subroutine remap_PPR
+  end subroutine remapPPR
 end module remap_mod

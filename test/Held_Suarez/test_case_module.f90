@@ -312,6 +312,8 @@ contains
     read (fid,*) varname, zlevels
     read (fid,*) varname, uniform
     read (fid,*) varname, remap
+    read (fid,*) varname, remapscalar_type
+    read (fid,*) varname, remapvelo_type
     read (fid,*) varname, iremap
     read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
@@ -328,7 +330,7 @@ contains
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     close(fid)
-    
+
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
     dt_write = dt_write * DAY
@@ -379,7 +381,7 @@ contains
   subroutine print_test_case_parameters
     implicit none
     
-     if (rank==0) then
+    if (rank==0) then
        write (6,'(a)') &
             '********************************************************** Parameters &
             ************************************************************'
@@ -396,6 +398,8 @@ contains
        write (6,'(a,i3)')     "zlevels             = ", zlevels
        write (6,'(a,l1)')     "uniform             = ", uniform
        write (6,'(a,l1)')     "remap               = ", remap
+       write (6,'(a,a)')      "remapscalar_type    = ", trim (remapscalar_type)
+       write (6,'(a,a)')      "remapvelo_type      = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap              = ", iremap
        write (6,'(a,l1)')     "adapt_trend         = ", adapt_trend
        write (6,'(a,l1)')     "default_thresholds  = ", default_thresholds
