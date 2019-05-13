@@ -3,7 +3,7 @@ A brief user's guide for WAVETRISK 1.0
 2019-04-01 N. Kevlahan kevlahan@mcmaster.ca
 ******************************************************************************************************************************************************************
 TEST CASES:
-Test cases are defined in separarate subdirectories of test/ (e.g. test/Held_Suarez).  Each test case consists of three files:
+Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suarez).  Each test case consists of three files:
 
 - the main program (e.g. Held_Suarez.f90)
 - test_case_module.f90 (which sets initial conditions, defines the vertical grid, defines and reads/prints parameters for this test case)
@@ -18,7 +18,7 @@ mkdir build
 make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
 
 Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean build. Can also compile as
-serial (ARCH=ser) or without load balancing (ARCH=mpi).  The code has been tests for the gfortran and ifort compilers and the openmpi and intelmpi mpi libraries.
+serial (ARCH=ser) or without load balancing (ARCH=mpi).  The code has been tested for the gfortran and ifort compilers and the openmpi and intelmpi mpi libraries.
 
 !! Always do "make clean" when compiling a new test case !!
 
@@ -33,23 +33,24 @@ mpirun -n 40 Held_Suarez > log &                         (run on 40 processors u
 
 
 ******************************************************************************************************************************************************************
-POST-PROCESSING DATA
+POST-PROCESSING DATA USING PARAVIEW AND MATLAB
 
-POST-PROCESS SAVED FIELDS (e.g. Held_Suarez.1... and Held_Suarez.2...) FOR PARAVIEW:
-
+The raw data files (e.g. Held_Suarez.1... and Held_Suarez.2...) must be converted to .vtk format for viewing with paraview:
+ 
 cd post
 gfortran -o trisk2vtk trisk2vtk.f90
 cd to-working-directory
 ln -s wavetrisk_hydrostatic/post/trisk2vtk .
-trisk2vtk Held_Suarez.1 primal 0 10 5 8 out (generates .vtk files for the saved primal grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk)
-trisk2vtk Held_Suarez.2 dual   0 10 5 8 out (generates .vtk files for the saved primal grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk)
+trisk2vtk Held_Suarez.1 primal 0 10 5 8 out (generates .vtk files for the saved hexagon grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk)
+trisk2vtk Held_Suarez.2 dual   0 10 5 8 out (generates .vtk files for the saved triangle grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk)
 
 
 POST-PROCESS CHECKPOINTS FOR MATLAB PLOTTING OF 2-D PROJECTIONS ON LONGITUDE-LATITUDE PLANE:
 
-The m-file plot_2d.m provides various options for plotting 2-D projections of the data and of zonal statistics. The zonal statistics can be plotted from in-line
-calculations (e.g. Held_Suarez_J4L18.3.tgz file saved during the run) or from a data post-processed from saved checkpoints (e.g. Held_Suarez_J4L18.4.tgz)
-using the test case flat_projection_data.  plot_2d.m also plots time history data from the log file saved during the run (e.g. Held_Suarez_log).
+The m-file plot_2d.m provides various options for plotting 2-D projections of the data, zonal statistics and time history statistics.
+The zonal statistics can be plotted from in-line calculations (e.g. Held_Suarez_J4L18.3.tgz file saved during the run) or from data
+post-processed from saved checkpoints (e.g. Held_Suarez_J4L18.4.tgz) using test/flat_projection_data.  plot_2d.m plots
+time history data from the log file saved during the run (e.g. Held_Suarez_log).
 
 
 ******************************************************************************************************************************************************************
@@ -195,9 +196,9 @@ indicated by mask=12 and adjacent zone nodes indicated by mask=8) and the result
 (Note that the solution in the adjacent zone at fine scale j+1 are found from values at coarse scale j so the values calculated at scale j+1 are not
 actually used.)
 
-This means that some operations on the entire grid could produce intermediate overflows, inf/NaN, or invalid indices ue to incorrect values at these nodes or
-ther neighbours. Functions and subroutines should take this into account.  Similarly, circulation, vorticity and qe are first computed incorrectly
-at pentagon points in step1 and then corrected in post_step1.
+This means that some operations on the entire grid could produce intermediate overflows, inf/NaN, or invalid indices due to incorrect values at these nodes or
+their neighbours. Functions and subroutines should take this into account.  Similarly, circulation, vorticity and qe (potential vorticity are first computed incorrectly
+at pentagon points in step1 (or cal_vort) and then corrected in post_step1 (or post_vort).
 
 
 
