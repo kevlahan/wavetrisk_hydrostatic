@@ -33,46 +33,40 @@ contains
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
     ! remapPPR = a selection of piecewise polynomial reconstructions written by Darren Engwirda (the options are specified in subroutine)
-
-    if (istep <= 1) then ! use more diffusive remapping just after restart to avoid instability
+    select case (remapscalar_type)
+    case ("0")
        interp_scalar => remap0
-       interp_velo   => remap0
-    else
-       select case (remapscalar_type)
-       case ("0")
-          interp_scalar => remap0
-       case ("1")
-          interp_scalar => remap1
-       case ("2PPM") 
-          interp_scalar => remap2PPM
-       case ("2S") 
-          interp_scalar => remap2S
-       case ("2W")
-          interp_scalar => remap2W
-       case ("4") 
-          interp_scalar => remap4
-       case ("PPR")
-          interp_scalar => remapPPR
-       end select
+    case ("1")
+       interp_scalar => remap1
+    case ("2PPM") 
+       interp_scalar => remap2PPM
+    case ("2S") 
+       interp_scalar => remap2S
+    case ("2W")
+       interp_scalar => remap2W
+    case ("4") 
+       interp_scalar => remap4
+    case ("PPR")
+       interp_scalar => remapPPR
+    end select
 
-       select case (remapvelo_type)
-       case ("0")
-          interp_velo => remap0
-       case ("1")
-          interp_velo => remap1
-       case ("2PPM") 
-          interp_velo => remap2PPM
-       case ("2S") 
-          interp_velo => remap2S
-       case ("2W")
-          interp_velo => remap2W
-       case ("4") 
-          interp_velo => remap4
-       case ("PPR")
-          interp_velo => remapPPR
-       end select
-    end if
-    
+    select case (remapvelo_type)
+    case ("0")
+       interp_velo => remap0
+    case ("1")
+       interp_velo => remap1
+    case ("2PPM") 
+       interp_velo => remap2PPM
+    case ("2S") 
+       interp_velo => remap2S
+    case ("2W")
+       interp_velo => remap2W
+    case ("4") 
+       interp_velo => remap4
+    case ("PPR")
+       interp_velo => remapPPR
+    end select
+
     if (standard) then ! Standard (remap potential temperature)
        do l = level_start, level_end
           call apply_onescale (remap_scalars, l, z_null, 0, 1)
