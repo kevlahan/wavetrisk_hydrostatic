@@ -89,19 +89,19 @@ contains
     call comm_masks
   end subroutine comm_masks_mpi
 
-  subroutine update_bdry1 (field, l_start, l_end)
+  subroutine update_bdry1 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field) :: field
-    integer           :: l_start, l_end
+    integer           :: flag, l_start, l_end
     
     call cp_bdry_inside(field)
   end subroutine update_bdry1
 
-  subroutine update_array_bdry1 (field, l_start, l_end)
+  subroutine update_array_bdry1 (field, l_start, l_end, flag)
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
     
-    integer               :: i1, i2
+    integer               :: flag, i1, i2
     integer, dimension(2) :: sz
 
     sz = shape(field)
@@ -135,18 +135,18 @@ contains
     call comm_patch_conn
   end subroutine comm_patch_conn_mpi
 
-  subroutine update_bdry (field, l)
+  subroutine update_bdry (field, l, flag)
     implicit none
     type(Float_Field) :: field
-    integer           :: l
+    integer           :: flag, l
     call cp_bdry_inside (field)
   end subroutine update_bdry
 
-  subroutine update_vector_bdry (field, l)
+  subroutine update_vector_bdry (field, l, flag)
     implicit none
     type(Float_Field), dimension(:) :: field
     
-    integer :: l, i1, i2, sz
+    integer :: flag, l, i1, i2, sz
 
     sz = size(field)
 
@@ -155,12 +155,12 @@ contains
     end do
   end subroutine update_vector_bdry
 
-  subroutine update_array_bdry (field, l)
+  subroutine update_array_bdry (field, l, flag)
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l
     
-    integer                :: i1, i2
+    integer                :: flag, i1, i2
     integer, dimension (2) :: sz
 
     sz = shape(field)
@@ -265,7 +265,8 @@ contains
     beta_sclr = beta_sclr_loc
     beta_divu = beta_divu_loc
     beta_rotu = beta_rotu_loc
-
+    
+    ! Check Klemp (2018) diffusion stability limits are satisfied
     if (beta_sclr > (1.0_8/6)**Laplace_order_init) &
          write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &
          " is larger than ",  (1.0_8/6)**Laplace_order_init
