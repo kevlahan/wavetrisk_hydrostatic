@@ -98,6 +98,18 @@ contains
     end do
     call comm_masks_mpi (NONE)
 
+    ! Add nodes and edges required for TRISK operators
+    do l = level_start, level_end
+       call apply_onescale (mask_trsk, l, z_null, 0, 0)
+    end do
+    call comm_masks_mpi (NONE)
+
+    ! Label points required for fluxes as TRSK
+    do l = level_start, level_end
+       call apply_onescale (mask_flux, l, z_null, -1, 1)
+    end do
+    call comm_masks_mpi (NONE)
+
     ! Determine whether any new patches are required
     if (refine()) call post_refine
 
@@ -108,7 +120,7 @@ contains
        end do
        call comm_masks_mpi (NONE)
 
-       ! Ensure consistency of adjacent zones for nodes and edges                                                                         
+       ! Ensure consistency of adjacent zones for nodes and edges           
        call mask_adj_nodes_edges
        call comm_masks_mpi (NONE)
 
@@ -125,11 +137,17 @@ contains
        call complete_masks
     end if
 
-    ! Label points required for remap as TRSK
-    do l = level_start+1, level_end
-       call apply_onescale (mask_remap, l, z_null, 0, 1)
-       call apply_onescale (mask_trsk,  l, z_null, 0, 1)
+    ! Add nodes and edges required for TRISK operators
+    do l = level_start, level_end
+       call apply_onescale (mask_trsk, l, z_null, 0, 0)
     end do
+    call comm_masks_mpi (NONE)
+
+    ! Label points required for fluxes as TRSK
+    do l = level_start, level_end
+       call apply_onescale (mask_flux, l, z_null, -1, 1)
+    end do
+    call comm_masks_mpi (NONE)
   end subroutine adapt
 
    subroutine compress_wavelets (wav)

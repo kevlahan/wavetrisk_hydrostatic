@@ -466,8 +466,8 @@ contains
     end if
   end subroutine mask_penta_corr
 
-  subroutine mask_remap (dom, i, j, zlev, offs, dims)
-    ! Add nodes required for remapping velocities (need mass fluxes at edges)
+  subroutine mask_flux (dom, i, j, zlev, offs, dims)
+    ! Add nodes required for mass fluxes at edges
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -493,7 +493,7 @@ contains
        call set_at_least (dom%mask_n%elts(id+1),  TRSK)
        call set_at_least (dom%mask_n%elts(idN+1), TRSK)
     end if
-  end subroutine mask_remap
+  end subroutine mask_flux
 
   subroutine mask_trsk (dom, i, j, zlev, offs, dims)
     ! Add additional nodes and edges required for TRISK operator stencils
