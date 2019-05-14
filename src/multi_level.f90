@@ -202,10 +202,12 @@ contains
        vort      => grid(d)%vort%elts
        Laplacian => Laplacian_vector(S_ROTU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
        end do
        nullify (vort, Laplacian)
     end do
+    Laplacian_vector%bdry_uptodate = .false.
+    call update_vector_bdry (Laplacian_vector, NONE, 99)
 
     ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
     !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
