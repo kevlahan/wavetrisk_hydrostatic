@@ -6,7 +6,7 @@ Module test_case_mod
   implicit none
 
   ! Standard variables
-  integer                              :: CP_EVERY, save_zlev
+  integer                              :: CP_EVERY, resume_init, save_zlev
   real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
@@ -227,7 +227,9 @@ contains
     read (fid,*) varname, zlevels
     read (fid,*) varname, uniform
     read (fid,*) varname, remap
-    read (fid,*) varname, min_allowed_mass
+    read (fid,*) varname, remapscalar_type
+    read (fid,*) varname, remapvelo_type
+    read (fid,*) varname, iremap
     read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
     read (fid,*) varname, perfect
@@ -238,19 +240,18 @@ contains
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, n_diffuse
-    read (fid,*) varname, tau_diffusion
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
-    read (fid,*) varname, resume
+    read (fid,*) varname, resume_init
     close(fid)
     
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
-    tau_diffusion = tau_diffusion * HOUR
-    dt_write = dt_write * MINUTE
-    time_end = time_end * HOUR
+    dt_write = dt_write * DAY
+    time_end = time_end * DAY
+    resume   = resume_init
     Laplace_order = Laplace_order_init
   end subroutine read_test_case_parameters
 
@@ -274,7 +275,9 @@ contains
        write (6,'(A,i3)')     "zlevels             = ", zlevels
        write (6,'(A,L1)')     "uniform             = ", uniform
        write (6,'(A,L1)')     "remap               = ", remap
-       write (6,'(A,es10.4)') "min_allowed_mass    = ", min_allowed_mass
+       write (6,'(a,a)')      "remapscalar_type    = ", trim (remapscalar_type)
+       write (6,'(a,a)')      "remapvelo_type      = ", trim (remapvelo_type)
+       write (6,'(a,i3)')     "iremap              = ", iremap
        write (6,'(A,L1)')     "adapt_trend         = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds  = ", default_thresholds
        write (6,'(A,L1)')     "perfect             = ", perfect
@@ -285,12 +288,11 @@ contains
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
-       write (6,'(A,es10.4)') "tau_diffusion (h)   = ", tau_diffusion/HOUR
-       write (6,'(A,es10.4)') "dt_write (min)      = ", dt_write/MINUTE
+       write (6,'(A,es10.4)') "dt_write (min)      = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance           = ", rebalance
-       write (6,'(A,es10.4)') "time_end (h)        = ", time_end/HOUR
-       write (6,'(A,i6)')     "resume              = ", resume
+       write (6,'(A,es10.4)') "time_end (h)        = ", time_end/DAY
+       write (6,'(A,i6)')     "resume              = ", resume_init
        
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius              = ", radius
@@ -331,7 +333,7 @@ contains
     
     if (rank == 0) then
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i9,4(a,es8.2,1x))') &
-            'time [h] = ', time/HOUR, &
+            'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
             ' temp tol = ', sum (threshold(S_TEMP,:))/zlevels, &
@@ -344,7 +346,7 @@ contains
             ' cpu = ', timing
 
        write (12,'(5(es15.9,1x),i2,1x,i9,1x,4(es15.9,1x))')  &
-            time/HOUR, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
+            time/DAY, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
             sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
@@ -370,45 +372,44 @@ contains
   
   subroutine initialize_dt_viscosity 
     ! Initializes viscosity
-    use wavelet_mod
     implicit none
-    real(8) :: area
-
-    C_visc = 1d-2
+    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
-
-    ! CFL limit for time step
-    dt_cfl = cfl_num*dx_min/(wave_speed+Udim)
-    dt_init = dt_cfl
+      
+    ! Diffusion constants
+    C_sclr = 1.5d-2       ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_divu = 1.5d-2    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     
-   if (Laplace_order_init == 0) then
+    ! CFL limit for time step
+    dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
+    dt_init = dt_cfl
+
+    tau_sclr = dt_cfl / C_sclr
+    tau_divu = dt_cfl / C_divu
+    tau_rotu = dt_cfl / C_rotu
+
+    if (Laplace_order_init == 0) then
        visc_sclr = 0.0_8
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse 
-       visc_divu = 4*C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse
-       visc_rotu = C_visc * dx_min**(2*Laplace_order_init)/dt_cfl * n_diffuse  / 4**Laplace_order_init
+       visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
+       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
+       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
-    
+
     if (rank == 0) then
-       write (6,'(2(A,es8.2),/)') "dx_min  = ", dx_min, " dt_cfl = ", dt_cfl
-       write (6,'(4(A,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
-            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
-            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-       if (Laplace_order_init /= 0) &
-            write (6,'(A,es8.2,A)') "Diffusion stability constant = ", &
-            dt_cfl/dx_min**(2*Laplace_order_init) * maxval (visc_sclr)
-       if (Laplace_order_init == 1) then
-          write (6,'(A)') " (should be <= 0.4)"
-       else
-          write (6,'(A)')" (should be <= 0.06)"
-       end if
+       write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/1d3, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
+       write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
+       write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
+          " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
+          " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
   end subroutine initialize_dt_viscosity
 

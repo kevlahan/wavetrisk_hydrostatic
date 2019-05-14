@@ -100,7 +100,7 @@ program Held_Suarez
 
      if (aligned) then
         iwrite = iwrite+1
-        if (remap .and. min_allowed_mass /= 1.0_8) call remap_vertical_coordinates
+        if (remap) call remap_vertical_coordinates
 
         if (modulo (iwrite, CP_EVERY) == 0) then
            call write_checkpoint (dump, load, run_id, rebalance) ! save checkpoint (and rebalance)

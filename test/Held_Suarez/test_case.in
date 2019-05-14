@@ -11,8 +11,8 @@ iremap             10            ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)	
-tol      	   2e-2           ! non-dimensional tolerance
-optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
+tol      	   2e-2          ! non-dimensional tolerance
+optimize_grid	   0             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
 cfl_num            1.0           ! cfl number
 pressure_save      850           ! save vertical layer closest to this pressure (hPa)
