@@ -191,7 +191,7 @@ module shared_mod
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
 
-  character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type
+  character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
   logical :: adapt_dt, adapt_trend, compressible, default_thresholds, lagrangian_vertical, perfect, rebalance, remap, uniform
 contains
@@ -263,6 +263,7 @@ contains
     Laplace_order_init  = 0 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     remapscalar_type    = "0" 
     remapvelo_type      = "0"
+    timeint_type        = "RK45"
     iremap              = 1
     min_allowed_mass    = 1.0_8
     n_diffuse           = 1

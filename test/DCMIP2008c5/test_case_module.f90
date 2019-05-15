@@ -237,6 +237,7 @@ contains
     read (fid,*) varname, optimize_grid
     read (fid,*) varname, adapt_dt
     read (fid,*) varname, cfl_num
+    read (fid,*) varname, timeint_type
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, n_diffuse
@@ -285,6 +286,7 @@ contains
        write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
+       write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse

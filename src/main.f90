@@ -170,7 +170,16 @@ contains
     dt = idt/time_mult ! Modify time step
         
     ! Take time step
-    call RK45_opt (trend_ml, dt)
+    select case (timeint_type)
+    case ("RK33")
+       call RK33_opt (trend_ml, dt)
+    case ("RK34")
+       call RK34_opt (trend_ml, dt)
+    case ("RK45")
+       call RK45_opt (trend_ml, dt)
+    case ("RK4")
+       call RK4 (trend_ml, dt)
+    end select
 
     ! If necessary, remap vertical coordinates
     min_mass = cpt_min_mass ()

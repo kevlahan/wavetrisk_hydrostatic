@@ -1,12 +1,12 @@
-test_case          "DCMIP2012c4" ! name of test case
-run_id             "DCMIP2012c4_J7" ! name of run (for saved data)
+test_case          DCMIP2012c4 ! name of test case
+run_id             DCMIP2012c4_J7 ! name of run (for saved data)
 compressible       T             ! compressible (T) or incompressible (F) equations
 max_level	   7             ! maximum level of resolution
 zlevels            26            ! number of vertical levels
 uniform            F             ! uniform (T) or hybrid (F) vertical grid
 remap              T             ! remap vertical grid
-remapscalar_type   "0"           ! remap method for scalars  ("0", "1", "2PPM", "2S", "2W", "4", "PPR")
-remapvelo_type     "0"           ! remap method for velocity ("0", "1", "2PPM", "2S", "2W", "4", "PPR")
+remapscalar_type   0             ! remap method for scalars  (0, 1, 2PPM, 2S, 2W, 4, PPR)
+remapvelo_type     0             ! remap method for velocity (0, 1, 2PPM, 2S, 2W, 4, PPR)
 iremap             1             ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
@@ -14,7 +14,8 @@ perfect            F             ! use perfect reconstruction criterion (T) or l
 tol      	   3e-2          ! non-dimensional tolerance
 optimize_grid	   0             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           F             ! adapt time step dynamically (T) or used fixed time step (F)
-cfl_num            1.0           ! cfl number
+cfl_num            1.5           ! cfl number
+timeint_type       RK45          ! time integration method (RK33, RK34, RK45, RK4)
 pressure_save      850           ! save vertical layer closest to this pressure (hPa)
 Laplace_order      2             ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second order Laplacian hyperdiffusion
 dt_write           1             ! save interval (days)
