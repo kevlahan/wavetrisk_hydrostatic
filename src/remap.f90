@@ -20,7 +20,6 @@ contains
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
     integer            :: l
-    logical, parameter :: standard = .true. ! .false. uses Lin (2004) scheme which interpolates total energy (otherwise interpolate potential temperature)
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -67,19 +66,10 @@ contains
        interp_velo => remapPPR
     end select
 
-    if (standard) then ! Standard (remap potential temperature)
-       do l = level_start, level_end
-          call apply_onescale (remap_scalars, l, z_null, 0, 1)
-          call apply_onescale (remap_velo,    l, z_null, 0, 0)
-       end do
-    else ! Lin (2004) (remap total energy)
-       do l = level_start, level_end
-          call apply_onescale (remap_total_energy, l, z_null, 0, 1)
-          call apply_onescale (remap_velo,         l, z_null, 0, 0)
-          call update_vector_bdry (sol(S_VELO,:), l, 13)
-          call apply_onescale (recover_theta, l, z_null, 0, 1)
-       end do
-    end if
+    do l = level_start, level_end
+       call apply_onescale (remap_scalars, l, z_null, 0, 1)
+       call apply_onescale (remap_velo,    l, z_null, 0, 0)
+    end do
 
     ! Wavelet transform and interpolate back onto adapted grid
     call WT_after_step (sol, wav_coeff, level_start-1)
@@ -189,122 +179,6 @@ contains
        end do
     end do
   end subroutine remap_momentum
-
-  subroutine remap_total_energy (dom, i, j, z_null, offs, dims)
-    ! Remap total energy
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                        :: d, id, id_i, k, kb
-    real(8)                        :: p_s, phi_lower, phi_upper, theta, T_mean
-    real(8), dimension (1:zlevels) :: energy_new, energy_old
-    real(8), dimension (0:zlevels) :: p_new, p_old
-
-    d    = dom%id + 1
-    id   = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    ! Save old mass
-    do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
-    end do
-
-    call find_coordinates (p_new, p_old, d, id_i, p_s)
-
-    ! Integrate up
-    phi_lower = surf_geopot (dom%node%elts(id_i))
-    do k = zlevels, 1, -1
-       kb = zlevels-k+1
-       
-       theta = sol(S_TEMP,kb)%data(d)%elts(id_i) / sol(S_MASS,kb)%data(d)%elts(id_i)
-       
-       T_mean = theta * (p_old(k)**kappa - p_old(k-1)**kappa) / log (p_old(k)/p_old(k-1)) / kappa 
-
-       phi_upper = phi_lower +  R_d * T_mean * log (p_old(k)/p_old(k-1))
-       
-       velo => sol(S_VELO,kb)%data(d)%elts
-       energy_old(k) = c_p*T_mean + (p_old(k)*phi_lower-p_old(k-1)*phi_upper) / (p_old(k)-p_old(k-1)) + ke (dom, i, j, offs, dims)
-       nullify (velo)
-       phi_lower = phi_upper
-    end do
-    
-    call interp_scalar (zlevels, energy_new, p_new, energy_old, p_old)
-    
-    do k = 1, zlevels
-       exner_fun(k)%data(d)%elts(id_i) = energy_new(k) ! Store new total energy in exner function
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * p_s/grav_accel ! New mass
-    end do
-  end subroutine remap_total_energy
-  
-  subroutine recover_Theta (dom, i, j, z_null, offs, dims)
-    ! Recover mass-weighted potential temperature from remapped total energy
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                        :: d, id_i, k, kb
-    real(8)                        :: phi_lower, p_s, T_mean, theta
-    real(8), dimension (0:zlevels) :: p_new, p_old
-
-    d    = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
-
-    call find_coordinates (p_new, p_old, d, id_i, p_s)
-
-    ! Integrate up from surface
-    phi_lower = surf_geopot (dom%node%elts(id_i))
-    do k = zlevels, 1, -1
-       kb = zlevels-k+1
-       
-       velo => sol(S_VELO,kb)%data(d)%elts
-       T_mean = (exner_fun(k)%data(d)%elts(id_i) - ke (dom, i, j, offs, dims) - phi_lower) &
-            / (1.0_8 - kappa * p_new(k-1) * log (p_new(k)/p_new(k-1)) / (p_new(k)-p_new(k-1))) / c_p
-       nullify (velo)
-
-       theta = kappa * log (p_new(k)/p_new(k-1)) / (p_new(k)**kappa - p_new(k-1)**kappa) * T_mean
-       
-       sol(S_TEMP,kb)%data(d)%elts(id_i) = sol(S_MASS,kb)%data(d)%elts(id_i) * theta          ! New temp
-
-       phi_lower = phi_lower +  R_d * T_mean * log (p_new(k)/p_new(k-1))
-    end do
-  end subroutine recover_Theta
-
-  real(8) function ke (dom, i, j, offs, dims)
-    type (Domain)                   :: dom
-    integer                         :: i, j
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-    
-    ! Kinetic energy
-    integer :: id, idS, idSW, idW
-    real(8) :: u_prim_RT,   u_prim_UP,   u_prim_DG,    u_dual_RT,   u_dual_UP,   u_dual_DG
-    real(8) :: u_prim_RT_W, u_prim_UP_S, u_prim_DG_SW, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
-
-    id    = idx (i,   j,   offs, dims)
-    idW   = idx (i-1, j,   offs, dims)
-    idS   = idx (i,   j-1, offs, dims)
-    idSW  = idx (i-1, j-1, offs, dims) 
-
-    u_prim_RT    = velo(EDGE*id  +RT+1) * dom%len%elts(EDGE*id+RT+1)
-    u_dual_RT    = velo(EDGE*id  +RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-    u_prim_UP    = velo(EDGE*id  +UP+1) * dom%len%elts(EDGE*id+UP+1)
-    u_prim_DG    = velo(EDGE*id  +DG+1) * dom%len%elts(EDGE*id+DG+1)
-    u_dual_DG    = velo(EDGE*id  +DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-    u_dual_UP    = velo(EDGE*id  +UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-    u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS+UP+1)
-    u_dual_UP_S  = velo(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS+UP+1)
-    u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW+RT+1)
-    u_dual_RT_W  = velo(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW+RT+1)
-    u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-    u_dual_DG_SW = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-
-    ke = (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
-         u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W) * dom%areas%elts(id+1)%hex_inv/4
-  end function ke
 
   subroutine find_coordinates (p_new, p_old, d, id_i, p_s)
     ! Calculates old and new pressure-based z coordinates
