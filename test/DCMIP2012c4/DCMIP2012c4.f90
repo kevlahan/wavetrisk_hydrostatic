@@ -14,7 +14,7 @@ program DCMIP2012c4
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6.371229d6                  ! mean radius of the Earth in meters
+  radius         = 6371.229*KM                 ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
   omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
   p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals

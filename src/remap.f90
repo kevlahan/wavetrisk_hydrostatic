@@ -66,10 +66,17 @@ contains
        interp_velo => remapPPR
     end select
 
-    do l = level_start, level_end
-       call apply_onescale (remap_scalars, l, z_null, 0, 1)
-       call apply_onescale (remap_velo,    l, z_null, 0, 0)
-    end do
+    if (compressible) then
+       do l = level_start, level_end
+          call apply_onescale (remap_scalars, l, z_null, 0, 1)
+          call apply_onescale (remap_velo,    l, z_null, 0, 0)
+       end do
+    else
+       do l = level_start, level_end
+          call apply_onescale (remap_scalars_incompressible, l, z_null, 0, 1)
+          call apply_onescale (remap_velo_incompressible,    l, z_null, 0, 0)
+       end do
+    end if
 
     ! Wavelet transform and interpolate back onto adapted grid
     call WT_after_step (sol, wav_coeff, level_start-1)
@@ -111,6 +118,41 @@ contains
     end do
   end subroutine remap_scalars
 
+  subroutine remap_scalars_incompressible (dom, i, j, z_null, offs, dims)
+    ! Remap density
+    ! (potential temperature is remapped and then multiplied by new mass)
+    type (Domain)                   :: dom
+    integer                         :: i, j, z_null
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer                        :: d, id_i, k
+    real(8), dimension (1:zlevels) :: theta_new, theta_old 
+    real(8), dimension (0:zlevels) :: z_new, z_old
+
+    d    = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    ! Save old mass
+    do k = 1, zlevels
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+    end do
+    
+    call find_coordinates_incompressible (z_new, z_old, d, id_i)
+
+    do k = 1, zlevels
+       theta_old(k) = sol(S_TEMP,k)%data(d)%elts(id_i) / sol(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_MASS,k)%data(d)%elts(id_i) = ref_density * (z_new(k) - z_new(k-1)) ! New mass
+    end do
+  
+    call interp_scalar (zlevels, theta_new, z_new, theta_old, z_old)
+
+    ! Mass-weighted potential temperature
+    do k = 1, zlevels
+       sol(S_TEMP,k)%data(d)%elts(id_i) = theta_new(k) * sol(S_MASS,k)%data(d)%elts(id_i)
+    end do
+  end subroutine remap_scalars_incompressible
+
   subroutine remap_velo (dom, i, j, z_null, offs, dims)
     ! Remap velocity
     type (Domain)                   :: dom
@@ -128,7 +170,7 @@ contains
     id_i = id + 1
 
     call find_coordinates (p_new, p_old, d, id_i, p_s)
-
+    
     do e = 1, EDGE
        do k = 1, zlevels
           flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
@@ -142,43 +184,35 @@ contains
     end do
   end subroutine remap_velo
 
-  subroutine remap_momentum (dom, i, j, z_null, offs, dims)
-    ! Remap momentum and then recover remapped velocity
+   subroutine remap_velo_incompressible (dom, i, j, z_null, offs, dims)
+    ! Remap velocity
     type (Domain)                   :: dom
     integer                         :: i, j, z_null
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, e, id, id_i, k
-    integer, dimension(1:EDGE)     :: id_r
-    real(8)                        :: mass_e, p_s
     real(8), dimension (1:zlevels) :: flux_new, flux_old 
-    real(8), dimension (0:zlevels) :: p_new, p_old
+    real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
-    id   = idx (i, j, offs, dims)
+    id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
-    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
-    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
-
-    call find_coordinates (p_new, p_old, d, id_i, p_s)
-
+    call find_coordinates_incompressible (z_new, z_old, d, id_i)
+    
     do e = 1, EDGE
        do k = 1, zlevels
-          mass_e = trend(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(id_r(e))
-          flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e
+          flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
        end do
 
-       call interp_velo (zlevels, flux_new, p_new, flux_old, p_old)
+       call interp_velo (zlevels, flux_new, z_new, flux_old, z_old)
 
        do k = 1, zlevels
-          mass_e = sol(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_r(e))
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1) / mass_e
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k)
        end do
     end do
-  end subroutine remap_momentum
+  end subroutine remap_velo_incompressible
 
   subroutine find_coordinates (p_new, p_old, d, id_i, p_s)
     ! Calculates old and new pressure-based z coordinates
@@ -197,6 +231,27 @@ contains
     
     p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1) * p_s
   end subroutine find_coordinates
+
+  subroutine find_coordinates_incompressible (z_new, z_old, d, id_i)
+    ! Calculates old and new z coordinates
+    implicit none
+    integer                       :: d, id_i
+    real(8), dimension(0:zlevels) :: z_new, z_old
+
+    integer :: k
+    real(8) :: dz
+
+    z_old(0) = 0.0_8
+    do k = 1, zlevels
+       z_old(k) = z_old(k-1) + trend(S_MASS,k)%data(d)%elts(id_i) / ref_density
+    end do
+    dz = z_old(zlevels) / zlevels
+
+    z_new(0) = 0.0_8
+    do k = 1, zlevels
+       z_new(k) = z_new(k-1) + dz
+    end do
+  end subroutine find_coordinates_incompressible
 
   subroutine remap0 (N, var_new, z_new, var_old, z_old)
     !

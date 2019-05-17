@@ -150,11 +150,14 @@ module shared_mod
   ! Grid optimization choices
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 
+  ! Define land and sea regions
+  real(8), parameter :: LAND = 1, SEA = 0
+
   ! Basic grid parameters
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
-  integer :: min_level, max_level ! minimum and maximum grid refinement levels in pseudo-horizontal directions
-  integer :: zlevels ! number of levels in vertical direction
-  integer :: save_levels ! number of vertical levels to save
+  integer :: min_level, max_level   ! minimum and maximum grid refinement levels in pseudo-horizontal directions
+  integer :: zlevels                ! number of levels in vertical direction
+  integer :: save_levels            ! number of vertical levels to save
   integer :: level_start, level_end, level_save, optimize_grid
   
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
@@ -167,6 +170,8 @@ module shared_mod
   integer, parameter :: HOUR = 60*MINUTE
   integer, parameter :: DAY = 24*HOUR
   integer, parameter :: WEEK = 7*DAY
+  real(8), parameter :: METRE = 1
+  real(8), parameter :: KM = 1000*METRE
   real(8), parameter :: MATH_PI = acos(-1.0_8)
   
   ! Simulation variables
@@ -179,8 +184,9 @@ module shared_mod
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density
   real(8)                                       :: visc_divu, visc_rotu
+  real(8)                                       :: alpha, eta
   real(8), dimension(S_MASS:S_TEMP)             :: visc_sclr
-  real(8)                                       :: p_0, p_top, gamma, gk, kappa, c_p, c_v, R_d, wave_speed
+  real(8)                                       :: c_p, c_v, gamma, gk, kappa, mean_depth, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8)                                       :: min_mass, min_allowed_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
@@ -193,7 +199,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, lagrangian_vertical, perfect, rebalance, remap, uniform
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, penalize, perfect, rebalance, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -245,18 +251,20 @@ contains
     level_end           = level_start
     
     ! Default logical switches, most are reset in the input file
-    adapt_dt            = .true. ! Dynamically adapt time step (T) or use time step based on initial conditions (F) 
-    adapt_trend         = .false. ! Adapt on trend (T) or on solution (F)
-    compressible        = .true. ! Compressible equations (T) or Boussinesq incompressible (F)
-    default_thresholds  = .true. ! Use default thresholds (T) or calculate dynamically (F)
-    perfect             = .false. ! Use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
-    rebalance           = .true. ! Rebalance computational load at each checkpoint if T
-    remap               = .true. ! Remap Lagrangian coordinates (T) or no remapping (F)
-    lagrangian_vertical = .true. ! Lagrangian or mass based vertical coordinates (only option implement is T, mass-based coordinates not implemented)
-    uniform             = .true. ! Uniform vertical grid in pressure (T) or hybrid (F)
+    adapt_dt            = .true.  ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
+    adapt_trend         = .false. ! adapt on trend (T) or on solution (F)
+    compressible        = .true.  ! compressible equations (T) or Boussinesq incompressible (F)
+    default_thresholds  = .true.  ! use default thresholds (T) or calculate dynamically (F)
+    perfect             = .false. ! use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
+    rebalance           = .true.  ! rebalance computational load at each checkpoint if T
+    remap               = .true.  ! remap Lagrangian coordinates (T) or no remapping (F)
+    penalize            = .false. ! include penalization of topography if T
+    uniform             = .true.  ! Uniform vertical grid in pressure (T) or hybrid (F)
 
     ! Default run values
     ! these parameters are typically reset in the input file, but are needed for compilation
+    alpha               = 1d-4
+    eta                 = 1d-2
     cfl_num             = 1.0_8
     C_visc              = 1d-2
     level_save          = level_start
@@ -279,10 +287,10 @@ contains
     grav_accel     = 9.80616_8
     p_top          = 0.0_8                     ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
     R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-    ref_density    = 1.0_8
+    ref_density    = 1.0d3
     kappa          = R_d/c_p
     omega          = 7.292d-05
-    radius         = 6371220.0_8
+    radius         = 6371.22*KM
     p_0            = 1000.0d2
 
     visc_sclr = 0.0_8

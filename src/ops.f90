@@ -158,8 +158,8 @@ contains
       ! Computes physical quantities during upward integration
       implicit none
       integer                                  :: idE, idN, idNE, idS, idSW, idW
-      integer                                  :: id_i, idE_i, idN_i, idNE_i, idS_i, idW_i
-      real(8)                                  :: circ_LORT, circ_UPLT, kinetic_energy, Phi_k 
+      integer                                  :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i
+      real(8)                                  :: circ_LORT, circ_UPLT, kinetic_energy, Phi_k, porosity, porous_density 
       real(8)                                  :: u_prim_UP_E, u_prim_RT_N
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
       type (Coord), dimension(6)               :: hex_nodes
@@ -173,6 +173,8 @@ contains
            logical, optional                        :: type
          end function physics_scalar_flux
       end interface
+
+      d = dom%id + 1
 
       idE  = id+E
       idN  = id+N
@@ -254,8 +256,11 @@ contains
       ! Bernoulli function
       if (compressible) then 
          bernoulli(id_i) = kinetic_energy + Phi_k
-      else 
-         bernoulli(id_i) = kinetic_energy + Phi_k + dom%press%elts(id_i)/ref_density
+      else
+         porosity = 1.0_8 - (1.0_8-alpha) * penal(zlev)%data(d)%elts(id_i)
+         porous_density = ref_density * porosity
+         
+         bernoulli(id_i) = kinetic_energy + Phi_k + dom%press%elts(id_i) / porous_density
       end if
 
       ! Exner function in incompressible case from geopotential
@@ -629,13 +634,13 @@ contains
     integer     :: id, idN, idE, idNE, idS, idSW, idW
     real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
 
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
 
     ! Find the velocity on primal and dual grid edges, which are equal except for the length of the
     ! side they are on
@@ -710,7 +715,7 @@ contains
   end subroutine cal_surf_press
 
   subroutine column_mass (dom, i, j, zlev, offs, dims)
-    ! Sum up total mass over column id and set surface geopotential
+    ! Sum up mass
     implicit none
     type (Domain)                  :: dom
     integer                        :: i, j, zlev
@@ -719,13 +724,13 @@ contains
 
     integer :: id_i
 
-    id_i = idx(i, j, offs, dims) + 1
+    id_i = idx (i, j, offs, dims) + 1
 
     dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
   end subroutine column_mass
 
   subroutine set_surf_geopot (dom, i, j, zlev, offs, dims)
-    ! Sum up total mass over column id and set surface geopotential
+    ! Set initial geopotential to surface geopotential (negative for incompressible ocean flows)
     implicit none
     type (Domain)                  :: dom
     integer                        :: i, j, zlev
@@ -734,9 +739,13 @@ contains
 
     integer :: id_i
 
-    id_i = idx(i, j, offs, dims) + 1
+    id_i = idx (i, j, offs, dims) + 1
 
-    dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
+    if (compressible) then
+       dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
+    else
+       dom%geopot%elts(id_i) = grav_accel * dom%topo%elts(id_i)
+    end if
   end subroutine set_surf_geopot
 
   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
@@ -748,27 +757,28 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
-    real(8) :: p_upper
+    integer :: d, id_i
+    real(8) :: p_upper, porosity, porous_density
 
+    d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
     dom%geopot_lower%elts(id_i) = dom%geopot%elts(id_i)
-    if (compressible) then ! Compressible case
+    if (compressible) then ! compressible case
        p_upper = dom%press_lower%elts(id_i) - grav_accel*mass(id_i)
        dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
 
        exner(id_i) = c_p * (dom%press%elts(id_i)/p_0)**kappa
 
        dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*kappa*temp(id_i)*exner(id_i)/dom%press%elts(id_i)
-    else ! Incompressible case
+    else ! incompressible case
        p_upper = dom%press_lower%elts(id_i) - grav_accel*temp(id_i)
        dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
+
+       porosity = 1.0_8 - (1.0_8-alpha) * penal(zlev)%data(d)%elts(id_i)
+       porous_density = ref_density * porosity
        
-       ! Find geopotential at interfaces using (18) in DYNAMICO
-       ! Note: since mu is associated with the kinematic mass = inert mass (not the gravitational mass defined by the buoyancy)
-       ! we divide by the constant reference density. This is the Boussinesq approximation.
-       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i)/ref_density
+       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i) / porous_density
     end if
     dom%press_lower%elts(id_i) = p_upper
   end subroutine integrate_pressure_up
@@ -784,7 +794,7 @@ contains
     integer :: id_i
     real(8) :: p_upper
 
-    id_i = idx(i, j, offs, dims)+1
+    id_i = idx (i, j, offs, dims)+1
 
     if (compressible) then ! Compressible case
        p_upper = dom%press_lower%elts(id_i) - grav_accel*mass(id_i)
@@ -842,16 +852,16 @@ contains
     integer               :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
     real(8), dimension(5) :: wgt1, wgt2
 
-    id   = idx(i, j, offs, dims)
+    id   = idx (i, j, offs, dims)
 
-    idNW = idx(i-1, j+1, offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
-    idSE = idx(i+1, j-1, offs, dims)
+    idNW = idx (i-1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idSE = idx (i+1, j-1, offs, dims)
 
     wgt1 = get_weights(dom, id,  0)
     wgt2 = get_weights(dom, idE, 3)
@@ -911,16 +921,16 @@ contains
     integer               :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
     real(8), dimension(5) :: wgt1, wgt2
 
-    id   = idx(i, j, offs, dims)
+    id   = idx (i, j, offs, dims)
 
-    idNW = idx(i-1, j+1, offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
-    idSE = idx(i+1, j-1, offs, dims)
+    idNW = idx (i-1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idSE = idx (i+1, j-1, offs, dims)
     
     ! RT edge
     wgt1 = get_weights(dom, id,  0)
@@ -1040,7 +1050,7 @@ contains
        end function physics_scalar_source
     end interface
 
-    id_i = idx(i, j, offs, dims) + 1
+    id_i = idx (i, j, offs, dims) + 1
 
     physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
 
@@ -1059,15 +1069,15 @@ contains
     integer :: id, idE, idNE, idN, idW, idSW, idS
     integer :: id_i, idE_i, idNE_i, idN_i, idW_i, idSW_i, idS_i
     
-    id   = idx(i, j, offs, dims)
+    id   = idx (i, j, offs, dims)
     id_i = id+1
     
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
 
     idE_i  = idE+1
     idNE_i = idNE+1
@@ -1111,9 +1121,9 @@ contains
 
     integer :: id, idS, idW
 
-    id   = idx(i,   j,   offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
 
     Laplacian(EDGE*id+RT+1) = -(vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
 
@@ -1122,6 +1132,7 @@ contains
     else
        Laplacian(EDGE*id+DG+1) = 0.0_8
     end if
+    
     Laplacian(EDGE*id+UP+1) = -(vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
   end subroutine cal_Laplacian_rotu
 
@@ -1139,10 +1150,10 @@ contains
 
     integer :: id, idE, idN, idNE
 
-    id   = idx(i,   j,   offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
     gradi_e(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1)
     gradi_e(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1)
@@ -1162,13 +1173,13 @@ contains
 
     integer :: id, idS, idW
 
-    id   = idx(i,   j,   offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
 
-    curlv_e(RT+1) = (curl(TRIAG*id +LORT+1) - curl(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
-    curlv_e(DG+1) = (curl(TRIAG*id +LORT+1) - curl(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
-    curlv_e(UP+1) = (curl(TRIAG*idW+LORT+1) - curl(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
+    curlv_e(RT+1) = (curl(TRIAG*id +LORT+1) - curl(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+    curlv_e(DG+1) = (curl(TRIAG*id +LORT+1) - curl(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+    curlv_e(UP+1) = (curl(TRIAG*idW+LORT+1) - curl(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
   end function curlv_e
 
   function div (hflux, dom, i, j, offs, dims)
@@ -1183,10 +1194,10 @@ contains
 
     integer :: id, idW, idS, idSW
 
-    id   = idx(i,   j,   offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
 
     div = (hflux(EDGE*id+RT+1)-hflux(EDGE*idW+RT+1) + hflux(EDGE*idSW+DG+1)-hflux(EDGE*id+DG+1) &
          + hflux(EDGE*id+UP+1)-hflux(EDGE*idS+UP+1)) * dom%areas%elts(id+1)%hex_inv
@@ -1212,30 +1223,27 @@ contains
     real(8), dimension(3)        :: gradB, gradE, theta_e
     real(8), dimension(0:N_BDRY) :: theta
 
-    id = idx(i, j, offs, dims)
+    id = idx (i, j, offs, dims)
     id_i = id+1
 
-    idE_i  = idx(i+1, j,   offs, dims)+1
-    idN_i  = idx(i,   j+1, offs, dims)+1
-    idNE_i = idx(i+1, j+1, offs, dims)+1
+    idE_i  = idx (i+1, j,   offs, dims) + 1 
+    idN_i  = idx (i,   j+1, offs, dims) + 1
+    idNE_i = idx (i+1, j+1, offs, dims) + 1
 
-    ! See DYNAMICO between (23)-(25), geopotential still known from step1_upw
+    ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
     ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-    theta(0)         = temp(id_i)/mass(id_i)
-    theta(NORTH)     = temp(idN_i)/mass(idN_i)
-    theta(EAST)      = temp(idE_i)/mass(idE_i)
-    theta(NORTHEAST) = temp(idNE_i)/mass(idNE_i)
-
+    theta(0)         = temp(id_i)   / mass(id_i)
+    theta(NORTH)     = temp(idN_i)  / mass(idN_i)
+    theta(EAST)      = temp(idE_i)  / mass(idE_i)
+    theta(NORTHEAST) = temp(idNE_i) / mass(idNE_i)
+    
     ! Interpolate potential temperature to edges
-    if (compressible) then
-       theta_e(1) = interp (theta(0), theta(EAST))
-       theta_e(2) = interp (theta(0), theta(NORTHEAST))
-       theta_e(3) = interp (theta(0), theta(NORTH))
-    else
-       theta_e(1) = interp (1.0_8-theta(0), 1.0_8-theta(EAST))
-       theta_e(2) = interp (1.0_8-theta(0), 1.0_8-theta(NORTHEAST)) 
-       theta_e(3) = interp (1.0_8-theta(0), 1.0_8-theta(NORTH)) 
-    end if
+    theta_e(1) = interp (theta(0), theta(EAST))
+    theta_e(2) = interp (theta(0), theta(NORTHEAST))
+    theta_e(3) = interp (theta(0), theta(NORTH))
+
+    ! Incompressible: theta is normalized density perturbation, want theta_e = (rho0-rho)/rho0
+    if (.not. compressible) theta_e = 1.0_8 - theta_e
 
     ! Calculate gradients
     gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
@@ -1255,12 +1263,12 @@ contains
     integer :: id, id_i, idS, idW, idSW
     real(8) :: u_dual_RT, u_dual_RT_W, u_dual_DG_SW, u_dual_DG, u_dual_UP, u_dual_UP_S
 
-    id   = idx(i,   j,   offs, dims)
+    id   = idx (i,   j,   offs, dims)
     id_i = id+1
     
-    idS  = idx(i,   j-1, offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
 
     u_dual_RT    = velo(EDGE*id  +RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
     u_dual_RT_W  = velo(EDGE*idW +RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
@@ -1281,10 +1289,10 @@ contains
 
     integer :: id
 
-    id   = idx(i, j, offs, dims)
+    id   = idx (i, j, offs, dims)
 
-    sum_mass = sum_mass + abs(mass(id+1))
-    sum_temp = sum_temp + abs(temp(id+1))
+    sum_mass = sum_mass + abs (mass(id+1))
+    sum_temp = sum_temp + abs (temp(id+1))
   end subroutine sum_mass_temp
 
   subroutine sum_dmassdtemp (dom, i, j, zlev, offs, dims)
@@ -1295,7 +1303,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     integer :: id_i
 
-    id_i = idx(i, j, offs, dims)+1
+    id_i = idx (i, j, offs, dims)+1
 
     totaldmass = totaldmass + dmass(id_i)/dom%areas%elts(id_i)%hex_inv
     totalabsdmass = totalabsdmass + abs (dmass(id_i)/dom%areas%elts(id_i)%hex_inv)

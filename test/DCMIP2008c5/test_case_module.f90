@@ -12,7 +12,7 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Test case variables
-  real(8) :: d2, delta_T, eta, eta_t, eta_v, eta_0, gamma_T, h_0, lat_c, lon_c, N_freq, ref_surf_press, R_pert, T_0, u_0
+  real(8) :: d2, h_0, lat_c, lon_c, N_freq, ref_surf_press, T_0, u_0
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -407,7 +407,7 @@ contains
     end if
 
     if (rank == 0) then
-       write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/1d3, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
+       write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
        write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
           " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
@@ -421,7 +421,7 @@ contains
 
     do l = level_start, level_end
        do k = 1, zlevels
-          call apply_onescale (init_sol, l, k, -1, 1)
+          call apply_onescale (init_sol, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
   end subroutine apply_initial_conditions

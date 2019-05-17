@@ -26,7 +26,7 @@ program Held_Suarez
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6.371d6                     ! mean radius of the Earth in meters
+  radius         = 6371*KM                     ! mean radius of the Earth in meters
   grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
   omega          = 7.292d-5                    ! Earth's angular velocity in radians per second
   p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals

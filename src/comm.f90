@@ -950,7 +950,7 @@ contains
     integer :: d, e, id, id_e, id_i, k, l
     real(8) :: d_e, v_e
 
-    id = idx(i, j, offs, dims)
+    id = idx (i, j, offs, dims)
     id_i = id + 1
     d  = dom%id + 1
     l  = dom%level%elts(id_i)
@@ -965,7 +965,7 @@ contains
                 d_e = dom%len%elts(id_e) ! triangle edge length
                 do k = 1, zlevels
                    v_e = abs (sol(S_VELO,k)%data(d)%elts(id_e))
-                   dt_loc = min (dt_loc, cfl_num*d_e/(v_e+wave_speed))
+                   dt_loc = min (dt_loc, cfl_num * d_e / (v_e + wave_speed))
                 end do
              end if
           end if
@@ -983,11 +983,11 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, e, id, id_i, k, l
-    real(8) :: col_mass, d_e, fac, mu, init_mass
+    real(8) :: col_mass, d_e, fac, mu, init_mass, porosity, porous_density
 
     id   = idx (i, j, offs, dims)
     id_i = id + 1
-    d  = dom%id + 1
+    d    = dom%id + 1
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        col_mass = 0.0_8
@@ -1001,8 +1001,16 @@ contains
           col_mass = col_mass + mu
        end do
        
+       ! Assumes levels are evenly spaced in z (ignores initial surface perturbations)
        do k = 1, zlevels
-          init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
+          if (compressible) then
+             init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
+          else
+             porosity = 1.0_8 - (1.0_8-alpha) * penal(k)%data(d)%elts(id_i)
+             porous_density = ref_density * porosity
+
+             init_mass = porous_density * abs (dom%topo%elts(id_i))/zlevels
+          end if
           min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
        end do
        

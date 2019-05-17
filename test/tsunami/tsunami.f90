@@ -4,7 +4,7 @@ program Tsunami
   use test_case_mod
   use io_mod  
   implicit none
-
+  
   logical :: aligned
 
   ! Initialize mpi, shared variables and domains
@@ -13,25 +13,25 @@ program Tsunami
  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6.371229d6                   ! mean radius of the Earth [m]
+  radius         = 6371.229*KM                  ! mean radius of the Earth [m]
   grav_accel     = 9.80616_8                    ! gravitational acceleration [m/s^2]
   omega          = 7.29211d-5                   ! Earth’s angular velocity [rad/s]
   p_top          = 0.0_8                        ! pressure at free surface
   ref_density    = 1.0d3                        ! reference density (water) [kg/m^3]
 
   ! Local test case parameters
-  mean_depth     = 3.0d3                        ! mean depth [m]
-  dH             = 1d-3 * mean_depth            ! perturbation to the free surface [m]
-  d2             = 1.5d6**2                     ! square of half width of Gaussian free surface perturbation [m]
+  mean_depth     = -3*KM                        ! mean depth coordinate [m] (must be negative)
+  dH             = 1d-3 * abs (mean_depth)      ! perturbation to the free surface [m]
+  pert_radius    = 1500*KM                      ! radius of Gaussian free surface perturbation [m]
   lon_c          = MATH_PI/2                    ! longitude location of perturbation
   lat_c          = MATH_PI/6                    ! latitude location of perturbation
 
   ! Dimensional scaling
-  wave_speed     = sqrt (grav_accel*mean_depth) ! inertia-gravity wave speed
-  Udim           = wav_speed                    ! velocity scale
-  Ldim           = 2 * sqrt (d2)                ! length scale (free surface perturbation width)
+  wave_speed     = sqrt (grav_accel*abs(mean_depth)) ! inertia-gravity wave speed
+  Udim           = wave_speed                   ! velocity scale
+  Ldim           = 2 * pert_radius              ! length scale (free surface perturbation width)
   Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
-  Hdim           = mean_depth                   ! vertical length scale
+  Hdim           = abs (mean_depth)             ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters
@@ -39,6 +39,9 @@ program Tsunami
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+
+  allocate (n_patch_old(size(grid)))
+  n_patch_old = 2; call update_depth_penalization ; call barrier
 
   ! Save initial conditions
   call print_test_case_parameters
@@ -51,9 +54,12 @@ program Tsunami
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
+     n_patch_old = grid%patch%length
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
      call stop_timing
+
+     call update_depth_penalization
      
      call sum_total_mass (.false.)
      call print_log
@@ -63,7 +69,12 @@ program Tsunami
         if (remap) call remap_vertical_coordinates
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, rebalance)
+        if (modulo (iwrite, CP_EVERY) == 0) then
+           call write_checkpoint (dump, load, run_id, rebalance)
+           if (rebalance) then
+              n_patch_old = 2; call update_depth_penalization ; call barrier
+           end if
+        end if
 
         ! Save fields
         call write_and_export (iwrite)
@@ -169,6 +180,7 @@ end function physics_scalar_source
 function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
   use domain_mod
+  use time_integr_mod
   implicit none
 
   real(8), dimension(1:EDGE)     :: physics_velo_source
@@ -177,10 +189,11 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: id
+  integer                    :: id, id_i
   real(8), dimension(1:EDGE) :: diffusion
 
-  id = idx (i, j, offs, dims)
+  id   = idx (i, j, offs, dims)
+  id_i = id + 1
 
   if (Laplace_order == 0) then
      diffusion = 0.0_8
@@ -190,7 +203,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   end if
 
   ! Total physics for source term of velocity trend
-  physics_velo_source =  diffusion
+  physics_velo_source =  diffusion - penal(zlev)%data(dom%id+1)%elts(id+1)/eta * velo(EDGE*id+1:EDGE*id_i)
 contains
   function grad_divu()
     implicit none

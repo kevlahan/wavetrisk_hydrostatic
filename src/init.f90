@@ -24,11 +24,13 @@ contains
     allocate (sol(S_MASS:S_VELO,1:zlevels), sol_save(S_MASS:S_VELO,1:save_levels), trend(S_MASS:S_VELO,1:zlevels))
     allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
     allocate (exner_fun(1:zlevels+1))
+    allocate (penal(1:zlevels))
     allocate (horiz_flux(S_MASS:S_TEMP), Laplacian_scalar(S_MASS:S_TEMP))
     allocate (Laplacian_vector(S_DIVU:S_ROTU))
     allocate (lnorm(S_MASS:S_VELO,1:zlevels))
 
     do k = 1, zlevels
+       call init_Float_Field (penal(k),     AT_NODE)
        call init_Float_Field (exner_fun(k), AT_NODE)
        do v = S_MASS, S_VELO
           call init_Float_Field (sol(v,k), POSIT(v))
@@ -319,6 +321,7 @@ contains
 
     do k = 1, zlevels
        do d = 1, size(grid)
+          call init (penal(k)%data(d),          grid(d)%node%length)
           call init (exner_fun(k)%data(d),      grid(d)%node%length)
           call init (trend(S_MASS,k)%data(d),   grid(d)%node%length)
           call init (trend(S_VELO,k)%data(d),   grid(d)%node%length*EDGE); trend(S_VELO,k)%data(d)%elts = 0
@@ -349,6 +352,7 @@ contains
        call init (grid(d)%geopot_lower, grid(d)%node%length)
        call init (grid(d)%bernoulli,    grid(d)%node%length)
        call init (grid(d)%divu,         grid(d)%node%length)
+       call init (grid(d)%topo,         grid(d)%node%length)
        call init (grid(d)%vort,         grid(d)%node%length*TRIAG)
        call init (grid(d)%qe,           grid(d)%node%length*EDGE)
     end do

@@ -1,13 +1,13 @@
-test_case          tsunami ! name of test case
-run_id             tsunami_J4J6 ! name of run (for saved data)	
+test_case          tsunami       ! name of test case
+run_id             tsunami_J4J6  ! name of run (for saved data)
 compressible       F             ! compressible (T) or incompressible (F) equations
+penalize           F             ! penalize land regions and include realistic bathymetry
 max_level	   6             ! maximum level of resolution
-zlevels            30            ! number of vertical levels
-uniform            T             ! uniform (T) or hybrid (F) vertical grid
+zlevels            20            ! number of vertical levels
 remap              T             ! remap vertical grid
 remapscalar_type   0             ! remap method for scalars  (0, 1, 2PPM, 2S, 2W, 4, PPR)
 remapvelo_type     0             ! remap method for velocity (0, 1, 2PPM, 2S, 2W, 4, PPR)
-iremap             1             ! remap every iremap time steps
+iremap             10             ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)
@@ -15,12 +15,19 @@ tol      	   1e-1          ! non-dimensional tolerance
 optimize_grid	   0             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
 cfl_num            1.0           ! cfl number
-timeint_type       RK45          ! time integration method (RK33, RK34, RK45, RK4)
-pressure_save      3000          ! save vertical layer closest to this height in metres
+timeint_type       RK4           ! time integration method (RK33, RK34, RK45, RK4)
+pressure_save      0             ! save vertical layer closest to this height in metres
 Laplace_order      0             ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second order Laplacian hyperdiffusion
 n_diffuse          1             ! diffuse every n_diffuse time steps
-dt_write           0.25          ! save interval (days)
+dt_write           20            ! save interval (minutes)
 CP_EVERY           6             ! checkpoint every CP_EVERY saves
 rebalance          F             ! rebalance at each checkpoint if T
-time_end           30            ! final time (days)
+time_end           30            ! final time (hours)
 resume             -1            ! restart from checkpoint (negative means fresh restart)
+eta                1e-2          ! permeability penalization parameter
+alpha              1e-4          ! porosity penalization parameter
+Hmin        	  -50            ! minimum allowed depth when running with bathymetry [m] (coordinate of minimum depth: must be negative)
+bathy_per_deg      15            ! number of bathymetry grid points per degree in smoothed bathymetry
+npts_chi           2             ! smooth over chi over npts_chi grid points
+npts_topo          0             ! smooth over topography over npts_topo grid points	
+

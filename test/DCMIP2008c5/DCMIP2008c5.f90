@@ -13,7 +13,7 @@ program DCMIP2008c5
  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6.371229d6                   ! mean radius of the Earth in meters
+  radius         = 6371.229*KM                  ! mean radius of the Earth in meters
   grav_accel     = 9.80616_8                    ! gravitational acceleration in meters per second squared
   omega          = 7.29211d-5                   ! Earth’s angular velocity in radians per second
   p_0            = 100145.6_8                   ! reference pressure (mean surface pressure) in Pascals
@@ -25,7 +25,7 @@ program DCMIP2008c5
   kappa          = 2.0_8/7.0_8                  ! kappa=R_d/c_p
 
   ! Local test case parameters
-  d2             = 1.5d6**2                     ! square of half width of Gaussian mountain profile in meters
+  d2             = (1500*KM)**2                     ! square of half width of Gaussian mountain profile in meters
   h_0            = 2.0d3                        ! mountain height in meters
   lon_c          = MATH_PI/2                    ! longitude location of mountain
   lat_c          = MATH_PI/6                    ! latitude location of mountain

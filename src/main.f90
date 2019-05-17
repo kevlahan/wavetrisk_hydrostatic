@@ -416,6 +416,7 @@ contains
        deallocate (grid(d)%qe%elts)
        deallocate (grid(d)%bernoulli%elts)
        deallocate (grid(d)%divu%elts)
+       deallocate (grid(d)%topo%elts)
        deallocate (grid(d)%coriolis%elts)
 
        deallocate (grid(d)%node%elts) 
@@ -453,9 +454,11 @@ contains
           deallocate (Laplacian_scalar(v)%data(d)%elts)
        end do
 
-       do k = 1, zlevels+1
+       do k = 1, zlevels
+          deallocate (penal(k)%data(d)%elts)
           deallocate (exner_fun(k)%data(d)%elts)
        end do
+       deallocate (exner_fun(zlevels+1)%data(d)%elts)
        
        do v = S_MASS, S_VELO
           do k = 1, zlevels
@@ -473,9 +476,11 @@ contains
     deallocate (Laplacian_vector(S_DIVU)%data)
     deallocate (Laplacian_vector(S_ROTU)%data)
 
-    do k = 1, zlevels+1
+    do k = 1, zlevels
+       deallocate (penal(k)%data)
        deallocate (exner_fun(k)%data)
     end do
+    deallocate (exner_fun(zlevels+1)%data)
     
     do v = S_MASS, S_TEMP
        deallocate (horiz_flux(v)%data)
@@ -499,7 +504,7 @@ contains
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)
     deallocate (sol, sol_save, trend, trend_wav_coeff, wav_coeff)       
-    deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm)
+    deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
 
     nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &

@@ -57,6 +57,7 @@ module domain_mod
      type(Float_Array) :: bernoulli   ! Bernoulli function
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          !
+     type(Float_Array) :: topo        ! coordinate of local topography
   end type Domain
 
   type Float_Field
@@ -67,17 +68,10 @@ module domain_mod
 
   type(Domain), dimension(:), allocatable, target        :: grid
 
-  type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux
+  type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, penal
   type(Float_Field), dimension(:),   allocatable, target :: Laplacian_scalar, Laplacian_vector
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_save, trend, wav_coeff, trend_wav_coeff
 
-  ! Note that the theta in the DYNAMICO paper is in fact theta^b (buoyancy)
-  ! we have theta^b=(theta_r-theta_k)/theta_r where theta_r is the reference potential temperature
-  ! and theta_k is the potential temperature
-  ! therefore 1-theta in the DYNAMICO paper is really 1-theta^b=theta_k/theta_r=theta'_k which
-  ! is what they are solving for in the code (and changes some of the equations in the paper, more specifically
-  ! the equation below (18) and the equation below (24))
-  ! we will solve for theta'_k and Theta'_k
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo

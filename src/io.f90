@@ -645,54 +645,60 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: d, id, idW, idSW, idS, outl
+    integer                       :: d, id, id_i, idW, idSW, idS, k, outl
+    real(8)                       :: total_depth
     real(4), dimension(N_VAR_OUT) :: outv
     real(8), dimension(2)         :: vel_latlon
 
     d = dom%id + 1
 
-    id   = idx(i,   j,   offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idSW = idx(i-1, j-1, offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    id_i = id + 1
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
 
-    ! Temperature in layer zlev
-    outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id+1)/sol(S_MASS,zlev)%data(d)%elts(id+1)*(dom%press%elts(id+1)/p_0)**kappa
-
+    if (compressible) then ! temperature in layer zlev
+       outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i)/sol(S_MASS,zlev)%data(d)%elts(id_i)*(dom%press%elts(id_i)/p_0)**kappa
+    else ! density in layer zlev
+       outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i)/sol(S_MASS,zlev)%data(d)%elts(id_i) * ref_density
+    end if
+       
     ! Zonal and meridional velocities
-    outv(2) = dom%u_zonal%elts(id+1)
-    outv(3) = dom%v_merid%elts(id+1)
+    outv(2) = dom%u_zonal%elts(id_i)
+    outv(3) = dom%v_merid%elts(id_i)
 
     ! Geopotential height at level zlev
-    outv(4) = dom%geopot%elts(id+1)/grav_accel
+    outv(4) = dom%geopot%elts(id_i)/grav_accel
 
     ! Mass
-    outv(5) = sol(S_MASS,zlev)%data(d)%elts(id+1)
+    outv(5) = sol(S_MASS,zlev)%data(d)%elts(id_i)
 
-    ! Surface pressure
-    outv(6) = dom%surf_press%elts(id+1)
+    if (compressible) then ! surface pressure
+       outv(6) = dom%surf_press%elts(id_i)
+    else ! free surface perturbation
+       total_depth = 0.0_8
+       do k = 1, zlevels
+          total_depth = total_depth + sol(S_MASS,k)%data(d)%elts(id_i)
+       end do
+       outv(6) = total_depth/ref_density + dom%topo%elts(id_i)
+    end if
 
     ! Vorticity at hexagon points
-    outv(7) =  dom%press_lower%elts(id+1)
-    ! (dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1) + &
-    ! dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1) + &
-    ! dom%areas%elts(idW+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1) + &
-    ! dom%areas%elts(idSW+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
-    ! dom%areas%elts(idSW+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
-    ! dom%areas%elts(idS+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)) * dom%areas%elts(id+1)%hex_inv
+    outv(7) =  dom%press_lower%elts(id_i)
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
-       outl = nint(active_level%data(d)%elts(id+1))
+       outl = nint(active_level%data(d)%elts(id_i))
     else
        outl = 0
     end if
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
        write (funit,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
             dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
             dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
             dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
-            outv, dom%mask_n%elts(id+1), outl
+            outv, dom%mask_n%elts(id_i), outl
        where (minv > outv) minv = outv
        where (maxv < outv) maxv = outv
     end if
@@ -1315,6 +1321,77 @@ contains
     if (rank == 0) call compress_files (iwrite, run_id)
     call barrier
   end subroutine write_and_export
+
+  subroutine write_and_export_incompressible (iwrite)
+    implicit none
+    integer :: iwrite
+
+    integer      :: d, i, j, k, l, p, u
+    character(7) :: var_file
+
+    if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', iwrite
+
+    sol%bdry_uptodate = .false.
+    call update_array_bdry (sol, NONE, 26)
+
+    call pre_levelout
+
+    ! Compute surface pressure
+    call cal_surf_press (sol)
+
+    do l = level_start, level_end
+       minv = 1.0d63; maxv = -1.0d63
+       u = 1000000+100*iwrite
+
+       ! Calculate pressure and geopotential at vertical level save_zlev and scale l
+       do k = 1, save_zlev
+          do d = 1, size(grid)
+             mass  => sol(S_MASS,k)%data(d)%elts
+             temp  => sol(S_TEMP,k)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+             end do
+             nullify (mass, temp)
+          end do
+       end do
+
+       ! Calculate zonal and meridional velocities and vorticity for vertical level save_zlev
+       do d = 1, size(grid)
+          velo => sol(S_VELO,save_zlev)%data(d)%elts
+          vort => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), l, z_null)
+          nullify (velo, vort)
+       end do
+
+       ! Calculate vorticity at hexagon points (stored in press_lower)
+       call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
+
+       call write_level_mpi (write_primal, u+l, l, save_zlev, .true., run_id)
+
+       do i = 1, N_VAR_OUT
+          minv(i) = -sync_max_real (-minv(i))
+          maxv(i) =  sync_max_real ( maxv(i))
+       end do
+       if (rank == 0) then
+          write (var_file, '(i7)') u
+          open(unit=50, file=trim(run_id)//'.'//var_file)
+          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+          close(50)
+       end if
+       u = 2000000+100*iwrite
+       call write_level_mpi (write_dual, u+l, l, save_zlev, .False., run_id)
+    end do
+
+    call post_levelout
+    call barrier
+    if (rank == 0) call compress_files (iwrite, run_id)
+    call barrier
+  end subroutine write_and_export_incompressible
 
   subroutine compress_files (iwrite, run_id)
     implicit none
