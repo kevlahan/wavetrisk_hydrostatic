@@ -1,5 +1,9 @@
 **********************************************************************************************************************************
 A brief user's guide for WAVETRISK 1.0 2019-05-17 N. Kevlahan kevlahan@mcmaster.ca
+
+A dynamically adaptive wavelet experimental climate model that solves the multi-layer hydrostatic shallow water equations in
+Boussinesq form.  Both compressible (atmosphere) and incompressible (ocean) options are available.
+
 **********************************************************************************************************************************
 TEST CASES
 
@@ -56,12 +60,17 @@ BASICS OF THE CODE
 
 PROGNOSTIC VARIABLES
 
-The variables stored in a Float_Array (see below) sol, with components S_MASS, S_TEMP and S_VELO. S_MASS contains the pseudo
-density mu = ref_density * dz, S_TEMP contains the mass-weighted potential temperature mu * potential temperature (compressible
-case) or mu * density/ref_density = density * dz, and S_VELO contains the three velocity components U, V, W at edges RT, DG and UP
-respectively (see below). The variable theta is defined to be S_TEMP/S_MASS, so theta is the potential temperature in the
-compressible case, and theta is the normalized total density in the incompressible case (i.e. buoyancy = grav_accel * (1 -
-theta)).
+The variables are stored in a Float_Array (see below) sol, with components S_MASS, S_TEMP and S_VELO.  The code solves the
+hydrostatic Boussinesq equations in compressible (i.e. atmosphere) or incompressible (i.e. ocean) form.
+
+S_MASS contains mu = ref_density * dz (i.e. kinemetic/inert pseudo density).
+
+S_TEMP contains the mass-weighted potential temperature mu * potential temperature in the compressible case or mu *
+density/ref_density = density * dz (i.e. gravitational mass) in the incompressible case. The variable theta is defined to be
+S_TEMP/S_MASS, so theta is the potential temperature in the compressible case, and theta is the normalized total density in the
+incompressible case (i.e. buoyancy = grav_accel * (1 - theta)).
+
+S_VELO contains the three velocity components U, V, W at edges RT, DG and UP respectively (see below).
 
 VERTICAL COORDINATES
 
@@ -71,6 +80,9 @@ case of analytical topography), which is positive for orography and negative for
 simulations the mean depth is defined to be negative, H0 = dom%topo%elts(id_i) < 0, and positive perturbations to the free surface
 are positive.  The local total depth is H = sum_zlev ( sol(S_MASS,zlev)%data(d)%elts(id_i) ) / ref_density and the free surface
 perturbation is therefore H + H0.
+
+The vertical coordinates are Lagrangian (i.e. they move as material surfaces) with periodic remapping onto a target (e.g. initial
+grid).  A collection of different conservative piecewise remapping routines are available.
 
 HORIZONTAL COORDINATES
 
