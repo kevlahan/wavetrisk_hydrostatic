@@ -1,110 +1,126 @@
-******************************************************************************************************************************************************************
-A brief user's guide for WAVETRISK 1.0
-2019-04-01 N. Kevlahan kevlahan@mcmaster.ca
-******************************************************************************************************************************************************************
-TEST CASES:
+**********************************************************************************************************************************
+A brief user's guide for WAVETRISK 1.0 2019-05-17 N. Kevlahan kevlahan@mcmaster.ca
+**********************************************************************************************************************************
+TEST CASES
+
 Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suarez).  Each test case consists of three files:
 
-- the main program (e.g. Held_Suarez.f90)
-- test_case_module.f90 (which sets initial conditions, defines the vertical grid, defines and reads/prints parameters for this test case)
-- test_case.in (a file setting the parameters for the run)
+- the main program (e.g. Held_Suarez.f90) test_case_module.f90 (which sets initial conditions, defines the vertical grid, defines
+- and reads/prints parameters for this test case) test_case.in (a file setting the parameters for the run)
 
 
-******************************************************************************************************************************************************************
-COMPILING and RUNNING 
+**********************************************************************************************************************************
+COMPILING and RUNNING
 
-TO COMPILE (using the test case Held_Suarez as an example):
-mkdir build
-make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
+TO COMPILE (using the test case Held_Suarez as an example): mkdir build make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
 
-Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean build. Can also compile as
-serial (ARCH=ser) or without load balancing (ARCH=mpi).  The code has been tested for the gfortran and ifort compilers and the openmpi and intelmpi mpi libraries.
+Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean
+build. Can also compile as serial (ARCH=ser) or without load balancing (ARCH=mpi).  The code has been tested for the gfortran and
+ifort compilers and the openmpi and intelmpi mpi libraries.
 
 !! Always do "make clean" when compiling a new test case !!
 
 Note that the code requires the LAPACK library and an appropriate link must be defined in Makefile.
 
-TO RUN (using test case Held_Suarez as an example):
-cd to-working_directory                                  (move to working directory, mkdir if necessary)
-ln -s wavetrisk_hydrostatic/bin/Held_Suarez .            (provide symbolic link to executable)
-ln -s path-to-grid_HR .                                  (provide symbolic link to Heikes and Randall grids, if using)
-cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in . (copy parameters files and then edit as appropriate)
-mpirun -n 40 Held_Suarez > log &                         (run on 40 processors using mpi)
+TO RUN (using test case Held_Suarez as an example): cd to-working_directory (move to working directory, mkdir if necessary) ln -s
+wavetrisk_hydrostatic/bin/Held_Suarez .  (provide symbolic link to executable) ln -s path-to-grid_HR .  (provide symbolic link to
+Heikes and Randall grids, if using) cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in . (copy parameters files and then edit
+as appropriate) mpirun -n 40 Held_Suarez > log & (run on 40 processors using mpi)
+
+If running with bathymetry data (e.g. incompressible tsunami test case) need to provide a symbolic link to the etopo data:
+
+ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute etopo topography data)
 
 
-******************************************************************************************************************************************************************
+**********************************************************************************************************************************
 POST-PROCESSING DATA USING PARAVIEW AND MATLAB
 
 The raw data files (e.g. Held_Suarez.1... and Held_Suarez.2...) must be converted to .vtk format for viewing with paraview:
  
-cd post
-gfortran -o trisk2vtk trisk2vtk.f90
-cd to-working-directory
-ln -s wavetrisk_hydrostatic/post/trisk2vtk .
-trisk2vtk Held_Suarez.1 primal 0 10 5 8 out (generates .vtk files for the saved hexagon grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk)
-trisk2vtk Held_Suarez.2 dual   0 10 5 8 out (generates .vtk files for the saved triangle grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk)
+cd post gfortran -o trisk2vtk trisk2vtk.f90 cd to-working-directory ln -s wavetrisk_hydrostatic/post/trisk2vtk .  trisk2vtk
+Held_Suarez.1 primal 0 10 5 8 out (generates .vtk files for the saved hexagon grid fields 0 to 10 at scales j = 5:8 and saves in
+files out...vtk) trisk2vtk Held_Suarez.2 dual 0 10 5 8 out (generates .vtk files for the saved triangle grid fields 0 to 10 at
+scales j = 5:8 and saves in files out...vtk)
 
 
 POST-PROCESS CHECKPOINTS FOR MATLAB PLOTTING OF 2-D PROJECTIONS ON LONGITUDE-LATITUDE PLANE:
 
-The m-file plot_2d.m provides various options for plotting 2-D projections of the data, zonal statistics and time history statistics.
-The zonal statistics can be plotted from in-line calculations (e.g. Held_Suarez_J4L18.3.tgz file saved during the run) or from data
-post-processed from saved checkpoints (e.g. Held_Suarez_J4L18.4.tgz) using test/flat_projection_data.  plot_2d.m plots
-time history data from the log file saved during the run (e.g. Held_Suarez_log).
+The m-file plot_2d.m provides various options for plotting 2-D projections of the data, zonal statistics and time history
+statistics.  The zonal statistics can be plotted from in-line calculations (e.g. Held_Suarez_J4L18.3.tgz file saved during the
+run) or from data post-processed from saved checkpoints (e.g. Held_Suarez_J4L18.4.tgz) using test/flat_projection_data.  plot_2d.m
+plots time history data from the log file saved during the run (e.g. Held_Suarez_log).
 
 
-******************************************************************************************************************************************************************
+**********************************************************************************************************************************
 BASICS OF THE CODE
 
 PROGNOSTIC VARIABLES
 
-The variables stored in a Float_Array (see below) sol, with components S_MASS, S_TEMP and S_VELO. S_MASS contains the pseudo density mu = ref_density * dz,
-S_TEMP contains the mass-weighted potential temperature mu * potential temperature (compressible case) or mu * density/ref_density = density * dz,
-and S_VELO contains the three velocity components U, V, W at edges RT, DG and UP respectively (see below). The variable theta is defined to be S_TEMP/S_MASS,
-so theta is the potential temperature in the compressible case, and theta is the normalized total density in the incompressible case
-(i.e. buoyancy = grav_accel * (1 - theta)).
+The variables stored in a Float_Array (see below) sol, with components S_MASS, S_TEMP and S_VELO. S_MASS contains the pseudo
+density mu = ref_density * dz, S_TEMP contains the mass-weighted potential temperature mu * potential temperature (compressible
+case) or mu * density/ref_density = density * dz, and S_VELO contains the three velocity components U, V, W at edges RT, DG and UP
+respectively (see below). The variable theta is defined to be S_TEMP/S_MASS, so theta is the potential temperature in the
+compressible case, and theta is the normalized total density in the incompressible case (i.e. buoyancy = grav_accel * (1 -
+theta)).
 
+VERTICAL COORDINATES
 
-GRID STRUCTURE 
+The zero level of the vertical coordinate is at mean sea level and vertical levels are always indexed starting at the lowest
+level.  The coordinate of the local topography is given by dom%topo%elts(id_i) (or by the test case function surf_geopot in the
+case of analytical topography), which is positive for orography and negative for bathymetry.  For incompressible (i.e. ocean)
+simulations the mean depth is defined to be negative, H0 = dom%topo%elts(id_i) < 0, and positive perturbations to the free surface
+are positive.  The local total depth is H = sum_zlev ( sol(S_MASS,zlev)%data(d)%elts(id_i) ) / ref_density and the free surface
+perturbation is therefore H + H0.
 
-The icosahedron is divided into a network of ten regular lozenge grids (with the exception of the POLES), each lozenge is then divided
-into N_SUB_DOM = 4**DOMAIN_LEVEL regular sub-domains with the number of sub-domains on each processor given by n_domain(rank+1).
+HORIZONTAL COORDINATES
 
-There are two special nodes called POLEs. One connects the five lozenge vertices at the top of the network and the other connects the 
-five lozenge grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and South poles.  
+Cartesian (x,y,z) coordinates are used with spherical geometry for lengths and areas on the sphere.  Since the equations are
+written in vector invariant form, there are no explicit metric terms.
 
-The coarsest level Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1 with PATCH_LEVEL>=2. The geometry of this coarsest level may be optimized by reading 
-in a Heikes & Randall (1995) grid of resolution Jmin-1 or using the Xu (2006) smoothing algorithm.
-The size of patches is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then the patches are 4x4).
-The larger PATCH_LEVEL is the fewer levels of tree structure must be traversed before reaching a uniform grid (which will in general contain inactive nodes).
-Each computation patch element is made up of one node for scalars and three edges for vectors U, V,W (see also GRID ELEMENTS below).
+GRID STRUCTURE
+
+The icosahedron is divided into a network of ten regular lozenge grids (with the exception of the POLES), each lozenge is then
+divided into N_SUB_DOM = 4**DOMAIN_LEVEL regular sub-domains with the number of sub-domains on each processor given by
+n_domain(rank+1).
+
+There are two special nodes called POLEs. One connects the five lozenge vertices at the top of the network and the other connects
+the five lozenge grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and
+South poles.
+
+The coarsest level Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1 with PATCH_LEVEL>=2. The geometry of this coarsest level may be optimized
+by reading in a Heikes & Randall (1995) grid of resolution Jmin-1 or using the Xu (2006) smoothing algorithm.  The size of patches
+is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then the patches are 4x4).  The larger PATCH_LEVEL is the fewer levels of tree
+structure must be traversed before reaching a uniform grid (which will in general contain inactive nodes).  Each computation patch
+element is made up of one node for scalars and three edges for vectors U, V,W (see also GRID ELEMENTS below).
 
 PARALLEL EXECUTION
 
-If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  With option mpi-lb the computational load is re-balanced
-each time a checkpoint is saved.
+If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  With option mpi-lb the
+computational load is re-balanced each time a checkpoint is saved.
  
 The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10*4**DOMAIN_LEVEL.
-Since DOMAIN_LEVEL = Jmin - (PATCH_LEVEL+1) larger Jmin or smaller PATCH_LEVEL allows more cores to be used.  For inhomogeneous problems
-(i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin while for homogeneous (i.e. well-balanced) problems it is more efficient to choose
-a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used.
+Since DOMAIN_LEVEL = Jmin - (PATCH_LEVEL+1) larger Jmin or smaller PATCH_LEVEL allows more cores to be used.  For inhomogeneous
+problems (i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin while for homogeneous (i.e. well-balanced)
+problems it is more efficient to choose a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores
+may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used.
 
 BASIC GRID DATA TYPES
 
-Type(Coord_Array) has components elts(:)%length (where elts is Type(Coord) array of x%y%z coordinates on the sphere for each grid element and
-length is an integer giving the size of elts).
+Type(Coord_Array) has components elts(:)%length (where elts is Type(Coord) array of x%y%z coordinates on the sphere for each grid
+element and length is an integer giving the size of elts).
 
-Type(Float_Array) has components elts(:)%length (where elts is a real array of variable values on each grid element on each sub-domain and
-and length is an integer giving the size of elts). It is used for physical variables such as coriolis, divu, vort etc.
+Type(Float_Array) has components elts(:)%length (where elts is a real array of variable values on each grid element on each
+sub-domain and and length is an integer giving the size of elts). It is used for physical variables such as coriolis, divu, vort
+etc.
 
-Type(Int_Array) has components elts(:)%length (where elts is an integer array of element indices on each sub-domain and
-and length is an integer giving the size of elts). It is used for masks, levels and parallel communication variables.
+Type(Int_Array) has components elts(:)%length (where elts is an integer array of element indices on each sub-domain and and length
+is an integer giving the size of elts). It is used for masks, levels and parallel communication variables.
 
-Type(Float_Field) has components data(:)%bdry_uptodate%pos (where data is a Float_Array, bdry_uptodate is a logical and pos is an integer)
-and is used for equation variables such as sol, trend, wav_coeff, sca_coeff.
+Type(Float_Field) has components data(:)%bdry_uptodate%pos (where data is a Float_Array, bdry_uptodate is a logical and pos is an
+integer) and is used for equation variables such as sol, trend, wav_coeff, sca_coeff.
 
-Type(Domain) has many components defining the grid and is the size of the total number of sub-domains on each processor n_domain(rank+1).
-It is used for the variable grid(:).
+Type(Domain) has many components defining the grid and is the size of the total number of sub-domains on each processor
+n_domain(rank+1).  It is used for the variable grid(:).
 
 Various other dynamical data types and subroutines for allocating them are defined in dyn_array.f90.
 
@@ -174,39 +190,42 @@ Note that within a patch similar notation is used for shifts in i and j (e.g. sh
 
 INDEXING OF GRID ELEMENTS AND NEIGHBOURS
 
-Quantities (e.g. mass, velocities) are all stored in a single array, whose elements are organized in patches.
-Each patch has regular array coordinates (i,j).
+Quantities (e.g. mass, velocities) are all stored in a single array, whose elements are organized in patches.  Each patch has
+regular array coordinates (i,j).
 
-Patch offset array offs(N_BDRY+1) contains the starting index in the single array for the current patch as offs(0). The starting 
+Patch offset array offs(N_BDRY+1) contains the starting index in the single array for the current patch as offs(0). The starting
 indices for neighbouring patches are given by offs(NORTH) etc.
 
-Patch dimension array dims(2, N_BDRY+1) gives the dimensions of the current patch as dims(2,0) and neighbouring patches as dims(2, NORTH) etc.
+Patch dimension array dims(2, N_BDRY+1) gives the dimensions of the current patch as dims(2,0) and neighbouring patches as dims(2,
+NORTH) etc.
 
-Function id = idx(i,j,offs,dims) returns the element index for the hexagon node with coordinates (i,j) on the patch selected by offs with dimensions dim. 
+Function id = idx(i,j,offs,dims) returns the element index for the hexagon node with coordinates (i,j) on the patch selected by
+offs with dimensions dim.
 
 The components of the grid elements are then found as:
 
- %elts(id+1)         - the one grid element hexagon node (e.g. masses)
- %elts(EDGE*id+e+1)  - the three grid element edges RT, DG, UP, where e = 0,1,2 (e.g. velocities, fluxes)
- %elts(TRIAG*id+t+1) - the two grid element triangles LORT, UPLT, where t = 0,1 (e.g. circulation)
+ %elts(id+1) - the one grid element hexagon node (e.g. masses) elts(EDGE*id+e+1) - the three grid element edges RT, DG, UP, where
+ %e = 0,1,2 (e.g. velocities, fluxes) elts(TRIAG*id+t+1) - the two grid element triangles LORT, UPLT, where t = 0,1
+ %(e.g. circulation)
 
 Wavelet coefficients are stored at the SAME nodes/edges as the nodes/edges they characterize.
 
 DATA OUTPUT
 
-Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual. 
-The full state of the simulation is saved in io.f90/dump_adapt_mpi and read in again by io.f90/load_adapt_mpi.
+Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual.  The full state of the simulation is saved in
+io.f90/dump_adapt_mpi and read in again by io.f90/load_adapt_mpi.
 
 CALCULATIONS ON ADAPTED GRID
 
-By default fields are calculated and operators are applied on the ENTIRE grid (including at nodes where the result can be obtained by  restriction 
-indicated by mask=12 and adjacent zone nodes indicated by mask=8) and the results are then over-written by correct values.  
-(Note that the solution in the adjacent zone at fine scale j+1 are found from values at coarse scale j so the values calculated at scale j+1 are not
-actually used.)
+By default fields are calculated and operators are applied on the ENTIRE grid (including at nodes where the result can be obtained
+by restriction indicated by mask=12 and adjacent zone nodes indicated by mask=8) and the results are then over-written by correct
+values.  (Note that the solution in the adjacent zone at fine scale j+1 are found from values at coarse scale j so the values
+calculated at scale j+1 are not actually used.)
 
-This means that some operations on the entire grid could produce intermediate overflows, inf/NaN, or invalid indices due to incorrect values at these nodes or
-their neighbours. Functions and subroutines should take this into account.  Similarly, circulation, vorticity and qe (potential vorticity are first computed incorrectly
-at pentagon points in step1 (or cal_vort) and then corrected in post_step1 (or post_vort).
+This means that some operations on the entire grid could produce intermediate overflows, inf/NaN, or invalid indices due to
+incorrect values at these nodes or their neighbours. Functions and subroutines should take this into account.  Similarly,
+circulation, vorticity and qe (potential vorticity are first computed incorrectly at pentagon points in step1 (or cal_vort) and
+then corrected in post_step1 (or post_vort).
 
 
 
