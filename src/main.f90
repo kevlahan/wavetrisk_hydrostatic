@@ -52,12 +52,12 @@ contains
        ! Determine vertical level to save
        call set_save_level
 
-       call init_structures (run_id)
-       call apply_init_cond
-
        ! Initialize time step and viscosities
        call initialize_dt_viscosity
 
+       call init_structures (run_id)
+       call apply_init_cond
+      
        ! Initialize thresholds to default values 
        call initialize_thresholds
 

@@ -646,7 +646,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, idW, idSW, idS, k, outl
-    real(8)                       :: total_depth
+    real(8)                       :: porosity, total_depth
     real(4), dimension(N_VAR_OUT) :: outv
     real(8), dimension(2)         :: vel_latlon
 
@@ -671,17 +671,21 @@ contains
     ! Geopotential height at level zlev
     outv(4) = dom%geopot%elts(id_i)/grav_accel
 
-    ! Mass
-    outv(5) = sol(S_MASS,zlev)%data(d)%elts(id_i)
+    if (compressible) then ! mass = ref_density*dz
+       outv(5) = sol(S_MASS,zlev)%data(d)%elts(id_i)
+    else ! penalization mask
+       outv(5) = penal(zlev)%data(d)%elts(id_i)
+    end if
 
     if (compressible) then ! surface pressure
        outv(6) = dom%surf_press%elts(id_i)
     else ! free surface perturbation
        total_depth = 0.0_8
        do k = 1, zlevels
-          total_depth = total_depth + sol(S_MASS,k)%data(d)%elts(id_i)
+          porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
+          total_depth = total_depth + sol(S_MASS,k)%data(d)%elts(id_i) / (ref_density*porosity)
        end do
-       outv(6) = total_depth/ref_density + dom%topo%elts(id_i)
+       outv(6) = total_depth + dom%topo%elts(id_i)
     end if
 
     ! Vorticity at hexagon points
@@ -1321,78 +1325,7 @@ contains
     if (rank == 0) call compress_files (iwrite, run_id)
     call barrier
   end subroutine write_and_export
-
-  subroutine write_and_export_incompressible (iwrite)
-    implicit none
-    integer :: iwrite
-
-    integer      :: d, i, j, k, l, p, u
-    character(7) :: var_file
-
-    if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', iwrite
-
-    sol%bdry_uptodate = .false.
-    call update_array_bdry (sol, NONE, 26)
-
-    call pre_levelout
-
-    ! Compute surface pressure
-    call cal_surf_press (sol)
-
-    do l = level_start, level_end
-       minv = 1.0d63; maxv = -1.0d63
-       u = 1000000+100*iwrite
-
-       ! Calculate pressure and geopotential at vertical level save_zlev and scale l
-       do k = 1, save_zlev
-          do d = 1, size(grid)
-             mass  => sol(S_MASS,k)%data(d)%elts
-             temp  => sol(S_TEMP,k)%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-             end do
-             nullify (mass, temp)
-          end do
-       end do
-
-       ! Calculate zonal and meridional velocities and vorticity for vertical level save_zlev
-       do d = 1, size(grid)
-          velo => sol(S_VELO,save_zlev)%data(d)%elts
-          vort => grid(d)%vort%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
-          end do
-          call apply_to_penta_d (post_vort, grid(d), l, z_null)
-          nullify (velo, vort)
-       end do
-
-       ! Calculate vorticity at hexagon points (stored in press_lower)
-       call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
-
-       call write_level_mpi (write_primal, u+l, l, save_zlev, .true., run_id)
-
-       do i = 1, N_VAR_OUT
-          minv(i) = -sync_max_real (-minv(i))
-          maxv(i) =  sync_max_real ( maxv(i))
-       end do
-       if (rank == 0) then
-          write (var_file, '(i7)') u
-          open(unit=50, file=trim(run_id)//'.'//var_file)
-          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-          write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
-          close(50)
-       end if
-       u = 2000000+100*iwrite
-       call write_level_mpi (write_dual, u+l, l, save_zlev, .False., run_id)
-    end do
-
-    call post_levelout
-    call barrier
-    if (rank == 0) call compress_files (iwrite, run_id)
-    call barrier
-  end subroutine write_and_export_incompressible
-
+  
   subroutine compress_files (iwrite, run_id)
     implicit none
     integer      :: iwrite

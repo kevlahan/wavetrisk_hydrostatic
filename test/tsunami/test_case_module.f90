@@ -12,11 +12,11 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  integer                              :: bathy_per_deg, npts_chi, npts_topo
+  integer                              :: bathy_per_deg, npts_penal, npts_topo
   integer, dimension(:), allocatable   :: n_patch_old
   real(8)                              :: dH, lon_c, lat_c, min_depth, pert_radius
   real(4), allocatable, dimension(:,:) :: bathy_data
-  logical                              :: const_bathymetry
+  logical                              :: etopo
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -26,7 +26,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id_i
-    real (8)    :: dz, porosity, porous_density, z
+    real (8)    :: dz, porous_density, z
     type(Coord) :: x_i
     
     d    = dom%id+1
@@ -39,15 +39,12 @@ contains
     ! Local z-coordinate (mid layer)
     z = free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
 
-    ! Penalization
-    porosity = 1.0_8 - (1.0_8-alpha) * penal(zlev)%data(d)%elts(id_i)
-    porous_density = ref_density * porosity
-    
     ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz
+    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
     sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
 
     ! Density * dz
-    sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/porous_density
+    sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
 
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
@@ -72,6 +69,7 @@ contains
     call cart2sph (x_i, lon, lat)
     rgrc = radius * acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
+    ! Gaussian perturbation to free surface
     free_surface = dH * exp__flush (-(rgrc/pert_radius)**2)
   end function free_surface
 
@@ -83,13 +81,13 @@ contains
 
     real(8), parameter :: drho = 0.05_8
 
-    ! density = ref_density
+    density = ref_density
     
-    if (z > 0.8 * mean_depth) then ! less dense fluid in upper layer
-       density = ref_density * (1.0_8 - drho)
-    else
-       density = ref_density
-    end if
+    ! if (z > 0.8 * mean_depth) then ! less dense fluid in upper layer
+    !    density = ref_density * (1.0_8 - drho)
+    ! else
+    !    density = ref_density
+    ! end if
   end function density
 
   subroutine vel_fun (lon, lat, u, v)
@@ -150,7 +148,7 @@ contains
   end subroutine initialize_thresholds
 
   subroutine initialize_dt_viscosity 
-    ! Initializes viscosity
+    ! Initializes viscosity, time step and penalization parameter eta
     implicit none
     real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
@@ -165,6 +163,9 @@ contains
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
     dt_init = dt_cfl
+
+    ! Pemeability penalization parameter
+    eta = dt_cfl
 
     tau_sclr = dt_cfl / C_sclr
     tau_divu = dt_cfl / C_divu
@@ -189,10 +190,11 @@ contains
        write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
           " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
           " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
+       write (6,'(a,es10.4)') "eta = ", eta
     end if
   end subroutine initialize_dt_viscosity
 
-  subroutine set_depth_penal (dom, i, j, zlev, offs, dims)
+  subroutine set_bathymetry_penal (dom, i, j, zlev, offs, dims)
     ! Sets depth and penalization mask
     implicit none
     type(Domain)                   :: dom
@@ -201,15 +203,14 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id, id_i, k
-    logical, parameter :: etopo = .false.
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    ! Set topography
+    ! Set bathymetry
     if (etopo) then ! set bathymetry coordinates using etopo data
-       call etopo_topography (id, dom, dom%topo%elts(id_i), 'bathymetry')
+       call etopo_topography (id, dom, dom%topo%elts(id_i), 'bathymetry', npts_topo)
     else
        call analytic_topography (dom%node%elts(id_i), dom%topo%elts(id_i), 'bathymetry')
     end if
@@ -217,7 +218,7 @@ contains
     ! Set penalization
     if (penalize) then
        if (etopo) then
-          call etopo_topography (id, dom, dom%topo%elts(id_i), 'penalize')
+          call etopo_topography (id, dom, penal(1)%data(d)%elts(id_i), 'penalize', npts_penal)
        else
           call analytic_topography (dom%node%elts(id_i), penal(1)%data(d)%elts(id_i), 'penalize')
        end if
@@ -227,9 +228,9 @@ contains
 
     ! For now, penalization is the same at all vertical levels (only used to define land areas)
     do k = 2, zlevels
-       penal(k)%data(dom%id+1)%elts(id_i) = penal(1)%data(dom%id+1)%elts(id_i)
+       penal(k)%data(d)%elts(id_i) = penal(1)%data(d)%elts(id_i)
     end do
-  end subroutine set_depth_penal
+  end subroutine set_bathymetry_penal
 
   subroutine analytic_topography (x_i, mask, itype)
     implicit none
@@ -237,27 +238,27 @@ contains
     character(*) :: itype
     type(Coord)  :: x_i
 
-    real(8)            :: lon, lat, rgrc
-    real(8), parameter :: land_radius = 4000*KM
+    real(8)            :: r, width
+    real(8), parameter :: land_radius = 2000*KM
+    real(8), parameter :: lon_land = 0.0_8, lat_land = 0.0_8
+    type(Coord)        :: x_o
 
+    mask = 0.0_8
     if (itype == 'bathymetry') then
        mask = mean_depth + surf_geopot (x_i) / grav_accel
     else ! penalization
-       call cart2sph (x_i, lon, lat)
-       rgrc = radius * acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
-       if (dist (x_i, sph2cart (lon, lat)) < land_radius) then
-          mask = 1.0_8
-       else
-          mask = 0.0_8
-       end if
+       width = dx_min*2
+       x_o = vec_scale (radius, sph2cart (lon_land, lat_land)) ! coordinate of centre of land mass
+       r = dist (x_i, x_o)                                     ! distance of current point from land mass
+       mask = (1.0_8 - tanh ((r-land_radius)/width)) / 2 
     end if
   end subroutine analytic_topography
 
-  subroutine etopo_topography (id, dom, topo, itype)
+  subroutine etopo_topography (id, dom, topo, itype, npts)
     ! Returns penalization mask for land penal and bathymetry coordinate topo using etopo data 
     ! uses radial basis function for smoothing (if specified)
     implicit none
-    integer      :: id
+    integer      :: id, npts
     real(8)      :: penal, topo
     character(*) :: itype
     type(Domain) :: dom
@@ -275,7 +276,6 @@ contains
        dx_primal(e) = dom%len%elts(id_e)
        dx_dual(e)   = dom%pedlen%elts(id_e)
     end do
-    dx_min = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**max_level))
     dx_local = max (maxval(dx_primal), maxval(dx_dual))
     if (dx_local == 0.0_8) dx_local = dx_min
 
@@ -286,19 +286,18 @@ contains
     p = proj_lon_lat (s0, t0)
     is0 = nint (s0); it0 = nint (t0)
 
-    if (npts_topo == 0) then ! no smoothing
+    if (npts == 0) then ! no smoothing
        topo = topo_value ()
     else ! smoothing
        sw_topo  = 0.0_8
        topo_sum = 0.0_8
-       do i = -npts_topo, npts_topo
-          do j = -npts_topo, npts_topo
+       do i = -npts, npts
+          do j = -npts, npts
              s = is0+i ; t = it0+j
-
              call wrap_lonlat (s, t)
              q = proj_lon_lat (dble(s), dble(t))
              r = norm (vector(p, q))
-             wgt = radial_basis_fun (r, npts_topo, dx_smooth)
+             wgt = radial_basis_fun (r, npts, dx_smooth)
 
              M_topo = topo_value ()
              topo_sum = topo_sum + wgt * M_topo
@@ -312,13 +311,13 @@ contains
       implicit none
 
       if (bathy_data(s, t) > 0.0_8) then ! land
-         if (itype == 'bathymetry') then ! topography
+         if (itype == 'bathymetry') then
             topo_value = 0.0_8
          else ! penalization
             topo_value = LAND
          end if
       else ! sea: bathymetry is less than zero
-         if (itype == 'topography') then ! topography
+         if (itype == 'topography') then 
             topo_value = min (bathy_data(s, t), min_depth)
          else ! penalization
             topo_value = SEA
@@ -380,8 +379,8 @@ contains
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
-    read (fid,*) varname, compressible
     read (fid,*) varname, penalize
+    read (fid,*) varname, etopo
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, remap
@@ -398,20 +397,21 @@ contains
     read (fid,*) varname, timeint_type
     read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order_init
-    read (fid,*) varname, n_diffuse
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
-    read (fid,*) varname, eta
     read (fid,*) varname, alpha
     read (fid,*) varname, min_depth
     read (fid,*) varname, bathy_per_deg
-    read (fid,*) varname, npts_chi
+    read (fid,*) varname, npts_penal
     read (fid,*) varname, npts_topo
     close(fid)
-    
+
+    ! Always run with incompressible equations
+    compressible = .false.
+        
     allocate (pressure_save(1))
     pressure_save(1) = press_save
     call set_save_level
@@ -420,8 +420,7 @@ contains
     resume   = resume_init
     Laplace_order = Laplace_order_init
 
-    if (penalize) then
-       const_bathymetry = .false.
+    if (penalize .and. etopo) then
        if (rank == 0) write(6,'(a)') 'Reading bathymetry data'
        allocate (bathy_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
        open (unit=1086,file='bathymetry')
@@ -429,8 +428,6 @@ contains
           read (1086,*) bathy_data(:,k)
        end do
        close (1086)
-    else
-       const_bathymetry = .true.
     end if
   end subroutine read_test_case_parameters
 
@@ -446,6 +443,7 @@ contains
        write (6,'(A,A)')      "run_id               = ", trim (run_id)
        write (6,'(A,L1)')     "compressible         = ", compressible
        write (6,'(A,L1)')     "penalize             = ", penalize
+       write (6,'(A,L1)')     "etopo                = ", etopo
        write (6,'(A,i3)')     "min_level            = ", min_level
        write (6,'(A,i3)')     "max_level            = ", max_level
        write (6,'(A,i5)')     "number of domains    = ", N_GLO_DOMAIN
@@ -467,7 +465,7 @@ contains
        write (6,'(a,a)')      "timeint_type         = ", trim (timeint_type)
        write (6,'(A,es10.4)') "pressure_save [hPa]  = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order_init
-       write (6,'(A,i4)')     "n_diffuse            = ", n_diffuse
+       write (6,'(A,i1)')     "n_diffuse            = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write [min]       = ", dt_write/MINUTE
        write (6,'(A,i6)')     "CP_EVERY             = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance            = ", rebalance
@@ -489,7 +487,7 @@ contains
        write (6,'(A,es10.4)') "alpha                = ", alpha
        write (6,'(A,es10.4)') "min_depth            = ", min_depth
        write (6,'(A,i5)')     "bathy_per_deg        = ", bathy_per_deg
-       write (6,'(A,i5)')     "npts_chi             = ", npts_chi
+       write (6,'(A,i5)')     "npts_penal           = ", npts_penal
        write (6,'(A,i5)')     "npts_topo            = ", npts_topo
 
        write (6,'(A)') &
@@ -535,7 +533,7 @@ contains
 
     do d = 1, size(grid)
        do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (set_depth_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          call apply_onescale_to_patch (set_bathymetry_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
 
@@ -550,13 +548,15 @@ contains
     implicit none
     integer :: d, k, p
 
+    n_patch_old = 2
     do d = 1, size(grid)
        do k = 1, zlevels
           do p = n_patch_old(d)+1, grid(d)%patch%length
-             call apply_onescale_to_patch (set_depth_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+             call apply_onescale_to_patch (set_bathymetry_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do
     end do
+    call barrier
   end subroutine update_depth_penalization
   
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)

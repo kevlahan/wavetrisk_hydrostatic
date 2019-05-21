@@ -159,7 +159,7 @@ contains
       implicit none
       integer                                  :: idE, idN, idNE, idS, idSW, idW
       integer                                  :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i
-      real(8)                                  :: circ_LORT, circ_UPLT, kinetic_energy, Phi_k, porosity, porous_density 
+      real(8)                                  :: circ_LORT, circ_UPLT, kinetic_energy, Phi_k
       real(8)                                  :: u_prim_UP_E, u_prim_RT_N
       real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics
       type (Coord), dimension(6)               :: hex_nodes
@@ -257,10 +257,7 @@ contains
       if (compressible) then 
          bernoulli(id_i) = kinetic_energy + Phi_k
       else
-         porosity = 1.0_8 - (1.0_8-alpha) * penal(zlev)%data(d)%elts(id_i)
-         porous_density = ref_density * porosity
-         
-         bernoulli(id_i) = kinetic_energy + Phi_k + dom%press%elts(id_i) / porous_density
+         bernoulli(id_i) = kinetic_energy + Phi_k + dom%press%elts(id_i) / (ref_density * porosity (d, id_i, zlev))
       end if
 
       ! Exner function in incompressible case from geopotential
@@ -758,7 +755,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id_i
-    real(8) :: p_upper, porosity, porous_density
+    real(8) :: p_upper
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
@@ -774,11 +771,8 @@ contains
     else ! incompressible case
        p_upper = dom%press_lower%elts(id_i) - grav_accel*temp(id_i)
        dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
-
-       porosity = 1.0_8 - (1.0_8-alpha) * penal(zlev)%data(d)%elts(id_i)
-       porous_density = ref_density * porosity
        
-       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i) / porous_density
+       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i) / (ref_density * porosity (d, id_i, zlev))
     end if
     dom%press_lower%elts(id_i) = p_upper
   end subroutine integrate_pressure_up
@@ -1280,6 +1274,14 @@ contains
     divu(id_i) =  (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
   end subroutine cal_divu
 
+  real(8) function porosity (d, id_i, zlev)
+    ! Returns porosity at position given by (d, id_i, zlev)
+    implicit none
+    integer :: d, id_i, zlev
+
+    porosity = 1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i)
+  end function porosity
+  
   subroutine sum_mass_temp (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom

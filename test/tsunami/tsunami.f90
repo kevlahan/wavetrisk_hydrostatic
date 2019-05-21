@@ -1,5 +1,7 @@
 program Tsunami
   ! Simple tsunami test case
+  !
+  ! The permeability penalization parameter eta = 4 dt_cfl and the porosity parameter alpha is set in the input file.
   use main_mod
   use test_case_mod
   use io_mod  
@@ -22,7 +24,7 @@ program Tsunami
   ! Local test case parameters
   mean_depth     = -3*KM                        ! mean depth coordinate [m] (must be negative)
   dH             = 1d-3 * abs (mean_depth)      ! perturbation to the free surface [m]
-  pert_radius    = 1500*KM                      ! radius of Gaussian free surface perturbation [m]
+  pert_radius    = 500*KM                      ! radius of Gaussian free surface perturbation [m]
   lon_c          = MATH_PI/2                    ! longitude location of perturbation
   lat_c          = MATH_PI/6                    ! latitude location of perturbation
 
@@ -41,7 +43,7 @@ program Tsunami
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
 
   allocate (n_patch_old(size(grid)))
-  n_patch_old = 2; call update_depth_penalization ; call barrier
+  call update_depth_penalization
 
   ! Save initial conditions
   call print_test_case_parameters
@@ -71,9 +73,7 @@ program Tsunami
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then
            call write_checkpoint (dump, load, run_id, rebalance)
-           if (rebalance) then
-              n_patch_old = 2; call update_depth_penalization ; call barrier
-           end if
+           if (rebalance) call update_depth_penalization
         end if
 
         ! Save fields
