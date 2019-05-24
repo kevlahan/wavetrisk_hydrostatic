@@ -683,13 +683,13 @@ contains
        total_depth = 0.0_8
        do k = 1, zlevels
           porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
-          total_depth = total_depth + sol(S_MASS,k)%data(d)%elts(id_i) / (ref_density*porosity)
+          total_depth = total_depth + sol(S_MASS,k)%data(d)%elts(id_i) / sol(S_PENL,k)%data(d)%elts(id_i)
        end do
        outv(6) = total_depth + dom%topo%elts(id_i)
     end if
 
     ! Vorticity at hexagon points
-    outv(7) =  dom%press_lower%elts(id_i)
+    outv(7) = dom%press_lower%elts(id_i)
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
        outl = nint(active_level%data(d)%elts(id_i))
@@ -837,7 +837,7 @@ contains
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
-    do v = S_MASS, S_TEMP
+    do v = 1, N_SCALARS
        write (fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
     end do
   end subroutine write_scalar
@@ -854,7 +854,7 @@ contains
     d  = dom%id+1
     id = idx(i, j, offs, dims)
 
-    do v = S_MASS, S_TEMP
+    do v = 1, N_SCALARS
        read (fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
     end do
   end subroutine read_scalar
@@ -883,16 +883,16 @@ contains
     fid_no = id+1000000
     fid_gr = id+3000000
     
-    call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), NONE, 20)
+    call update_array_bdry (wav_coeff, NONE, 20)
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          mass => sol(S_MASS,k)%data(d)%elts
-          temp => sol(S_TEMP,k)%data(d)%elts
-          wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-          wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-          call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
-          nullify (mass, temp, wc_m, wc_t)
+          do v = 1, N_SCALARS
+             mass => sol(v,k)%data(d)%elts
+             wc_m => wav_coeff(v,k)%data(d)%elts
+             call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+             nullify (mass, wc_m)
+          end do
        end do
     end do
 
@@ -912,7 +912,7 @@ contains
        p_par = 1
        do k = 1, zlevels
           call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
-          do v = S_MASS, S_VELO
+          do v = 1, N_VARS
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
              write (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
@@ -924,7 +924,7 @@ contains
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
              do k = 1, zlevels
-                do v = S_MASS, S_VELO
+                do v = 1, N_VARS
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
                    write (fid_no(d)) wav_coeff(v,k)%data(d)%elts(ibeg:iend)
@@ -983,7 +983,7 @@ contains
        p_par = 1
        do k = 1, zlevels
           call apply_to_pole_d (read_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
-          do v = S_MASS, S_VELO
+          do v = 1, N_VARS
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
              read (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
@@ -1002,7 +1002,7 @@ contains
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
              do k = 1, zlevels
-                do v = S_MASS, S_VELO
+                do v = 1, N_VARS
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
                    read (fid_no(d)) wav_coeff(v,k)%data(d)%elts(ibeg:iend)

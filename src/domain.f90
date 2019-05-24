@@ -904,15 +904,21 @@ contains
     call extend (self%node, num, ORIGIN)
 
     do k = 1, zlevels
-       call extend (sol(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
-       call extend (sol(S_TEMP,k)%data(d), num, 0.0_8)
-       call extend (sol(S_VELO,k)%data(d), EDGE*num, 0.0_8)
+       do v = 1, N_SCALARS
+          call extend (sol(v,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
+       end do
+       do v = N_SCALARS+1, N_VARS
+          call extend (sol(v,k)%data(d), EDGE*num, 0.0_8)
+       end do
     end do
     
     do k = 1, save_levels
-       call extend (sol_save(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
-       call extend (sol_save(S_TEMP,k)%data(d), num, 0.0_8)
-       call extend (sol_save(S_VELO,k)%data(d), EDGE*num, 0.0_8)
+       do v = 1, N_SCALARS
+          call extend (sol_save(v,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
+       end do
+       do v = N_SCALARS+1, N_VARS
+          call extend (sol_save(v,k)%data(d), EDGE*num, 0.0_8)
+       end do
     end do
   end subroutine extend_Domain
 

@@ -139,13 +139,21 @@ module shared_mod
   data O2 /2,3, 3,1, 1,2/ 
 
   ! Indices of prognostic variables in sol, trend etc
-  integer, parameter :: S_MASS = 1, S_TEMP = 2, S_VELO = 3, S_DIVU = 1, S_ROTU = 2
+  integer, parameter :: S_MASS = 1, S_TEMP = 2, S_PENL = 3 ! scalar variable labels
+  integer, parameter :: N_SCALARS = 3                      ! number of scalar variables (first N_SCALAR elements of sol are scalars)
+
+  integer, parameter :: S_VELO = N_SCALARS+1               ! vector variable labels
+  integer, parameter :: N_VECTORS = 1                      ! number of vector variables
+  
+  integer, parameter :: N_VARS = N_SCALARS + N_VECTORS     ! total number of variables
+  
+  integer, parameter :: S_DIVU = 1, S_ROTU = 2
 
   ! Number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
-  integer, dimension(S_MASS:S_VELO) :: MULT
+  integer, dimension(1:N_VARS) :: MULT
 
   ! Location of each variable on the grid (at an edge or at a node)
-  integer, dimension(S_MASS:S_VELO) :: POSIT
+  integer, dimension(1:N_VARS) :: POSIT
 
   ! Grid optimization choices
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
@@ -202,20 +210,22 @@ module shared_mod
   logical :: adapt_dt, adapt_trend, compressible, default_thresholds, penalize, perfect, rebalance, remap, uniform
 contains
   subroutine init_shared_mod
+    integer :: v
     logical :: initialized = .false.
 
     if (initialized) return ! Initialize only once
     initialized = .true.
     
-    ! Specify the multiplicity per grid element of each quantity
-    MULT(S_MASS) = 1
-    MULT(S_TEMP) = 1
-    MULT(S_VELO) = EDGE
+    ! Specify the position and multiplicity on the grid of each variable
+    do v = 1, N_SCALARS
+       MULT(v)  = 1
+       POSIT(v) = AT_NODE
+    end do
 
-    ! Specify the position on the grid of each quantity
-    POSIT(S_MASS) = AT_NODE
-    POSIT(S_TEMP) = AT_NODE
-    POSIT(S_VELO) = AT_EDGE
+    do v = N_SCALARS+1, N_VARS
+       MULT(v)  = EDGE
+       POSIT(v) = AT_EDGE
+    end do
 
     end_pt = reshape ((/0,  0, 1, 0, 1, 1, 0, 0, 0, 0,  0, 1/), (/2, 2, 3/))
     opp_no = reshape ((/0, -1, 1, 1, 0, 1, 1, 0, 1, 1, -1, 0/), (/2, 2, 3/))

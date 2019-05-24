@@ -166,14 +166,17 @@ contains
     do k = 1, zlevels
        call extend (penal(k)%data(d),     num, 0.0_8)
        call extend (exner_fun(k)%data(d), num, 0.0_8)
-       do v = S_MASS, S_TEMP
+       do v = 1, N_SCALARS
           call extend (trend(v,k)%data(d),           num, 0.0_8)
           call extend (wav_coeff(v,k)%data(d),       num, 0.0_8)
           call extend (trend_wav_coeff(v,k)%data(d), num, 0.0_8)
        end do
-       call extend (trend(S_VELO,k)%data(d),           num*EDGE, 0.0_8)
-       call extend (wav_coeff(S_VELO,k)%data(d),       num*EDGE, 0.0_8)
-       call extend (trend_wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
+
+       do v = N_SCALARS+1, N_VARS
+          call extend (trend(v,k)%data(d),           num*EDGE, 0.0_8)
+          call extend (wav_coeff(v,k)%data(d),       num*EDGE, 0.0_8)
+          call extend (trend_wav_coeff(v,k)%data(d), num*EDGE, 0.0_8)
+       end do
     end do
     call extend (exner_fun(zlevels+1)%data(d), num, 0.0_8)
     

@@ -33,18 +33,23 @@ contains
     id_i = idx (i, j, offs, dims) + 1
     x_i  = dom%node%elts(id_i)
 
+    !call analytic_topography (dom%node%elts(id_i), dom%topo%elts(id_i),            "bathymetry")
+    !call analytic_topography (dom%node%elts(id_i), penal(zlev)%data(d)%elts(id_i), "penalize")
+
     ! Initial vertical grid size (uniform)
     dz = (free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
  
     ! Local z-coordinate (mid layer)
     z = free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
 
-    ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz
+    ! Equally spaced sigma coordinates in z: sol(S_MASS) = porous_density * dz
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
     sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
 
     ! Density * dz
     sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
+    
+    sol(S_PENL,zlev)%data(d)%elts(id_i) = porous_density
 
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
@@ -194,8 +199,29 @@ contains
     end if
   end subroutine initialize_dt_viscosity
 
-  subroutine set_bathymetry_penal (dom, i, j, zlev, offs, dims)
-    ! Sets depth and penalization mask
+  subroutine set_bathymetry (dom, i, j, z_null, offs, dims)
+    ! Set depth 
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, z_null
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_i
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    ! Set bathymetry
+    if (etopo) then ! set bathymetry coordinates using etopo data
+       call etopo_topography (id, dom, dom%topo%elts(id_i), 'bathymetry', npts_topo)
+    else
+       call analytic_topography (dom%node%elts(id_i), dom%topo%elts(id_i), "bathymetry")
+    end if
+  end subroutine set_bathymetry
+
+  subroutine set_penal (dom, i, j, zlev, offs, dims)
+    ! Set penalization mask
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -208,52 +234,41 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    ! Set bathymetry
-    if (etopo) then ! set bathymetry coordinates using etopo data
-       call etopo_topography (id, dom, dom%topo%elts(id_i), 'bathymetry', npts_topo)
-    else
-       call analytic_topography (dom%node%elts(id_i), dom%topo%elts(id_i), 'bathymetry')
-    end if
-
-    ! Set penalization
     if (penalize) then
        if (etopo) then
-          call etopo_topography (id, dom, penal(1)%data(d)%elts(id_i), 'penalize', npts_penal)
+          call etopo_topography (id, dom, penal(zlev)%data(d)%elts(id_i), 'penalize', npts_penal)
        else
-          call analytic_topography (dom%node%elts(id_i), penal(1)%data(d)%elts(id_i), 'penalize')
+          call analytic_topography (dom%node%elts(id_i), penal(zlev)%data(d)%elts(id_i), 'penalize')
        end if
     else
-       penal(1)%data(d)%elts(id_i) = 0.0_8       
+       penal(zlev)%data(d)%elts(id_i) = 0.0_8       
     end if
+  end subroutine set_penal
 
-    ! For now, penalization is the same at all vertical levels (only used to define land areas)
-    do k = 2, zlevels
-       penal(k)%data(d)%elts(id_i) = penal(1)%data(d)%elts(id_i)
-    end do
-  end subroutine set_bathymetry_penal
-
-  subroutine analytic_topography (x_i, mask, itype)
+  subroutine analytic_topography (x_i, mask, type)
     implicit none
     real(8)      :: mask
-    character(*) :: itype
+    character(*) :: type
     type(Coord)  :: x_i
 
-    real(8)            :: r, width
+    real(8)            :: lat, lon, r, rgrc, width
     real(8), parameter :: land_radius = 2000*KM
     real(8), parameter :: lon_land = 0.0_8, lat_land = 0.0_8
-    type(Coord)        :: x_o
+
+    width = dx_min*2
 
     mask = 0.0_8
-    if (itype == 'bathymetry') then
+    select case (type)
+    case ("bathymetry")
        mask = mean_depth + surf_geopot (x_i) / grav_accel
-    else ! penalization
-       width = dx_min*2
-       x_o = vec_scale (radius, sph2cart (lon_land, lat_land)) ! coordinate of centre of land mass
-       r = dist (x_i, x_o)                                     ! distance of current point from land mass
-       mask = (1.0_8 - tanh ((r-land_radius)/width)) / 2 
-    end if
+    case ("penalize")
+       call cart2sph (x_i, lon, lat)
+       rgrc = radius * acos(sin(lat_land)*sin(lat) + cos(lat_land)*cos(lat)*cos(lon-lon_land))
+       mask = (1.0_8 - tanh ((rgrc-land_radius)/width)) / 2
+       !if (rgrc < land_radius) mask = 1.0_8
+    end select
   end subroutine analytic_topography
-
+  
   subroutine etopo_topography (id, dom, topo, itype, npts)
     ! Returns penalization mask for land penal and bathymetry coordinate topo using etopo data 
     ! uses radial basis function for smoothing (if specified)
@@ -529,11 +544,12 @@ contains
 
   subroutine apply_initial_conditions
     implicit none
-    integer :: d, k, l, p
-
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (set_bathymetry_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+    integer :: d, k, l
+    
+    do l = level_start, level_end
+       call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       do k = 1, zlevels
+          call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
 
@@ -546,17 +562,24 @@ contains
 
   subroutine update_depth_penalization
     implicit none
-    integer :: d, k, p
+    integer :: d, k, l, p
 
-    n_patch_old = 2
-    do d = 1, size(grid)
+    ! do d = 1, size(grid)
+    !    do p = n_patch_old(d)+1, grid(d)%patch%length
+    !       call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    !       do k = 1, zlevels
+    !          call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+    !       end do
+    !    end do
+    ! end do
+
+    do l = level_start, level_end
+       call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        do k = 1, zlevels
-          do p = n_patch_old(d)+1, grid(d)%patch%length
-             call apply_onescale_to_patch (set_bathymetry_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
+          call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
-    call barrier
+!    call barrier
   end subroutine update_depth_penalization
   
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)

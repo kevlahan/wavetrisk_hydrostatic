@@ -21,8 +21,8 @@ contains
     integer :: b, d, i_, k, loz, p, s, v
 
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(S_MASS:S_VELO,1:zlevels), sol_save(S_MASS:S_VELO,1:save_levels), trend(S_MASS:S_VELO,1:zlevels))
-    allocate (wav_coeff(S_MASS:S_VELO, 1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
+    allocate (sol(1:N_VARS,1:zlevels), sol_save(1:N_VARS,1:save_levels), trend(1:N_VARS,1:zlevels))
+    allocate (wav_coeff(1:N_VARS, 1:zlevels), trend_wav_coeff(1:N_VARS,1:zlevels))
     allocate (exner_fun(1:zlevels+1))
     allocate (penal(1:zlevels))
     allocate (horiz_flux(S_MASS:S_TEMP), Laplacian_scalar(S_MASS:S_TEMP))
@@ -32,15 +32,15 @@ contains
     do k = 1, zlevels
        call init_Float_Field (penal(k),     AT_NODE)
        call init_Float_Field (exner_fun(k), AT_NODE)
-       do v = S_MASS, S_VELO
-          call init_Float_Field (sol(v,k), POSIT(v))
+       do v = 1, N_VARS
+          call init_Float_Field (sol(v,k),   POSIT(v))
           call init_Float_Field (trend(v,k), POSIT(v))
        end do
     end do
     call init_Float_Field (exner_fun(zlevels+1), AT_NODE)
     
     do k = 1, save_levels
-       do v = S_MASS, S_VELO
+       do v = 1, N_VARS
           call init_Float_Field (sol_save(v,k), POSIT(v))
        end do
     end do
@@ -55,16 +55,20 @@ contains
     do d = 1, n_domain(rank+1)
        call init_Domain (grid(d))
        do k = 1, zlevels
-          do v = S_MASS, S_TEMP
+          do v = 1, N_SCALARS
              call init (sol(v,k)%data(d), 1)
           end do
-          call init (sol(S_VELO,k)%data(d), EDGE)
+          do v = N_SCALARS+1, N_VARS
+             call init (sol(v,k)%data(d), EDGE)
+          end do
        end do
        do k = 1, save_levels
-          do v = S_MASS, S_TEMP
+          do v = 1, N_SCALARS
              call init (sol_save(v,k)%data(d), 1)
           end do
-          call init (sol_save(S_VELO,k)%data(d), EDGE)
+          do v = N_SCALARS+1, N_VARS
+             call init (sol_save(v,k)%data(d), EDGE)
+          end DO
        end do
     end do
 
@@ -323,9 +327,13 @@ contains
        do d = 1, size(grid)
           call init (penal(k)%data(d),          grid(d)%node%length)
           call init (exner_fun(k)%data(d),      grid(d)%node%length)
-          call init (trend(S_MASS,k)%data(d),   grid(d)%node%length)
-          call init (trend(S_VELO,k)%data(d),   grid(d)%node%length*EDGE); trend(S_VELO,k)%data(d)%elts = 0
-          call init (trend(S_TEMP,k)%data(d),   grid(d)%node%length)
+          do v = 1, N_SCALARS
+             call init (trend(v,k)%data(d),   grid(d)%node%length)
+          end do
+          do v = N_SCALARS+1, N_VARS
+             call init (trend(v,k)%data(d),   grid(d)%node%length*EDGE)
+             trend(v,k)%data(d)%elts = 0.0_8
+          end do
        end do
     end do
 

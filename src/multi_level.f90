@@ -6,7 +6,7 @@ contains
   subroutine trend_ml (q, dq)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARS,1:zlevels), target :: q, dq
 
     integer :: k, l
 
@@ -37,7 +37,7 @@ contains
   subroutine basic_operators (q, dq, k, l)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARS,1:zlevels), target :: q, dq
     integer :: k, l
 
     integer :: d, j
@@ -82,7 +82,7 @@ contains
   subroutine cal_scalar_trend (q, dq, k, l)
     ! Evaluate scalar trends at level l
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARS,1:zlevels), target :: q, dq
     integer :: k, l
 
     integer :: d, j
@@ -98,14 +98,16 @@ contains
           call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
        end do
        nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
+
+       dq(S_PENL,k)%data(d)%elts = 0.0_8
     end do
-    dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
+    dq(1:N_SCALARS,k)%bdry_uptodate = .false.
   end subroutine cal_scalar_trend
 
   subroutine velocity_trend_source (q, dq, k, l)
     ! Evaluate source part of velocity trends at level l
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARS,1:zlevels), target :: q, dq
     integer :: k, l
 
     integer :: d, j
@@ -138,7 +140,7 @@ contains
   subroutine velocity_trend_grad (q, dq, k)
     ! Evaluate complete velocity trend by adding gradient terms to peviously calculated source terms on entire grid
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARS,1:zlevels), target :: q, dq
     integer                                                       :: k
 
     integer :: d, j, p
@@ -159,7 +161,7 @@ contains
   subroutine second_order_Laplacian_scalar (q, k, l)
     ! Computes Laplacian(mass) and Laplacian(temp) needed for second order scalar Laplacian
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
+    type(Float_Field), dimension(1:N_VARS,1:zlevels), target :: q
     integer                                                       :: k, l
 
     integer :: d, j
@@ -186,7 +188,7 @@ contains
   subroutine second_order_Laplacian_vector (q, k, l)
     ! Computes rot(rot(vort)) needed for second order vector Laplacian
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
+    type(Float_Field), dimension(1:N_VARS,1:zlevels), target :: q
     integer                                                       :: k, l
 
     integer :: d, j
