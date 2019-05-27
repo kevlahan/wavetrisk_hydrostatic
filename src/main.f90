@@ -114,7 +114,7 @@ contains
             '------------------------------------------------- Finished adapting initial grid &
             ------------------------------------------------'
 
-       !call adapt (set_thresholds) ; dt_new = cpt_dt()
+       call adapt (set_thresholds) ; dt_new = cpt_dt()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
        
        call write_checkpoint (custom_dump, custom_load, run_id, .true.)
@@ -369,7 +369,7 @@ contains
     ! Deallocate init_RK_mem allocations
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = 1, N_VARS
+          do v = S_MASS, S_VELO
              deallocate (q1(v,k)%data(d)%elts)
              deallocate (q2(v,k)%data(d)%elts)
              deallocate (q3(v,k)%data(d)%elts)
@@ -377,7 +377,7 @@ contains
              deallocate (dq1(v,k)%data(d)%elts)
           end do
        end do
-       do v = 1, N_VARS
+       do v = S_MASS, S_VELO
           deallocate (q1(v,k)%data)
           deallocate (q2(v,k)%data)
           deallocate (q3(v,k)%data)
@@ -460,7 +460,7 @@ contains
        end do
        deallocate (exner_fun(zlevels+1)%data(d)%elts)
        
-       do v = 1, N_VARS
+       do v = S_MASS, S_VELO
           do k = 1, zlevels
              deallocate (sol(v,k)%data(d)%elts)
              deallocate (trend(v,k)%data(d)%elts)
@@ -487,7 +487,7 @@ contains
        deallocate (Laplacian_scalar(v)%data)
     end do
     
-    do v = 1, N_VARS
+    do v = S_MASS, S_VELO
        do k = 1, zlevels
           deallocate (sol(v,k)%data)
           deallocate (trend(v,k)%data)

@@ -257,8 +257,7 @@ contains
       if (compressible) then 
          bernoulli(id_i) = kinetic_energy + Phi_k
       else
-         !bernoulli(id_i) = kinetic_energy + Phi_k + dom%press%elts(id_i) / (ref_density * porosity (d, id_i, zlev))
-         bernoulli(id_i) = kinetic_energy + Phi_k + dom%press%elts(id_i) / sol(S_PENL,zlev)%data(d)%elts(id_i)
+         bernoulli(id_i) = kinetic_energy + Phi_k + dom%press%elts(id_i) / (ref_density * porosity (d, id_i, zlev))
       end if
 
       ! Exner function in incompressible case from geopotential
@@ -686,7 +685,7 @@ contains
     implicit none
     ! Compute surface pressure and save in press_lower for upward integration
     ! Set geopotential to surface geopotential for upward integration
-    type(Float_Field), dimension(1:N_VARS,1:zlevels), target :: q
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
 
     integer :: d, k, mass_type, p
 
@@ -773,8 +772,7 @@ contains
        p_upper = dom%press_lower%elts(id_i) - grav_accel*temp(id_i)
        dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
        
-       !dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i) /  (ref_density * porosity (d, id_i, zlev))
-       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i) / sol(S_PENL,zlev)%data(d)%elts(id_i)
+       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*mass(id_i) / (ref_density * porosity (d, id_i, zlev))
     end if
     dom%press_lower%elts(id_i) = p_upper
   end subroutine integrate_pressure_up

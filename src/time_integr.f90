@@ -147,15 +147,15 @@ contains
   subroutine RK_sub_step (sols, trends, dt, dest)
     implicit none
     real(8)                                                              :: dt
-    type(Float_Field), dimension(1:N_VARS,1:zlevels)                :: sols
-    type(Float_Field), dimension(1:N_VARS,1:zlevels)                :: trends
-    type(Float_Field), dimension(1:N_VARS,1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: sols
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
     
     integer :: d, ibeg, iend, k, v
 
     do d = 1, size(grid)
        do k = 1, zlevels
-          do v = 1, N_VARS
+          do v = S_MASS, S_VELO
              ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
              iend = sols(v,k)%data(d)%length
              dest(v,k)%data(d)%elts(ibeg:iend) = sols(v,k)%data(d)%elts(ibeg:iend) + dt * trends(v,k)%data(d)%elts(ibeg:iend)
@@ -168,15 +168,15 @@ contains
   subroutine RK_sub_step1 (sols, trends, alpha, dt, dest)
     implicit none
     real(8)                                                              :: alpha, dt
-    type(Float_Field), dimension(1:N_VARS,1:zlevels)                :: sols
-    type(Float_Field), dimension(1:N_VARS,1:zlevels)                :: trends
-    type(Float_Field), dimension(1:N_VARS,1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: sols
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
     
     integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          do v = 1, N_VARS
+          do v = S_MASS, S_VELO
              ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
              iend = sols(v,k)%data(d)%length
              dest(v,k)%data(d)%elts(ibeg:iend) = alpha * sols(v,k)%data(d)%elts(ibeg:iend) &
@@ -191,15 +191,15 @@ contains
     implicit none
     real(8)                                                              :: dt
     real(8), dimension(2)                                                :: alpha
-    type(Float_Field), dimension(1:N_VARS,1:zlevels)                :: sol1, sol2
-    type(Float_Field), dimension(1:N_VARS,1:zlevels)                :: trends
-    type(Float_Field), dimension(1:N_VARS,1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: sol1, sol2
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: trends
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
     
     integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          do v = 1, N_VARS
+          do v = S_MASS, S_VELO
              ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
              iend = dest(v,k)%data(d)%length
              dest(v,k)%data(d)%elts(ibeg:iend) = alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) &
@@ -214,15 +214,15 @@ contains
     implicit none
     real(8), dimension(2)                                                :: dt
     real(8), dimension(4)                                                :: alpha
-    type(Float_Field), dimension(1:N_VARS,1:zlevels)                :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(1:N_VARS,1:zlevels)                :: trend1, trend2
-    type(Float_Field), dimension(1:N_VARS,1:zlevels), intent(inout) :: dest
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: sol1, sol2, sol3, sol4
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels)                :: trend1, trend2
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), intent(inout) :: dest
     
     integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          do v = 1, N_VARS
+          do v = S_MASS, S_VELO
              ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
              iend = dest(v,k)%data(d)%length
              dest(v,k)%data(d)%elts(ibeg:iend) = &
@@ -239,11 +239,11 @@ contains
     implicit none
     integer :: d, k, v
 
-    allocate (q1(1:N_VARS,1:zlevels), q2(1:N_VARS,1:zlevels), q3(1:N_VARS,1:zlevels), &
-         q4(1:N_VARS,1:zlevels), dq1(1:N_VARS,1:zlevels))
+    allocate (q1(S_MASS:S_VELO,1:zlevels), q2(S_MASS:S_VELO,1:zlevels), q3(S_MASS:S_VELO,1:zlevels), &
+         q4(S_MASS:S_VELO,1:zlevels), dq1(S_MASS:S_VELO,1:zlevels))
 
     do k = 1, zlevels
-       do v = 1, N_VARS
+       do v = S_MASS, S_VELO
           call init_Float_Field (q1(v,k),  POSIT(v))
           call init_Float_Field (q2(v,k),  POSIT(v))
           call init_Float_Field (q3(v,k),  POSIT(v))
@@ -252,7 +252,7 @@ contains
        end do
 
        do d = 1, size(grid)
-          do v = 1, N_VARS
+          do v = S_MASS, S_VELO
              call init (q1(v,k)%data(d),  sol(v,k)%data(d)%length);  q1(v,k)%data(d)%elts = dble(3-v)
              call init (q2(v,k)%data(d),  sol(v,k)%data(d)%length);  q2(v,k)%data(d)%elts = dble(3-v)
              call init (q3(v,k)%data(d),  sol(v,k)%data(d)%length);  q3(v,k)%data(d)%elts = dble(3-v)
@@ -269,7 +269,7 @@ contains
     
     do d = 1, size(grid)
        do k = 1, zlevels
-          do v = 1, N_VARS
+          do v = S_MASS, S_VELO
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
              if (n_new > 0) call extend (q1(v,k)%data(d), n_new, dble(3-v))
           end do
@@ -283,7 +283,7 @@ contains
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          do v = 1, N_VARS
+          do v = S_MASS, S_VELO
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
              if (n_new > 0) then
                 call extend (q1(v,k)%data(d),  n_new, dble(3-v))
