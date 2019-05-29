@@ -74,18 +74,18 @@ contains
     if (initialgo) then
        initotalmass = 0.0_8
        do k = 1, zlevels
-          initotalmass = initotalmass + integrate_hex (mu, level_start, k)
+          initotalmass = initotalmass + integrate_hex (full_mass, level_start, k)
        end do
     else
        totalmass = 0.0_8
        do k = 1, zlevels
-          totalmass = totalmass + integrate_hex (mu, level_start, k)
+          totalmass = totalmass + integrate_hex (full_mass, level_start, k)
        end do
        mass_error = abs (totalmass-initotalmass)/initotalmass
     end if
   end subroutine sum_total_mass
 
-  real(8) function mu (dom, i, j, zlev, offs, dims)
+  real(8) function full_mass (dom, i, j, zlev, offs, dims)
     ! Defines mass for total mass integration
     implicit none
     type(Domain)                   :: dom
@@ -93,11 +93,13 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer :: d, id_i
 
-    id = idx (i, j, offs, dims)
-    mu = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
-  end function mu
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
+  end function full_mass
 
   real(8) function integrate_hex (fun, l, k)
     ! Integrate function defined by fun over hexagons
@@ -646,7 +648,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, idW, idSW, idS, k, outl
-    real(8)                       :: porosity, total_depth
+    real(8)                       :: full_mass, porosity, total_depth
     real(4), dimension(N_VAR_OUT) :: outv
     real(8), dimension(2)         :: vel_latlon
 
@@ -683,7 +685,8 @@ contains
        total_depth = 0.0_8
        do k = 1, zlevels
           porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
-          total_depth = total_depth + sol(S_MASS,k)%data(d)%elts(id_i) / (ref_density*porosity)
+          full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+          total_depth = total_depth + full_mass / (ref_density*porosity)
        end do
        outv(6) = total_depth + dom%topo%elts(id_i)
     end if
@@ -1279,12 +1282,14 @@ contains
        do k = 1, save_zlev
           do d = 1, size(grid)
              mass  => sol(S_MASS,k)%data(d)%elts
+             mean_m  => sol_mean(S_MASS,k)%data(d)%elts
              temp  => sol(S_TEMP,k)%data(d)%elts
+             mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
              exner => exner_fun(k)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
-             nullify (mass, temp, exner)
+             nullify (mass, mean_m, temp, mean_t, exner)
           end do
        end do
 

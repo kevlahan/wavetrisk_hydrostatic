@@ -196,7 +196,7 @@ contains
     ! Adapt grid
     if (min_level /= max_level) call adapt_grid (set_thresholds)
 
-    itime = itime + idt
+    Itime = itime + idt
     time  = itime/time_mult
     
     ! Set new time step, find change in vertical levels and count active nodes
@@ -261,13 +261,19 @@ contains
 
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
-    
-    ! Initialize total mass value
-    call sum_total_mass (.true.)
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
 
+    ! Set penalization and depth
+    call update_depth_penalization
+
+    ! Initialize mean values
+    call set_mean
+
+    ! Initialize total mass value
+    call sum_total_mass (.true.)
+    
     ! Initialize time step and counters
     dt_new = cpt_dt ()
     itime = nint (time*time_mult, 8)
@@ -456,6 +462,7 @@ contains
 
        do k = 1, zlevels
           deallocate (penal(k)%data(d)%elts)
+          deallocate (penal_wav_coeff(k)%data(d)%elts)
           deallocate (exner_fun(k)%data(d)%elts)
        end do
        deallocate (exner_fun(zlevels+1)%data(d)%elts)
@@ -463,6 +470,7 @@ contains
        do v = S_MASS, S_VELO
           do k = 1, zlevels
              deallocate (sol(v,k)%data(d)%elts)
+             deallocate (sol_mean(v,k)%data(d)%elts)
              deallocate (trend(v,k)%data(d)%elts)
              deallocate (wav_coeff(v,k)%data(d)%elts)
              deallocate (trend_wav_coeff(v,k)%data(d)%elts)
@@ -478,6 +486,7 @@ contains
 
     do k = 1, zlevels
        deallocate (penal(k)%data)
+       deallocate (penal_wav_coeff(k)%data)
        deallocate (exner_fun(k)%data)
     end do
     deallocate (exner_fun(zlevels+1)%data)
@@ -490,6 +499,7 @@ contains
     do v = S_MASS, S_VELO
        do k = 1, zlevels
           deallocate (sol(v,k)%data)
+          deallocate (sol_mean(v,k)%data)
           deallocate (trend(v,k)%data)
           deallocate (wav_coeff(v,k)%data)
           deallocate (trend_wav_coeff(v,k)%data)
@@ -503,8 +513,8 @@ contains
     deallocate (edge_level_start, node_level_start, n_active_edges, n_active_nodes)
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)
-    deallocate (sol, sol_save, trend, trend_wav_coeff, wav_coeff)       
-    deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal)
+    deallocate (sol, sol_mean, sol_save, trend, trend_wav_coeff, wav_coeff)       
+    deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal, penal_wav_coeff)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
 
     nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &

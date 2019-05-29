@@ -11,10 +11,10 @@ iremap             10             ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)
-tol      	   1e-1          ! non-dimensional tolerance
+tol      	   1e-5          ! non-dimensional tolerance
 optimize_grid	   0             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
-cfl_num            1.0           ! cfl number
+cfl_num            0.9           ! cfl number
 timeint_type       RK4           ! time integration method (RK33, RK34, RK45, RK4)
 pressure_save      0             ! save vertical layer closest to this height in metres
 Laplace_order      0             ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second order Laplacian hyperdiffusion

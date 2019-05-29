@@ -983,7 +983,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, e, id, id_i, k, l
-    real(8) :: col_mass, d_e, fac, mu, init_mass, porosity, porous_density
+    real(8) :: col_mass, d_e, fac, full_mass, init_mass, porosity, porous_density
 
     id   = idx (i, j, offs, dims)
     id_i = id + 1
@@ -992,26 +992,28 @@ contains
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        col_mass = 0.0_8
        do k = 1, zlevels
-          mu = sol(S_MASS,k)%data(d)%elts(id_i)
-          if (mu < 0.0_8 .or. ieee_is_nan (mu)) then
+          full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+          if (full_mass < 0.0_8 .or. ieee_is_nan (full_mass)) then
              write (6,'(A,i8,A,i2,2(A,i2),A)') "Mass negative at id = ", id_i, " with scale j = ", dom%level%elts(id_i),  &
                   " vertical level k = ", k, " and mask = ", dom%mask_n%elts(id_i), " ... aborting"
              call abort
           end if
-          col_mass = col_mass + mu
+          col_mass = col_mass + full_mass
        end do
        
        ! Assumes levels are evenly spaced in z (ignores initial surface perturbations)
        do k = 1, zlevels
           if (compressible) then
              init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
+             min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
           else
              porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
              porous_density = ref_density * porosity
-
              init_mass = porous_density * abs (dom%topo%elts(id_i))/zlevels
+
+             full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+             min_mass_loc = min (min_mass_loc, full_mass/init_mass)
           end if
-          min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
        end do
        
        ! Check diffusion stability

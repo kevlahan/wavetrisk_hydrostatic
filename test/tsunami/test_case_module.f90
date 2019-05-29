@@ -1,5 +1,5 @@
 Module test_case_mod
-  ! Module file for DCMIP2008c5
+  ! Module file for tsunami test case
   use shared_mod
   use domain_mod
   use comm_mpi_mod
@@ -34,21 +34,58 @@ contains
     x_i  = dom%node%elts(id_i)
 
     ! Initial vertical grid size (uniform)
-    dz = (free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
+    dz = - dom%topo%elts(id_i) / zlevels
  
     ! Local z-coordinate (mid layer)
     z = free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
 
-    ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz
+    ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
-    sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-
-    ! Density * dz
+    if (penalize) then
+       sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+       if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = free_surface (x_i) * porous_density
+    else
+       sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+    end if
     sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
-
+    
     ! Set initial velocity field
-    call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
+    call vel2uvw (dom, i, j, zlev, offs, dims, init_vel)
   end subroutine init_sol
+
+  subroutine init_mean (dom, i, j, zlev, offs, dims)
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer     :: d, id_i
+    real (8)    :: dz, porous_density, z
+    type(Coord) :: x_i
+    
+    d    = dom%id+1
+    id_i = idx (i, j, offs, dims) + 1
+    x_i  = dom%node%elts(id_i)
+
+    ! Initial vertical grid size (uniform)
+    dz = - dom%topo%elts(id_i) / zlevels
+ 
+    ! Local z-coordinate (mid layer)
+    z = - (zlevels - zlev + 0.5_8) * dz
+
+    ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
+    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
+    if (penalize) then
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz 
+    else
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+    end if
+    sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
+    
+    ! Set initial velocity field
+    call vel2uvw (dom, i, j, zlev, offs, dims, mean_vel)
+  end subroutine init_mean
 
   real(8) function surf_geopot (x_i)
     ! Surface geopotential: postive if greater than mean seafloor
@@ -90,14 +127,23 @@ contains
     ! end if
   end function density
 
-  subroutine vel_fun (lon, lat, u, v)
-    ! Zonal latitude-dependent wind
+  subroutine init_vel (lon, lat, u, v)
+    ! Fluctuating zonal latitude-dependent wind
     implicit none
     real(8) :: lon, lat, u, v
 
     u = 0.0_8 ! Zonal velocity component
     v = 0.0_8 ! Meridional velocity component
-  end subroutine vel_fun
+  end subroutine init_vel
+
+   subroutine mean_vel (lon, lat, u, v)
+    ! Mean zonal latitude-dependent wind
+    implicit none
+    real(8) :: lon, lat, u, v
+
+    u = 0.0_8 ! Zonal velocity component
+    v = 0.0_8 ! Meridional velocity component
+  end subroutine mean_vel
   
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
@@ -140,8 +186,8 @@ contains
 
     dz = Hdim/zlevels
     
-    lnorm(S_MASS,:) = ref_density * dz
-    lnorm(S_TEMP,:) = ref_density * dz
+    lnorm(S_MASS,:) = dH/2
+    lnorm(S_TEMP,:) = dH/2
     lnorm(S_VELO,:) = Udim
     if (adapt_trend) lnorm = lnorm/Tdim
     threshold_def = tol * lnorm
@@ -194,8 +240,29 @@ contains
     end if
   end subroutine initialize_dt_viscosity
 
-  subroutine set_bathymetry_penal (dom, i, j, zlev, offs, dims)
-    ! Sets depth and penalization mask
+   subroutine set_bathymetry (dom, i, j, z_null, offs, dims)
+    ! Set depth 
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, z_null
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_i
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    ! Set bathymetry
+    if (etopo) then ! set bathymetry coordinates using etopo data
+       call etopo_topography (id, dom, dom%topo%elts(id_i), 'bathymetry', npts_topo)
+    else
+       call analytic_topography (dom%node%elts(id_i), dom%topo%elts(id_i), "bathymetry")
+    end if
+  end subroutine set_bathymetry
+
+  subroutine set_penal (dom, i, j, zlev, offs, dims)
+    ! Set penalization mask
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -208,50 +275,39 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    ! Set bathymetry
-    if (etopo) then ! set bathymetry coordinates using etopo data
-       call etopo_topography (id, dom, dom%topo%elts(id_i), 'bathymetry', npts_topo)
-    else
-       call analytic_topography (dom%node%elts(id_i), dom%topo%elts(id_i), 'bathymetry')
-    end if
-
-    ! Set penalization
     if (penalize) then
        if (etopo) then
-          call etopo_topography (id, dom, penal(1)%data(d)%elts(id_i), 'penalize', npts_penal)
+          call etopo_topography (id, dom, penal(zlev)%data(d)%elts(id_i), "penalize", npts_penal)
        else
-          call analytic_topography (dom%node%elts(id_i), penal(1)%data(d)%elts(id_i), 'penalize')
+          call analytic_topography (dom%node%elts(id_i), penal(zlev)%data(d)%elts(id_i), "penalize")
        end if
     else
-       penal(1)%data(d)%elts(id_i) = 0.0_8       
+       penal(zlev)%data(d)%elts(id_i) = 0.0_8       
     end if
+  end subroutine set_penal
 
-    ! For now, penalization is the same at all vertical levels (only used to define land areas)
-    do k = 2, zlevels
-       penal(k)%data(d)%elts(id_i) = penal(1)%data(d)%elts(id_i)
-    end do
-  end subroutine set_bathymetry_penal
-
-  subroutine analytic_topography (x_i, mask, itype)
+  subroutine analytic_topography (x_i, mask, type)
     implicit none
     real(8)      :: mask
-    character(*) :: itype
+    character(*) :: type
     type(Coord)  :: x_i
 
-    real(8)            :: r, width
+    real(8)            :: lat, lon, r, rgrc, width
     real(8), parameter :: land_radius = 2000*KM
     real(8), parameter :: lon_land = 0.0_8, lat_land = 0.0_8
-    type(Coord)        :: x_o
+
+    width = dx_min*4
 
     mask = 0.0_8
-    if (itype == 'bathymetry') then
+    select case (type)
+    case ("bathymetry")
        mask = mean_depth + surf_geopot (x_i) / grav_accel
-    else ! penalization
-       width = dx_min*2
-       x_o = vec_scale (radius, sph2cart (lon_land, lat_land)) ! coordinate of centre of land mass
-       r = dist (x_i, x_o)                                     ! distance of current point from land mass
-       mask = (1.0_8 - tanh ((r-land_radius)/width)) / 2 
-    end if
+    case ("penalize")
+       call cart2sph (x_i, lon, lat)
+       rgrc = radius * acos(sin(lat_land)*sin(lat) + cos(lat_land)*cos(lat)*cos(lon-lon_land))
+       mask = (1.0_8 - tanh ((rgrc-land_radius)/width)) / 2
+       !if (rgrc < land_radius) mask = 1.0_8
+    end select
   end subroutine analytic_topography
 
   subroutine etopo_topography (id, dom, topo, itype, npts)
@@ -479,13 +535,13 @@ contains
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
        write (6,'(A,es10.4)') "pert_radius          = ", pert_radius
-       write (6,'(A,es10.4)') "dH                   = ", dH
+       write (6,'(A,es11.4)') "dH                   = ", dH
        write (6,'(A,es11.4)') "mean_depth           = ", mean_depth
        write (6,'(A,es10.4)') "lon_c                = ", lon_c
        write (6,'(A,es10.4)') "lat_c                = ", lat_c
        write (6,'(A,es10.4)') "eta                  = ", eta
        write (6,'(A,es10.4)') "alpha                = ", alpha
-       write (6,'(A,es10.4)') "min_depth            = ", min_depth
+       write (6,'(A,es11.4)') "min_depth            = ", min_depth
        write (6,'(A,i5)')     "bathy_per_deg        = ", bathy_per_deg
        write (6,'(A,i5)')     "npts_penal           = ", npts_penal
        write (6,'(A,i5)')     "npts_topo            = ", npts_topo
@@ -528,35 +584,51 @@ contains
   end subroutine print_log
 
   subroutine apply_initial_conditions
+    use wavelet_mod
     implicit none
-    integer :: d, k, l, p
-
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (set_bathymetry_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+    integer :: k, l
+    
+    do l = level_start, level_end
+       call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       do k = 1, zlevels
+          call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
+    call forward_scalar_transform (penal, penal_wav_coeff)
+    call inverse_scalar_transform (penal_wav_coeff, penal)
 
     do l = level_start, level_end
        do k = 1, zlevels
-          call apply_onescale (init_sol, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          call apply_onescale (init_sol,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
   end subroutine apply_initial_conditions
 
-  subroutine update_depth_penalization
+  subroutine set_mean
     implicit none
-    integer :: d, k, p
-
-    n_patch_old = 2
-    do d = 1, size(grid)
+    integer :: k, l
+    
+    do l = level_start, level_end
        do k = 1, zlevels
-          do p = n_patch_old(d)+1, grid(d)%patch%length
-             call apply_onescale_to_patch (set_bathymetry_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
+          call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
-    call barrier
+  end subroutine set_mean
+
+  subroutine update_depth_penalization
+    use wavelet_mod
+    implicit none
+    integer :: d, k, l, p
+
+    do l = level_start, level_end
+       call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       do k = 1, zlevels
+          call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
+    end do
+    call forward_scalar_transform (penal, penal_wav_coeff)
+    call inverse_scalar_transform (penal_wav_coeff, penal)
   end subroutine update_depth_penalization
   
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)

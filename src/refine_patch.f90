@@ -166,6 +166,7 @@ contains
     do k = 1, zlevels
        call extend (penal(k)%data(d),     num, 0.0_8)
        call extend (exner_fun(k)%data(d), num, 0.0_8)
+       call extend (penal_wav_coeff(k)%data(d), num, 0.0_8)
        do v = S_MASS, S_TEMP
           call extend (trend(v,k)%data(d),           num, 0.0_8)
           call extend (wav_coeff(v,k)%data(d),       num, 0.0_8)

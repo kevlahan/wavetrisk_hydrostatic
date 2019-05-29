@@ -46,7 +46,9 @@ contains
     
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
+       mean_m    => sol_mean(S_MASS,k)%data(d)%elts
        temp      => q(S_TEMP,k)%data(d)%elts
+       mean_t    => sol_mean(S_TEMP,k)%data(d)%elts
        velo      => q(S_VELO,k)%data(d)%elts
        h_mflux   => horiz_flux(S_MASS)%data(d)%elts
        h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
@@ -72,7 +74,7 @@ contains
           nullify (dmass, dtemp)
        end if
        
-       nullify (mass, velo, temp, h_mflux, h_tflux, bernoulli, exner, divu, qe, vort)
+       nullify (mass, mean_m, velo, temp, mean_t, h_mflux, h_tflux, bernoulli, exner, divu, qe, vort)
     end do
     if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
 
@@ -144,15 +146,17 @@ contains
     integer :: d, j, p
     
     do d = 1, size(grid)
-       mass      =>  q(S_MASS,k)%data(d)%elts
-       temp      =>  q(S_TEMP,k)%data(d)%elts
+       mass      => q(S_MASS,k)%data(d)%elts
+       mean_m    => sol_mean(S_MASS,k)%data(d)%elts
+       temp      => q(S_TEMP,k)%data(d)%elts
+       mean_t    => sol_mean(S_TEMP,k)%data(d)%elts
        dvelo     => dq(S_VELO,k)%data(d)%elts
        exner     => exner_fun(k)%data(d)%elts
        bernoulli => grid(d)%bernoulli%elts
        do p = 3, grid(d)%patch%length
           call apply_onescale_to_patch (du_grad, grid(d), p-1, k, 0, 0)
        end do
-       nullify (mass, temp, dvelo, exner, bernoulli)
+       nullify (mass, mean_m, temp, mean_t, dvelo, exner, bernoulli)
     end do
   end subroutine velocity_trend_grad
      

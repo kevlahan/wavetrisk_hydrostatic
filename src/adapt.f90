@@ -219,22 +219,22 @@ contains
     end do
   end subroutine compress
 
-  subroutine WT_after_step (q, wav, l_start0)
+  subroutine WT_after_step (scaling, wavelet, l_start0)
     !  Everything needed in terms of forward and backward wavelet transform
     !  after one time step (e.g. RK sub-step)
     !    A) compute wavelets and perform backwards transform to conserve mass
     !    B) interpolate values onto adapted grid for next step
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, wav
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
     integer, optional                                             :: l_start0
     
-    integer :: d, j, k, l, l_start
+    integer :: d, j, k, l, l_start, v
 
     if (present(l_start0)) then
        l_start = l_start0
        do k = 1, zlevels
           do d = 1, size(grid)
-             velo => q(S_VELO,k)%data(d)%elts
+             velo => scaling(S_VELO,k)%data(d)%elts
              call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
              nullify (velo)
           end do
@@ -243,32 +243,30 @@ contains
        l_start = level_start
     end if
 
-    q%bdry_uptodate = .false.
-    call update_array_bdry (q, NONE, 16)
+    scaling%bdry_uptodate = .false.
+    call update_array_bdry (scaling, NONE, 16)
 
     do k = 1, zlevels
        do l = l_start, level_end-1
           do d = 1, size(grid)
-             mass => q(S_MASS,k)%data(d)%elts
-             temp => q(S_TEMP,k)%data(d)%elts
-             velo => q(S_VELO,k)%data(d)%elts
-             
-             wc_m => wav(S_MASS,k)%data(d)%elts
-             wc_t => wav(S_TEMP,k)%data(d)%elts
-             wc_u => wav(S_VELO,k)%data(d)%elts
-             
-             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-             call apply_interscale_d (compute_velo_wavelets,   grid(d), l, z_null, 0, 0)
+             do v = S_MASS, S_TEMP
+                mass => scaling(v,k)%data(d)%elts
+                wc_m => wavelet(v,k)%data(d)%elts
+                call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+                nullify (mass, wc_m)
+             end do
+             velo => scaling(S_VELO,k)%data(d)%elts
+             wc_u => wavelet(S_VELO,k)%data(d)%elts
+             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
-             nullify (mass, temp, velo, wc_m, wc_t, wc_u)
+             nullify (velo, wc_u)
           end do
-          wav(:,k)%bdry_uptodate = .false.
+          wavelet(:,k)%bdry_uptodate = .false.
        end do
-
-       call compress_wavelets (wav)
     end do
-
-    call inverse_wavelet_transform (wav, q)
+    call compress_wavelets (wavelet)
+    
+    call inverse_wavelet_transform (wavelet, scaling)
   end subroutine WT_after_step
 
   logical function refine ()

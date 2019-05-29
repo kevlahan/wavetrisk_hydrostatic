@@ -24,13 +24,13 @@ program Tsunami
   ! Local test case parameters
   mean_depth     = -3*KM                        ! mean depth coordinate [m] (must be negative)
   dH             = 1d-3 * abs (mean_depth)      ! perturbation to the free surface [m]
-  pert_radius    = 500*KM                      ! radius of Gaussian free surface perturbation [m]
+  pert_radius    = 1500*KM                      ! radius of Gaussian free surface perturbation [m]
   lon_c          = MATH_PI/2                    ! longitude location of perturbation
   lat_c          = MATH_PI/6                    ! latitude location of perturbation
 
   ! Dimensional scaling
   wave_speed     = sqrt (grav_accel*abs(mean_depth)) ! inertia-gravity wave speed
-  Udim           = wave_speed                   ! velocity scale
+  Udim           = grav_accel*dH/wave_speed/2                   ! velocity scale
   Ldim           = 2 * pert_radius              ! length scale (free surface perturbation width)
   Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
   Hdim           = abs (mean_depth)             ! vertical length scale
@@ -43,12 +43,11 @@ program Tsunami
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
 
   allocate (n_patch_old(size(grid)))
-  call update_depth_penalization
 
   ! Save initial conditions
   call print_test_case_parameters
   call write_and_export (iwrite)
- 
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &

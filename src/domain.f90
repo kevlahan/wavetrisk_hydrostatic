@@ -68,14 +68,15 @@ module domain_mod
 
   type(Domain), dimension(:), allocatable, target        :: grid
 
-  type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, penal
+  type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, penal, penal_wav_coeff
   type(Float_Field), dimension(:),   allocatable, target :: Laplacian_scalar, Laplacian_vector
-  type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_save, trend, wav_coeff, trend_wav_coeff
+  type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_mean, sol_save, trend
+  type(Float_Field), dimension(:,:), allocatable, target :: wav_coeff, trend_wav_coeff
 
   real(8), dimension(:), pointer :: mass, dmass, h_mflux
   real(8), dimension(:), pointer :: temp, dtemp, h_tflux
   real(8), dimension(:), pointer :: velo, dvelo
-  real(8), dimension(:), pointer :: sclr
+  real(8), dimension(:), pointer :: sclr, mean_m, mean_t
   real(8), dimension(:), pointer :: Laplacian
   real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort
   real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
@@ -907,6 +908,9 @@ contains
        call extend (sol(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
        call extend (sol(S_TEMP,k)%data(d), num, 0.0_8)
        call extend (sol(S_VELO,k)%data(d), EDGE*num, 0.0_8)
+       call extend (sol_mean(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
+       call extend (sol_mean(S_TEMP,k)%data(d), num, 0.0_8)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0.0_8)
     end do
     
     do k = 1, save_levels
