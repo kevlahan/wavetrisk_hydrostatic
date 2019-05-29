@@ -24,7 +24,7 @@ program Tsunami
   ! Local test case parameters
   mean_depth     = -3*KM                        ! mean depth coordinate [m] (must be negative)
   dH             = 1d-3 * abs (mean_depth)      ! perturbation to the free surface [m]
-  pert_radius    = 1500*KM                      ! radius of Gaussian free surface perturbation [m]
+  pert_radius    = 500*KM                      ! radius of Gaussian free surface perturbation [m]
   lon_c          = MATH_PI/2                    ! longitude location of perturbation
   lat_c          = MATH_PI/6                    ! latitude location of perturbation
 

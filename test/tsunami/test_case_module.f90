@@ -34,8 +34,12 @@ contains
     x_i  = dom%node%elts(id_i)
 
     ! Initial vertical grid size (uniform)
-    dz = - dom%topo%elts(id_i) / zlevels
- 
+    if (penalize) then
+       dz = - dom%topo%elts(id_i) / zlevels
+    else
+       dz = (free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
+    end if
+    
     ! Local z-coordinate (mid layer)
     z = free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
 
@@ -70,14 +74,14 @@ contains
 
     ! Initial vertical grid size (uniform)
     dz = - dom%topo%elts(id_i) / zlevels
- 
+
     ! Local z-coordinate (mid layer)
     z = - (zlevels - zlev + 0.5_8) * dz
 
     ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
     if (penalize) then
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz 
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density*(1.0_8+1d-8*rand(0)) * dz 
     else
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
     end if
