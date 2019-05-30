@@ -908,13 +908,13 @@ contains
        call extend (sol(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
        call extend (sol(S_TEMP,k)%data(d), num, 0.0_8)
        call extend (sol(S_VELO,k)%data(d), EDGE*num, 0.0_8)
-       call extend (sol_mean(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
+       call extend (sol_mean(S_MASS,k)%data(d), num, 0.0_8)
        call extend (sol_mean(S_TEMP,k)%data(d), num, 0.0_8)
        call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0.0_8)
     end do
     
     do k = 1, save_levels
-       call extend (sol_save(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
+       call extend (sol_save(S_MASS,k)%data(d), num, 0.0_8) 
        call extend (sol_save(S_TEMP,k)%data(d), num, 0.0_8)
        call extend (sol_save(S_VELO,k)%data(d), EDGE*num, 0.0_8)
     end do

@@ -266,10 +266,8 @@ contains
     call initialize_dt_viscosity
 
     ! Set penalization and depth
-    call update_depth_penalization
-
-    ! Initialize mean values
-    call set_mean
+    allocate (n_patch_old(size(grid))); n_patch_old = 2
+    call update
 
     ! Initialize total mass value
     call sum_total_mass (.true.)

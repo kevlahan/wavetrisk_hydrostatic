@@ -544,7 +544,7 @@ contains
     do k = 1, zlevels
        call init_Float_Field (penal_wav_coeff(k), AT_NODE)
        do v = S_MASS, S_VELO
-          call init_Float_Field (wav_coeff(v,k), POSIT(v))
+          call init_Float_Field (wav_coeff(v,k),       POSIT(v))
           call init_Float_Field (trend_wav_coeff(v,k), POSIT(v))
        end do
     end do

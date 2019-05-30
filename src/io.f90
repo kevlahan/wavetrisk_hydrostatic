@@ -648,7 +648,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, idW, idSW, idS, k, outl
-    real(8)                       :: full_mass, porosity, total_depth
+    real(8)                       :: full_mass, full_temp, porosity, total_depth
     real(4), dimension(N_VAR_OUT) :: outv
     real(8), dimension(2)         :: vel_latlon
 
@@ -663,7 +663,9 @@ contains
     if (compressible) then ! temperature in layer zlev
        outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i)/sol(S_MASS,zlev)%data(d)%elts(id_i)*(dom%press%elts(id_i)/p_0)**kappa
     else ! density in layer zlev
-       outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i)/sol(S_MASS,zlev)%data(d)%elts(id_i) * ref_density
+       full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
+       full_temp = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
+       outv(1) = full_temp/full_mass * ref_density
     end if
        
     ! Zonal and meridional velocities

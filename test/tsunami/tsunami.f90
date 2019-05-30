@@ -30,7 +30,7 @@ program Tsunami
 
   ! Dimensional scaling
   wave_speed     = sqrt (grav_accel*abs(mean_depth)) ! inertia-gravity wave speed
-  Udim           = grav_accel*dH/wave_speed/2                   ! velocity scale
+  Udim           = wave_speed                   ! velocity scale
   Ldim           = 2 * pert_radius              ! length scale (free surface perturbation width)
   Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
   Hdim           = abs (mean_depth)             ! vertical length scale
@@ -41,9 +41,7 @@ program Tsunami
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
-
-  allocate (n_patch_old(size(grid)))
-
+  
   ! Save initial conditions
   call print_test_case_parameters
   call write_and_export (iwrite)
@@ -60,7 +58,7 @@ program Tsunami
      call time_step (dt_write, aligned, set_thresholds)
      call stop_timing
 
-     call update_depth_penalization
+     call update
      
      call sum_total_mass (.false.)
      call print_log
@@ -72,7 +70,7 @@ program Tsunami
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then
            call write_checkpoint (dump, load, run_id, rebalance)
-           if (rebalance) call update_depth_penalization
+           if (rebalance) call update
         end if
 
         ! Save fields

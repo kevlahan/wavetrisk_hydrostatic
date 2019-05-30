@@ -17,6 +17,7 @@ Module test_case_mod
   real(8)                              :: dH, lon_c, lat_c, min_depth, pert_radius
   real(4), allocatable, dimension(:,:) :: bathy_data
   logical                              :: etopo
+  logical, parameter                   :: split = .false. ! Split into mean and fluctuation (solve for fluctuation) if true
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -25,16 +26,17 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: d, id_i
+    integer     :: d, id, id_i
     real (8)    :: dz, porous_density, z
     type(Coord) :: x_i
     
     d    = dom%id+1
-    id_i = idx (i, j, offs, dims) + 1
+    id   = idx (i, j, offs, dims) 
+    id_i = id + 1
     x_i  = dom%node%elts(id_i)
 
     ! Initial vertical grid size (uniform)
-    if (penalize) then
+    if (split) then
        dz = - dom%topo%elts(id_i) / zlevels
     else
        dz = (free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
@@ -45,16 +47,16 @@ contains
 
     ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
-    if (penalize) then
+    if (split) then
        sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = free_surface (x_i) * porous_density
+       if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = free_surface (x_i) * ref_density
     else
        sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
     end if
     sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
     
-    ! Set initial velocity field
-    call vel2uvw (dom, i, j, zlev, offs, dims, init_vel)
+    ! Set initial velocity field to zero
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
   end subroutine init_sol
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
@@ -64,31 +66,27 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: d, id_i
+    integer     :: d, id, id_i
     real (8)    :: dz, porous_density, z
     type(Coord) :: x_i
     
     d    = dom%id+1
-    id_i = idx (i, j, offs, dims) + 1
-    x_i  = dom%node%elts(id_i)
+    id   = idx (i, j, offs, dims) 
+    id_i = id + 1
 
-    ! Initial vertical grid size (uniform)
-    dz = - dom%topo%elts(id_i) / zlevels
-
-    ! Local z-coordinate (mid layer)
-    z = - (zlevels - zlev + 0.5_8) * dz
-
-    ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
-    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
-    if (penalize) then
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density*(1.0_8+1d-8*rand(0)) * dz 
+    if (split) then
+       x_i  = dom%node%elts(id_i)
+       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
+       dz = - dom%topo%elts(id_i) / zlevels
+       z = - (zlevels - zlev + 0.5_8) * dz
+       
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
     else
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     end if
-    sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
-    
-    ! Set initial velocity field
-    call vel2uvw (dom, i, j, zlev, offs, dims, mean_vel)
+    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
   end subroutine init_mean
 
   real(8) function surf_geopot (x_i)
@@ -130,24 +128,6 @@ contains
     !    density = ref_density
     ! end if
   end function density
-
-  subroutine init_vel (lon, lat, u, v)
-    ! Fluctuating zonal latitude-dependent wind
-    implicit none
-    real(8) :: lon, lat, u, v
-
-    u = 0.0_8 ! Zonal velocity component
-    v = 0.0_8 ! Meridional velocity component
-  end subroutine init_vel
-
-   subroutine mean_vel (lon, lat, u, v)
-    ! Mean zonal latitude-dependent wind
-    implicit none
-    real(8) :: lon, lat, u, v
-
-    u = 0.0_8 ! Zonal velocity component
-    v = 0.0_8 ! Meridional velocity component
-  end subroutine mean_vel
   
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
@@ -189,10 +169,16 @@ contains
     allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
 
     dz = Hdim/zlevels
-    
-    lnorm(S_MASS,:) = dH/2
-    lnorm(S_TEMP,:) = dH/2
-    lnorm(S_VELO,:) = Udim
+
+    ! if (split) then
+    !    lnorm(S_MASS,:) = dH * ref_density
+    !    lnorm(S_TEMP,:) = dH * ref_density
+    !    lnorm(S_VELO,:) = grav_accel*dH/Udim                   
+    ! else
+       lnorm(S_MASS,:) = ref_density * dz
+       lnorm(S_TEMP,:) = ref_density * dz
+       lnorm(S_VELO,:) = Udim
+    !end if
     if (adapt_trend) lnorm = lnorm/Tdim
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
@@ -206,8 +192,8 @@ contains
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
       
     ! Diffusion constants
-    C_sclr = 5d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_divu = 5d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_sclr = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_divu = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     
     ! CFL limit for time step
@@ -609,60 +595,33 @@ contains
     end do
   end subroutine apply_initial_conditions
 
-  subroutine set_mean
-    implicit none
-    integer :: k, l
-    
-    do l = level_start, level_end
-       do k = 1, zlevels
-          call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
-    end do
-  end subroutine set_mean
-
-  subroutine update_depth_penalization
+  subroutine update
+    ! Update means, bathymetry and penalization mask
     use wavelet_mod
     implicit none
     integer :: d, k, l, p
-
-    do l = level_start, level_end
-       call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       do k = 1, zlevels
-          call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+    
+    do d = 1, size(grid)
+       do p = n_patch_old(d)+1, grid(d)%patch%length
+          call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+          do k = 1, zlevels
+             call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          end do
        end do
     end do
+
+    ! Do we still need this (since updating only new patches)?
     call forward_scalar_transform (penal, penal_wav_coeff)
     call inverse_scalar_transform (penal_wav_coeff, penal)
-  end subroutine update_depth_penalization
-  
-  subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
-    ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-    external                        :: vel_fun
 
-    integer      :: d, id, idE, idN, idNE
-    type (Coord) :: x_i, x_E, x_N, x_NE
-
-    d = dom%id+1
-
-    id   = idx (i,   j,   offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-
-    x_i  = dom%node%elts(id+1)
-    x_E  = dom%node%elts(idE+1)
-    x_N  = dom%node%elts(idN+1)
-    x_NE = dom%node%elts(idNE+1)
-
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel (vel_fun, x_i,  x_E)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel (vel_fun, x_NE, x_i)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel (vel_fun, x_i,  x_N)
-  end subroutine vel2uvw
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do p = n_patch_old(d)+1, grid(d)%patch%length
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          end do
+       end do
+    end do
+  end subroutine update
 
   subroutine set_save_level
     ! Determines closest vertical level to desired height z
