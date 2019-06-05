@@ -26,7 +26,6 @@ rebalance          F             ! rebalance at each checkpoint if T
 time_end           30            ! final time (hours)
 resume             -1            ! restart from checkpoint (negative means fresh restart)
 alpha              1e-1          ! porosity penalization parameter
-bathy_per_deg      15            ! number of bathymetry grid points per degree in smoothed bathymetry
-npts_penal         2             ! smooth penalization mask over npts_penal grid points
-npts_topo          0             ! smooth over topography over npts_topo grid points	
+npts_penal         4             ! smooth penalization mask over npts_penal grid points
+npts_topo          4             ! smooth over topography over npts_topo grid points	
 
