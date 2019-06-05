@@ -1,7 +1,9 @@
 test_case          tsunami       ! name of test case
 run_id             tsunami_J4J6  ! name of run (for saved data)
 penalize           F             ! penalize land regions 
-etopo              F             ! include realistic ETOPO bathymetry	
+etopo_coast        F             ! include realistic ETOPO coastlines
+etopo_bathy        F             ! include realistic ETOPO bathymetry
+etopo_res          4             ! resolution of ETOPO dat (4, 2 or 1 arc minutes)
 max_level	   6             ! maximum level of resolution
 zlevels            20            ! number of vertical levels
 remap              T             ! remap vertical grid
@@ -23,8 +25,7 @@ CP_EVERY           6             ! checkpoint every CP_EVERY saves
 rebalance          F             ! rebalance at each checkpoint if T
 time_end           30            ! final time (hours)
 resume             -1            ! restart from checkpoint (negative means fresh restart)
-alpha              1e-4          ! porosity penalization parameter
-Hmin        	  -50            ! minimum allowed depth when running with bathymetry [m] (coordinate of minimum depth: must be negative)
+alpha              1e-1          ! porosity penalization parameter
 bathy_per_deg      15            ! number of bathymetry grid points per degree in smoothed bathymetry
 npts_penal         2             ! smooth penalization mask over npts_penal grid points
 npts_topo          0             ! smooth over topography over npts_topo grid points	

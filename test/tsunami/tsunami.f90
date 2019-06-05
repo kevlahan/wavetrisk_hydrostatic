@@ -19,17 +19,19 @@ program Tsunami
   grav_accel     = 9.80616_8                    ! gravitational acceleration [m/s^2]
   omega          = 7.29211d-5                   ! Earth’s angular velocity [rad/s]
   p_top          = 0.0_8                        ! pressure at free surface
-  ref_density    = 1.0d3                        ! reference density (water) [kg/m^3]
+  ref_density    = 1.027d3                      ! reference density (seawater) [kg/m^3]
 
   ! Local test case parameters
-  mean_depth     = -3*KM                        ! mean depth coordinate [m] (must be negative)
-  dH             = 1d-3 * abs (mean_depth)      ! perturbation to the free surface [m]
-  pert_radius    = 500*KM                      ! radius of Gaussian free surface perturbation [m]
-  lon_c          = MATH_PI/2                    ! longitude location of perturbation
-  lat_c          = MATH_PI/6                    ! latitude location of perturbation
+  mean_depth     = -4*KM                        ! mean depth [m] (must be negative) for analytic bathymetry
+  min_depth      = -50*METRE                    ! minimum allowed depth [m] (must be negative)
+  max_depth      = -5*KM                        ! maximum allowed depth [m] (must be negative)
+  dH             = 1*METRE                      ! initial perturbation to the free surface [m]
+  pert_radius    = 100*KM                       ! radius of Gaussian free surface perturbation [m]
+  lon_c          = -50 * MATH_PI/180            ! longitude location of perturbation [radians]
+  lat_c          =  25 * MATH_PI/180            ! latitude location of perturbation [radians]
 
   ! Dimensional scaling
-  wave_speed     = sqrt (grav_accel*abs(mean_depth)) ! inertia-gravity wave speed
+  wave_speed     = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
   Udim           = wave_speed                   ! velocity scale
   Ldim           = 2 * pert_radius              ! length scale (free surface perturbation width)
   Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
@@ -53,14 +55,10 @@ program Tsunami
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
-     n_patch_old = grid%patch%length
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
      call stop_timing
 
-     call update
-     
-     call sum_total_mass (.false.)
      call print_log
 
      if (aligned) then

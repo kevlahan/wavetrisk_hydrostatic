@@ -66,8 +66,10 @@ contains
             -----------------------------------------------------'
 
        call forward_wavelet_transform (sol, wav_coeff)
-       call trend_ml (sol, trend)
-       call forward_wavelet_transform (trend, trend_wav_coeff)
+       if (adapt_trend) then
+          call trend_ml (sol, trend)
+          call forward_wavelet_transform (trend, trend_wav_coeff)
+       end if
 
        do while (level_end < max_level)
           if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level', level_end, ' -> ', level_end+1
@@ -80,8 +82,10 @@ contains
           call apply_init_cond
          
           call forward_wavelet_transform (sol, wav_coeff)
-          call trend_ml (sol, trend)
-          call forward_wavelet_transform (trend, trend_wav_coeff)
+          if (adapt_trend) then
+             call trend_ml (sol, trend)
+             call forward_wavelet_transform (trend, trend_wav_coeff)
+          end if
 
           ! Check whether there are any active nodes or edges at this scale
           n_active = 0
@@ -158,6 +162,8 @@ contains
     
     dt = dt_new
 
+    n_patch_old = grid%patch%length
+
     ! Match certain times exactly
     idt    = nint (dt*time_mult, 8)
     ialign = nint (align_time*time_mult, 8)
@@ -195,6 +201,10 @@ contains
 
     ! Adapt grid
     if (min_level /= max_level) call adapt_grid (set_thresholds)
+
+    call update
+    
+    call sum_total_mass (.false.)
 
     Itime = itime + idt
     time  = itime/time_mult

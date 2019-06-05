@@ -673,8 +673,12 @@ contains
     outv(3) = dom%v_merid%elts(id_i)
 
     ! Geopotential height at level zlev
-    outv(4) = dom%geopot%elts(id_i)/grav_accel
-
+    if (compressible) then
+       outv(4) = dom%geopot%elts(id_i)/grav_accel
+    else
+       outv(4) = -dom%topo%elts(id_i)
+    end if
+    
     if (compressible) then ! mass = ref_density*dz
        outv(5) = sol(S_MASS,zlev)%data(d)%elts(id_i)
     else ! penalization mask
@@ -690,7 +694,7 @@ contains
           full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
           total_depth = total_depth + full_mass / (ref_density*porosity)
        end do
-       outv(6) = total_depth + dom%topo%elts(id_i)
+       outv(6) = (1.0_8-penal(zlevels)%data(d)%elts(id_i))*(total_depth + dom%topo%elts(id_i))
     end if
 
     ! Vorticity at hexagon points

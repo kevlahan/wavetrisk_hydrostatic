@@ -12,12 +12,12 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  integer                              :: bathy_per_deg, npts_penal, npts_topo
+  integer                              :: bathy_per_deg, etopo_res, npts_penal, npts_topo
   integer, dimension(:), allocatable   :: n_patch_old
-  real(8)                              :: dH, lon_c, lat_c, min_depth, pert_radius
-  real(4), allocatable, dimension(:,:) :: bathy_data
-  logical                              :: etopo
-  logical, parameter                   :: split = .false. ! Split into mean and fluctuation (solve for fluctuation) if true
+  real(8)                              :: dH, lon_c, lat_c, max_depth, min_depth, pert_radius
+  real(4), allocatable, dimension(:,:) :: topo_data
+  logical                              :: etopo_bathy, etopo_coast
+  logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) if true
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -36,7 +36,7 @@ contains
     x_i  = dom%node%elts(id_i)
 
     ! Initial vertical grid size (uniform)
-    if (split) then
+    if (mean_split) then
        dz = - dom%topo%elts(id_i) / zlevels
     else
        dz = (free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
@@ -47,7 +47,7 @@ contains
 
     ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
-    if (split) then
+    if (mean_split) then
        sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = free_surface (x_i) * ref_density
     else
@@ -74,13 +74,13 @@ contains
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    if (split) then
+    if (mean_split) then
        x_i  = dom%node%elts(id_i)
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
        dz = - dom%topo%elts(id_i) / zlevels
        z = - (zlevels - zlev + 0.5_8) * dz
        
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * (1.0_8 + 1d-10*rand(0)) * dz ! add a small amount of noise to stabilize split case
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
     else
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
@@ -170,15 +170,10 @@ contains
 
     dz = Hdim/zlevels
 
-    ! if (split) then
-    !    lnorm(S_MASS,:) = dH * ref_density
-    !    lnorm(S_TEMP,:) = dH * ref_density
-    !    lnorm(S_VELO,:) = grav_accel*dH/Udim                   
-    ! else
-       lnorm(S_MASS,:) = ref_density * dz
-       lnorm(S_TEMP,:) = ref_density * dz
-       lnorm(S_VELO,:) = Udim
-    !end if
+    lnorm(S_MASS,:) = ref_density * dz
+    lnorm(S_TEMP,:) = ref_density * dz
+    lnorm(S_VELO,:) = Udim
+    
     if (adapt_trend) lnorm = lnorm/Tdim
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
@@ -223,10 +218,10 @@ contains
     if (rank == 0) then
        write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
        write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
-       write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
+       write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
           " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
           " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-       write (6,'(a,es10.4)') "eta = ", eta
+       write (6,'(a,es10.4,a)') "eta = ", eta," [s]"
     end if
   end subroutine initialize_dt_viscosity
 
@@ -244,7 +239,7 @@ contains
     id_i = id + 1
 
     ! Set bathymetry
-    if (etopo) then ! set bathymetry coordinates using etopo data
+    if (etopo_bathy) then ! set bathymetry coordinates using etopo data
        call etopo_topography (id, dom, dom%topo%elts(id_i), 'bathymetry', npts_topo)
     else
        call analytic_topography (dom%node%elts(id_i), dom%topo%elts(id_i), "bathymetry")
@@ -266,7 +261,7 @@ contains
     id_i = id + 1
 
     if (penalize) then
-       if (etopo) then
+       if (etopo_coast) then
           call etopo_topography (id, dom, penal(zlev)%data(d)%elts(id_i), "penalize", npts_penal)
        else
           call analytic_topography (dom%node%elts(id_i), penal(zlev)%data(d)%elts(id_i), "penalize")
@@ -286,7 +281,7 @@ contains
     real(8), parameter :: land_radius = 2000*KM
     real(8), parameter :: lon_land = 0.0_8, lat_land = 0.0_8
 
-    width = dx_min*4
+    width = 1.5*dx_min
 
     mask = 0.0_8
     select case (type)
@@ -329,11 +324,11 @@ contains
     call cart2sph (dom%node%elts(id_i), lon, lat)
     s0 = lon/MATH_PI * dble (180*BATHY_PER_DEG)
     t0 = lat/MATH_PI * dble (180*BATHY_PER_DEG)
-    p = proj_lon_lat (s0, t0)
     is0 = nint (s0); it0 = nint (t0)
-
+    p = proj_lon_lat (s0, t0)
+    
     if (npts == 0) then ! no smoothing
-       topo = topo_value ()
+       topo = topo_value (is0, it0, itype)
     else ! smoothing
        sw_topo  = 0.0_8
        topo_sum = 0.0_8
@@ -343,44 +338,47 @@ contains
              call wrap_lonlat (s, t)
              q = proj_lon_lat (dble(s), dble(t))
              r = norm (vector(p, q))
-             wgt = radial_basis_fun (r, npts, dx_smooth)
+             wgt = radial_basis_fun (r, npts, dx_local)
 
-             M_topo = topo_value ()
+             M_topo = topo_value (s, t, itype)
              topo_sum = topo_sum + wgt * M_topo
              sw_topo  = sw_topo  + wgt
           end do
        end do
        topo = topo_sum / sw_topo
     end if
-  contains
-    real(8) function topo_value ()
-      implicit none
-
-      if (bathy_data(s, t) > 0.0_8) then ! land
-         if (itype == 'bathymetry') then
-            topo_value = 0.0_8
-         else ! penalization
-            topo_value = LAND
-         end if
-      else ! sea: bathymetry is less than zero
-         if (itype == 'topography') then 
-            topo_value = min (bathy_data(s, t), min_depth)
-         else ! penalization
-            topo_value = SEA
-         end if
-      end if
-    end function topo_value
   end subroutine etopo_topography
 
-  real(8) function radial_basis_fun (r, npts, dx_local)
+  real(8) function topo_value (s, t, itype)
+    implicit none
+    integer      :: s, t
+    character(*) :: itype
+
+    select case (itype)
+    case ("bathymetry")
+       if (topo_data(s, t) > 0.0_8) then ! land
+          topo_value = min_depth
+       else ! sea: topography is less than zero
+          topo_value = max (min (topo_data(s, t), min_depth), max_depth)
+       end if
+    case ("penalize")
+       if (topo_data(s, t) > 0.0_8) then ! land
+          topo_value = 1.0_8
+       else ! sea: topography is less than zero
+          topo_value = 0.0_8
+       end if
+    end select
+  end function topo_value
+
+  real(8) function radial_basis_fun (r, npts, dx)
     ! Radial basis function for smoothing topography
     implicit none
     integer :: npts
-    real(8) :: r, dx_local
+    real(8) :: r, dx
 
     real(8) :: alph
 
-    alph = 1.0_8 / (npts/2 * dx_local)
+    alph = 1.0_8 / (npts/2 * dx)
 
     radial_basis_fun = exp (-(alph*r)**2)
   end function radial_basis_fun
@@ -391,10 +389,10 @@ contains
     implicit none
     integer :: s, t
     
-    if (t < lbound (bathy_data,2)) t = lbound (bathy_data,2) ! pole
-    if (t > ubound (bathy_data,2)) t = ubound (bathy_data,2) ! pole
-    if (s < lbound (bathy_data,1)) s = s + 360*BATHY_PER_DEG
-    if (s > ubound (bathy_data,1)) s = s - 360*BATHY_PER_DEG
+    if (t < lbound (topo_data,2)) t = lbound (topo_data,2) ! pole
+    if (t > ubound (topo_data,2)) t = ubound (topo_data,2) ! pole
+    if (s < lbound (topo_data,1)) s = s + 360*BATHY_PER_DEG
+    if (s > ubound (topo_data,1)) s = s - 360*BATHY_PER_DEG
   end subroutine wrap_lonlat
 
   type(Coord) function proj_lon_lat (s, t)
@@ -426,7 +424,9 @@ contains
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
     read (fid,*) varname, penalize
-    read (fid,*) varname, etopo
+    read (fid,*) varname, etopo_coast
+    read (fid,*) varname, etopo_bathy
+    read (fid,*) varname, etopo_res
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, remap
@@ -449,8 +449,6 @@ contains
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     read (fid,*) varname, alpha
-    read (fid,*) varname, min_depth
-    read (fid,*) varname, bathy_per_deg
     read (fid,*) varname, npts_penal
     read (fid,*) varname, npts_topo
     close(fid)
@@ -465,13 +463,14 @@ contains
     time_end = time_end * HOUR
     resume   = resume_init
     Laplace_order = Laplace_order_init
+    bathy_per_deg = 60/etopo_res
 
-    if (penalize .and. etopo) then
+    if (etopo_bathy .or. etopo_coast) then
        if (rank == 0) write(6,'(a)') 'Reading bathymetry data'
-       allocate (bathy_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
+       allocate (topo_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
        open (unit=1086,file='bathymetry')
-       do k = ubound (bathy_data,2), lbound (bathy_data,2), -1 ! north to south (as read from file)
-          read (1086,*) bathy_data(:,k)
+       do k = ubound (topo_data,2), lbound (topo_data,2), -1 ! north to south (as read from file)
+          read (1086,*) topo_data(:,k)
        end do
        close (1086)
     end if
@@ -489,7 +488,9 @@ contains
        write (6,'(A,A)')      "run_id               = ", trim (run_id)
        write (6,'(A,L1)')     "compressible         = ", compressible
        write (6,'(A,L1)')     "penalize             = ", penalize
-       write (6,'(A,L1)')     "etopo                = ", etopo
+       write (6,'(A,L1)')     "etopo_coast          = ", etopo_coast
+       write (6,'(A,L1)')     "etopo_bathy          = ", etopo_bathy
+       write (6,'(A,i3)')     "etopo_res [arc min]  = ", etopo_res
        write (6,'(A,i3)')     "min_level            = ", min_level
        write (6,'(A,i3)')     "max_level            = ", max_level
        write (6,'(A,i5)')     "number of domains    = ", N_GLO_DOMAIN
@@ -527,11 +528,12 @@ contains
        write (6,'(A,es10.4)') "pert_radius          = ", pert_radius
        write (6,'(A,es11.4)') "dH                   = ", dH
        write (6,'(A,es11.4)') "mean_depth           = ", mean_depth
-       write (6,'(A,es10.4)') "lon_c                = ", lon_c
-       write (6,'(A,es10.4)') "lat_c                = ", lat_c
+       write (6,'(A,es11.4)') "lon_c                = ", lon_c
+       write (6,'(A,es11.4)') "lat_c                = ", lat_c
        write (6,'(A,es10.4)') "eta                  = ", eta
        write (6,'(A,es10.4)') "alpha                = ", alpha
        write (6,'(A,es11.4)') "min_depth            = ", min_depth
+       write (6,'(A,es11.4)') "max_depth            = ", max_depth
        write (6,'(A,i5)')     "bathy_per_deg        = ", bathy_per_deg
        write (6,'(A,i5)')     "npts_penal           = ", npts_penal
        write (6,'(A,i5)')     "npts_topo            = ", npts_topo
@@ -584,8 +586,6 @@ contains
           call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
-    call forward_scalar_transform (penal, penal_wav_coeff)
-    call inverse_scalar_transform (penal_wav_coeff, penal)
 
     do l = level_start, level_end
        do k = 1, zlevels
@@ -609,11 +609,8 @@ contains
           end do
        end do
     end do
-
-    ! Do we still need this (since updating only new patches)?
-    call forward_scalar_transform (penal, penal_wav_coeff)
-    call inverse_scalar_transform (penal_wav_coeff, penal)
-
+    call barrier
+    
     do k = 1, zlevels
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
