@@ -2,7 +2,7 @@ itype     = 'max_wave_height';  % field to plot
 %itype     = 'arrival_time';  % field to plot
 iwrite     = 12;     % time to plot
 smooth    = false;  % smooth data over two points in each direction
-shift     = true;   % shift left boundary to zero longitude
+shift     = false;   % shift left boundary to zero longitude
 lines     = false;   % plot lines
 
 test_case = 'tsunami'; run_id = 'tsunami'; run_dir = '';
@@ -13,14 +13,14 @@ disp(['Uncompressing file ' pathid file_base '.tgz']);
 system(file_tar);
 
 % Load coordinates
-lon = load([file_base '20']);
+lon = load([file_base '20']); 
 lat = load([file_base '21']);
 
-ax = [0 360 -90 90];
+ax = [-90 -5 0 50];
 
 if (strcmp(itype,'max_wave_height')) % Plot surface pressure data
     s_ll = load([file_base '11']);
-    c_scale = -0.01:20:0.01;
+    c_scale = 0:0.1:1.8;
     v_title = 'Maximum wave height (m)';
 elseif (strcmp(itype,'arrival_time')) % Plot surface pressure data
     s_ll = load([file_base '12']);
@@ -33,3 +33,4 @@ fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_ll)));
 figure
 plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift, lines)
 axis(ax)
+system('\rm tsunami.6*');
