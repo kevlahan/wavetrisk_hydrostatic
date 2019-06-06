@@ -688,13 +688,7 @@ contains
     if (compressible) then ! surface pressure
        outv(6) = dom%surf_press%elts(id_i)
     else ! free surface perturbation
-       total_depth = 0.0_8
-       do k = 1, zlevels
-          porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
-          full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-          total_depth = total_depth + full_mass / (ref_density*porosity)
-       end do
-       outv(6) = (1.0_8-penal(zlevels)%data(d)%elts(id_i))*(total_depth + dom%topo%elts(id_i))
+       outv(6) = free_surface (dom, id_i)
     end if
 
     ! Vorticity at hexagon points
@@ -716,6 +710,26 @@ contains
        where (maxv < outv) maxv = outv
     end if
   end subroutine write_primal
+
+  real(8) function free_surface (dom, id_i)
+    ! Computes free surface perturbations
+    implicit none
+    type(Domain) :: dom
+    integer      :: id_i
+    
+    integer :: d, k
+    real(8) :: full_mass, porosity, total_depth
+
+    d = dom%id + 1
+
+    total_depth = 0.0_8
+    do k = 1, zlevels
+       porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
+       full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       total_depth = total_depth + full_mass / (ref_density*porosity)
+    end do
+    free_surface = (1.0_8 - penal(zlevels)%data(d)%elts(id_i))*(total_depth + dom%topo%elts(id_i))
+  end function free_surface
 
   subroutine write_dual (dom, p, i, j, zlev, offs, dims, funit)
     implicit none

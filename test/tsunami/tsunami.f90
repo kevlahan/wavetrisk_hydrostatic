@@ -6,44 +6,59 @@ program Tsunami
   use test_case_mod
   use io_mod  
   implicit none
-  
-  logical :: aligned
+  integer                                :: N
+  integer, dimension(2)                  :: Nx, Ny
+  real(4), dimension(:,:),   allocatable :: field2d
+  real(8)                                :: dx_export, dy_export, kx_export, ky_export
+  real(8), dimension(2)                  :: lon_lat_range
+  real(8), dimension(:,:,:), allocatable :: field2d_save
+  logical                                :: aligned
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
- 
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6371.229*KM                  ! mean radius of the Earth [m]
-  grav_accel     = 9.80616_8                    ! gravitational acceleration [m/s^2]
-  omega          = 7.29211d-5                   ! Earth’s angular velocity [rad/s]
-  p_top          = 0.0_8                        ! pressure at free surface
-  ref_density    = 1.027d3                      ! reference density (seawater) [kg/m^3]
+  radius         = 6371.229   * KM              ! mean radius of the Earth
+  grav_accel     = 9.80616    * METRE/SECOND**2 ! gravitational acceleration 
+  omega          = 7.29211d-5 * RAD/SECOND      ! Earth’s angular velocity 
+  p_top          = 0.0_8      * hPa             ! pressure at free surface
+  ref_density    = 1027       * KG/METRE**3     ! reference density (seawater)
 
   ! Local test case parameters
-  mean_depth     = -4*KM                        ! mean depth [m] (must be negative) for analytic bathymetry
-  min_depth      = -50*METRE                    ! minimum allowed depth [m] (must be negative)
-  max_depth      = -5*KM                        ! maximum allowed depth [m] (must be negative)
-  dH             = 1*METRE                      ! initial perturbation to the free surface [m]
-  pert_radius    = 100*KM                       ! radius of Gaussian free surface perturbation [m]
-  lon_c          = -50 * MATH_PI/180            ! longitude location of perturbation [radians]
-  lat_c          =  25 * MATH_PI/180            ! latitude location of perturbation [radians]
+  min_depth      = -2   * METRE                 ! minimum allowed depth (must be negative)
+  max_depth      = -6   * KM                    ! maximum allowed depth (must be negative)
+
+  dH             =  7   * METRE                 ! initial perturbation to the free surface
+  pert_radius    =  100 * KM                    ! radius of Gaussian free surface perturbation
+  lon_c          = -50  * DEG                   ! longitude location of perturbation
+  lat_c          =  25  * DEG                   ! latitude  location of perturbation
 
   ! Dimensional scaling
   wave_speed     = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
   Udim           = wave_speed                   ! velocity scale
   Ldim           = 2 * pert_radius              ! length scale (free surface perturbation width)
   Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
-  Hdim           = abs (mean_depth)             ! vertical length scale
+  Hdim           = abs (max_depth)              ! vertical length scale
+
+  ! Parameters for 2D projection
+  N              = 512                          ! Size of lat-lon grid in 2D projection
+  lon_lat_range  = (/2*MATH_PI, MATH_PI/)       ! Region to save in 2D projection
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  ! Initialize 2D projection grid
+  call init_2d_grid
 
   ! Read test case parameters
   call read_test_case_parameters
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
-  
+
+  ! Initialize tsunami diagnostic variables
+  call init_diagnostics
+
   ! Save initial conditions
   call print_test_case_parameters
   call write_and_export (iwrite)
@@ -59,6 +74,8 @@ program Tsunami
      call time_step (dt_write, aligned, set_thresholds)
      call stop_timing
 
+     call update_diagnostics
+
      call print_log
 
      if (aligned) then
@@ -67,21 +84,210 @@ program Tsunami
 
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then
+           call deallocate_diagnostics
            call write_checkpoint (dump, load, run_id, rebalance)
-           if (rebalance) call update
+           call init_diagnostics !! resets diagnostics !!
         end if
 
         ! Save fields
         call write_and_export (iwrite)
+        call save_diagnostics
      end if
   end do
-  
+
   if (rank == 0) then
      close (12)
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
   end if
   call finalize
-end program Tsunami
+contains
+  subroutine save_diagnostics 
+    ! Interpolate diagnostics onto lon-lat and save
+    use test_case_mod
+    implicit none
+    
+    integer            :: fid, i, v
+    integer, parameter :: funit = 400
+    character(130)     :: command
+    character(4)       :: s_time
+    character(7)       :: var_file
+
+    ! Project diagnostics onto latitude-longitude plane
+    call update_bdry (max_wave_height, min_level, 80)
+    call update_bdry (arrival_time,    min_level, 81)
+
+    call project_onto_plane (max_wave_height, min_level, 0.0_8)
+    field2d_save(:,:,1) = field2d
+
+    call project_onto_plane (arrival_time,    min_level, 0.0_8)
+    field2d_save(:,:,2) = field2d
+
+    ! Write out diagnostics
+    if (rank == 0) then
+       do v = 1, 2
+          fid = 6000000+100*iwrite + 10 + v
+          write (var_file, '(I7)') fid
+          open (unit=funit, file=trim(run_id)//'.'//var_file)
+          do i = Ny(1), Ny(2)
+             write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
+          end do
+          close (funit)
+       end do
+
+       ! Coordinates
+
+       ! Longitude values
+       fid = 6000000+100*iwrite + 20
+       write (var_file, '(I7)') fid
+       open (unit=funit, file=trim(run_id)//'.'//var_file)
+       write (funit,'(2047(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
+       close (funit)
+
+       ! Latitude values
+       fid = 6000000+100*iwrite + 21
+       write (var_file, '(I7)') fid
+       open (unit=funit, file=trim(run_id)//'.'//var_file)
+       write (funit,'(2047(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
+       close (funit)
+
+       ! Compress files
+       write (s_time, '(i4.4)') iwrite
+       command = 'ls -1 '//trim(run_id)//'.6'//s_time//'?? > tmp3'
+       call system (command)
+       command = 'tar cfz '//trim(run_id)//'.6'//s_time//'.tgz -T tmp3 --remove-files'
+       call system (command)
+    end if
+  end subroutine save_diagnostics
+
+  subroutine init_2d_grid
+    implicit none
+
+    Nx = (/-N/2, N/2/)
+    Ny = (/-N/4, N/4/)
+
+    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
+    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
+    
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
+    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),1:2))
+  end subroutine init_2d_grid
+
+  subroutine project_onto_plane (field, l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use comm_mpi_mod
+    implicit none
+    integer               :: l, itype
+    real(8)               :: default_val
+    Type(Float_field)     :: field
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = field%data(d)%elts(id+1)
+                valN  = field%data(d)%elts(idN+1)
+                valE  = field%data(d)%elts(idE+1)
+                valNE = field%data(d)%elts(idNE+1)
+
+                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_onto_plane
+
+  subroutine interp_tri_to_2d (a, b, c, val)
+    implicit none
+    real(8), dimension(2) :: a, b, c
+    real(8), dimension(3) :: val
+
+    integer               :: id_x, id_y
+    real(8)               :: ival, minx, maxx, miny, maxy
+    real(8), dimension(2) :: ll
+    real(8), dimension(3) :: bac
+    logical               :: inside
+
+    minx = min (min (a(1), b(1)), c(1))
+    maxx = max (max (a(1), b(1)), c(1))
+    miny = min (min (a(2), b(2)), c(2))
+    maxy = max (max (a(2), b(2)), c(2))
+    if (maxx-minx > MATH_PI/2) then
+       write (0,'(A,i4,A)') 'ERROR (rank = ', rank, '): io-333 "export"'
+       return
+    end if
+
+    do id_x = floor (kx_export*minx), ceiling (kx_export*maxx)
+       if (id_x < lbound (field2d,1) .or. id_x > ubound (field2d,1)) cycle
+       do id_y = floor (ky_export*miny), ceiling (ky_export*maxy)
+          if (id_y < lbound (field2d,2) .or. id_y > ubound (field2d,2)) cycle
+          ll = (/dx_export*id_x, dy_export*id_y/)
+          call interp_tria (ll, a, b, c, val, ival, inside)
+          if (inside) field2d(id_x,id_y) = ival
+       end do
+    end do
+  end subroutine interp_tri_to_2d
+
+  subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val)
+    implicit none
+    real(8), dimension(2) :: a0, b0, c0
+    real(8), dimension(3) :: val
+
+    integer               :: i
+    integer, dimension(3) :: fixed
+    real(8), dimension(2) :: a, b, c
+
+    a = a0
+    b = b0
+    c = c0
+    call fix_boundary (a(1), b(1), c(1), fixed(1))
+    call fix_boundary (b(1), c(1), a(1), fixed(2))
+    call fix_boundary (c(1), a(1), b(1), fixed(3))
+    call interp_tri_to_2d (a, b, c, val)
+
+    if (sum(abs(fixed)) > 1) write (0,'(A)') 'ALARM'
+
+    if (sum(fixed) /= 0) then
+       a(1) = a(1) - sum(fixed) * 2*MATH_PI
+       b(1) = b(1) - sum(fixed) * 2*MATH_PI
+       c(1) = c(1) - sum(fixed) * 2*MATH_PI
+       call interp_tri_to_2d (a, b, c, val)
+    end if
+  end subroutine interp_tri_to_2d_and_fix_bdry
+end program
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
@@ -223,11 +429,14 @@ contains
 
     idS  = idx (i,   j-1, offs, dims)
     idW  = idx (i-1, j,   offs, dims)
-    
+
     curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
     curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
     curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
   end function curl_rotu
 end function physics_velo_source
+
+
+
 
 

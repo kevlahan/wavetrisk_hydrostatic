@@ -13,11 +13,11 @@ Module test_case_mod
 
   ! Local variables
   integer                              :: bathy_per_deg, etopo_res, npts_penal, npts_topo
-  integer, dimension(:), allocatable   :: n_patch_old
   real(8)                              :: dH, lon_c, lat_c, max_depth, min_depth, pert_radius
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: etopo_bathy, etopo_coast
   logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) if true
+  type(Float_Field)                    :: arrival_time, max_wave_height
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -39,17 +39,17 @@ contains
     if (mean_split) then
        dz = - dom%topo%elts(id_i) / zlevels
     else
-       dz = (free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
+       dz = (init_free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
     end if
     
     ! Local z-coordinate (mid layer)
-    z = free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
+    z = init_free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
 
     ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i))
     if (mean_split) then
        sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = free_surface (x_i) * ref_density
+       if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) * ref_density
     else
        sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
     end if
@@ -97,7 +97,7 @@ contains
     surf_geopot = grav_accel * 0.0_8
   end function surf_geopot
 
-  real(8) function free_surface (x_i)
+  real(8) function init_free_surface (x_i)
     ! Free surface perturbation
     implicit none
     type(Coord) :: x_i
@@ -109,8 +109,8 @@ contains
     rgrc = radius * acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
     ! Gaussian perturbation to free surface
-    free_surface = dH * exp__flush (-(rgrc/pert_radius)**2)
-  end function free_surface
+    init_free_surface = dH * exp__flush (-(rgrc/pert_radius)**2)
+  end function init_free_surface
 
   real(8) function density (x_i, z)
     ! Density profile
@@ -122,7 +122,7 @@ contains
 
     density = ref_density
     
-    ! if (z > 0.8 * mean_depth) then ! less dense fluid in upper layer
+    ! if (z > 0.8 * max_depth) then ! less dense fluid in upper layer
     !    density = ref_density * (1.0_8 - drho)
     ! else
     !    density = ref_density
@@ -187,8 +187,8 @@ contains
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
       
     ! Diffusion constants
-    C_sclr = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_divu = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_sclr = 4d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_divu = 4d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     
     ! CFL limit for time step
@@ -286,7 +286,7 @@ contains
     mask = 0.0_8
     select case (type)
     case ("bathymetry")
-       mask = mean_depth + surf_geopot (x_i) / grav_accel
+       mask = max_depth + surf_geopot (x_i) / grav_accel
     case ("penalize")
        call cart2sph (x_i, lon, lat)
        rgrc = radius * acos(sin(lat_land)*sin(lat) + cos(lat_land)*cos(lat)*cos(lon-lon_land))
@@ -322,8 +322,8 @@ contains
 
     ! Find longitude and latitude coordinates
     call cart2sph (dom%node%elts(id_i), lon, lat)
-    s0 = lon/MATH_PI * dble (180*BATHY_PER_DEG)
-    t0 = lat/MATH_PI * dble (180*BATHY_PER_DEG)
+    s0 = lon/DEG * BATHY_PER_DEG
+    t0 = lat/DEG * BATHY_PER_DEG
     is0 = nint (s0); it0 = nint (t0)
     p = proj_lon_lat (s0, t0)
     
@@ -400,8 +400,8 @@ contains
     real(8) :: s, t
     real(8) :: lon, lat
     
-    lon = s * MATH_PI / dble (180*BATHY_PER_DEG)
-    lat = t * MATH_PI / dble (180*BATHY_PER_DEG)
+    lon = s * DEG / BATHY_PER_DEG
+    lat = t * DEG / BATHY_PER_DEG
     proj_lon_lat = project_on_sphere (sph2cart(lon, lat))
   end function proj_lon_lat 
 
@@ -505,33 +505,32 @@ contains
        write (6,'(A,L1)')     "adapt_trend          = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds   = ", default_thresholds
        write (6,'(A,L1)')     "perfect              = ", perfect
-       write (6,'(A,es10.4)') "tolerance            = ", tol
+       write (6,'(A,es11.4)') "tolerance            = ", tol
        write (6,'(A,i1)')     "optimize_grid        = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt             = ", adapt_dt
-       write (6,'(A,es10.4)') "cfl_num              = ", cfl_num
+       write (6,'(A,es11.4)') "cfl_num              = ", cfl_num
        write (6,'(a,a)')      "timeint_type         = ", trim (timeint_type)
-       write (6,'(A,es10.4)') "pressure_save [hPa]  = ", pressure_save(1)/100
+       write (6,'(A,es11.4)') "pressure_save [hPa]  = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse            = ", n_diffuse
-       write (6,'(A,es10.4)') "dt_write [min]       = ", dt_write/MINUTE
+       write (6,'(A,es11.4)') "dt_write [min]       = ", dt_write/MINUTE
        write (6,'(A,i6)')     "CP_EVERY             = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance            = ", rebalance
-       write (6,'(A,es10.4)') "time_end [h]         = ", time_end/HOUR
+       write (6,'(A,es11.4)') "time_end [h]         = ", time_end/HOUR
        write (6,'(A,i6)')     "resume               = ", resume_init
         
        write (6,'(/,A)')      "STANDARD PARAMETERS"
-       write (6,'(A,es10.4)') "radius               = ", radius
-       write (6,'(A,es10.4)') "omega                = ", omega
-       write (6,'(A,es10.4)') "p_top (hPa)          = ", p_top/100
+       write (6,'(A,es11.4)') "radius               = ", radius
+       write (6,'(A,es11.4)') "omega                = ", omega
+       write (6,'(A,es11.4)') "p_top (hPa)          = ", p_top/100
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es10.4)') "pert_radius          = ", pert_radius
+       write (6,'(A,es11.4)') "pert_radius          = ", pert_radius
        write (6,'(A,es11.4)') "dH                   = ", dH
-       write (6,'(A,es11.4)') "mean_depth           = ", mean_depth
        write (6,'(A,es11.4)') "lon_c                = ", lon_c
        write (6,'(A,es11.4)') "lat_c                = ", lat_c
-       write (6,'(A,es10.4)') "eta                  = ", eta
-       write (6,'(A,es10.4)') "alpha                = ", alpha
+       write (6,'(A,es11.4)') "eta                  = ", eta
+       write (6,'(A,es11.4)') "alpha                = ", alpha
        write (6,'(A,es11.4)') "min_depth            = ", min_depth
        write (6,'(A,es11.4)') "max_depth            = ", max_depth
        write (6,'(A,i5)')     "bathy_per_deg        = ", bathy_per_deg
@@ -620,13 +619,94 @@ contains
     end do
   end subroutine update
 
+  subroutine update_diagnostics
+    ! Update tsunami diagnostics
+    implicit none
+    integer :: d, num
+    
+    do d = 1, size(grid)
+       num = grid(d)%node%length - n_node_old(d)
+       if (num > 0) then
+          call extend (max_wave_height%data(d), num, 0.0_8)
+          call extend (arrival_time%data(d),    num, 1.0d8)
+       end if
+    end do
+    call apply_onescale (cal_diagnostics, min_level, z_null, 0, 0)
+  end subroutine update_diagnostics
+
+  subroutine cal_diagnostics (dom, i, j, zlev, offs, dims)
+    ! Finds maximum wave height and first arrival time (in minutes) of wave at each node
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer            :: d, id_i
+    real(8), parameter :: min_wave = 0.05_8 ! lower bound for wave arrival
+
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       max_wave_height%data(d)%elts(id_i) = max (free_surface (), max_wave_height%data(d)%elts(id_i))
+       
+       if (free_surface () > min_wave) &
+            arrival_time%data(d)%elts(id_i) = min (time/MINUTE, arrival_time%data(d)%elts(id_i))
+    end if
+  contains
+    real(8) function free_surface ()
+      ! Computes free surface perturbations
+      implicit none
+      integer :: k
+      real(8) :: full_mass, porosity, total_depth
+
+      total_depth = 0.0_8
+      do k = 1, zlevels
+         porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
+         full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+         total_depth = total_depth + full_mass / (ref_density*porosity)
+      end do
+      free_surface = (1.0_8 - penal(zlevels)%data(d)%elts(id_i)) * (total_depth + dom%topo%elts(id_i))
+    end function free_surface
+  end subroutine cal_diagnostics
+
+  subroutine init_diagnostics
+    ! Initialize tsunami diagnostics
+    implicit none 
+    integer :: d
+
+    call init_Float_Field (max_wave_height, AT_NODE)
+    call init_Float_Field (arrival_time,    AT_NODE)
+
+    do d = 1, size(grid)
+       call init (max_wave_height%data(d), grid(d)%node%length)
+       call init (arrival_time%data(d),    grid(d)%node%length)
+       max_wave_height%data(d)%elts = 0.0_8
+       arrival_time%data(d)%elts    = 1.0d8
+    end do
+  end subroutine init_diagnostics
+
+  subroutine deallocate_diagnostics
+    implicit none
+    integer :: d
+    
+    do d = 1, size(grid)
+       deallocate (max_wave_height%data(d)%elts)
+       deallocate (arrival_time%data(d)%elts)
+    end do
+    
+    deallocate (max_wave_height%data)
+    deallocate (arrival_time%data)
+  end subroutine deallocate_diagnostics
+
   subroutine set_save_level
     ! Determines closest vertical level to desired height z
     implicit none
     integer :: k
     real(8) :: dz, p, save_press, z
 
-    dz = abs (mean_depth) / zlevels; save_zlev = 0
+    dz = abs (max_depth) / zlevels; save_zlev = 0
     do k = 1, zlevels
        z = (zlevels - k) * dz 
        if (abs (z - pressure_save(1)) < dz) then

@@ -163,6 +163,7 @@ contains
     dt = dt_new
 
     n_patch_old = grid%patch%length
+    n_node_old  = grid%node%length
 
     ! Match certain times exactly
     idt    = nint (dt*time_mult, 8)
@@ -276,7 +277,6 @@ contains
     call initialize_dt_viscosity
 
     ! Set penalization and depth
-    allocate (n_patch_old(size(grid))); n_patch_old = 2
     call update
 
     ! Initialize total mass value
@@ -360,7 +360,7 @@ contains
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
 
     if (rank == 0) write (6,'(A,i2,A)') 'Make level J_min = ', min_level, ' ...'
-
+    
     call init_wavelets
     call init_masks
     call add_second_level
@@ -370,6 +370,8 @@ contains
 
     call record_init_state (ini_st)
     if (time_end > 0.0_8) time_mult = huge (itime)/2/time_end
+
+    allocate (n_patch_old(size(grid)), n_node_old(size(grid))); n_patch_old = 2
 
     call init_RK_mem
   end subroutine init_structures
@@ -517,7 +519,7 @@ contains
        end do
     end do
 
-    deallocate (grid)
+    deallocate (grid, n_patch_old, n_node_old)
     deallocate (edge_level_start, node_level_start, n_active_edges, n_active_nodes)
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)

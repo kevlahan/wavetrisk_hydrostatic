@@ -164,21 +164,46 @@ module shared_mod
   
   real(8) :: tol ! relative tolerance for all variables
 
-  ! Basic constants (assumes basic unit of time is seconds)
-  integer, parameter :: SECOND = 1
-  integer, parameter :: MINUTE = 60*SECOND
-  integer, parameter :: HOUR = 60*MINUTE
-  integer, parameter :: DAY = 24*HOUR
-  integer, parameter :: WEEK = 7*DAY
-  real(8), parameter :: METRE = 1
-  real(8), parameter :: KM = 1000*METRE
-  real(8), parameter :: MATH_PI = acos(-1.0_8)
+  ! Basic constants (uses MKS system of units)
+
+  ! Math
+  real(8), parameter :: MATH_PI = acos (-1.0_8)
+
+  ! Length
+  real(8), parameter :: METRE   = 1
+  real(8), parameter :: KM      = 1000 * METRE
+
+  ! Mass
+  real(8), parameter :: KG      = 1
+  real(8), parameter :: GRAM    = KG / 1000
+
+  ! Time
+  integer, parameter :: SECOND  = 1
+  integer, parameter :: MINUTE  = 60  * SECOND
+  integer, parameter :: HOUR    = 60  * MINUTE
+  integer, parameter :: DAY     = 24  * HOUR
+  integer, parameter :: WEEK    =   7 * DAY
+  integer, parameter :: YEAR    = 365 * DAY
+   
+  ! Angle
+  real(8), parameter :: RAD     = 1
+  real(8), parameter :: DEG     = MATH_PI / 180
+
+  ! Pressure
+  real(8), parameter :: Pa      = KG / METRE / SECOND**2
+  real(8), parameter :: hPa     =  100*Pa
+  real(8), parameter :: kPa     = 1000*Pa
+
+  ! Heat and energy
+  real(8), parameter :: KELVIN  = 1
+  real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2 
   
   ! Simulation variables
   integer                                       :: cp_idx, err_restart, ibin, iremap, istep, istep_cumul, iwrite, n_diffuse, nbins
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
+  integer, dimension(:), allocatable            :: n_node_old, n_patch_old
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
   
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
@@ -186,7 +211,7 @@ module shared_mod
   real(8)                                       :: visc_divu, visc_rotu
   real(8)                                       :: alpha, eta
   real(8), dimension(S_MASS:S_TEMP)             :: visc_sclr
-  real(8)                                       :: c_p, c_v, gamma, gk, kappa, mean_depth, p_0, p_top, R_d, wave_speed
+  real(8)                                       :: c_p, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8)                                       :: min_mass, min_allowed_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
@@ -263,8 +288,11 @@ contains
 
     ! Default run values
     ! these parameters are typically reset in the input file, but are needed for compilation
-    alpha               = 1d-4
-    eta                 = 1d-2
+
+    ! Penalization parameters
+    alpha               = 1d-4          ! porosity
+    eta                 = 1d-2 * SECOND ! permeability
+    
     cfl_num             = 1.0_8
     C_visc              = 1d-2
     level_save          = level_start
@@ -282,24 +310,24 @@ contains
     
     ! Default physical parameters
     ! these parameters are typically reset in test case file, but are needed for compilation
-    c_p            = 1004.64_8                   ! specific heat at constant pressure in joules per kilogram Kelvin
-    c_v            = 717.6_8                     ! specfic heat at constant volume c_v = R_d - c_p
-    grav_accel     = 9.80616_8
-    p_top          = 0.0_8                     ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
-    R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-    ref_density    = 1.0d3
-    kappa          = R_d/c_p
-    omega          = 7.292d-05
-    radius         = 6371.22*KM
-    p_0            = 1000.0d2
+    c_p            = 1004.64   * JOULE / (KG*KELVIN)   ! specific heat at constant pressure 
+    c_v            = 717.6     * JOULE / (KG*KELVIN)   ! specfic heat at constant volume c_v = R_d - c_p
+    grav_accel     = 9.80616   * METRE / SECOND**2     ! gravitational acceleration
+    p_top          = 0.0_8     * hPa                   ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
+    R_d            = 287       * JOULE / (KG*KELVIN)   ! ideal gas constant for dry air in joules per kilogram Kelvin
+    ref_density    = 1000      * KG                    ! reference density for incompressible case
+    omega          = 7.292d-05 * RAD / SECOND          ! rotation rate of Earth
+    radius         = 6371.22   * KM                    ! radius of Earth
+    p_0            = 1000      * hPA                   ! standard pressure
+    visc_sclr      = 0         * METRE**2 / SECOND     ! kinematic viscosity of scalars 
+    visc_divu      = 0         * METRE**2 / SECOND     ! kinematic viscosity of divergence of velocity 
+    visc_rotu      = 0         * METRE**2 / SECOND     ! kinematic viscosity of vorticity 
 
-    visc_sclr = 0.0_8
-    visc_divu = 0.0_8
-    visc_rotu = 0.0_8
+    kappa          = R_d/c_p                           ! heat capacity ratio
   end subroutine init_shared_mod
 
-  real(8) function eps()
-    eps = radius*1d-13
+  real(8) function eps ()
+    eps = radius * 1d-13
   end function eps
 
   integer function max_nodes_per_level (lev, entity)
