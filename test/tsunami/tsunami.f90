@@ -39,12 +39,12 @@ program Tsunami
   wave_speed     = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
   Udim           = wave_speed                   ! velocity scale
   Ldim           = 2 * pert_radius              ! length scale (free surface perturbation width)
-  Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
+  Tdim           = Ldim/Udim                    ! time scale
   Hdim           = abs (max_depth)              ! vertical length scale
 
   ! Parameters for 2D projection
-  N              = 1024                          ! Size of lat-lon grid in 2D projection
-  lon_lat_range  = (/2*MATH_PI, MATH_PI/)       ! Region to save in 2D projection
+  N              = 1024                         ! size of lat-lon grid in 2D projection
+  lon_lat_range  = (/2*MATH_PI, MATH_PI/)       ! region to save in 2D projection
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize 2D projection grid

@@ -445,7 +445,7 @@ contains
 
     do l = level_start, level_end
        do k = 1, zlevels
-          call apply_onescale (init_sol, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          call apply_onescale (init_sol, l, k, -1, 1)
        end do
     end do
   end subroutine apply_initial_conditions
