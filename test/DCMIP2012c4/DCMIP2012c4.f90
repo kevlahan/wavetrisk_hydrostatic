@@ -14,42 +14,45 @@ program DCMIP2012c4
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6371.229*KM                 ! mean radius of the Earth in meters
-  grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
-  omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
-  p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-  R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-  c_p            = 1004.64_8                   ! specific heat at constant pressure in joules per kilogram Kelvin
-  c_v            = 717.6_8                     ! specfic heat at constant volume c_v = R_d - c_p
-  gamma          = c_p/c_v                     ! heat capacity ratio
-  kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
+  radius         = 6371.229    * KM                ! mean radius of the Earth 
+  grav_accel     = 9.80616     * METRE/SECOND**2   ! gravitational acceleration 
+  omega          = 7.29212d-5  * RAD/SECOND        ! Earth’s angular velocity 
+  p_0            = 1000        * hPa               ! reference pressure (mean surface pressure) 
+  R_d            = 287         * JOULE/(KG*KELVIN) ! ideal gas constant for dry air
+  c_p            = 1004.64     * JOULE/(KG*KELVIN) ! specific heat at constant pressure 
+  c_v            = 717.6       * JOULE/(KG*KELVIN) ! specfic heat at constant volume c_v = R_d - c_p
+  
+  gamma          = c_p/c_v                         ! heat capacity ratio
+  kappa          = 2.0_8/7.0_8                     ! kappa=R_d/c_p
 
   ! Local test case parameters
-  u_0            = 35.0_8                      ! maximum velocity of zonal wind
-  u_p            = 1.0_8                       ! maximum perturbation to zonal wind
-  R_pert         = radius/10.0_8               ! radius of perturbation to zonal wind
-  T_0            = 288.0_8                     ! temperature in Kelvin
-  gamma_T        = 5.0d-3                      ! temperature lapse rate
-  delta_T        = 4.8d5                       ! empirical temperature difference
-  sigma_0        = 0.252_8                     ! value of sigma at reference level (level of the jet)
-  sigma_t        = 0.2_8                       ! value of sigma at the tropopause
-  lon_c          = MATH_PI/9                   ! longitude location of perturbation to zonal wind
-  lat_c          = 2*MATH_PI/9                 ! latitude location of perturbation to zonal wind
+  u_0            = 35          * METRE/SECOND      ! maximum velocity of zonal wind
+  u_p            = 1           * METRE/SECOND      ! maximum perturbation to zonal wind
+  R_pert         = radius/10   * METRE             ! radius of perturbation to zonal wind
+  T_0            = 288         * KELVIN            ! temperature in Kelvin
+  gamma_T        = 5d-3        * KELVIN/METRE      ! temperature lapse rate
+  delta_T        = 4.8d5       * KELVIN            ! empirical temperature difference
+  lon_c          = MATH_PI/9   * RAD               ! longitude location of perturbation to zonal wind
+  lat_c          = 2*MATH_PI/9 * RAD               ! latitude location of perturbation to zonal wind
 
+  sigma_0        = 0.252_8                         ! value of sigma at reference level (level of the jet)
+  sigma_t        = 0.2_8                           ! value of sigma at the tropopause
+
+  
   ! Dimensions for scaling tendencies
-  Tempdim        = T_0                         ! temperature scale (both theta and T from DYNAMICO)
-  dTempdim       = 8.0d1                       ! temperature scale for tolerances
-  Pdim           = p_0                         ! pressure scale
-  dPdim          = 8.0d3                       ! scale of surface pressure variation determining mass tolerance scale
+  Tempdim        = T_0                             ! temperature scale (both theta and T from DYNAMICO)
+  dTempdim       = 80          * KELVIN            ! temperature scale for tolerances
+  Pdim           = p_0                             ! pressure scale
+  dPdim          = 80          * hPa               ! scale of surface pressure variation determining mass tolerance scale
 
   ! Dimensional scaling
-  specvoldim     = (R_d*Tempdim)/Pdim          ! specific volume scale
-  wave_speed     = sqrt(gamma*Pdim*specvoldim) ! acoustic wave speed
+  specvoldim     = (R_d*Tempdim)/Pdim              ! specific volume scale
+  wave_speed     = sqrt(gamma*Pdim*specvoldim)     ! acoustic wave speed
 
-  Udim           = 3*u_0                       ! velocity scale (factor 3 from adaptive threshold runs)
-  Tdim           = DAY                         ! time scale
-  Ldim           = Udim*Tdim                   ! length scale
-  Hdim           = wave_speed**2/grav_accel    ! vertical length scale
+  Udim           = 3*u_0                           ! velocity scale (factor 3 from adaptive threshold runs)
+  Tdim           = DAY                             ! time scale
+  Ldim           = Udim*Tdim                       ! length scale
+  Hdim           = wave_speed**2/grav_accel        ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters

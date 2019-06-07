@@ -426,6 +426,15 @@ contains
     end do
   end subroutine apply_initial_conditions
 
+  subroutine update
+    ! Update means, bathymetry and penalization mask
+    ! not needed in this test case
+    use wavelet_mod
+    implicit none
+    integer :: d, k, l, p
+  
+  end subroutine update
+
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
     ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
     implicit none

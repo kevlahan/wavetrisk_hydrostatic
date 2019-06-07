@@ -26,48 +26,50 @@ program Held_Suarez
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6371*KM                     ! mean radius of the Earth in meters
-  grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
-  omega          = 7.292d-5                    ! Earth's angular velocity in radians per second
-  p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-  c_p            = 1004.0_8                    ! specific heat at constant pressure in joules per kilogram Kelvin
-  kappa          = 2.0_8/7.0_8                 ! kappa
-  R_d            = kappa*c_p                   ! ideal gas constant for dry air in joules per kilogram Kelvin
-  c_v            = c_p - R_d                   ! specific heat at constant volume c_v = c_p - R_d
-  gamma          = c_p/c_v                     ! heat capacity ratio
-  gk             = grav_accel*kappa
+  radius         = 6371      * KM                 ! mean radius of the Earth
+  grav_accel     = 9.8       * METRE/SECOND**2    ! gravitational acceleration 
+  omega          = 7.292d-5  * RAD/SECOND         ! Earth's angular velocity in radians per second
+  p_0            = 1000      * hPa                ! reference pressure (mean surface pressure) in Pascals
+  c_p            = 1004.0_8  * JOULE/(KG*KELVIN)  ! specific heat at constant pressure in joules per kilogram Kelvin
+  R_d            = kappa*c_p * JOULE/(KG*KELVIN)  ! ideal gas constant for dry air in joules per kilogram Kelvin
+  c_v            = c_p - R_d * JOULE/(KG*KELVIN)  ! specific heat at constant volume c_v = c_p - R_d
+  
+  kappa          = 2.0_8/7.0_8                    ! kappa
+  gamma          = c_p/c_v                        ! heat capacity ratio
 
   ! Local test case parameters
-  T_0            = 300.0_8                     ! reference temperature
-  T_mean         = 315.0_8                     ! mean temperature
-  T_tropo        = 200.0_8                     ! tropopause temperature
-  sigma_b        = 0.7_8                       ! normalized tropopause pressure height
-  sigma_c        = 1.0_8-sigma_b                     
-  k_a            = 1.0_8/(40*DAY)              ! cooling at free surface of atmosphere
-  k_f            = 1.0_8/DAY                   ! Rayleigh friction
-  k_s            = 1.0_8/(4*DAY)               ! cooling at surface
-  delta_T        = 60.0_8                      ! meridional temperature gradient
-  delta_theta    = 10.0_8                      ! vertical temperature gradient
+  T_0            = 300      * KELVIN              ! reference temperature
+  T_mean         = 315      * KELVIN              ! mean temperature
+  T_tropo        = 200      * KELVIN              ! tropopause temperature
+  k_a            = 1.0_8/40 / DAY                 ! cooling at free surface of atmosphere
+  k_f            = 1.0_8    / DAY                 ! Rayleigh friction
+  k_s            = 1.0_8/4  / DAY                 ! cooling at surface
+  delta_T        = 60       * KELVIN/METRE        ! meridional temperature gradient
+  delta_theta    = 10       * KELVIN/METRE        ! vertical temperature gradient
 
+  sigma_b        = 0.7_8                          ! normalized tropopause pressure height
+  sigma_c        = 1.0_8-sigma_b
+  
   ! Local test case parameters (Jablonowski and Williamson 2006 zonally symmetric initial conditions)
-  u_0            = 35.0_8                      ! maximum velocity of zonal wind
-  gamma_T        = 5.0d-3                      ! temperature lapse rate
-  delta_T2       = 4.8d5                       ! empirical temperature difference
-  sigma_0        = 0.252_8                     ! value of sigma at reference level (level of the jet)
-  sigma_t        = 0.2_8                       ! value of sigma at the tropopause
+  u_0            = 35       * METRE/SECOND        ! maximum velocity of zonal wind
+  gamma_T        = 5.0d-3   * KELVIN/METRE        ! temperature lapse rate
+  delta_T2       = 4.8d5    * KELVIN              ! empirical temperature difference
+  
+  sigma_0        = 0.252_8                        ! value of sigma at reference level (level of the jet)
+  sigma_t        = 0.2_8                          ! value of sigma at the tropopause
 
   ! Dimensions for scaling tendencies
-  Tempdim        = T_0                         ! temperature scale (both theta and T from DYNAMICO)
-  dTempdim       = 7.0d1                       ! temperature scale for tolerances
-  Pdim           = p_0                         ! pressure scale
-  dPdim          = 8.0d3                       ! scale of surface pressure variation determining mass tolerance scale
+  Tempdim        = T_0                            ! temperature scale (both theta and T from DYNAMICO)
+  dTempdim       = 70       * KELVIN              ! temperature scale for tolerances
+  Pdim           = p_0                            ! pressure scale
+  dPdim          = 80       * hPa                 ! scale of surface pressure variation determining mass tolerance scale
 
   ! Dimensional scaling
   specvoldim     = (R_d*Tempdim)/Pdim          ! specific volume scale
   wave_speed     = sqrt(gamma*Pdim*specvoldim) ! acoustic wave speed
 
-  Udim           = 30.0_8                      ! velocity scale
-  Tdim           = DAY                         ! time scale
+  Udim           = 30 * METRE/SECOND           ! velocity scale
+  Tdim           = 1  * DAY                    ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

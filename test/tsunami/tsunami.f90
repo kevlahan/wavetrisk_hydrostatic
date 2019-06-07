@@ -43,7 +43,7 @@ program Tsunami
   Hdim           = abs (max_depth)              ! vertical length scale
 
   ! Parameters for 2D projection
-  N              = 512                          ! Size of lat-lon grid in 2D projection
+  N              = 1024                          ! Size of lat-lon grid in 2D projection
   lon_lat_range  = (/2*MATH_PI, MATH_PI/)       ! Region to save in 2D projection
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

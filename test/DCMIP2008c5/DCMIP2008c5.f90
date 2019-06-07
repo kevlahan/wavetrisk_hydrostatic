@@ -13,40 +13,41 @@ program DCMIP2008c5
  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  radius         = 6371.229*KM                  ! mean radius of the Earth in meters
-  grav_accel     = 9.80616_8                    ! gravitational acceleration in meters per second squared
-  omega          = 7.29211d-5                   ! Earth’s angular velocity in radians per second
-  p_0            = 100145.6_8                   ! reference pressure (mean surface pressure) in Pascals
-  ref_surf_press = 930.0d2                      ! reference surface pressure
-  R_d            = 287.04_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-  c_p            = 1004.64_8                    ! specific heat at constant pressure in joules per kilogram Kelvin
-  c_v            = 717.6_8                      ! specfic heat at constant volume c_v = R_d - c_p
-  gamma          = c_p/c_v                      ! heat capacity ratio
-  kappa          = 2.0_8/7.0_8                  ! kappa=R_d/c_p
+  radius         = 6371.229   * KM                 ! mean radius of the Earth
+  grav_accel     = 9.80616    * METRE/SECOND**2    ! gravitational acceleration
+  omega          = 7.29211d-5 * RAD/SECOND         ! Earth’s angular velocity
+  p_0            = 1001.456   * hPa                ! reference pressure (mean surface pressure)
+  ref_surf_press = 930        * hPa                ! reference surface pressure
+  R_d            = 287.04     * JOULE/(KG*KELVIN)  ! ideal gas constant for dry air
+  c_p            = 1004.64    * JOULE/(KG*KELVIN)  ! specific heat at constant pressure
+  c_v            = 717.6_8    * JOULE/(KG*KELVIN)  ! specfic heat at constant volume c_v = R_d - c_p
+  
+  gamma          = c_p/c_v                         ! heat capacity ratio
+  kappa          = 2.0_8/7.0_8                     ! kappa=R_d/c_p
 
   ! Local test case parameters
-  d2             = (1500*KM)**2                     ! square of half width of Gaussian mountain profile in meters
-  h_0            = 2.0d3                        ! mountain height in meters
-  lon_c          = MATH_PI/2                    ! longitude location of mountain
-  lat_c          = MATH_PI/6                    ! latitude location of mountain
-  T_0            = 288.0_8                      ! temperature in Kelvin
-  u_0            = 20.0_8                       ! velocity in meters per second
-  N_freq         = sqrt(grav_accel**2/(c_p*T_0)) ! Brunt-Vaisala buoyancy frequency
+  d2             = (1500*KM)**2                    ! square of half width of Gaussian mountain profile
+  h_0            = 2          * KM                 ! mountain height
+  lon_c          = MATH_PI/2  * RAD                ! longitude location of mountain
+  lat_c          = MATH_PI/6  * RAD                ! latitude location of mountain
+  T_0            = 288        * KELVIN             ! temperature 
+  u_0            = 20         * METRE/SECOND       ! velocity
+  N_freq         = sqrt(grav_accel**2/(c_p*T_0))   ! Brunt-Vaisala buoyancy frequency
 
   ! Dimensions for scaling tendencies
-  Tempdim        = T_0                          ! temperature scale (both theta and T from DYNAMICO)
-  dTempdim       = 3.0d1                        ! temperature scale for tolerances
-  Pdim           = ref_surf_press               ! pressure scale
-  dPdim          = 2.5d3                        ! scale of surface pressure variation determining mass tolerance scale
+  Tempdim        = T_0                             ! temperature scale (both theta and T from DYNAMICO)
+  dTempdim       = 30         * KELVIN             ! temperature scale for tolerances
+  Pdim           = ref_surf_press                  ! pressure scale
+  dPdim          = 250        * hPa                ! scale of surface pressure variation determining mass tolerance scale
 
   ! Dimensional scaling
-  specvoldim     = (R_d*Tempdim)/Pdim           ! specific volume scale
-  wave_speed     = sqrt(gamma*Pdim*specvoldim)  ! acoustic wave speed
+  specvoldim     = (R_d*Tempdim)/Pdim              ! specific volume scale
+  wave_speed     = sqrt(gamma*Pdim*specvoldim)     ! acoustic wave speed
 
-  Udim           = u_0                          ! velocity scale
-  Ldim           = 2*sqrt(d2)                   ! length scale (mountain width)
-  Tdim           = Ldim/Udim                    ! time scale (advection past mountain)
-  Hdim           = wave_speed**2/grav_accel     ! vertical length scale
+  Udim           = u_0                             ! velocity scale
+  Ldim           = 2*sqrt(d2)                      ! length scale (mountain width)
+  Tdim           = Ldim/Udim                       ! time scale (advection past mountain)
+  Hdim           = wave_speed**2/grav_accel        ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters
