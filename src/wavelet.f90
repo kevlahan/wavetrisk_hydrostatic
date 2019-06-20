@@ -35,7 +35,7 @@ contains
              end do
              velo => scaling(S_VELO,k)%data(d)%elts
              call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
-             nullify (velo, wc_m)
+             nullify (velo)
           end do
        end do
 
