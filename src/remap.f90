@@ -19,7 +19,7 @@ contains
     ! Conserves mass, potential temperature and velocity divergence
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
-    integer :: d, k, l
+    integer :: d, k, l, v
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -66,10 +66,20 @@ contains
        interp_velo => remapPPR
     end select
 
+!!$    do l = level_start, level_end
+!!$       if (compressible) then
+!!$          call apply_onescale (remap_scalars, l, z_null, 0, 1)
+!!$          call apply_onescale (remap_velo,    l, z_null, 0, 0)
+!!$       else
+!!$          call apply_onescale (remap_scalars_incompressible, l, z_null, 0, 1)
+!!$          call apply_onescale (remap_velo_incompressible,    l, z_null, 0, 0)
+!!$       end if
+!!$    end do
+
     ! Ensure boundary values are up to date
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE, 90)
-
+    
     ! Remap on finest level
     if (compressible) then
        call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
@@ -84,17 +94,17 @@ contains
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
        sol%bdry_uptodate = .false.
-       call update_array_bdry (sol, l+1, 92)
+       call update_array_bdry (sol(S_MASS:S_TEMP,:), l+1, 92)
 
        ! Compute scalar wavelet coefficients
        do d = 1, size(grid)
           do k = 1, zlevels
-             mass => sol(S_MASS,k)%data(d)%elts
-             temp => sol(S_TEMP,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-             nullify (wc_m, wc_t, mass, temp)
+            do v = S_MASS, S_TEMP
+                mass => sol(v,k)%data(d)%elts
+                wc_m => wav_coeff(v,k)%data(d)%elts
+                call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+                nullify (mass, wc_m)
+             end do
           end do
        end do
        wav_coeff%bdry_uptodate = .false.
@@ -109,21 +119,23 @@ contains
           call apply_onescale (remap_velo_incompressible,    l, z_null, 0, 0)
        end if
 
+       sol%bdry_uptodate = .false.
+       call update_array_bdry (sol, l, 94)
+
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
        do d = 1, size(grid)
           do k = 1, zlevels
-             mass => sol(S_MASS,k)%data(d)%elts
-             temp => sol(S_TEMP,k)%data(d)%elts
+              do v = S_MASS, S_TEMP
+                mass => sol(v,k)%data(d)%elts
+                wc_m => wav_coeff(v,k)%data(d)%elts
+                call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
+                nullify (mass, wc_m)
+             end do
              velo => sol(S_VELO,k)%data(d)%elts
-             wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-             wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1)
-             call apply_interscale_d (restrict_velo,   grid(d), l, k, 0, 0)
-             nullify (mass, temp, velo, wc_m, wc_t)
+             call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
+             nullify (velo)
           end do
        end do
-       sol%bdry_uptodate = .false.
-       call update_array_bdry (sol, l, 94)
     end do
     sol%bdry_uptodate       = .false.
     wav_coeff%bdry_uptodate = .false.
