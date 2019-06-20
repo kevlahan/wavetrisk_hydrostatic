@@ -45,14 +45,14 @@ contains
     p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
 
     ! Normalized pressure
-    sigma = (p - p_top)/(p_s - p_top)
+    sigma = p / p_s
     sigma_v = (sigma - sigma_0) * MATH_PI/2
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*p_s/grav_accel
     
     ! Potential temperature
-    pot_temp =  set_temp(x_i, sigma) * (p/p_0)**(-kappa)
+    pot_temp =  set_temp(x_i) * (p/p_0)**(-kappa)
 
     ! Mass-weighted potential temperature
     sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
@@ -61,17 +61,15 @@ contains
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
 
-   real(8) function set_temp (x_i, sigma)
-    ! From Jablonowski and Williamson (2006)
+   real(8) function set_temp (x_i)
     implicit none
     type(Coord) :: x_i
-    real(8)     :: sigma
 
     real(8) :: cs2, lon, lat, sn2, Tmean
 
     call cart2sph (x_i, lon, lat)
-    sn2 = sin (lat)**2
-    cs2 = cos (lat)**2
+    sn2 = sin(lat)**2
+    cs2 = cos(lat)**2
 
     if (sigma >= sigma_t) then
        Tmean = T_0*sigma**(R_d*Gamma_T/grav_accel)
@@ -84,19 +82,18 @@ contains
   end function set_temp
 
   real(8) function surf_geopot (x_i)
-    ! Surface geopotential from Jablonowski and Williamson (2006)
+    ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
-    cs2 = cos (lat)**2
-    sn2 = sin (lat)**2
+    cs2 = cos(lat)**2
+    sn2 = sin(lat)**2
 
     c1 = u_0*cos((1.0_8-sigma_0)*MATH_PI/2)**1.5
     surf_geopot =  c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
-!    surf_geopot = 0.0_8 ! Uniform
   end function surf_geopot
 
   real(8) function surf_pressure (x_i)
@@ -136,9 +133,9 @@ contains
        if (adapt_trend) then
           call cal_lnorm_trend (trend, order)
        else
-          call cal_lnorm_sol (sol,   order)
+          call cal_lnorm_sol (sol, order)
        end if
-       !threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
+       threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
        threshold_new = tol*lnorm
     end if
 
@@ -219,6 +216,9 @@ contains
        b_vert = b_vert(zlevels+1:1:-1)
     end if
     
+    ! LMDZ grid
+    !call cal_AB
+    
     ! Set pressure at infinity
     p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
 
@@ -227,7 +227,43 @@ contains
     b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
   end subroutine initialize_a_b_vert
 
-   subroutine read_test_case_parameters
+  subroutine cal_AB
+    ! Computes A and B coefficients for hybrid vertical grid as in LMDZ
+    implicit none
+
+    integer                         :: l
+    real(8)                         :: snorm
+    real(8), dimension(1:zlevels)   :: dsig
+    real(8), dimension(1:zlevels+1) :: sig
+
+    snorm  = 0.0_8
+    do l = 1, zlevels
+       dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
+       !dsig(l) = 1.0_8 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
+       !dsig(l) = 1.0_8 + 7 * sin (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at surface
+       snorm = snorm + dsig(l)
+    end do
+
+    do l = 1, zlevels
+       dsig(l) = dsig(l)/snorm
+    end do
+
+    sig(zlevels+1) = 0.0_8
+    do l = zlevels, 1, -1
+       sig(l) = sig(l+1) + dsig(l)
+    end do
+
+    b_vert(zlevels+1) = 0.0_8
+    do  l = 1, zlevels
+       b_vert(l) = exp (1.0_8 - 1/sig(l)**2)
+       a_vert(l) = (sig(l) - b_vert(l)) * p_0
+    end do
+    b_vert(1) = 1.0_8
+    a_vert(1) = 0.0_8
+    a_vert(zlevels+1) = (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
+  end subroutine cal_AB
+
+  subroutine read_test_case_parameters
     implicit none
     integer, parameter :: fid = 500
     real(8)            :: press_save
@@ -405,9 +441,10 @@ contains
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
       
     ! Diffusion constants
-    C_sclr = 1d-3       ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_divu = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
+    C_sclr = 1d-3       ! <= 1e-3 for hyperdiffusion 
+    C_divu = C_sclr/3   ! from eigenvalues of second order Laplacian
+    C_rotu = C_sclr/20  ! from eigenvalues of second order Laplacian
+!    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
@@ -423,8 +460,8 @@ contains
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
        visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
+       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop

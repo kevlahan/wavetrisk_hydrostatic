@@ -80,7 +80,7 @@ program DCMIP2012c4
 
      if (aligned) then
         iwrite = iwrite+1
-        if (remap) call remap_vertical_coordinates
+        !if (remap) call remap_vertical_coordinates
 
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, rebalance)
@@ -115,7 +115,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
 
   integer                                  :: id_i, v
   real(8)                                  :: dx, visc
-  real(8), parameter                       :: C = 1d-2
+  real(8), dimension(1:EDGE)               :: d_e, l_e
   real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
   logical                                  :: local_type
 
@@ -125,11 +125,23 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      local_type = .false.
   end if
 
-  id_i = id + 1  
+  id_i = id + 1
 
   if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8
   else
+     if (.not.local_type) then ! usual flux at edges E, NE, N
+        l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
+        d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
+     else ! flux at SW corner
+        l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
+        l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
+        l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
+        d_e(RT+1) = -dom%len%elts(EDGE*idE+RT+1)
+        d_e(DG+1) = -dom%len%elts(EDGE*idNE+DG+1)
+        d_e(UP+1) = -dom%len%elts(EDGE*idN+UP+1)
+     end if
+     
      ! Calculate gradients
      if (Laplace_order == 1) then
         grad(S_MASS,:) = grad_physics (mass)
@@ -140,19 +152,10 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
         end do
      end if
 
-     ! Fluxes of physics
-     if (.not.local_type) then ! Usual flux at edges E, NE, N
-        do v = S_MASS, S_TEMP
-           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
-        end do
-     else ! Flux at edges W, SW, S
-        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
-     end if
-
-     ! Find correct sign for diffusion on left hand side of the equation
-     physics_scalar_flux = (-1)**Laplace_order * physics_scalar_flux
+     ! Complete scalar diffusion
+     do v = S_MASS, S_TEMP
+        physics_scalar_flux(v,:) = (-1)**Laplace_order * visc_sclr(v) * grad(v,:) * l_e
+     end do
   end if
 contains
   function grad_physics (scalar)
@@ -160,15 +163,9 @@ contains
     real(8), dimension(1:EDGE) :: grad_physics
     real(8), dimension(:)      :: scalar
 
-    if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-       grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-    else ! Gradient for southwest edges of hexagon W, SW, S
-       grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-       grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-       grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
-    end if
+    grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
+    grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
+    grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
   end function grad_physics
 end function physics_scalar_flux
 
