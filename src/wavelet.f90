@@ -116,11 +116,7 @@ contains
              do v = S_MASS, S_TEMP
                 mass => scaling(v,k)%data(d)%elts
                 wc_m => wavelet(v,k)%data(d)%elts
-                if (present(l_start0)) then
-                   call apply_interscale_d2 (IWT_prolong_scalar,       grid(d), l, z_null, 0, 1) ! needs wc
-                else
-                   call apply_interscale_d2 (IWT_prolong_scalar__fast, grid(d), l, z_null, 0, 1) ! needs wc
-                end if
+                call apply_interscale_d2 (IWT_prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
                 nullify (mass, wc_m)
              end do
           end do
@@ -195,11 +191,7 @@ contains
           do d = 1, size(grid)
              mass => scaling(k)%data(d)%elts
              wc_m => wavelet(k)%data(d)%elts
-             if (present(l_start0)) then
-                call apply_interscale_d2 (IWT_prolong_scalar,       grid(d), l, z_null, 0, 1) ! needs wc
-             else
-                call apply_interscale_d2 (IWT_prolong_scalar__fast, grid(d), l, z_null, 0, 1) ! needs wc
-             end if
+             call apply_interscale_d2 (IWT_prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
              nullify (mass, wc_m)
           end do
           call update_bdry (scaling(k), l+1, 66)
@@ -672,27 +664,6 @@ contains
 
     mass(id_chd+1) = prolong (dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine IWT_prolong_scalar
-
-  subroutine IWT_prolong_scalar__fast (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Prolong scalars at fine points existing at coarse scale by undoing lifting
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: id_par, id_chd
-
-    ! Locally filled, IWT reproduces previous value
-
-    id_par = idx (i_par, j_par, offs_par, dims_par)
-
-    if (dom%mask_n%elts(id_par+1) >= TOLRNZ) return
-
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-
-    mass(id_chd+1) = prolong (dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
-  end subroutine IWT_prolong_scalar__fast
 
   real(8) function prolong (dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
     ! Prolongation at fine points existing at coarse scale by undoing lifting

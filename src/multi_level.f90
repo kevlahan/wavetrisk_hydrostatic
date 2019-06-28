@@ -76,6 +76,7 @@ contains
        
        nullify (mass, mean_m, velo, temp, mean_t, h_mflux, h_tflux, bernoulli, exner, divu, qe, vort)
     end do
+    horiz_flux%bdry_uptodate = .false.
     if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
 
     if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
