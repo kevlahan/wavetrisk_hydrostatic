@@ -42,12 +42,6 @@ contains
 
     ! Interpolate onto active grid
     call inverse_wavelet_transform (wav_coeff, sol)
-
-    ! Set insignificant wavelet coefficients to zero
-    if (local_type) then
-       call compress_wavelets (wav_coeff)
-       if (adapt_trend) call compress_wavelets (trend_wav_coeff)
-    end if
   end subroutine adapt_grid
 
   subroutine adapt (set_thresholds, type)
@@ -82,9 +76,9 @@ contains
     else
        call update_array_bdry1 (wav_coeff, level_start, level_end, 15)
        call mask_active ("vars")
-    end if
-      
-    ! Add nearest neighbour wavelets of active nodes and edges at same scale
+    end if      
+    
+   ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
        call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
     end do
@@ -98,18 +92,6 @@ contains
     end do
     call comm_masks_mpi (NONE)
 
-    ! Add nodes and edges required for TRISK operators
-    do l = level_start, level_end
-       call apply_onescale (mask_trsk, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
-
-    ! Label points required for fluxes as TRSK
-    do l = level_start, level_end
-       call apply_onescale (mask_flux, l, z_null, -1, 1)
-    end do
-    call comm_masks_mpi (NONE)
-
     ! Determine whether any new patches are required
     if (refine()) call post_refine
 
@@ -120,8 +102,10 @@ contains
        end do
        call comm_masks_mpi (NONE)
 
-       ! Ensure consistency of adjacent zones for nodes and edges           
-       call mask_adj_nodes_edges
+       ! Ensure consistency of adjacent zones for nodes and edges
+       do l = level_end-1, level_start+1, -1
+          call apply_interscale (prolong_node_adjzone, l, z_null, 0, 1)
+       end do
        call comm_masks_mpi (NONE)
 
        ! Ensure that perfect reconstruction criteria for active wavelets are satisfied                                                    
@@ -137,25 +121,25 @@ contains
        call complete_masks
     end if
 
-    ! Add nodes and edges required for TRISK operators
+    ! Label points required for remap as TRSK
     do l = level_start, level_end
-       call apply_onescale (mask_trsk, l, z_null, 0, 0)
+       call apply_onescale (mask_node_trsk, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       call apply_onescale (mask_edge_trsk, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
-    call comm_masks_mpi (NONE)
-
-    ! Label points required for fluxes as TRSK
-    do l = level_start, level_end
-       call apply_onescale (mask_flux, l, z_null, -1, 1)
-    end do
-    call comm_masks_mpi (NONE)
+    
+    ! Set insignificant wavelet coefficients to zero
+    if (local_type) then
+       call compress_wavelets (wav_coeff)
+       if (adapt_trend) call compress_wavelets (trend_wav_coeff)
+    end if
   end subroutine adapt
 
-   subroutine compress_wavelets (wav)
+  subroutine compress_wavelets (wav)
     ! Sets wavelets associated with inactive grid points to zero
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: wav
+    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), target :: wav
 
-    integer :: d, e, k, l
+    integer :: d, k, l
     
     do k = 1, zlevels
        do d = 1, size (grid)
@@ -168,8 +152,8 @@ contains
           !call apply_onescale_d (compress_maxlevel, grid(d), max_level, z_null, 0, 1) ! dealiase
           nullify (wc_m, wc_t, wc_u)
        end do
-       wav(:,k)%bdry_uptodate = .false.
     end do
+    wav%bdry_uptodate = .false.
   end subroutine compress_wavelets
 
   subroutine compress_maxlevel (dom, i, j, zlev, offs, dims)
@@ -203,29 +187,28 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: e, id, id_e, id_i
+    integer :: e, id, id_i, k, v
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
-
+    
     if (dom%mask_n%elts(id_i) < ADJZONE) then
        wc_m(id_i) = 0.0_8
        wc_t(id_i) = 0.0_8
     end if
     
     do e = 1, EDGE
-       id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) < ADJZONE) wc_u(id_e) = 0.0_8
+       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
     end do
   end subroutine compress
 
-  subroutine WT_after_step (scaling, wavelet, l_start0)
+  subroutine WT_after_step (q, wav, l_start0)
     !  Everything needed in terms of forward and backward wavelet transform
     !  after one time step (e.g. RK sub-step)
     !    A) compute wavelets and perform backwards transform to conserve mass
     !    B) interpolate values onto adapted grid for next step
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
+    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, wav
     integer, optional                                             :: l_start0
     
     integer :: d, j, k, l, l_start, v
@@ -234,7 +217,7 @@ contains
        l_start = l_start0
        do k = 1, zlevels
           do d = 1, size(grid)
-             velo => scaling(S_VELO,k)%data(d)%elts
+             velo => q(S_VELO,k)%data(d)%elts
              call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
              nullify (velo)
           end do
@@ -243,35 +226,34 @@ contains
        l_start = level_start
     end if
 
-    scaling%bdry_uptodate = .false.
-    call update_array_bdry (scaling, NONE, 16)
+    q%bdry_uptodate = .false.
+    call update_array_bdry (q, NONE, 16)
 
     do k = 1, zlevels
        do l = l_start, level_end-1
           do d = 1, size(grid)
              do v = S_MASS, S_TEMP
-                mass => scaling(v,k)%data(d)%elts
-                wc_m => wavelet(v,k)%data(d)%elts
+                mass => q(v,k)%data(d)%elts
+                wc_m => wav(v,k)%data(d)%elts
                 call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
                 nullify (mass, wc_m)
              end do
-             velo => scaling(S_VELO,k)%data(d)%elts
-             wc_u => wavelet(S_VELO,k)%data(d)%elts
+             velo => q(S_VELO,k)%data(d)%elts
+             wc_u => wav(S_VELO,k)%data(d)%elts
              call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
              nullify (velo, wc_u)
           end do
-          wavelet(:,k)%bdry_uptodate = .false.
+          wav(:,k)%bdry_uptodate = .false.
        end do
     end do
-    call compress_wavelets (wavelet)
-    
-    call inverse_wavelet_transform (wavelet, scaling)
+    call compress_wavelets (wav)
+    call inverse_wavelet_transform (wav, q)
   end subroutine WT_after_step
 
   logical function refine ()
-    implicit none
     ! Determines where new patches are needed
+    implicit none
     integer :: c, d, did_refine, old_n_patch, p_chd, p_par
     logical :: required
     
@@ -303,6 +285,184 @@ contains
     refine = sync_max_int (did_refine) == TRUE
     return
   end function refine
+
+  subroutine init_multi_level_mod
+    implicit none
+    logical :: initialized = .false.
+
+    if (initialized) return ! initialize only once
+    call init_comm_mod
+    call init_ops_mod
+    call init_wavelet_mod
+    call init_refine_patch_mod
+    initialized = .true.
+  end subroutine init_multi_level_mod
+
+  subroutine add_second_level
+    implicit none
+    integer :: d, c
+
+    do d = 1, size(grid)
+       do c = 1, N_CHDRN
+          call refine_patch1 (grid(d), 1, c-1)
+       end do
+       do c = 1, N_CHDRN
+          call refine_patch2 (grid(d), 1, c-1)
+       end do
+       call connect_children (grid(d), 1)
+    end do
+
+    call comm_patch_conn_mpi
+
+    do d = 1, size(grid)
+       call update_comm (grid(d))
+    end do
+
+    call comm_communication_mpi
+    call comm_nodes9_mpi (get_areas, set_areas, NONE)
+    call apply_to_penta (area_post_comm, NONE, z_null)
+  end subroutine add_second_level
+  
+  subroutine fill_up_grid_and_IWT (l)
+    ! Fills grid up to level l and does inverse wavelet transform of solution onto grid
+    implicit none
+    integer :: l
+    
+    integer :: old_level_start
+    
+    old_level_start = level_start
+    do while (level_start < l)
+       if (rank == 0) write(6,'(a,i2)') 'Filling up level ', level_start+1
+       call fill_up_level
+    end do
+    call inverse_wavelet_transform (wav_coeff, sol, old_level_start)
+    sol%bdry_uptodate = .false.
+    call update_array_bdry (sol, NONE, 17)
+  end subroutine fill_up_grid_and_IWT
+
+   subroutine fill_up_level
+    ! Fills up level level_start+1 and increases level_start
+    implicit none
+    integer :: d, j, p_par, c, p_chd
+
+    do d = 1, size(grid)
+       do j = 1, grid(d)%lev(level_start)%length
+          p_par = grid(d)%lev(level_start)%elts(j)
+          do c = 1, N_CHDRN
+             p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+             if (p_chd == 0) call refine_patch (grid(d), p_par, c - 1)
+          end do
+       end do
+    end do
+    call post_refine
+    level_start = level_start+1
+  end subroutine fill_up_level
+
+  !!! Remaining routines were added by Matthias to prepare for allowing domain splitting for better rebalancing !!!
+  !!! they are not yet incorportated in the code !!!
+  logical function remove_inside_patches ()
+    ! Removes patches that are not required because they are far enough away from the locally finest level
+    implicit none
+    integer               :: d, k, p, l, c, c1
+    integer, dimension(4) :: chdrn
+    real(8)               :: children_fullness
+    logical               :: changes
+
+    changes = .false.
+    do d = 1, size(grid)
+       do p = 2, grid(d)%patch%length
+          call patch_count_active (grid(d), p-1)
+       end do
+    end do
+    l = level_start - 1
+    do k = 1, grid(d)%lev(l)%length
+       do d = 1, size(grid)
+          p = grid(d)%lev(l)%elts(k)
+          children_fullness = 0
+          ! Patch has 4 children including first neighbours 16
+          do c = 1, N_CHDRN
+             ! Always do one child with 3 adjacent neighbours (2 on side 1 on corner)
+             chdrn = get_child_and_neigh_patches(grid(d), p, c)
+             do c1 = 1, N_CHDRN
+                children_fullness = children_fullness + check_children_fillup(grid(d), chdrn(c1))
+             end do
+          end do
+          children_fullness = children_fullness/16
+          if (children_fullness > FILLUP_THRESHOLD) then
+             do c = 1, N_CHDRN
+                chdrn = get_child_and_neigh_patches(grid(d), p, c)
+                do c1 = 1, N_CHDRN
+                   call apply_onescale_to_patch__int (set_masks, grid(d), chdrn(c1), z_null, 0, 0, FROZEN)
+                end do
+             end do
+             grid(d)%patch%elts(p+1)%active = NONE
+             changes = .true.
+          else
+             grid(d)%patch%elts(p+1)%active = NONE
+          end if
+       end do
+    end do
+    remove_inside_patches = changes
+  end function remove_inside_patches
+
+  real(8) function check_children_fillup (dom, p_par)
+    implicit none
+    type(Domain) :: dom
+    integer      :: p_par
+    
+    integer               :: active, p_chd, c, i
+    integer, dimension(4) :: cn
+
+    ! Do not fill up children + remove if any child or neighbour patch is missing
+    if (product(dom%patch%elts(p_par+1)%neigh)*product(dom%patch%elts(p_par+1)%children) == 0) then
+       check_children_fillup = -1.0d8 ! for now make removing imposible for this case
+       return
+    end if
+
+    active = 0
+    do c = 1, N_CHDRN
+       cn = get_child_and_neigh_patches(dom, p_par, c)
+       do i = 2, 4
+          active = active + dom%patch%elts(cn(i)+1)%active
+       end do
+       ! Count real child double since neighbours are counted double during accumulation
+       active = active + 2*dom%patch%elts(cn(1)+1)%active
+    end do
+    check_children_fillup = dble(active)/dble(N_CHDRN*5*DOF_PER_PATCH)
+  end function check_children_fillup
+
+  logical function check_child_required (dom, p, c)
+    implicit none
+    type(Domain) :: dom
+    integer      :: p, c
+
+    integer                        :: e, j0, j, i0, i, id, st, en
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    logical                        :: required
+
+    st = -BDRY_THICKNESS
+    en =  BDRY_THICKNESS
+
+    call get_offs_Domain (dom, p, offs, dims)
+
+    do j0 = st + 1, PATCH_SIZE/2 + en
+       j = j0 - 1 + chd_offs(2,c+1)
+       do i0 = st + 1, PATCH_SIZE/2 + en
+          i = i0 - 1 + chd_offs(1,c+1)
+          id = idx(i, j, offs, dims)
+          required = dom%mask_n%elts(id+1) >= ADJSPACE .or. dom%mask_n%elts(id+1) == TRSK
+          do e = 1, EDGE
+             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT 
+          end do
+          if (required) then
+             check_child_required = .true.
+             return
+          end if
+       end do
+    end do
+    check_child_required = .false.
+  end function check_child_required
 
   subroutine patch_count_active (dom, p)
     implicit none
@@ -348,180 +508,4 @@ contains
     n = dom%patch%elts(p_par+1)%neigh(c+4) ! corner
     if (n > 0) get_child_and_neigh_patches(4) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
   end function get_child_and_neigh_patches
-
-  real(8) function check_children_fillup (dom, p_par)
-    implicit none
-    type(Domain) :: dom
-    integer      :: p_par
-    
-    integer               :: active, p_chd, c, i
-    integer, dimension(4) :: cn
-
-    ! do not fill up children + remove if any child or neighbour patch is missing
-    if (product(dom%patch%elts(p_par+1)%neigh)*product(dom%patch%elts(p_par+1)%children) == 0) then
-       check_children_fillup = -1.0d8 ! for now make removing imposible for this case
-       return
-    end if
-
-    active = 0
-    do c = 1, N_CHDRN
-       cn = get_child_and_neigh_patches(dom, p_par, c)
-       do i = 2, 4
-          active = active + dom%patch%elts(cn(i)+1)%active
-       end do
-       ! count real child double since neighbours are counted double during accumulation
-       active = active + 2*dom%patch%elts(cn(1)+1)%active
-    end do
-    check_children_fillup = dble(active)/dble(N_CHDRN*5*DOF_PER_PATCH)
-  end function check_children_fillup
-
-  logical function remove_inside_patches ()
-    ! Removes patches that are not required because they are far enough away from the locally finest level
-    
-    integer               :: d, k, p, l, c, c1
-    integer, dimension(4) :: chdrn
-    real(8)               :: children_fullness
-    logical               :: changes
-
-    changes = .false.
-    do d = 1, size(grid)
-       do p = 2, grid(d)%patch%length
-          call patch_count_active (grid(d), p-1)
-       end do
-    end do
-    l = level_start - 1
-    do k = 1, grid(d)%lev(l)%length
-       do d = 1, size(grid)
-          p = grid(d)%lev(l)%elts(k)
-          children_fullness = 0
-          ! Patch has 4 children including first neighbours 16
-          do c = 1, N_CHDRN
-             ! Always do one child with 3 adjacent neighbours (2 on side 1 on corner)
-             chdrn = get_child_and_neigh_patches(grid(d), p, c)
-             do c1 = 1, N_CHDRN
-                children_fullness = children_fullness + check_children_fillup(grid(d), chdrn(c1))
-             end do
-          end do
-          children_fullness = children_fullness/16
-          if (children_fullness > FILLUP_THRESHOLD) then
-             do c = 1, N_CHDRN
-                chdrn = get_child_and_neigh_patches(grid(d), p, c)
-                do c1 = 1, N_CHDRN
-                   call apply_onescale_to_patch__int (set_masks, grid(d), chdrn(c1), z_null, 0, 0, FROZEN)
-                end do
-             end do
-             grid(d)%patch%elts(p+1)%active = NONE
-             changes = .true.
-          else
-             grid(d)%patch%elts(p+1)%active = NONE
-          end if
-       end do
-    end do
-    remove_inside_patches = changes
-  end function remove_inside_patches
-
-  logical function check_child_required (dom, p, c)
-    implicit none
-    type(Domain) :: dom
-    integer      :: p, c
-
-    integer                        :: e, j0, j, i0, i, id, st, en
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    logical                        :: required
-
-    st = -BDRY_THICKNESS
-    en =  BDRY_THICKNESS
-
-    call get_offs_Domain (dom, p, offs, dims)
-
-    do j0 = st + 1, PATCH_SIZE/2 + en
-       j = j0 - 1 + chd_offs(2,c+1)
-       do i0 = st + 1, PATCH_SIZE/2 + en
-          i = i0 - 1 + chd_offs(1,c+1)
-          id = idx(i, j, offs, dims)
-          required = dom%mask_n%elts(id+1) >= ADJSPACE .or. dom%mask_n%elts(id+1) == TRSK
-          do e = 1, EDGE
-             required = required .or. dom%mask_e%elts(EDGE*id+e) >= RESTRCT 
-          end do
-          if (required) then
-             check_child_required = .true.
-             return
-          end if
-       end do
-    end do
-    check_child_required = .false.
-  end function check_child_required
-
-  subroutine init_multi_level_mod
-    implicit none
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-    call init_comm_mod
-    call init_ops_mod
-    call init_wavelet_mod
-    call init_refine_patch_mod
-    initialized = .true.
-  end subroutine init_multi_level_mod
-
-  subroutine add_second_level
-    implicit none
-    integer :: d, c
-
-    do d = 1, size(grid)
-       do c = 1, N_CHDRN
-          call refine_patch1 (grid(d), 1, c-1)
-       end do
-       do c = 1, N_CHDRN
-          call refine_patch2 (grid(d), 1, c-1)
-       end do
-       call connect_children (grid(d), 1)
-    end do
-
-    call comm_patch_conn_mpi
-
-    do d = 1, size(grid)
-       call update_comm (grid(d))
-    end do
-
-    call comm_communication_mpi
-    call comm_nodes9_mpi (get_areas, set_areas, NONE)
-    call apply_to_penta (area_post_comm, NONE, z_null)
-  end subroutine add_second_level
-  
-  subroutine fill_up_level
-    ! Fills up level level_start+1 and increases level_start
-    implicit none
-    integer :: d, j, p_par, c, p_chd
-
-    do d = 1, size(grid)
-       do j = 1, grid(d)%lev(level_start)%length
-          p_par = grid(d)%lev(level_start)%elts(j)
-          do c = 1, N_CHDRN
-             p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-             if (p_chd == 0) call refine_patch (grid(d), p_par, c - 1)
-          end do
-       end do
-    end do
-    call post_refine
-    level_start = level_start+1
-  end subroutine fill_up_level
-
-  subroutine fill_up_grid_and_IWT (l)
-    ! Fills grid up to level l and does inverse wavelet transform of solution onto grid
-    implicit none
-    integer :: l
-    
-    integer :: old_level_start
-    
-    old_level_start = level_start
-    do while (level_start < l)
-       if (rank == 0) write(6,'(a,i2)') 'Filling up level ', level_start+1
-       call fill_up_level
-    end do
-    call inverse_wavelet_transform (wav_coeff, sol, old_level_start)
-    sol%bdry_uptodate = .false.
-    call update_array_bdry (sol, NONE, 17)
-  end subroutine fill_up_grid_and_IWT
 end module adapt_mod
