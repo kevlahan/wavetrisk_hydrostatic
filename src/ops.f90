@@ -617,7 +617,7 @@ contains
           end if
        end do
     else
-       dom%mask_e%elts(EDGE*id+1:EDGE*id_i) = 0.0_8
+       dvelo(EDGE*id+1:EDGE*id_i) = 0.0_8
     end if
   end subroutine du_source
 
