@@ -442,9 +442,8 @@ contains
       
     ! Diffusion constants
     C_sclr = 1d-3       ! <= 1e-3 for hyperdiffusion 
-    C_divu = C_sclr/3   ! from eigenvalues of second order Laplacian
-    C_rotu = C_sclr/20  ! from eigenvalues of second order Laplacian
-!    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
+    C_divu = C_sclr   ! from eigenvalues of second order Laplacian
+    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
