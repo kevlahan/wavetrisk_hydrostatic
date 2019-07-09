@@ -564,10 +564,15 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
-
-    dmass(id_i) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
-    dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       physics = physics_scalar_source (dom, i, j, zlev, offs, dims)
+       
+       dmass(id_i) = - div (h_mflux, dom, i, j, offs, dims) + physics(S_MASS)
+       dtemp(id_i) = - div (h_tflux, dom, i, j, offs, dims) + physics(S_TEMP)
+    else
+       dmass(id_i) = 0.0_8
+       dtemp(id_i) = 0.0_8
+    end if
   end subroutine scalar_trend
 
   subroutine du_source (dom, i, j, zlev, offs, dims)
@@ -590,19 +595,30 @@ contains
        end function physics_velo_source
     end interface
 
-    integer                :: id, id_i
+    integer                :: e, id, id_i
     real(8), dimension (3) :: Qperp_e, physics
 
     id = idx (i, j, offs, dims)
     id_i = id+1
 
-    ! Calculate Q_perp
-    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
+    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) >= ADJZONE) then
+       ! Calculate Q_perp
+       Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
+       
+       ! Calculate physics
+       physics = physics_velo_source (dom, i, j, zlev, offs, dims)
 
-    ! Calculate physics
-    physics = physics_velo_source (dom, i, j, zlev, offs, dims)
-
-    dvelo(EDGE*id+1:EDGE*id_i) = - Qperp_e + physics*dom%len%elts(EDGE*id+1:EDGE*id_i)
+       ! Trend
+       do e = 1, EDGE
+          if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+             dvelo(EDGE*id+e) = - Qperp_e(e) + physics(e)*dom%len%elts(EDGE*id+e)
+          else
+             dvelo(EDGE*id+e) = 0.0_8
+          end if
+       end do
+    else
+       dom%mask_e%elts(EDGE*id+1:EDGE*id_i) = 0.0_8
+    end if
   end subroutine du_source
 
   subroutine du_grad (dom, i, j, zlev, offs, dims)
@@ -613,41 +629,51 @@ contains
     integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer                         :: id, id_i, idE, idN, idNE
+    integer                         :: e, id, id_i, idE, idN, idNE
     real(8), dimension(1:EDGE)      :: gradB, gradE, theta_e
     real(8), dimension(0:NORTHEAST) :: full_mass, full_temp, theta
 
     id = idx (i, j, offs, dims)
     id_i = id+1
+    
+    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) >= ADJZONE) then
+       idE  = idx (i+1, j,   offs, dims) 
+       idN  = idx (i,   j+1, offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
 
-    idE  = idx (i+1, j,   offs, dims) 
-    idN  = idx (i,   j+1, offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
+       full_mass(0:NORTHEAST) = mass((/id,idN,idE,id,id,idNE/)+1) + mean_m((/id,idN,idE,id,id,idNE/)+1)
+       full_temp(0:NORTHEAST) = temp((/id,idN,idE,id,id,idNE/)+1) + mean_t((/id,idN,idE,id,id,idNE/)+1)
 
-    full_mass(0:NORTHEAST) = mass((/id,idN,idE,id,id,idNE/)+1) + mean_m((/id,idN,idE,id,id,idNE/)+1)
-    full_temp(0:NORTHEAST) = temp((/id,idN,idE,id,id,idNE/)+1) + mean_t((/id,idN,idE,id,id,idNE/)+1)
+       ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
+       ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
+       theta(0)         = full_temp(0)         / full_mass(0)
+       theta(EAST)      = full_temp(EAST)      / full_mass(EAST)
+       theta(NORTHEAST) = full_temp(NORTHEAST) / full_mass(NORTHEAST)
+       theta(NORTH)     = full_temp(NORTH)     / full_mass(NORTH)
 
-    ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
-    ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-    theta(0)         = full_temp(0)         / full_mass(0)
-    theta(EAST)      = full_temp(EAST)      / full_mass(EAST)
-    theta(NORTHEAST) = full_temp(NORTHEAST) / full_mass(NORTHEAST)
-    theta(NORTH)     = full_temp(NORTH)     / full_mass(NORTH)
+       ! Interpolate potential temperature to edges
+       theta_e(RT+1) = interp (theta(0), theta(EAST))
+       theta_e(DG+1) = interp (theta(0), theta(NORTHEAST))
+       theta_e(UP+1) = interp (theta(0), theta(NORTH))
 
-    ! Interpolate potential temperature to edges
-    theta_e(RT+1) = interp (theta(0), theta(EAST))
-    theta_e(DG+1) = interp (theta(0), theta(NORTHEAST))
-    theta_e(UP+1) = interp (theta(0), theta(NORTH))
+       ! Incompressible: theta is normalized density perturbation, want theta_e = (rho0-rho)/rho0
+       if (.not. compressible) theta_e = 1.0_8 - theta_e
 
-    ! Incompressible: theta is normalized density perturbation, want theta_e = (rho0-rho)/rho0
-    if (.not. compressible) theta_e = 1.0_8 - theta_e
+       ! Calculate gradients
+       gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
+       gradE = gradi_e (exner,     dom, i, j, offs, dims)
 
-    ! Calculate gradients
-    gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
-    gradE = gradi_e (exner,     dom, i, j, offs, dims)
-
-    ! Update velocity trend (source dvelo calculated was edge integrated)
-    dvelo(EDGE*id+1:EDGE*id_i) = dvelo(EDGE*id+1:EDGE*id_i)/dom%len%elts(EDGE*id+1:EDGE*id_i) - gradB - theta_e*gradE
+       ! Trend
+       do e = 1, EDGE
+          if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+             dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
+          else
+             dvelo(EDGE*id+e) = 0.0_8
+          end if
+       end do
+    else
+       dvelo(EDGE*id+1:EDGE*id_i) = 0.0_8
+    end if
   end subroutine du_grad
 
   function Qperp (dom, i, j, zlev, offs, dims)
