@@ -891,10 +891,10 @@ contains
     external     :: custom_dump
     character(*) :: run_id
 
-    integer                               :: c, d, ibeg, iend, j, k, l, p_par, v
-    integer, dimension(1:size(grid))      :: fid_no, fid_gr
-    character(255)                        :: filename_gr, filename_no
-    logical, dimension(1:N_CHDRN)         :: required
+    integer                          :: c, d, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
+    integer, dimension(1:size(grid)) :: fid_no, fid_gr
+    character(255)                   :: filename_gr, filename_no
+    logical, dimension(1:N_CHDRN)    :: required
 
     interface
        subroutine custom_dump (fid)
@@ -910,12 +910,12 @@ contains
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          mass => sol(S_MASS,k)%data(d)%elts
-          temp => sol(S_TEMP,k)%data(d)%elts
-          wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-          wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
-          call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
-          nullify (mass, temp, wc_m, wc_t)
+          do v = S_MASS, S_TEMP
+             mass => sol(v,k)%data(d)%elts
+             wc_m => wav_coeff(v,k)%data(d)%elts
+             call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+             nullify (mass, wc_m)
+          end do
        end do
     end do
 
@@ -944,9 +944,18 @@ contains
 
        ! Write wavelets at finer scales
        do l = min_level, level_end
+          p_lev = 0
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
-             do k = 1, zlevels
+             if (grid(d)%patch%elts(p_par+1)%deleted) then
+                do c = 1, N_CHDRN
+                   p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                   if (p_chd > 0) grid(d)%patch%elts(p_chd+1)%deleted = .true. 
+                end do
+                cycle ! No data to write
+             end if
+ 
+            do k = 1, zlevels
                 do v = S_MASS, S_VELO
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -955,12 +964,22 @@ contains
              end do
 
              ! Record whether patch needs to be refined
-             required = .false.
              do c = 1, N_CHDRN
-                if (grid(d)%patch%elts(p_par+1)%children(c) > 0) required(c) = .true.
+                p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                if (p_chd > 0) then
+                   required(c) = check_child_required(grid(d), p_par, c-1)
+                   grid(d)%patch%elts(p_chd+1)%deleted = .not. required(c) 
+                   if (required(c)) then
+                      p_lev = p_lev + 1
+                      grid(d)%lev(l+1)%elts(p_lev) = p_chd ! ** grid modified **
+                   end if
+                else
+                   required(c) = .false.
+                end if
              end do
              write (fid_gr(d)) required
           end do
+          if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev ! ** grid modified **
        end do
        close (fid_no(d))
        close (fid_gr(d))
