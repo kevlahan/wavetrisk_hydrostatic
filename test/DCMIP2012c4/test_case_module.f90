@@ -441,7 +441,7 @@ contains
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
       
     ! Diffusion constants
-    C_sclr = 1d-3       ! <= 1e-3 for hyperdiffusion 
+    C_sclr = 2d-3       ! <= 1e-3 for hyperdiffusion 
     C_divu = C_sclr   ! from eigenvalues of second order Laplacian
     C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     
