@@ -3,14 +3,12 @@ module comm_mpi_mod
   use comm_mod
   implicit none
   integer, dimension(:), allocatable   :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
-  integer, dimension(:,:), allocatable :: stat_ray
 contains
   subroutine init_comm_mpi
     ! Needed for compatibility with mpi code (not actually used in serial case)
     allocate(send_lengths(n_process), send_offsets(n_process))
     allocate(recv_lengths(n_process), recv_offsets(n_process))
     allocate(req(2*n_process))
-    allocate(stat_ray(1,2*n_process))
     
     call init_comm
     call comm_communication_mpi
