@@ -134,9 +134,9 @@ contains
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                     :: k
-    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: threshold_new
-    character(3), parameter                     :: order = "inf"
+    integer                                    :: k
+    real(8), dimension(1:N_VARIABLE,1:zlevels) :: threshold_new
+    character(3), parameter                    :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
@@ -165,8 +165,8 @@ contains
     implicit none
     real(8) :: dz
 
-    allocate (threshold(S_MASS:S_VELO,1:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
+    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
 
     dz = Hdim/zlevels
 
@@ -195,7 +195,7 @@ contains
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
     dt_init = dt_cfl
 
-    ! Pemeability penalization parameter
+    ! Permeability penalization parameter
     eta = dt_cfl
 
     tau_sclr = dt_cfl / C_sclr

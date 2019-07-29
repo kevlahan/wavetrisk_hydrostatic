@@ -151,7 +151,7 @@ contains
     use wavelet_mod
     implicit none
     integer                                     :: k
-    real(8), dimension(S_MASS:S_VELO,1:zlevels) :: threshold_new
+    real(8), dimension(1:N_VARIABLE,1:zlevels) :: threshold_new
     character(3), parameter                     :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
@@ -164,9 +164,6 @@ contains
        end if
        !threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
        threshold_new = tol*lnorm
-       ! do v = S_MASS, S_VELO
-       !    threshold_new(v,:) = tol * maxval (lnorm(v,:))
-       ! end do
     end if
 
     if (istep >= 10) then
@@ -483,8 +480,8 @@ contains
 
     integer :: k
     
-    allocate (threshold(S_MASS:S_VELO,1:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
+    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
 
     lnorm(S_MASS,:) = dPdim/grav_accel
     do k = 1, zlevels

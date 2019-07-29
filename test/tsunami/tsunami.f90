@@ -70,12 +70,11 @@ program Tsunami
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
-     call start_timing
-     call time_step (dt_write, aligned, set_thresholds)
-     call stop_timing
+     call start_timing;  call time_step (dt_write, aligned, set_thresholds); call stop_timing
 
      call update_diagnostics
-
+     
+     call sum_total_mass (.false.)
      call print_log
 
      if (aligned) then
@@ -292,7 +291,7 @@ end program
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (dom, id, idE, idNE, idN, type)
+function physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev, type)
   ! Additional physics for the flux term of the scalar trend
   ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
   !
@@ -300,16 +299,15 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   use domain_mod
   implicit none
 
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-  type(domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
-  logical, optional                        :: type
+  real(8), dimension(1:EDGE)                           :: physics_scalar_flux
+  type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+  type(domain)                                         :: dom
+  integer                                              :: d, id, idE, idNE, idN, v, zlev
+  logical, optional                                    :: type
 
-  integer                                  :: id_i, v
-  real(8)                                  :: dx, visc
-  real(8), parameter                       :: C = 1d-2
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
-  logical                                  :: local_type
+  integer                    :: id_i
+  real(8), dimension(1:EDGE) :: d_e, grad, l_e
+  logical                    :: local_type
 
   if (present(type)) then
      local_type = type
@@ -317,34 +315,33 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      local_type = .false.
   end if
 
-  id_i = id + 1  
+  id_i = id + 1
+  d = dom%id + 1
 
   if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8
   else
+     if (.not.local_type) then ! usual flux at edges E, NE, N
+        l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
+        d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
+     else ! flux at SW corner
+        l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
+        l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
+        l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
+        d_e(RT+1) = -dom%len%elts(EDGE*idE+RT+1)
+        d_e(DG+1) = -dom%len%elts(EDGE*idNE+DG+1)
+        d_e(UP+1) = -dom%len%elts(EDGE*idN+UP+1)
+     end if
+     
      ! Calculate gradients
      if (Laplace_order == 1) then
-        grad(S_MASS,:) = grad_physics (mass)
-        grad(S_TEMP,:) = grad_physics (temp)
+        grad = grad_physics (q(v,zlev)%data(d)%elts)
      elseif (Laplace_order == 2) then
-        do v = S_MASS, S_TEMP
-           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(dom%id+1)%elts)
-        end do
+        grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
      end if
 
-     ! Fluxes of physics
-     if (.not.local_type) then ! Usual flux at edges E, NE, N
-        do v = S_MASS, S_TEMP
-           physics_scalar_flux(v,:) = visc_sclr(v) * grad(v,:) * dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
-        end do
-     else ! Flux at edges W, SW, S
-        physics_scalar_flux(:,RT+1) = visc_sclr * grad(:,RT+1) * dom%pedlen%elts(EDGE*idE+RT+1)
-        physics_scalar_flux(:,DG+1) = visc_sclr * grad(:,DG+1) * dom%pedlen%elts(EDGE*idNE+DG+1)
-        physics_scalar_flux(:,UP+1) = visc_sclr * grad(:,UP+1) * dom%pedlen%elts(EDGE*idN+UP+1)
-     end if
-
-     ! Find correct sign for diffusion on left hand side of the equation
-     physics_scalar_flux = (-1)**Laplace_order * physics_scalar_flux
+     ! Complete scalar diffusion
+     physics_scalar_flux = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
   end if
 contains
   function grad_physics (scalar)
@@ -352,28 +349,19 @@ contains
     real(8), dimension(1:EDGE) :: grad_physics
     real(8), dimension(:)      :: scalar
 
-    if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-       grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-    else ! Gradient for southwest edges of hexagon W, SW, S
-       grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-       grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-       grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
-    end if
+    grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
+    grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
+    grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
   end function grad_physics
 end function physics_scalar_flux
 
-function physics_scalar_source (dom, i, j, zlev, offs, dims)
+function physics_scalar_source (q, id, zlev)
   ! Additional physics for the source term of the scalar trend
   use domain_mod
   implicit none
-
-  real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
-  type(domain)                      :: dom
-  integer                           :: i, j, zlev
-  integer, dimension(N_BDRY+1)      :: offs
-  integer, dimension(2,N_BDRY+1)    :: dims
+  real(8), dimension(scalars(1):scalars(2))            :: physics_scalar_source
+  integer                                              :: id, zlev
+  type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
 
   physics_scalar_source = 0.0_8
 end function physics_scalar_source
@@ -381,7 +369,6 @@ end function physics_scalar_source
 function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
   use domain_mod
-  use time_integr_mod
   implicit none
 
   real(8), dimension(1:EDGE)     :: physics_velo_source
@@ -390,21 +377,23 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: id, id_i
+  integer                    :: id, id_i, visc_scale
   real(8), dimension(1:EDGE) :: diffusion
 
-  id   = idx (i, j, offs, dims)
+  id = idx (i, j, offs, dims)
   id_i = id + 1
+
+  visc_scale = 1.0_8!(max_level/dom%level%elts(id+1))**(2*Laplace_order_init-1)
 
   if (Laplace_order == 0) then
      diffusion = 0.0_8
   else
      ! Calculate Laplacian of velocity
-     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu()) * visc_scale
   end if
 
-  ! Total physics for source term of velocity trend
-  physics_velo_source =  diffusion - penal(zlev)%data(dom%id+1)%elts(id+1)/eta * velo(EDGE*id+1:EDGE*id_i)
+  ! Total physics for source term of velocity trend including volume penalization
+  physics_velo_source = diffusion - penal(zlev)%data(dom%id+1)%elts(id_i)/eta * velo(EDGE*id+1:EDGE*id_i)
 contains
   function grad_divu()
     implicit none
@@ -429,7 +418,7 @@ contains
 
     idS  = idx (i,   j-1, offs, dims)
     idW  = idx (i-1, j,   offs, dims)
-
+    
     curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
     curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
     curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)

@@ -100,7 +100,7 @@ end program DCMIP2012c4
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (dom, id, idE, idNE, idN, type)
+function physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev, type)
   ! Additional physics for the flux term of the scalar trend
   ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
   !
@@ -108,16 +108,15 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   use domain_mod
   implicit none
 
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-  type(domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
-  logical, optional                        :: type
+  real(8), dimension(1:EDGE)                           :: physics_scalar_flux
+  type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+  type(domain)                                         :: dom
+  integer                                              :: d, id, idE, idNE, idN, v, zlev
+  logical, optional                                    :: type
 
-  integer                                  :: id_i, v
-  real(8)                                  :: dx, visc
-  real(8), dimension(1:EDGE)               :: d_e, l_e
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: grad
-  logical                                  :: local_type
+  integer                    :: id_i
+  real(8), dimension(1:EDGE) :: d_e, grad, l_e
+  logical                    :: local_type
 
   if (present(type)) then
      local_type = type
@@ -126,6 +125,7 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
   end if
 
   id_i = id + 1
+  d = dom%id + 1
 
   if (Laplace_order == 0) then
      physics_scalar_flux = 0.0_8
@@ -144,18 +144,13 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
      
      ! Calculate gradients
      if (Laplace_order == 1) then
-        grad(S_MASS,:) = grad_physics (mass)
-        grad(S_TEMP,:) = grad_physics (temp)
+        grad = grad_physics (q(v,zlev)%data(d)%elts)
      elseif (Laplace_order == 2) then
-        do v = S_MASS, S_TEMP
-           grad(v,:) = grad_physics (Laplacian_scalar(v)%data(dom%id+1)%elts)
-        end do
+        grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
      end if
 
      ! Complete scalar diffusion
-     do v = S_MASS, S_TEMP
-        physics_scalar_flux(v,:) = (-1)**Laplace_order * visc_sclr(v) * grad(v,:) * l_e
-     end do
+     physics_scalar_flux = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
   end if
 contains
   function grad_physics (scalar)
@@ -169,16 +164,14 @@ contains
   end function grad_physics
 end function physics_scalar_flux
 
-function physics_scalar_source (dom, i, j, zlev, offs, dims)
+
+function physics_scalar_source (q, id, zlev)
   ! Additional physics for the source term of the scalar trend
   use domain_mod
   implicit none
-
-  real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
-  type(domain)                      :: dom
-  integer                           :: i, j, zlev
-  integer, dimension(N_BDRY+1)      :: offs
-  integer, dimension(2,N_BDRY+1)    :: dims
+  real(8), dimension(scalars(1):scalars(2))            :: physics_scalar_source
+  integer                                              :: id, zlev
+  type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
 
   physics_scalar_source = 0.0_8
 end function physics_scalar_source

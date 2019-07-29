@@ -1,7 +1,6 @@
 module shared_mod
   use param_mod
   implicit none
-  logical :: DEB_ON
 
   ! numbers of triangles and edges per grid element
   integer, parameter :: TRIAG = 2, EDGE = 3
@@ -139,13 +138,13 @@ module shared_mod
   data O2 /2,3, 3,1, 1,2/ 
 
   ! Indices of prognostic variables in sol, trend etc
-  integer, parameter :: S_MASS = 1, S_TEMP = 2, S_VELO = 3, S_DIVU = 1, S_ROTU = 2
+  integer, parameter    :: S_VELO = 1, S_MASS = 2, S_TEMP = 3
+  integer, parameter    :: S_DIVU = 1, S_ROTU = 2
+  integer               :: N_VECTOR, N_SCALAR, N_VARIABLE
+  integer, dimension(2) :: scalars
 
   ! Number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
-  integer, dimension(S_MASS:S_VELO) :: MULT
-
-  ! Location of each variable on the grid (at an edge or at a node)
-  integer, dimension(S_MASS:S_VELO) :: POSIT
+  integer, dimension(:), allocatable :: MULT, POSIT
 
   ! Grid optimization choices
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
@@ -210,7 +209,7 @@ module shared_mod
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density
   real(8)                                       :: visc_divu, visc_rotu
   real(8)                                       :: alpha, eta
-  real(8), dimension(S_MASS:S_TEMP)             :: visc_sclr
+  real(8), dimension(:), allocatable            :: visc_sclr
   real(8)                                       :: c_p, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8)                                       :: min_mass, min_allowed_mass
@@ -231,16 +230,22 @@ contains
 
     if (initialized) return ! Initialize only once
     initialized = .true.
-    
+
+    ! Initialize variable indices and arrays
+    N_VECTOR = 1
+    N_SCALAR = 2
+    N_VARIABLE = N_VECTOR + N_SCALAR
+    scalars = (/ N_VECTOR+1, N_VARIABLE /)
+    allocate (MULT(1:N_VARIABLE), POSIT(1:N_VARIABLE))
+    allocate (visc_sclr(scalars(1):scalars(2)))
+       
     ! Specify the multiplicity per grid element of each quantity
-    MULT(S_MASS) = 1
-    MULT(S_TEMP) = 1
     MULT(S_VELO) = EDGE
+    MULT(scalars(1):scalars(2)) = 1
 
     ! Specify the position on the grid of each quantity
-    POSIT(S_MASS) = AT_NODE
-    POSIT(S_TEMP) = AT_NODE
     POSIT(S_VELO) = AT_EDGE
+    POSIT(scalars(1):scalars(2)) = AT_NODE
 
     end_pt = reshape ((/0,  0, 1, 0, 1, 1, 0, 0, 0, 0,  0, 1/), (/2, 2, 3/))
     opp_no = reshape ((/0, -1, 1, 1, 0, 1, 1, 0, 1, 1, -1, 0/), (/2, 2, 3/))

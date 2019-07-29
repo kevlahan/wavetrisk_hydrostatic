@@ -62,7 +62,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_e, id_i, k
+    integer :: d, e, id, id_e, id_i, k, v
     logical :: active
 
     id = idx (i, j, offs, dims)
@@ -74,8 +74,9 @@ contains
     ! Scalars
     active = .false.
     do k = 1, zlevels
-       if (abs (wav_coeff(S_MASS,k)%data(d)%elts(id_i)) >= threshold(S_MASS,k) .or. &
-            abs (wav_coeff(S_TEMP,k)%data(d)%elts(id_i)) >= threshold(S_TEMP,k)) active = .true.
+       do v = scalars(1), scalars(2)
+          if (abs (wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k)) active = .true.
+       end do
     end do
 
     if (active) then
@@ -84,7 +85,7 @@ contains
        if (dom%mask_n%elts(id_i) > ADJZONE) dom%mask_n%elts(id_i) = ADJZONE
     end if
 
-    ! Velocity
+    ! Vectors
     do e = 1, EDGE
        id_e = EDGE*id + e
 
@@ -109,7 +110,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_e, id_i, k
+    integer :: d, e, id, id_e, id_i, k, v
     logical :: active
 
     id = idx (i, j, offs, dims)
@@ -121,8 +122,9 @@ contains
     ! Scalars
     active = .false.
     do k = 1, zlevels
-       if (abs (trend_wav_coeff(S_MASS,k)%data(d)%elts(id_i)) >= threshold(S_MASS,k) .or. &
-            abs (trend_wav_coeff(S_TEMP,k)%data(d)%elts(id_i)) >= threshold(S_TEMP,k)) active = .true.
+       do v = scalars(1), scalars(2)
+          if (abs (trend_wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k)) active = .true.
+       end do
     end do
 
     if (active) then
@@ -502,12 +504,20 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_i
+    integer :: id, id_i, idE, idNE, idN
 
     id  = idx (i, j, offs, dims)
     id_i = id + 1
-    
+
     if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) >= ADJZONE) then
+       ! Mask for remap
+       idE  = idx (i+1, j,   offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
+       idN  = idx (i,   j+1, offs, dims)
+       call set_at_least (dom%mask_n%elts(idE+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
+       call set_at_least (dom%mask_n%elts(idN+1),  TRSK)
+    
        ! Kinetic energy stencil
        call mask_ke_trsk (dom, i,   j,   zlev, offs, dims)
        call mask_ke_trsk (dom, i+1, j,   zlev, offs, dims)

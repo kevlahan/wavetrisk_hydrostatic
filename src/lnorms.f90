@@ -7,7 +7,7 @@ contains
     ! Calculates l norm of a float_field
     implicit none
 
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: scaling
     character(*)                                                  :: order
 
     integer :: k, l, v
@@ -29,12 +29,12 @@ contains
        end do
        select case (order)
        case ("1", "2")
-          do v = S_MASS, S_TEMP
+          do v = scalars(1), scalars(2)
              lnorm(v,k) = sum_real (lnorm(v,k))
           end do
           lnorm(S_VELO,k) = sum_real (lnorm(S_VELO,k))
        case ("inf")
-          do v = S_MASS, S_TEMP
+          do v = scalars(1), scalars(2)
              lnorm(v,k) = sync_max_real (lnorm(v,k))
           end do
           lnorm(S_VELO,k) = sync_max_real (lnorm(S_VELO,k))
@@ -55,7 +55,7 @@ contains
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           lnorm(v,zlev) = lnorm(v,zlev) + abs (sol(v,zlev)%data(d)%elts(id+1))
        end do
     endif
@@ -94,7 +94,7 @@ contains
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           lnorm(v,zlev) = lnorm(v,zlev) + sol(v,zlev)%data(d)%elts(id+1)**2
        end do
     end if
@@ -133,7 +133,7 @@ contains
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           lnorm(v,zlev) = max (lnorm(v,zlev), abs (sol(v,zlev)%data(d)%elts(id+1)))
        end do
     end if
@@ -163,7 +163,7 @@ contains
     ! Calculates l norm of a float_field
     implicit none
 
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: scaling
     character(*)                                                  :: order
 
     integer :: k, l, v
@@ -184,12 +184,12 @@ contains
           end select
        end do
        if (trim(order) == "1" .or. trim(order) == "2") then
-          do v = S_MASS, S_TEMP
+          do v = scalars(1), scalars(2)
              lnorm(v,k) = sum_real (lnorm(v,k))
           end do
           lnorm(S_VELO,k) = sum_real (lnorm(S_VELO,k))
        else
-          do v = S_MASS, S_TEMP
+          do v = scalars(1), scalars(2)
              lnorm(v,k) = sync_max_real (lnorm(v,k))
           end do
           lnorm(S_VELO,k) = sync_max_real (lnorm(S_VELO,k))
@@ -210,7 +210,7 @@ contains
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           lnorm(v,zlev) = lnorm(v,zlev) + abs (trend(v,zlev)%data(d)%elts(id+1))
        end do
     endif
@@ -249,7 +249,7 @@ contains
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           lnorm(v,zlev) = lnorm(v,zlev) + trend(v,zlev)%data(d)%elts(id+1)**2
        end do
     end if
@@ -288,7 +288,7 @@ contains
     id = idx(i, j, offs, dims)
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           lnorm(v,zlev) = max (lnorm(v,zlev), abs (trend(v,zlev)%data(d)%elts(id+1)))
        end do
     end if

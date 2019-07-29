@@ -21,19 +21,19 @@ contains
     integer :: b, d, i_, k, loz, p, s, v
 
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(S_MASS:S_VELO,1:zlevels), sol_mean(S_MASS:S_VELO,1:zlevels))
-    allocate (sol_save(S_MASS:S_VELO,1:save_levels), trend(S_MASS:S_VELO,1:zlevels))
-    allocate (wav_coeff(S_MASS:S_VELO,1:zlevels), trend_wav_coeff(S_MASS:S_VELO, 1:zlevels))
+    allocate (sol(1:N_VARIABLE,1:zlevels), sol_mean(1:N_VARIABLE,1:zlevels))
+    allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zlevels))
+    allocate (wav_coeff(1:N_VARIABLE,1:zlevels), trend_wav_coeff(1:N_VARIABLE,1:zlevels))
     allocate (exner_fun(1:zlevels+1))
     allocate (penal(1:zlevels), penal_wav_coeff(1:zlevels))
-    allocate (horiz_flux(S_MASS:S_TEMP), Laplacian_scalar(S_MASS:S_TEMP))
+    allocate (horiz_flux(scalars(1):scalars(2)), Laplacian_scalar(scalars(1):scalars(2)))
     allocate (Laplacian_vector(S_DIVU:S_ROTU))
-    allocate (lnorm(S_MASS:S_VELO,1:zlevels))
+    allocate (lnorm(1:N_VARIABLE,1:zlevels))
 
     do k = 1, zlevels
        call init_Float_Field (penal(k),     AT_NODE)
        call init_Float_Field (exner_fun(k), AT_NODE)
-       do v = S_MASS, S_VELO
+       do v = 1, N_VARIABLE
           call init_Float_Field (sol(v,k),      POSIT(v))
           call init_Float_Field (sol_mean(v,k), POSIT(v))
           call init_Float_Field (trend(v,k),    POSIT(v))
@@ -42,14 +42,14 @@ contains
     call init_Float_Field (exner_fun(zlevels+1), AT_NODE)
     
     do k = 1, save_levels
-       do v = S_MASS, S_VELO
+       do v = 1, N_VARIABLE
           call init_Float_Field (sol_save(v,k), POSIT(v))
        end do
     end do
 
     call init_Float_Field (Laplacian_vector(S_DIVU), AT_NODE)
     call init_Float_Field (Laplacian_vector(S_ROTU), AT_EDGE)
-    do v = S_MASS, S_TEMP
+    do v = scalars(1), scalars(2)
        call init_Float_Field (horiz_flux(v),       AT_EDGE)
        call init_Float_Field (Laplacian_scalar(v), AT_NODE)
     end do
@@ -57,7 +57,7 @@ contains
     do d = 1, n_domain(rank+1)
        call init_Domain (grid(d))
        do k = 1, zlevels
-          do v = S_MASS, S_TEMP
+          do v = scalars(1), scalars(2)
              call init (sol(v,k)%data(d),      1)
              call init (sol_mean(v,k)%data(d), 1)
           end do
@@ -65,7 +65,7 @@ contains
           call init (sol_mean(S_VELO,k)%data(d), EDGE)
        end do
        do k = 1, save_levels
-          do v = S_MASS, S_TEMP
+          do v = scalars(1), scalars(2)
              call init (sol_save(v,k)%data(d), 1)
           end do
           call init (sol_save(S_VELO,k)%data(d), EDGE)
@@ -325,11 +325,13 @@ contains
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          call init (penal(k)%data(d),          grid(d)%node%length)
-          call init (exner_fun(k)%data(d),      grid(d)%node%length)
-          call init (trend(S_MASS,k)%data(d),   grid(d)%node%length)
-          call init (trend(S_VELO,k)%data(d),   grid(d)%node%length*EDGE); trend(S_VELO,k)%data(d)%elts = 0
-          call init (trend(S_TEMP,k)%data(d),   grid(d)%node%length)
+          call init (penal(k)%data(d),     grid(d)%node%length)
+          call init (exner_fun(k)%data(d), grid(d)%node%length)
+          do v = scalars(1), scalars(2)
+             call init (trend(v,k)%data(d), grid(d)%node%length)
+          end do
+          call init (trend(S_VELO,k)%data(d), grid(d)%node%length*EDGE)
+          trend(S_VELO,k)%data(d)%elts = 0.0_8
        end do
     end do
 
@@ -340,7 +342,7 @@ contains
     do d = 1, size(grid)
        call init (Laplacian_vector(S_DIVU)%data(d), grid(d)%node%length)
        call init (Laplacian_vector(S_ROTU)%data(d), grid(d)%node%length*EDGE)
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           call init (horiz_flux(v)%data(d), grid(d)%node%length*EDGE)
           call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
        end do

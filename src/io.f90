@@ -483,15 +483,17 @@ contains
 
     do k = 1, zlevels
        do d = 1, size (grid)
-          mass => sol(S_MASS,k)%data(d)%elts
-          temp => sol(S_TEMP,k)%data(d)%elts
-          velo => sol(S_VELO,k)%data(d)%elts
+          mass   => sol(S_MASS,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          temp   => sol(S_TEMP,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          velo   => sol(S_VELO,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
              call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
              call apply_onescale_to_patch (cal_zonal_avg,  grid(d), p-1, k, 0, 0)
           end do
-          nullify (mass, temp, velo)
+          nullify (mass, mean_m, temp, mean_t, velo)
        end do
     end do
   end subroutine statistics
@@ -660,11 +662,12 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
 
+    full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
+    full_temp = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
     if (compressible) then ! temperature in layer zlev
-       outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i)/sol(S_MASS,zlev)%data(d)%elts(id_i)*(dom%press%elts(id_i)/p_0)**kappa
+       outv(1) = full_temp/full_mass * (dom%press%elts(id_i)/p_0)**kappa
     else ! density in layer zlev
-       full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
-       full_temp = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
+       
        outv(1) = full_temp/full_mass * ref_density
     end if
        
@@ -831,24 +834,8 @@ contains
     end do
   end subroutine write_u_wc
 
-  subroutine write_velo (dom, p, i, j, offs, dims, fid)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: fid, i, j, p
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: e, id, k
-
-    do k = 1, zlevels
-       do e = 1, EDGE
-          id = idx(i, j, offs, dims)
-          write(fid,*) sol(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)
-       end do
-    end do
-  end subroutine write_velo
-
   subroutine write_scalar (dom, p, i, j, zlev, offs, dims, fid)
+    ! For poles
     implicit none
     type(Domain)                   :: dom
     integer                        :: fid, i, j, p, zlev
@@ -860,12 +847,14 @@ contains
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
-    do v = S_MASS, S_TEMP
-       write (fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
+    do v = scalars(1), scalars(2)
+       write (fid) sol(v,zlev)%data(d)%elts(id+1) 
+       if (adapt_trend) write (fid) trend(v,zlev)%data(d)%elts(id+1) 
     end do
   end subroutine write_scalar
 
   subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
+    ! For poles
     implicit none
     type(Domain)                   :: dom
     integer                        :: fid, i, j, p, zlev
@@ -877,8 +866,9 @@ contains
     d  = dom%id+1
     id = idx(i, j, offs, dims)
 
-    do v = S_MASS, S_TEMP
-       read (fid) sol(v,zlev)%data(d)%elts(id+1) ! for pole
+    do v = scalars(1), scalars(2)
+       read (fid) sol(v,zlev)%data(d)%elts(id+1)
+       if (adapt_trend) read (fid) trend(v,zlev)%data(d)%elts(id+1)
     end do
   end subroutine read_scalar
 
@@ -906,15 +896,23 @@ contains
     fid_no = id+1000000
     fid_gr = id+3000000
     
-    call update_array_bdry (wav_coeff(S_MASS:S_TEMP,:), NONE, 20)
+    call update_array_bdry (wav_coeff(scalars(1):scalars(2),:), NONE, 20)
+    if (adapt_trend) call update_array_bdry (trend_wav_coeff(scalars(1):scalars(2),:), NONE, 20)
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          do v = S_MASS, S_TEMP
-             mass => sol(v,k)%data(d)%elts
-             wc_m => wav_coeff(v,k)%data(d)%elts
+          do v = scalars(1), scalars(2)
+             scalar => sol(v,k)%data(d)%elts
+             wc_s   => wav_coeff(v,k)%data(d)%elts
              call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
-             nullify (mass, wc_m)
+             nullify (scalar, wc_s)
+
+             if (adapt_trend) then
+                scalar => trend(v,k)%data(d)%elts
+                wc_s   => trend_wav_coeff(v,k)%data(d)%elts
+                call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+                nullify (scalar, wc_s)
+             end if
           end do
        end do
     end do
@@ -935,10 +933,11 @@ contains
        p_par = 1
        do k = 1, zlevels
           call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
-          do v = S_MASS, S_VELO
+          do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
              write (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
+             if (adapt_trend) write (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
 
@@ -956,10 +955,11 @@ contains
              end if
  
             do k = 1, zlevels
-                do v = S_MASS, S_VELO
+                do v = 1, N_VARIABLE
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
                    write (fid_no(d)) wav_coeff(v,k)%data(d)%elts(ibeg:iend)
+                   if (adapt_trend) write (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
              end do
 
@@ -1025,10 +1025,11 @@ contains
        p_par = 1
        do k = 1, zlevels
           call apply_to_pole_d (read_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
-          do v = S_MASS, S_VELO
+          do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
              read (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
+             if (adapt_trend) read (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
     end do
@@ -1044,10 +1045,11 @@ contains
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
              do k = 1, zlevels
-                do v = S_MASS, S_VELO
+                do v = 1, N_VARIABLE
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
                    read (fid_no(d)) wav_coeff(v,k)%data(d)%elts(ibeg:iend)
+                   if (adapt_trend) read (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
              end do
 
@@ -1320,11 +1322,11 @@ contains
        ! Calculate pressure, exner and geopotential at vertical level save_zlev and scale l
        do k = 1, save_zlev
           do d = 1, size(grid)
-             mass  => sol(S_MASS,k)%data(d)%elts
+             mass    => sol(S_MASS,k)%data(d)%elts
              mean_m  => sol_mean(S_MASS,k)%data(d)%elts
-             temp  => sol(S_TEMP,k)%data(d)%elts
+             temp    => sol(S_TEMP,k)%data(d)%elts
              mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
-             exner => exner_fun(k)%data(d)%elts
+             exner   => exner_fun(k)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do

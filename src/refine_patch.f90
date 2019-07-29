@@ -167,7 +167,7 @@ contains
        call extend (penal(k)%data(d),     num, 0.0_8)
        call extend (exner_fun(k)%data(d), num, 0.0_8)
        call extend (penal_wav_coeff(k)%data(d), num, 0.0_8)
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           call extend (trend(v,k)%data(d),           num, 0.0_8)
           call extend (wav_coeff(v,k)%data(d),       num, 0.0_8)
           call extend (trend_wav_coeff(v,k)%data(d), num, 0.0_8)
@@ -180,7 +180,7 @@ contains
     
     call extend (Laplacian_vector(S_DIVU)%data(d), num,      0.0_8)
     call extend (Laplacian_vector(S_ROTU)%data(d), num*EDGE, 0.0_8)
-    do v = S_MASS, S_TEMP
+    do v = scalars(1), scalars(2)
        call extend (horiz_flux(v)%data(d),       num*EDGE, 0.0_8)
        call extend (Laplacian_scalar(v)%data(d), num,      0.0_8)
     end do

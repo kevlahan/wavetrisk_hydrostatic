@@ -7,31 +7,31 @@ contains
   subroutine forward_wavelet_transform (scaling, wavelet)
     ! Forward wavelet transform
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: scaling, wavelet
 
     integer :: k, l, d, v
 
     do k = 1, zlevels
        do l = level_end-1, level_start-1, -1
           ! Compute scalar wavelet coefficients
-          call update_vector_bdry (scaling(S_MASS:S_TEMP,k), l+1, 1)
+          call update_vector_bdry (scaling(scalars(1):scalars(2),k), l+1, 1)
           do d = 1, size(grid)
-             do v = S_MASS, S_TEMP
-                mass => scaling(v,k)%data(d)%elts
-                wc_m => wavelet(v,k)%data(d)%elts
+             do v = scalars(1), scalars(2)
+                scalar => scaling(v,k)%data(d)%elts
+                wc_s   => wavelet(v,k)%data(d)%elts
                 call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-                nullify (mass, wc_m)
+                nullify (scalar, wc_s)
              end do
           end do
-          call update_vector_bdry (wavelet(S_MASS:S_TEMP,k), l+1, 2)
+          call update_vector_bdry (wavelet(scalars(1):scalars(2),k), l+1, 2)
 
           ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
           do d = 1, size(grid)
-             do v = S_MASS, S_TEMP
-                mass => scaling(v,k)%data(d)%elts
-                wc_m => wavelet(v,k)%data(d)%elts
+             do v = scalars(1), scalars(2)
+                scalar => scaling(v,k)%data(d)%elts
+                wc_s   => wavelet(v,k)%data(d)%elts
                 call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
-                nullify (mass, wc_m)
+                nullify (scalar, wc_s)
              end do
              velo => scaling(S_VELO,k)%data(d)%elts
              call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
@@ -40,11 +40,11 @@ contains
        end do
 
        scaling(:,k)%bdry_uptodate             = .false.
-       wavelet(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
+       wavelet(scalars(1):scalars(2),k)%bdry_uptodate = .false.
 
        call update_bdry (scaling(S_VELO,k), NONE, 3)
 
-       ! Compute velocity wavelet coefficients
+       ! Compute vector wavelet coefficients
        do l = level_end-1, level_start-1, -1
           do d = 1, size(grid)
              wc_u => wavelet(S_VELO,k)%data(d)%elts
@@ -70,19 +70,19 @@ contains
           ! Compute scalar wavelet coefficients
           call update_bdry (scaling(k), l+1, 61)
           do d = 1, size(grid)
-             mass => scaling(k)%data(d)%elts
-             wc_m => wavelet(k)%data(d)%elts
+             scalar => scaling(k)%data(d)%elts
+             wc_s   => wavelet(k)%data(d)%elts
              call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-             nullify (mass, wc_m)
+             nullify (scalar, wc_s)
           end do
           call update_bdry (wavelet(k), l+1, 62)
 
           ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
           do d = 1, size(grid)
-             mass => scaling(k)%data(d)%elts
-             wc_m => wavelet(k)%data(d)%elts
+             scalar => scaling(k)%data(d)%elts
+             wc_s   => wavelet(k)%data(d)%elts
              call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
-             nullify (mass, wc_m)
+             nullify (scalar, wc_s)
           end do
        end do
        scaling(k)%bdry_uptodate = .false.
@@ -93,8 +93,8 @@ contains
   subroutine inverse_wavelet_transform (wavelet, scaling, l_start0)
     ! Inverse wavelet transform
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: scaling, wavelet
-    integer, optional                                             :: l_start0
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: scaling, wavelet
+    integer, optional                                            :: l_start0
 
     integer :: l, d, k, l_start, v
 
@@ -113,17 +113,17 @@ contains
        do l = l_start, level_end-1
           ! Prolong scalars to finer nodes existing at coarser grid (undo lifting)
           do d = 1, size(grid)
-             do v = S_MASS, S_TEMP
-                mass => scaling(v,k)%data(d)%elts
-                wc_m => wavelet(v,k)%data(d)%elts
+             do v = scalars(1), scalars(2)
+                scalar => scaling(v,k)%data(d)%elts
+                wc_s   => wavelet(v,k)%data(d)%elts
                 call apply_interscale_d2 (IWT_prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
-                nullify (mass, wc_m)
+                nullify (scalar, wc_s)
              end do
           end do
 
           if (l > l_start) call update_bdry__finish (scaling(S_VELO,k), l) ! for next outer velocity
 
-          call update_vector_bdry__start (scaling(S_MASS:S_TEMP,k), l+1)
+          call update_vector_bdry__start (scaling(scalars(1):scalars(2),k), l+1)
 
           ! Reconstruct outer velocities at finer edges (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
@@ -134,16 +134,16 @@ contains
              nullify (velo, wc_u)
           end do
 
-          call update_vector_bdry__finish (scaling(S_MASS:S_TEMP,k), l+1)
+          call update_vector_bdry__finish (scaling(scalars(1):scalars(2),k), l+1)
           call update_bdry__start (scaling(S_VELO,k), l+1)
 
           ! Reconstruct scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
-             do v = S_MASS, S_TEMP
-                mass => scaling(v,k)%data(d)%elts
-                wc_m => wavelet(v,k)%data(d)%elts
+             do v = scalars(1), scalars(2)
+                scalar => scaling(v,k)%data(d)%elts
+                wc_s   => wavelet(v,k)%data(d)%elts
                 call apply_interscale_d (IWT_reconstruct_scalar, grid(d), l, z_null, 0, 0)
-                nullify (mass, wc_m)
+                nullify (scalar, wc_s)
              end do
           end do
 
@@ -189,19 +189,19 @@ contains
        do l = l_start, level_end-1
           ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
           do d = 1, size(grid)
-             mass => scaling(k)%data(d)%elts
-             wc_m => wavelet(k)%data(d)%elts
+             scalar => scaling(k)%data(d)%elts
+             wc_s   => wavelet(k)%data(d)%elts
              call apply_interscale_d2 (IWT_prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
-             nullify (mass, wc_m)
+             nullify (scalar, wc_s)
           end do
           call update_bdry (scaling(k), l+1, 66)
       
           ! Reconstruct scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
           do d = 1, size(grid)
-             mass => scaling(k)%data(d)%elts
-             wc_m => wavelet(k)%data(d)%elts
+             scalar => scaling(k)%data(d)%elts
+             wc_s   => wavelet(k)%data(d)%elts
              call apply_interscale_d (IWT_reconstruct_scalar, grid(d), l, z_null, 0, 0)
-             nullify (mass, wc_m)
+             nullify (scalar, wc_s)
           end do
           scaling(k)%bdry_uptodate = .false.
        end do
@@ -535,7 +535,7 @@ contains
 
     do k = 1, zlevels
        call init_Float_Field (penal_wav_coeff(k), AT_NODE)
-       do v = S_MASS, S_VELO
+       do v = 1, N_VARIABLE
           call init_Float_Field (wav_coeff(v,k),       POSIT(v))
           call init_Float_Field (trend_wav_coeff(v,k), POSIT(v))
        end do
@@ -558,7 +558,7 @@ contains
 
        do k = 1, zlevels
           call init (penal_wav_coeff(k)%data(d), num)
-          do v = S_MASS, S_TEMP
+          do v = scalars(1), scalars(2)
              call init (wav_coeff(v,k)%data(d), num)
              call init (trend_wav_coeff(v,k)%data(d), num)
           end do
@@ -662,7 +662,7 @@ contains
 
     if (dom%mask_n%elts(id_chd+1) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
-    mass(id_chd+1) = prolong (dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
+    scalar(id_chd+1) = prolong (dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
   end subroutine IWT_prolong_scalar
 
   real(8) function prolong (dom, id_par, i_chd, j_chd, offs_chd, dims_chd)
@@ -688,40 +688,40 @@ contains
     id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
     idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
 
-    if (id2NE+1 <= ubound (wc_m, dim=1)) then
-       prolong = mass(id_par+1) - ( &
-            wc_m(idE+1)   * dom%overl_areas%elts(idE+1)%a(1) + &
-            wc_m(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2) + &
-            wc_m(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
-            wc_m(id2NE+1) * dom%overl_areas%elts(id2NE+1)%a(4) + &
-            wc_m(idN+1)   * dom%overl_areas%elts(idN+1)%a(1) + &
-            wc_m(idW+1)   * dom%overl_areas%elts(idW+1)%a(2) + &
-            wc_m(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3) + &
-            wc_m(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
-            wc_m(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
-            wc_m(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
-            wc_m(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
-            wc_m(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4) &
+    if (id2NE+1 <= ubound (wc_s, dim=1)) then
+       prolong = scalar(id_par+1) - ( &
+            wc_s(idE+1)   * dom%overl_areas%elts(idE+1)%a(1) + &
+            wc_s(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2) + &
+            wc_s(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
+            wc_s(id2NE+1) * dom%overl_areas%elts(id2NE+1)%a(4) + &
+            wc_s(idN+1)   * dom%overl_areas%elts(idN+1)%a(1) + &
+            wc_s(idW+1)   * dom%overl_areas%elts(idW+1)%a(2) + &
+            wc_s(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3) + &
+            wc_s(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
+            wc_s(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
+            wc_s(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
+            wc_s(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
+            wc_s(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4) &
             ) * dom%areas%elts(id_par+1)%hex_inv
     else
-       prolong = mass(id_par+1) - ( &
-            wc_m(idE+1)   * dom%overl_areas%elts(idE+1)%a(1) + &
-            wc_m(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2) + &
-            wc_m(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
-            wc_m(idN+1)   * dom%overl_areas%elts(idN+1)%a(1) + &
-            wc_m(idW+1)   * dom%overl_areas%elts(idW+1)%a(2) + &
-            wc_m(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3) + &
-            wc_m(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
-            wc_m(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
-            wc_m(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
-            wc_m(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
-            wc_m(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4) &
+       prolong = scalar(id_par+1) - ( &
+            wc_s(idE+1)   * dom%overl_areas%elts(idE+1)%a(1) + &
+            wc_s(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2) + &
+            wc_s(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
+            wc_s(idN+1)   * dom%overl_areas%elts(idN+1)%a(1) + &
+            wc_s(idW+1)   * dom%overl_areas%elts(idW+1)%a(2) + &
+            wc_s(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3) + &
+            wc_s(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
+            wc_s(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
+            wc_s(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
+            wc_s(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
+            wc_s(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4) &
             ) * dom%areas%elts(id_par+1)%hex_inv
     end if
   end function prolong
 
   subroutine compute_scalar_wavelets (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Compute wavelet coefficients for mass and potential temperature
+    ! Compute wavelet coefficients for scalars
     implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
@@ -741,13 +741,13 @@ contains
     id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
 
     if (dom%mask_n%elts(idE_chd+1) >= ADJZONE) &
-         wc_m(idE_chd+1) = mass(idE_chd+1) - Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
+         wc_s(idE_chd+1) = scalar(idE_chd+1) - Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)
 
     if (dom%mask_n%elts(idNE_chd+1) >= ADJZONE) &
-         wc_m(idNE_chd+1) = mass(idNE_chd+1) - Interp_node (dom, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
+         wc_s(idNE_chd+1) = scalar(idNE_chd+1) - Interp_node (dom, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd)
 
     if (dom%mask_n%elts(idN_chd+1) >= ADJZONE) &
-         wc_m(idN_chd+1) = mass(idN_chd+1) - Interp_node (dom, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
+         wc_s(idN_chd+1) = scalar(idN_chd+1) - Interp_node (dom, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)
   end subroutine compute_scalar_wavelets
 
   subroutine IWT_reconstruct_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -773,9 +773,9 @@ contains
     id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
 
     ! Interpolate scalars and add wavelets to reconstruct values at fine scale
-    mass(idNE_chd+1) = Interp_node (dom, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) + wc_m(idNE_chd+1)
-    mass(idN_chd+1)  = Interp_node (dom, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)  + wc_m(idN_chd+1)
-    mass(idE_chd+1)  = Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  + wc_m(idE_chd+1)
+    scalar(idNE_chd+1) = Interp_node (dom, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) + wc_s(idNE_chd+1)
+    scalar(idN_chd+1)  = Interp_node (dom, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)  + wc_s(idN_chd+1)
+    scalar(idE_chd+1)  = Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  + wc_s(idE_chd+1)
   end subroutine IWT_reconstruct_scalar
 
   function Interp_node (dom, id, id1, id2, id3, id4)
@@ -785,10 +785,10 @@ contains
     integer                        :: id, id1, id2, id3, id4
 
     Interp_node = ( &
-         dom%overl_areas%elts(id+1)%a(1) * mass(id1+1) + &
-         dom%overl_areas%elts(id+1)%a(2) * mass(id2+1) + &
-         dom%overl_areas%elts(id+1)%a(3) * mass(id3+1) + &
-         dom%overl_areas%elts(id+1)%a(4) * mass(id4+1) &
+         dom%overl_areas%elts(id+1)%a(1) * scalar(id1+1) + &
+         dom%overl_areas%elts(id+1)%a(2) * scalar(id2+1) + &
+         dom%overl_areas%elts(id+1)%a(3) * scalar(id3+1) + &
+         dom%overl_areas%elts(id+1)%a(4) * scalar(id4+1) &
          ) * dom%areas%elts(id+1)%hex_inv
   end function Interp_node
 
@@ -1113,7 +1113,7 @@ contains
   end subroutine restrict_velo
 
   subroutine check_m (dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par,  offs_chd, dims_chd)
-    ! Check that mass is indeed conserved by restriction
+    ! Check that scalar is indeed conserved by restriction
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -1154,7 +1154,7 @@ contains
   end subroutine check_m
 
   subroutine restrict_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Restrict both mass and potential temperature
+    ! Restrict both scalar and potential temperature
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
@@ -1168,7 +1168,7 @@ contains
 
     id_par = idx (i_par, j_par, offs_par, dims_par)
 
-    mass(id_par+1) = restrict_s ()
+    scalar(id_par+1) = restrict_s ()
   contains
     function restrict_s ()
       ! Restriction operator at nodes: sub-sample and lift
@@ -1189,19 +1189,19 @@ contains
       id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
       idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
 
-      restrict_s = mass(id_chd+1) + &
-           (wc_m(idE+1)  * dom%overl_areas%elts(idE+1)%a(1) + &
-           wc_m(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2) + &
-           wc_m(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
-           wc_m(id2NE+1) * dom%overl_areas%elts(id2NE+1)%a(4) + &
-           wc_m(idN+1)   * dom%overl_areas%elts(idN+1)%a(1) + &
-           wc_m(idW+1)   * dom%overl_areas%elts(idW+1)%a(2) + &
-           wc_m(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3) + &
-           wc_m(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
-           wc_m(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
-           wc_m(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
-           wc_m(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
-           wc_m(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4))* &
+      restrict_s = scalar(id_chd+1) + &
+           (wc_s(idE+1)  * dom%overl_areas%elts(idE+1)%a(1) + &
+            wc_s(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2) + &
+            wc_s(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
+            wc_s(id2NE+1) * dom%overl_areas%elts(id2NE+1)%a(4) + &
+            wc_s(idN+1)   * dom%overl_areas%elts(idN+1)%a(1) + &
+            wc_s(idW+1)   * dom%overl_areas%elts(idW+1)%a(2) + &
+            wc_s(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3) + &
+            wc_s(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
+            wc_s(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
+            wc_s(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
+            wc_s(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
+            wc_s(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4))* &
            dom%areas%elts(id_par+1)%hex_inv
     end function restrict_s
   end subroutine restrict_scalar

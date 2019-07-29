@@ -73,13 +73,12 @@ module domain_mod
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_mean, sol_save, trend
   type(Float_Field), dimension(:,:), allocatable, target :: wav_coeff, trend_wav_coeff
 
-  real(8), dimension(:), pointer :: mass, dmass, h_mflux
-  real(8), dimension(:), pointer :: temp, dtemp, h_tflux
+  real(8), dimension(:), pointer :: mass, h_flux, h_mflux, dscalar, scalar, temp
   real(8), dimension(:), pointer :: velo, dvelo
-  real(8), dimension(:), pointer :: sclr, mean_m, mean_t
+  real(8), dimension(:), pointer :: mean_m, mean_t
   real(8), dimension(:), pointer :: Laplacian
   real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort
-  real(8), dimension(:), pointer :: wc_u, wc_m, wc_t
+  real(8), dimension(:), pointer :: wc_s, wc_u
 contains
   subroutine init_Float_Field (self, pos)
     implicit none
@@ -879,11 +878,11 @@ contains
     implicit none
     integer :: c, s
 
-    if (s == modulo(c + 1, 4) + 4) then
-       par_side = modulo(c + 1, 4)
+    if (s == modulo(c+1, 4) + 4) then
+       par_side = modulo(c+1, 4)
        return
     else
-       if (s == modulo(c - 1, 4) + 4) then
+       if (s == modulo(c-1, 4) + 4) then
           par_side = c
           return
        else
@@ -905,17 +904,18 @@ contains
     call extend (self%node, num, ORIGIN)
 
     do k = 1, zlevels
-       call extend (sol(S_MASS,k)%data(d), num, 1.0_8) ! set 1.0 so PV computation does not raise float pt exception if undefined
-       call extend (sol(S_TEMP,k)%data(d), num, 0.0_8)
-       call extend (sol(S_VELO,k)%data(d), EDGE*num, 0.0_8)
-       call extend (sol_mean(S_MASS,k)%data(d), num, 0.0_8)
-       call extend (sol_mean(S_TEMP,k)%data(d), num, 0.0_8)
+       do v = scalars(1), scalars(2)
+          call extend (sol(v,k)%data(d),      num, 0.0_8)
+          call extend (sol_mean(v,k)%data(d), num, 0.0_8)
+       end do
+       call extend (sol(S_VELO,k)%data(d),      EDGE*num, 0.0_8)
        call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0.0_8)
     end do
     
     do k = 1, save_levels
-       call extend (sol_save(S_MASS,k)%data(d), num, 0.0_8) 
-       call extend (sol_save(S_TEMP,k)%data(d), num, 0.0_8)
+       do v = scalars(1), scalars(2)
+          call extend (sol_save(v,k)%data(d), num, 0.0_8)
+       end do
        call extend (sol_save(S_VELO,k)%data(d), EDGE*num, 0.0_8)
     end do
   end subroutine extend_Domain

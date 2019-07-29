@@ -32,7 +32,7 @@ contains
        local_type = .true.
     end if
 
-    if (adapt_trend .and. local_type) then
+    if (adapt_trend) then
        call trend_ml (sol, trend)
        call forward_wavelet_transform (trend, trend_wav_coeff)
     end if
@@ -68,7 +68,7 @@ contains
     do l = level_start+1, level_end
        call apply_onescale__int (set_masks, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS, ZERO)
     end do
-
+    
     ! Make nodes and edges with significant wavelet coefficients active
     if (adapt_trend) then
        call update_array_bdry1 (trend_wav_coeff, level_start, level_end, 14)
@@ -76,7 +76,7 @@ contains
     else
        call update_array_bdry1 (wav_coeff, level_start, level_end, 15)
        call mask_active ("vars")
-    end if      
+    end if
     
    ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
@@ -137,26 +137,30 @@ contains
   subroutine compress_wavelets (wav)
     ! Sets wavelets associated with inactive grid points to zero
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO, 1:zlevels), target :: wav
+    type(Float_Field), dimension(1:N_VARIABLE, 1:zlevels), target :: wav
 
-    integer :: d, k, l
+    integer :: d, k, l, v
     
     do k = 1, zlevels
        do d = 1, size (grid)
-          wc_m => wav(S_MASS,k)%data(d)%elts
-          wc_t => wav(S_TEMP,k)%data(d)%elts
-          wc_u => wav(S_VELO,k)%data(d)%elts
           do l = level_start+1, level_end
-             call apply_onescale_d (compress, grid(d), l, z_null, 0, 1)
+             do v = scalars(1), scalars(2)
+                wc_s => wav(v,k)%data(d)%elts
+                call apply_onescale_d (compress_scalar, grid(d), l, z_null, 0, 1)
+                nullify (wc_s)
+             end do
+             wc_u => wav(S_VELO,k)%data(d)%elts
+             call apply_onescale_d (compress_vector, grid(d), l, z_null, 0, 0)
+             nullify (wc_u)
           end do
-          !call apply_onescale_d (compress_maxlevel, grid(d), max_level, z_null, 0, 1) ! dealiase
-          nullify (wc_m, wc_t, wc_u)
+          !call apply_onescale_d (compress_maxlevel_scalar, grid(d), max_level, z_null, 0, 1) ! dealiase
+          !call apply_onescale_d (compress_maxlevel_vector, grid(d), max_level, z_null, 0, 0) ! dealiase
        end do
     end do
     wav%bdry_uptodate = .false.
   end subroutine compress_wavelets
 
-  subroutine compress_maxlevel (dom, i, j, zlev, offs, dims)
+  subroutine compress_maxlevel_scalar (dom, i, j, zlev, offs, dims)
     ! Dealiase by setting wavelet coefficients to zero at maximum level
     implicit none
     type(Domain)                   :: dom
@@ -164,43 +168,62 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: e, id, id_e, id_i
+    integer :: id, id_i
 
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
+    id_i = idx (i, j, offs, dims) + 1
     
     dom%mask_n%elts(id_i) = min (ADJZONE, dom%mask_n%elts(id_i))
-    wc_m(id_i) = 0.0_8
-    wc_t(id_i) = 0.0_8
-    
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       dom%mask_e%elts(id_e) = min (ADJZONE, dom%mask_e%elts(id_e))
-       wc_u(id_e) = 0.0_8
-    end do
-  end subroutine compress_maxlevel
+    wc_s(id_i) = 0.0_8
+  end subroutine compress_maxlevel_scalar
 
-  subroutine compress (dom, i, j, zlev, offs, dims)
+  subroutine compress_maxlevel_vector (dom, i, j, zlev, offs, dims)
+    ! Dealiase by setting wavelet coefficients to zero at maximum level
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: e, id, id_i, k, v
+    integer :: e, id, id_e
 
     id = idx (i, j, offs, dims)
-    id_i = id + 1
     
-    if (dom%mask_n%elts(id_i) < ADJZONE) then
-       wc_m(id_i) = 0.0_8
-       wc_t(id_i) = 0.0_8
-    end if
+    do e = 1, EDGE
+       id_e = EDGE*id+e
+       dom%mask_e%elts(id_e) = min (ADJZONE, dom%mask_e%elts(id_e))
+       wc_u(id_e) = 0.0_8
+    end do
+  end subroutine compress_maxlevel_vector
+
+  subroutine compress_scalar (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+    
+    if (dom%mask_n%elts(id_i) < ADJZONE) wc_s(id_i) = 0.0_8
+  end subroutine compress_scalar
+
+  subroutine compress_vector (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: e, id
+
+    id = idx (i, j, offs, dims)
     
     do e = 1, EDGE
        if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
     end do
-  end subroutine compress
+  end subroutine compress_vector
 
   subroutine WT_after_step (q, wav, l_start0)
     !  Everything needed in terms of forward and backward wavelet transform
@@ -208,7 +231,7 @@ contains
     !    A) compute wavelets and perform backwards transform to conserve mass
     !    B) interpolate values onto adapted grid for next step
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, wav
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, wav
     integer, optional                                             :: l_start0
     
     integer :: d, j, k, l, l_start, v
@@ -232,11 +255,11 @@ contains
     do k = 1, zlevels
        do l = l_start, level_end-1
           do d = 1, size(grid)
-             do v = S_MASS, S_TEMP
-                mass => q(v,k)%data(d)%elts
-                wc_m => wav(v,k)%data(d)%elts
+             do v = scalars(1), scalars(2)
+                scalar => q(v,k)%data(d)%elts
+                wc_s  => wav(v,k)%data(d)%elts
                 call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-                nullify (mass, wc_m)
+                nullify (scalar, wc_s)
              end do
              velo => q(S_VELO,k)%data(d)%elts
              wc_u => wav(S_VELO,k)%data(d)%elts

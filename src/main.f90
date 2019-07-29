@@ -34,9 +34,8 @@ contains
     external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
     character(*) :: run_id
     
-    character(255)                 :: command
-    integer                        :: k, d
-    real(8), dimension(:), pointer :: wc_m, wc_t, wc_u
+    character(255) :: command
+    integer        :: k, d, v
 
     if (resume >= 0) then
        cp_idx = resume
@@ -91,19 +90,24 @@ contains
           n_active = 0
           do k = 1, zlevels
              do d = 1, size(grid)
+                do v = scalars(1), scalars(2)
+                   if (adapt_trend) then
+                      wc_s => trend_wav_coeff(v,k)%data(d)%elts
+                   else
+                      wc_s => wav_coeff(v,k)%data(d)%elts
+                   end if
+                   n_active(AT_NODE) = n_active(AT_NODE) &
+                        + count (abs(wc_s(node_level_start(d):grid(d)%node%length)) >= threshold(v,k))
+                   nullify (wc_s)
+                end do
                 if (adapt_trend) then
-                   wc_m => trend_wav_coeff(S_MASS,k)%data(d)%elts
-                   wc_t => trend_wav_coeff(S_TEMP,k)%data(d)%elts
                    wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
                 else
-                   wc_m => wav_coeff(S_MASS,k)%data(d)%elts
-                   wc_t => wav_coeff(S_TEMP,k)%data(d)%elts
                    wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 end if
-                n_active = n_active + (/ count(abs(wc_m(node_level_start(d):grid(d)%node%length))  >= threshold(S_MASS,k) .or. &
-                                               abs(wc_t(node_level_start(d):grid(d)%node%length))  >= threshold(S_TEMP,k)), &
-                                         count(abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k)) /)
-                nullify (wc_m, wc_t, wc_u)
+                n_active(AT_EDGE) = n_active(AT_EDGE) &
+                     + count (abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k))
+                nullify (wc_u)
              end do
           end do
           
@@ -385,7 +389,7 @@ contains
     ! Deallocate init_RK_mem allocations
     do k = 1, zlevels
        do d = 1, n_domain(rank+1)
-          do v = S_MASS, S_VELO
+          do v = 1, N_VARIABLE
              deallocate (q1(v,k)%data(d)%elts)
              deallocate (q2(v,k)%data(d)%elts)
              deallocate (q3(v,k)%data(d)%elts)
@@ -393,7 +397,7 @@ contains
              deallocate (dq1(v,k)%data(d)%elts)
           end do
        end do
-       do v = S_MASS, S_VELO
+       do v = 1, N_VARIABLE
           deallocate (q1(v,k)%data)
           deallocate (q2(v,k)%data)
           deallocate (q3(v,k)%data)
@@ -465,7 +469,7 @@ contains
        deallocate (Laplacian_vector(S_DIVU)%data(d)%elts)
        deallocate (Laplacian_vector(S_ROTU)%data(d)%elts)
        
-       do v = S_MASS, S_TEMP
+       do v = scalars(1), scalars(2)
           deallocate (horiz_flux(v)%data(d)%elts)
           deallocate (Laplacian_scalar(v)%data(d)%elts)
        end do
@@ -477,7 +481,7 @@ contains
        end do
        deallocate (exner_fun(zlevels+1)%data(d)%elts)
        
-       do v = S_MASS, S_VELO
+       do v = 1, N_VARIABLE
           do k = 1, zlevels
              deallocate (sol(v,k)%data(d)%elts)
              deallocate (sol_mean(v,k)%data(d)%elts)
@@ -501,12 +505,12 @@ contains
     end do
     deallocate (exner_fun(zlevels+1)%data)
     
-    do v = S_MASS, S_TEMP
+    do v = scalars(1), scalars(2)
        deallocate (horiz_flux(v)%data)
        deallocate (Laplacian_scalar(v)%data)
     end do
     
-    do v = S_MASS, S_VELO
+    do v = 1, N_VARIABLE
        do k = 1, zlevels
           deallocate (sol(v,k)%data)
           deallocate (sol_mean(v,k)%data)
@@ -527,7 +531,6 @@ contains
     deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal, penal_wav_coeff)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
 
-    nullify (mass, dmass, h_mflux, temp, dtemp, h_tflux, velo, dvelo, wc_u, wc_m, wc_t, bernoulli, divu, exner, &
-         qe, vort, wc_u, wc_m, wc_t)
+    nullify (mass, dscalar, h_flux, velo, dvelo, bernoulli, divu, exner, qe, scalar, temp, vort, wc_s, wc_u)
   end subroutine deallocate_structures
 end module main_mod

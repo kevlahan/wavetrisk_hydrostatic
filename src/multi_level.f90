@@ -6,7 +6,7 @@ contains
   subroutine trend_ml (q, dq)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
 
     integer :: k, l
 
@@ -20,13 +20,13 @@ contains
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
           ! Finish non-blocking communication of dq from previous level (l+1)
-          if (l < level_end) call update_vector_bdry__finish (dq(S_MASS:S_TEMP,k), l+1) 
+          if (l < level_end) call update_vector_bdry__finish (dq(scalars(1):scalars(2),k), l+1) 
 
           call basic_operators  (q, dq, k, l)
           call cal_scalar_trend (q, dq, k, l)
           
           ! Start non-blocking communication of dq for use at next level (l-1)
-          if (level_start /= level_end .and. l > level_start) call update_vector_bdry__start (dq(S_MASS:S_TEMP,k), l) 
+          if (level_start /= level_end .and. l > level_start) call update_vector_bdry__start (dq(scalars(1):scalars(2),k), l) 
 
           call velocity_trend_source (q, dq, k, l)
        end do
@@ -37,10 +37,10 @@ contains
   subroutine basic_operators (q, dq, k, l)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
     integer :: k, l
 
-    integer :: d, j
+    integer :: d, j, v
 
     if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, l)
     
@@ -51,7 +51,6 @@ contains
        mean_t    => sol_mean(S_TEMP,k)%data(d)%elts
        velo      => q(S_VELO,k)%data(d)%elts
        h_mflux   => horiz_flux(S_MASS)%data(d)%elts
-       h_tflux   => horiz_flux(S_TEMP)%data(d)%elts
        exner     => exner_fun(k)%data(d)%elts
        bernoulli => grid(d)%bernoulli%elts
        divu      => grid(d)%divu%elts
@@ -61,20 +60,22 @@ contains
        ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case) etc
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-          call step1 (grid(d), grid(d)%lev(l)%elts(j), k)
+          call step1 (dq, q, grid(d), grid(d)%lev(l)%elts(j), k)
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
 
        ! Compute or restrict Bernoulli, Exner and fluxes
        if (l < level_end) then
-          dmass => dq(S_MASS,k)%data(d)%elts
-          dtemp => dq(S_TEMP,k)%data(d)%elts
-          call cpt_or_restr_Bernoulli_Exner (grid(d), l)
-          call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dmass (l+1)
-          nullify (dmass, dtemp)
+          do v = scalars(1), scalars(2)
+             dscalar => dq(v,k)%data(d)%elts
+             h_flux  => horiz_flux(v)%data(d)%elts
+             call cpt_or_restr_Bernoulli_Exner (grid(d), l)
+             call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dscalar (l+1)
+             nullify (dscalar, h_flux)
+          end do
        end if
-       
-       nullify (mass, mean_m, velo, temp, mean_t, h_mflux, h_tflux, bernoulli, exner, divu, qe, vort)
+
+       nullify (mass, mean_m, velo, temp, mean_t, h_mflux, bernoulli, exner, divu, qe, vort)
     end do
     horiz_flux%bdry_uptodate = .false.
     if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
@@ -85,22 +86,20 @@ contains
   subroutine cal_scalar_trend (q, dq, k, l)
     ! Evaluate scalar trends at level l
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
-    integer :: k, l
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    integer                                                      :: k, l
 
-    integer :: d, j
-    
+    integer :: d, j, v
+
     do d = 1, size(grid)
-       mass    =>  q(S_MASS,k)%data(d)%elts
-       temp    =>  q(S_TEMP,k)%data(d)%elts
-       dmass   => dq(S_MASS,k)%data(d)%elts
-       dtemp   => dq(S_TEMP,k)%data(d)%elts
-       h_mflux => horiz_flux(S_MASS)%data(d)%elts
-       h_tflux => horiz_flux(S_TEMP)%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+       do v = scalars(1), scalars(2)
+          dscalar => dq(v,k)%data(d)%elts
+          h_flux  => horiz_flux(v)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+          end do
+          nullify (dscalar, h_flux)
        end do
-       nullify (mass, temp, dmass, dtemp, h_mflux, h_tflux)
     end do
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
   end subroutine cal_scalar_trend
@@ -108,7 +107,7 @@ contains
   subroutine velocity_trend_source (q, dq, k, l)
     ! Evaluate source part of velocity trends at level l
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
     integer :: k, l
 
     integer :: d, j
@@ -133,7 +132,7 @@ contains
        else
           call cpt_or_restr_du_source (grid(d), k, l)
        end if
-       nullify (velo, dvelo, h_mflux, divu, qe, vort)
+       nullify (velo, dvelo, h_flux, divu, qe, vort)
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_source
@@ -141,7 +140,7 @@ contains
   subroutine velocity_trend_grad (q, dq, k)
     ! Evaluate complete velocity trend by adding gradient terms to peviously calculated source terms on entire grid
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
     integer                                                       :: k
 
     integer :: d, j, p
@@ -164,25 +163,20 @@ contains
   subroutine second_order_Laplacian_scalar (q, k, l)
     ! Computes Laplacian(mass) and Laplacian(temp) needed for second order scalar Laplacian
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
-    integer                                                       :: k, l
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
+    integer                                                      :: k, l
 
-    integer :: d, j
+    integer :: d, j, v
 
     do d = 1, size(grid)
-       sclr      => q(S_MASS,k)%data(d)%elts
-       Laplacian => Laplacian_scalar(S_MASS)%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       do v = scalars(1), scalars(2)
+          scalar    => q(v,k)%data(d)%elts
+          Laplacian => Laplacian_scalar(v)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (scalar, Laplacian)
        end do
-       nullify (sclr, Laplacian)
-
-       sclr      => q(S_TEMP,k)%data(d)%elts
-       Laplacian => Laplacian_scalar(S_TEMP)%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (sclr, Laplacian)
     end do
     Laplacian_scalar%bdry_uptodate = .false.
     call update_vector_bdry (Laplacian_scalar, l, 12)
@@ -191,18 +185,18 @@ contains
   subroutine second_order_Laplacian_vector (q, k, l)
     ! Computes rot(rot(vort)) needed for second order vector Laplacian
     implicit none
-    type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q
-    integer                                                       :: k, l
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
+    integer                                                      :: k, l
 
     integer :: d, j
 
     do d = 1, size(grid)
-       sclr      => grid(d)%divu%elts
+       scalar    => grid(d)%divu%elts
        Laplacian => Laplacian_vector(S_DIVU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (sclr, Laplacian)
+       nullify (scalar, Laplacian)
 
        vort      => grid(d)%vort%elts
        Laplacian => Laplacian_vector(S_ROTU)%data(d)%elts
@@ -350,8 +344,7 @@ contains
 
     if (i_chd >= PATCH_SIZE .or. j_chd >= PATCH_SIZE) return
 
-    call flux_restr (dmass, h_mflux)
-    call flux_restr (dtemp, h_tflux)
+    call flux_restr (dscalar, h_flux)
   contains
     subroutine flux_restr (dscalar, h_flux)
       implicit none
