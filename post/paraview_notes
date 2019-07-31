@@ -1,7 +1,12 @@
 PARAVIEW NOTES
 
 SELECTING OBJECTS TO DISPLAY
-Click on the window and then in the pipeline browser: click on "eye" to left of object to activate or de-activate its display in the window. May need to open "Properties" window.
+Load vtk data files. Click on the window and then in the pipeline browser: click the "eye" icon to left of object to activate or de-activate its display in
+the window. May need to open "Properties" window.
+
+OVERLAYING TOPOGRAPHY
+Load vtk data files again, click the "eye" icon and select "mass" variable.  Open color map editor, check "Enable opacity mapping for surface", set "Number of table values" to 2 with values 0 and 1. Click the "gear" icon in "Mapping data" and verify that the opacity for value 0 is 0 and opacity for value 1 is 1.
+The "Color transfer function value" for 1 can be set to, e.g., (0.2, 0.2, 0.4) for land areas.
 
 DISPLAY TIME
 Filters -> Annotation -> Annotate Time Filter.  Need to click on "Apply" to be able to format font and location.  Uses printf format (e.g. %4.2f). Use shift and scale
