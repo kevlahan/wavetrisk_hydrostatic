@@ -1079,6 +1079,7 @@ contains
 
   subroutine interp_vel_hex (dom, i, j, zlev, offs, dims)
     ! Interpolate velocity to hexagon nodes in Cartesian coordinates; uses Perot formula as also used for kinetic energy
+    ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1091,44 +1092,47 @@ contains
     real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
 
     id   = idx (i,   j,   offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
     idW  = idx (i-1, j,   offs, dims)
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
 
-    ! Find the velocity on primal and dual grid edges, which are equal except for the length of the
-    ! side they are on
-    u_dual_RT    = velo(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
-    u_dual_UP    = velo(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
-    u_dual_DG    = velo(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
-    u_dual_RT_W  = velo(EDGE*idW+RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
-    u_dual_UP_S  = velo(EDGE*idS+UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
-    u_dual_DG_SW = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
+    ! Fluxes normal to hexagon edges
+    u_dual_RT    =  velo(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
+    u_dual_DG    = -velo(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_UP    =  velo(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
 
+    u_dual_RT_W  = -velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+    u_dual_DG_SW =  velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+    u_dual_UP_S  = -velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+
+    ! Coordinate of hexagon centre (circumcentre)
     x_i = dom%node%elts(id+1)
 
-    ! Perot formula (15, 16) of Peixoto (2016) for velocity at hexagonal node from velocities at six adjacent edges
+    ! Sum over 6 hexagon edges
+    vel = Coord (0.0_8, 0.0_8, 0.0_8)
+    
     x_e = dom%midpt%elts(EDGE*id+RT+1)
-    vel = vec_scale(u_dual_RT, vec_minus(x_e,x_i))
+    vel = vec_plus (vel, vec_scale (u_dual_RT,    vec_minus(x_e, x_i)))
 
     x_e = dom%midpt%elts(EDGE*idW+RT+1)
-    vel = vec_plus(vel, vec_scale(u_dual_RT_W,  vec_minus(x_i,x_e)))
+    vel = vec_plus (vel, vec_scale (u_dual_RT_W,  vec_minus(x_e, x_i)))
 
     x_e = dom%midpt%elts(EDGE*id+DG+1)
-    vel = vec_plus(vel, vec_scale(u_dual_DG,    vec_minus(x_i,x_e)))
-
+    vel = vec_plus (vel, vec_scale (u_dual_DG,    vec_minus(x_e, x_i)))
+ 
     x_e = dom%midpt%elts(EDGE*idSW+DG+1)
-    vel = vec_plus(vel, vec_scale(u_dual_DG_SW, vec_minus(x_e,x_i)))
+    vel = vec_plus (vel, vec_scale (u_dual_DG_SW, vec_minus(x_e, x_i)))
 
     x_e = dom%midpt%elts(EDGE*id+UP+1)
-    vel = vec_plus(vel, vec_scale(u_dual_UP,    vec_minus(x_e,x_i)))
+    vel = vec_plus (vel, vec_scale (u_dual_UP,    vec_minus(x_e, x_i)))
 
     x_e = dom%midpt%elts(EDGE*idS+UP+1)
-    vel = vec_plus(vel, vec_scale(u_dual_UP_S,  vec_minus(x_i,x_e)))
+    vel = vec_plus (vel, vec_scale (u_dual_UP_S,  vec_minus(x_e, x_i)))
 
-    vel = vec_scale(dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
+    vel = vec_scale (dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
 
     ! Project velocity onto zonal and meridional directions
     call cart2sph (x_i, lon, lat)
@@ -1136,8 +1140,8 @@ contains
     e_zonal = Coord (-sin(lon),           cos(lon),             0.0_8) ! Zonal direction
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
-    dom%u_zonal%elts(id+1) = inner(vel, e_zonal)
-    dom%v_merid%elts(id+1) = inner(vel, e_merid)
+    dom%u_zonal%elts(id+1) = inner (vel, e_zonal)
+    dom%v_merid%elts(id+1) = inner (vel, e_merid)
   end subroutine interp_vel_hex
 
   subroutine cal_Laplacian_scalar (dom, i, j, zlev, offs, dims)
