@@ -1,7 +1,7 @@
 program Tsunami
   ! Simple tsunami test case
   !
-  ! The permeability penalization parameter eta = 4 dt_cfl and the porosity parameter alpha is set in the input file.
+  ! The permeability penalization parameter eta = dt_cfl and the porosity parameter alpha is set in the input file.
   use main_mod
   use test_case_mod
   use io_mod  
@@ -27,7 +27,7 @@ program Tsunami
   ref_density    = 1027       * KG/METRE**3     ! reference density (seawater)
 
   ! Local test case parameters
-  min_depth      = -2   * METRE                 ! minimum allowed depth (must be negative)
+  min_depth      = -50  * METRE                 ! minimum allowed depth (must be negative)
   max_depth      = -6   * KM                    ! maximum allowed depth (must be negative)
 
   dH             =  7   * METRE                 ! initial perturbation to the free surface
@@ -377,9 +377,10 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                    :: id, id_i, visc_scale
-  real(8), dimension(1:EDGE) :: diffusion
+  integer                    :: d, id, id_i, visc_scale
+  real(8), dimension(1:EDGE) :: diffusion, permeability
 
+  d = dom%id + 1
   id = idx (i, j, offs, dims)
   id_i = id + 1
 
@@ -392,8 +393,11 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu()) * visc_scale
   end if
 
+  ! Permeability
+  permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+1:EDGE*id_i)/eta * velo(EDGE*id+1:EDGE*id_i)
+
   ! Total physics for source term of velocity trend including volume penalization
-  physics_velo_source = diffusion - penal(zlev)%data(dom%id+1)%elts(id_i)/eta * velo(EDGE*id+1:EDGE*id_i)
+  physics_velo_source = diffusion + permeability
 contains
   function grad_divu()
     implicit none

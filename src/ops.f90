@@ -1329,7 +1329,7 @@ contains
     implicit none
     integer :: d, id_i, zlev
 
-    porosity = 1.0_8 + (alpha - 1.0_8) * penal(zlev)%data(d)%elts(id_i)
+    porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i)
   end function porosity
 
   subroutine comp_offs3 (dom, p, offs, dims)

@@ -475,8 +475,8 @@ contains
        end do
 
        do k = 1, zlevels
-          deallocate (penal(k)%data(d)%elts)
-          deallocate (penal_wav_coeff(k)%data(d)%elts)
+          deallocate (penal_node(k)%data(d)%elts)
+          deallocate (penal_edge(k)%data(d)%elts)
           deallocate (exner_fun(k)%data(d)%elts)
        end do
        deallocate (exner_fun(zlevels+1)%data(d)%elts)
@@ -499,8 +499,8 @@ contains
     deallocate (Laplacian_vector(S_ROTU)%data)
 
     do k = 1, zlevels
-       deallocate (penal(k)%data)
-       deallocate (penal_wav_coeff(k)%data)
+       deallocate (penal_node(k)%data)
+       deallocate (penal_edge(k)%data)
        deallocate (exner_fun(k)%data)
     end do
     deallocate (exner_fun(zlevels+1)%data)
@@ -528,7 +528,7 @@ contains
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)
     deallocate (sol, sol_mean, sol_save, trend, trend_wav_coeff, wav_coeff)       
-    deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal, penal_wav_coeff)
+    deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal_node, penal_edge)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
 
     nullify (mass, dscalar, h_flux, velo, dvelo, bernoulli, divu, exner, qe, scalar, temp, vort, wc_s, wc_u)

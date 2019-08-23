@@ -534,7 +534,6 @@ contains
     integer :: d, i, k, num, v
 
     do k = 1, zlevels
-       call init_Float_Field (penal_wav_coeff(k), AT_NODE)
        do v = 1, N_VARIABLE
           call init_Float_Field (wav_coeff(v,k),       POSIT(v))
           call init_Float_Field (trend_wav_coeff(v,k), POSIT(v))
@@ -557,7 +556,6 @@ contains
        end do
 
        do k = 1, zlevels
-          call init (penal_wav_coeff(k)%data(d), num)
           do v = scalars(1), scalars(2)
              call init (wav_coeff(v,k)%data(d), num)
              call init (trend_wav_coeff(v,k)%data(d), num)

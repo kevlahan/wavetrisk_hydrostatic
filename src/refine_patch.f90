@@ -164,25 +164,25 @@ contains
     call extend (dom%vort,   TRIAG*num, 0.0_8)
     
     do k = 1, zlevels
-       call extend (penal(k)%data(d),     num, 0.0_8)
+       call extend (penal_node(k)%data(d),      num, 0.0_8)
+       call extend (penal_edge(k)%data(d), EDGE*num, 0.0_8)
        call extend (exner_fun(k)%data(d), num, 0.0_8)
-       call extend (penal_wav_coeff(k)%data(d), num, 0.0_8)
        do v = scalars(1), scalars(2)
           call extend (trend(v,k)%data(d),           num, 0.0_8)
           call extend (wav_coeff(v,k)%data(d),       num, 0.0_8)
           call extend (trend_wav_coeff(v,k)%data(d), num, 0.0_8)
        end do
-       call extend (trend(S_VELO,k)%data(d),           num*EDGE, 0.0_8)
-       call extend (wav_coeff(S_VELO,k)%data(d),       num*EDGE, 0.0_8)
-       call extend (trend_wav_coeff(S_VELO,k)%data(d), num*EDGE, 0.0_8)
+       call extend (trend(S_VELO,k)%data(d),           EDGE*num, 0.0_8)
+       call extend (wav_coeff(S_VELO,k)%data(d),       EDGE*num, 0.0_8)
+       call extend (trend_wav_coeff(S_VELO,k)%data(d), EDGE*num, 0.0_8)
     end do
     call extend (exner_fun(zlevels+1)%data(d), num, 0.0_8)
     
-    call extend (Laplacian_vector(S_DIVU)%data(d), num,      0.0_8)
-    call extend (Laplacian_vector(S_ROTU)%data(d), num*EDGE, 0.0_8)
+    call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0.0_8)
+    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE*num, 0.0_8)
     do v = scalars(1), scalars(2)
-       call extend (horiz_flux(v)%data(d),       num*EDGE, 0.0_8)
-       call extend (Laplacian_scalar(v)%data(d), num,      0.0_8)
+       call extend (horiz_flux(v)%data(d),       EDGE*num, 0.0_8)
+       call extend (Laplacian_scalar(v)%data(d),      num, 0.0_8)
     end do
     
     call extend (dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))

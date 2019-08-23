@@ -25,14 +25,15 @@ contains
     allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zlevels))
     allocate (wav_coeff(1:N_VARIABLE,1:zlevels), trend_wav_coeff(1:N_VARIABLE,1:zlevels))
     allocate (exner_fun(1:zlevels+1))
-    allocate (penal(1:zlevels), penal_wav_coeff(1:zlevels))
+    allocate (penal_node(1:zlevels), penal_edge(1:zlevels))
     allocate (horiz_flux(scalars(1):scalars(2)), Laplacian_scalar(scalars(1):scalars(2)))
     allocate (Laplacian_vector(S_DIVU:S_ROTU))
     allocate (lnorm(1:N_VARIABLE,1:zlevels))
 
     do k = 1, zlevels
-       call init_Float_Field (penal(k),     AT_NODE)
-       call init_Float_Field (exner_fun(k), AT_NODE)
+       call init_Float_Field (penal_node(k), AT_NODE)
+       call init_Float_Field (penal_edge(k), AT_EDGE)
+       call init_Float_Field (exner_fun(k),  AT_NODE)
        do v = 1, N_VARIABLE
           call init_Float_Field (sol(v,k),      POSIT(v))
           call init_Float_Field (sol_mean(v,k), POSIT(v))
@@ -325,12 +326,14 @@ contains
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          call init (penal(k)%data(d),     grid(d)%node%length)
+          call init (penal_node(k)%data(d),      grid(d)%node%length)
+          call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)
+          
           call init (exner_fun(k)%data(d), grid(d)%node%length)
           do v = scalars(1), scalars(2)
              call init (trend(v,k)%data(d), grid(d)%node%length)
           end do
-          call init (trend(S_VELO,k)%data(d), grid(d)%node%length*EDGE)
+          call init (trend(S_VELO,k)%data(d), EDGE*grid(d)%node%length)
           trend(S_VELO,k)%data(d)%elts = 0.0_8
        end do
     end do
@@ -340,10 +343,10 @@ contains
     end do
 
     do d = 1, size(grid)
-       call init (Laplacian_vector(S_DIVU)%data(d), grid(d)%node%length)
-       call init (Laplacian_vector(S_ROTU)%data(d), grid(d)%node%length*EDGE)
+       call init (Laplacian_vector(S_DIVU)%data(d),      grid(d)%node%length)
+       call init (Laplacian_vector(S_ROTU)%data(d), EDGE*grid(d)%node%length)
        do v = scalars(1), scalars(2)
-          call init (horiz_flux(v)%data(d), grid(d)%node%length*EDGE)
+          call init (horiz_flux(v)%data(d), EDGE*grid(d)%node%length)
           call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
        end do
     end do

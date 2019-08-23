@@ -1007,7 +1007,7 @@ contains
              init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
              min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
           else
-             porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
+             porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id_i)
              porous_density = ref_density * porosity
              init_mass = porous_density * abs (dom%topo%elts(id_i))/zlevels
 

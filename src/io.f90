@@ -685,7 +685,7 @@ contains
     if (compressible) then ! mass = ref_density*dz
        outv(5) = sol(S_MASS,zlev)%data(d)%elts(id_i)
     else ! penalization mask
-       outv(5) = penal(zlev)%data(d)%elts(id_i)
+       outv(5) = penal_node(zlev)%data(d)%elts(id_i)
     end if
 
     if (compressible) then ! surface pressure
@@ -727,11 +727,11 @@ contains
 
     total_depth = 0.0_8
     do k = 1, zlevels
-       porosity = 1.0_8 + (alpha - 1.0_8) * penal(k)%data(d)%elts(id_i)
+       porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id_i)
        full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
        total_depth = total_depth + full_mass / (ref_density*porosity)
     end do
-    free_surface = (1.0_8 - penal(zlevels)%data(d)%elts(id_i))*(total_depth + dom%topo%elts(id_i))
+    free_surface = (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i))*(total_depth + dom%topo%elts(id_i))
   end function free_surface
 
   subroutine write_dual (dom, p, i, j, zlev, offs, dims, funit)
@@ -1339,7 +1339,7 @@ contains
           velo => sol(S_VELO,save_zlev)%data(d)%elts
           vort => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 0)
              call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
           end do
           call apply_to_penta_d (post_vort, grid(d), l, z_null)
