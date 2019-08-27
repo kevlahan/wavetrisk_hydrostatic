@@ -53,6 +53,7 @@ contains
        h_mflux   => horiz_flux(S_MASS)%data(d)%elts
        exner     => exner_fun(k)%data(d)%elts
        bernoulli => grid(d)%bernoulli%elts
+       ke        => grid(d)%ke%elts
        divu      => grid(d)%divu%elts
        vort      => grid(d)%vort%elts
        qe        => grid(d)%qe%elts
@@ -75,7 +76,7 @@ contains
           end do
        end if
 
-       nullify (mass, mean_m, velo, temp, mean_t, h_mflux, bernoulli, exner, divu, qe, vort)
+       nullify (mass, mean_m, velo, temp, mean_t, h_mflux, bernoulli, exner, divu, ke, qe, vort)
     end do
     horiz_flux%bdry_uptodate = .false.
     if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
@@ -114,11 +115,13 @@ contains
 
     do d = 1, size(grid)
        mass    => q(S_MASS,k)%data(d)%elts
+       mean_m  => sol_mean(S_MASS,k)%data(d)%elts
        velo    => q(S_VELO,k)%data(d)%elts
        dvelo   => dq(S_VELO,k)%data(d)%elts
        h_mflux => horiz_flux(S_MASS)%data(d)%elts
-       vort    => grid(d)%vort%elts
+       ke      => grid(d)%ke%elts
        qe      => grid(d)%qe%elts
+       vort    => grid(d)%vort%elts
        if (Laplace_order <= 1) then
           divu => grid(d)%divu%elts
        elseif (Laplace_order == 2) then
@@ -132,13 +135,13 @@ contains
        else
           call cpt_or_restr_du_source (grid(d), k, l)
        end if
-       nullify (velo, dvelo, h_flux, divu, qe, vort)
+       nullify (mass, mean_m, velo, dvelo, h_flux, divu, ke, qe, vort)
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_source
 
   subroutine velocity_trend_grad (q, dq, k)
-    ! Evaluate complete velocity trend by adding gradient terms to peviously calculated source terms on entire grid
+    ! Evaluate complete velocity trend by adding gradient terms to previously calculated source terms on entire grid
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
     integer                                                       :: k

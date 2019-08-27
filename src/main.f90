@@ -435,6 +435,7 @@ contains
        deallocate (grid(d)%vort%elts)
        deallocate (grid(d)%qe%elts)
        deallocate (grid(d)%bernoulli%elts)
+       deallocate (grid(d)%ke%elts)
        deallocate (grid(d)%divu%elts)
        deallocate (grid(d)%topo%elts)
        deallocate (grid(d)%coriolis%elts)
@@ -531,6 +532,6 @@ contains
     deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal_node, penal_edge)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
 
-    nullify (mass, dscalar, h_flux, velo, dvelo, bernoulli, divu, exner, qe, scalar, temp, vort, wc_s, wc_u)
+    nullify (mass, dscalar, h_flux, velo, dvelo, bernoulli, divu, exner, ke, qe, scalar, temp, vort, wc_s, wc_u)
   end subroutine deallocate_structures
 end module main_mod

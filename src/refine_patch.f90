@@ -157,8 +157,9 @@ contains
     call extend (dom%press_lower,  num, 0.0_8)
     call extend (dom%geopot_lower, num, 0.0_8)
     call extend (dom%bernoulli,    num, 0.0_8)
+    call extend (dom%ke,           num, 0.0_8)
     call extend (dom%divu,         num, 0.0_8)
-    call extend (dom%topo,        num, 0.0_8)
+    call extend (dom%topo,         num, 0.0_8)
     
     call extend (dom%qe,      EDGE*num, 0.0_8)
     call extend (dom%vort,   TRIAG*num, 0.0_8)

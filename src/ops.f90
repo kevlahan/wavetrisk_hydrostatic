@@ -174,7 +174,7 @@ contains
       implicit none
       integer                                          :: idE, idN, idNE, idS, idSW, idW
       integer                                          :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i
-      real(8)                                          :: circ_LORT, circ_UPLT, kinetic_energy, Phi_k
+      real(8)                                          :: circ_LORT, circ_UPLT, Phi_k
       real(8)                                          :: u_prim_UP_E, u_prim_RT_N
       real(8), dimension(scalars(1):scalars(2))        :: physics_source
       type (Coord), dimension(6)                       :: hex_nodes
@@ -267,17 +267,18 @@ contains
            divu(id_i) = (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
 
       ! Kinetic energy (TRiSK formula) 
-      kinetic_energy = (u_prim_UP*u_dual_UP + u_prim_DG*u_dual_DG + u_prim_RT*u_dual_RT + &
-           u_prim_UP_S*u_dual_UP_S + u_prim_DG_SW*u_dual_DG_SW + u_prim_RT_W*u_dual_RT_W) * dom%areas%elts(id_i)%hex_inv/4
+      ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
+                  u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+           * dom%areas%elts(id_i)%hex_inv/4
 
       ! Interpolate geopotential from interfaces to level
       Phi_k = interp (dom%geopot%elts(id_i), dom%geopot_lower%elts(id_i))
 
       ! Bernoulli function
       if (compressible) then 
-         bernoulli(id_i) = kinetic_energy + Phi_k
+         bernoulli(id_i) = ke(id_i) + Phi_k
       else
-         bernoulli(id_i) = kinetic_energy + Phi_k + dom%press%elts(id_i) / (ref_density * porosity (d, id_i, zlev))
+         bernoulli(id_i) = ke(id_i) + Phi_k + dom%press%elts(id_i) / (ref_density * porosity (d, id_i, zlev))
       end if
 
       ! Exner function in incompressible case from geopotential
@@ -586,13 +587,12 @@ contains
        end function physics_velo_source
     end interface
 
-    integer                :: e, id, id_i
+    integer                :: e, id
     real(8), dimension (3) :: Qperp_e, physics
 
     id = idx (i, j, offs, dims)
-    id_i = id+1
 
-    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) >= ADJZONE) then
+    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
        ! Calculate Q_perp
        Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
        
@@ -608,7 +608,7 @@ contains
           end if
        end do
     else
-       dvelo(EDGE*id+1:EDGE*id_i) = 0.0_8
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end if
   end subroutine du_source
 
@@ -620,14 +620,13 @@ contains
     integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer                         :: e, id, id_i, idE, idN, idNE
+    integer                         :: e, id, idE, idN, idNE
     real(8), dimension(1:EDGE)      :: gradB, gradE, theta_e
     real(8), dimension(0:NORTHEAST) :: full_mass, full_temp, theta
 
     id = idx (i, j, offs, dims)
-    id_i = id+1
     
-    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) >= ADJZONE) then
+    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
        idE  = idx (i+1, j,   offs, dims) 
        idN  = idx (i,   j+1, offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
@@ -663,7 +662,7 @@ contains
           end if
        end do
     else
-       dvelo(EDGE*id+1:EDGE*id_i) = 0.0_8
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end if
   end subroutine du_grad
 

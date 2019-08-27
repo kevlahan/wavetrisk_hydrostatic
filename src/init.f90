@@ -360,6 +360,7 @@ contains
        call init (grid(d)%press_lower,  grid(d)%node%length)
        call init (grid(d)%geopot_lower, grid(d)%node%length)
        call init (grid(d)%bernoulli,    grid(d)%node%length)
+       call init (grid(d)%ke,           grid(d)%node%length)
        call init (grid(d)%divu,         grid(d)%node%length)
        call init (grid(d)%topo,         grid(d)%node%length)
        call init (grid(d)%vort,         grid(d)%node%length*TRIAG)

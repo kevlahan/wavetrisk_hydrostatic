@@ -54,6 +54,7 @@ module domain_mod
      type(Float_Array) :: press_lower ! mass in adjacent vertical cell
      type(Float_Array) :: geopot_lower! geopotential in adjacent vertical cell
      type(Float_Array) :: vort        ! vorticity on triangles
+     type(Float_Array) :: ke          ! kinetic energy
      type(Float_Array) :: bernoulli   ! Bernoulli function
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          !
@@ -77,7 +78,7 @@ module domain_mod
   real(8), dimension(:), pointer :: velo, dvelo
   real(8), dimension(:), pointer :: mean_m, mean_t
   real(8), dimension(:), pointer :: Laplacian
-  real(8), dimension(:), pointer :: bernoulli, divu, exner, qe, vort
+  real(8), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
   real(8), dimension(:), pointer :: wc_s, wc_u
 contains
   subroutine init_Float_Field (self, pos)
