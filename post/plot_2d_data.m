@@ -1,23 +1,21 @@
 % Plot 2d data from export_2d or log data
-%test_case = 'DCMIP2008c5'; run_id = 'DCMIP2008c5'; run_dir = '';
-%test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J7'; run_dir = '';
 
-nia = 1;
+nia = 0;
 if (nia)
-    test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J6'; run_dir = '';
-    unix ('scp niagara.computecanada.ca:"~/hydro/Held_Suarez/Held_Suarez_J6.3.tgz" ~/hydro/H*/.');
+    test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J5J7_var'; run_dir = '';
+    unix ('scp niagara.computecanada.ca:"~/hydro/*c4/DCMIP2012c4_J5J7_var.4.tgz" ~/hydro/DCMIP2012c4/.');
 else
-    test_case = 'Held_Suarez'; run_id = 'Held_Suarez_J4L18'; run_dir = '';
-    unix ('scp if:"~/hydro/Held_Suarez/Held_Suarez_J4L18.3.tgz" ~/hydro/H*/.');
+    test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J5J7_var'; run_dir = '';
+    unix ('scp if:"~/hydro/*c4/J5J7_eps_var_def_0.03_Lap0/DCMIP2012c4_J5J7_var.4.tgz" ~/hydro/*c4/.');
 end
 
-file_base = [run_id '.3.']; 
+file_base = [run_id '.4.']; 
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 
 % 'temp_var' 'eddy_mom' 'zonal_var' 'merid_var' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'zonal';  % field to plot
-lon_lat   = false;  % Plot longitude - latitude data
-zonal_avg = true;   % Plot zonally averaged data
+itype     = 'temp';  % field to plot
+lon_lat   = true;  % Plot longitude - latitude data
+zonal_avg = false;   % Plot zonally averaged data
 shift     = true;   % shift left boundary to zero longitude
 smooth    = false;  % smooth data over two points in each direction
 lines     = true;   % plot lines

@@ -324,7 +324,7 @@ contains
     ! Latitude-longitude projections
     do k = 1, save_levels
        ! Temperature
-       call project_onto_plane (horiz_flux(k), level_save, 0.0_8)
+       call project_onto_plane (trend(1,k), level_save, 0.0_8)
        field2d_save(:,:,1+k-1) = field2d
 
        ! Calculate zonal and meridional velocities and vorticity
@@ -888,28 +888,6 @@ function physics_scalar_flux (dom, id, idE, idNE, idN, type)
 
   physics_scalar_flux(S_MASS,:) = 0.0_8
 end function physics_scalar_flux
-
-function grad_physics (scalar, dom, id, idE, idNE, idN, local_type)
-  use domain_mod
-  use test_case_mod
-  implicit none
-
-  real(8), dimension(1:EDGE)               :: grad_physics
-  real(8), dimension(:), pointer           :: scalar
-  type(Domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
-  logical                                  :: local_type
-
-  if (.not.local_type) then ! Usual gradient at edges of hexagon E, NE, N
-     grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1) 
-     grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1) 
-     grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1) 
-  else ! Gradient for southwest edges of hexagon W, SW, S
-     grad_physics(RT+1) = -(scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*idE+RT+1) 
-     grad_physics(DG+1) = -(scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*idNE+DG+1)
-     grad_physics(UP+1) = -(scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*idN+UP+1) 
-  end if
-end function grad_physics
 
 function physics_scalar_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the scalar trend

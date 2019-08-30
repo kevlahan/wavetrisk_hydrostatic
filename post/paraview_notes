@@ -13,7 +13,7 @@ Filters -> Annotation -> Annotate Time Filter.  Need to click on "Apply" to be a
 to convert filenumber to correct units.
 
 DISPLAY TEXT
-Sources -> Text.  Need to click on "Apply" to be able to format font and location.
+Sources -> Text.  Need to click on "Apply" in "Properties" to be able to format font and location.
 
 EDIT COLOR BAR
 View -> Color Map Editor. Click on rainbow with black e (upper right) to edit color bar legend. Click on "Gear" to get all properties. Usually want to unclick "Add Range Labels".

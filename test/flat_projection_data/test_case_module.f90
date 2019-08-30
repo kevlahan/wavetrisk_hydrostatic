@@ -231,6 +231,11 @@ contains
     end do
   end subroutine apply_initial_conditions
 
+  subroutine update
+    ! dummy routine
+
+  end subroutine update
+
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Dummy routine
     implicit none
@@ -248,8 +253,8 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
 
-    allocate (threshold(S_MASS:S_VELO,1:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(S_MASS:S_VELO,1:zlevels)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
+    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
   end subroutine initialize_thresholds
 
   subroutine initialize_dt_viscosity 

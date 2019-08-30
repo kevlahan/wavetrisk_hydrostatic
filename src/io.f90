@@ -429,9 +429,9 @@ contains
        exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * (p(k)/p_0)**kappa
     end do
 
-    ! temperature at save levels (saved in horiz_flux)
+    ! temperature at save levels (saved in trend)
     do k = 1, save_levels
-       horiz_flux(k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
+       trend(1,k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
             (pressure_save(k)/p_0)**kappa
     end do
   end subroutine cal_temp
