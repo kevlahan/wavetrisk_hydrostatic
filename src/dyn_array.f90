@@ -266,11 +266,11 @@ contains
   end subroutine extend_Int_Array
 
   subroutine extend_Float_Array(arr, N, items)
-    type(Float_Array) arr
-    integer N
-    real(8) items
+    type(Float_Array) :: arr
+    integer           :: N
+    real(8)           :: items
 
-    if (arr%length + N > size(arr%elts)) call dbl_alloc_Float_Array(arr, arr%length + N)
+    if (arr%length + N > size(arr%elts)) call dbl_alloc_Float_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items
     arr%length = arr%length + N

@@ -968,7 +968,7 @@ contains
     integer :: id_i
     real(8) :: full_mass, full_temp, p_upper
 
-    id_i = idx (i, j, offs, dims)+1
+    id_i = idx (i, j, offs, dims) + 1
 
     if (compressible) then ! Compressible case
        full_mass = mass(id_i) + mean_m(id_i)
