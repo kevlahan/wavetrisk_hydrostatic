@@ -15,27 +15,6 @@ module test_case_mod
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
 contains
-  subroutine cal_theta_eq (p, p_s, lat, theta_equil, k_T)
-    ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
-    use domain_mod
-    implicit none
-    real(8) :: p, p_s, lat, theta_equil, k_T
-
-    real(8) :: cs2, sigma, theta_force, theta_tropo
-
-    cs2 = cos (lat)**2
-
-    sigma = (p - p_top) / (p_s - p_top)
-
-    k_T = k_a + (k_s-k_a) * max (0.0_8, (sigma-sigma_b)/sigma_c) * cs2**2
-
-    theta_tropo = T_tropo * (p/p_0)**(-kappa) ! Potential temperature at tropopause
-
-    theta_force = T_mean - delta_T*(1.0_8-cs2) - delta_theta*cs2 * log (p/p_0)
-
-    theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
-  end subroutine cal_theta_eq
-
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! From Jablonowski and Williamson (2006) without perturbation
     implicit none
@@ -84,6 +63,27 @@ contains
     ! Set initial velocity field
     call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
+
+  subroutine cal_theta_eq (p, p_s, lat, theta_equil, k_T)
+    ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
+    use domain_mod
+    implicit none
+    real(8) :: p, p_s, lat, theta_equil, k_T
+
+    real(8) :: cs2, sigma, theta_force, theta_tropo
+
+    cs2 = cos (lat)**2
+
+    sigma = (p - p_top) / (p_s - p_top)
+
+    k_T = k_a + (k_s-k_a) * max (0.0_8, (sigma-sigma_b)/sigma_c) * cs2**2
+
+    theta_tropo = T_tropo * (p/p_0)**(-kappa) ! Potential temperature at tropopause
+
+    theta_force = T_mean - delta_T*(1.0_8-cs2) - delta_theta*cs2 * log (p/p_0)
+
+    theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
+  end subroutine cal_theta_eq
 
   real(8) function set_temp (x_i, sigma)
     ! From Jablonowski and Williamson (2006)
@@ -337,8 +337,8 @@ contains
     Laplace_order = Laplace_order_init
 
     ! Bins for zonal statistics
-    nbins = sqrt (10d0*4**max_level/2) ! consistent with maximum resolution
-    !nbins = 150
+    !nbins = sqrt (10*4**max_level/2) ! consistent with maximum resolution
+    nbins = 300
     allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
     allocate (zonal_avg(zlevels,nbins,nvar_zonal), zonal_avg_glo(zlevels,nbins,nvar_zonal))
     zonal_avg = 0.0_8; zonal_avg_glo = 0.0_8
