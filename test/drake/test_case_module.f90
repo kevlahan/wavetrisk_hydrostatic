@@ -178,8 +178,8 @@ contains
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
       
     ! Diffusion constants
-    C_sclr = 2.5d-4    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_divu = 2.5d-4    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_sclr = 1d-4    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_divu = 1d-4    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     
     ! CFL limit for time step
@@ -311,10 +311,10 @@ contains
     real(8) :: peak
 
     peak = (abs(lat)*180/MATH_PI - 35.0_8) / 20
-    tau_zonal = 0.15 * exp (-peak**2) * sin (abs(lat)*6) - 5d-3
+    tau_zonal = -0.15 * exp (-peak**2) * sin (abs(lat)*6) - 5d-3
 
-    peak = lat*180/MATH_PI / 15
-    tau_merid = -0.25 * exp (-peak**2) * sin (2*lat) * peak**2
+    !peak = lat*180/MATH_PI / 15
+    !tau_merid = -0.25 * exp (-peak**2) * sin (2*lat) * peak**2
   end subroutine wind_stress
 
   subroutine read_test_case_parameters
@@ -426,6 +426,7 @@ contains
        write (6,'(A,es11.4)') "bottom friction      = ", friction_coeff
        write (6,'(A,es11.4)') "min_depth            = ", abs (min_depth)
        write (6,'(A,es11.4)') "max_depth            = ", abs (max_depth)
+       write (6,'(A,es11.4)') "beta at 30 deg       = ", beta
        write (6,'(A,es11.4)') "L_R at 30 deg  [km]  = ", L_R / KM
        write (6,'(A,es11.4)') "Inertial layer [km]  = ", delta_I / KM
        write (6,'(A,es11.4)') "Munk layer     [km]  = ", delta_M / KM

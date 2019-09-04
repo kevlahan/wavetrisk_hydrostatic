@@ -32,8 +32,8 @@ program Drake
   min_depth      = -50  * METRE                 ! minimum allowed depth (must be negative)
   max_depth      = -0.5 * KM                    ! maximum allowed depth (must be negative)
   wave_speed     = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
-  friction_coeff =  1d-3                        ! quadratic bottom friction coefficient
-  !friction_coeff = 4d-4 * METRE/SECOND         ! linear bottom friction coefficient
+  !friction_coeff =  1d-3                        ! quadratic bottom friction coefficient (nemo)
+  friction_coeff = abs(max_depth)/(150*DAY) * METRE/SECOND ! linear bottom friction coefficient (nemo is 4e-4 for depth = 4000m) 
 
   ! Characteristic scales
   f0             = 2*omega * sin(30*DEG) * RAD/SECOND         ! representative Coriolis parameter
@@ -338,7 +338,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   integer                         :: d, id, id_i, idE, idN, idNE
   real(8), dimension(0:NORTHEAST) :: full_mass
-  real(8), dimension(1:EDGE)      :: diffusion, mass_e, permeability, stress, u_mag, tau_bottom, tau_wind
+  real(8), dimension(1:EDGE)      :: diffusion, drag_force, mass_e, permeability, stress, tau_wind, u_mag, wind_force
 
   d = dom%id + 1
   id = idx (i, j, offs, dims)
@@ -371,30 +371,28 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE), dom%node%elts(id_i))
      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idN))
   else
-    tau_wind = 0.0_8
+     tau_wind = 0.0_8
   end if
+  wind_force = tau_wind / mass_e
   
   ! Bottom stress applied in lowest layer only (as in NEMO)
   if (zlev == 1) then
      ! Quadratic 
-     u_mag(RT+1) = sqrt (2 * interp (ke(id_i), ke(idE)))
-     u_mag(DG+1) = sqrt (2 * interp (ke(id_i), ke(idNE)))
-     u_mag(UP+1) = sqrt (2 * interp (ke(id_i), ke(idN)))
-     tau_bottom = - friction_coeff * u_mag * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+!!$     u_mag(RT+1) = sqrt (2 * interp (ke(id_i), ke(idE)))
+!!$     u_mag(DG+1) = sqrt (2 * interp (ke(id_i), ke(idNE)))
+!!$     u_mag(UP+1) = sqrt (2 * interp (ke(id_i), ke(idN)))
+!!$     drag_force = - friction_coeff * u_mag * velo(EDGE*id+RT+1:EDGE*id+UP+1)
      ! Linear
-     !tau_bottom = - friction_coeff * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+     drag_force = - friction_coeff * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   else
-     tau_bottom = 0.0_8
+     drag_force = 0.0_8
   end if
-
-  ! Total stress forces on edges
-  stress = (tau_wind + tau_bottom) * dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)/mass_e
   
   ! Permeability
   permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
 
   ! Complete source term for velocity trend
-  physics_velo_source = diffusion + permeability + stress
+  physics_velo_source = diffusion + permeability + drag_force + wind_force
 contains
   function grad_divu()
     implicit none
