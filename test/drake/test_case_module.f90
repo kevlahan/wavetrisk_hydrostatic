@@ -315,6 +315,7 @@ contains
 
     !peak = lat*180/MATH_PI / 15
     !tau_merid = -0.25 * exp (-peak**2) * sin (2*lat) * peak**2
+    tau_merid = 0.0_8
   end subroutine wind_stress
 
   subroutine read_test_case_parameters
