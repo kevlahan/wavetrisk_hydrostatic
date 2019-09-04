@@ -113,7 +113,7 @@ contains
           
           ! Sum results over all ranks
           n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))          
-          if (rank == 0) write (6,'(A,i2,1x,2(A,i8,1x),/)') &
+          if (rank == 0) write (6,'(A,i2,1x,2(A,i12,1x),/)') &
                'Level = ', level_end, 'number of active node wavelets = ', n_active(AT_NODE), &
                'number of active edge wavelets = ', n_active(AT_EDGE)
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! No active nodes or edges at this scale
