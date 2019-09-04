@@ -277,10 +277,11 @@ subroutine trend_cooling (q, dq)
 
   do k = 1, zlevels
      do d = 1, size(grid)
-        mass  =>  q(S_MASS,k)%data(d)%elts
-        temp  =>  q(S_TEMP,k)%data(d)%elts
-        velo  =>  q(S_VELO,k)%data(d)%elts
-        dvelo => dq(S_VELO,k)%data(d)%elts
+        mean_m =>  sol_mean(S_MASS,k)%data(d)%elts
+        mass   =>  q(S_MASS,k)%data(d)%elts
+        temp   =>  q(S_TEMP,k)%data(d)%elts
+        velo   =>  q(S_VELO,k)%data(d)%elts
+        dvelo  => dq(S_VELO,k)%data(d)%elts
         do p = 2, grid(d)%patch%length
            call apply_onescale_to_patch (cal_pressure,  grid(d), p-1, k, 0, 1)
            call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
@@ -302,8 +303,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer     :: id_i
-    real(8)     :: k_T, lat, lon, theta_equil
+    integer :: id_i
+    real(8) :: k_T, lat, lon, theta_equil
 
     id_i = idx (i, j, offs, dims) + 1
     call cart2sph (dom%node%elts(id_i), lon, lat)
@@ -333,7 +334,7 @@ contains
     sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
     k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
 
-    dvelo(EDGE*id+1:EDGE*id_i) = - k_v * velo(EDGE*id+1:EDGE*id_i)
+    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - k_v * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   end subroutine trend_velo
 end subroutine trend_cooling
 
