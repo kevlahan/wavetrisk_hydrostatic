@@ -13,7 +13,8 @@ Module test_case_mod
 
   ! Local variables
   integer                              :: npts_penal
-  real(8)                              :: dH, friction_coeff, max_depth, min_depth, scale
+  real(8)                              :: beta, delta_I, delta_M, delta_S, delta_sm, f0, L_R, Rey
+  real(8)                              :: friction_coeff, max_depth, min_depth, scale, u_wbc
   logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) if true
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -177,8 +178,8 @@ contains
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
       
     ! Diffusion constants
-    C_sclr = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_divu = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_sclr = 2.5d-4    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_divu = 2.5d-4    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     
     ! CFL limit for time step
@@ -373,6 +374,9 @@ contains
 
   subroutine print_test_case_parameters
     implicit none
+
+    delta_M = (visc_rotu/beta)**(1.0_8/3.0_8) * METRE  ! Munk layer
+    Rey     = u_wbc * delta_I / visc_rotu              ! Reynolds number of western boundary current
     
      if (rank==0) then
        write (6,'(A)') &
@@ -417,14 +421,17 @@ contains
        write (6,'(A,es11.4)') "p_top [hPa]          = ", p_top/100
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es11.4)') "dH                   = ", dH
        write (6,'(A,es11.4)') "eta                  = ", eta
        write (6,'(A,es11.4)') "alpha                = ", alpha
        write (6,'(A,es11.4)') "bottom friction      = ", friction_coeff
-       write (6,'(A,es11.4)') "min_depth            = ", min_depth
-       write (6,'(A,es11.4)') "max_depth            = ", max_depth
-       write (6,'(A,es11.4)') "L_R at 45 deg [km]    = ", sqrt (grav_accel*abs(max_depth)) / (2*omega * sin (45*MATH_PI/180)) / KM
-       
+       write (6,'(A,es11.4)') "min_depth            = ", abs (min_depth)
+       write (6,'(A,es11.4)') "max_depth            = ", abs (max_depth)
+       write (6,'(A,es11.4)') "L_R at 30 deg  [km]  = ", L_R / KM
+       write (6,'(A,es11.4)') "Inertial layer [km]  = ", delta_I / KM
+       write (6,'(A,es11.4)') "Munk layer     [km]  = ", delta_M / KM
+       write (6,'(A,es11.4)') "Stommel layer  [km]  = ", delta_S / KM
+       write (6,'(A,es11.4)') "submesoscale   [km]  = ", delta_sm / KM
+       write (6,'(A,es11.4)') "Reynolds number      = ", Rey 
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
@@ -443,7 +450,7 @@ contains
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
     
     if (rank == 0) then
-       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i9,4(a,es9.2,1x))') &
+       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
@@ -456,7 +463,7 @@ contains
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
-       write (12,'(5(es15.9,1x),i2,1x,i9,1x,4(es15.9,1x))')  &
+       write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  &
             time/HOUR, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
             sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if

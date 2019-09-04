@@ -30,15 +30,23 @@ program Drake
 
   ! Local test case parameters
   min_depth      = -50  * METRE                 ! minimum allowed depth (must be negative)
-  max_depth      = -4   * KM                    ! maximum allowed depth (must be negative)
-  dH             =  7   * METRE                 ! initial perturbation to the free surface
+  max_depth      = -0.5 * KM                    ! maximum allowed depth (must be negative)
+  wave_speed     = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
   friction_coeff =  1d-3                        ! quadratic bottom friction coefficient
   !friction_coeff = 4d-4 * METRE/SECOND         ! linear bottom friction coefficient
 
+  ! Characteristic scales
+  f0             = 2*omega * sin(30*DEG) * RAD/SECOND         ! representative Coriolis parameter
+  u_wbc          = 1                     * METRE/SECOND       ! western boundary current speed
+  beta           = f0 / radius           * RAD/(SECOND*METRE) ! beta parameter at 30 degrees latitude
+  L_R            = wave_speed / f0       * METRE              ! Rossby radius
+  delta_I        = sqrt (u_wbc/beta)     * METRE              ! inertial layer
+  delta_S        = friction_coeff/beta   * METRE              ! Stommel layer 
+  delta_sm       = u_wbc/f0              * METRE              ! barotropic submesoscale
+
   ! Dimensional scaling
-  wave_speed     = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
-  Udim           = wave_speed                   ! velocity scale
-  Ldim           = radius                       ! length scale 
+  Udim           = u_wbc                        ! velocity scale
+  Ldim           = delta_I                      ! length scale 
   Tdim           = Ldim/Udim                    ! time scale
   Hdim           = abs (max_depth)              ! vertical length scale
 
