@@ -13,13 +13,14 @@ Filters -> Annotation -> Annotate Time Filter.  Need to click on "Apply" to be a
 to convert filenumber to correct units.
 
 DISPLAY TEXT
-Sources -> Text.  Need to click on "Apply" in "Properties" to be able to format font and location.
+Sources -> Text.  Need to click on "Apply" in "Properties" to be able to format font and location.  Font size 22 points is a good choice for all text
+in axes and labels.
 
 EDIT COLOR BAR
-View -> Color Map Editor. Click on rainbow with black e (upper right) to edit color bar legend. Click on "Gear" to get all properties. Usually want to unclick "Add Range Labels".
+View -> Color Map Editor. Click on rainbow with black e (upper right) to edit color bar legend. Click on "Gear" to get all properties. Usually want to unclick "Add Range Labels".  Click on "heart" to change the colour palette: "Rainbow Desaturated" is a good choice in general.
 
 NUMBER FORMAT
-Paraview uses printf formats: e.g. %6.3f
+Paraview uses printf formats: e.g. %6.3f (standard) or %2.0e (scientific notation)
 %#f always prints decimal point (usually don't want that!).
 
 TRANSFORM DATA
