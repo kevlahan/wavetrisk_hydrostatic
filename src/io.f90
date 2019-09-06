@@ -969,7 +969,7 @@ contains
                 if (p_chd > 0) then
                    required(c) = check_child_required(grid(d), p_par, c-1)
                    grid(d)%patch%elts(p_chd+1)%deleted = .not. required(c) 
-                   if (required(c)) then
+                   if (required(c) .and. p_lev+1 <= size(grid(d)%lev(l+1)%elts)) then
                       p_lev = p_lev + 1
                       grid(d)%lev(l+1)%elts(p_lev) = p_chd ! ** grid modified **
                    end if
