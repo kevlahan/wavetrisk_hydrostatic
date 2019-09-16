@@ -13,9 +13,10 @@ Module test_case_mod
 
   ! Local variables
   integer                              :: npts_penal
-  real(8)                              :: beta, delta_I, delta_M, delta_S, delta_sm, f0, L_R, Rey
-  real(8)                              :: friction_coeff, max_depth, min_depth, scale, u_wbc
+  real(8)                              :: beta, delta_I, delta_M, delta_S, delta_sm, f0, L_R, Rey, Ro
+  real(8)                              :: friction_coeff, max_depth, min_depth, scale, tau, u_wbc
   logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) if true
+  logical                              :: drag
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -172,40 +173,34 @@ contains
   subroutine initialize_dt_viscosity 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
+    real(8) :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
+    real(8), parameter :: resolution = 4 ! number of points in Munk layer
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
-      
-    ! Diffusion constants
-    C_sclr = 1d-4    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_divu = 1d-4    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
-    
+
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
     dt_init = dt_cfl
 
     ! Permeability penalization parameter
     eta = dt_cfl
+      
+    ! Diffusion constants
+    C_visc = dt_cfl * beta * dx_min * resolution**3  ! to ensure that Munk layer is resolved with resolution cells
+    C_rotu = C_visc
+    C_divu = C_visc * 4
+    C_sclr = 0.0_8
 
+    ! Diffusion time scales
     tau_sclr = dt_cfl / C_sclr
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
-
-    if (Laplace_order_init == 0) then
-       visc_sclr = 0.0_8
-       visc_divu = 0.0_8
-       visc_rotu = 0.0_8
-    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
-    elseif (Laplace_order_init > 2) then
-       if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
-       stop
-    end if
-
+   
+    visc_sclr = dx_min**2 / tau_sclr
+    visc_rotu = dx_min**2 / tau_rotu
+    visc_divu = dx_min**2 / tau_divu
+   
     if (rank == 0) then
        write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
        write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
@@ -250,8 +245,8 @@ contains
     if (penalize) then
        call analytic_topography (dom, i, j, zlev, offs, dims, "penalize")
     else
-       penal_node(zlev)%data(d)%elts(id_i)                = 0.0_8
-       penal_edge(zlev)%data(d)%elts(EDGE*id+1:EDGE*id_i) = 0.0_8       
+       penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
+       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
     end if
   end subroutine set_penal
 
@@ -281,7 +276,7 @@ contains
        if (p%x > dx_min) then
           zmin = -radius * sin (35 * DEG)
           strip = 2*MATH_PI*radius / 40 ! width of land strip
-          width = 1.0 * dx_min
+          width = 2.0 * dx_min
        
           mask = (tanh ((p%y+strip/2)/width) - tanh ((p%y-strip/2)/width)) * &
                  (1.0_8+tanh ((p%z-zmin)/width)) * (1.0_8+tanh ((p%x-dx_min)/width)) / 8
@@ -345,39 +340,49 @@ contains
     read (fid,*) varname, iremap
     read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
-    read (fid,*) varname, perfect
     read (fid,*) varname, tol
-    read (fid,*) varname, optimize_grid
-    read (fid,*) varname, adapt_dt
     read (fid,*) varname, cfl_num
     read (fid,*) varname, timeint_type
-    read (fid,*) varname, press_save
-    read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
-    read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     read (fid,*) varname, alpha
+    read (fid,*) varname, drag
     close(fid)
 
     ! Always run with incompressible equations
     compressible = .false.
-        
+
+    press_save = 0.0_8
     allocate (pressure_save(1))
     pressure_save(1) = press_save
     call set_save_level
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
+    
+    Laplace_order_init = 1
     Laplace_order = Laplace_order_init
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
     implicit none
 
-    delta_M = (visc_rotu/beta)**(1.0_8/3.0_8) * METRE  ! Munk layer
-    Rey     = u_wbc * delta_I / visc_rotu              ! Reynolds number of western boundary current
+    delta_M = (visc_rotu/beta)**(1.0_8/3.0_8) * METRE ! Munk layer
+
+    if (drag) then
+       !friction_coeff =  1d-3                                 ! quadratic bottom friction coefficient (nemo)
+       friction_coeff =  beta*abs(max_depth) * delta_M/4
+       tau = abs(max_depth) / friction_coeff
+       !friction_coeff = abs(max_depth)/(110*DAY) * METRE/SECOND ! linear bottom friction coefficient (nemo is 4e-4 for depth = 4000m)
+    else
+       friction_coeff = 0.0_8
+    end if
+
+    delta_S = (friction_coeff/abs(max_depth))/beta * METRE ! Stommel layer (want delta_S = delta_M/4)
+    Rey     = u_wbc * delta_I / visc_rotu                  ! Reynolds number of western boundary current
+    Ro      = u_wbc / (delta_M*f0)                         ! Rossby number (based on boundary current)
     
      if (rank==0) then
        write (6,'(A)') &
@@ -402,38 +407,45 @@ contains
        write (6,'(A,L1)')     "adapt_trend          = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds   = ", default_thresholds
        write (6,'(A,L1)')     "perfect              = ", perfect
-       write (6,'(A,es11.4)') "tolerance            = ", tol
+       write (6,'(A,es10.4)') "tolerance            = ", tol
        write (6,'(A,i1)')     "optimize_grid        = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt             = ", adapt_dt
-       write (6,'(A,es11.4)') "cfl_num              = ", cfl_num
+       write (6,'(A,es10.4)') "cfl_num              = ", cfl_num
        write (6,'(a,a)')      "timeint_type         = ", trim (timeint_type)
-       write (6,'(A,es11.4)') "pressure_save [hPa]  = ", pressure_save(1)/100
+       write (6,'(A,es10.4)') "pressure_save [hPa]  = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse            = ", n_diffuse
-       write (6,'(A,es11.4)') "dt_write [d]         = ", dt_write/DAY
+       write (6,'(A,es10.4)') "dt_write [d]         = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY             = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance            = ", rebalance
-       write (6,'(A,es11.4)') "time_end [d]         = ", time_end/DAY
+       write (6,'(A,es10.4)') "time_end [d]         = ", time_end/DAY
        write (6,'(A,i6)')     "resume               = ", resume_init
+       write (6,'(A,L1)')     "bottom drag          = ", drag
         
        write (6,'(/,A)')      "STANDARD PARAMETERS"
-       write (6,'(A,es11.4)') "radius               = ", radius
-       write (6,'(A,es11.4)') "omega                = ", omega
-       write (6,'(A,es11.4)') "p_top [hPa]          = ", p_top/100
+       write (6,'(A,es10.4)') "radius          [km]     = ", radius / KM
+       write (6,'(A,es10.4)') "omega           [rad/s]  = ", omega
+       write (6,'(A,es10.4)') "ref density     [kg/m^3] = ", ref_density
+       write (6,'(A,es10.4)') "grav accel      [m/s^2]  = ", grav_accel
+       write (6,'(A,es10.4)') "wave speed      [m/s]    = ", wave_speed
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es11.4)') "eta                  = ", eta
-       write (6,'(A,es11.4)') "alpha                = ", alpha
-       write (6,'(A,es11.4)') "bottom friction      = ", friction_coeff
-       write (6,'(A,es11.4)') "min_depth            = ", abs (min_depth)
-       write (6,'(A,es11.4)') "max_depth            = ", abs (max_depth)
-       write (6,'(A,es11.4)') "beta at 30 deg       = ", beta
-       write (6,'(A,es11.4)') "L_R at 30 deg  [km]  = ", L_R / KM
-       write (6,'(A,es11.4)') "Inertial layer [km]  = ", delta_I / KM
-       write (6,'(A,es11.4)') "Munk layer     [km]  = ", delta_M / KM
-       write (6,'(A,es11.4)') "Stommel layer  [km]  = ", delta_S / KM
-       write (6,'(A,es11.4)') "submesoscale   [km]  = ", delta_sm / KM
-       write (6,'(A,es11.4)') "Reynolds number      = ", Rey 
+       write (6,'(A,es10.4)') "eta             [s]      = ", eta
+       write (6,'(A,es10.4)') "alpha                    = ", alpha
+       write (6,'(A,es10.4)') "bottom friction [m/s]    = ", friction_coeff
+       write (6,'(A,es10.4)') "friction decay  [d]      = ", tau / DAY
+       write (6,'(A,es10.4)') "min_depth       [m]      = ", abs (min_depth)
+       write (6,'(A,es10.4)') "max_depth       [m]      = ", abs (max_depth)
+       write (6,'(A,es10.4)') "f0 at 30 deg    [rad/s]  = ", f0
+       write (6,'(A,es10.4,/)') "beta at 30 deg  [rad/ms] = ", beta
+       write (6,'(A,es10.4)') "dx_min          [km]     = ", dx_min   / KM
+       write (6,'(A,es10.4)') "L_R at 30 deg   [km]     = ", L_R      / KM
+       write (6,'(A,es10.4)') "Inertial layer  [km]     = ", delta_I  / KM
+       write (6,'(A,es10.4)') "Munk layer      [km]     = ", delta_M  / KM
+       write (6,'(A,es10.4)') "Stommel layer   [km]     = ", delta_S  / KM
+       write (6,'(A,es10.4,/)') "submesoscale    [km]     = ", delta_sm / KM
+       write (6,'(A,es10.4)') "Rossby number            = ", Ro
+       write (6,'(A,es10.4)') "Reynolds number          = ", Rey 
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'

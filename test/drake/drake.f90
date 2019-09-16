@@ -19,30 +19,33 @@ program Drake
   call init_arch_mod 
   call init_comm_mpi_mod
 
+  ! Initialize 2D projection grid
+  call init_2d_grid
+
+  ! Read test case parameters
+  call read_test_case_parameters
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
-  scale          = 6.0_8                              ! scale factor for small planet (1/6 Earth radius)
+  scale          = 6                                  ! scale factor for small planet (1/6 Earth radius)
   radius         = 6371.229/scale   * KM              ! mean radius of the small planet
   grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
-  omega          = 7.29211d-5       * RAD/SECOND      ! Earth’s angular velocity (unscaled for small planet to keep constant Rossby radius)
+  omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
   p_top          = 0.0_8            * hPa             ! pressure at free surface
   ref_density    = 1027             * KG/METRE**3     ! reference density (seawater)
 
   ! Local test case parameters
-  min_depth      = -50  * METRE                 ! minimum allowed depth (must be negative)
-  max_depth      = -0.5 * KM                    ! maximum allowed depth (must be negative)
-  wave_speed     = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
-  !friction_coeff =  1d-3                        ! quadratic bottom friction coefficient (nemo)
-  friction_coeff = abs(max_depth)/(150*DAY) * METRE/SECOND ! linear bottom friction coefficient (nemo is 4e-4 for depth = 4000m) 
+  min_depth      = -50  * METRE                              ! minimum allowed depth (must be negative)
+  max_depth      = -0.5 * KM                                 ! maximum allowed depth (must be negative)
+  wave_speed     = sqrt (grav_accel*abs(max_depth))          ! inertia-gravity wave speed based on maximum allowed depth
 
   ! Characteristic scales
-  f0             = 2*omega * sin(30*DEG) * RAD/SECOND         ! representative Coriolis parameter
-  u_wbc          = 1                     * METRE/SECOND       ! western boundary current speed
-  beta           = f0 / radius           * RAD/(SECOND*METRE) ! beta parameter at 30 degrees latitude
-  L_R            = wave_speed / f0       * METRE              ! Rossby radius
-  delta_I        = sqrt (u_wbc/beta)     * METRE              ! inertial layer
-  delta_S        = friction_coeff/beta   * METRE              ! Stommel layer 
-  delta_sm       = u_wbc/f0              * METRE              ! barotropic submesoscale
+  f0             = 2*omega * sin(30*DEG)                * RAD/SECOND         ! representative Coriolis parameter
+  u_wbc          = 1                                    * METRE/SECOND       ! western boundary current speed
+  beta           = 2*omega*cos(30*DEG) / radius         * RAD/(SECOND*METRE) ! beta parameter at 30 degrees latitude
+  L_R            = wave_speed / f0                      * METRE              ! Rossby radius
+  delta_I        = sqrt (u_wbc/beta)                    * METRE              ! inertial layer
+  delta_sm       = u_wbc/f0                             * METRE              ! barotropic submesoscale
 
   ! Dimensional scaling
   Udim           = u_wbc                        ! velocity scale
@@ -54,12 +57,6 @@ program Drake
   N              = 1024                         ! size of lat-lon grid in 2D projection
   lon_lat_range  = (/2*MATH_PI, MATH_PI/)       ! region to save in 2D projection
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  ! Initialize 2D projection grid
-  call init_2d_grid
-
-  ! Read test case parameters
-  call read_test_case_parameters
 
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
@@ -387,6 +384,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   else
      drag_force = 0.0_8
   end if
+  drag_force = drag_force / (mass_e/ref_density)
   
   ! Permeability
   permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
