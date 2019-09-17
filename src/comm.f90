@@ -1001,16 +1001,13 @@ contains
           col_mass = col_mass + full_mass
        end do
        
-       ! Assumes levels are evenly spaced in z (ignores initial surface perturbations)
+       ! Measure relative change in mass
        do k = 1, zlevels
           if (compressible) then
              init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
              min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
           else
-             porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id_i)
-             porous_density = ref_density * porosity
-             init_mass = porous_density * abs (dom%topo%elts(id_i))/zlevels
-
+             init_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i)
              full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
              min_mass_loc = min (min_mass_loc, full_mass/init_mass)
           end if
