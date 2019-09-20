@@ -13,12 +13,13 @@ Module test_case_mod
 
   ! Local variables
   integer                              :: npts_penal
-  real(8)                              :: beta, delta_I, delta_M, delta_S, delta_sm, f0, L_R, Rey, Ro
-  real(8)                              :: friction_coeff, max_depth, min_depth, scale, tau, u_wbc
-  logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) if true
+  real(8)                              :: beta, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
+  real(8)                              :: friction_coeff, max_depth, min_depth, scale, tau, top_layer, u_wbc
+  logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) 
   logical                              :: drag
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
+    ! Initial perturbation to mean 
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
@@ -26,7 +27,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, porous_density, z
+    real (8)    :: dz, eta, porous_density, z
     type(Coord) :: x_i
     
     d    = dom%id+1
@@ -34,24 +35,17 @@ contains
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
 
-    ! Initial vertical grid size (uniform)
-    if (mean_split) then
-       dz = - dom%topo%elts(id_i) / zlevels
-    else
-       dz = (init_free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
-    end if
-    
-    ! Local z-coordinate (mid layer)
-    z = init_free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
+    eta = init_free_surface (x_i)
+    dz = a_vert_mass(zlev)*eta + b_vert_mass(zlev)*dom%topo%elts(id_i)
+    z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1))*eta + (b_vert(zlev)+b_vert(zlev-1))*dom%topo%elts(id_i))
 
     ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-    if (mean_split) then
-       sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) * ref_density
-    else
-       sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-    end if
+
+    sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+    if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = eta * porous_density
+
+    ! No density perturbations
     sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
     
     ! Set initial velocity field to zero
@@ -59,6 +53,7 @@ contains
   end subroutine init_sol
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
+    ! Initialize mean values
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
@@ -66,30 +61,29 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, porous_density, z
+    real (8)    :: dz, eta, porous_density, z
     type(Coord) :: x_i
     
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
+    x_i  = dom%node%elts(id_i)
 
-    if (mean_split) then
-       x_i  = dom%node%elts(id_i)
-       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-       dz = - dom%topo%elts(id_i) / zlevels
-       z = - (zlevels - zlev + 0.5_8) * dz
-       
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz ! add a small amount of noise to stabilize split case
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
-    else
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-    end if
-    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
+    eta = init_free_surface (x_i)
+    dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * dom%topo%elts(id_i)
+    z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1))*eta + (b_vert(zlev)+b_vert(zlev-1))*dom%topo%elts(id_i))
+
+    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+
+    sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+    sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
+
+    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_mean
-
+  
   real(8) function surf_geopot (x_i)
     ! Surface geopotential: postive if greater than mean seafloor
+    ! MUST BE SET EQUAL TO ZERO FOR THIS test case
     implicit none
     type(Coord) :: x_i
 
@@ -110,15 +104,11 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    real(8), parameter :: drho = 0.05_8
-
-    density = ref_density
-    
-    ! if (z > 0.8 * max_depth) then ! less dense fluid in upper layer
-    !    density = ref_density * (1.0_8 - drho)
-    ! else
-    !    density = ref_density
-    ! end if
+    if (z > top_layer) then ! less dense fluid in upper layer
+       density = ref_density + drho
+    else
+       density = ref_density
+    end if
   end function density
   
   subroutine set_thresholds
@@ -174,7 +164,7 @@ contains
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
     real(8) :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
-    real(8), parameter :: resolution = 4 ! number of points in Munk layer
+    real(8), parameter :: resolution = 6 ! number of points in Munk layer
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -187,10 +177,10 @@ contains
     eta = dt_cfl
       
     ! Diffusion constants
-    C_visc = dt_cfl * beta * dx_min * resolution**3  ! to ensure that Munk layer is resolved with resolution cells
+    C_visc = max (dt_cfl * beta * dx_min * resolution**3, 2d-3)  ! to ensure that Munk layer is resolved with resolution cells
     C_rotu = C_visc
-    C_divu = C_visc * 4
-    C_sclr = 0.0_8
+    C_divu = C_visc 
+    C_sclr = C_visc 
 
     ! Diffusion time scales
     tau_sclr = dt_cfl / C_sclr
@@ -544,31 +534,40 @@ contains
     implicit none
     
   end subroutine deallocate_diagnostics
-
+  
   subroutine set_save_level
-    ! Determines closest vertical level to desired height z
+    ! Save top layer
+    implicit none
+    real(8) :: save_height
+
+    save_zlev = zlevels
+    save_height = 0.0_8
+
+    if (rank==0) write (6,'(/,A,i2,A,es10.4,A,/)') "Saving vertical level ", save_zlev, &
+         " (approximate height = ", save_height, " [m])"
+  end subroutine set_save_level
+
+  subroutine initialize_a_b_vert
+    ! Initialize hybrid sigma-coordinate vertical grid
     implicit none
     integer :: k
-    real(8) :: dz, p, save_press, z
 
-    dz = abs (max_depth) / zlevels; save_zlev = 0
-    do k = 1, zlevels
-       z = (zlevels - k) * dz 
-       if (abs (z - pressure_save(1)) < dz) then
-          save_zlev = k
-          save_press = z
-          exit
-       end if
-    end do
-    if (rank==0) write (6,'(/,A,i2,A,es10.4,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate height = ", save_press, " [m])"
-  end subroutine set_save_level
-  
-  subroutine initialize_a_b_vert
-    implicit none
-
-    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
+    
+    if (zlevels == 2) then ! special two layer case
+       a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;               a_vert(2) = 1.0_8
+       b_vert(0) = 1.0_8; b_vert(1) = top_layer/max_depth; b_vert(2) = 0.0_8
+    else ! uniform sigma grid: z = a_vert*eta + b_vert*z_s
+       do k = 0, zlevels
+          a_vert(k) = dble(k)/dble(zlevels)
+          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
+       end do
+    end if
+    
+    ! Vertical grid spacing
+    a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
+    b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
   end subroutine initialize_a_b_vert
 
   subroutine dump (fid)

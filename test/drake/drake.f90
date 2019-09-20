@@ -3,6 +3,8 @@ program Drake
   ! (inspired by Ferreira, Marshall and Rose 2011, J Climate 24, 992-1012)
   !
   ! The permeability penalization parameter eta = dt_cfl and the porosity parameter alpha is set in the input file.
+  ! The initial condition has a 500 m thick less dense layer over a 1500 m thick reference density layer (only the upper
+  ! layer is included in the single vertical layer shallow water case).
   use main_mod
   use test_case_mod
   use io_mod  
@@ -32,30 +34,36 @@ program Drake
   grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
   omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
   p_top          = 0.0_8            * hPa             ! pressure at free surface
-  ref_density    = 1027             * KG/METRE**3     ! reference density (seawater)
+  ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
+  drho           =   -3             * KG/METRE**3     ! density difference in upper layer
 
   ! Local test case parameters
-  min_depth      = -50  * METRE                              ! minimum allowed depth (must be negative)
-  max_depth      = -0.5 * KM                                 ! maximum allowed depth (must be negative)
-  wave_speed     = sqrt (grav_accel*abs(max_depth))          ! inertia-gravity wave speed based on maximum allowed depth
+  min_depth      = -50 * METRE                        ! minimum allowed depth (must be negative)
+  if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
+     max_depth   =  -500 * METRE                     
+  else
+     max_depth   = -2000 * METRE
+  end if
+  top_layer      = -500 * METRE                       ! location of top (less dense) layer in two layer case
+  wave_speed     = sqrt (grav_accel*abs(max_depth))   ! inertia-gravity wave speed based on maximum allowed depth
 
   ! Characteristic scales
-  f0             = 2*omega * sin(30*DEG)                * RAD/SECOND         ! representative Coriolis parameter
-  u_wbc          = 1                                    * METRE/SECOND       ! western boundary current speed
-  beta           = 2*omega*cos(30*DEG) / radius         * RAD/(SECOND*METRE) ! beta parameter at 30 degrees latitude
-  L_R            = wave_speed / f0                      * METRE              ! Rossby radius
-  delta_I        = sqrt (u_wbc/beta)                    * METRE              ! inertial layer
-  delta_sm       = u_wbc/f0                             * METRE              ! barotropic submesoscale
+  f0             = 2*omega * sin(30*DEG)        * RAD/SECOND         ! representative Coriolis parameter
+  u_wbc          = 1                            * METRE/SECOND       ! western boundary current speed
+  beta           = 2*omega*cos(30*DEG) / radius * RAD/(SECOND*METRE) ! beta parameter at 30 degrees latitude
+  L_R            = wave_speed / f0              * METRE              ! Rossby radius
+  delta_I        = sqrt (u_wbc/beta)            * METRE              ! inertial layer
+  delta_sm       = u_wbc/f0                     * METRE              ! barotropic submesoscale
 
   ! Dimensional scaling
-  Udim           = u_wbc                        ! velocity scale
-  Ldim           = delta_I                      ! length scale 
-  Tdim           = Ldim/Udim                    ! time scale
-  Hdim           = abs (max_depth)              ! vertical length scale
+  Udim           = u_wbc                              ! velocity scale
+  Ldim           = delta_I                            ! length scale 
+  Tdim           = Ldim/Udim                          ! time scale
+  Hdim           = abs (max_depth)                    ! vertical length scale
 
   ! Parameters for 2D projection
-  N              = 1024                         ! size of lat-lon grid in 2D projection
-  lon_lat_range  = (/2*MATH_PI, MATH_PI/)       ! region to save in 2D projection
+  N              = 1024                               ! size of lat-lon grid in 2D projection
+  lon_lat_range  = (/2*MATH_PI, MATH_PI/)             ! region to save in 2D projection
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize variables

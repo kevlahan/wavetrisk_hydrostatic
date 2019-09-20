@@ -106,20 +106,22 @@ contains
        call update_array_bdry (wav_coeff(scalars(1):scalars(2),:), l+1, 93)
 
        ! Remap at level l (over-written if value available from restriction)
-       if (compressible) then
-          if (remapscalar_type == "0") then
-             call apply_onescale (remap0_scalars, l, z_null, 0, 1)
+       if (l >= level_start) then
+          if (compressible) then
+             if (remapscalar_type == "0") then
+                call apply_onescale (remap0_scalars, l, z_null, 0, 1)
+             else
+                call apply_onescale (remap_scalars, l, z_null, 0, 1)
+             end if
+             if (remapvelo_type == "0") then
+                call apply_onescale (remap0_velo, l, z_null, 0, 0)
+             else
+                call apply_onescale (remap_velo, l, z_null, 0, 0)
+             end if
           else
-             call apply_onescale (remap_scalars, l, z_null, 0, 1)
+             call apply_onescale (remap_scalars_incompressible, l, z_null, 0, 1)
+             call apply_onescale (remap_velo_incompressible,    l, z_null, 0, 0)
           end if
-          if (remapvelo_type == "0") then
-             call apply_onescale (remap0_velo, l, z_null, 0, 0)
-          else
-             call apply_onescale (remap_velo, l, z_null, 0, 0)
-          end if
-       else
-          call apply_onescale (remap_scalars_incompressible, l, z_null, 0, 1)
-          call apply_onescale (remap_velo_incompressible,    l, z_null, 0, 0)
        end if
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
@@ -230,6 +232,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
+    real(8)                        :: full_mass, porous_density, theta_mean
     real(8), dimension (1:zlevels) :: theta_new, theta_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
@@ -241,18 +244,27 @@ contains
        trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
     end do
     
-    call find_coordinates_incompressible (z_new, z_old, d, id_i)
+    call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
 
+    ! Full theta
     do k = 1, zlevels
-       theta_old(k) = sol(S_TEMP,k)%data(d)%elts(id_i) / sol(S_MASS,k)%data(d)%elts(id_i)
-       sol(S_MASS,k)%data(d)%elts(id_i) = ref_density * (z_new(k) - z_new(k-1)) ! New mass
+       theta_old(k) = (sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)) &
+                    / (sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i))
     end do
   
     call interp_scalar (zlevels, theta_new, z_new, theta_old, z_old)
 
-    ! Mass-weighted potential temperature
     do k = 1, zlevels
-       sol(S_TEMP,k)%data(d)%elts(id_i) = theta_new(k) * sol(S_MASS,k)%data(d)%elts(id_i)
+       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id_i))
+
+       ! New full mass 
+       full_mass = porous_density * (z_new(k) - z_new(k-1))
+
+       ! New perturbation mass
+       sol(S_MASS,k)%data(d)%elts(id_i) = full_mass - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+
+       ! New perturbation mass-weighted potential temperature
+       sol(S_TEMP,k)%data(d)%elts(id_i) = full_mass * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
   end subroutine remap_scalars_incompressible
 
@@ -276,10 +288,10 @@ contains
     id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
     id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
-    call find_coordinates_incompressible (z_new, z_old, d, id_i)
+    call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
     
     do e = 1, EDGE
-       call find_coordinates_incompressible (z_edge_new, z_edge_old, d, id_r(e))
+       call find_coordinates_incompressible (z_edge_new, z_edge_old, dom%topo%elts(id_i), d, id_r(e))
        z_edge_new = 0.5 * (z_new + z_edge_new)
        z_edge_old = 0.5 * (z_old + z_edge_old)
        
@@ -313,28 +325,28 @@ contains
     p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1) * p_old(zlevels)
   end subroutine find_coordinates
 
-  subroutine find_coordinates_incompressible (z_new, z_old, d, id_i)
-    ! Calculates old and new z coordinates
+  subroutine find_coordinates_incompressible (z_new, z_old, z_s, d, id_i)
+    ! Calculates old and new z hybrid sigma coordinates                                                                                                                                                                                                    
     implicit none
     integer                       :: d, id_i
+    real(8)                       :: z_s
     real(8), dimension(0:zlevels) :: z_new, z_old
 
     integer :: k
-    real(8) :: dz
+    real(8) :: eta, full_mass, porous_density
 
-    z_old(0) = 0.0_8
+    z_old(0) = z_s
     do k = 1, zlevels
-       z_old(k) = z_old(k-1) + trend(S_MASS,k)%data(d)%elts(id_i) / ref_density
+       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id_i))
+       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(id_i)
+       z_old(k) = z_old(k-1) + full_mass/porous_density
     end do
-    dz = z_old(zlevels) / zlevels
-
-    z_new(0) = 0.0_8
-    do k = 1, zlevels
-       z_new(k) = z_new(k-1) + dz
-    end do
+    eta = z_old(zlevels) ! coordinate of free surface                                                                                                                                                                                                      
+    ! New coordinates                                                               
+    z_new = a_vert * eta + b_vert * z_s
   end subroutine find_coordinates_incompressible
 
-   subroutine remap0_scalars (dom, i, j, z_null, offs, dims)
+  subroutine remap0_scalars (dom, i, j, z_null, offs, dims)
     ! Piecewise constant remapping of scalars
     type (Domain)                   :: dom
     integer                         :: i, j, z_null

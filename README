@@ -2,7 +2,9 @@
 A brief user's guide for WAVETRISK 1.0 2019-05-17 N. Kevlahan kevlahan@mcmaster.ca
 
 A dynamically adaptive wavelet experimental climate model that solves the multi-layer hydrostatic shallow water equations in
-Boussinesq form.  Both compressible (atmosphere) and incompressible (ocean) options are available.
+Boussinesq form.  Both compressible (atmosphere) and incompressible (ocean) options are available. The incompressible option
+allows for separation of mean and fluctuating solution variable components, realistic topography and for penalization of coastlines
+(see drake and tsunami test cases).
 
 **********************************************************************************************************************************
 TEST CASES
