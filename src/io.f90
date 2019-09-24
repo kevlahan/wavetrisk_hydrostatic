@@ -679,7 +679,9 @@ contains
     if (compressible) then
        outv(4) = dom%geopot%elts(id_i)/grav_accel
     else
-       outv(4) = -dom%topo%elts(id_i)
+       outv(4) = -dom%topo%elts(id_i) ! topography
+!!$       porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(1)%data(d)%elts(id_i)
+!!$       outv(4) = sol(S_MASS,1)%data(d)%elts(id_i) / (ref_density * porosity) ! perturbation to bottom layer
     end if
     
     if (compressible) then ! mass = ref_density*dz
@@ -690,8 +692,10 @@ contains
 
     if (compressible) then ! surface pressure
        outv(6) = dom%surf_press%elts(id_i)
-    else ! free surface perturbation
-       outv(6) = free_surface (dom, id_i)
+    else 
+       outv(6) = free_surface (dom, id_i) ! free surface perturbation
+!!$       porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(zlevels)%data(d)%elts(id_i)
+!!$       outv(6) = sol(S_MASS,zlevels)%data(d)%elts(id_i) / (ref_density * porosity) ! perturbation to top layer
     end if
 
     ! Vorticity at hexagon points

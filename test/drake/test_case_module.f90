@@ -177,7 +177,7 @@ contains
     eta = dt_cfl
       
     ! Diffusion constants
-    C_visc = max (dt_cfl * beta * dx_min * resolution**3, 2d-3)  ! to ensure that Munk layer is resolved with resolution cells
+    C_visc = max (dt_cfl * beta * dx_min * resolution**3, 2.5d-4)  ! to ensure that Munk layer is resolved with resolution cells
     C_rotu = C_visc
     C_divu = C_visc 
     C_sclr = C_visc 
