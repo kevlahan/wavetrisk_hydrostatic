@@ -63,7 +63,7 @@ contains
     implicit none
     type(Float_Field), dimension(1:zlevels), target :: scaling, wavelet
 
-    integer :: k, l, d, v
+    integer :: k, l, d
 
     do k = 1, zlevels
        do l = level_end-1, level_start-1, -1
@@ -170,7 +170,7 @@ contains
     type(Float_Field), dimension(1:zlevels), target :: scaling, wavelet
     integer, optional                               :: l_start0
 
-    integer :: l, d, k, l_start, v
+    integer :: l, d, k, l_start
 
     if (present(l_start0)) then
        l_start = l_start0
