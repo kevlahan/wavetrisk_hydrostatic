@@ -88,9 +88,9 @@ contains
        end if
 
        if (r == 1) then ! first process opens without append to delete old file if existing
-          open (unit=fid, file=trim(filename), recl=333333)
+          open (unit=fid, file=trim(filename), recl=333333, status='REPLACE')
        else
-          open (unit=fid, file=trim(filename), recl=333333, access='APPEND')
+          open (unit=fid, file=trim(filename), recl=333333, access='APPEND', status='OLD')
        end if
 
        call write_load_conn1 (fid)
@@ -149,9 +149,9 @@ contains
        write (var_file, '(I7)')  fid
        filename = trim(run_id)//'.'//var_file
        if (r == 1) then ! first process opens without append to delete old file if existing
-          open (unit=funit, file=filename)
+          open (unit=funit, file=filename, status='REPLACE')
        else
-          open (unit=funit, file=filename, access='APPEND')
+          open (unit=funit, file=filename, access='APPEND', status='OLD')
        end if
 
        if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .true.)

@@ -51,8 +51,8 @@ contains
     
     write (var_file, '(I7)')  fid
     filename = trim(run_id)//'.'//var_file
-    open (unit=funit, file=filename)
-    if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .False.)
+    open (unit=funit, file=filename, status='REPLACE')
+    if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .false.)
     call apply_onescale__int (out_rout, l, zlev, 0, 0, funit)
     close (funit)
   end subroutine write_level_mpi
@@ -69,7 +69,7 @@ contains
     fid = 599
 
     write (filename,'(A,A,I4.4)') trim (run_id), "_conn.", id
-    open (unit=fid, file=trim(filename))
+    open (unit=fid, file=trim(filename), status='REPLACE')
     call write_load_conn1 (fid)
     close (fid)
   end subroutine write_load_conn

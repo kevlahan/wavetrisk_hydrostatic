@@ -576,14 +576,14 @@ contains
 
     ! Save number of data points
     write (var_file, '(i2.2)') 00
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='WRITE')
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='WRITE', status='REPLACE')
     write (funit) Nstats_glo
     close (funit)
 
     ! Save zonal statistics (means and covariances)
     do v = 1, nvar_zonal
        write (var_file, '(i2)') v+10
-       open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE')
+       open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE', status='REPLACE')
        do k = zlevels,1,-1
           write (funit,'(2047(E15.6, 1X))') zonal_avg_glo(k,:,v)
        end do
@@ -592,19 +592,19 @@ contains
 
     ! Longitude values (dummy)
     write (var_file, '(i2)') 20
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE') 
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE', status='REPLACE') 
     write (funit,'(2047(E15.6, 1X))') bounds
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE') 
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE', status='REPLACE') 
     write (funit,'(2047(E15.6, 1X))') bounds - dbin/2
     close (funit)
 
     ! Non-dimensional pressure based vertical coordinates p_k/p_s
     write (var_file, '(i2)') 22
-    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE') 
+    open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE', status='REPLACE') 
     write (funit,'(2047(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/p_0 + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
     close (funit)
 
@@ -925,8 +925,8 @@ contains
        write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
        write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
 
-       open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE')
-       open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE')
+       open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE', status='REPLACE')
+       open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE', status='REPLACE')
 
        write (fid_no(d)) istep
        write (fid_no(d)) time
@@ -1018,8 +1018,8 @@ contains
        write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
        write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
 
-       open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ')
-       open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ')
+       open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ', status='OLD')
+       open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
 
        read (fid_no(d)) istep
        read (fid_no(d)) time
@@ -1145,7 +1145,7 @@ contains
     end if
 
     write (filename, '(A,I1)')  "grid_HR/J", level_start-1
-    open (unit=fid, file=filename)
+    open (unit=fid, file=filename, status='OLD')
 
     p = 1
     do d_HR = 1, N_ICOSAH_LOZENGE
@@ -1361,7 +1361,7 @@ contains
        end do
        if (rank == 0) then
           write (var_file, '(i7)') u
-          open(unit=50, file=trim(run_id)//'.'//var_file)
+          open(unit=50, file=trim(run_id)//'.'//var_file, status='REPLACE')
           write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
           write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
           close(50)

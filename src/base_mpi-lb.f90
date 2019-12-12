@@ -25,7 +25,7 @@ contains
     
     if (cp_idx >= 0 .and. n_process > 1) then
        if (rank == 0) write (6,'(A)') 'Rebalancing processor load'
-       open (unit=fid, file=trim(filename))
+       open (unit=fid, file=trim(filename), status='OLD')
        do d = 1, N_GLO_DOMAIN
           read (fid,*) vwgt(d), adj_line
        end do
