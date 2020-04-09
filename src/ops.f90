@@ -10,11 +10,14 @@ contains
     initialized = .true.
   end subroutine init_ops_mod
 
-  subroutine step1 (dq, q, dom, p, zlev)
+  subroutine step1 (dq, q, dom, p, zlev, itype)
+    ! itype = 0 is standard computation of all quantities
+    ! itype = 1 computes only scalar flux of pointer scalar
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: dq, q
-    type(Domain) :: dom
-    integer      :: p, zlev
+    integer                                                     :: itype, p
+    integer,                                           optional :: zlev
+    type(Domain)                                                :: dom
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), optional :: dq, q
 
     integer                      :: i, j, id,  n, e, s, w, ne, sw, v
     integer, dimension(0:N_BDRY) :: offs
@@ -23,12 +26,12 @@ contains
     real(8) :: u_prim_UP, u_dual_UP, u_prim_DG, u_prim_DG_S, u_prim_DG_W, u_dual_DG, u_prim_RT, u_dual_RT
     real(8) :: u_prim_UP_S, u_dual_UP_S, u_prim_DG_SW, u_dual_DG_SW, u_prim_RT_W, u_dual_RT_W
     real(8) :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_W_LORT, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
-    
+
     real(8), dimension(0:N_BDRY,scalars(1):scalars(2)) :: full
     real(8), dimension(1:EDGE)                         :: physics_flux
 
     logical :: S_bdry, W_bdry
-    
+
     interface
        function physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev, type)
          import
@@ -169,25 +172,13 @@ contains
        call comput
     end if
   contains
-    subroutine comput
+    subroutine comput 
       ! Computes physical quantities during upward integration
       implicit none
-      integer                                          :: idE, idN, idNE, idS, idSW, idW
-      integer                                          :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i
-      real(8)                                          :: circ_LORT, circ_UPLT, Phi_k
-      real(8)                                          :: u_prim_UP_E, u_prim_RT_N
-      real(8), dimension(scalars(1):scalars(2))        :: physics_source
-      type (Coord), dimension(6)                       :: hex_nodes
-      
-      interface
-         function physics_scalar_source (q, id, zlev)
-           import
-           implicit none
-           real(8), dimension(scalars(1):scalars(2))            :: physics_scalar_source
-           integer                                              :: id, zlev
-           type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-         end function physics_scalar_source
-      end interface
+      integer :: idE, idN, idNE, idS, idSW, idW
+      integer :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i
+      real(8) :: circ_LORT, circ_UPLT, Phi_k
+      real(8) :: u_prim_UP_E, u_prim_RT_N
 
       d = dom%id + 1
 
@@ -205,97 +196,111 @@ contains
       idS_i  = idS+1
       idW_i  = idW+1
 
-      do v = scalars(1), scalars(2)
-         full(0:NORTHEAST,v) = q(v,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE/)+1) &
-                      + sol_mean(v,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE/)+1)
-      end do
+      if (itype == 1) then ! scalar gradient flux         
+         h_flux(EDGE*id+RT+1) = (scalar(idE_i) - scalar(id_i))   / dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+         h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) / dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+         h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+      elseif (itype == 2) then ! flux for depth integrated external pressure gradient
+         h_flux(EDGE*id+RT+1) = grav_accel * abs(interp (dom%topo%elts(id_i), dom%topo%elts(idE_i))) * &
+              (scalar(idE_i) - scalar(id_i))   / dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) 
 
-      u_prim_RT    = velo(EDGE*id  +RT+1) * dom%len%elts(EDGE*id  +RT+1)
-      u_prim_RT_N  = velo(EDGE*idN +RT+1) * dom%len%elts(EDGE*idN +RT+1)
-      u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
-      u_prim_DG    = velo(EDGE*id  +DG+1) * dom%len%elts(EDGE*id  +DG+1)
-      u_prim_DG_S  = velo(EDGE*idS +DG+1) * dom%len%elts(EDGE*idS +DG+1)
-      u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-      u_prim_DG_W  = velo(EDGE*idW +DG+1) * dom%len%elts(EDGE*idW +DG+1)
-      u_prim_UP    = velo(EDGE*id  +UP+1) * dom%len%elts(EDGE*id  +UP+1)
-      u_prim_UP_E  = velo(EDGE*idE +UP+1) * dom%len%elts(EDGE*idE +UP+1)
-      u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
+         h_flux(EDGE*id+DG+1) = grav_accel * abs(interp (dom%topo%elts(id_i), dom%topo%elts(idNE_i))) * &
+              (scalar(id_i)  - scalar(idNE_i)) / dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1) 
 
-      u_dual_RT    = velo(EDGE*id  +RT+1) * dom%pedlen%elts(EDGE*id  +RT+1)
-      u_dual_RT_W  = velo(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
-      u_dual_DG_SW = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
-      u_dual_DG    = velo(EDGE*id  +DG+1) * dom%pedlen%elts(EDGE*id  +DG+1)
-      u_dual_UP    = velo(EDGE*id  +UP+1) * dom%pedlen%elts(EDGE*id  +UP+1)
-      u_dual_UP_S  = velo(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
+         h_flux(EDGE*id+UP+1) = grav_accel * abs(interp (dom%topo%elts(id_i), dom%topo%elts(idN_i))) * &
+              (scalar(idN_i) - scalar(id_i))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+      elseif (itype == 3) then ! external pressure gradient
+         h_flux(EDGE*id+RT+1) = -grav_accel * (scalar(idE_i) - scalar(id_i))   / dom%len%elts(EDGE*id+RT+1) 
+         h_flux(EDGE*id+DG+1) = -grav_accel * (scalar(id_i)  - scalar(idNE_i)) / dom%len%elts(EDGE*id+DG+1) 
+         h_flux(EDGE*id+UP+1) = -grav_accel * (scalar(idN_i) - scalar(id_i))   / dom%len%elts(EDGE*id+UP+1) 
+      elseif (itype == 0) then ! standard 
+         do v = scalars(1), scalars(2)
+            full(0:NORTHEAST,v) = q(v,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE/)+1) &
+                 + sol_mean(v,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE/)+1)
+         end do
 
-      ! Potential vorticity
-      circ_LORT   =   u_prim_RT   + u_prim_UP_E + u_prim_DG 
-      circ_UPLT   = -(u_prim_DG   + u_prim_UP   + u_prim_RT_N)
-      circ_W_LORT =   u_prim_RT_W + u_prim_UP   + u_prim_DG_W
-      circ_S_UPLT = -(u_prim_RT   + u_prim_DG_S + u_prim_UP_S)
+         u_dual_RT = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+         u_dual_DG = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+         u_dual_UP = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+         u_dual_RT_W  = velo(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
+         u_dual_DG_SW = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
+         u_dual_UP_S  = velo(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
 
-      pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT) / &
-           (full(0,S_MASS)         * dom%areas%elts(id_i)%part(1) + &
-            full(EAST,S_MASS)      * dom%areas%elts(idE_i)%part(3) + &
-            full(NORTHEAST,S_MASS) * dom%areas%elts(idNE_i)%part(5))
+         u_prim_RT    = velo(EDGE*id  +RT+1) * dom%len%elts(EDGE*id  +RT+1)
+         u_prim_RT_N  = velo(EDGE*idN +RT+1) * dom%len%elts(EDGE*idN +RT+1)
+         u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
+         u_prim_DG    = velo(EDGE*id  +DG+1) * dom%len%elts(EDGE*id  +DG+1)
+         u_prim_DG_S  = velo(EDGE*idS +DG+1) * dom%len%elts(EDGE*idS +DG+1)
+         u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
+         u_prim_DG_W  = velo(EDGE*idW +DG+1) * dom%len%elts(EDGE*idW +DG+1)
+         u_prim_UP    = velo(EDGE*id  +UP+1) * dom%len%elts(EDGE*id  +UP+1)
+         u_prim_UP_E  = velo(EDGE*idE +UP+1) * dom%len%elts(EDGE*idE +UP+1)
+         u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
 
-      pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT) / &
-           (full(0,S_MASS)         * dom%areas%elts(id_i)%part(2) + &
-            full(NORTHEAST,S_MASS) * dom%areas%elts(idNE_i)%part(4) + &
-            full(NORTH,S_MASS)     * dom%areas%elts(idN_i)%part(6))
+         ! Potential vorticity
+         circ_LORT   =   u_prim_RT   + u_prim_UP_E + u_prim_DG 
+         circ_UPLT   = -(u_prim_DG   + u_prim_UP   + u_prim_RT_N)
+         circ_W_LORT =   u_prim_RT_W + u_prim_UP   + u_prim_DG_W
+         circ_S_UPLT = -(u_prim_RT   + u_prim_DG_S + u_prim_UP_S)
 
-      pv_W_LORT = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_W_LORT) /  &
-           (full(WEST,S_MASS)  * dom%areas%elts(idW_i)%part(1) + &
-            full(0,S_MASS)     * dom%areas%elts(id_i)%part(3) + &
-            full(NORTH,S_MASS) * dom%areas%elts(idN_i)%part(5))
+         pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT) / &
+              (full(0,S_MASS)         * dom%areas%elts(id_i)%part(1) + &
+              full(EAST,S_MASS)      * dom%areas%elts(idE_i)%part(3) + &
+              full(NORTHEAST,S_MASS) * dom%areas%elts(idNE_i)%part(5))
 
-      pv_S_UPLT = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_S_UPLT) / &
-           (full(SOUTH,S_MASS)  * dom%areas%elts(idS_i)%part(2) + &
-            full(EAST,S_MASS)   * dom%areas%elts(idE_i)%part(4) + &
-            full(0,S_MASS)      * dom%areas%elts(id_i)%part(6))
+         pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT) / &
+              (full(0,S_MASS)         * dom%areas%elts(id_i)%part(2) + &
+              full(NORTHEAST,S_MASS) * dom%areas%elts(idNE_i)%part(4) + &
+              full(NORTH,S_MASS)     * dom%areas%elts(idN_i)%part(6))
 
-      qe(EDGE*id+RT+1) = interp (pv_S_UPLT, pv_LORT)
-      qe(EDGE*id+DG+1) = interp (pv_UPLT,   pv_LORT)
-      qe(EDGE*id+UP+1) = interp (pv_UPLT,   pv_W_LORT)
+         pv_W_LORT = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_W_LORT) /  &
+              (full(WEST,S_MASS)  * dom%areas%elts(idW_i)%part(1) + &
+              full(0,S_MASS)     * dom%areas%elts(id_i)%part(3) + &
+              full(NORTH,S_MASS) * dom%areas%elts(idN_i)%part(5))
 
-      ! Vorticity (for velocity diffusion)
-      vort(TRIAG*id+LORT+1) = circ_LORT / dom%triarea%elts(TRIAG*id+LORT+1) 
-      vort(TRIAG*id+UPLT+1) = circ_UPLT / dom%triarea%elts(TRIAG*id+UPLT+1)
+         pv_S_UPLT = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_S_UPLT) / &
+              (full(SOUTH,S_MASS)  * dom%areas%elts(idS_i)%part(2) + &
+              full(EAST,S_MASS)   * dom%areas%elts(idE_i)%part(4) + &
+              full(0,S_MASS)      * dom%areas%elts(id_i)%part(6))
 
-      ! Velocity divergence (for velocity diffusion)
-      if (Laplace_order /= 0) &
-           divu(id_i) = (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
+         qe(EDGE*id+RT+1) = interp (pv_S_UPLT, pv_LORT)
+         qe(EDGE*id+DG+1) = interp (pv_UPLT,   pv_LORT)
+         qe(EDGE*id+UP+1) = interp (pv_UPLT,   pv_W_LORT)
 
-      ! Kinetic energy (TRiSK formula) 
-      ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
-                  u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-           * dom%areas%elts(id_i)%hex_inv/4
+         ! Vorticity (for velocity diffusion)
+         vort(TRIAG*id+LORT+1) = circ_LORT / dom%triarea%elts(TRIAG*id+LORT+1) 
+         vort(TRIAG*id+UPLT+1) = circ_UPLT / dom%triarea%elts(TRIAG*id+UPLT+1)
 
-      ! Interpolate geopotential from interfaces to level
-      Phi_k = interp (dom%geopot%elts(id_i), dom%geopot_lower%elts(id_i))
+         ! Velocity divergence (for velocity diffusion)
+         if (Laplace_order /= 0) &
+              divu(id_i) = (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
 
-      ! Bernoulli function
-      if (compressible) then 
-         bernoulli(id_i) = ke(id_i) + Phi_k
-      else
-         bernoulli(id_i) = ke(id_i) + Phi_k + dom%press%elts(id_i) / (ref_density * porosity (d, id_i, zlev))
+         ! Kinetic energy (TRiSK formula) 
+         ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
+                     u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+              * dom%areas%elts(id_i)%hex_inv/4
+
+         ! Interpolate geopotential from interfaces to level
+         Phi_k = interp (dom%geopot%elts(id_i), dom%geopot_lower%elts(id_i))
+
+         ! Bernoulli function
+         if (compressible) then 
+            bernoulli(id_i) = ke(id_i) + Phi_k
+         else
+            bernoulli(id_i) = ke(id_i) + Phi_k + dom%press%elts(id_i) / (ref_density * phi_node (d, id_i, zlev))
+         end if
+
+         ! Exner function in incompressible case from geopotential
+         if (.not. compressible) exner(id_i) = -Phi_k
+
+         do v = scalars(1), scalars(2)
+            physics_flux = physics_scalar_flux (q(:,1:zlevels), dom, id, idE, idNE, idN, v, zlev)
+
+            horiz_flux(v)%data(d)%elts(EDGE*id+RT+1) = u_dual_RT * interp (full(0,v), full(EAST,v))      + physics_flux(RT+1)
+            horiz_flux(v)%data(d)%elts(EDGE*id+DG+1) = u_dual_DG * interp (full(0,v), full(NORTHEAST,v)) + physics_flux(DG+1)
+            horiz_flux(v)%data(d)%elts(EDGE*id+UP+1) = u_dual_UP * interp (full(0,v), full(NORTH,v))     + physics_flux(UP+1)
+         end do
       end if
-
-      ! Exner function in incompressible case from geopotential
-      if (.not. compressible) exner(id_i) = -Phi_k
-
-      ! Mass and temperature fluxes
-      physics_source = physics_scalar_source (q, id, zlev)
-
-      do v = scalars(1), scalars(2)
-         physics_flux = physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev)
-
-         horiz_flux(v)%data(d)%elts(EDGE*id+RT+1) = u_dual_RT * interp (full(0,v), full(EAST,v))      + physics_flux(RT+1)
-         horiz_flux(v)%data(d)%elts(EDGE*id+DG+1) = u_dual_DG * interp (full(0,v), full(NORTHEAST,v)) + physics_flux(DG+1)
-         horiz_flux(v)%data(d)%elts(EDGE*id+UP+1) = u_dual_UP * interp (full(0,v), full(NORTH,v))     + physics_flux(UP+1)
-
-         dq(v,zlev)%data(d)%elts(id+1) = physics_source(v)
-      end do
     end subroutine comput
 
     subroutine comp_SW
@@ -315,47 +320,69 @@ contains
       idSW_i = idSW+1
       idS_i  = idS+1
 
-      do v = scalars(1), scalars(2)
-         full(0:SOUTHWEST,v) = q(v,zlev)%data(d)%elts((/id,id,id,idS,idW,id,id,idSW/)+1) &
-                      + sol_mean(v,zlev)%data(d)%elts((/id,id,id,idS,idW,id,id,idSW/)+1)
-      end do
+      if (itype == 1) then ! scalar gradient flux
+         h_flux(EDGE*idW+RT+1)  = -(scalar(idW_i) - scalar(id_i))   / dom%len%elts(EDGE*idW+RT+1)  &
+              * dom%pedlen%elts(EDGE*idW+RT+1)
+         h_flux(EDGE*idSW+DG+1) = -(scalar(id_i)  - scalar(idSW_i)) / dom%len%elts(EDGE*idSW+DG+1) &
+              * dom%pedlen%elts(EDGE*idSW+DG+1)
+         h_flux(EDGE*idS+UP+1)  = -(scalar(idS_i) - scalar(id_i))   / dom%len%elts(EDGE*idS+UP+1)  &
+              * dom%pedlen%elts(EDGE*idS+UP+1)
+      elseif (itype == 2) then ! external pressure gradient flux, g*depth * grad(eta) * edge_length
+         h_flux(EDGE*idW+RT+1) = - grav_accel * abs(interp (dom%topo%elts(id_i), dom%topo%elts(idW_i))) * &
+              (scalar(idW_i) - scalar(id_i))/dom%len%elts(EDGE*idW+RT+1) * dom%pedlen%elts(EDGE*idW+RT+1)
+         
+         h_flux(EDGE*idSW+DG+1) = - grav_accel * abs(interp (dom%topo%elts(id_i), dom%topo%elts(idSW_i))) * &
+              (scalar(id_i)  - scalar(idSW_i))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) 
 
-      u_prim_RT_SW = velo(EDGE*idSW+RT+1) * dom%len%elts(EDGE*idSW+RT+1)
-      u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
-      u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-      u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
-      u_prim_UP_SW = velo(EDGE*idSW+UP+1) * dom%len%elts(EDGE*idSW+UP+1)   
+         h_flux(EDGE*idS+UP+1) = - grav_accel * abs(interp (dom%topo%elts(id_i), dom%topo%elts(idS_i))) * &
+              (scalar(idS_i) - scalar(id_i))/dom%len%elts(EDGE*idS+UP+1) * dom%pedlen%elts(EDGE*idS+UP+1)
+      elseif (itype == 3) then ! external pressure gradient
+         h_flux(EDGE*idW+RT+1)  = grav_accel * (scalar(idW_i) - scalar(id_i))   / dom%len%elts(EDGE*idW+RT+1) 
+         h_flux(EDGE*idSW+DG+1) = grav_accel * (scalar(id_i)  - scalar(idSW_i)) / dom%len%elts(EDGE*idSW+DG+1) 
+         h_flux(EDGE*idS+UP+1)  = grav_accel * (scalar(idS_i) - scalar(id_i))   / dom%len%elts(EDGE*idS+UP+1) 
+      elseif (itype == 0) then ! standard
+         do v = scalars(1), scalars(2)
+            full(0:SOUTHWEST,v) = q(v,zlev)%data(d)%elts((/id,id,id,idS,idW,id,id,idSW/)+1) &
+                 + sol_mean(v,zlev)%data(d)%elts((/id,id,id,idS,idW,id,id,idSW/)+1)
+         end do
 
-      ! Potential vorticity
-      circ_SW_LORT =   u_prim_RT_SW + u_prim_UP_S  + u_prim_DG_SW
-      circ_SW_UPLT = -(u_prim_RT_W  + u_prim_DG_SW + u_prim_UP_SW)
+         u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
+         u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
+         u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
+         u_prim_RT_SW = velo(EDGE*idSW+RT+1) * dom%len%elts(EDGE*idSW+RT+1)
+         u_prim_UP_SW = velo(EDGE*idSW+UP+1) * dom%len%elts(EDGE*idSW+UP+1)
 
-      pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_SW_LORT) / &
-           (full(SOUTHWEST,S_MASS) * dom%areas%elts(idSW_i)%part(1) + &
-            full(SOUTH,S_MASS)     * dom%areas%elts(idS_i)%part(3) + &
-            full(0,S_MASS)         * dom%areas%elts(id_i)%part(5))
+         ! Potential vorticity
+         circ_SW_LORT =   u_prim_RT_SW + u_prim_UP_S  + u_prim_DG_SW
+         circ_SW_UPLT = -(u_prim_RT_W  + u_prim_DG_SW + u_prim_UP_SW)
 
-      pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_SW_UPLT) / &
-           (full(SOUTHWEST,S_MASS) * dom%areas%elts(idSW_i)%part(2) + &
-            full(0,S_MASS)         * dom%areas%elts(id_i)%part(4) + &
-            full(WEST,S_MASS)      * dom%areas%elts(idW_i)%part(6))
+         pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_SW_LORT) / &
+              (full(SOUTHWEST,S_MASS) * dom%areas%elts(idSW_i)%part(1) + &
+              full(SOUTH,S_MASS)     * dom%areas%elts(idS_i)%part(3) + &
+              full(0,S_MASS)         * dom%areas%elts(id_i)%part(5))
 
-      qe(EDGE*idW +RT+1) = interp (pv_W_LORT , pv_SW_UPLT)
-      qe(EDGE*idSW+DG+1) = interp (pv_SW_LORT, pv_SW_UPLT)
-      qe(EDGE*idS +UP+1) = interp (pv_SW_LORT, pv_S_UPLT)
+         pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_SW_UPLT) / &
+              (full(SOUTHWEST,S_MASS) * dom%areas%elts(idSW_i)%part(2) + &
+              full(0,S_MASS)         * dom%areas%elts(id_i)%part(4) + &
+              full(WEST,S_MASS)      * dom%areas%elts(idW_i)%part(6))
 
-      ! Vorticity (for velocity diffusion)
-      vort(TRIAG*idW+LORT+1) = circ_W_LORT / dom%triarea%elts(TRIAG*idW+LORT+1) 
-      vort(TRIAG*idS+UPLT+1) = circ_S_UPLT / dom%triarea%elts(TRIAG*idS+UPLT+1)
-      
-      ! Scalar fluxes
-       do v = scalars(1), scalars(2)
-         physics_flux = physics_scalar_flux (q, dom, id, idW, idSW, idS, v, zlev, .true.)
-          
-         horiz_flux(v)%data(d)%elts(EDGE*idW+RT+1)  = u_dual_RT_W  * interp (full(0,v), full(WEST,v))      + physics_flux(RT+1)
-         horiz_flux(v)%data(d)%elts(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (full(0,v), full(SOUTHWEST,v)) + physics_flux(DG+1)
-         horiz_flux(v)%data(d)%elts(EDGE*idS+UP+1)  = u_dual_UP_S  * interp (full(0,v), full(SOUTH,v))     + physics_flux(UP+1)
-      end do
+         qe(EDGE*idW +RT+1) = interp (pv_W_LORT , pv_SW_UPLT)
+         qe(EDGE*idSW+DG+1) = interp (pv_SW_LORT, pv_SW_UPLT)
+         qe(EDGE*idS +UP+1) = interp (pv_SW_LORT, pv_S_UPLT)
+
+         ! Vorticity (for velocity diffusion)
+         vort(TRIAG*idW+LORT+1) = circ_W_LORT / dom%triarea%elts(TRIAG*idW+LORT+1) 
+         vort(TRIAG*idS+UPLT+1) = circ_S_UPLT / dom%triarea%elts(TRIAG*idS+UPLT+1)
+
+         ! Scalar fluxes
+         do v = scalars(1), scalars(2)
+            physics_flux = physics_scalar_flux (q(:,1:zlevels), dom, id, idW, idSW, idS, v, zlev, .true.)
+
+            horiz_flux(v)%data(d)%elts(EDGE*idW+RT+1)  = u_dual_RT_W  * interp (full(0,v), full(WEST,v))      + physics_flux(RT+1)
+            horiz_flux(v)%data(d)%elts(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (full(0,v), full(SOUTHWEST,v)) + physics_flux(DG+1)
+            horiz_flux(v)%data(d)%elts(EDGE*idS+UP+1)  = u_dual_UP_S  * interp (full(0,v), full(SOUTH,v))     + physics_flux(UP+1)
+         end do
+      end if
     end subroutine comp_SW
   end subroutine step1
 
@@ -561,7 +588,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims) + dscalar(id_i) ! dscalar already contains any source terms
+       dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
     else
        dscalar(id_i) = 0.0_8
     end if
@@ -595,7 +622,7 @@ contains
     if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
        ! Calculate Q_perp
        Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
-       
+
        ! Calculate physics
        physics = physics_velo_source (dom, i, j, zlev, offs, dims)
 
@@ -625,15 +652,15 @@ contains
     real(8), dimension(0:NORTHEAST) :: full_mass, full_temp, theta
 
     id = idx (i, j, offs, dims)
-    
+
     if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
        idE  = idx (i+1, j,   offs, dims) 
        idN  = idx (i,   j+1, offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
 
-       full_mass(0:NORTHEAST) = mass((/id,idN,idE,id,id,idNE/)+1) + mean_m((/id,idN,idE,id,id,idNE/)+1)
-       full_temp(0:NORTHEAST) = temp((/id,idN,idE,id,id,idNE/)+1) + mean_t((/id,idN,idE,id,id,idNE/)+1)
-
+       full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+       full_temp(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
+       
        ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
        ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
        theta(0)         = full_temp(0)         / full_mass(0)
@@ -642,12 +669,9 @@ contains
        theta(NORTH)     = full_temp(NORTH)     / full_mass(NORTH)
 
        ! Interpolate potential temperature to edges
-       theta_e(RT+1) = interp (theta(0), theta(EAST))
-       theta_e(DG+1) = interp (theta(0), theta(NORTHEAST))
-       theta_e(UP+1) = interp (theta(0), theta(NORTH))
-
-       ! Incompressible: theta is normalized density perturbation, want theta_e = (rho0-rho)/rho0
-       if (.not. compressible) theta_e = 1.0_8 - theta_e
+       theta_e(RT+1) = interp (theta(0), theta(EAST))      
+       theta_e(DG+1) = interp (theta(0), theta(NORTHEAST)) 
+       theta_e(UP+1) = interp (theta(0), theta(NORTH))     
 
        ! Calculate gradients
        gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
@@ -859,29 +883,26 @@ contains
     implicit none
     ! Compute surface pressure and save in press_lower for upward integration
     ! Set geopotential to surface geopotential for upward integration
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
 
     integer :: d, k, mass_type, p
-
-    if (compressible) then
-       mass_type = S_MASS
-    else
-       mass_type = S_TEMP
-    end if
 
     call apply (set_surf_geopot, z_null)
 
     do d = 1, size(grid)
        grid(d)%surf_press%elts = 0.0_8
        do k = 1, zlevels
-          mass   => q(mass_type,k)%data(d)%elts
-          mean_m => sol_mean(mass_type,k)%data(d)%elts
+          mass   => q(S_MASS,k)%data(d)%elts
+          temp   => q(S_TEMP,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (column_mass, grid(d), p-1, k, 0, 1)
           end do
-          nullify (mass, mean_m)
+          nullify (mass, mean_m, mean_t, temp)
        end do
        grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + p_top
+
        grid(d)%press_lower%elts = grid(d)%surf_press%elts
     end do
   end subroutine cal_surf_press
@@ -895,12 +916,17 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: full_mass
+    real(8) :: full_mass, full_temp
 
     id_i = idx (i, j, offs, dims) + 1
-
-    full_mass = mass(id_i) + mean_m(id_i)
-    dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + full_mass
+     
+    if (compressible) then
+       dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
+    else
+       full_mass = mean_m(id_i) + mass(id_i)
+       full_temp = mean_t(id_i) + temp(id_i)
+       dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + (full_mass - full_temp)
+    end if
   end subroutine column_mass
 
   subroutine set_surf_geopot (dom, i, j, zlev, offs, dims)
@@ -946,13 +972,14 @@ contains
 
        dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*kappa*temp(id_i)*exner(id_i)/dom%press%elts(id_i)
     else ! incompressible case
-       full_mass = mass(id_i) + mean_m(id_i)
-       full_temp = temp(id_i) + mean_t(id_i)
+       full_mass = mean_m(id_i) + mass(id_i)
+       full_temp = mean_t(id_i) + temp(id_i)
 
-       p_upper = dom%press_lower%elts(id_i) - grav_accel*full_temp
+       p_upper = dom%press_lower%elts(id_i) - grav_accel * (full_mass - full_temp)
+
        dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
-
-       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*full_mass / (ref_density * porosity (d, id_i, zlev))
+       
+       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*full_mass / (ref_density * phi_node (d, id_i, zlev))
     end if
     dom%press_lower%elts(id_i) = p_upper
   end subroutine integrate_pressure_up
@@ -966,7 +993,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: full_mass, full_temp, p_upper
+    real(8) :: full_mass, p_upper
 
     id_i = idx (i, j, offs, dims) + 1
 
@@ -974,8 +1001,8 @@ contains
        full_mass = mass(id_i) + mean_m(id_i)
        p_upper = dom%press_lower%elts(id_i) - grav_accel * full_mass
     else ! Incompressible case
-       full_temp = temp(id_i) + mean_t(id_i)
-       p_upper = dom%press_lower%elts(id_i) - grav_accel * full_temp
+       full_mass = mass(id_i) + mean_m(id_i)
+       p_upper = dom%press_lower%elts(id_i) - grav_accel * (full_mass - temp(id_i))
     end if
     dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
     dom%press_lower%elts(id_i) = p_upper
@@ -1112,7 +1139,7 @@ contains
 
     ! Sum over 6 hexagon edges
     vel = Coord (0.0_8, 0.0_8, 0.0_8)
-    
+
     x_e = dom%midpt%elts(EDGE*id+RT+1)
     vel = vec_plus (vel, vec_scale (u_dual_RT,    vec_minus(x_e, x_i)))
 
@@ -1121,7 +1148,7 @@ contains
 
     x_e = dom%midpt%elts(EDGE*id+DG+1)
     vel = vec_plus (vel, vec_scale (u_dual_DG,    vec_minus(x_e, x_i)))
- 
+
     x_e = dom%midpt%elts(EDGE*idSW+DG+1)
     vel = vec_plus (vel, vec_scale (u_dual_DG_SW, vec_minus(x_e, x_i)))
 
@@ -1267,10 +1294,9 @@ contains
     curlv_e(UP+1) = (curl(TRIAG*idW+LORT+1) - curl(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
   end function curlv_e
 
-  function div (hflux, dom, i, j, offs, dims)
+  real(8) function div (hflux, dom, i, j, offs, dims)
     ! Divergence at nodes x_i given horizontal fluxes at edges x_e
     implicit none
-    real(8)                         :: div
     real(8), dimension(:), pointer  :: hflux
     type(Domain)                    :: dom
     integer                         :: i, j
@@ -1323,13 +1349,21 @@ contains
     divu(id_i) =  (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
   end subroutine cal_divu
 
-  real(8) function porosity (d, id_i, zlev)
-    ! Returns porosity at position given by (d, id_i, zlev)
+  real(8) function phi_node (d, id_i, zlev)
+    ! Returns porosity at node given by (d, id_i, zlev)
     implicit none
     integer :: d, id_i, zlev
 
-    porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i)
-  end function porosity
+    phi_node = 1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i)
+  end function phi_node
+
+  real(8) function phi_edge (d, id_e, zlev)
+    ! Returns porosity at edge given by (d, id_e, zlev)
+    implicit none
+    integer :: d, id_e, zlev
+
+    phi_edge = 1.0_8 + (alpha - 1.0_8) * penal_edge(zlev)%data(d)%elts(id_e)
+  end function phi_edge
 
   subroutine comp_offs3 (dom, p, offs, dims)
     implicit none

@@ -58,6 +58,9 @@ module shared_mod
   ! label for nodes whose flux can be obtained by restriction from fine level
   integer, parameter :: RESTRCT = 12
 
+  ! label for nodes where trend is uniformly accurate
+  integer, parameter :: TRND = 10
+
   ! label for adjacent zone nodes in either position (space) or scale
   integer, parameter :: ADJZONE = 8
 
@@ -156,6 +159,7 @@ module shared_mod
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
   integer :: min_level, max_level   ! minimum and maximum grid refinement levels in pseudo-horizontal directions
   integer :: zlevels                ! number of levels in vertical direction
+  integer :: zmax                   ! zmax=zlevels+1 for a separate free surface layer, zmax=zlevels otherwise
   integer :: save_levels            ! number of vertical levels to save
   integer :: level_start, level_end, level_save, optimize_grid
   
@@ -198,7 +202,8 @@ module shared_mod
   real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2 
   
   ! Simulation variables
-  integer                                       :: cp_idx, err_restart, ibin, iremap, istep, istep_cumul, iwrite, n_diffuse, nbins
+  integer                                       :: cp_idx, err_restart, ibin, implicit_fs, iremap, istep, istep_cumul
+  integer                                       :: iwrite, n_diffuse, nbins
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
@@ -223,7 +228,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, penalize, perfect, rebalance, remap, uniform
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, mode_split, penalize, perfect, rebalance, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -285,6 +290,8 @@ contains
     adapt_trend         = .false. ! adapt on trend (T) or on solution (F)
     compressible        = .true.  ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.  ! use default thresholds (T) or calculate dynamically (F)
+    implicit_fs         = 1       ! use implicit free surface (1) or rigid lid (0) when splitting barotropic free surface mode
+    mode_split          = .false. ! calculate barotropic free surface mode separately (T)
     perfect             = .false. ! use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
     rebalance           = .true.  ! rebalance computational load at each checkpoint if T
     remap               = .true.  ! remap Lagrangian coordinates (T) or no remapping (F)
@@ -295,15 +302,15 @@ contains
     ! these parameters are typically reset in the input file, but are needed for compilation
 
     ! Penalization parameters
-    alpha               = 1d-4          ! porosity
+    alpha               = 1d-1          ! porosity
     eta                 = 1d-2 * SECOND ! permeability
     
     cfl_num             = 1.0_8
     C_visc              = 1d-2
     level_save          = level_start
     Laplace_order_init  = 0 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
-    remapscalar_type    = "0" 
-    remapvelo_type      = "0"
+    remapscalar_type    = "PPR" 
+    remapvelo_type      = "PPR"
     timeint_type        = "RK45"
     iremap              = 1
     min_allowed_mass    = 1.0_8

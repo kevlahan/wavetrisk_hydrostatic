@@ -425,6 +425,16 @@ contains
     call update_bdry__finish1 (field, l_start, l_end)
   end subroutine update_bdry1
 
+  subroutine update_vector_bdry1 (field, l_start, l_end, flag)
+    implicit none
+    type(Float_Field), dimension(:) :: field
+    integer                         :: flag, l_start, l_end
+
+    call update_vector_bdry__start1  (field, l_start, l_end)
+    call deadlock_test (flag)
+    call update_vector_bdry__finish1 (field, l_start, l_end)
+  end subroutine update_vector_bdry1
+
   subroutine update_array_bdry1 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field), dimension(:,:) :: field
@@ -1191,6 +1201,7 @@ contains
     ! Time step
     if (adapt_dt) then
        call MPI_Allreduce (dt_loc, cpt_dt, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+       if (penalize .and. .not. mode_split) eta = dt_loc ! ensure stable penalization parameter
     else
        cpt_dt = dt_loc
     end if

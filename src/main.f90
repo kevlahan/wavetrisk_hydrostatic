@@ -37,6 +37,17 @@ contains
     character(255) :: command
     integer        :: k, d, v
 
+    ! Check validity of various parameter choices
+    if (compressible .and. mode_split) then
+       write (6,'(a)') "Cannot use mode splitting with compressible dynamics ... aborting"
+       call abort
+    end if
+
+    if (max_level < min_level) then
+       if (rank == 0) write (6,'(a)') "Max_level not >= min_level ... aborting"
+       call abort
+    end if
+
     if (resume >= 0) then
        cp_idx = resume
        call restart (set_thresholds, custom_load, run_id)
@@ -71,7 +82,7 @@ contains
        end if
 
        do while (level_end < max_level)
-          if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level', level_end, ' -> ', level_end+1
+          if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level ', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
@@ -88,7 +99,7 @@ contains
 
           ! Check whether there are any active nodes or edges at this scale
           n_active = 0
-          do k = 1, zlevels
+          do k = 1, zmax
              do d = 1, size(grid)
                 do v = scalars(1), scalars(2)
                    if (adapt_trend) then
@@ -179,23 +190,43 @@ contains
     end if
     if (aligned) idt = ialign - modulo (itime,ialign)
     dt = idt/time_mult ! Modify time step
-        
+
     ! Take time step
-    select case (timeint_type)
-    case ("RK33")
-       call RK33_opt (trend_ml, dt)
-    case ("RK34")
-       call RK34_opt (trend_ml, dt)
-    case ("RK45")
-       call RK45_opt (trend_ml, dt)
-    case ("RK4")
-       call RK4 (trend_ml, dt)
-    end select
+    if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
+       select case (timeint_type)
+       case ("Euler")
+          call Euler_split (sol, wav_coeff, dt)
+       case ("RK4")
+          call RK4_split (sol, wav_coeff, dt)
+       case default
+          if (rank == 0) &
+               write (6,'(a)') "Invalid timestepping choice ... only Euler and RK4 supported for free surface ... aborting"
+          call abort
+       end select
+    else
+       select case (timeint_type)
+       case ("Euler")
+          call Euler (sol, wav_coeff, trend_ml, dt)
+       case ("RK33")
+          call RK33_opt (sol, wav_coeff, trend_ml, dt)
+       case ("RK34")
+          call RK34_opt (sol, wav_coeff, trend_ml, dt)
+       case ("RK45")
+          call RK45_opt (sol, wav_coeff, trend_ml, dt)
+       case ("RK4")
+          call RK4 (sol, wav_coeff, trend_ml, dt)
+       case default
+          if (rank == 0) write (6,'(a)') "Invalid timestepping choice ... aborting"
+          call abort
+       end select
+    end if
 
     ! If necessary, remap vertical coordinates
     min_mass = cpt_min_mass ()
-    !if (remap .and. min_mass <= min_allowed_mass) call remap_vertical_coordinates
-    if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
+    if (remap .and. modulo (istep, iremap) == 0) then
+!!$       if (rank == 0) write (6,'(a)') "Remapping vertical coordinates ..."
+       call remap_vertical_coordinates
+    end if
     
     ! Add diffusion
     if (modulo (istep_cumul, n_diffuse) == 0 .and. Laplace_order_init /= 0) then
@@ -224,7 +255,7 @@ contains
     external     :: set_thresholds, custom_load
     character(*) :: run_id
 
-    integer :: ierror    
+    integer        :: ierror, l    
     character(255) :: cmd_archive, cmd_files, command
 
     if (rank == 0) then
@@ -301,7 +332,7 @@ contains
             '  dof = ', sum (n_active)
        write (6,'(A)') &
             '********************************************************** End Restart &
-            **********************************************************'
+            ***********************************************************'
     end if
   end subroutine restart
 
@@ -387,7 +418,7 @@ contains
     integer :: d, i, k, l, v, r
 
     ! Deallocate init_RK_mem allocations
-    do k = 1, zlevels
+    do k = 1, zmax
        do d = 1, n_domain(rank+1)
           do v = 1, N_VARIABLE
              deallocate (q1(v,k)%data(d)%elts)
@@ -439,7 +470,7 @@ contains
        deallocate (grid(d)%divu%elts)
        deallocate (grid(d)%topo%elts)
        deallocate (grid(d)%coriolis%elts)
-
+       
        deallocate (grid(d)%node%elts) 
        deallocate (grid(d)%bdry_patch%elts) 
        deallocate (grid(d)%patch%elts) 
@@ -475,15 +506,15 @@ contains
           deallocate (Laplacian_scalar(v)%data(d)%elts)
        end do
 
-       do k = 1, zlevels
+       do k = 1, zmax
           deallocate (penal_node(k)%data(d)%elts)
           deallocate (penal_edge(k)%data(d)%elts)
           deallocate (exner_fun(k)%data(d)%elts)
        end do
-       deallocate (exner_fun(zlevels+1)%data(d)%elts)
-       
+       deallocate (exner_fun(zmax+1)%data(d)%elts)
+
        do v = 1, N_VARIABLE
-          do k = 1, zlevels
+          do k = 1, zmax
              deallocate (sol(v,k)%data(d)%elts)
              deallocate (sol_mean(v,k)%data(d)%elts)
              deallocate (trend(v,k)%data(d)%elts)
@@ -499,20 +530,20 @@ contains
     deallocate (Laplacian_vector(S_DIVU)%data)
     deallocate (Laplacian_vector(S_ROTU)%data)
 
-    do k = 1, zlevels
+    do k = 1, zmax
        deallocate (penal_node(k)%data)
        deallocate (penal_edge(k)%data)
        deallocate (exner_fun(k)%data)
     end do
-    deallocate (exner_fun(zlevels+1)%data)
+    deallocate (exner_fun(zmax+1)%data)
     
     do v = scalars(1), scalars(2)
        deallocate (horiz_flux(v)%data)
        deallocate (Laplacian_scalar(v)%data)
     end do
-    
+
     do v = 1, N_VARIABLE
-       do k = 1, zlevels
+       do k = 1, zmax
           deallocate (sol(v,k)%data)
           deallocate (sol_mean(v,k)%data)
           deallocate (trend(v,k)%data)

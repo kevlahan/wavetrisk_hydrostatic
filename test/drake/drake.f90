@@ -35,8 +35,18 @@ program Drake
   omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
   p_top          = 0.0_8            * hPa             ! pressure at free surface
   ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
-  drho           =   -3             * KG/METRE**3     ! density difference in upper layer
+  drho           = -1               * KG/METRE**3     ! density difference in upper layer
 
+  ! Numerical method parameters
+  n_smooth           = 4                              ! number of grid points over which to smooth mask
+  resolution         = 4                              ! number of grid points resolving Munk layer
+  compressible       = .false.                        ! always run with incompressible equations
+  mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
+  remapscalar_type   = "2PPM"                         ! optimal remapping scheme
+  remapvelo_type     = "2PPM"                         ! optimal remapping scheme
+  Laplace_order_init = 1                              ! always run with Laplacian diffusion
+  Laplace_order = Laplace_order_init
+  
   ! Local test case parameters
   min_depth      = -50 * METRE                        ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
@@ -44,16 +54,21 @@ program Drake
   else
      max_depth   = -2000 * METRE
   end if
+  
   top_layer      = -500 * METRE                       ! location of top (less dense) layer in two layer case
-  wave_speed     = sqrt (grav_accel*abs(max_depth))   ! inertia-gravity wave speed based on maximum allowed depth
-
+  
   ! Characteristic scales
-  f0             = 2*omega * sin(30*DEG)        * RAD/SECOND         ! representative Coriolis parameter
-  u_wbc          = 1                            * METRE/SECOND       ! western boundary current speed
-  beta           = 2*omega*cos(30*DEG) / radius * RAD/(SECOND*METRE) ! beta parameter at 30 degrees latitude
-  L_R            = wave_speed / f0              * METRE              ! Rossby radius
-  delta_I        = sqrt (u_wbc/beta)            * METRE              ! inertial layer
-  delta_sm       = u_wbc/f0                     * METRE              ! barotropic submesoscale
+  wave_speed     = sqrt (grav_accel*abs(max_depth))                            ! inertia-gravity wave speed 
+  f0             = 2*omega*sin(30*DEG)          * RAD/SECOND                   ! representative Coriolis parameter
+  beta           = 2*omega*cos(30*DEG) / radius * RAD/(SECOND*METRE)           ! beta parameter at 30 degrees latitude
+  L_R            = wave_speed / f0              * METRE                        ! Rossby radius
+  bv             = sqrt (grav_accel/ref_density*abs(drho)/abs(top_layer))      ! Brunt-Vaisala frequency         
+  c1             = sqrt (bv**2*abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed 
+!!$  u_wbc          = 4                            * METRE/SECOND                 ! western boundary current (H = 1 km, top = 500 m)
+  u_wbc          = 2                            * METRE/SECOND                 ! western boundary current (H = 2 km, top = 500 m)
+!!$  u_wbc          = 1                            * METRE/SECOND                 ! western boundary current (H = 4 km, top = 1000 m)
+  delta_I        = sqrt (u_wbc/beta)            * METRE                        ! inertial layer
+  delta_sm       = u_wbc/f0                     * METRE                        ! barotropic submesoscale  
 
   ! Dimensional scaling
   Udim           = u_wbc                              ! velocity scale
@@ -342,6 +357,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                         :: d, id, id_i, idE, idN, idNE
+  real(8)                         :: r
   real(8), dimension(0:NORTHEAST) :: full_mass
   real(8), dimension(1:EDGE)      :: diffusion, drag_force, mass_e, permeability, stress, tau_wind, u_mag, wind_force
 
@@ -393,10 +409,27 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      drag_force = 0.0_8
   end if
   drag_force = drag_force / (mass_e/ref_density)
+
+  ! Internal wave drag to reduce oscillation amplitude (energy neutral)
+  if (zlevels == 2) then
+     r = friction_coeff / abs(max_depth)
+     if (zlev == 1) then
+        drag_force = drag_force - r * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+     elseif (zlev == 2) then
+        drag_force = drag_force - r * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+     end if
+  else
+     drag_force = 0.0_8
+  end if
   
   ! Permeability
-  permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
-
+  if (mode_split) then ! use implicit integration for penalization
+     permeability = 0.0_8 
+  else ! explicit 
+     permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+  end if
+!!$  permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+  
   ! Complete source term for velocity trend
   physics_velo_source = diffusion + permeability + drag_force + wind_force
 contains

@@ -164,7 +164,7 @@ contains
     call extend (dom%qe,      EDGE*num, 0.0_8)
     call extend (dom%vort,   TRIAG*num, 0.0_8)
     
-    do k = 1, zlevels
+    do k = 1, zmax
        call extend (penal_node(k)%data(d),      num, 0.0_8)
        call extend (penal_edge(k)%data(d), EDGE*num, 0.0_8)
        call extend (exner_fun(k)%data(d), num, 0.0_8)
@@ -177,7 +177,7 @@ contains
        call extend (wav_coeff(S_VELO,k)%data(d),       EDGE*num, 0.0_8)
        call extend (trend_wav_coeff(S_VELO,k)%data(d), EDGE*num, 0.0_8)
     end do
-    call extend (exner_fun(zlevels+1)%data(d), num, 0.0_8)
+    call extend (exner_fun(zmax+1)%data(d), num, 0.0_8)
     
     call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0.0_8)
     call extend (Laplacian_vector(S_ROTU)%data(d), EDGE*num, 0.0_8)
@@ -187,10 +187,10 @@ contains
     end do
     
     call extend (dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))
-    call extend (dom%I_u_wgt, EDGE*num, Iu_Wgt(0.0_8))
-    call extend (dom%R_F_wgt, num, RF_Wgt(0.0_8))
-    call extend (dom%mask_n, num, ZERO)
-    call extend (dom%mask_e, EDGE*num, ZERO)
+    call extend (dom%I_u_wgt,     EDGE*num, Iu_Wgt(0.0_8))
+    call extend (dom%R_F_wgt,          num, RF_Wgt(0.0_8))
+    call extend (dom%mask_n,           num, ZERO)
+    call extend (dom%mask_e,      EDGE*num, ZERO)
 
     call apply_interscale_to_patch3 (set_WT_wgts, dom, p, c, z_null, 0, 0)
     call apply_interscale_to_patch3 (set_RF_wgts, dom, p, c, z_null, 0, 0)

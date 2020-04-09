@@ -12,11 +12,11 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  integer                              :: npts_penal
-  real(8)                              :: beta, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
+  integer                              :: npts_penal, n_smooth
+  real(8)                              :: beta, bv, c1, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
   real(8)                              :: friction_coeff, max_depth, min_depth, scale, tau, top_layer, u_wbc
-  logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) 
-  logical                              :: drag
+  real(8)                              :: resolution
+  logical                              :: drag, mean_split
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Initial perturbation to mean 
@@ -27,27 +27,34 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta, porous_density, z
+    real (8)    :: dz, eta_surf, phi, porous_density, z
     type(Coord) :: x_i
     
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
-
-    eta = init_free_surface (x_i)
-    dz = a_vert_mass(zlev)*eta + b_vert_mass(zlev)*dom%topo%elts(id_i)
-    z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1))*eta + (b_vert(zlev)+b_vert(zlev-1))*dom%topo%elts(id_i))
-
-    ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
-    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-
-    sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-    if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = eta * porous_density
-
-    ! No density perturbations
-    sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
+    eta_surf = init_free_surface (x_i)
     
+    if (zlev == zlevels+1) then ! 2D barotropic mode
+       phi = 1.0_8 + (alpha - 1.0_8) * penal_node(zlevels)%data(d)%elts(id_i)
+       
+       sol(S_MASS,zlev)%data(d)%elts(id_i) = phi * eta_surf ! free surface perturbation
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+    else ! 3D layers
+       dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
+       z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
+       
+       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+       
+       if (zlev == zlevels) then
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta_surf
+       else
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+       end if
+       
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+    end if
     ! Set initial velocity field to zero
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
   end subroutine init_sol
@@ -61,23 +68,27 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta, porous_density, z
+    real (8)    :: dz, eta_surf, porous_density, z
     type(Coord) :: x_i
     
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
+    eta_surf  = init_free_surface (x_i)
 
-    eta = init_free_surface (x_i)
-    dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * dom%topo%elts(id_i)
-    z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1))*eta + (b_vert(zlev)+b_vert(zlev-1))*dom%topo%elts(id_i))
-
-    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-
-    sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-    sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
-
+    if (zlev == zlevels+1) then
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+    else
+       dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
+       z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
+    
+       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+    
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
+    end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_mean
   
@@ -98,27 +109,32 @@ contains
     init_free_surface = 0.0_8
   end function init_free_surface
 
-  real(8) function density (x_i, z)
-    ! Density profile
+  real(8) function buoyancy (x_i, zlev)
+    ! Buoyancy profile
+    ! buoyancy = (ref_density - density)/ref_density
     implicit none
-    real(8)     :: z
+    integer     :: zlev
     type(Coord) :: x_i
 
-    if (z > top_layer) then ! less dense fluid in upper layer
-       density = ref_density + drho
+    if (zlevels /= 2) then
+       buoyancy = 0.0_8
     else
-       density = ref_density
+       if (zlev == 2) then ! less dense fluid in upper layer
+          buoyancy = -drho/ref_density
+       else
+          buoyancy = 0.0_8
+       end if
     end if
-  end function density
-  
+  end function buoyancy
+
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                    :: k
-    real(8), dimension(1:N_VARIABLE,1:zlevels) :: threshold_new
-    character(3), parameter                    :: order = "inf"
+    integer                                 :: k
+    real(8), dimension(1:N_VARIABLE,1:zmax) :: threshold_new
+    character(3), parameter                 :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
@@ -128,12 +144,15 @@ contains
        else
           call cal_lnorm_sol (sol, order)
        end if
-       threshold_new = tol*lnorm
+       threshold_new = lnorm
        ! Correct for zero velocity case
-       do k = 1, zlevels
+       do k = 1, zmax
+          if (threshold_new(S_MASS,k) == 0.0_8) threshold_new(S_MASS,k) = 1d16
+          if (threshold_new(S_TEMP,k) == 0.0_8) threshold_new(S_TEMP,k) = 1d16 
           if (threshold_new(S_VELO,k) == 0.0_8) threshold_new(S_VELO,k) = 1d16 
        end do
     end if
+    threshold_new = tol * threshold_new
 
     if (istep >= 10) then
        threshold = 0.01*threshold_new + 0.99*threshold
@@ -145,16 +164,21 @@ contains
   subroutine initialize_thresholds
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
-    real(8) :: dz
+    integer :: k
+    real(8) :: dz, eta_surf
 
-    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
+    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
 
-    dz = Hdim/zlevels
+    eta_surf = 0.0_8
+    do k = 1, zlevels
+       dz = a_vert_mass(k) * eta_surf + b_vert_mass(k) * max_depth
+       lnorm(S_MASS,k) = ref_density*dz
+       lnorm(S_TEMP,k) = ref_density*dz
+       lnorm(S_VELO,k) = Udim
+    end do
 
-    lnorm(S_MASS,:) = ref_density * dz
-    lnorm(S_TEMP,:) = ref_density * dz
-    lnorm(S_VELO,:) = Udim
+    if (mode_split) lnorm(S_MASS,zlevels+1) = 0.5_8
     
     if (adapt_trend) lnorm = lnorm/Tdim
     threshold_def = tol * lnorm
@@ -164,20 +188,24 @@ contains
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
     real(8) :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
-    real(8), parameter :: resolution = 6 ! number of points in Munk layer
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
 
     ! CFL limit for time step
-    dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
+    if (mode_split) then ! geostrophic time scale
+       dt_cfl = cfl_num*dx_min/Udim 
+    else ! external wave time scale
+       dt_cfl = cfl_num*dx_min/(wave_speed + Udim) 
+    end if
     dt_init = dt_cfl
 
     ! Permeability penalization parameter
     eta = dt_cfl
       
     ! Diffusion constants
-    C_visc = max (dt_cfl * beta * dx_min * resolution**3, 2.5d-4)  ! to ensure that Munk layer is resolved with resolution cells
+    !C_visc = max (dt_cfl * beta * dx_min * resolution**3, 2.5d-4)  ! to ensure that Munk layer is resolved with resolution grid points
+    C_visc = dt_cfl * beta * dx_min * resolution**3 ! to ensure that Munk layer is resolved with "resolution" grid points
     C_rotu = C_visc
     C_divu = C_visc 
     C_sclr = C_visc 
@@ -201,20 +229,14 @@ contains
     end if
   end subroutine initialize_dt_viscosity
 
-   subroutine set_bathymetry (dom, i, j, z_null, offs, dims)
-    ! Set depth 
+  subroutine set_bathymetry (dom, i, j, z_null, offs, dims)
+    ! Set bathymetry
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, z_null
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_i
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    ! Set bathymetry
     call analytic_topography (dom, i, j, z_null, offs, dims, "bathymetry")
   end subroutine set_bathymetry
 
@@ -248,10 +270,9 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer            :: d, id, id_i, idW, idSW, idS
-    real(8)            :: mask, strip, width, zmin
-    logical, parameter :: smooth = .false.
-    type(Coord)        :: p
+    integer     :: d, id, id_i, idW, idSW, idS
+    real(8)     :: mask, strip, width, xmin, zmin
+    type(Coord) :: p
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -264,13 +285,14 @@ contains
        dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
     case ("penalize") ! Smoothed strip land mass
        if (p%x > dx_min) then
+          xmin = 2*n_smooth*dx_min
           zmin = -radius * sin (35 * DEG)
-          strip = 2*MATH_PI*radius / 40 ! width of land strip
-          width = 2.0 * dx_min
-       
+          strip = 2*MATH_PI*radius / 20 ! width of land strip
+          width = n_smooth * dx_min
+
           mask = (tanh ((p%y+strip/2)/width) - tanh ((p%y-strip/2)/width)) * &
-                 (1.0_8+tanh ((p%z-zmin)/width)) * (1.0_8+tanh ((p%x-dx_min)/width)) / 8
-          
+               (1.0_8+tanh ((p%z-zmin)/width)) * (1.0_8+tanh ((p%x-xmin)/width)) / 8
+
           penal_node(zlev)%data(d)%elts(id_i) = mask
           
           ! Set edges to same mask value as associated node
@@ -321,17 +343,18 @@ contains
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
+    read (fid,*) varname, mode_split
+    read (fid,*) varname, implicit_fs
     read (fid,*) varname, penalize
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, remap
-    read (fid,*) varname, remapscalar_type
-    read (fid,*) varname, remapvelo_type
     read (fid,*) varname, iremap
     read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
     read (fid,*) varname, tol
     read (fid,*) varname, cfl_num
+    read (fid,*) varname, adapt_dt
     read (fid,*) varname, timeint_type
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
@@ -341,9 +364,6 @@ contains
     read (fid,*) varname, drag
     close(fid)
 
-    ! Always run with incompressible equations
-    compressible = .false.
-
     press_save = 0.0_8
     allocate (pressure_save(1))
     pressure_save(1) = press_save
@@ -351,9 +371,6 @@ contains
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
-    
-    Laplace_order_init = 1
-    Laplace_order = Laplace_order_init
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
@@ -382,6 +399,8 @@ contains
        write (6,'(A,A)')      "test_case            = ", trim (test_case)
        write (6,'(A,A)')      "run_id               = ", trim (run_id)
        write (6,'(A,L1)')     "compressible         = ", compressible
+       write (6,'(A,L1)')     "mode_split           = ", mode_split
+       write (6,'(A,I1)')     "implicit_fs          = ", implicit_fs
        write (6,'(A,L1)')     "penalize             = ", penalize
        write (6,'(A,i3)')     "min_level            = ", min_level
        write (6,'(A,i3)')     "max_level            = ", max_level
@@ -413,29 +432,33 @@ contains
        write (6,'(A,L1)')     "bottom drag          = ", drag
         
        write (6,'(/,A)')      "STANDARD PARAMETERS"
-       write (6,'(A,es10.4)') "radius          [km]     = ", radius / KM
-       write (6,'(A,es10.4)') "omega           [rad/s]  = ", omega
-       write (6,'(A,es10.4)') "ref density     [kg/m^3] = ", ref_density
-       write (6,'(A,es10.4)') "grav accel      [m/s^2]  = ", grav_accel
-       write (6,'(A,es10.4)') "wave speed      [m/s]    = ", wave_speed
+       write (6,'(A,es10.4)') "radius             [km]     = ", radius / KM
+       write (6,'(A,es10.4)') "omega              [rad/s]  = ", omega
+       write (6,'(A,es10.4)') "ref density        [kg/m^3] = ", ref_density
+       write (6,'(A,es10.4)') "grav accel         [m/s^2]  = ", grav_accel
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es10.4)') "eta             [s]      = ", eta
-       write (6,'(A,es10.4)') "alpha                    = ", alpha
-       write (6,'(A,es10.4)') "bottom friction [m/s]    = ", friction_coeff
-       write (6,'(A,es10.4)') "friction decay  [d]      = ", tau / DAY
-       write (6,'(A,es10.4)') "min_depth       [m]      = ", abs (min_depth)
-       write (6,'(A,es10.4)') "max_depth       [m]      = ", abs (max_depth)
-       write (6,'(A,es10.4)') "f0 at 30 deg    [rad/s]  = ", f0
-       write (6,'(A,es10.4,/)') "beta at 30 deg  [rad/ms] = ", beta
-       write (6,'(A,es10.4)') "dx_min          [km]     = ", dx_min   / KM
-       write (6,'(A,es10.4)') "L_R at 30 deg   [km]     = ", L_R      / KM
-       write (6,'(A,es10.4)') "Inertial layer  [km]     = ", delta_I  / KM
-       write (6,'(A,es10.4)') "Munk layer      [km]     = ", delta_M  / KM
-       write (6,'(A,es10.4)') "Stommel layer   [km]     = ", delta_S  / KM
-       write (6,'(A,es10.4,/)') "submesoscale    [km]     = ", delta_sm / KM
-       write (6,'(A,es10.4)') "Rossby number            = ", Ro
-       write (6,'(A,es10.4)') "Reynolds number          = ", Rey 
+       write (6,'(A,es11.4)') "density difference [kg/m^3] = ", drho
+       write (6,'(A,es11.4)') "Brunt-Vaisala freq [1/s]    = ", bv
+       write (6,'(A,es11.4)') "c0 wave speed      [m/s]    = ", wave_speed
+       write (6,'(A,es11.4)') "c1 wave speed      [m/s]    = ", c1
+       write (6,'(A,es11.4)') "eta (permeability) [s]      = ", eta
+       write (6,'(A,es11.4)') "alpha (porosity)            = ", alpha
+       write (6,'(A,es11.4)') "bottom friction    [m/s]    = ", friction_coeff
+       write (6,'(A,es11.4)') "friction decay     [d]      = ", tau / DAY
+       write (6,'(A,es11.4)') "min_depth          [m]      = ", abs (min_depth)
+       write (6,'(A,es11.4)') "max_depth          [m]      = ", abs (max_depth)
+       write (6,'(A,es11.4)') "f0 at 30 deg       [rad/s]  = ", f0
+       write (6,'(A,es11.4,/)') "beta at 30 deg     [rad/ms] = ", beta
+       write (6,'(A,es11.4)') "dx_min             [km]     = ", dx_min   / KM
+       write (6,'(A,es11.4)') "L_R at 30 deg      [km]     = ", L_R      / KM
+       write (6,'(A,es11.4)') "Inertial layer     [km]     = ", delta_I  / KM
+       write (6,'(A,es11.4)') "Munk layer         [km]     = ", delta_M  / KM
+       write (6,'(A,es11.4)') "Stommel layer      [km]     = ", delta_S  / KM
+       write (6,'(A,es11.4,/)') "submesoscale       [km]     = ", delta_sm / KM
+       write (6,'(A,es11.4)') "Rossby number               = ", Ro
+       write (6,'(A,es11.4)') "Resolution of Munk layer    = ", resolution
+       write (6,'(A,es11.4)') "Reynolds number             = ", Rey 
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
@@ -457,9 +480,9 @@ contains
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
-            '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
-            ' temp tol = ', sum (threshold(S_TEMP,:))/zlevels, &
-            ' velo tol = ', sum (threshold(S_VELO,:))/zlevels, &
+            '  mass tol = ', threshold(S_MASS,zlevels), &
+            ' temp tol = ', threshold(S_TEMP,zlevels), &
+            ' velo tol = ', threshold(S_VELO,zlevels), &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' min rel mass = ', min_mass, &
@@ -467,9 +490,9 @@ contains
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
-       write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  &
-            time/HOUR, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
-            sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
+            write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/HOUR, dt, &
+                 threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
+                 level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
 
@@ -486,9 +509,9 @@ contains
     end do
 
     do l = level_start, level_end
-       do k = 1, zlevels
-          call apply_onescale (init_sol,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       do k = 1, zmax
           call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          call apply_onescale (init_sol,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
   end subroutine apply_initial_conditions
@@ -500,18 +523,20 @@ contains
     integer :: d, k, l, p
     
     do d = 1, size(grid)
-       do p = n_patch_old(d)+1, grid(d)%patch%length
+!!$       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches (causes memory leak?)
+       do p = 3, grid(d)%patch%length ! update all patches
           call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-          do k = 1, zlevels
+          do k = 1, zmax
              call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do
     end do
     call barrier
     
-    do k = 1, zlevels
+    do k = 1, zmax
        do d = 1, size(grid)
-          do p = n_patch_old(d)+1, grid(d)%patch%length
+!!$       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches (causes memory leak?)
+          do p = 3, grid(d)%patch%length ! update all patches
              call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do
@@ -556,7 +581,7 @@ contains
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
     
     if (zlevels == 2) then ! special two layer case
-       a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;               a_vert(2) = 1.0_8
+       a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;                    a_vert(2) = 1.0_8
        b_vert(0) = 1.0_8; b_vert(1) = top_layer/max_depth; b_vert(2) = 0.0_8
     else ! uniform sigma grid: z = a_vert*eta + b_vert*z_s
        do k = 0, zlevels

@@ -7,13 +7,13 @@ contains
     ! Calculates l norm of a float_field
     implicit none
 
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: scaling
-    character(*)                                                  :: order
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: scaling
+    character(*)                                              :: order
 
     integer :: k, l, v
 
     lnorm = 0.0_8
-    do k = 1, zlevels
+    do k = 1, zmax
        do l = level_start, level_end
           select case (order)
           case ("1")
@@ -163,13 +163,13 @@ contains
     ! Calculates l norm of a float_field
     implicit none
 
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: scaling
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: scaling
     character(*)                                                  :: order
 
     integer :: k, l, v
 
     lnorm = 0.0_8
-    do k = 1, zlevels
+    do k = 1, zmax
        do l = level_start, level_end
           select case (order)
           case ("1")

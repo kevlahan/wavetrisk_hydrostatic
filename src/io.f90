@@ -413,7 +413,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8), dimension(zlevels) :: p
+    real(8), dimension(1:zlevels) :: p
 
     d = dom%id + 1
     id = idx(i, j, offs, dims)
@@ -486,14 +486,13 @@ contains
           mass   => sol(S_MASS,k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
           temp   => sol(S_TEMP,k)%data(d)%elts
-          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
           velo   => sol(S_VELO,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
              call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
              call apply_onescale_to_patch (cal_zonal_avg,  grid(d), p-1, k, 0, 0)
           end do
-          nullify (mass, mean_m, temp, mean_t, velo)
+          nullify (mass, mean_m, temp, velo)
        end do
     end do
   end subroutine statistics
@@ -650,7 +649,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, idW, idSW, idS, k, outl
-    real(8)                       :: full_mass, full_temp, porosity, total_depth
+    real(8)                       :: full_mass, full_temp, total_depth, total_height
     real(4), dimension(N_VAR_OUT) :: outv
     real(8), dimension(2)         :: vel_latlon
 
@@ -664,24 +663,21 @@ contains
 
     full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
     full_temp = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
+
     if (compressible) then ! temperature in layer zlev
-       outv(1) = full_temp/full_mass * (dom%press%elts(id_i)/p_0)**kappa
-    else ! density in layer zlev
-       
-       outv(1) = full_temp/full_mass * ref_density
+       outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i) / full_mass * (dom%press%elts(id_i)/p_0)**kappa
+    else ! density perturbation
+       outv(1) = -ref_density * full_temp / full_mass
     end if
        
     ! Zonal and meridional velocities
     outv(2) = dom%u_zonal%elts(id_i)
     outv(3) = dom%v_merid%elts(id_i)
-
-    ! Geopotential height at level zlev
-    if (compressible) then
+    
+    if (compressible) then ! geopotential height at level zlev
        outv(4) = dom%geopot%elts(id_i)/grav_accel
-    else
-       outv(4) = -dom%topo%elts(id_i) ! topography
-!!$       porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(1)%data(d)%elts(id_i)
-!!$       outv(4) = sol(S_MASS,1)%data(d)%elts(id_i) / (ref_density * porosity) ! perturbation to bottom layer
+    else ! topography
+       outv(4) = -dom%topo%elts(id_i)
     end if
     
     if (compressible) then ! mass = ref_density*dz
@@ -692,14 +688,16 @@ contains
 
     if (compressible) then ! surface pressure
        outv(6) = dom%surf_press%elts(id_i)
-    else 
-       outv(6) = free_surface (dom, id_i) ! free surface perturbation
-!!$       porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(zlevels)%data(d)%elts(id_i)
-!!$       outv(6) = sol(S_MASS,zlevels)%data(d)%elts(id_i) / (ref_density * porosity) ! perturbation to top layer
+    else ! free surface perturbation
+       if (mode_split) then 
+          outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+       else
+          outv(6) = free_surface (dom, id_i, zlev) 
+       end if
     end if
 
     ! Vorticity at hexagon points
-    outv(7) =  dom%press_lower%elts(id_i)
+    outv(7) = dom%press_lower%elts(id_i)
 
     if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
        outl = nint(active_level%data(d)%elts(id_i))
@@ -718,22 +716,21 @@ contains
     end if
   end subroutine write_primal
 
-  real(8) function free_surface (dom, id_i)
+  real(8) function free_surface (dom, id_i, zlev)
     ! Computes free surface perturbations
     implicit none
     type(Domain) :: dom
-    integer      :: id_i
+    integer      :: id_i, zlev
     
     integer :: d, k
-    real(8) :: full_mass, porosity, total_depth
+    real(8) :: full_mass, total_depth
 
     d = dom%id + 1
 
     total_depth = 0.0_8
     do k = 1, zlevels
-       porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id_i)
        full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-       total_depth = total_depth + full_mass / (ref_density*porosity)
+       total_depth = total_depth + full_mass / (ref_density * phi_node (d, id_i, zlev))
     end do
     free_surface = (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i))*(total_depth + dom%topo%elts(id_i))
   end function free_surface
@@ -831,7 +828,7 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    do k = 1, zlevels
+    do k = 1, zmax
        do e = 1, EDGE
           write (fid,*) wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)
        end do
@@ -900,10 +897,10 @@ contains
     fid_no = id+1000000
     fid_gr = id+3000000
     
-    call update_array_bdry (wav_coeff(scalars(1):scalars(2),:), NONE, 20)
-    if (adapt_trend) call update_array_bdry (trend_wav_coeff(scalars(1):scalars(2),:), NONE, 20)
+    call update_array_bdry (wav_coeff(scalars(1):scalars(2),1:zmax), NONE, 20)
+    if (adapt_trend) call update_array_bdry (trend_wav_coeff(scalars(1):scalars(2),1:zmax), NONE, 20)
 
-    do k = 1, zlevels
+    do k = 1, zmax
        do d = 1, size(grid)
           do v = scalars(1), scalars(2)
              scalar => sol(v,k)%data(d)%elts
@@ -935,7 +932,7 @@ contains
 
        ! Write data at coarsest scale (scaling functions)
        p_par = 1
-       do k = 1, zlevels
+       do k = 1, zmax
           call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
@@ -958,7 +955,7 @@ contains
                 cycle ! No data to write
              end if
  
-            do k = 1, zlevels
+            do k = 1, zmax
                 do v = 1, N_VARIABLE
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -1027,7 +1024,7 @@ contains
        call custom_load (fid_no(d))
 
        p_par = 1
-       do k = 1, zlevels
+       do k = 1, zmax
           call apply_to_pole_d (read_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
@@ -1048,7 +1045,7 @@ contains
           old_n_patch = grid(d)%patch%length
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
-             do k = 1, zlevels
+             do k = 1, zmax
                 do v = 1, N_VARIABLE
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -1352,13 +1349,14 @@ contains
 
        ! Calculate vorticity at hexagon points (stored in press_lower)
        call apply_onescale (vort_triag_to_hex, l, z_null, 0, 1)
-
+       
        call write_level_mpi (write_primal, u+l, l, save_zlev, .true., run_id)
 
        do i = 1, N_VAR_OUT
           minv(i) = -sync_max_real (-minv(i))
           maxv(i) =  sync_max_real ( maxv(i))
        end do
+
        if (rank == 0) then
           write (var_file, '(i7)') u
           open(unit=50, file=trim(run_id)//'.'//var_file, status='REPLACE')

@@ -74,8 +74,9 @@ module domain_mod
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_mean, sol_save, trend
   type(Float_Field), dimension(:,:), allocatable, target :: wav_coeff, trend_wav_coeff
 
-  real(8), dimension(:), pointer :: mass, h_flux, h_mflux, dscalar, scalar, temp
-  real(8), dimension(:), pointer :: velo, dvelo
+  real(8), dimension(:), pointer :: diag, mass, mass1, h_flux, h_mflux
+  real(8), dimension(:), pointer :: dscalar, scalar, scalar_2d, temp, temp1
+  real(8), dimension(:), pointer :: velo, velo1, velo_2d, dvelo, dvelo_2d
   real(8), dimension(:), pointer :: mean_m, mean_t
   real(8), dimension(:), pointer :: Laplacian
   real(8), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
@@ -408,7 +409,7 @@ contains
     end do
   end subroutine apply_interscale_to_patch3
 
-  function ed_idx (i, j, ed, offs, dims)
+  integer function ed_idx (i, j, ed, offs, dims)
     ! Return edge index
     implicit none
     integer                        :: i, j
@@ -416,8 +417,6 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer                        :: ed_idx
-
     ed_idx = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
   end function ed_idx
 
@@ -684,6 +683,15 @@ contains
     end if
   end function idx
 
+  function idu (id)
+    ! Returns vector with the indices of the three edges associated to node id
+    implicit none
+    integer                    :: id
+    integer, dimension(1:EDGE) :: idu
+
+    idu = EDGE*id + 1 + (/ RT, DG, UP /)
+  end function idu
+
   integer function add_bdry_patch_Domain (self, side)
     implicit none
     type(Domain) :: self
@@ -904,7 +912,7 @@ contains
 
     call extend (self%node, num, ORIGIN)
 
-    do k = 1, zlevels
+    do k = 1, zmax
        do v = scalars(1), scalars(2)
           call extend (sol(v,k)%data(d),      num, 0.0_8)
           call extend (sol_mean(v,k)%data(d), num, 0.0_8)

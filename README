@@ -1,10 +1,10 @@
 **********************************************************************************************************************************
-A brief user's guide for WAVETRISK 1.0 2019-05-17 N. Kevlahan kevlahan@mcmaster.ca
+A brief user's guide for WAVETRISK 1.0 2020-03-26 N. Kevlahan kevlahan@mcmaster.ca
 
 A dynamically adaptive wavelet experimental climate model that solves the multi-layer hydrostatic shallow water equations in
 Boussinesq form.  Both compressible (atmosphere) and incompressible (ocean) options are available. The incompressible option
-allows for separation of mean and fluctuating solution variable components, realistic topography and for penalization of coastlines
-(see drake and tsunami test cases).
+allows for separation of mean and fluctuating mass, realistic topography and for penalization of coastlines
+(see drake and tsunami test cases) as well as 2D barotropic/ 3D baroclinic mode splitting.
 
 **********************************************************************************************************************************
 TEST CASES
@@ -74,6 +74,11 @@ incompressible case (i.e. buoyancy = grav_accel * (1 - theta)).
 
 S_VELO contains the three velocity components U, V, W at edges RT, DG and UP respectively (see below).
 
+HORIZONTAL COORDINATES
+
+Cartesian (x,y,z) coordinates are used with spherical geometry for lengths and areas on the sphere.  Since the equations are
+written in vector invariant form, there are no explicit metric terms.
+
 VERTICAL COORDINATES
 
 The zero level of the vertical coordinate is at mean sea level and vertical levels are always indexed starting at the lowest
@@ -86,10 +91,18 @@ perturbation is therefore H + H0.
 The vertical coordinates are Lagrangian (i.e. they move as material surfaces) with periodic remapping onto a target (e.g. initial
 grid).  A collection of different conservative piecewise remapping routines are available.
 
-HORIZONTAL COORDINATES
+BAROTROPIC - BARCOCLINIC MODE SPLITTING
 
-Cartesian (x,y,z) coordinates are used with spherical geometry for lengths and areas on the sphere.  Since the equations are
-written in vector invariant form, there are no explicit metric terms.
+Incompressible (i.e. ocean) simulations can be run with 2D barotropic - 3D baroclinic mode splitting to avoid the stability
+constraint of the fast external mode with speed c = sqrt(g H). Setting mode_split = .true. chooses mode splitting, which integrates
+the barotropic component implicitly in time on the slow geostrophic time scale.  The associated elliptic equation is solved using a
+simple multigrid scheme on the adaptive grid. The baroclinic and barotropic modes are coupled at
+each time step. If implicit_fs = 1, the barotropic part computes an implicit free surface; if implicit_fs = 0 a rigid lid is imposed.
+The CFL parameter is then based on the velocity, not the external wave speed.  The barotropic estimate of the location of the
+free surface is reconciled with the baroclinic estimate using layer dilation (Bleck and Smith 1990, J Geophys Res 95, 3273-3285).
+Layer dilation means that mass is not exactly conserved in each vertical layer, although it is conserved over all vertical layers.
+Mode splitting is suitable when the user is not interested in the evolution of the free surface, since it strongly diffuses free
+surface motion.
 
 GRID STRUCTURE
 
@@ -102,8 +115,9 @@ the five lozenge grid vertices at the bottom of the network. The network is orie
 South poles.
 
 The coarsest level Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1 with PATCH_LEVEL>=2. The geometry of this coarsest level may be optimized
-by reading in a Heikes & Randall (1995) grid of resolution Jmin-1 or using the Xu (2006) smoothing algorithm.  The size of patches
-is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then the patches are 4x4).  The larger PATCH_LEVEL is the fewer levels of tree
+by reading in a Heikes & Randall (1995) (optimize_grid = HR_GRID) grid of resolution Jmin-1 or using the Xu (2006) smoothing algorithm
+(optimize_grid = XU_GRID). If optmize_grid = NONE the coarsest grid is just the grid produced by bisecting the icosahedron the Jmin times.
+The size of patches is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then the patches are 4x4).  The larger PATCH_LEVEL is the fewer levels of tree
 structure must be traversed before reaching a uniform grid (which will in general contain inactive nodes).  Each computation patch
 element is made up of one node for scalars and three edges for vectors U, V,W (see also GRID ELEMENTS below).
 

@@ -6,7 +6,7 @@ contains
   subroutine trend_ml (q, dq)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
 
     integer :: k, l
 
@@ -37,7 +37,7 @@ contains
   subroutine basic_operators (q, dq, k, l)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
     integer :: k, l
 
     integer :: d, j, v
@@ -46,8 +46,8 @@ contains
     
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
-       mean_m    => sol_mean(S_MASS,k)%data(d)%elts
        temp      => q(S_TEMP,k)%data(d)%elts
+       mean_m    => sol_mean(S_MASS,k)%data(d)%elts
        mean_t    => sol_mean(S_TEMP,k)%data(d)%elts
        velo      => q(S_VELO,k)%data(d)%elts
        h_mflux   => horiz_flux(S_MASS)%data(d)%elts
@@ -61,22 +61,22 @@ contains
        ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case) etc
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-          call step1 (dq, q, grid(d), grid(d)%lev(l)%elts(j), k)
+          call step1 (dq, q, grid(d), grid(d)%lev(l)%elts(j), k, 0)
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
 
        ! Compute or restrict Bernoulli, Exner and fluxes
        if (l < level_end) then
+          call cpt_or_restr_Bernoulli_Exner (grid(d), l)
           do v = scalars(1), scalars(2)
              dscalar => dq(v,k)%data(d)%elts
              h_flux  => horiz_flux(v)%data(d)%elts
-             call cpt_or_restr_Bernoulli_Exner (grid(d), l)
              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dscalar (l+1)
              nullify (dscalar, h_flux)
           end do
        end if
 
-       nullify (mass, mean_m, velo, temp, mean_t, h_mflux, bernoulli, exner, divu, ke, qe, vort)
+       nullify (mass, mean_m, mean_t, velo, temp, h_mflux, bernoulli, exner, divu, ke, qe, vort)
     end do
     horiz_flux%bdry_uptodate = .false.
     if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
@@ -87,11 +87,11 @@ contains
   subroutine cal_scalar_trend (q, dq, k, l)
     ! Evaluate scalar trends at level l
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-    integer                                                      :: k, l
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+    integer                                                   :: k, l
 
     integer :: d, j, v
-
+    
     do d = 1, size(grid)
        do v = scalars(1), scalars(2)
           dscalar => dq(v,k)%data(d)%elts
@@ -108,7 +108,7 @@ contains
   subroutine velocity_trend_source (q, dq, k, l)
     ! Evaluate source part of velocity trends at level l
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
     integer :: k, l
 
     integer :: d, j
@@ -143,15 +143,15 @@ contains
   subroutine velocity_trend_grad (q, dq, k)
     ! Evaluate complete velocity trend by adding gradient terms to previously calculated source terms on entire grid
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-    integer                                                       :: k
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+    integer                                                   :: k
 
     integer :: d, j, p
     
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
-       mean_m    => sol_mean(S_MASS,k)%data(d)%elts
        temp      => q(S_TEMP,k)%data(d)%elts
+       mean_m    => sol_mean(S_MASS,k)%data(d)%elts
        mean_t    => sol_mean(S_TEMP,k)%data(d)%elts
        dvelo     => dq(S_VELO,k)%data(d)%elts
        exner     => exner_fun(k)%data(d)%elts
@@ -159,15 +159,15 @@ contains
        do p = 3, grid(d)%patch%length
           call apply_onescale_to_patch (du_grad, grid(d), p-1, k, 0, 0)
        end do
-       nullify (mass, mean_m, temp, mean_t, dvelo, exner, bernoulli)
+       nullify (mass, temp, mean_m, mean_t,dvelo, exner, bernoulli)
     end do
   end subroutine velocity_trend_grad
      
   subroutine second_order_Laplacian_scalar (q, k, l)
     ! Computes Laplacian(mass) and Laplacian(temp) needed for second order scalar Laplacian
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
-    integer                                                      :: k, l
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+    integer                                                   :: k, l
 
     integer :: d, j, v
 
@@ -188,8 +188,8 @@ contains
   subroutine second_order_Laplacian_vector (q, k, l)
     ! Computes rot(rot(vort)) needed for second order vector Laplacian
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
-    integer                                                      :: k, l
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+    integer                                                   :: k, l
 
     integer :: d, j
 
@@ -356,7 +356,7 @@ contains
       real(8), dimension(4) :: sm_flux
 
       if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) >= RESTRCT) &
-           sm_flux = interp_flux(h_flux, dom, i_chd, j_chd, offs_chd, dims_chd)
+           sm_flux = interp_flux (h_flux, dom, i_chd, j_chd, offs_chd, dims_chd)
 
       if (dom%mask_e%elts(EDGE*id_par+RT+1) >= RESTRCT) h_flux(EDGE*id_par+RT+1) = &
            complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, RT, offs_chd, dims_chd)
@@ -368,9 +368,8 @@ contains
            complete_coarse_flux (dscalar, h_flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
     end subroutine flux_restr
 
-    function complete_coarse_flux (dscalar, flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
+    real(8) function complete_coarse_flux (dscalar, flux, sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
       implicit none
-      real(8)                        :: complete_coarse_flux
       real(8), dimension(:), pointer :: dscalar, flux
       integer                        :: i_par, j_par, i_chd, j_chd
       integer, dimension(N_BDRY+1)    :: offs_chd
@@ -396,9 +395,8 @@ contains
       end if
     end function complete_coarse_flux
 
-    function coarse_flux (dscalar, dom, i_par, j_par, i_chd, j_chd, e)
+    real(8) function coarse_flux (dscalar, dom, i_par, j_par, i_chd, j_chd, e)
       implicit none
-      real(8)                        :: coarse_flux
       real(8), dimension(:), pointer :: dscalar
       integer                        :: i_par, j_par, i_chd, j_chd, e
 
@@ -507,9 +505,8 @@ contains
            dom%R_F_wgt%elts(idx(i-2, j+1, offs, dims)+1)%enc) ! LORT W
     end function interp_flux
 
-    function part_coarse_flux (dscalar, flux, dom, i, j, e, offs, dims)
+    real(8) function part_coarse_flux (dscalar, flux, dom, i, j, e, offs, dims)
       implicit none
-      real(8)                        :: part_coarse_flux
       real(8), dimension(:), pointer :: dscalar, flux
       integer                        :: i, j, e
       integer, dimension(N_BDRY+1)   :: offs

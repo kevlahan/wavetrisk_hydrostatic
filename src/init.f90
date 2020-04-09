@@ -20,17 +20,23 @@ contains
     implicit none
     integer :: b, d, i_, k, loz, p, s, v
 
+    if (mode_split) then ! separate free surface level at zlev = zlevels+1
+       zmax = zlevels+1
+    else
+       zmax = zlevels
+    end if
+
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(1:N_VARIABLE,1:zlevels), sol_mean(1:N_VARIABLE,1:zlevels))
-    allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zlevels))
-    allocate (wav_coeff(1:N_VARIABLE,1:zlevels), trend_wav_coeff(1:N_VARIABLE,1:zlevels))
-    allocate (exner_fun(1:zlevels+1))
-    allocate (penal_node(1:zlevels), penal_edge(1:zlevels))
+    allocate (sol(1:N_VARIABLE,1:zmax), sol_mean(1:N_VARIABLE,1:zmax))
+    allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zmax))
+    allocate (wav_coeff(1:N_VARIABLE,1:zmax), trend_wav_coeff(1:N_VARIABLE,1:zmax))
+    allocate (exner_fun(1:zmax+1))
+    allocate (penal_node(1:zmax), penal_edge(1:zmax))
     allocate (horiz_flux(scalars(1):scalars(2)), Laplacian_scalar(scalars(1):scalars(2)))
     allocate (Laplacian_vector(S_DIVU:S_ROTU))
-    allocate (lnorm(1:N_VARIABLE,1:zlevels))
+    allocate (lnorm(1:N_VARIABLE,1:zmax))
 
-    do k = 1, zlevels
+    do k = 1, zmax
        call init_Float_Field (penal_node(k), AT_NODE)
        call init_Float_Field (penal_edge(k), AT_EDGE)
        call init_Float_Field (exner_fun(k),  AT_NODE)
@@ -40,7 +46,7 @@ contains
           call init_Float_Field (trend(v,k),    POSIT(v))
        end do
     end do
-    call init_Float_Field (exner_fun(zlevels+1), AT_NODE)
+    call init_Float_Field (exner_fun(zmax+1), AT_NODE)
     
     do k = 1, save_levels
        do v = 1, N_VARIABLE
@@ -57,7 +63,8 @@ contains
 
     do d = 1, n_domain(rank+1)
        call init_Domain (grid(d))
-       do k = 1, zlevels
+
+       do k = 1, zmax
           do v = scalars(1), scalars(2)
              call init (sol(v,k)%data(d),      1)
              call init (sol_mean(v,k)%data(d), 1)
@@ -324,7 +331,7 @@ contains
     call apply_onescale (cpt_triarea, min_level-1, z_null, -1, 1)
     call apply_onescale (coriolis,    min_level-1, z_null, -1, 1)
 
-    do k = 1, zlevels
+    do k = 1, zmax
        do d = 1, size(grid)
           call init (penal_node(k)%data(d),      grid(d)%node%length)
           call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)
@@ -339,7 +346,7 @@ contains
     end do
 
     do d = 1, size(grid)
-       call init (exner_fun(zlevels+1)%data(d), grid(d)%node%length)
+       call init (exner_fun(zmax+1)%data(d), grid(d)%node%length)
     end do
 
     do d = 1, size(grid)

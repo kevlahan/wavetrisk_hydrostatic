@@ -24,6 +24,7 @@ contains
     external          :: set_thresholds
     logical, optional :: type
 
+    integer :: l
     logical :: local_type
 
     if (present(type)) then
@@ -54,6 +55,7 @@ contains
     
     integer :: k, l, d
     logical :: local_type
+
 
     ! Recalculate thresholds?
     if (present(type)) then
@@ -137,11 +139,11 @@ contains
   subroutine compress_wavelets (wav)
     ! Sets wavelets associated with inactive grid points to zero
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE, 1:zlevels), target :: wav
+    type(Float_Field), dimension(:,:), target :: wav
 
     integer :: d, k, l, v
     
-    do k = 1, zlevels
+    do k = 1, size(wav,2)
        do d = 1, size (grid)
           do l = level_start+1, level_end
              do v = scalars(1), scalars(2)
@@ -231,14 +233,14 @@ contains
     !    A) compute wavelets and perform backwards transform to conserve mass
     !    B) interpolate values onto adapted grid for next step
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, wav
-    integer, optional                                             :: l_start0
+    type(Float_Field), dimension(:,:), target :: q, wav
+    integer, optional                         :: l_start0
     
     integer :: d, j, k, l, l_start, v
 
     if (present(l_start0)) then
        l_start = l_start0
-       do k = 1, zlevels
+       do k = 1, size(q,2)
           do d = 1, size(grid)
              velo => q(S_VELO,k)%data(d)%elts
              call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
@@ -252,7 +254,7 @@ contains
     q%bdry_uptodate = .false.
     call update_array_bdry (q, NONE, 16)
 
-    do k = 1, zlevels
+    do k = 1, size(q,2)
        do l = l_start, level_end-1
           do d = 1, size(grid)
              do v = scalars(1), scalars(2)
@@ -273,7 +275,7 @@ contains
     call compress_wavelets (wav)
     call inverse_wavelet_transform (wav, q)
   end subroutine WT_after_step
-
+  
   logical function refine ()
     ! Determines where new patches are needed
     implicit none

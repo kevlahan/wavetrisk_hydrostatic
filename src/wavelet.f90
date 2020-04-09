@@ -7,11 +7,11 @@ contains
   subroutine forward_wavelet_transform (scaling, wavelet)
     ! Forward wavelet transform
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: scaling, wavelet
+    type(Float_Field), dimension(:,:), target :: scaling, wavelet
 
     integer :: k, l, d, v
 
-    do k = 1, zlevels
+    do k = 1, size(scaling,2)
        do l = level_end-1, level_start-1, -1
           ! Compute scalar wavelet coefficients
           call update_vector_bdry (scaling(scalars(1):scalars(2),k), l+1, 1)
@@ -61,11 +61,11 @@ contains
   subroutine forward_scalar_transform (scaling, wavelet)
     ! Forward scalar wavelet transform
     implicit none
-    type(Float_Field), dimension(1:zlevels), target :: scaling, wavelet
+    type(Float_Field), dimension(:), target :: scaling, wavelet
 
     integer :: k, l, d
 
-    do k = 1, zlevels
+    do k = 1, size(scaling)
        do l = level_end-1, level_start-1, -1
           ! Compute scalar wavelet coefficients
           call update_bdry (scaling(k), l+1, 61)
@@ -93,7 +93,7 @@ contains
   subroutine inverse_wavelet_transform (wavelet, scaling, l_start0)
     ! Inverse wavelet transform
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: scaling, wavelet
+    type(Float_Field), dimension(:,:), target :: scaling, wavelet
     integer, optional                                            :: l_start0
 
     integer :: l, d, k, l_start, v
@@ -109,7 +109,7 @@ contains
 
     scaling%bdry_uptodate = .false.
 
-    do k = 1, zlevels
+    do k = 1, size(scaling,2)
        do l = l_start, level_end-1
           ! Prolong scalars to finer nodes existing at coarser grid (undo lifting)
           do d = 1, size(grid)
@@ -167,8 +167,8 @@ contains
   subroutine inverse_scalar_transform (wavelet, scaling, l_start0)
     ! Inverse scalar wavelet transform
     implicit none
-    type(Float_Field), dimension(1:zlevels), target :: scaling, wavelet
-    integer, optional                               :: l_start0
+    type(Float_Field), dimension(:), target :: scaling, wavelet
+    integer, optional                       :: l_start0
 
     integer :: l, d, k, l_start
 
@@ -178,14 +178,14 @@ contains
        l_start = level_start
     end if
 
-    do k = 1, zlevels
+    do k = 1, size(scaling)
        call update_bdry1 (wavelet(k), level_start, level_end, 64)
        call update_bdry1 (scaling(k), l_start,     level_end, 65)
     end do
 
     scaling%bdry_uptodate = .false.
 
-    do k = 1, zlevels
+    do k = 1, size(scaling)
        do l = l_start, level_end-1
           ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
           do d = 1, size(grid)
@@ -533,7 +533,7 @@ contains
     implicit none
     integer :: d, i, k, num, v
 
-    do k = 1, zlevels
+    do k = 1, zmax
        do v = 1, N_VARIABLE
           call init_Float_Field (wav_coeff(v,k),       POSIT(v))
           call init_Float_Field (trend_wav_coeff(v,k), POSIT(v))
@@ -555,7 +555,7 @@ contains
           call init_RF_Wgt (grid(d)%R_F_wgt%elts(i), (/0.0_4, 0.0_4, 0.0_4/))
        end do
 
-       do k = 1, zlevels
+       do k = 1, zmax
           do v = scalars(1), scalars(2)
              call init (wav_coeff(v,k)%data(d), num)
              call init (trend_wav_coeff(v,k)%data(d), num)

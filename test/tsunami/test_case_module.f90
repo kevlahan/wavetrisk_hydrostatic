@@ -15,6 +15,7 @@ Module test_case_mod
   integer                              :: bathy_per_deg, etopo_res, npts_penal, npts_topo
   real(8)                              :: dH, lon_c, lat_c, max_depth, min_depth, pert_radius
   real(4), allocatable, dimension(:,:) :: topo_data
+  real(8), parameter                   :: theta0 = 0.01
   logical                              :: etopo_bathy, etopo_coast
   logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) if true
   type(Float_Field)                    :: arrival_time, max_wave_height
@@ -35,25 +36,34 @@ contains
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
 
-    ! Initial vertical grid size (uniform)
-    if (mean_split) then
-       dz = - dom%topo%elts(id_i) / zlevels
-    else
-       dz = (init_free_surface (x_i) - dom%topo%elts(id_i)) / zlevels
-    end if
+    ! Initial vertical grid size (sigma)
+    dz = abs(dom%topo%elts(id_i)) / zlevels
     
     ! Local z-coordinate (mid layer)
     z = init_free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
 
     ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-    if (mean_split) then
-       sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       if (zlev == zlevels) sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) * ref_density
-    else
-       sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+    
+    if (zlev == zlevels+1) then ! 2D barotropic mode
+       sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) ! free surface perturbation
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+    else ! 3D layers
+       if (mean_split) then
+          if (zlev == zlevels) then
+             sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) * ref_density
+          else
+             sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          end if
+       else
+          if (zlev == zlevels) then
+             sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * (dz + init_free_surface (x_i))
+          else
+             sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+          end if
+       end if
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = ref_density*dz * buoyancy (x_i, zlev)
     end if
-    sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
     
     ! Set initial velocity field to zero
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
@@ -80,8 +90,8 @@ contains
        dz = - dom%topo%elts(id_i) / zlevels
        z = - (zlevels - zlev + 0.5_8) * dz
        
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * (1.0_8 + 1d-10*rand(0)) * dz ! add a small amount of noise to stabilize split case
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * density (x_i, z)/ref_density
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz ! add a small amount of noise to stabilize split case
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8!sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
     else
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
@@ -112,31 +122,25 @@ contains
     init_free_surface = dH * exp__flush (-(rgrc/pert_radius)**2)
   end function init_free_surface
 
-  real(8) function density (x_i, z)
-    ! Density profile
+  real(8) function buoyancy (x_i, zlev)
+    ! Buoyancy profile
     implicit none
-    real(8)     :: z
+    integer     :: zlev
     type(Coord) :: x_i
 
-    real(8), parameter :: drho = 0.05_8
-
-    density = ref_density
-    
-    ! if (z > 0.8 * max_depth) then ! less dense fluid in upper layer
-    !    density = ref_density * (1.0_8 - drho)
-    ! else
-    !    density = ref_density
-    ! end if
-  end function density
+    real(8) :: lon, lat, rgrc
   
+    buoyancy = 0.0_8
+  end function buoyancy
+
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                    :: k
-    real(8), dimension(1:N_VARIABLE,1:zlevels) :: threshold_new
-    character(3), parameter                    :: order = "inf"
+    integer                                 :: k
+    real(8), dimension(1:N_VARIABLE,1:zmax) :: threshold_new
+    character(3), parameter                 :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
@@ -149,7 +153,9 @@ contains
        threshold_new = tol*lnorm
        ! Correct for zero velocity case
        do k = 1, zlevels
-          if (threshold_new(S_VELO,k) == 0.0_8) threshold_new(S_VELO,k) = 1d16 
+          if (threshold_new(S_MASS,k) == 0.0_8) threshold_new(S_MASS,k) = 1d16
+          if (threshold_new(S_TEMP,k) == 0.0_8) threshold_new(S_TEMP,k) = 1d16
+          if (threshold_new(S_VELO,k) == 0.0_8) threshold_new(S_VELO,k) = 1d16
        end do
     end if
 
@@ -165,8 +171,8 @@ contains
     implicit none
     real(8) :: dz
 
-    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
+    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
 
     dz = Hdim/zlevels
 
@@ -365,7 +371,7 @@ contains
 
              M_topo = topo_value (s, t, itype)
              topo_sum = topo_sum + wgt * M_topo
-             sw_topo  = sw_topo  + wgt
+             sw_topo  = sw_topo  + wgt_
           end do
        end do
        mask = topo_sum / sw_topo
@@ -492,6 +498,9 @@ contains
 
     ! Always run with incompressible equations
     compressible = .false.
+
+    ! Use explicit time stepping on baroclinic scale for accuracy
+    mode_split = .false.
         
     allocate (pressure_save(1))
     pressure_save(1) = press_save
@@ -595,9 +604,9 @@ contains
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i9,4(a,es9.2,1x))') &
             'time [h] = ', time/HOUR, &
             ' dt [s] = ', dt, &
-            '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
-            ' temp tol = ', sum (threshold(S_TEMP,:))/zlevels, &
-            ' velo tol = ', sum (threshold(S_VELO,:))/zlevels, &
+            '  mass tol = ', sum (threshold(S_MASS,:))/zmax, &
+            ' temp tol = ', minval (threshold(S_TEMP,1:zlevels)), &
+            ' velo tol = ', sum (threshold(S_VELO,1:zlevels))/zlevels, &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' min rel mass = ', min_mass, &
@@ -618,13 +627,13 @@ contains
     
     do l = level_start, level_end
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       do k = 1, zlevels
+       do k = 1, zmax
           call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
 
     do l = level_start, level_end
-       do k = 1, zlevels
+       do k = 1, zmax
           call apply_onescale (init_sol,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
           call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do

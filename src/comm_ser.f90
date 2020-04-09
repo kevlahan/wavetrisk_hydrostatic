@@ -95,6 +95,20 @@ contains
     call cp_bdry_inside(field)
   end subroutine update_bdry1
 
+  subroutine update_vector_bdry1 (field, l_start, l_end, flag)
+     implicit none
+     integer                         :: flag, l_start, l_end
+     type(Float_Field), dimension(:) :: field
+    
+    integer :: l, i1, sz
+
+    sz = size(field)
+
+    do i1 = 1, sz
+       call cp_bdry_inside (field(i1))
+    end do
+  end subroutine update_vector_bdry1
+
   subroutine update_array_bdry1 (field, l_start, l_end, flag)
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
@@ -144,7 +158,7 @@ contains
     implicit none
     type(Float_Field), dimension(:) :: field
     
-    integer :: flag, l, i1, i2, sz
+    integer :: flag, l, i1, sz
 
     sz = size(field)
 
@@ -246,6 +260,7 @@ contains
     end do
     n_active = (/ sum(n_active_nodes), sum(n_active_edges) /)
     cpt_dt = dt_loc
+    if (penalize .and. .not. mode_split) eta = dt_loc ! ensure stable penalization parameter
   end function cpt_dt
 
   real(8) function cpt_min_mass ()

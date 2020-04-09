@@ -1,17 +1,18 @@
 test_case          drake       ! name of test case
 run_id             drake       ! name of run (for saved data)
-penalize           T             ! penalize land regions 
+mode_split         T             ! split barotropic mode if true
+implicit_fs        1             ! implicit free surface (1), rigid lid (0)
+penalize           T             ! penalize land regions	
 max_level	   8             ! maximum level of resolution
 zlevels            1             ! number of vertical levels
 remap              F             ! remap vertical grid
-remapscalar_type   0             ! remap method for scalars  (0, 1, 2PPM, 2S, 2W, 4, PPR)
-remapvelo_type     0             ! remap method for velocity (0, 1, 2PPM, 2S, 2W, 4, PPR)
 iremap             10            ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 tol      	   1e-2          ! non-dimensional tolerance
 cfl_num            0.9           ! cfl number
-timeint_type       RK34          ! time integration method (RK33, RK34, RK45, RK4)
+adapt_dt           F             ! adapt time step
+timeint_type       RK4           ! time integration method (RK33, RK34, RK45, RK4)
 dt_write           10            ! save interval (days)
 CP_EVERY           2             ! checkpoint every CP_EVERY saves
 time_end           365           ! final time (days)

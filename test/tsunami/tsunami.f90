@@ -4,7 +4,8 @@ program Tsunami
   ! The permeability penalization parameter eta = dt_cfl and the porosity parameter alpha is set in the input file.
   use main_mod
   use test_case_mod
-  use io_mod  
+  use io_mod
+  use lin_solve_mod
   implicit none
   integer                                :: N
   integer, dimension(2)                  :: Nx, Ny
@@ -31,7 +32,7 @@ program Tsunami
   max_depth      = -6   * KM                    ! maximum allowed depth (must be negative)
 
   dH             =  7   * METRE                 ! initial perturbation to the free surface
-  pert_radius    =  100 * KM                    ! radius of Gaussian free surface perturbation
+  pert_radius    =  5e2 * KM                    ! radius of Gaussian free surface perturbation
   lon_c          = -50  * DEG                   ! longitude location of perturbation
   lat_c          =  25  * DEG                   ! latitude  location of perturbation
 
@@ -74,7 +75,6 @@ program Tsunami
 
      call update_diagnostics
      
-     call sum_total_mass (.false.)
      call print_log
 
      if (aligned) then

@@ -94,7 +94,7 @@ program Held_Suarez
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
      if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
-     call euler (trend_cooling, dt)
+     call euler (sol, wav_coeff, trend_cooling, dt)
      call stop_timing
 
      call sum_total_mass (.false.)

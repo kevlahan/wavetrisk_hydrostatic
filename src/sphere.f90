@@ -285,6 +285,18 @@ contains
     if (sum(self%part) /= 0.0_8) self%hex_inv = 1/sum (self%part)
   end subroutine init_Areas
 
+  real(8) function geodesic (x_i, lat, lon)
+    ! Returns geodesic (great circle) distance from point spherical coordinates (lat, lon) to point with index id_i
+    implicit none
+    type(Coord) :: x_i
+    real(8)     :: lat, lon
+
+    real(8) :: lat1, lon1
+
+    call cart2sph (x_i, lon1, lat1)
+    geodesic = radius * acos(sin(lat)*sin(lat1) + cos(lat)*cos(lat1)*cos(lon1-lon))
+  end function geodesic
+
   real(8) function proj_vel (vel_fun, ep1, ep2)
     ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
     ! given a function for zonal u and meridional v velocities as a function of longitude and latitude
@@ -292,8 +304,8 @@ contains
     external    :: vel_fun
     type(Coord) :: ep1, ep2
     
-    type(Coord)           :: co, e_zonal, e_merid, vel
-    real(8)               :: lon, lat, u_zonal, v_merid
+    type(Coord) :: co, e_zonal, e_merid, vel
+    real(8)     :: lon, lat, u_zonal, v_merid
 
     co = mid_pt(ep1, ep2)
 

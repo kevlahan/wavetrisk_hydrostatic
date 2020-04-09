@@ -965,7 +965,11 @@ contains
                 d_e = dom%len%elts(id_e) ! triangle edge length
                 do k = 1, zlevels
                    v_e = abs (sol(S_VELO,k)%data(d)%elts(id_e))
-                   dt_loc = min (dt_loc, cfl_num * d_e / (v_e + wave_speed))
+                   if (mode_split) then
+                      dt_loc = min (dt_loc, dt_init, cfl_num*d_e/v_e)
+                   else
+                      dt_loc = min (dt_loc, cfl_num*d_e/(v_e + wave_speed))
+                   end if
                 end do
              end if
           end if
@@ -982,8 +986,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_i, k, l
-    real(8) :: col_mass, d_e, fac, full_mass, init_mass, porosity, porous_density
+    integer :: d, e, id, id_e, id_i, k, l
+    real(8) :: col_mass, d_e, fac, full_mass, init_mass
 
     id   = idx (i, j, offs, dims)
     id_i = id + 1
@@ -1015,11 +1019,14 @@ contains
        
        ! Check diffusion stability
        do e = 1, EDGE
-          d_e = dom%len%elts(EDGE*id+e) ! triangle edge length
-          fac = dt/d_e**(2*Laplace_order)
-          beta_sclr_loc = max (beta_sclr_loc, maxval(visc_sclr) * fac)
-          beta_divu_loc = max (beta_divu_loc, visc_divu * fac)
-          beta_rotu_loc = max (beta_rotu_loc, visc_rotu * fac)
+          id_e = EDGE*id + e
+          if (dom%mask_e%elts(id_e) >= ADJZONE) then
+             d_e = dom%len%elts(id_e) ! triangle edge length
+             fac = dt/d_e**(2*Laplace_order)
+             beta_sclr_loc = max (beta_sclr_loc, maxval(visc_sclr) * fac)
+             beta_divu_loc = max (beta_divu_loc, visc_divu * fac)
+             beta_rotu_loc = max (beta_rotu_loc, visc_rotu * fac)
+          end if
        end do
     end if
   end subroutine cal_min_mass
