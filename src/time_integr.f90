@@ -354,8 +354,8 @@ contains
     ! Current baroclinic trend
     call trend_ml (q(:,1:zlevels), trend(:,1:zlevels))
 
-    ! Intermediate density step
-    call scalar_star (q)
+    ! Expicit Density step with flux based on current velocity
+    call scalar_update (q)
 
     ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
     call u_star (q)

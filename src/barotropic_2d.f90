@@ -34,24 +34,6 @@ contains
     end do
   end subroutine u_star
 
-  subroutine scalar_star (q)
-    ! Explicit Euler step for density
-    implicit none
-    type(Float_Field), dimension(:,:), target :: q
-
-    integer :: d, ibeg, iend, j, k, l, v
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = scalars(1), scalars(2)
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = sol(v,k)%data(d)%length
-             q(v,k)%data(d)%elts(ibeg:iend) = sol(v,k)%data(d)%elts(ibeg:iend) + dt1 * trend(v,k)%data(d)%elts(ibeg:iend)
-          end do
-       end do
-    end do
-  end subroutine scalar_star
-
   subroutine u_update (q)
     ! Explicit Euler velocity update with new external pressure gradient
     ! penalization is advanced using a backwards Euler scheme
@@ -70,10 +52,28 @@ contains
           ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
           iend = sol(S_VELO,k)%data(d)%length
           q(S_VELO,k)%data(d)%elts(ibeg:iend) = (q(S_VELO,k)%data(d)%elts(ibeg:iend) &
-               + dt1 * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) / (1.0_8 + dt1*penal_edge(k)%data(d)%elts(ibeg:iend)/eta)
+               + dt1 * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) !/ (1.0_8 + dt1*penal_edge(k)%data(d)%elts(ibeg:iend)/eta)
        end do
     end do
   end subroutine u_update
+
+  subroutine scalar_update (q)
+    ! Explicit Euler step for density
+    implicit none
+    type(Float_Field), dimension(:,:), target :: q
+
+    integer :: d, ibeg, iend, j, k, l, v
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = scalars(1), scalars(2)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+             iend = sol(v,k)%data(d)%length
+             q(v,k)%data(d)%elts(ibeg:iend) = sol(v,k)%data(d)%elts(ibeg:iend) + dt1 * trend(v,k)%data(d)%elts(ibeg:iend)
+          end do
+       end do
+    end do
+  end subroutine scalar_update
 
   subroutine eta_star (q)
     ! Explicit Euler step for intermediate free surface eta_star
@@ -104,6 +104,7 @@ contains
              dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
              call cpt_or_restr_flux (grid(d), l)
+             nullify (dscalar, h_flux)
           end do
        end if
 
@@ -554,9 +555,6 @@ contains
     idN  = idx (i,   j+1, offs, dims)
     
     ! Deduce (porous) layer heights from total mass
-!!$    dz(RT+1) = interp (mean_m(id+1), mean_m(idE+1))  / ref_density 
-!!$    dz(DG+1) = interp (mean_m(id+1), mean_m(idNE+1)) / ref_density 
-!!$    dz(UP+1) = interp (mean_m(id+1), mean_m(idN+1))  / ref_density
     dz(RT+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idE+1) +mass(idE+1)) / ref_density 
     dz(DG+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idNE+1)+mass(idE+1)) / ref_density 
     dz(UP+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idN+1) +mass(idE+1)) / ref_density 

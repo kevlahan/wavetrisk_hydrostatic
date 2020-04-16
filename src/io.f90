@@ -732,7 +732,7 @@ contains
        full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
        total_depth = total_depth + full_mass / (ref_density * phi_node (d, id_i, zlev))
     end do
-    free_surface = (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i))*(total_depth + dom%topo%elts(id_i))
+    free_surface = total_depth + dom%topo%elts(id_i)
   end function free_surface
 
   subroutine write_dual (dom, p, i, j, zlev, offs, dims, funit)
