@@ -410,7 +410,7 @@ contains
        call MPI_Test (req, got_data, MPI_STATUS_IGNORE, ierror)
     end do
     if (.not. got_data) then
-       write (6,'(A,i2,A,i5)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
+       write (6,'(A,i4,A,i5)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
        call abort
     end if
   end subroutine deadlock_test

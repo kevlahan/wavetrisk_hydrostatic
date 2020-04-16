@@ -47,10 +47,9 @@ contains
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
        temp      => q(S_TEMP,k)%data(d)%elts
+       velo      => q(S_VELO,k)%data(d)%elts
        mean_m    => sol_mean(S_MASS,k)%data(d)%elts
        mean_t    => sol_mean(S_TEMP,k)%data(d)%elts
-       velo      => q(S_VELO,k)%data(d)%elts
-       h_mflux   => horiz_flux(S_MASS)%data(d)%elts
        exner     => exner_fun(k)%data(d)%elts
        bernoulli => grid(d)%bernoulli%elts
        ke        => grid(d)%ke%elts
@@ -64,6 +63,7 @@ contains
           call step1 (dq, q, grid(d), grid(d)%lev(l)%elts(j), k, 0)
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
+       nullify (mass, velo, temp, mean_m, mean_t, divu, ke, qe, vort)
 
        ! Compute or restrict Bernoulli, Exner and fluxes
        if (l < level_end) then
@@ -75,8 +75,7 @@ contains
              nullify (dscalar, h_flux)
           end do
        end if
-
-       nullify (mass, mean_m, mean_t, velo, temp, h_mflux, bernoulli, exner, divu, ke, qe, vort)
+       nullify (bernoulli, exner)
     end do
     horiz_flux%bdry_uptodate = .false.
     if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
@@ -115,8 +114,8 @@ contains
 
     do d = 1, size(grid)
        mass    => q(S_MASS,k)%data(d)%elts
-       mean_m  => sol_mean(S_MASS,k)%data(d)%elts
        velo    => q(S_VELO,k)%data(d)%elts
+       mean_m  => sol_mean(S_MASS,k)%data(d)%elts
        dvelo   => dq(S_VELO,k)%data(d)%elts
        h_mflux => horiz_flux(S_MASS)%data(d)%elts
        ke      => grid(d)%ke%elts
@@ -135,7 +134,7 @@ contains
        else
           call cpt_or_restr_du_source (grid(d), k, l)
        end if
-       nullify (mass, mean_m, velo, dvelo, h_flux, divu, ke, qe, vort)
+       nullify (mass, velo, mean_m, dvelo, h_mflux, divu, ke, qe, vort)
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_source
@@ -159,7 +158,7 @@ contains
        do p = 3, grid(d)%patch%length
           call apply_onescale_to_patch (du_grad, grid(d), p-1, k, 0, 0)
        end do
-       nullify (mass, temp, mean_m, mean_t,dvelo, exner, bernoulli)
+       nullify (mass, temp, mean_m, mean_t, dvelo, exner, bernoulli)
     end do
   end subroutine velocity_trend_grad
      
@@ -382,7 +381,7 @@ contains
 
       if (e == RT) then
          p_flux = part_coarse_flux (dscalar, flux, dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
-         c_flux = coarse_flux(dscalar, dom, i_par, j_par, i_chd+1, j_chd, RT)
+         c_flux = coarse_flux (dscalar, dom, i_par, j_par, i_chd+1, j_chd, RT)
          complete_coarse_flux = p_flux + c_flux + sm_flux(1) + sm_flux(2)
       elseif (e == DG) then
          p_flux = part_coarse_flux (dscalar, flux, dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd)

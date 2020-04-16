@@ -137,6 +137,7 @@ contains
           end do
        end do
     end do
+    nullify (interp_scalar, interp_velo)
     sol%bdry_uptodate       = .false.
     wav_coeff%bdry_uptodate = .false.
 
