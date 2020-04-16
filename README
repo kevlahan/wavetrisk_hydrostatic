@@ -104,6 +104,9 @@ Layer dilation means that mass is not exactly conserved in each vertical layer, 
 Mode splitting is suitable when the user is not interested in the evolution of the free surface, since it strongly diffuses free
 surface motion.
 
+The parameter level_fill can be set > min_level to make active all levels <= level_fill. This improves the efficiency of the
+multigrid solver by reducing the size of of the coarsest grid where the elliptic equation is solved exactly.
+
 GRID STRUCTURE
 
 The icosahedron is divided into a network of ten regular lozenge grids (with the exception of the POLES), each lozenge is then

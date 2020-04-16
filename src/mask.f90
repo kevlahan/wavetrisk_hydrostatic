@@ -62,12 +62,13 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_e, id_i, k, v
+    integer :: d, e, id, id_e, id_i, k, l, v
     logical :: active
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     d = dom%id + 1
+    l = dom%level%elts(id_i)
 
     if (dom%mask_n%elts(id_i) == FROZEN) return
 
@@ -75,7 +76,7 @@ contains
     active = .false.
     do k = 1, zlevels
        do v = scalars(1), scalars(2)
-          if (abs (wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k)) active = .true.
+          if (abs (wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k) .or. l < level_fill) active = .true.
        end do
     end do
 
@@ -91,7 +92,7 @@ contains
 
        active = .false.
        do k = 1, zlevels
-          if (abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k)) active = .true.
+          if (abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k) .or. l < level_fill) active = .true.
        end do
 
        if (active) then
@@ -110,12 +111,13 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_e, id_i, k, v
+    integer :: d, e, id, id_e, id_i, k, l, v
     logical :: active
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     d = dom%id + 1
+    l = dom%level%elts(id_i)
 
     if (dom%mask_n%elts(id_i) == FROZEN) return
 
@@ -123,7 +125,7 @@ contains
     active = .false.
     do k = 1, zlevels
        do v = scalars(1), scalars(2)
-          if (abs (trend_wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k)) active = .true.
+          if (abs (trend_wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k) .or. l < level_fill) active = .true.
        end do
     end do
 
@@ -139,7 +141,7 @@ contains
 
        active = .false.
        do k = 1, zlevels
-          if (abs (trend_wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k)) active = .true.
+          if (abs (trend_wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k) .or. l < level_fill) active = .true.
        end do
 
        if (active) then

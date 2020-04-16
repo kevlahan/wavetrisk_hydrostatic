@@ -158,6 +158,7 @@ module shared_mod
   ! Basic grid parameters
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
   integer :: min_level, max_level   ! minimum and maximum grid refinement levels in pseudo-horizontal directions
+  integer :: level_fill             ! make all grid points active for scales l <= level_fill
   integer :: zlevels                ! number of levels in vertical direction
   integer :: zmax                   ! zmax=zlevels+1 for a separate free surface layer, zmax=zlevels otherwise
   integer :: save_levels            ! number of vertical levels to save
@@ -228,7 +229,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, mode_split, penalize, perfect, rebalance, remap, uniform
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fill, mode_split, penalize, perfect, rebalance, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -284,12 +285,14 @@ contains
     max_level           = min_level
     level_start         = min_level
     level_end           = level_start
+    level_fill          = 0
     
     ! Default logical switches, most are reset in the input file
     adapt_dt            = .true.  ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
     adapt_trend         = .false. ! adapt on trend (T) or on solution (F)
     compressible        = .true.  ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.  ! use default thresholds (T) or calculate dynamically (F)
+    fill                = .false. ! fill up grid to level j_fill if true
     implicit_fs         = 1       ! use implicit free surface (1) or rigid lid (0) when splitting barotropic free surface mode
     mode_split          = .false. ! calculate barotropic free surface mode separately (T)
     perfect             = .false. ! use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
