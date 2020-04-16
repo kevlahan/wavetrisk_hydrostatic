@@ -46,14 +46,18 @@ contains
        z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
        
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-       
-       if (zlev == zlevels) then
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta_surf
+
+       if (mean_split) then
+          if (zlev == zlevels) then
+             sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta_surf
+          else
+             sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          end if
+          sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
        else
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+          sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
        end if
-       
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     end if
     ! Set initial velocity field to zero
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
@@ -85,9 +89,14 @@ contains
        z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
     
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-    
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
+
+       if (mean_split) then
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
+       else
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       end if
     end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_mean
@@ -132,7 +141,7 @@ contains
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                 :: k
+    integer                                 :: k, v
     real(8), dimension(1:N_VARIABLE,1:zmax) :: threshold_new
     character(3), parameter                 :: order = "inf"
 
@@ -148,11 +157,11 @@ contains
        ! Correct for zero velocity case
        do k = 1, zmax
           if (threshold_new(S_MASS,k) == 0.0_8) threshold_new(S_MASS,k) = 1d16
-          if (threshold_new(S_TEMP,k) == 0.0_8) threshold_new(S_TEMP,k) = 1d16 
+          if (threshold_new(S_TEMP,k) == 0.0_8) threshold_new(S_TEMP,k) = 1d16
           if (threshold_new(S_VELO,k) == 0.0_8) threshold_new(S_VELO,k) = 1d16 
        end do
+       threshold_new = tol * threshold_new
     end if
-    threshold_new = tol * threshold_new
 
     if (istep >= 10) then
        threshold = 0.01*threshold_new + 0.99*threshold
@@ -178,9 +187,9 @@ contains
        lnorm(S_VELO,k) = Udim
     end do
 
-    if (mode_split) lnorm(S_MASS,zlevels+1) = 0.5_8
-    
+    if (mode_split) lnorm(:,zlevels+1) = lnorm(:,zlevels) ! not used
     if (adapt_trend) lnorm = lnorm/Tdim
+
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 
@@ -214,10 +223,20 @@ contains
     tau_sclr = dt_cfl / C_sclr
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
-   
-    visc_sclr = dx_min**2 / tau_sclr
-    visc_rotu = dx_min**2 / tau_rotu
-    visc_divu = dx_min**2 / tau_divu
+
+    if (Laplace_order_init == 0) then
+       visc_sclr = 0.0_8
+       visc_divu = 0.0_8
+       visc_rotu = 0.0_8
+    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
+       visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
+       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
+       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
+    elseif (Laplace_order_init > 2) then
+       if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
+       stop
+    end if
+    if (.not. mean_split) visc_sclr = 0.0_8 ! cannot diffuse on scalars if mean_split = .false.
    
     if (rank == 0) then
        write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
@@ -347,6 +366,7 @@ contains
     read (fid,*) varname, implicit_fs
     read (fid,*) varname, penalize
     read (fid,*) varname, max_level
+    read (fid,*) varname, level_fill
     read (fid,*) varname, zlevels
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
@@ -399,11 +419,14 @@ contains
        write (6,'(A,A)')      "test_case            = ", trim (test_case)
        write (6,'(A,A)')      "run_id               = ", trim (run_id)
        write (6,'(A,L1)')     "compressible         = ", compressible
+       write (6,'(A,L1)')     "mean_split           = ", mean_split
        write (6,'(A,L1)')     "mode_split           = ", mode_split
        write (6,'(A,I1)')     "implicit_fs          = ", implicit_fs
        write (6,'(A,L1)')     "penalize             = ", penalize
+       write (6,'(A,i3)')     "n_smooth             = ", n_smooth
        write (6,'(A,i3)')     "min_level            = ", min_level
        write (6,'(A,i3)')     "max_level            = ", max_level
+       write (6,'(A,i3)')     "level_fill           = ", level_fill
        write (6,'(A,i5)')     "number of domains    = ", N_GLO_DOMAIN
        write (6,'(A,i5)')     "number of processors = ", n_process
        write (6,'(A,i5)')     "DOMAIN_LEVEL         = ", DOMAIN_LEVEL
@@ -438,6 +461,9 @@ contains
        write (6,'(A,es10.4)') "grav accel         [m/s^2]  = ", grav_accel
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
+       write (6,'(A,es11.4)') "min_depth          [m]      = ", abs (min_depth)
+       write (6,'(A,es11.4)') "max_depth          [m]      = ", abs (max_depth)
+       write (6,'(A,es11.4)') "top_layer          [m]      = ", abs (top_layer)
        write (6,'(A,es11.4)') "density difference [kg/m^3] = ", drho
        write (6,'(A,es11.4)') "Brunt-Vaisala freq [1/s]    = ", bv
        write (6,'(A,es11.4)') "c0 wave speed      [m/s]    = ", wave_speed
@@ -446,8 +472,6 @@ contains
        write (6,'(A,es11.4)') "alpha (porosity)            = ", alpha
        write (6,'(A,es11.4)') "bottom friction    [m/s]    = ", friction_coeff
        write (6,'(A,es11.4)') "friction decay     [d]      = ", tau / DAY
-       write (6,'(A,es11.4)') "min_depth          [m]      = ", abs (min_depth)
-       write (6,'(A,es11.4)') "max_depth          [m]      = ", abs (max_depth)
        write (6,'(A,es11.4)') "f0 at 30 deg       [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 30 deg     [rad/ms] = ", beta
        write (6,'(A,es11.4)') "dx_min             [km]     = ", dx_min   / KM

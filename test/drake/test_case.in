@@ -4,13 +4,14 @@ mode_split         T             ! split barotropic mode if true
 implicit_fs        1             ! implicit free surface (1), rigid lid (0)
 penalize           T             ! penalize land regions	
 max_level	   8             ! maximum level of resolution
-zlevels            1             ! number of vertical levels
+level_fill	   5             ! make all points active up to level_level (accelerates elliptic solver)	
+zlevels            2             ! number of vertical levels
 remap              F             ! remap vertical grid
 iremap             10            ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
-tol      	   1e-2          ! non-dimensional tolerance
-cfl_num            0.9           ! cfl number
+tol      	   8e-2          ! non-dimensional tolerance
+cfl_num            0.3           ! cfl number
 adapt_dt           F             ! adapt time step
 timeint_type       RK4           ! time integration method (RK33, RK34, RK45, RK4)
 dt_write           10            ! save interval (days)
