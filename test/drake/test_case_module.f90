@@ -547,8 +547,8 @@ contains
     integer :: d, k, l, p
     
     do d = 1, size(grid)
-!!$       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches (causes memory leak?)
-       do p = 3, grid(d)%patch%length ! update all patches
+       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches (causes memory leak?)
+!!$       do p = 3, grid(d)%patch%length ! update all patches
           call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           do k = 1, zmax
              call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -556,11 +556,11 @@ contains
        end do
     end do
     call barrier
-    
+
     do k = 1, zmax
        do d = 1, size(grid)
-!!$       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches (causes memory leak?)
-          do p = 3, grid(d)%patch%length ! update all patches
+          do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches (causes memory leak?)
+!!$          do p = 3, grid(d)%patch%length ! update all patches
              call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do
@@ -605,7 +605,7 @@ contains
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
     
     if (zlevels == 2) then ! special two layer case
-       a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;                    a_vert(2) = 1.0_8
+       a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;               a_vert(2) = 1.0_8
        b_vert(0) = 1.0_8; b_vert(1) = top_layer/max_depth; b_vert(2) = 0.0_8
     else ! uniform sigma grid: z = a_vert*eta + b_vert*z_s
        do k = 0, zlevels
