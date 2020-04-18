@@ -428,7 +428,11 @@ contains
     call bicgstab (u, f, Lu, Lu_diag, level_start, iter)
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call jacobi (u, f, Lu, Lu_diag, l, 2, w0)
+       if (l <= level_fill) then
+          call bicgstab (u, f, Lu, Lu_diag, l, 2)
+       else
+          call jacobi (u, f, Lu, Lu_diag, l, 2, w0)
+       end if
     end do
 
     u%bdry_uptodate = .false.
