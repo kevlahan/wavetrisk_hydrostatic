@@ -1,5 +1,6 @@
 module time_integr_mod
   use adapt_mod
+  use barotropic_2d_mod
   implicit none
   type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
 contains
@@ -301,75 +302,70 @@ contains
     end do
   end subroutine manage_RK_mem
 
-  subroutine Euler_split (q, wav, dt)
+  subroutine Euler_split (dt)
     ! Euler time step for barotropic mode splitting
     ! Stable for CFL<1, first order
     implicit none        
-    real(8)                           :: dt
-    type(Float_Field), dimension(:,:) :: q, wav
+    real(8) :: dt
 
-    call RK_split (q, dt)
-    call WT_after_step (q, wav, level_start-1)
+    call trend_ml (sol(:,1:zlevels), trend(:,1:zlevels))
+    call RK_split (dt, sol)
+    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine Euler_split
 
-  subroutine RK4_split (q, wav, dt)
+  subroutine RK4_split (dt)
     ! Low storage four stage second order accurate Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
     ! Fourth order accurate for linear equations, stable for CFL <= 2*sqrt(2) ~ 2.83.
     ! Does not require extra solution variables.
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
     implicit none
-    real(8)                           :: dt
-    type(Float_Field), dimension(:,:) :: q, wav
+    real(8)  :: dt
 
     call manage_q1_mem
 
-    q1 = q
-    call RK_split (q1, dt/4)
-    call WT_after_step (q1, wav)
+    call trend_ml (sol(:,1:zlevels), trend(:,1:zlevels))
+    call RK_split (dt/4, q1)
+    call WT_after_step (q1, wav_coeff)
 
-    call RK_split (q1, dt/3)
-    call WT_after_step (q1, wav)
+    call trend_ml (q1(:,1:zlevels), trend(:,1:zlevels))
+    call RK_split (dt/3, q1)
+    call WT_after_step (q1, wav_coeff)
 
-    call RK_split (q1, dt/2)
-    call WT_after_step (q1, wav)
+    call trend_ml (q1(:,1:zlevels), trend(:,1:zlevels))
+    call RK_split (dt/2, q1)
+    call WT_after_step (q1, wav_coeff)
 
-    call RK_split (q1, dt)
-
-    call WT_after_step (q1, wav, level_start-1)
-    q = q1
+    call trend_ml (q1(:,1:zlevels), trend(:,1:zlevels))
+    call RK_split (dt, q1)
+    call WT_after_step (q1, wav_coeff, level_start-1)
+    sol = q1
   end subroutine RK4_split
   
-  subroutine RK_split (q, dt_surf)
+  subroutine RK_split (dt, dest)
     ! Explicit-implicit Euler step barotropic mode splitting
-    use barotropic_2d_mod
     implicit none
-    real(8)                           :: dt_surf
-    type(Float_Field), dimension(:,:) :: q
+    real(8)                                           :: dt
+    type(Float_Field), dimension(:,:), intent (inout) :: dest
 
-    dt1 = dt_surf
-    
-    call update_array_bdry (q, NONE, 300)
-  
-    ! Current baroclinic trend
-    call trend_ml (q(:,1:zlevels), trend(:,1:zlevels))
+    dt1 = dt
 
     ! Expicit Density step with flux based on current velocity
-    call scalar_update (q)
+    call scalar_update (dest)
 
     ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
-    call u_star (q)
+    call u_star (dest)
 
     ! Explicit Euler step for intermediate free surface eta_star
-    call eta_star (q)
+    call eta_star (dest)
 
     ! Backwards Euler step for free surface 
-    call eta_update (q)
+    call eta_update (dest)
 
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
-    call u_update (q)
+    call u_update (dest)
 
     ! Correct layer heights based on new free surface
-    call barotropic_correction (q)
+    call barotropic_correction (dest)
   end subroutine RK_split
 end module time_integr_mod

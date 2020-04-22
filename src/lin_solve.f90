@@ -1,5 +1,5 @@
 module lin_solve_mod
-  use multi_level_mod
+  use ops_mod
   implicit none
   real(8)                        :: dp_loc, linf_loc, l2_loc
   real(8), pointer               :: mu1, mu2

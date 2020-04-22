@@ -195,9 +195,9 @@ contains
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
        select case (timeint_type)
        case ("Euler")
-          call Euler_split (sol, wav_coeff, dt)
+          call Euler_split (dt)
        case ("RK4")
-          call RK4_split (sol, wav_coeff, dt)
+          call RK4_split (dt)
        case default
           if (rank == 0) &
                write (6,'(a)') "Invalid timestepping choice ... only Euler and RK4 supported for free surface ... aborting"
