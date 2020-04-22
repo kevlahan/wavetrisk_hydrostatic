@@ -29,8 +29,8 @@ program Drake
   drho           = -1               * KG/METRE**3     ! density difference in upper layer
 
   ! Numerical method parameters
-  n_smooth           = 8                              ! number of grid points over which to smooth mask
-  resolution         = 4                              ! number of grid points resolving Munk layer
+  n_smooth           = 4                              ! number of grid points over which to smooth mask
+  resolution         = 2                              ! number of grid points resolving Munk layer
   compressible       = .false.                        ! always run with incompressible equations
   mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
   remapscalar_type   = "2PPM"                         ! optimal remapping scheme
@@ -274,16 +274,15 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   end if
   
   ! Permeability
-!!$  if (mode_split) then ! use implicit integration for penalization
-!!$     permeability = 0.0_8 
-!!$  else ! explicit 
-!!$     permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
-!!$  end if
   permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   
   ! Complete source term for velocity trend
   ! (do not include drag and wind stress in solid regions)
-  physics_velo_source = diffusion + permeability + (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i)) * (drag_force + wind_force)
+  if (penal_node(zlevels)%data(d)%elts(id_i) == 0.0_8) then ! sea
+     physics_velo_source = diffusion + permeability + drag_force + wind_force
+  else ! land
+     physics_velo_source = diffusion + permeability 
+  end if
 contains
   function grad_divu()
     implicit none

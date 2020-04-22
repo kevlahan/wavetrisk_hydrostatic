@@ -188,7 +188,6 @@ contains
     end do
 
     if (mode_split) lnorm(:,zlevels+1) = lnorm(:,zlevels) ! not used
-    if (adapt_trend) lnorm = lnorm/Tdim
 
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
@@ -370,7 +369,6 @@ contains
     read (fid,*) varname, zlevels
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
-    read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
     read (fid,*) varname, tol
     read (fid,*) varname, cfl_num
@@ -555,7 +553,6 @@ contains
           end do
        end do
     end do
-    call barrier
 
     do k = 1, zmax
        do d = 1, size(grid)
