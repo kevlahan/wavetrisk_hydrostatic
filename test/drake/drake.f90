@@ -26,7 +26,7 @@ program Drake
   omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
   p_top          = 0.0_8            * hPa             ! pressure at free surface
   ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
-  drho           = -1               * KG/METRE**3     ! density difference in upper layer
+  drho           = -3               * KG/METRE**3     ! density difference in upper layer
 
   ! Numerical method parameters
   timeint_type       = "RK4"                          ! always use RK4
@@ -275,13 +275,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Permeability
   permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   
-  ! Complete source term for velocity trend
-  ! (do not include drag and wind stress in solid regions)
-  if (penal_node(zlevels)%data(d)%elts(id_i) == 0.0_8) then ! sea
-     physics_velo_source = diffusion + permeability + drag_force + wind_force
-  else ! land
-     physics_velo_source = diffusion + permeability 
-  end if
+  ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
+  physics_velo_source = diffusion + permeability + (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i)) * (drag_force + wind_force)
 contains
   function grad_divu()
     implicit none
