@@ -30,8 +30,6 @@ program Drake
 
   ! Numerical method parameters
   timeint_type       = "RK4"                          ! always use RK4
-  n_smooth           = 8                              ! number of grid points over which to smooth mask
-  resolution         = 2                              ! number of grid points resolving Munk layer
   compressible       = .false.                        ! always run with incompressible equations
   mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
   remapscalar_type   = "2PPM"                         ! optimal remapping scheme
