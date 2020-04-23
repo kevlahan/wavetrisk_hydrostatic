@@ -373,13 +373,15 @@ contains
     read (fid,*) varname, tol
     read (fid,*) varname, cfl_num
     read (fid,*) varname, adapt_dt
-    read (fid,*) varname, timeint_type
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     read (fid,*) varname, alpha
     read (fid,*) varname, drag
+    read (fid,*) varname, n_smooth
+    read (fid,*) varname, resolution
+    
     close(fid)
 
     press_save = 0.0_8
@@ -545,8 +547,7 @@ contains
     integer :: d, k, l, p
     
     do d = 1, size(grid)
-       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches (causes memory leak?)
-!!$       do p = 3, grid(d)%patch%length ! update all patches
+       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
           call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           do k = 1, zmax
              call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -556,8 +557,7 @@ contains
 
     do k = 1, zmax
        do d = 1, size(grid)
-          do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches (causes memory leak?)
-!!$          do p = 3, grid(d)%patch%length ! update all patches
+          do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches 
              call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do

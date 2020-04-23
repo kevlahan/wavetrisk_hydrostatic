@@ -12,11 +12,12 @@ default_thresholds T             ! use default tolerances (T) or calculate toler
 tol      	   6e-3          ! non-dimensional tolerance
 cfl_num            0.2           ! cfl number
 adapt_dt           F             ! adapt time step
-timeint_type       RK4           ! time integration method (RK33, RK34, RK45, RK4)
 dt_write           10            ! save interval (days)
 CP_EVERY           2             ! checkpoint every CP_EVERY saves
 time_end           365           ! final time (days)
 resume             -1            ! restart from checkpoint (negative means fresh restart)
 alpha              1e-1          ! porosity penalization parameter
 drag               T             ! use bottom drag if T
+n_smooth           4             ! number of grid points over which to smooth mask
+resolution         4             ! number of grid points resolving Munk layer (determines viscosity)
 

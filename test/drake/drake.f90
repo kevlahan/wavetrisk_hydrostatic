@@ -29,7 +29,8 @@ program Drake
   drho           = -1               * KG/METRE**3     ! density difference in upper layer
 
   ! Numerical method parameters
-  n_smooth           = 4                              ! number of grid points over which to smooth mask
+  timeint_type       = "RK4"                          ! always use RK4
+  n_smooth           = 8                              ! number of grid points over which to smooth mask
   resolution         = 2                              ! number of grid points resolving Munk layer
   compressible       = .false.                        ! always run with incompressible equations
   mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
