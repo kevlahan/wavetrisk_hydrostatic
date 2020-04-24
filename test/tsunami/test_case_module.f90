@@ -371,7 +371,7 @@ contains
 
              M_topo = topo_value (s, t, itype)
              topo_sum = topo_sum + wgt * M_topo
-             sw_topo  = sw_topo  + wgt_
+             sw_topo  = sw_topo  + wgt
           end do
        end do
        mask = topo_sum / sw_topo
