@@ -260,7 +260,7 @@ contains
     end do
     n_active = (/ sum(n_active_nodes), sum(n_active_edges) /)
     cpt_dt = dt_loc
-    if (penalize .and. .not. mode_split) eta = dt_loc ! ensure stable penalization parameter
+    if (penalize) eta = cpt_dt ! ensure stable penalization parameter
   end function cpt_dt
 
   real(8) function cpt_min_mass ()

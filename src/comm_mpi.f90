@@ -1201,7 +1201,7 @@ contains
     ! Time step
     if (adapt_dt) then
        call MPI_Allreduce (dt_loc, cpt_dt, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-       if (penalize .and. .not. mode_split) eta = dt_loc ! ensure stable penalization parameter
+       if (penalize) eta = cpt_dt ! ensure stable penalization parameter
     else
        cpt_dt = dt_loc
     end if
