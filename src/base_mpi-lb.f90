@@ -98,8 +98,18 @@ contains
     call MPI_Comm_Rank (MPI_COMM_WORLD, rank,      ierror)
 
     allocate (n_domain(n_process))
-
+    
     initialized = .true.
+
+    if (n_process > N_GLO_DOMAIN) then
+       if (rank == 0) then
+          write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(2(a,i4),a)') "!!          Number of cores ", n_process, " > number of domains ", N_GLO_DOMAIN, &
+               " ... aborting             !!"
+          write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+       end if
+       call abort
+    end if
   end subroutine init_arch_mod
 
   subroutine finalize
