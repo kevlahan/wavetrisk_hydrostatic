@@ -690,7 +690,7 @@ contains
        outv(6) = dom%surf_press%elts(id_i)
     else ! free surface perturbation
        if (mode_split) then 
-          outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+          outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
        else
           outv(6) = free_surface (dom, id_i, zlev) 
        end if
