@@ -97,7 +97,7 @@ Incompressible (i.e. ocean) simulations can be run with 2D barotropic - 3D baroc
 constraint of the fast external mode with speed c = sqrt(g H). Setting mode_split = .true. chooses mode splitting, which integrates
 the barotropic component implicitly in time on the slow geostrophic time scale.  The associated elliptic equation is solved using a
 simple multigrid scheme on the adaptive grid. The baroclinic and barotropic modes are coupled at
-each time step. If implicit_fs = 1, the barotropic part computes an implicit free surface; if implicit_fs = 0 a rigid lid is imposed.
+each time step. The barotropic part computes an implicit free surface.
 The CFL parameter is then based on the velocity, not the external wave speed.  The barotropic estimate of the location of the
 free surface is reconciled with the baroclinic estimate using layer dilation (Bleck and Smith 1990, J Geophys Res 95, 3273-3285).
 Layer dilation means that mass is not exactly conserved in each vertical layer, although it is conserved over all vertical layers.

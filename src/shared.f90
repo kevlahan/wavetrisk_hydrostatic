@@ -203,7 +203,7 @@ module shared_mod
   real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2 
   
   ! Simulation variables
-  integer                                       :: cp_idx, err_restart, ibin, implicit_fs, iremap, istep, istep_cumul
+  integer                                       :: cp_idx, err_restart, ibin, iremap, istep, istep_cumul
   integer                                       :: iwrite, n_diffuse, nbins
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
@@ -293,7 +293,6 @@ contains
     compressible        = .true.  ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.  ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false. ! fill up grid to level j_fill if true
-    implicit_fs         = 1       ! use implicit free surface (1) or rigid lid (0) when splitting barotropic free surface mode
     mode_split          = .false. ! calculate barotropic free surface mode separately (T)
     perfect             = .false. ! use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
     rebalance           = .true.  ! rebalance computational load at each checkpoint if T

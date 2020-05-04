@@ -7,8 +7,8 @@ module barotropic_2d_mod
   real(8) :: dt1
 
   ! Parameters 
-  integer, parameter :: iter = 15      ! number of iterations used in elliptic solver at coarsest scale (minimum suggested = 15)
-  real(8), parameter :: w0   = 0.67_8  ! relaxation parameter for linear solver
+  integer, parameter :: iter = 25     ! number of iterations used in elliptic solver at coarsest scale (minimum suggested = 15)
+  real(8), parameter :: w0   = 1.0_8  ! relaxation parameter for linear solver
   logical, parameter :: log  = .false. ! print out residual errors for elliptic solver
 contains
   subroutine u_star (q)
@@ -108,6 +108,18 @@ contains
           end do
        end if
 
+!!$       ! Laplacian diffusion term
+!!$       do d = 1, size(grid)
+!!$          scalar    => q(S_MASS,zlevels+1)%data(d)%elts
+!!$          Laplacian => Laplacian_scalar(S_MASS)%data(d)%elts
+!!$          do j = 1, grid(d)%lev(l)%length
+!!$             call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+!!$          end do
+!!$          nullify (scalar, Laplacian)
+!!$       end do
+!!$       Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
+!!$       call update_bdry (Laplacian_scalar(S_MASS), l, 12)
+
        ! Euler step for intermediate free surface perturbation eta_star
        do d = 1, size(grid)
           dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
@@ -137,7 +149,8 @@ contains
 
     id = idx (i, j, offs, dims) + 1
         
-    if (dom%mask_n%elts(id) >= ADJZONE) mass1(id) = implicit_fs*mass(id) - dt1 * dscalar(id)
+    if (dom%mask_n%elts(id) >= ADJZONE) mass1(id) = mass(id) - dt1 * dscalar(id) !&
+!!$         + dt1 * visc_sclr(S_MASS) * Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) 
   end subroutine etastar_euler
 
   subroutine eta_update (q)
@@ -244,7 +257,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - implicit_fs*mass(id)/dt1**2
+       dscalar(id) = Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)/dt1**2
     else
        dscalar(id) = 0.0_8
     end if
@@ -310,7 +323,7 @@ contains
        Laplacian_diag = - flx * dom%areas%elts(id_i)%hex_inv * grav_accel * (abs(dom%topo%elts(id_i)) + f1)/2
 !!$       Laplacian_diag = - 2*sqrt(3.0_8) * dom%areas%elts(id_i)%hex_inv * grav_accel * (abs(dom%topo%elts(id_i)) + f1)/2
        
-       diag(id_i) = scalar(id_i) / (Laplacian_diag - implicit_fs/dt1**2)
+       diag(id_i) = scalar(id_i) / (Laplacian_diag - 1/dt1**2)
     else
        diag(id_i) = 0.0_8
     end if
@@ -366,7 +379,7 @@ contains
        full_theta = (mean_t(id) + temp(id)) / full_mass ! buoyancy
 
        ! Correct mass
-       mass(id) = ref_density*(implicit_fs*scalar(id) - phi_node (d, id, zlev)*grid(d)%topo%elts(id))/scalar_2d(id) * full_mass &
+       mass(id) = ref_density*(scalar(id) - phi_node (d, id, zlev)*grid(d)%topo%elts(id))/scalar_2d(id) * full_mass &
             - mean_m(id)
 
        ! Correct mass-weighted buoyancy

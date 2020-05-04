@@ -7,15 +7,14 @@ Module test_case_mod
 
   ! Standard variables
   integer                              :: CP_EVERY, resume_init, save_zlev
-  real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
+  real(8)                              :: bathy_per_deg, dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  integer                              :: npts_penal, n_smooth
   real(8)                              :: beta, bv, c1, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
   real(8)                              :: friction_coeff, max_depth, min_depth, scale, tau, top_layer, u_wbc
-  real(8)                              :: resolution
+  real(8)                              :: n_smooth, resolution
   logical                              :: drag, mean_split
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -200,12 +199,11 @@ contains
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
 
-    ! CFL limit for time step
-    if (mode_split) then ! geostrophic time scale
-       dt_cfl = cfl_num*dx_min/Udim 
-    else ! external wave time scale
-       dt_cfl = cfl_num*dx_min/(wave_speed + Udim) 
-    end if
+    area = 4*MATH_PI*radius**2/(20*4**min_level)
+    dx_max = sqrt (4/sqrt(3.0_8) * area)
+
+    ! Initial CFL limit for time step
+    dt_cfl = cfl_num*dx_min/wave_speed 
     dt_init = dt_cfl
 
     ! Permeability penalization parameter
@@ -235,10 +233,10 @@ contains
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
-    if (.not. mean_split) visc_sclr = 0.0_8 ! cannot diffuse on scalars if mean_split = .false.
    
     if (rank == 0) then
-       write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
+       write (6,'(/,4(a,es8.2),a,/)') &
+            "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
        write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
           " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
@@ -288,43 +286,30 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer     :: d, id, id_i, idW, idSW, idS
-    real(8)     :: mask, strip, width, xmin, zmin
+    integer     :: d, id, id_i
+    real(8)     :: dx_loc, mask, strip, width, xmin, zmin
     type(Coord) :: p
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    p = dom%node%elts(id_i)
-
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
-    case ("penalize") ! Smoothed strip land mass
-       if (p%x > dx_min) then
-          xmin = 2*n_smooth*dx_min
-          zmin = -radius * sin (35 * DEG)
-          strip = 2*MATH_PI*radius / 20 ! width of land strip
-          width = n_smooth * dx_min
+    case ("penalize")
+       dx_loc = maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+       p = dom%node%elts(id_i)
+       xmin = 300*KM
+       zmin = -radius * sin (35*DEG)
+       strip = 2*MATH_PI*radius / 20 ! width of land strip
+       width = n_smooth * dx_max
+       
+       mask = (tanh ((p%y+strip/2)/width) - tanh ((p%y-strip/2)/width)) * &
+            (1.0_8+tanh ((p%z-zmin)/width)) * (1.0_8+tanh ((p%x-xmin)/width)) / 8
 
-          mask = (tanh ((p%y+strip/2)/width) - tanh ((p%y-strip/2)/width)) * &
-               (1.0_8+tanh ((p%z-zmin)/width)) * (1.0_8+tanh ((p%x-xmin)/width)) / 8
-
-          penal_node(zlev)%data(d)%elts(id_i) = mask
-          
-          ! Set edges to same mask value as associated node
-          idW  = idx (i-1, j,   offs, dims)
-          idSW = idx (i-1, j-1, offs, dims)
-          idS  = idx (i,   j-1, offs, dims)
-
-          penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1))
-          penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1))
-          penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1))
-          penal_edge(zlev)%data(d)%elts(EDGE*idW +RT+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idW+RT+1))
-          penal_edge(zlev)%data(d)%elts(EDGE*idSW+DG+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idSW+DG+1))
-          penal_edge(zlev)%data(d)%elts(EDGE*idS +UP+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idS+UP+1))
-       end if
+       penal_node(zlev)%data(d)%elts(id_i) = mask
+       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = mask
     end select
   end subroutine analytic_topography
 
@@ -336,7 +321,7 @@ contains
     real(8) :: peak
 
     peak = (abs(lat)*180/MATH_PI - 35.0_8) / 20
-    tau_zonal = -0.15 * exp (-peak**2) * sin (abs(lat)*6) - 5d-3
+    tau_zonal = -0.15 * exp (-peak**2) * sin (abs(lat)*6) - 5d-3*exp(-(lat*180/MATH_PI/10)**2)
 
     !peak = lat*180/MATH_PI / 15
     !tau_merid = -0.25 * exp (-peak**2) * sin (2*lat) * peak**2
@@ -362,7 +347,6 @@ contains
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
     read (fid,*) varname, mode_split
-    read (fid,*) varname, implicit_fs
     read (fid,*) varname, penalize
     read (fid,*) varname, max_level
     read (fid,*) varname, level_fill
@@ -401,8 +385,8 @@ contains
     if (drag) then
        !friction_coeff =  1d-3                                 ! quadratic bottom friction coefficient (nemo)
        friction_coeff =  beta*abs(max_depth) * delta_M/4
-       tau = abs(max_depth) / friction_coeff
        !friction_coeff = abs(max_depth)/(110*DAY) * METRE/SECOND ! linear bottom friction coefficient (nemo is 4e-4 for depth = 4000m)
+       tau = abs(max_depth) / friction_coeff
     else
        friction_coeff = 0.0_8
     end if
@@ -421,9 +405,8 @@ contains
        write (6,'(A,L1)')     "compressible         = ", compressible
        write (6,'(A,L1)')     "mean_split           = ", mean_split
        write (6,'(A,L1)')     "mode_split           = ", mode_split
-       write (6,'(A,I1)')     "implicit_fs          = ", implicit_fs
        write (6,'(A,L1)')     "penalize             = ", penalize
-       write (6,'(A,i3)')     "n_smooth             = ", n_smooth
+       write (6,'(A,es10.4)') "n_smooth             = ", n_smooth
        write (6,'(A,i3)')     "min_level            = ", min_level
        write (6,'(A,i3)')     "max_level            = ", max_level
        write (6,'(A,i3)')     "level_fill           = ", level_fill
@@ -474,6 +457,7 @@ contains
        write (6,'(A,es11.4)') "friction decay     [d]      = ", tau / DAY
        write (6,'(A,es11.4)') "f0 at 30 deg       [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 30 deg     [rad/ms] = ", beta
+       write (6,'(A,es11.4)') "dx_max             [km]     = ", dx_max   / KM
        write (6,'(A,es11.4)') "dx_min             [km]     = ", dx_min   / KM
        write (6,'(A,es11.4)') "L_R at 30 deg      [km]     = ", L_R      / KM
        write (6,'(A,es11.4)') "Inertial layer     [km]     = ", delta_I  / KM
@@ -523,11 +507,11 @@ contains
   subroutine apply_initial_conditions
     use wavelet_mod
     implicit none
-    integer :: k, l
+    integer :: d, k, l
     
     do l = level_start, level_end
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       do k = 1, zlevels
+       do k = 1, zmax
           call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
@@ -544,7 +528,7 @@ contains
     ! Update means, bathymetry and penalization mask
     use wavelet_mod
     implicit none
-    integer :: d, k, l, p
+    integer :: d, k, p
     
     do d = 1, size(grid)
        do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
@@ -557,7 +541,7 @@ contains
 
     do k = 1, zmax
        do d = 1, size(grid)
-          do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches 
+          do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
              call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do

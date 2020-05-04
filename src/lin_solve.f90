@@ -321,7 +321,7 @@ contains
 
     scaling%bdry_uptodate = .false.
 
-    ! Prolong scalar to finer nodes existing at coarser grid (subsample) and undo lifting using old wavelets
+    ! Prolong scalar to finer nodes existing at coarser grid (subsample) 
     do d = 1, size(grid)
        scalar => scaling%data(d)%elts
        call apply_interscale_d2 (IWT_subsample, grid(d), coarse, z_null, 0, 1)
