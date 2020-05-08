@@ -19,14 +19,13 @@ program Drake
   call read_test_case_parameters
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Standard (shared) parameter values for the simulation
+  ! Standard parameters 
   scale          = 6                                  ! scale factor for small planet (1/6 Earth radius)
   radius         = 6371.229/scale   * KM              ! mean radius of the small planet
   grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
   omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
   p_top          = 0.0_8            * hPa             ! pressure at free surface
   ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
-  drho           = -3               * KG/METRE**3     ! density difference in upper layer
 
   ! Numerical method parameters
   timeint_type       = "RK4"                          ! always use RK4
@@ -36,17 +35,19 @@ program Drake
   remapvelo_type     = "2PPM"                         ! optimal remapping scheme
   Laplace_order_init = 1                              ! always run with Laplacian diffusion
   Laplace_order = Laplace_order_init
-  
-  ! Local test case parameters
-  min_depth      = -50 * METRE                        ! minimum allowed depth (must be negative)
+ 
+  ! Depth and layer parameters
+  etopo_res          = 4                              ! resolution of etopo data in arcminutes (if used)
+  etopo_coast        = .false.                        ! use etopo data for coastlines (i.e. penalization)
+  min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   =  -500 * METRE                     
+     max_depth   =  -500 * METRE
+     drho        =   0   * KG/METRE**3                
   else
      max_depth   = -2000 * METRE
-!!$     max_depth   = -4000 * METRE
+     drho        = -3    * KG/METRE**3                ! density difference in upper layer
   end if
-  
-  top_layer      = -500 * METRE                       ! location of top (less dense) layer in two layer case
+  top_layer      =  -500 * METRE                      ! location of top (less dense) layer in two layer case
   
   ! Characteristic scales
   wave_speed     = sqrt (grav_accel*abs(max_depth))                            ! inertia-gravity wave speed 
@@ -54,8 +55,9 @@ program Drake
   beta           = 2*omega*cos(30*DEG) / radius * RAD/(SECOND*METRE)           ! beta parameter at 30 degrees latitude
   L_R            = wave_speed / f0              * METRE                        ! Rossby radius
   bv             = sqrt (grav_accel/ref_density*abs(drho)/abs(top_layer))      ! Brunt-Vaisala frequency         
-  c1             = sqrt (bv**2*abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed 
-!!$  u_wbc          = 4                            * METRE/SECOND                 ! western boundary current (H = 1 km, top = 500 m)
+  c1             = sqrt (bv**2*abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed
+!!$  u_wbc          = 2                            * METRE/SECOND                 ! western boundary current (single layer, H = 500 m)
+!!$  u_wbc          = 4.5                            * METRE/SECOND                 ! western boundary current (H = 1 km, top = 500 m)
   u_wbc          = 2                            * METRE/SECOND                 ! western boundary current (H = 2 km, top = 500 m)
 !!$  u_wbc          = 1                            * METRE/SECOND                 ! western boundary current (H = 4 km, top = 1000 m)
   delta_I        = sqrt (u_wbc/beta)            * METRE                        ! inertial layer
@@ -219,48 +221,35 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   idNE = idx (i+1, j+1, offs, dims) + 1
   idN  = idx (i,   j+1, offs, dims) + 1
 
+  ! Laplacian of velocity
+  diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+
   ! Interpolate mass to edges
   full_mass(0:NORTHEAST) = mass((/id,idN,idE,id,id,idNE/)+1) + mean_m((/id,idN,idE,id,id,idNE/)+1)
   mass_e(RT+1) = interp (full_mass(0), full_mass(EAST))
   mass_e(DG+1) = interp (full_mass(0), full_mass(NORTHEAST))
   mass_e(UP+1) = interp (full_mass(0), full_mass(NORTH))
 
-  if (Laplace_order == 0) then
-     diffusion = 0.0_8
-  else
-     ! Calculate Laplacian of velocity
-     diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
-  end if
-
   ! Wind stress per unit length in top layer only
   if (zlev == zlevels) then
-     idE  = idx (i+1, j,   offs, dims) + 1
-     idNE = idx (i+1, j+1, offs, dims) + 1
-     idN  = idx (i,   j+1, offs, dims) + 1
-
      tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idE))
      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE), dom%node%elts(id_i))
      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idN))
+
+     wind_force = tau_wind / mass_e
   else
-     tau_wind = 0.0_8
+     wind_force = 0.0_8
   end if
-  wind_force = tau_wind / mass_e
   
   ! Bottom stress applied in lowest layer only (as in NEMO)
   if (zlev == 1) then
-     ! Quadratic 
-!!$     u_mag(RT+1) = sqrt (2 * interp (ke(id_i), ke(idE)))
-!!$     u_mag(DG+1) = sqrt (2 * interp (ke(id_i), ke(idNE)))
-!!$     u_mag(UP+1) = sqrt (2 * interp (ke(id_i), ke(idN)))
-!!$     drag_force = - friction_coeff * u_mag * velo(EDGE*id+RT+1:EDGE*id+UP+1)
-     ! Linear
-     drag_force = - friction_coeff * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+     drag_force = - friction_coeff * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
   else
      drag_force = 0.0_8
   end if
   drag_force = drag_force / (mass_e/ref_density)
 
-  ! Internal wave drag to reduce oscillation amplitude (energy neutral)
+  ! Internal wave drag to reduce oscillation amplitude (energy neutral) in two layer case
   if (zlevels == 2) then
      r = friction_coeff / abs(max_depth)
      if (zlev == 1) then
@@ -268,8 +257,6 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      elseif (zlev == 2) then
         drag_force = drag_force - r * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
      end if
-  else
-     drag_force = 0.0_8
   end if
   
   ! Permeability
