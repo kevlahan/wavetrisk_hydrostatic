@@ -970,7 +970,7 @@ contains
           do k = 1, zlevels
              v_mag = velo_mag (dom, i, j, k, offs, dims)
              if (mode_split) then
-                dt_loc = min (dt_loc, cfl_num*dx/wave_speed, cfl*dx/v_mag)
+                dt_loc = min (dt_loc, dt_init, cfl_num*dx/wave_speed, cfl*dx/v_mag)
              else
                 dt_loc = min (dt_loc, cfl_num*dx/(v_mag + wave_speed))
              end if
