@@ -350,9 +350,6 @@ contains
 
     dt1 = dt
 
-    ! Expicit Density step with flux based on current velocity
-    call scalar_update (dest)
-
     ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
     call u_star (dest)
 
@@ -365,7 +362,10 @@ contains
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
     call u_update (dest)
 
-    ! Correct layer heights based on new free surface
+    ! Explicit density step 
+    call scalar_update (dest)
+
+    ! Make layer heights and buoyancy consistent with new free surface
     call barotropic_correction (dest)
   end subroutine RK_split
 end module time_integr_mod

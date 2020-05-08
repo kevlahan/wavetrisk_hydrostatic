@@ -52,7 +52,7 @@ contains
           ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
           iend = sol(S_VELO,k)%data(d)%length
           q(S_VELO,k)%data(d)%elts(ibeg:iend) = (q(S_VELO,k)%data(d)%elts(ibeg:iend) &
-               + dt1 * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) !/ (1.0_8 + dt1*penal_edge(k)%data(d)%elts(ibeg:iend)/eta)
+               + dt1 * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
        end do
     end do
   end subroutine u_update
@@ -89,7 +89,7 @@ contains
        ! Calculate divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
        do d = 1, size(grid)
           dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
-          h_flux  => horiz_flux(S_MASS)%data(d)%elts
+          h_flux  =>      horiz_flux(S_MASS)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
@@ -102,34 +102,21 @@ contains
        if (l < level_end) then
           do d = 1, size(grid)
              dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
-             h_flux  => horiz_flux(S_MASS)%data(d)%elts
+             h_flux  =>      horiz_flux(S_MASS)%data(d)%elts
              call cpt_or_restr_flux (grid(d), l)
              nullify (dscalar, h_flux)
           end do
        end if
 
-!!$       ! Laplacian diffusion term
-!!$       do d = 1, size(grid)
-!!$          scalar    => q(S_MASS,zlevels+1)%data(d)%elts
-!!$          Laplacian => Laplacian_scalar(S_MASS)%data(d)%elts
-!!$          do j = 1, grid(d)%lev(l)%length
-!!$             call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-!!$          end do
-!!$          nullify (scalar, Laplacian)
-!!$       end do
-!!$       Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
-!!$       call update_bdry (Laplacian_scalar(S_MASS), l, 12)
-
        ! Euler step for intermediate free surface perturbation eta_star
        do d = 1, size(grid)
           dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
-          mass    =>  sol(S_MASS,zlevels+1)%data(d)%elts
-          mass1   =>  q(S_MASS,zlevels+1)%data(d)%elts
-          scalar  =>  q(S_TEMP,zlevels+1)%data(d)%elts
+          mass    =>   sol(S_MASS,zlevels+1)%data(d)%elts
+          mass1   =>     q(S_MASS,zlevels+1)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (etastar_euler, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
-          nullify (dscalar, mass, mass1, scalar)
+          nullify (dscalar, mass, mass1)
        end do
        q(S_MASS,zlevels+1)%bdry_uptodate = .false.
        call update_bdry (q(S_MASS,zlevels+1), l, 304)
@@ -149,8 +136,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
         
-    if (dom%mask_n%elts(id) >= ADJZONE) mass1(id) = mass(id) - dt1 * dscalar(id) !&
-!!$         + dt1 * visc_sclr(S_MASS) * Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) 
+    if (dom%mask_n%elts(id) >= ADJZONE) mass1(id) = mass(id) - dt1 * dscalar(id)
   end subroutine etastar_euler
 
   subroutine eta_update (q)
