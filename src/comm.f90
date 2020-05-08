@@ -947,35 +947,77 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_e, id_i, k, l
-    real(8) :: d_e, v_e
+    integer            :: d, e, id, id_e, id_i, k, l
+    real(8)            :: dx, v_mag
+    real(8), parameter :: cfl = 0.8 ! cfl for baroclinic velocity
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     d  = dom%id + 1
     l  = dom%level%elts(id_i)
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       n_active_nodes(l) = n_active_nodes(l) + 1
-       do e = 1, EDGE
-          id_e = EDGE*id+e
-          if (dom%mask_e%elts(id_e) >= ADJZONE) then
-             n_active_edges(l) = n_active_edges(l) + 1
-             if (adapt_dt) then
-                d_e = dom%len%elts(id_e) ! triangle edge length
-                do k = 1, zlevels
-                   v_e = abs (sol(S_VELO,k)%data(d)%elts(id_e))
-                   if (mode_split) then
-                      dt_loc = min (dt_loc, dt_init, cfl_num*d_e/v_e)
-                   else
-                      dt_loc = min (dt_loc, cfl_num*d_e/(v_e + wave_speed))
-                   end if
-                end do
+    ! Count active nodes and edges
+    if (dom%mask_n%elts(id_i) >= ADJZONE) n_active_nodes(l) = n_active_nodes(l) + 1
+    do e = 1, EDGE
+       id_e = EDGE*id+e
+       if (dom%mask_e%elts(id_e) >= ADJZONE) n_active_edges(l) = n_active_edges(l) + 1
+    end do
+    
+    ! Find time step based on local velocity magnitude and grid size
+    if (adapt_dt) then
+       if (dom%mask_n%elts(id_i) >= ADJZONE) then
+          dx = minval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+          do k = 1, zlevels
+             v_mag = velo_mag (dom, i, j, k, offs, dims)
+             if (mode_split) then
+                dt_loc = min (dt_loc, cfl_num*dx/wave_speed, cfl*dx/v_mag)
+             else
+                dt_loc = min (dt_loc, cfl_num*dx/(v_mag + wave_speed))
              end if
-          end if
-       end do
+          end do
+       end if
     end if
   end subroutine min_dt
+
+  real(8) function velo_mag (dom, i, j, zlev, offs, dims)
+    ! Calculate magnitude of velocity as sqrt(2 kinetic_energy)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, idS, idSW, idW
+    real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
+    real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
+
+    id   = idx (i,   j,   offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    d  = dom%id + 1
+
+    u_prim_RT = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
+    u_prim_DG = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
+    u_prim_UP = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
+
+    u_dual_RT = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+    u_dual_DG = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_UP = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+
+    u_prim_UP_S  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
+    u_prim_DG_SW = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
+    u_prim_RT_W  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
+    
+    u_dual_RT_W  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
+    u_dual_DG_SW = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
+    u_dual_UP_S  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
+
+    velo_mag = sqrt ((u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
+                      u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+                      * dom%areas%elts(id+1)%hex_inv/2)
+  end function velo_mag
 
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
