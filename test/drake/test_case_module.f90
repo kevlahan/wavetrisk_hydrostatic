@@ -12,7 +12,7 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  real(8)                              :: beta, bv, c1, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
+  real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
   real(8)                              :: friction_coeff, max_depth, min_depth, scale, tau, top_layer, u_wbc
   real(8)                              :: resolution
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -36,8 +36,6 @@ contains
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
-    read (fid,*) varname, mode_split
-    read (fid,*) varname, penalize
     read (fid,*) varname, max_level
     read (fid,*) varname, level_fill
     read (fid,*) varname, zlevels
@@ -377,14 +375,13 @@ contains
        else
           call cal_lnorm_sol (sol, order)
        end if
-       threshold_new = lnorm
-       ! Correct for zero velocity case
+       threshold_new = tol * lnorm
+       ! Correct very small values
        do k = 1, zmax
-          if (threshold_new(S_MASS,k) == 0.0_8) threshold_new(S_MASS,k) = 1d16
-          if (threshold_new(S_TEMP,k) == 0.0_8) threshold_new(S_TEMP,k) = 1d16
-          if (threshold_new(S_VELO,k) == 0.0_8) threshold_new(S_VELO,k) = 1d16 
+          if (threshold_new(S_MASS,k) < threshold_def(S_MASS,k)/10) threshold_new(S_MASS,k) = threshold_def(S_MASS,k)
+          if (threshold_new(S_TEMP,k) < threshold_def(S_TEMP,k)/10) threshold_new(S_TEMP,k) = threshold_def(S_TEMP,k)
+          if (threshold_new(S_VELO,k) < threshold_def(S_VELO,k)/10) threshold_new(S_VELO,k) = threshold_def(S_VELO,k)
        end do
-       threshold_new = tol * threshold_new
     end if
 
     if (istep >= 10) then

@@ -1,22 +1,20 @@
-test_case          drake       ! name of test case
-run_id             drake_2layer ! name of run (for saved data)
-mode_split         T             ! split barotropic mode if true
-penalize           T             ! penalize land regions	
+test_case          drake         ! name of test case
+run_id             drake_2layer  ! name of run (for saved data)
 max_level	   8             ! maximum level of resolution
 level_fill	   5             ! make all points active up to level_level (accelerates elliptic solver)	
 zlevels            2             ! number of vertical levels
-remap              F             ! remap vertical grid
+remap              T             ! remap vertical grid
 iremap             10            ! remap every iremap time steps
-default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
-tol      	   2e-2          ! non-dimensional tolerance
-cfl_num            30.0           ! cfl number
+default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
+tol      	   4e-2          ! non-dimensional tolerance
+cfl_num            30.0          ! cfl number for barotropic mode
 adapt_dt           T             ! adapt time step
-dt_write           5.0            ! save interval (days)
-CP_EVERY           2             ! checkpoint every CP_EVERY saves
-time_end           1000           ! final time (days)
+dt_write           5.0           ! save interval (days)
+CP_EVERY           4             ! checkpoint every CP_EVERY saves
+time_end           1000          ! final time (days)
 resume            -1             ! restart from checkpoint (negative means fresh restart)
 alpha              1e-1          ! porosity penalization parameter
 drag               T             ! use bottom drag if T
 npts_penal         1             ! number of grid points over which to smooth mask
-resolution         2.0             ! number of grid points resolving Munk layer (determines viscosity)
+resolution         2.0           ! number of grid points resolving Munk layer (determines viscosity)
 

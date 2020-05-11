@@ -28,6 +28,8 @@ program Drake
   ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
 
   ! Numerical method parameters
+  mode_split         = .true.                         ! split barotropic mode if true
+  penalize           = .true.                         ! penalize land regions
   timeint_type       = "RK4"                          ! always use RK4
   compressible       = .false.                        ! always run with incompressible equations
   mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
@@ -45,7 +47,7 @@ program Drake
      drho        =   0   * KG/METRE**3                
   else
      max_depth   = -2000 * METRE
-     drho        = -3    * KG/METRE**3                ! density difference in upper layer
+     drho        = -0.5  * KG/METRE**3                ! density difference in upper layer
   end if
   top_layer      =  -500 * METRE                      ! location of top (less dense) layer in two layer case
   
@@ -55,7 +57,7 @@ program Drake
   beta           = 2*omega*cos(30*DEG) / radius * RAD/(SECOND*METRE)           ! beta parameter at 30 degrees latitude
   L_R            = wave_speed / f0              * METRE                        ! Rossby radius
   bv             = sqrt (grav_accel/ref_density*abs(drho)/abs(top_layer))      ! Brunt-Vaisala frequency         
-  c1             = sqrt (bv**2*abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed
+  c1             = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed  ! first baroclinic mode speed
 !!$  u_wbc          = 2                            * METRE/SECOND                 ! western boundary current (single layer, H = 500 m)
 !!$  u_wbc          = 4.5                            * METRE/SECOND                 ! western boundary current (H = 1 km, top = 500 m)
   u_wbc          = 2                            * METRE/SECOND                 ! western boundary current (H = 2 km, top = 500 m)

@@ -216,7 +216,7 @@ module shared_mod
   real(8)                                       :: visc_divu, visc_rotu
   real(8)                                       :: alpha, eta
   real(8), dimension(:), allocatable            :: visc_sclr
-  real(8)                                       :: c_p, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
+  real(8)                                       :: c1, c_p, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8)                                       :: min_mass, min_allowed_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
@@ -309,6 +309,7 @@ contains
     
     cfl_num             = 1.0_8
     C_visc              = 1d-2
+    c1                  = 1d-16         ! default value for internal wave speed (used for incompressible cases)
     level_save          = level_start
     Laplace_order_init  = 0 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     remapscalar_type    = "PPR" 

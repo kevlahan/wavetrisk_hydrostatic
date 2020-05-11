@@ -8,7 +8,7 @@ module comm_mod
 contains
   subroutine init_comm_mod
     implicit none
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
     call init_arch_mod
@@ -941,6 +941,7 @@ contains
 
   subroutine min_dt (dom, i, j, zlev, offs, dims)
     ! Calculates time step and number of active nodes and edges
+    ! time step is smallest of barotropic time step, advective time step and internal wave time step
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -949,34 +950,32 @@ contains
 
     integer            :: d, e, id, id_e, id_i, k, l
     real(8)            :: dx, v_mag
-    real(8), parameter :: cfl = 0.8 ! cfl for baroclinic velocity
+    real(8), parameter :: cfl = 0.8
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     d  = dom%id + 1
     l  = dom%level%elts(id_i)
-
-    ! Count active nodes and edges
-    if (dom%mask_n%elts(id_i) >= ADJZONE) n_active_nodes(l) = n_active_nodes(l) + 1
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) n_active_edges(l) = n_active_edges(l) + 1
-    end do
-    
-    ! Find time step based on local velocity magnitude and grid size
-    if (adapt_dt) then
-       if (dom%mask_n%elts(id_i) >= ADJZONE) then
+        
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       n_active_nodes(l) = n_active_nodes(l) + 1 
+       if (adapt_dt) then 
           dx = minval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))
           do k = 1, zlevels
              v_mag = velo_mag (dom, i, j, k, offs, dims)
              if (mode_split) then
-                dt_loc = min (dt_loc, dt_init, cfl_num*dx/wave_speed, cfl*dx/v_mag)
+                dt_loc = min (dt_loc, dt_init, cfl_num*dx/wave_speed, cfl*dx/v_mag, dx/c1)
              else
                 dt_loc = min (dt_loc, cfl_num*dx/(v_mag + wave_speed))
              end if
           end do
        end if
     end if
+
+    do e = 1, EDGE
+       id_e = EDGE*id+e
+       if (dom%mask_e%elts(id_e) >= ADJZONE) n_active_edges(l) = n_active_edges(l) + 1
+    end do
   end subroutine min_dt
 
   real(8) function velo_mag (dom, i, j, zlev, offs, dims)
