@@ -223,16 +223,16 @@ contains
   end subroutine remap_velo
 
   subroutine remap_scalars_incompressible (dom, i, j, z_null, offs, dims)
-    ! Remap density
-    ! (potential temperature is remapped and then multiplied by new mass)
+    ! Remap mass-weighted buoyancy and layer heights
+    ! (full density is remapped and then mass-weighted buoyancy is formed)
     type (Domain)                   :: dom
     integer                         :: i, j, z_null
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: full_mass, theta_mean
-    real(8), dimension (1:zlevels) :: theta_new, theta_old 
+    real(8)                        :: dz, full_mass, full_theta
+    real(8), dimension (1:zlevels) :: density_new, density_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
@@ -245,13 +245,16 @@ contains
     
     call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
 
-    ! Remap full buoyancy
+    ! Old density
     do k = 1, zlevels
-       theta_old(k) = (sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)) &
-                    / (sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i))
+       full_mass  = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
+       full_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
+       dz = full_mass / (ref_density * phi_node (d, id_i, k))
+       density_old(k) = (full_mass - full_theta) / dz
     end do
-  
-    call interp_scalar (zlevels, theta_new, z_new, theta_old, z_old)
+
+    ! Remap density
+    call interp_scalar (zlevels, density_new, z_new, density_old, z_old)
 
     do k = 1, zlevels
        ! New full mass 
@@ -261,7 +264,9 @@ contains
        sol(S_MASS,k)%data(d)%elts(id_i) = full_mass - sol_mean(S_MASS,k)%data(d)%elts(id_i)
 
        ! New mass-weighted buoyancy
-       sol(S_TEMP,k)%data(d)%elts(id_i) = full_mass * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+       dz = full_mass / (ref_density * phi_node (d, id_i, k))
+       full_theta = full_mass - density_new(k) * dz
+       sol(S_TEMP,k)%data(d)%elts(id_i) = full_theta - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
   end subroutine remap_scalars_incompressible
 

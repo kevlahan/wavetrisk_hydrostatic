@@ -185,7 +185,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = - mass(id) / dt1**2
+       dscalar(id) = - mass(id)
     else
        dscalar(id) = 0.0_8
     end if
@@ -243,7 +243,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)/dt1**2
+       dscalar(id) = dt**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
     else
        dscalar(id) = 0.0_8
     end if
@@ -279,9 +279,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, id_i, idE, idN, idNE, idS, idSW, idW
-    real(8) :: f1, flx, Laplacian_diag
-
+    integer                 :: d, id, id_i, idE, idN, idNE, idS, idSW, idW
+    real(8)                 :: f1, f2, Laplacian_diag
+    real(8), dimension(1:6) :: pl
+    real(8), dimension(0:6) :: phi
+    
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
@@ -295,21 +297,30 @@ contains
        idSW = idx (i-1, j-1, offs, dims) 
        idS  = idx (i,   j-1, offs, dims)
 
-       f1 = abs(dom%topo%elts(idE+1) + dom%topo%elts(idNE+1) + dom%topo%elts(idN+1) + &
-             dom%topo%elts(idW+1) + dom%topo%elts(idSW+1) + dom%topo%elts(idS+1)) / 6
+       phi(0) = phi_node (d, id+1,   zlevels)
+       phi(1) = phi_node (d, idE+1,  zlevels)
+       phi(2) = phi_node (d, idNE+1, zlevels)
+       phi(3) = phi_node (d, idN+1,  zlevels)
+       phi(4) = phi_node (d, idW+1,  zlevels)
+       phi(5) = phi_node (d, idSW+1, zlevels)
+       phi(6) = phi_node (d, idS+1,  zlevels)
 
-       ! More precise diagonal
-       flx = dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)   + &
-             dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)   + &
-             dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)   + &
-             dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)  + &
-             dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
-             dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
+       pl(1) = dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)
+       pl(2) = dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)
+       pl(3) = dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)
+       pl(4) = dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)
+       pl(5) = dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1)
+       pl(6) = dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
 
-       Laplacian_diag = - flx * dom%areas%elts(id_i)%hex_inv * grav_accel * (abs(dom%topo%elts(id_i)) + f1)/2
-!!$       Laplacian_diag = - 2*sqrt(3.0_8) * dom%areas%elts(id_i)%hex_inv * grav_accel * (abs(dom%topo%elts(id_i)) + f1)/2
-       
-       diag(id_i) = scalar(id_i) / (Laplacian_diag - 1/dt1**2)
+       f1 = abs (dom%topo%elts(id_i)) * sum (pl)
+            
+       f2 = abs ( &
+            dom%topo%elts(idE+1)*phi(1)*pl(1) + dom%topo%elts(idNE+1)*phi(2)*pl(2) + dom%topo%elts(idN+1)*phi(3)*pl(3) + &
+            dom%topo%elts(idW+1)*phi(4)*pl(4) + dom%topo%elts(idSW+1)*phi(5)*pl(5) + dom%topo%elts(idS+1)*phi(6)*pl(6)) / phi(0)
+
+       Laplacian_diag = - dom%areas%elts(id_i)%hex_inv * grav_accel * (f1 + f2)/2
+
+       diag(id_i) = scalar(id_i) / (dt**2*Laplacian_diag - 1.0_8)
     else
        diag(id_i) = 0.0_8
     end if
@@ -355,7 +366,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: full_mass, full_theta, theta
+    real(8) :: full_mass, full_theta
 
     id = idx (i, j, offs, dims) + 1
     d = dom%id + 1 
@@ -547,16 +558,16 @@ contains
     integer                    :: e, id, id_e, idE, idN, idNE
     real(8), dimension(1:EDGE) :: dz
 
-    id = idx (i, j, offs, dims)
+    id = idx (i, j, offs, dims) 
 
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
     
     ! Deduce (porous) layer heights from total mass
-    dz(RT+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idE+1) +mass(idE+1)) / ref_density 
-    dz(DG+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idNE+1)+mass(idE+1)) / ref_density 
-    dz(UP+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idN+1) +mass(idE+1)) / ref_density 
+    dz(RT+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idE+1) +mass(idE+1))  / ref_density 
+    dz(DG+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idNE+1)+mass(idNE+1)) / ref_density 
+    dz(UP+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idN+1) +mass(idN+1))  / ref_density
 
     ! Subtract free surface to linearize calculation
     if (zlev == zlevels) then
