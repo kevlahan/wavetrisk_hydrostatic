@@ -216,7 +216,7 @@ contains
     Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
     call update_bdry (Laplacian_scalar(S_MASS), l, 101)
 
-    ! Form complete linear operator  div(g(H+eta^n)grad(eta^(n+1)) - eta^(n+1)/dt^2
+    ! Form complete linear operator 
     do d = 1, size(grid)
        dscalar => elliptic_lo%data(d)%elts
        mass    => q%data(d)%elts
@@ -243,7 +243,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = dt**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
+       dscalar(id) = dt1**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
     else
        dscalar(id) = 0.0_8
     end if
@@ -320,7 +320,7 @@ contains
 
        Laplacian_diag = - dom%areas%elts(id_i)%hex_inv * grav_accel * (f1 + f2)/2
 
-       diag(id_i) = scalar(id_i) / (dt**2*Laplacian_diag - 1.0_8)
+       diag(id_i) = scalar(id_i) / (dt1**2*Laplacian_diag - 1.0_8)
     else
        diag(id_i) = 0.0_8
     end if
