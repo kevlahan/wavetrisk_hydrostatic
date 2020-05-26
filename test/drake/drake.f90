@@ -33,8 +33,8 @@ program Drake
   timeint_type       = "RK4"                          ! always use RK4
   compressible       = .false.                        ! always run with incompressible equations
   mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
-  remapscalar_type   = "2PPM"                         ! optimal remapping scheme
-  remapvelo_type     = "2PPM"                         ! optimal remapping scheme
+  remapscalar_type   = "PPR"                         ! optimal remapping scheme
+  remapvelo_type     = "PPR"                         ! optimal remapping scheme
   Laplace_order_init = 1                              ! always run with Laplacian diffusion
   Laplace_order = Laplace_order_init
  
@@ -43,13 +43,13 @@ program Drake
   etopo_coast        = .false.                        ! use etopo data for coastlines (i.e. penalization)
   min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   =  -500 * METRE
+     max_depth   =  -1000 * METRE
      drho        =   0   * KG/METRE**3                
   else
      max_depth   = -2000 * METRE
-     drho        = -0.5  * KG/METRE**3                ! density difference in upper layer
+     drho        = -3    * KG/METRE**3                ! density difference in upper layer
   end if
-  top_layer      =  -500 * METRE                      ! location of top (less dense) layer in two layer case
+  top_layer      = -1000 * METRE                      ! location of top (less dense) layer in two layer case
   
   ! Characteristic scales
   wave_speed     = sqrt (grav_accel*abs(max_depth))                            ! inertia-gravity wave speed 
@@ -211,9 +211,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                         :: d, id, id_i, idE, idN, idNE
-  real(8)                         :: r
   real(8), dimension(0:NORTHEAST) :: full_mass
-  real(8), dimension(1:EDGE)      :: diffusion, drag_force, mass_e, permeability, stress, tau_wind, u_mag, wind_force
+  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e, permeability, tau_wind, u_mag, wave_drag, wind_drag
 
   d = dom%id + 1
   id = idx (i, j, offs, dims)
@@ -237,35 +236,38 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idE))
      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE), dom%node%elts(id_i))
      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idN))
-
-     wind_force = tau_wind / mass_e
+     wind_drag = tau_wind / mass_e
   else
-     wind_force = 0.0_8
+     wind_drag = 0.0_8
   end if
   
   ! Bottom stress applied in lowest layer only (as in NEMO)
   if (zlev == 1) then
-     drag_force = - friction_coeff * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
+     bottom_drag = - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
   else
-     drag_force = 0.0_8
+     bottom_drag = 0.0_8
   end if
-  drag_force = drag_force / (mass_e/ref_density)
 
   ! Internal wave drag to reduce oscillation amplitude (energy neutral) in two layer case
   if (zlevels == 2) then
-     r = friction_coeff / abs(max_depth)
      if (zlev == 1) then
-        drag_force = drag_force - r * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
      elseif (zlev == 2) then
-        drag_force = drag_force - r * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
      end if
+  else
+     wave_drag = 0.0_8
   end if
   
   ! Permeability
   permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   
-  ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
-  physics_velo_source = diffusion + permeability + (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i)) * (drag_force + wind_force)
+  ! Complete source term for velocity trend (do not include drag in solid regions)
+  if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
+     physics_velo_source = diffusion + permeability + bottom_drag + wave_drag + wind_drag
+  else
+     physics_velo_source = diffusion + permeability
+  end if
 contains
   function grad_divu()
     implicit none
