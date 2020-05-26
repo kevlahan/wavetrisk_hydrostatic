@@ -13,7 +13,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
-  real(8)                              :: friction_coeff, max_depth, min_depth, scale, tau, top_layer, u_wbc
+  real(8)                              :: bottom_friction, max_depth, min_depth, scale, top_layer, u_wbc, wave_friction
   real(8)                              :: resolution
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: drag, etopo_coast, mean_split
@@ -68,19 +68,19 @@ contains
   subroutine print_test_case_parameters
     implicit none
 
-    delta_M = (visc_rotu/beta)**(1.0_8/3.0_8) * METRE ! Munk layer scale
+    delta_M = (visc_rotu/beta)**(1.0_8/(2*Laplace_order_init+1)) * METRE ! Munk layer scale
 
     if (drag) then
-       friction_coeff =  beta*abs(max_depth) * delta_M/4
-       !friction_coeff = abs(max_depth)/(110*DAY) * METRE/SECOND ! linear bottom friction coefficient (nemo is 4e-4 for depth = 4000m)
-       tau = abs(max_depth) / friction_coeff
+       bottom_friction = beta * delta_M/4
+!!$      bottom_friction = 1.0_8/(110*DAY) * METRE/SECOND ! linear bottom friction coefficient (nemo is 4e-4/H for H = 4000m)
     else
-       friction_coeff = 0.0_8
+       bottom_friction = 0.0_8
     end if
+    wave_friction = min (1/(100/bv), 1/dt_init) ! drag to reduce oscillation of internal wave (ensure stability)
 
-    delta_S = (friction_coeff/abs(max_depth))/beta * METRE ! Stommel layer (want delta_S = delta_M/4)
-    Rey     = u_wbc * delta_I / visc_rotu                  ! Reynolds number of western boundary current
-    Ro      = u_wbc / (delta_M*f0)                         ! Rossby number (based on boundary current)
+    delta_S = bottom_friction / beta      ! Stommel layer (want delta_S = delta_M/4)
+    Rey     = u_wbc * delta_I / visc_rotu ! Reynolds number of western boundary current
+    Ro      = u_wbc / (delta_M*f0)        ! Rossby number (based on boundary current)
     
      if (rank==0) then
        write (6,'(A)') &
@@ -124,6 +124,7 @@ contains
        write (6,'(A,i6)')     "resume               = ", resume_init
        write (6,'(A,L1)')     "bottom drag          = ", drag
        write (6,'(A,i3)')     "npts_penal           = ", npts_penal
+       write (6,'(A,i3)')     "etopo_res            = ", etopo_res
        write (6,'(A,es10.4)') "resolution           = ", resolution
         
        write (6,'(/,A)')      "STANDARD PARAMETERS"
@@ -142,8 +143,9 @@ contains
        write (6,'(A,es11.4)') "c1 wave speed      [m/s]    = ", c1
        write (6,'(A,es11.4)') "eta (permeability) [s]      = ", eta
        write (6,'(A,es11.4)') "alpha (porosity)            = ", alpha
-       write (6,'(A,es11.4)') "bottom friction    [m/s]    = ", friction_coeff
-       write (6,'(A,es11.4)') "friction decay     [d]      = ", tau / DAY
+       write (6,'(A,es11.4)') "bottom friction    [m/s]    = ", bottom_friction
+       write (6,'(A,es11.4)') "bottom drag decay  [d]      = ", 1/bottom_friction / DAY
+       if (zlevels == 2) write (6,'(A,es11.4)') "wave drag decay    [h]      = ", 1/wave_friction / HOUR
        write (6,'(A,es11.4)') "f0 at 30 deg       [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 30 deg     [rad/ms] = ", beta
        write (6,'(A,es11.4)') "dx_max             [km]     = ", dx_max   / KM
@@ -159,6 +161,8 @@ contains
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
+
+       call print_density_pert
     end if
   end subroutine print_test_case_parameters
 
@@ -187,7 +191,7 @@ contains
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
-       write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/HOUR, dt, &
+       write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
             threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
@@ -253,37 +257,12 @@ contains
           sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
        else
           sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
+          sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
        end if
     end if
     ! Set initial velocity field to zero
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
   end subroutine init_sol
-
-  subroutine update
-    ! Update means, bathymetry and penalization mask
-    implicit none
-    integer :: d, k, p
-
-    if (resume /= NONE) call topography_data
-    
-    do d = 1, size(grid)
-       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
-          call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-          do k = 1, zmax
-             call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
-       end do
-    end do
-
-    do k = 1, zmax
-       do d = 1, size(grid)
-          do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
-       end do
-    end do
-  end subroutine update
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values
@@ -314,7 +293,7 @@ contains
 
        if (mean_split) then
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
        else
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
@@ -322,6 +301,31 @@ contains
     end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_mean
+
+   subroutine update
+    ! Update means, bathymetry and penalization mask
+    implicit none
+    integer :: d, k, p
+
+    if (resume /= NONE) call topography_data
+    
+    do d = 1, size(grid)
+       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
+          call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+          do k = 1, zmax
+             call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          end do
+       end do
+    end do
+
+    do k = 1, zmax
+       do d = 1, size(grid)
+          do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          end do
+       end do
+    end do
+  end subroutine update
   
   real(8) function surf_geopot (x_i)
     ! Surface geopotential: postive if greater than mean seafloor
@@ -340,23 +344,37 @@ contains
     init_free_surface = 0.0_8
   end function init_free_surface
 
-  real(8) function buoyancy (x_i, zlev)
+  real(8) function buoyancy (x_i, z)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
-    integer     :: zlev
+    real(8)     :: z
     type(Coord) :: x_i
 
-    if (zlevels /= 2) then
-       buoyancy = 0.0_8
+    if (zlevels /= 1 .and. z >= top_layer) then
+       buoyancy = - (1.0_8 - z/top_layer) * drho/ref_density
     else
-       if (zlev == 2) then ! less dense fluid in upper layer
-          buoyancy = -drho/ref_density
-       else
-          buoyancy = 0.0_8
-       end if
+       buoyancy = 0.0_8
     end if
   end function buoyancy
+
+  subroutine print_density_pert
+    implicit none
+    integer :: k
+    real(8) :: eta_surf, z
+    type(Coord), parameter :: x_i = Coord (0.0_8, 0.0_8, 0.0_8)
+
+    eta_surf = 0.0_8
+
+    write (6,'(a)') " Layer    z       drho"      
+    do k = 1, zlevels
+       z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
+       write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, - buoyancy (x_i, z)*ref_density
+    end do
+    write (6,'(A)') &
+            '*********************************************************************&
+            ************************************************************'
+  end subroutine print_density_pert
 
   subroutine set_thresholds
     ! Set thresholds dynamically (trend or sol must be known)
@@ -432,7 +450,8 @@ contains
     eta = dt_cfl
       
     ! Diffusion constants
-    C_visc = max (dt_cfl * beta * dx_min * resolution**3, 2.5d-4)  ! to ensure that Munk layer is resolved with resolution grid points
+    C_visc = min (1/31d0, max (dt_cfl * beta * dx_min * resolution**3, 2d-3))  ! ensure stability and that Munk layer is resolved with resolution grid points
+    resolution = (C_visc/(dt_cfl * beta * dx_min))**(1/3d0)
     C_rotu = C_visc
     C_divu = C_visc 
     C_sclr = C_visc 
@@ -560,7 +579,7 @@ contains
     integer :: npts
     real(8) :: r, dx
 
-    radial_basis_fun = exp (-(r/(npts*dx))**2)
+    radial_basis_fun = exp (-(r/(npts*dx/2))**2)
   end function radial_basis_fun
 
   subroutine wrap_lonlat (s, t)
@@ -589,7 +608,7 @@ contains
     ! Defines analytic latitude-longitude topography data for Drake passage case
     implicit none
     integer                              :: ii, ilat, ilon, lat_avg, lon_avg, jj, kk
-    integer, parameter                   :: npts = 2, n_smooth = 20
+    integer, parameter                   :: npts = 8, n_smooth = 1
     real(8)                              :: avg, lat, lon
     real(8), parameter                   :: width = 30, lat_max = 70, lat_min = -35
     real(8), dimension(2)                :: sz
@@ -598,8 +617,9 @@ contains
     if (etopo_coast) then
        if (rank == 0) write(6,'(a)') 'Reading bathymetry data'
        bathy_per_deg = 60/etopo_res
+       
        allocate (topo_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
-       open (unit=1086,file='bathymetry') ! "bathymetr" is symbolic link to appropriate etopo bathymetry data
+       open (unit=1086,file='bathymetry') ! "bathymetry" is symbolic link to appropriate etopo bathymetry data
        do kk = ubound (topo_data,2), lbound (topo_data,2), -1 ! north to south (as read from file)
           read (1086,*) topo_data(:,kk)
        end do
@@ -607,6 +627,7 @@ contains
     else
        ! Resolution
        bathy_per_deg = max (1, nint (2*MATH_PI*radius/dx_min/360))
+       etopo_res = nint (60/(2*MATH_PI*radius/dx_min/360)) ! effective resolution of topography in arcminutes
 
        if (.not. allocated (topo_data)) &
             allocate (topo_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
