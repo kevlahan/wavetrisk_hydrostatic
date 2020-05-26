@@ -608,7 +608,7 @@ contains
     ! Defines analytic latitude-longitude topography data for Drake passage case
     implicit none
     integer                              :: ii, ilat, ilon, lat_avg, lon_avg, jj, kk
-    integer, parameter                   :: npts = 8, n_smooth = 1
+    integer, parameter                   :: npts = 2, n_smooth = 20
     real(8)                              :: avg, lat, lon
     real(8), parameter                   :: width = 30, lat_max = 70, lat_min = -35
     real(8), dimension(2)                :: sz
