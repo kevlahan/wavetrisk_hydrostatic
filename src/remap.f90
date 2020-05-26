@@ -238,36 +238,38 @@ contains
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    ! Save old mass
-    do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
-    end do
-    
-    call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
+    if (penal_node(zlevels)%data(d)%elts(id_i) < 0.1_8) then ! do not remap inside solid
+       ! Save old mass
+       do k = 1, zlevels
+          trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
+       end do
 
-    ! Old density
-    do k = 1, zlevels
-       full_mass  = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
-       full_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
-       dz = full_mass / (ref_density * phi_node (d, id_i, k))
-       density_old(k) = (full_mass - full_theta) / dz
-    end do
+       call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
 
-    ! Remap density
-    call interp_scalar (zlevels, density_new, z_new, density_old, z_old)
+       ! Old density
+       do k = 1, zlevels
+          full_mass  = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
+          full_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
+          dz = full_mass / (ref_density * phi_node (d, id_i, k))
+          density_old(k) = (full_mass - full_theta) / dz
+       end do
 
-    do k = 1, zlevels
-       ! New full mass 
-       full_mass =  ref_density * phi_node (d, id_i, k) * (z_new(k) - z_new(k-1))
+       ! Remap density
+       call interp_scalar (zlevels, density_new, z_new, density_old, z_old)
 
-       ! New perturbation mass
-       sol(S_MASS,k)%data(d)%elts(id_i) = full_mass - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       do k = 1, zlevels
+          ! New full mass 
+          full_mass =  ref_density * phi_node (d, id_i, k) * (z_new(k) - z_new(k-1))
 
-       ! New mass-weighted buoyancy
-       dz = full_mass / (ref_density * phi_node (d, id_i, k))
-       full_theta = full_mass - density_new(k) * dz
-       sol(S_TEMP,k)%data(d)%elts(id_i) = full_theta - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
-    end do
+          ! New perturbation mass
+          sol(S_MASS,k)%data(d)%elts(id_i) = full_mass - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+
+          ! New mass-weighted buoyancy
+          dz = full_mass / (ref_density * phi_node (d, id_i, k))
+          full_theta = full_mass - density_new(k) * dz
+          sol(S_TEMP,k)%data(d)%elts(id_i) = full_theta - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+       end do
+    end if
   end subroutine remap_scalars_incompressible
 
    subroutine remap_velo_incompressible (dom, i, j, z_null, offs, dims)
@@ -279,34 +281,38 @@ contains
 
     integer                        :: d, e, id, id_i, k
     integer, dimension(1:EDGE)     :: id_r
-    real(8), dimension (1:zlevels) :: flux_new, flux_old 
+    real(8), dimension (1:zlevels) :: dz_new, dz_old, flux_new, flux_old 
     real(8), dimension (0:zlevels) :: z_new, z_edge_new, z_old, z_edge_old
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
-
-    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
-    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
-    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
-
-    call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
     
-    do e = 1, EDGE
-       call find_coordinates_incompressible (z_edge_new, z_edge_old, dom%topo%elts(id_i), d, id_r(e))
-       z_edge_new = 0.5 * (z_new + z_edge_new)
-       z_edge_old = 0.5 * (z_old + z_edge_old)
-       
-       do k = 1, zlevels
-          flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
-       end do
+    if (penal_node(zlevels)%data(d)%elts(id_i) < 0.1_8) then ! do not remap inside solid
+       id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
+       id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
+       id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
-       call interp_velo (zlevels, flux_new, z_edge_new, flux_old, z_edge_old)
+       call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
 
-       do k = 1, zlevels
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k)
+       do e = 1, EDGE
+          call find_coordinates_incompressible (z_edge_new, z_edge_old, dom%topo%elts(id_i), d, id_r(e))
+          z_edge_new = 0.5 * (z_new + z_edge_new)
+          z_edge_old = 0.5 * (z_old + z_edge_old)
+          dz_new = z_edge_new(1:zlevels) - z_edge_new(0:zlevels-1)
+          dz_old = z_edge_old(1:zlevels) - z_edge_old(0:zlevels-1)
+
+          do k = 1, zlevels
+             flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+          end do
+
+          call interp_velo (zlevels, flux_new, z_edge_new, flux_old, z_edge_old)
+
+          do k = 1, zlevels
+             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k)
+          end do
        end do
-    end do
+    end if
   end subroutine remap_velo_incompressible
 
   subroutine find_coordinates (p_new, p_old, d, id_i, column_mass)
