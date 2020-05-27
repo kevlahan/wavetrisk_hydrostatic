@@ -2,19 +2,18 @@ module barotropic_2d_mod
   ! Files needed to solve barotropic free surface 
   use ops_mod
   use multi_level_mod
-
   implicit none
-  real(8) :: dt1
 
   ! Parameters 
   integer, parameter :: iter = 25     ! number of iterations used in elliptic solver at coarsest scale (minimum suggested = 15)
   real(8), parameter :: w0   = 1.0_8  ! relaxation parameter for linear solver
   logical, parameter :: log  = .false. ! print out residual errors for elliptic solver
 contains
-  subroutine u_star (q)
+  subroutine u_star (dt, q)
     ! Explicit Euler step for intermediate velocity u_star
     ! remove external pressure gradient
     implicit none
+    real(8)                                   :: dt
     type(Float_Field), dimension(:,:), target :: q
     
     integer :: d, ibeg, iend, k, l
@@ -29,10 +28,29 @@ contains
           ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
           iend = sol(S_VELO,k)%data(d)%length
           q(S_VELO,k)%data(d)%elts(ibeg:iend) = sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
-               + dt1 * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) - horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
+               + dt * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) - horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
        end do
     end do
   end subroutine u_star
+
+  subroutine scalar_star (dt, q)
+    ! Explicit Euler step for density
+    implicit none
+    real(8)                                   :: dt
+    type(Float_Field), dimension(:,:), target :: q
+
+    integer :: d, ibeg, iend, j, k, l, v
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          do v = scalars(1), scalars(2)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+             iend = sol(v,k)%data(d)%length
+             q(v,k)%data(d)%elts(ibeg:iend) = sol(v,k)%data(d)%elts(ibeg:iend) + dt * trend(v,k)%data(d)%elts(ibeg:iend)
+          end do
+       end do
+    end do
+  end subroutine scalar_star
 
   subroutine u_update (q)
     ! Explicit Euler velocity update with new external pressure gradient
@@ -52,28 +70,10 @@ contains
           ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
           iend = sol(S_VELO,k)%data(d)%length
           q(S_VELO,k)%data(d)%elts(ibeg:iend) = (q(S_VELO,k)%data(d)%elts(ibeg:iend) &
-               + dt1 * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
+               + dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
        end do
     end do
   end subroutine u_update
-
-  subroutine scalar_update (q)
-    ! Explicit Euler step for density
-    implicit none
-    type(Float_Field), dimension(:,:), target :: q
-
-    integer :: d, ibeg, iend, j, k, l, v
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = scalars(1), scalars(2)
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = sol(v,k)%data(d)%length
-             q(v,k)%data(d)%elts(ibeg:iend) = sol(v,k)%data(d)%elts(ibeg:iend) + dt1 * trend(v,k)%data(d)%elts(ibeg:iend)
-          end do
-       end do
-    end do
-  end subroutine scalar_update
 
   subroutine eta_star (q)
     ! Explicit Euler step for intermediate free surface eta_star
@@ -136,7 +136,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
         
-    if (dom%mask_n%elts(id) >= ADJZONE) mass1(id) = mass(id) - dt1 * dscalar(id)
+    if (dom%mask_n%elts(id) >= ADJZONE) mass1(id) = mass(id) - dt * dscalar(id)
   end subroutine etastar_euler
 
   subroutine eta_update (q)
@@ -243,7 +243,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = dt1**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
+       dscalar(id) = dt**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
     else
        dscalar(id) = 0.0_8
     end if
@@ -320,7 +320,7 @@ contains
 
        Laplacian_diag = - dom%areas%elts(id_i)%hex_inv * grav_accel * (f1 + f2)/2
 
-       diag(id_i) = scalar(id_i) / (dt1**2*Laplacian_diag - 1.0_8)
+       diag(id_i) = scalar(id_i) / (dt**2*Laplacian_diag - 1.0_8)
     else
        diag(id_i) = 0.0_8
     end if
