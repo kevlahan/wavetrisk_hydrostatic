@@ -193,7 +193,7 @@ contains
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
-       if (istep <= 10) dt = 0.1 * dx_max/wave_speed ! take a few small times on start up to damp any spurious gravity waves on restart
+       if (istep <= 10) dt = 0.025 * dx_max/wave_speed ! take a few small times on start up to damp any spurious gravity waves on restart
        select case (timeint_type)
        case ("Euler")
           call Euler_split (dt)

@@ -76,8 +76,12 @@ contains
     else
        bottom_friction = 0.0_8
     end if
-    wave_friction = min (1/(100/bv), 1/dt_init) ! drag to reduce oscillation of internal wave (ensure stability)
-
+    if (drho == 0.0_8) then
+       wave_friction = 0.0_8
+    else
+       wave_friction = min (1/(100/bv), 1/dt_init) ! drag to reduce oscillation of internal wave (ensure stability)
+    end if
+    
     delta_S = bottom_friction / beta      ! Stommel layer (want delta_S = delta_M/4)
     Rey     = u_wbc * delta_I / visc_rotu ! Reynolds number of western boundary current
     Ro      = u_wbc / (delta_M*f0)        ! Rossby number (based on boundary current)

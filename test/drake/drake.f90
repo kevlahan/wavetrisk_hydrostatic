@@ -43,13 +43,13 @@ program Drake
   etopo_coast        = .false.                        ! use etopo data for coastlines (i.e. penalization)
   min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   =  -1000 * METRE
+     max_depth   =  -2000 * METRE
      drho        =   0   * KG/METRE**3                
   else
      max_depth   = -2000 * METRE
      drho        = -3    * KG/METRE**3                ! density difference in upper layer
   end if
-  top_layer      = -1000 * METRE                      ! location of top (less dense) layer in two layer case
+  top_layer      = -500 * METRE                      ! location of top (less dense) layer in two layer case
   
   ! Characteristic scales
   wave_speed     = sqrt (grav_accel*abs(max_depth))                            ! inertia-gravity wave speed 
@@ -211,8 +211,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                         :: d, id, id_i, idE, idN, idNE
-  real(8), dimension(0:NORTHEAST) :: full_mass
-  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e, permeability, tau_wind, u_mag, wave_drag, wind_drag
+  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, permeability, tau_wind, wave_drag, wind_drag
 
   d = dom%id + 1
   id = idx (i, j, offs, dims)
@@ -224,19 +223,13 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   ! Laplacian of velocity
   diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
-
-  ! Interpolate mass to edges
-  full_mass(0:NORTHEAST) = mass((/id,idN,idE,id,id,idNE/)+1) + mean_m((/id,idN,idE,id,id,idNE/)+1)
-  mass_e(RT+1) = interp (full_mass(0), full_mass(EAST))
-  mass_e(DG+1) = interp (full_mass(0), full_mass(NORTHEAST))
-  mass_e(UP+1) = interp (full_mass(0), full_mass(NORTH))
-
+  
   ! Wind stress per unit length in top layer only
   if (zlev == zlevels) then
      tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idE))
      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE), dom%node%elts(id_i))
      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idN))
-     wind_drag = tau_wind / mass_e
+     wind_drag = tau_wind / (ref_density * abs(max_depth))
   else
      wind_drag = 0.0_8
   end if
