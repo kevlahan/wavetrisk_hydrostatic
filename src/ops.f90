@@ -1182,8 +1182,8 @@ contains
     e_zonal = Coord (-sin(lon),           cos(lon),             0.0_8) ! Zonal direction
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
-    dom%u_zonal%elts(id+1) = inner (vel, e_zonal)
-    dom%v_merid%elts(id+1) = inner (vel, e_merid)
+    velo1(id+1) = inner (vel, e_zonal)
+    velo2(id+1) = inner (vel, e_merid)
   end subroutine interp_vel_hex
 
   subroutine cal_Laplacian_scalar (dom, i, j, zlev, offs, dims)

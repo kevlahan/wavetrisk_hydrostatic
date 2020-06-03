@@ -76,7 +76,7 @@ module domain_mod
 
   real(8), dimension(:), pointer :: diag, mass, mass1, h_flux, h_mflux
   real(8), dimension(:), pointer :: dscalar, scalar, scalar_2d, temp, temp1
-  real(8), dimension(:), pointer :: velo, velo1, velo_2d, dvelo, dvelo_2d
+  real(8), dimension(:), pointer :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
   real(8), dimension(:), pointer :: mean_m, mean_t
   real(8), dimension(:), pointer :: Laplacian
   real(8), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
