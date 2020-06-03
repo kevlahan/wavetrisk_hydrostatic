@@ -33,8 +33,8 @@ program Drake
   timeint_type       = "RK4"                          ! always use RK4
   compressible       = .false.                        ! always run with incompressible equations
   mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
-  remapscalar_type   = "PPR"                         ! optimal remapping scheme
-  remapvelo_type     = "PPR"                         ! optimal remapping scheme
+  remapscalar_type   = "PPR"                          ! optimal remapping scheme
+  remapvelo_type     = "PPR"                          ! optimal remapping scheme
   Laplace_order_init = 1                              ! always run with Laplacian diffusion
   Laplace_order = Laplace_order_init
  
@@ -43,25 +43,42 @@ program Drake
   etopo_coast        = .false.                        ! use etopo data for coastlines (i.e. penalization)
   min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   =  -2000 * METRE
-     drho        =   0   * KG/METRE**3                
-  else
      max_depth   = -2000 * METRE
-     drho        = -3    * KG/METRE**3                ! density difference in upper layer
+     halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer =  -500 * METRE                      ! location of layer forced by surface wind stress
+     drho        =   0   * KG/METRE**3                
+  elseif (zlevels == 2) then
+     max_depth   = -2000 * METRE
+     halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer =  -500 * METRE                      ! location of layer forced by surface wind stress
+     drho        =  -0.5 * KG/METRE**3                ! density difference in upper layer
+  elseif (zlevels == 3) then
+     max_depth   = -2000 * METRE
+     halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer =  -100 * METRE                      ! location of layer forced by surface wind stress
+     drho        =  -0.5 * KG/METRE**3                ! density difference in upper layer
   end if
-  top_layer      = -500 * METRE                      ! location of top (less dense) layer in two layer case
-  
+
+  ! Maximum wind stress
+  if (zlevels == 1 .or. zlevels == 2) then
+     tau_0 = 0.02_8
+  elseif (zlevels == 3) then
+     tau_0 = 0.02_8
+  else
+     tau_0 = 0.02_8
+  end if
+
+  ! Vertical level to save
+  save_zlev = zlevels
+
   ! Characteristic scales
   wave_speed     = sqrt (grav_accel*abs(max_depth))                            ! inertia-gravity wave speed 
   f0             = 2*omega*sin(30*DEG)          * RAD/SECOND                   ! representative Coriolis parameter
   beta           = 2*omega*cos(30*DEG) / radius * RAD/(SECOND*METRE)           ! beta parameter at 30 degrees latitude
   L_R            = wave_speed / f0              * METRE                        ! Rossby radius
-  bv             = sqrt (grav_accel/ref_density*abs(drho)/abs(top_layer))      ! Brunt-Vaisala frequency         
+  bv             = sqrt (grav_accel/ref_density*abs(drho)/abs(halocline))      ! Brunt-Vaisala frequency         
   c1             = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed  ! first baroclinic mode speed
-!!$  u_wbc          = 2                            * METRE/SECOND                 ! western boundary current (single layer, H = 500 m)
-!!$  u_wbc          = 4.5                            * METRE/SECOND                 ! western boundary current (H = 1 km, top = 500 m)
-  u_wbc          = 2                            * METRE/SECOND                 ! western boundary current (H = 2 km, top = 500 m)
-!!$  u_wbc          = 1                            * METRE/SECOND                 ! western boundary current (H = 4 km, top = 1000 m)
+  u_wbc          = 1                            * METRE/SECOND                 ! western boundary current speed
   delta_I        = sqrt (u_wbc/beta)            * METRE                        ! inertial layer
   delta_sm       = u_wbc/f0                     * METRE                        ! barotropic submesoscale  
 
@@ -211,7 +228,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                         :: d, id, id_i, idE, idN, idNE
-  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, permeability, tau_wind, wave_drag, wind_drag
+  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e, permeability, tau_wind, wave_drag, wind_drag
+  real(8), dimension(0:NORTHEAST) :: full_mass
 
   d = dom%id + 1
   id = idx (i, j, offs, dims)
@@ -226,10 +244,16 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   
   ! Wind stress per unit length in top layer only
   if (zlev == zlevels) then
+     full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+     
+     mass_e(RT+1) = interp (full_mass(0), full_mass(EAST))
+     mass_e(DG+1) = interp (full_mass(0), full_mass(NORTHEAST))
+     mass_e(UP+1) = interp (full_mass(0), full_mass(NORTH))
+  
      tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idE))
      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE), dom%node%elts(id_i))
      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idN))
-     wind_drag = tau_wind / (ref_density * abs(max_depth))
+     wind_drag = tau_wind / mass_e ! variable forcing
   else
      wind_drag = 0.0_8
   end if
@@ -247,6 +271,14 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
         wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
      elseif (zlev == 2) then
         wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+     end if
+  elseif (zlevels == 3) then
+     if (zlev == 1) then
+        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+     elseif (zlev == 2) then
+        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+     elseif (zlev == 3) then
+        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
      end if
   else
      wave_drag = 0.0_8

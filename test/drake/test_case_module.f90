@@ -13,8 +13,8 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
-  real(8)                              :: bottom_friction, max_depth, min_depth, scale, top_layer, u_wbc, wave_friction
-  real(8)                              :: resolution
+  real(8)                              :: bottom_friction, max_depth, min_depth, mixed_layer, scale, halocline, u_wbc
+  real(8)                              :: resolution, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: drag, etopo_coast, mean_split
 contains
@@ -53,13 +53,12 @@ contains
     read (fid,*) varname, drag
     read (fid,*) varname, npts_penal
     read (fid,*) varname, resolution
-    
+
     close(fid)
 
     press_save = 0.0_8
     allocate (pressure_save(1))
     pressure_save(1) = press_save
-    call set_save_level
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
@@ -70,23 +69,28 @@ contains
 
     delta_M = (visc_rotu/beta)**(1.0_8/(2*Laplace_order_init+1)) * METRE ! Munk layer scale
 
+    ! Bottom drag
     if (drag) then
        bottom_friction = beta * delta_M/4
 !!$      bottom_friction = 1.0_8/(110*DAY) * METRE/SECOND ! linear bottom friction coefficient (nemo is 4e-4/H for H = 4000m)
     else
        bottom_friction = 0.0_8
     end if
+
+    ! Internal wave drag to reduce oscillation of internal wave (ensure stability)
     if (drho == 0.0_8) then
        wave_friction = 0.0_8
     else
-       wave_friction = min (1/(100/bv), 1/dt_init) ! drag to reduce oscillation of internal wave (ensure stability)
+       wave_friction = min (1/(1000/bv), 1/dt_init) 
     end if
-    
+
     delta_S = bottom_friction / beta      ! Stommel layer (want delta_S = delta_M/4)
     Rey     = u_wbc * delta_I / visc_rotu ! Reynolds number of western boundary current
     Ro      = u_wbc / (delta_M*f0)        ! Rossby number (based on boundary current)
-    
-     if (rank==0) then
+
+    call set_save_level
+
+    if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
             ************************************************************'
@@ -118,7 +122,6 @@ contains
        write (6,'(A,L1)')     "adapt_dt             = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num              = ", cfl_num
        write (6,'(a,a)')      "timeint_type         = ", trim (timeint_type)
-       write (6,'(A,es10.4)') "pressure_save [hPa]  = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse            = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write [d]         = ", dt_write/DAY
@@ -130,7 +133,7 @@ contains
        write (6,'(A,i3)')     "npts_penal           = ", npts_penal
        write (6,'(A,i3)')     "etopo_res            = ", etopo_res
        write (6,'(A,es10.4)') "resolution           = ", resolution
-        
+
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius             [km]     = ", radius / KM
        write (6,'(A,es10.4)') "omega              [rad/s]  = ", omega
@@ -140,16 +143,18 @@ contains
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
        write (6,'(A,es11.4)') "min_depth          [m]      = ", abs (min_depth)
        write (6,'(A,es11.4)') "max_depth          [m]      = ", abs (max_depth)
-       write (6,'(A,es11.4)') "top_layer          [m]      = ", abs (top_layer)
+       write (6,'(A,es11.4)') "halocline          [m]      = ", abs (halocline)
+       write (6,'(A,es11.4)') "mixed layer        [m]      = ", abs (mixed_layer)
        write (6,'(A,es11.4)') "density difference [kg/m^3] = ", drho
        write (6,'(A,es11.4)') "Brunt-Vaisala freq [1/s]    = ", bv
        write (6,'(A,es11.4)') "c0 wave speed      [m/s]    = ", wave_speed
        write (6,'(A,es11.4)') "c1 wave speed      [m/s]    = ", c1
+       write (6,'(A,es11.4)') "max wind stress    [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "eta (permeability) [s]      = ", eta
        write (6,'(A,es11.4)') "alpha (porosity)            = ", alpha
        write (6,'(A,es11.4)') "bottom friction    [m/s]    = ", bottom_friction
        write (6,'(A,es11.4)') "bottom drag decay  [d]      = ", 1/bottom_friction / DAY
-       if (zlevels == 2) write (6,'(A,es11.4)') "wave drag decay    [h]      = ", 1/wave_friction / HOUR
+       write (6,'(A,es11.4)') "wave drag decay    [h]      = ", 1/wave_friction / HOUR
        write (6,'(A,es11.4)') "f0 at 30 deg       [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 30 deg     [rad/ms] = ", beta
        write (6,'(A,es11.4)') "dx_max             [km]     = ", dx_max   / KM
@@ -180,7 +185,7 @@ contains
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
-    
+
     if (rank == 0) then
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
             'time [d] = ', time/DAY, &
@@ -207,7 +212,7 @@ contains
     integer :: d, k, l
 
     call topography_data
-    
+
     do l = level_start, level_end
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        do k = 1, zmax
@@ -222,7 +227,7 @@ contains
        end do
     end do
   end subroutine apply_initial_conditions
-  
+
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Initial perturbation to mean 
     implicit none
@@ -234,22 +239,22 @@ contains
     integer     :: d, id, id_i
     real (8)    :: dz, eta_surf, phi, porous_density, z
     type(Coord) :: x_i
-    
+
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
     eta_surf = init_free_surface (x_i)
-    
+
     if (zlev == zlevels+1) then ! 2D barotropic mode
        phi = 1.0_8 + (alpha - 1.0_8) * penal_node(zlevels)%data(d)%elts(id_i)
-       
+
        sol(S_MASS,zlev)%data(d)%elts(id_i) = phi * eta_surf ! free surface perturbation
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     else ! 3D layers
        dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
        z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
-       
+
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
 
        if (mean_split) then
@@ -279,7 +284,7 @@ contains
     integer     :: d, id, id_i
     real (8)    :: dz, eta_surf, porous_density, z
     type(Coord) :: x_i
-    
+
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
@@ -292,7 +297,7 @@ contains
     else
        dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
        z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
-    
+
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
 
        if (mean_split) then
@@ -306,13 +311,13 @@ contains
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_mean
 
-   subroutine update
+  subroutine update
     ! Update means, bathymetry and penalization mask
     implicit none
     integer :: d, k, p
 
     if (resume /= NONE) call topography_data
-    
+
     do d = 1, size(grid)
        do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
           call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -330,7 +335,7 @@ contains
        end do
     end do
   end subroutine update
-  
+
   real(8) function surf_geopot (x_i)
     ! Surface geopotential: postive if greater than mean seafloor
     ! MUST BE SET EQUAL TO ZERO FOR THIS test case
@@ -355,8 +360,8 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    if (zlevels /= 1 .and. z >= top_layer) then
-       buoyancy = - (1.0_8 - z/top_layer) * drho/ref_density
+    if (zlevels /= 1 .and. z >= halocline) then
+       buoyancy = - (1.0_8 - z/halocline) * drho/ref_density
     else
        buoyancy = 0.0_8
     end if
@@ -376,8 +381,8 @@ contains
        write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, - buoyancy (x_i, z)*ref_density
     end do
     write (6,'(A)') &
-            '*********************************************************************&
-            ************************************************************'
+         '*********************************************************************&
+         ************************************************************'
   end subroutine print_density_pert
 
   subroutine set_thresholds
@@ -412,7 +417,7 @@ contains
        threshold = threshold_new
     end if
   end subroutine set_thresholds
-  
+
   subroutine initialize_thresholds
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
@@ -425,8 +430,8 @@ contains
     eta_surf = 0.0_8
     do k = 1, zlevels
        dz = a_vert_mass(k) * eta_surf + b_vert_mass(k) * max_depth
-       lnorm(S_MASS,k) = ref_density*dz
-       lnorm(S_TEMP,k) = ref_density*dz
+       lnorm(S_MASS,k) = 1d16!ref_density*dz
+       lnorm(S_TEMP,k) = 1d16!ref_density*dz
        lnorm(S_VELO,k) = Udim
     end do
 
@@ -452,7 +457,7 @@ contains
 
     ! Permeability penalization parameter
     eta = dt_cfl
-      
+
     ! Diffusion constants
     C_visc = min (1/31d0, max (dt_cfl * beta * dx_min * resolution**3, 2d-3))  ! ensure stability and that Munk layer is resolved with resolution grid points
     resolution = (C_visc/(dt_cfl * beta * dx_min))**(1/3d0)
@@ -477,14 +482,14 @@ contains
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
-   
+
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
             "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
        write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
-          " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
-          " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
+            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
+            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
        write (6,'(a,es10.4,a)') "eta = ", eta," [s]"
     end if
   end subroutine initialize_dt_viscosity
@@ -521,7 +526,7 @@ contains
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
     end if
   end subroutine set_penal
-  
+
   subroutine topography (dom, i, j, zlev, offs, dims, itype, npts)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
     ! uses radial basis function for smoothing (if specified)
@@ -591,7 +596,7 @@ contains
     ! Latitude: works only if there is no coast at the pole
     implicit none
     integer :: s, t
-    
+
     if (t < lbound (topo_data,2)) t = lbound (topo_data,2) ! pole
     if (t > ubound (topo_data,2)) t = ubound (topo_data,2) ! pole
     if (s < lbound (topo_data,1)) s = s + 360*BATHY_PER_DEG
@@ -684,15 +689,15 @@ contains
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     ! Idealized zonally and temporally averaged zonal and meridional wind stresses
     ! (based on Figure 4 from Ferreira et al J Climate 24, 992-1012 (2011) and Figure 4 from Gille J Atmos Ocean Tech 22, 1353-1372 respectively)
+
     implicit none
-    real(8) :: lat, lon, tau_zonal, tau_merid
-    real(8) :: peak
+    real(8) :: lat, lon, peak, tau_zonal, tau_merid
 
     peak = (abs(lat)*180/MATH_PI - 35.0_8) / 20
-    tau_zonal = -0.12 * exp (-peak**2) * sin (abs(lat)*6) - 5d-3*exp(-(lat*180/MATH_PI/10)**2)
+    tau_zonal = -tau_0 * 1.2 * exp (-peak**2) * sin (abs(lat)*6) - 5d-3*exp(-(lat*180/MATH_PI/10)**2)
 
     !peak = lat*180/MATH_PI / 15
-    !tau_merid = -0.25 * exp (-peak**2) * sin (2*lat) * peak**2
+    !tau_merid = -tau_0 * 2.5 * exp (-peak**2) * sin (2*lat) * peak**2
     tau_merid = 0.0_8
   end subroutine wind_stress
 
@@ -701,10 +706,9 @@ contains
     implicit none
     real(8) :: save_height
 
-    save_zlev = zlevels
-    save_height = 0.0_8
+    save_height = 0.5 * (b_vert(save_zlev)+b_vert(save_zlev-1)) * max_depth
 
-    if (rank==0) write (6,'(/,A,i2,A,es10.4,A,/)') "Saving vertical level ", save_zlev, &
+    if (rank==0) write (6,'(/,A,i2,A,es11.4,A,/)') "Saving vertical level ", save_zlev, &
          " (approximate height = ", save_height, " [m])"
   end subroutine set_save_level
 
@@ -715,10 +719,13 @@ contains
 
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
-    
-    if (zlevels == 2) then ! special two layer case
+
+    if (zlevels == 2) then 
        a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;               a_vert(2) = 1.0_8
-       b_vert(0) = 1.0_8; b_vert(1) = top_layer/max_depth; b_vert(2) = 0.0_8
+       b_vert(0) = 1.0_8; b_vert(1) = halocline/max_depth; b_vert(2) = 0.0_8
+    elseif (zlevels == 3) then
+       a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;               a_vert(2) = 0.0_8;                 a_vert(3) = 1.0_8 
+       b_vert(0) = 1.0_8; b_vert(1) = halocline/max_depth; b_vert(2) = mixed_layer/max_depth; b_vert(3) = 0.0_8
     else ! uniform sigma grid: z = a_vert*eta + b_vert*z_s
        do k = 0, zlevels
           a_vert(k) = dble(k)/dble(zlevels)
