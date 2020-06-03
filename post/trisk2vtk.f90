@@ -46,12 +46,12 @@ program trisk2vtk
   call get_command_argument(6, arg); read (arg,'(I12)') jmax
   call get_command_argument(7, arg); file_vtk = trim(arg)
 
-  if (file_type .eq. " ") then
+  if (file_type == " ") then
      write (6,'(A)') " "
      write (6,'(A)') "Usage: trisk2vtk file_base file_type tbegin tend jmin jmax file_vtk"
      write (6,'(A)') " "
      write (6,'(A)') "file_base = base name for files"
-     write (6,'(A)') "file_type = primal (hexagons) or dual (triangles)"
+     write (6,'(A)') "file_type = primal (hexagons) or dual (triangles) or ocean (incompressible)"
      write (6,'(A)') "tstart    = number of first file to read"
      write (6,'(A)') "tend      = number of last file to read"
      write (6,'(A)') "jmin      = minimum scale to save"
@@ -67,12 +67,15 @@ program trisk2vtk
      write (6,'("jmax      = ", I2)') jmax
      write (6,'("file_vtk  = ", A)') file_vtk
 
-     if (trim(file_type) .eq. "primal") then
+     if (trim(file_type) == "primal") then
         n_vertices = 6 ! Hexagonal cells (primal grid)
         nvar_out   = 7
-     elseif (trim(file_type) .eq. "dual") then
+     elseif (trim(file_type) == "dual") then
         n_vertices = 3 ! Triangular cells (dual grid)
         nvar_out   = 1
+     elseif (trim(file_type) == "ocean") then
+        n_vertices = 6 ! Triangular cells (dual grid)
+        nvar_out   = 11
      end if
   end if
 
@@ -89,7 +92,7 @@ program trisk2vtk
         CALL system(command)
 
         ! Delete un-needed file
-        if (trim(file_type) .eq. "primal") then
+        if (trim(file_type) == "primal" .or. trim(file_type) == "ocean") then
            command = '\rm ' // trim(file_base) // s_time // '00'
            CALL system(command)
         end if
@@ -160,17 +163,23 @@ program trisk2vtk
 
         ! Second pass to actually read in data
         open (unit=iunit, file=trim(filename_in), form="formatted")
-        if (file_type.eq."primal") then
+        if (file_type == "primal") then
            do icell = n_cells_old+1, n_cells
               read (iunit, fmt='(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
                    ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
                    outv(icell,1:nvar_out), mask(icell), level(icell)
            end do
-        elseif (file_type.eq."dual") then
+        elseif (file_type == "dual") then
            do icell = n_cells_old+1, n_cells
               read (iunit, fmt='(9(E14.5E2, 1X), E14.5E2, 1X, I3)') &
                    ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
                    outv(icell,1), level(icell)
+           end do
+        elseif (file_type == "ocean") then
+           do icell = n_cells_old+1, n_cells
+              read (iunit, fmt='(18(E14.5E2, 1X), 11(E14.5E2, 1X), I3, 1X, I3)') &
+                   ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
+                   outv(icell,1:nvar_out), mask(icell), level(icell)
            end do
         end if
         close(iunit)
@@ -223,7 +232,7 @@ program trisk2vtk
 
      ! Write out cell data for each cell
      write(iunit) 'CELL_DATA '//str1//lf
-     if (file_type.eq."primal") then
+     if (file_type == "primal") then
         write(iunit) 'SCALARS temperature float'//lf
         write(iunit) 'LOOKUP_TABLE default'//lf
         do icell = 1, n_cells
@@ -285,7 +294,97 @@ program trisk2vtk
         do icell = 1, n_cells
            write (iunit) level(icell)
         end do
-     elseif (file_type.eq."dual") then
+     elseif (file_type == "ocean") then
+        write(iunit) 'SCALARS density float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,1)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS barotropic_velocity_zonal float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,2)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS barotropic_velocity_meridional float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,3)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS baroclinic_velocity_zonal float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,4)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS baroclinic_velocity_meridional float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,5)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS baroclinic_vort float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,6)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS barotropic_vort float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,7)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS baroclinic_free_surf float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,8)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS barotropic_free_surf float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,9)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS topography float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,10)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS land_mass float'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) outv(icell,11)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS mask int'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) mask(icell)
+        end do
+        write(iunit) lf
+
+        write(iunit) 'SCALARS level int'//lf
+        write(iunit) 'LOOKUP_TABLE default'//lf
+        do icell = 1, n_cells
+           write (iunit) level(icell)
+        end do
+     elseif (file_type == "dual") then
         write(iunit) 'SCALARS relvort float'//lf
         write(iunit) 'LOOKUP_TABLE default'//lf
         do icell = 1, n_cells
