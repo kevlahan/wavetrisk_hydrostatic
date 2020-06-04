@@ -51,7 +51,7 @@ program trisk2vtk
      write (6,'(A)') "Usage: trisk2vtk file_base file_type tbegin tend jmin jmax file_vtk"
      write (6,'(A)') " "
      write (6,'(A)') "file_base = base name for files"
-     write (6,'(A)') "file_type = primal (hexagons) or dual (triangles) or ocean (incompressible)"
+     write (6,'(A)') "file_type = primal (hexagons) or dual (triangles) or 2layer (incompressible 2 layer)"
      write (6,'(A)') "tstart    = number of first file to read"
      write (6,'(A)') "tend      = number of last file to read"
      write (6,'(A)') "jmin      = minimum scale to save"
@@ -73,7 +73,7 @@ program trisk2vtk
      elseif (trim(file_type) == "dual") then
         n_vertices = 3 ! Triangular cells (dual grid)
         nvar_out   = 1
-     elseif (trim(file_type) == "ocean") then
+     elseif (trim(file_type) == "2layer") then
         n_vertices = 6 ! Triangular cells (dual grid)
         nvar_out   = 11
      end if
@@ -92,7 +92,7 @@ program trisk2vtk
         CALL system(command)
 
         ! Delete un-needed file
-        if (trim(file_type) == "primal" .or. trim(file_type) == "ocean") then
+        if (trim(file_type) == "primal" .or. trim(file_type) == "2layer") then
            command = '\rm ' // trim(file_base) // s_time // '00'
            CALL system(command)
         end if
@@ -175,7 +175,7 @@ program trisk2vtk
                    ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
                    outv(icell,1), level(icell)
            end do
-        elseif (file_type == "ocean") then
+        elseif (file_type == "2layer") then
            do icell = n_cells_old+1, n_cells
               read (iunit, fmt='(18(E14.5E2, 1X), 11(E14.5E2, 1X), I3, 1X, I3)') &
                    ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
@@ -294,7 +294,7 @@ program trisk2vtk
         do icell = 1, n_cells
            write (iunit) level(icell)
         end do
-     elseif (file_type == "ocean") then
+     elseif (file_type == "2layer") then
         write(iunit) 'SCALARS density float'//lf
         write(iunit) 'LOOKUP_TABLE default'//lf
         do icell = 1, n_cells

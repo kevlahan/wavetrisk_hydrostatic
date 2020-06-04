@@ -22,7 +22,7 @@ contains
     call init_domain_mod
     next_fid = 100
     
-    if (compressible) then
+    if (compressible .or. zlevels /= 2) then
        N_VAR_OUT = 7
     else
        N_VAR_OUT = 11
@@ -682,13 +682,38 @@ contains
        full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
        full_temp = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
 
-       if (compressible) then
-          outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i) / full_mass * (dom%press%elts(id_i)/p_0)**kappa ! temperature in layer zlev
+       if (compressible .or. zlevels /= 2) then
+          if (compressible) then ! temperature in layer zlev
+             outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i) / full_mass * (dom%press%elts(id_i)/p_0)**kappa
+          else ! density perturbation
+             outv(1) = -ref_density * full_temp / full_mass
+          end if
+          
           outv(2) = dom%u_zonal%elts(id_i)              ! zonal velocity
           outv(3) = dom%v_merid%elts(id_i)              ! meridional velocity
-          outv(4) = dom%geopot%elts(id_i)/grav_accel    ! geopotential height at level zlev
-          outv(5) = sol(S_MASS,zlev)%data(d)%elts(id_i) ! mass = ref_density*dz
-          outv(6) = dom%surf_press%elts(id_i)           ! surface pressure
+
+          if (compressible) then ! geopotential height at level zlev
+             outv(4) = dom%geopot%elts(id_i)/grav_accel
+          else ! topography
+             outv(4) = -dom%topo%elts(id_i)
+          end if
+
+          if (compressible) then ! mass = ref_density*dz
+             outv(5) = sol(S_MASS,zlev)%data(d)%elts(id_i)
+          else ! penalization mask
+             outv(5) = penal_node(zlev)%data(d)%elts(id_i)
+          end if
+
+          if (compressible) then ! surface pressure
+             outv(6) = dom%surf_press%elts(id_i)
+          else ! free surface perturbation
+             if (mode_split) then 
+                outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
+             else
+                outv(6) = free_surface (dom, id_i, zlev) 
+             end if
+          end if
+    
           outv(7) = dom%press_lower%elts(id_i)          ! vorticity (at hexagon points)
 
           write (funit,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
@@ -696,8 +721,6 @@ contains
                dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
                outv, dom%mask_n%elts(id_i), outl
-          where (minv > outv) minv = outv
-          where (maxv < outv) maxv = outv
        else
           outv(1) = -ref_density * full_temp / full_mass
 
@@ -1346,29 +1369,30 @@ contains
        minv = 1.0d63; maxv = -1.0d63
        u = 1000000+100*iwrite
 
-       ! Calculate pressure, exner and geopotential at vertical level save_zlev and scale l
-       do k = 1, save_zlev
-          do d = 1, size(grid)
-             mass    => sol(S_MASS,k)%data(d)%elts
-             mean_m  => sol_mean(S_MASS,k)%data(d)%elts
-             temp    => sol(S_TEMP,k)%data(d)%elts
-             mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
-             exner   => exner_fun(k)%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+       if (compressible .or. zlevels /= 2) then
+          if (compressible) then ! pressure, exner and geopotential at vertical level save_zlev and scale l
+             do k = 1, save_zlev
+                do d = 1, size(grid)
+                   mass    => sol(S_MASS,k)%data(d)%elts
+                   mean_m  => sol_mean(S_MASS,k)%data(d)%elts
+                   temp    => sol(S_TEMP,k)%data(d)%elts
+                   mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
+                   exner   => exner_fun(k)%data(d)%elts
+                   do j = 1, grid(d)%lev(l)%length
+                      call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                   end do
+                   nullify (mass, mean_m, temp, mean_t, exner)
+                end do
              end do
-             nullify (mass, mean_m, temp, mean_t, exner)
-          end do
-       end do
+          end if
 
-       if (compressible) then
-          ! Zonal and meridional velocities and vorticity for vertical level save_zlev
+          ! Zonal and meridional velocities for vertical level save_zlev
           do d = 1, size(grid)
              velo  => sol(S_VELO,save_zlev)%data(d)%elts
              velo1 => grid(d)%u_zonal%elts
              velo2 => grid(d)%v_merid%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (velo, velo1, velo2)
           end do
@@ -1386,7 +1410,7 @@ contains
 
           ! Calculate vorticity at hexagon points (stored in press_lower)
           do d = 1, size(grid)
-             vort => grid(d)%surf_press%elts
+             vort => grid(d)%press_lower%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
@@ -1480,7 +1504,7 @@ contains
        if (rank == 0) then
           write (var_file, '(i7)') u
           open(unit=50, file=trim(run_id)//'.'//var_file, status='REPLACE')
-          if (compressible) then
+          if (compressible .or. zlevels /= 2) then
              write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
              write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
           else
