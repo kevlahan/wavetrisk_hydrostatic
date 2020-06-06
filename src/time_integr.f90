@@ -310,6 +310,9 @@ contains
 
     call trend_ml (sol(:,1:zlevels), trend(:,1:zlevels))
     call RK_split (dt, sol)
+    call WT_after_step (sol, wav_coeff, level_start)
+    
+    call correction (dt, sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine Euler_split
 
