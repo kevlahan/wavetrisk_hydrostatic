@@ -312,7 +312,7 @@ contains
     call RK_split (dt, sol)
     call WT_after_step (sol, wav_coeff, level_start)
     
-    call correction (dt, sol)
+    call correction (sol)
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine Euler_split
 
@@ -327,25 +327,25 @@ contains
 
     call manage_q1_mem
 
-    call trend_ml (sol(:,1:zlevels), trend(:,1:zlevels))
+    call trend_ml (sol, trend)
     call RK_split (dt/4, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_ml (q1(:,1:zlevels), trend(:,1:zlevels))
+    call trend_ml (q1, trend)
     call RK_split (dt/3, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_ml (q1(:,1:zlevels), trend(:,1:zlevels))
+    call trend_ml (q1, trend)
     call RK_split (dt/2, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call trend_ml (q1(:,1:zlevels), trend(:,1:zlevels))
+    call trend_ml (q1, trend)
     call RK_split (dt, q1)
     call WT_after_step (q1, wav_coeff)
 
-    call correction (dt, q1)
-    call WT_after_step (q1, wav_coeff, level_start-1)
+    call correction (q1)
     sol = q1
+    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK4_split
   
   subroutine RK_split (dt, dest)
@@ -364,15 +364,11 @@ contains
     call barotropic_correction (dest)
   end subroutine RK_split
 
-  subroutine correction (dt, dest)
+  subroutine correction (dest)
     ! Backwards Euler implicit calculation of new free surface and correction of velocity and scalars
     ! (free surface correction step of RK4_split)
     implicit none
-    real(8)                                           :: dt
     type(Float_Field), dimension(:,:), intent (inout) :: dest
-
-    ! Explicit Euler step for intermediate free surface 
-    call eta_star (dest)
 
     ! Backwards Euler step for new free surface 
     call eta_update (dest)

@@ -5,7 +5,7 @@ module barotropic_2d_mod
   implicit none
 
   ! Parameters 
-  integer, parameter :: iter = 25     ! number of iterations used in elliptic solver at coarsest scale (minimum suggested = 15)
+  integer, parameter :: iter = 10     ! number of iterations used in elliptic solver at coarsest scale (maximum = 15)
   real(8), parameter :: w0   = 1.0_8  ! relaxation parameter for linear solver
   logical, parameter :: log  = .false. ! print out residual errors for elliptic solver
 contains
@@ -52,6 +52,16 @@ contains
     end do
   end subroutine scalar_star
 
+  subroutine eta_update (q)
+    ! Backwards Euler step for eta update
+    use lin_solve_mod
+    implicit none
+    type(Float_Field), dimension(:,:), target :: q
+
+    call rhs_elliptic (q)
+    call multiscale (q(S_MASS,zlevels+1), q(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag, iter, w0, log)
+  end subroutine eta_update
+
   subroutine u_update (q)
     ! Explicit Euler velocity update with new external pressure gradient
     ! penalization is advanced using a backwards Euler scheme
@@ -68,15 +78,15 @@ contains
     do k = 1, zlevels
        do d = 1, size(grid)
           ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = sol(S_VELO,k)%data(d)%length
+          iend = q(S_VELO,k)%data(d)%length
           q(S_VELO,k)%data(d)%elts(ibeg:iend) = (q(S_VELO,k)%data(d)%elts(ibeg:iend) &
                + dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
        end do
     end do
   end subroutine u_update
 
-  subroutine eta_star (q)
-    ! Explicit Euler step for intermediate free surface eta_star
+  subroutine rhs_elliptic (q)
+    ! Forms rhs of elliptic equation for free surface, -eta^* in q(S_TEMP_zlevels+1)
     implicit none
     type(Float_Field), dimension(:,:), target :: q
     
@@ -112,20 +122,18 @@ contains
        do d = 1, size(grid)
           dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
           mass    =>   sol(S_MASS,zlevels+1)%data(d)%elts
-          mass1   =>     q(S_MASS,zlevels+1)%data(d)%elts
+          mass1   =>     q(S_TEMP,zlevels+1)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (etastar_euler, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (cal_rhs_elliptic, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
           nullify (dscalar, mass, mass1)
        end do
-       q(S_MASS,zlevels+1)%bdry_uptodate = .false.
-       call update_bdry (q(S_MASS,zlevels+1), l, 304)
+       q(S_TEMP,zlevels+1)%bdry_uptodate = .false.
+       call update_bdry (q(S_TEMP,zlevels+1), l, 304)
     end do
-  end subroutine eta_star
+  end subroutine rhs_elliptic
 
-  subroutine etastar_euler (dom, i, j, zlev, offs, dims)
-    ! eta_star Euler step
-    ! results are an edge flux
+  subroutine cal_rhs_elliptic (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -136,60 +144,8 @@ contains
 
     id = idx (i, j, offs, dims) + 1
         
-    if (dom%mask_n%elts(id) >= ADJZONE) mass1(id) = mass(id) - dt * dscalar(id)
-  end subroutine etastar_euler
-
-  subroutine eta_update (q)
-    ! Backwards Euler step for eta update
-    use lin_solve_mod
-    implicit none
-    type(Float_Field), dimension(:,:), target :: q
-
-    call rhs_elliptic (q)
-    call multiscale (q(S_MASS,zlevels+1), trend(S_MASS,zlevels+1), elliptic_lo, elliptic_diag, iter, w0, log)
-  end subroutine eta_update
-
-  subroutine rhs_elliptic (q)
-    ! Sets rhs of elliptic equation for free surface as trend(S_MASS,zlevels+1)
-    implicit none
-    type(Float_Field), dimension(:,:), target :: q
-    
-    integer :: d, j, k, l, p
-
-    call update_array_bdry (q, NONE, 300)
-
-    do l = level_end, level_start, -1
-       ! Complete rhs of elliptic equation, eta^n - dt*div(F)
-       do d = 1, size(grid)
-          dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
-          mass    =>     q(S_MASS,zlevels+1)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_elliptic_rhs, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (dscalar, mass)
-       end do
-       trend(S_MASS,zlevels+1)%bdry_uptodate = .false.
-       call update_bdry (trend(S_MASS,zlevels+1), l, 304)
-    end do
-  end subroutine rhs_elliptic
-
-  subroutine cal_elliptic_rhs (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = - mass(id)
-    else
-       dscalar(id) = 0.0_8
-    end if
-  end subroutine cal_elliptic_rhs
+    if (dom%mask_n%elts(id) >= ADJZONE) mass1(id) = - (mass(id) - dt * dscalar(id))
+  end subroutine cal_rhs_elliptic
 
   function elliptic_lo (q, l)
     ! Calculates linear operator L(eta) for barotropic elliptic equation for free surface perturbation at scale l
@@ -353,8 +309,8 @@ contains
        end do
        nullify (scalar, scalar_2d)
     end do
-    q(S_MASS,1:zlevels)%bdry_uptodate = .false.
-    call update_vector_bdry (q(S_MASS,1:zlevels), NONE, 500)
+    q(S_MASS:S_TEMP,1:zlevels)%bdry_uptodate = .false.
+    call update_array_bdry (q(S_MASS:S_TEMP,1:zlevels), NONE, 500)
   end subroutine barotropic_correction
 
   subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
