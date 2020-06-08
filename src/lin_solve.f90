@@ -38,39 +38,6 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) linf_loc = max (linf_loc, abs (scalar(id)))
   end subroutine cal_linf_scalar
 
-  real(8) function l2 (s, l)
-    ! Returns l_2 norm of scalar s at scale l
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: s
-
-    integer :: d, j
-
-    l2_loc = 0.0_8
-    do d = 1, size(grid)
-       scalar => s%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_l2_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (scalar)
-    end do
-    l2 = sqrt (sum_real (l2_loc))
-  end function l2
-
-  subroutine cal_l2_scalar (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-
-    id_i = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id_i) >= TOLRNZ) l2_loc = l2_loc + scalar(id_i)**2
-  end subroutine cal_l2_scalar
-
   real(8) function dp (s1, s2, l)
     ! Calculates dot product of s1 and s2 at scale l
     implicit none
@@ -123,6 +90,7 @@ contains
        end do
        nullify (scalar, scalar2, scalar3, mu1)
     end do
+    s3%bdry_uptodate = .false.
     call update_bdry (s3, l, 100)
   end subroutine lc
 
@@ -146,6 +114,7 @@ contains
        end do
        nullify (scalar, scalar2, scalar3, mu1)
     end do
+    lcf%bdry_uptodate = .false.
     call update_bdry (lcf, l, 100)
   end function lcf
 
@@ -182,6 +151,7 @@ contains
        end do
        nullify (scalar, scalar2, scalar3, mu1, mu2)
     end do
+    u%bdry_uptodate = .false.
     call update_bdry (u, l, 100)
   end subroutine lc2
 
@@ -217,8 +187,6 @@ contains
 
     residual = Lu (u, l)
 
-    call update_bdry (residual, l, 100)
-
     do d = 1, size(grid)
        scalar  => f%data(d)%elts
        scalar2 => residual%data(d)%elts
@@ -227,6 +195,7 @@ contains
        end do
        nullify (scalar, scalar2)
     end do
+    residual%bdry_uptodate = .false.
     call update_bdry (residual, l, 100)
   end function residual
 
@@ -258,6 +227,7 @@ contains
        end do
        nullify (scalar)
     end do
+    s%bdry_uptodate = .false.
     call update_bdry (s, l, 100)
   end subroutine set_zero
 
@@ -274,39 +244,6 @@ contains
     if (dom%mask_n%elts(id_i) >= ADJZONE) scalar(id_i) = 0.0_8
   end subroutine cal_set_zero
 
-  subroutine restriction (scaling, coarse)
-    ! Restrict scaling from fine scale coarse+1 to coarse scale coarse
-    use wavelet_mod
-    implicit none
-    integer                   :: coarse
-    type(Float_Field), target :: scaling
-
-    integer :: d, fine
-
-    fine = coarse + 1
-    call update_bdry (scaling, fine, 61)
-
-    ! Compute scalar wavelet coefficients
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       wc_s   => wav_coeff(S_MASS,1)%data(d)%elts
-       call apply_interscale_d (compute_scalar_wavelets, grid(d), fine, z_null, 0, 0)
-       nullify (scalar, wc_s)
-    end do
-    call update_bdry (wav_coeff(S_MASS,1), fine, 62)
-
-    ! Restrict (sub-sample and lift) to coarser grid
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       wc_s   => wav_coeff(S_MASS,1)%data(d)%elts
-       call apply_interscale_d (restrict_scalar, grid(d), fine, z_null, 0, 1) ! +1 to include poles
-       nullify (scalar, wc_s)
-    end do
-
-    scaling%bdry_uptodate = .false.
-    call update_bdry (scaling, coarse, 90)
-  end subroutine restriction
-
   subroutine prolongation (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
     implicit none
@@ -317,16 +254,13 @@ contains
 
     coarse = fine - 1 
 
-    call update_bdry1 (scaling, coarse, fine, 5)
-
-    scaling%bdry_uptodate = .false.
-
     ! Prolong scalar to finer nodes existing at coarser grid (subsample) 
     do d = 1, size(grid)
        scalar => scaling%data(d)%elts
        call apply_interscale_d2 (IWT_subsample, grid(d), coarse, z_null, 0, 1)
        nullify (scalar)
     end do
+    scaling%bdry_uptodate = .false.
     call update_bdry (scaling, fine, 66)
 
     ! Reconstruct scalar at finer nodes not existing at coarser grid by interpolation
@@ -416,7 +350,6 @@ contains
     end interface
 
     call update_bdry (u, NONE, 100)
-    call update_bdry (f, NONE, 101)
     
     if (log) then
        do l = level_start, level_end
@@ -434,9 +367,6 @@ contains
           call jacobi (u, f, Lu, Lu_diag, l, 2, w0)
        end if
     end do
-
-    u%bdry_uptodate = .false.
-    call update_bdry (u, NONE, 300)
     
     if (log) then
        do l = level_start, level_end
@@ -536,107 +466,4 @@ contains
        call lc (u, w0, Lu_diag (residual (f, u, Lu, l), l), u, l)
     end do
   end subroutine jacobi
-
-  function scalar_Laplace (u, l)
-    ! Calculates scalar Laplacian Lu of scalar u at scale l
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: scalar_Laplace, u
-
-    integer :: d, j
-
-    scalar_Laplace = u
-
-    ! Calculate fluxes
-    do d = 1, size(grid)
-       scalar => u%data(d)%elts
-       h_flux => horiz_flux(S_MASS)%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=1)
-       end do
-       nullify (h_flux, scalar)
-    end do
-    horiz_flux(S_MASS)%bdry_uptodate = .false.
-    call update_bdry (horiz_flux(S_MASS), l, 101)
-
-    ! Calculate divergence
-    do d = 1, size(grid)
-       dscalar => scalar_Laplace%data(d)%elts
-       h_flux => horiz_flux(S_MASS)%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_divergence, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (dscalar, h_flux)
-    end do
-
-    scalar_Laplace%bdry_uptodate = .false.
-    call update_bdry (scalar_Laplace, l, 101)
-  end function scalar_Laplace
-
-  subroutine cal_divergence (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) dscalar(id) = div (h_flux, dom, i, j, offs, dims)
-  end subroutine cal_divergence
-
-  function scalar_Laplace_diag (u, l)
-    ! Multiplies float array u by inverse of diagonal part of Laplacian at scale l
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: scalar_Laplace_diag, u
-
-    integer :: d, j
-
-    scalar_Laplace_diag = u
-
-    do d = 1, size(grid)
-       scalar  => u%data(d)%elts
-       scalar2 => scalar_Laplace_diag%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_inv_diag, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (scalar, scalar2)
-    end do
-    call update_bdry (scalar_Laplace_diag, l, 100)
-  end function scalar_Laplace_diag
-
-  subroutine cal_inv_diag (dom, i, j, zlev, offs, dims)
-    ! Approximate inverse of diagonal part of Laplacian
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id, id_i, idS, idSW, idW
-    real(8) :: flx
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       scalar2(id_i) = -scalar(id_i) / (2*sqrt(3.0_8) * dom%areas%elts(id_i)%hex_inv)
-!!$       ! More precise diagonal
-!!$       idW  = idx (i-1, j,   offs, dims)
-!!$       idSW = idx (i-1, j-1, offs, dims)
-!!$       idS  = idx (i,   j-1, offs, dims)
-!!$
-!!$       flx = dom%pedlen%elts(EDGE*id+RT+1)  / dom%len%elts(EDGE*id+RT+1)   + &
-!!$            dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)   + &
-!!$            dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)   + &
-!!$            dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)  + &
-!!$            dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
-!!$            dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
-!!$
-!!$       scalar2(id_i) = -scalar(id_i) / (flx * dom%areas%elts(id_i)%hex_inv)
-    end if
-  end subroutine cal_inv_diag
 end module lin_solve_mod
