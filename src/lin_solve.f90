@@ -1,7 +1,7 @@
 module lin_solve_mod
   use ops_mod
   implicit none
-  real(8)                        :: dp_loc, linf_loc, l2_loc
+  real(8)                        :: dp_loc, linf_loc
   real(8), pointer               :: mu1, mu2
   real(8), dimension(:), pointer :: scalar2, scalar3
 contains
@@ -90,8 +90,6 @@ contains
        end do
        nullify (scalar, scalar2, scalar3, mu1)
     end do
-    s3%bdry_uptodate = .false.
-    call update_bdry (s3, l, 100)
   end subroutine lc
 
   function lcf (s1, a, s2, l)
@@ -151,8 +149,6 @@ contains
        end do
        nullify (scalar, scalar2, scalar3, mu1, mu2)
     end do
-    u%bdry_uptodate = .false.
-    call update_bdry (u, l, 100)
   end subroutine lc2
 
   subroutine cal_lc2 (dom, i, j, zlev, offs, dims)
@@ -195,8 +191,6 @@ contains
        end do
        nullify (scalar, scalar2)
     end do
-    residual%bdry_uptodate = .false.
-    call update_bdry (residual, l, 100)
   end function residual
 
   subroutine cal_res (dom, i, j, zlev, offs, dims)
@@ -227,8 +221,6 @@ contains
        end do
        nullify (scalar)
     end do
-    s%bdry_uptodate = .false.
-    call update_bdry (s, l, 100)
   end subroutine set_zero
 
   subroutine cal_set_zero (dom, i, j, zlev, offs, dims)
@@ -444,7 +436,7 @@ contains
     real(8)                   :: w0
     type(Float_Field), target :: f, u
 
-    integer :: i
+    integer                   :: i
     type(Float_Field), target :: res
 
     interface
