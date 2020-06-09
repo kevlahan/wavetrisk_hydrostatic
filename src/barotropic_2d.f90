@@ -105,8 +105,6 @@ contains
           end do
           nullify (dscalar, h_flux)
        end do
-       trend(S_MASS,zlevels+1)%bdry_uptodate = .false.
-       call update_bdry (trend(S_MASS,zlevels+1), l, 303)
 
        ! Restrict flux F if possible
        if (l < level_end) then
@@ -128,8 +126,6 @@ contains
           end do
           nullify (dscalar, mass, mass1)
        end do
-       q(S_TEMP,zlevels+1)%bdry_uptodate = .false.
-       call update_bdry (q(S_TEMP,zlevels+1), l, 304)
     end do
   end subroutine rhs_elliptic
 
@@ -169,8 +165,6 @@ contains
        end do
        nullify (dscalar, h_flux)
     end do
-    Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
-    call update_bdry (Laplacian_scalar(S_MASS), l, 101)
 
     ! Form complete linear operator 
     do d = 1, size(grid)
@@ -182,9 +176,6 @@ contains
        end do
        nullify (dscalar, mass, h_flux)
     end do
-
-    elliptic_lo%bdry_uptodate = .false.
-    call update_bdry (elliptic_lo, l, 101)
   end function elliptic_lo
 
   subroutine complete_elliptic_lo (dom, i, j, zlev, offs, dims)
@@ -198,11 +189,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = dt**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
-    else
-       dscalar(id) = 0.0_8
-    end if
+    if (dom%mask_n%elts(id) >= ADJZONE) dscalar(id) = dt**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
   end subroutine complete_elliptic_lo
 
   function elliptic_diag (q, l)
@@ -223,7 +210,6 @@ contains
        end do
        nullify (diag, scalar)
     end do
-    call update_bdry (elliptic_diag, l, 100)
   end function elliptic_diag
 
   subroutine cal_elliptic_inv_diag (dom, i, j, zlev, offs, dims)
@@ -277,8 +263,6 @@ contains
        Laplacian_diag = - dom%areas%elts(id_i)%hex_inv * grav_accel * (f1 + f2)/2
 
        diag(id_i) = scalar(id_i) / (dt**2*Laplacian_diag - 1.0_8)
-    else
-       diag(id_i) = 0.0_8
     end if
   end subroutine cal_elliptic_inv_diag
 
@@ -309,8 +293,6 @@ contains
        end do
        nullify (scalar, scalar_2d)
     end do
-    q(S_MASS:S_TEMP,1:zlevels)%bdry_uptodate = .false.
-    call update_array_bdry (q(S_MASS:S_TEMP,1:zlevels), NONE, 500)
   end subroutine barotropic_correction
 
   subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
@@ -325,9 +307,9 @@ contains
     real(8) :: full_mass, full_theta
 
     id = idx (i, j, offs, dims) + 1
-    d = dom%id + 1 
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
+       d = dom%id + 1
        full_mass  = mean_m(id) + mass(id)
        full_theta = (mean_t(id) + temp(id)) / full_mass ! buoyancy
 
@@ -363,9 +345,6 @@ contains
        end do
        nullify (scalar_2d)
     end do
-
-    q_2d%bdry_uptodate = .false.
-    call update_bdry (q_2d, NONE, 301)
   end subroutine sum_vertical_mass
 
   subroutine cal_sum_vertical_mass (dom, i, j, zlev, offs, dims)
@@ -439,9 +418,6 @@ contains
        end do
        nullify (h_flux, scalar)
     end do
-
-    dq%bdry_uptodate = .false.
-    call update_bdry (dq, l, 301)
   end subroutine external_pressure_gradient_flux
 
   subroutine grad_eta (q, dq, l)
@@ -468,9 +444,6 @@ contains
        end do
        nullify (h_flux, scalar)
     end do
-
-    dq%bdry_uptodate = .false.
-    call update_bdry (dq, l, 301)
   end subroutine grad_eta
 
   subroutine sum_vertical_flux (q, q_2d)
@@ -549,11 +522,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = div (h_flux, dom, i, j, offs, dims)
-    else
-       dscalar(id) = 0.0_8
-    end if
+    if (dom%mask_n%elts(id) >= ADJZONE) dscalar(id) = div (h_flux, dom, i, j, offs, dims)
   end subroutine cal_div
 end module barotropic_2d_mod
 
