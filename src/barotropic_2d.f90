@@ -105,6 +105,8 @@ contains
           end do
           nullify (dscalar, h_flux)
        end do
+       trend(S_MASS,zlevels+1)%bdry_uptodate = .false.
+       call update_bdry (trend(S_MASS,zlevels+1), l, 303)
 
        ! Restrict flux F if possible
        if (l < level_end) then
