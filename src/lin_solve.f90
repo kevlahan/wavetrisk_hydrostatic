@@ -341,8 +341,6 @@ contains
        end function Lu_diag
     end interface
 
-    call update_bdry (u, NONE, 100)
-    
     if (log) then
        do l = level_start, level_end
           nrm(l) = linf (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
