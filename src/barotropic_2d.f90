@@ -420,6 +420,8 @@ contains
        end do
        nullify (h_flux, scalar)
     end do
+    dq%bdry_uptodate = .false.
+    call update_bdry (dq, l, 301)
   end subroutine external_pressure_gradient_flux
 
   subroutine grad_eta (q, dq, l)
