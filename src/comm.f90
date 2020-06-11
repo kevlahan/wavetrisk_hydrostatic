@@ -941,7 +941,7 @@ contains
 
   subroutine min_dt (dom, i, j, zlev, offs, dims)
     ! Calculates time step and number of active nodes and edges
-    ! time step is smallest of barotropic time step, advective time step and internal wave time step
+    ! time step is smallest of barotropic time step, advective time step and internal wave time step for mode split case
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -950,7 +950,6 @@ contains
 
     integer            :: d, e, id, id_e, id_i, k, l
     real(8)            :: dx, v_mag
-    real(8), parameter :: cfl = 0.8
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
@@ -964,7 +963,7 @@ contains
           do k = 1, zlevels
              v_mag = velo_mag (dom, i, j, k, offs, dims)
              if (mode_split) then
-                dt_loc = min (dt_loc, dt_init, cfl_num*dx/wave_speed, cfl*dx/v_mag)
+                dt_loc = min (dt_loc, dt_init, cfl_num*dx/wave_speed, 0.8*dx/v_mag, 1.2*dx/c1)
              else
                 dt_loc = min (dt_loc, cfl_num*dx/(v_mag + wave_speed))
              end if
