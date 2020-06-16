@@ -322,7 +322,7 @@ contains
        full_mass = mean_m(id) + mass(id)
        temp(id) = full_mass * full_theta - mean_t(id)
     end if
-    if (penal_node(zlev)%data(d)%elts(id) > 0.1_8) temp(id) = 0.0_8
+    if (penal_node(zlev)%data(d)%elts(id) > 0.1_8) temp(id) = mass(id) * full_theta
   end subroutine cal_barotropic_correction
 
   subroutine sum_vertical_mass (q, q_2d)
