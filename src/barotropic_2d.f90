@@ -5,7 +5,6 @@ module barotropic_2d_mod
   implicit none
 
   ! Parameters 
-  integer, parameter :: iter = 10     ! number of iterations used in elliptic solver at coarsest scale (maximum = 15)
   real(8), parameter :: w0   = 1.0_8  ! relaxation parameter for linear solver
   logical, parameter :: log  = .false. ! print out residual errors for elliptic solver
 contains
@@ -59,7 +58,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     call rhs_elliptic (q)
-    call multiscale (q(S_MASS,zlevels+1), q(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag, iter, w0, log)
+    call multiscale (q(S_MASS,zlevels+1), q(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag, w0, log)
   end subroutine eta_update
 
   subroutine u_update (q)
@@ -323,6 +322,7 @@ contains
        full_mass = mean_m(id) + mass(id)
        temp(id) = full_mass * full_theta - mean_t(id)
     end if
+    if (penal_node(zlev)%data(d)%elts(id) > 0.1_8) temp(id) = 0.0_8
   end subroutine cal_barotropic_correction
 
   subroutine sum_vertical_mass (q, q_2d)

@@ -203,7 +203,7 @@ module shared_mod
   real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2 
   
   ! Simulation variables
-  integer                                       :: cp_idx, err_restart, ibin, iremap, istep, istep_cumul
+  integer                                       :: coarse_iter, cp_idx, err_restart, ibin, iremap, istep, istep_cumul
   integer                                       :: iwrite, n_diffuse, nbins
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
@@ -310,6 +310,7 @@ contains
     cfl_num             = 1.0_8
     C_visc              = 1d-2
     c1                  = 1d-16         ! default value for internal wave speed (used for incompressible cases)
+    coarse_iter         = 10            ! number of iterations of bicgstab at coarsest scale for elliptic solver
     level_save          = level_start
     Laplace_order_init  = 0 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     remapscalar_type    = "PPR" 

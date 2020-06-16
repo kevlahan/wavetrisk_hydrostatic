@@ -12,7 +12,7 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, f0, L_R, Rey, Ro
+  real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, L_R, Rey, Ro
   real(8)                              :: bottom_friction, max_depth, min_depth, mixed_layer, scale, halocline, u_wbc
   real(8)                              :: resolution, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -41,6 +41,7 @@ contains
     read (fid,*) varname, zlevels
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
+    read (fid,*) varname, coarse_iter
     read (fid,*) varname, default_thresholds
     read (fid,*) varname, tol
     read (fid,*) varname, cfl_num
@@ -114,6 +115,7 @@ contains
        write (6,'(a,a)')      "remapscalar_type     = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type       = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap               = ", iremap
+       write (6,'(a,i3)')     "coarse_iter          = ", coarse_iter
        write (6,'(A,L1)')     "adapt_trend          = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds   = ", default_thresholds
        write (6,'(A,L1)')     "perfect              = ", perfect
@@ -422,7 +424,7 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer :: k
-    real(8) :: dz, eta_surf
+    real(8) :: dz, eta_surf, z
 
     allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
     allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
@@ -430,8 +432,13 @@ contains
     eta_surf = 0.0_8
     do k = 1, zlevels
        dz = a_vert_mass(k) * eta_surf + b_vert_mass(k) * max_depth
-       lnorm(S_MASS,k) = 1d16!ref_density*dz
-       lnorm(S_TEMP,k) = 1d16!ref_density*dz
+       z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
+       lnorm(S_MASS,k) = ref_density*dz
+       if (drho /= 0.0_8) then
+          lnorm(S_TEMP,k) = abs(drho)*dz
+       else
+          lnorm(S_TEMP,k) = 1d16
+       end if
        lnorm(S_VELO,k) = Udim
     end do
 
@@ -452,18 +459,18 @@ contains
     dx_max = sqrt (4/sqrt(3.0_8) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = cfl_num*dx_min/wave_speed 
+    dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1)
     dt_init = dt_cfl
 
     ! Permeability penalization parameter
     eta = dt_cfl
 
     ! Diffusion constants
-    C_visc = min (1/31d0, max (dt_cfl * beta * dx_min * resolution**3, 2d-3))  ! ensure stability and that Munk layer is resolved with resolution grid points
+    C_visc = min (1/31d0, max (dt_cfl * beta * dx_min * resolution**3, 1d-4))  ! ensure stability and that Munk layer is resolved with resolution grid points
     resolution = (C_visc/(dt_cfl * beta * dx_min))**(1/3d0)
     C_rotu = C_visc
-    C_divu = C_visc 
-    C_sclr = C_visc 
+    C_divu = C_visc * 4
+    C_sclr = C_visc * 4
 
     ! Diffusion time scales
     tau_sclr = dt_cfl / C_sclr
@@ -538,7 +545,7 @@ contains
     integer                        :: npts
     character(*)                   :: itype
 
-    integer     :: d, id, id_i, ii, is0, it0, jj, s, t
+    integer     :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
     real(8)     :: dx, lat, lon, mask, M_topo, r, s0, t0, sw_topo, topo_sum, wgt
     type(Coord) :: p, q
 
@@ -577,8 +584,11 @@ contains
           end do
           mask = topo_sum / sw_topo
        end if
-       penal_node(zlev)%data(d)%elts(id_i)                      = mask
-       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = mask
+       penal_node(zlev)%data(d)%elts(id_i) = mask
+       do e = 1, EDGE
+          id_e = EDGE*id + e
+          penal_edge(zlev)%data(d)%elts(id_e) = max (penal_edge(zlev)%data(d)%elts(id_e), mask)
+       end do
     end select
   end subroutine topography
 

@@ -312,10 +312,9 @@ contains
     scalar(idE_chd+1)  = Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  
   end subroutine IWT_interpolate
 
-  subroutine multiscale (u, f, Lu, Lu_diag, iter, w0, log)
+  subroutine multiscale (u, f, Lu, Lu_diag, w0, log)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with jacobi as the smoother
     implicit none
-    integer                   :: iter
     real(8)                   :: w0
     type(Float_Field), target :: f, u
     logical                   :: log
@@ -348,7 +347,7 @@ contains
        end do
     end if
 
-    call bicgstab (u, f, Lu, Lu_diag, level_start, iter)
+    call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter)
     do l = level_start+1, level_end
        call prolongation (u, l)
        if (l <= level_fill) then
