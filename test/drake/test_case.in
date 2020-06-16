@@ -5,9 +5,10 @@ level_fill	   5             ! make all points active up to level_level (accelera
 zlevels            2             ! number of vertical levels
 remap              T             ! remap vertical grid
 iremap             10            ! remap every iremap time steps
-default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
-tol      	   4e-2          ! non-dimensional tolerance
-cfl_num            30.0          ! cfl number for barotropic mode
+coarse_iter        10            ! number of bicgstab iterations at coarsest level
+default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
+tol      	   7e-3          ! non-dimensional tolerance
+cfl_num            20.0          ! cfl number for barotropic mode
 adapt_dt           T             ! adapt time step
 dt_write           5.0           ! save interval (days)
 CP_EVERY           4             ! checkpoint every CP_EVERY saves
@@ -15,6 +16,6 @@ time_end           1000          ! final time (days)
 resume            -1             ! restart from checkpoint (negative means fresh restart)
 alpha              1e-1          ! porosity penalization parameter
 drag               T             ! use bottom drag if T
-npts_penal         1             ! number of grid points over which to smooth mask
-resolution         2.0           ! number of grid points resolving Munk layer (determines viscosity)
+npts_penal         8             ! number of grid points over which to smooth mask
+resolution         4.0           ! number of grid points resolving Munk layer (determines viscosity)
 
