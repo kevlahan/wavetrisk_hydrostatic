@@ -193,8 +193,11 @@ module shared_mod
   real(8), parameter :: RAD     = 1
   real(8), parameter :: DEG     = MATH_PI / 180
 
+  ! Force
+  real(8), parameter :: NEWTON  = KG * METRE / SECOND**2
+
   ! Pressure
-  real(8), parameter :: Pa      = KG / METRE / SECOND**2
+  real(8), parameter :: Pa      = NEWTON / METRE**2
   real(8), parameter :: hPa     =  100*Pa
   real(8), parameter :: kPa     = 1000*Pa
 
