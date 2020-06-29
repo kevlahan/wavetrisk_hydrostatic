@@ -3,10 +3,6 @@ module barotropic_2d_mod
   use ops_mod
   use multi_level_mod
   implicit none
-
-  ! Parameters 
-  real(8), parameter :: w0   = 1.0_8  ! relaxation parameter for linear solver
-  logical, parameter :: log  = .false. ! print out residual errors for elliptic solver
 contains
   subroutine u_star (dt, q)
     ! Explicit Euler step for intermediate velocity u_star
@@ -58,7 +54,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     call rhs_elliptic (q)
-    call multiscale (q(S_MASS,zlevels+1), q(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag, w0, log)
+    call multiscale (q(S_MASS,zlevels+1), q(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag)
   end subroutine eta_update
 
   subroutine u_update (q)

@@ -312,14 +312,13 @@ contains
     scalar(idE_chd+1)  = Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  
   end subroutine IWT_interpolate
 
-  subroutine multiscale (u, f, Lu, Lu_diag, w0, log)
+  subroutine multiscale (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with jacobi as the smoother
     implicit none
-    real(8)                   :: w0
     type(Float_Field), target :: f, u
-    logical                   :: log
 
     integer                                       :: i, l
+    real(8), parameter                            :: w0 = 1.0_8
     real(8), dimension(level_start:level_end)     :: nrm
     real(8), dimension(1:2,level_start:level_end) :: r_error
     
@@ -340,24 +339,24 @@ contains
        end function Lu_diag
     end interface
 
-    if (log) then
+    if (log_iter) then
        do l = level_start, level_end
           nrm(l) = linf (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
           r_error(1,l) = linf (residual (f, u, Lu, l), l) / nrm(l)
        end do
     end if
 
-    call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter)
+    call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter) 
     do l = level_start+1, level_end
        call prolongation (u, l)
        if (l <= level_fill) then
-          call bicgstab (u, f, Lu, Lu_diag, l, 2)
+          call bicgstab (u, f, Lu, Lu_diag, l, fine_iter)
        else
-          call jacobi (u, f, Lu, Lu_diag, l, 2, w0)
+          call jacobi (u, f, Lu, Lu_diag, l, fine_iter, w0)
        end if
     end do
     
-    if (log) then
+    if (log_iter) then
        do l = level_start, level_end
           r_error(2,l) = linf (residual (f, u, Lu, l), l) / nrm(l)
           if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es11.4,1x))') l, r_error(:,l)
@@ -370,10 +369,11 @@ contains
     ! This is a conjugate gradient type algorithm.
     implicit none
     integer                   :: l, iter
+    real(8)                   :: tol
     type(Float_Field), target :: f, u
 
     integer                   :: i
-    real(8)                   :: alph, b, omga, rho, rho_old
+    real(8)                   :: alph, b, err_old, err_new, nrm, omga, rho, rho_old
     type(Float_Field), target :: res, res0, p, s, t, v
 
     interface
@@ -392,6 +392,7 @@ contains
     end interface
 
     ! Initialize
+    nrm = linf (f, l)
     res  = residual (f, u, Lu, l)
     res0 = res
     rho  = 1.0_8
@@ -402,6 +403,7 @@ contains
     call set_zero (p, l)
     v = p
 
+    err_old = 1d16
     do i = 1, iter
        rho_old = rho
        rho = dp (res0, res, l)
@@ -420,8 +422,11 @@ contains
        omga = dp (t, s, l) / dp (t, t, l)
 
        call lc2 (u, alph, p, omga, s, l)
-
-       if (i < iter) res = lcf (s, -omga, t, l)
+       
+       res = lcf (s, -omga, t, l)
+       err_new = linf (res, l) 
+       if (err_new > err_old .or. err_new < 1d-16) exit
+       err_old = err_new
     end do
   end subroutine bicgstab
 

@@ -6,6 +6,8 @@ zlevels            2             ! number of vertical levels
 remap              T             ! remap vertical grid
 iremap             10            ! remap every iremap time steps
 coarse_iter        10            ! number of bicgstab iterations at coarsest level
+fine_iter          10            ! number of jacobi iterations at finer levels
+log_iter           T             ! print elliptic solver relative residual error
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 tol      	   7e-3          ! non-dimensional tolerance
 cfl_num            20.0          ! cfl number for barotropic mode

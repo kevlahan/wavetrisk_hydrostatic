@@ -206,7 +206,7 @@ module shared_mod
   real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2 
   
   ! Simulation variables
-  integer                                       :: coarse_iter, cp_idx, err_restart, ibin, iremap, istep, istep_cumul
+  integer                                       :: coarse_iter, cp_idx, err_restart, fine_iter, ibin, iremap, istep, istep_cumul
   integer                                       :: iwrite, n_diffuse, nbins
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
@@ -232,7 +232,8 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fill, mode_split, penalize, perfect, rebalance, remap, uniform
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fill
+  logical :: log_iter, mode_split, penalize, perfect, rebalance, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -296,6 +297,7 @@ contains
     compressible        = .true.  ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.  ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false. ! fill up grid to level j_fill if true
+    log_iter            = .false. ! print residual error in elliptic solver
     mode_split          = .false. ! calculate barotropic free surface mode separately (T)
     perfect             = .false. ! use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
     rebalance           = .true.  ! rebalance computational load at each checkpoint if T
@@ -313,7 +315,8 @@ contains
     cfl_num             = 1.0_8
     C_visc              = 1d-2
     c1                  = 1d-16         ! default value for internal wave speed (used for incompressible cases)
-    coarse_iter         = 10            ! number of iterations of bicgstab at coarsest scale for elliptic solver
+    coarse_iter         = 10            ! number of bicgstab iterations at coarsest scale for elliptic solver
+    fine_iter           = 10            ! number of jacobi iterations at finer scales for elliptic solver
     level_save          = level_start
     Laplace_order_init  = 0 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     remapscalar_type    = "PPR" 

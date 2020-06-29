@@ -7,7 +7,7 @@ Module test_case_mod
 
   ! Standard variables
   integer                              :: bathy_per_deg, CP_EVERY, etopo_res, npts_penal, resume_init, save_zlev
-  real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
+  real(8)                              :: dt_cfl, initotalmass, k_T, mass_error, tau_diffusion, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
 
@@ -42,6 +42,8 @@ contains
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
     read (fid,*) varname, coarse_iter
+    read (fid,*) varname, fine_iter
+    read (fid,*) varname, log_iter
     read (fid,*) varname, default_thresholds
     read (fid,*) varname, tol
     read (fid,*) varname, cfl_num
@@ -68,7 +70,7 @@ contains
   subroutine print_test_case_parameters
     implicit none
 
-    delta_M = (visc_rotu/beta)**(1.0_8/(2*Laplace_order_init+1)) * METRE ! Munk layer scale
+    delta_M = (visc_rotu/beta)**(1.0_8/(2*Laplace_order_init+1)) ! Munk layer scale
 
     ! Bottom drag
     if (drag) then
@@ -82,7 +84,7 @@ contains
     if (drho == 0.0_8) then
        wave_friction = 0.0_8
     else
-       wave_friction = min (1/(1000/bv), 1/dt_init) 
+       wave_friction = min (1/(1000/bv), 1/dt_init)
     end if
 
     delta_S = bottom_friction / beta      ! Stommel layer (want delta_S = delta_M/4)
@@ -116,6 +118,8 @@ contains
        write (6,'(a,a)')      "remapvelo_type       = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap               = ", iremap
        write (6,'(a,i3)')     "coarse_iter          = ", coarse_iter
+       write (6,'(a,i3)')     "fine_iter            = ", fine_iter
+       write (6,'(a,l1)')     "log_iter             = ", log_iter
        write (6,'(A,L1)')     "adapt_trend          = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds   = ", default_thresholds
        write (6,'(A,L1)')     "perfect              = ", perfect
@@ -168,7 +172,8 @@ contains
        write (6,'(A,es11.4,/)') "submesoscale       [km]     = ", delta_sm / KM
        write (6,'(A,es11.4)') "Rossby number               = ", Ro
        write (6,'(A,es11.4)') "Resolution of Munk layer    = ", resolution
-       write (6,'(A,es11.4)') "Re (delta_I u_wbc / nu)     = ", Rey 
+       write (6,'(A,es11.4)') "Resolution of Taylor scale  = ", (beta/u_wbc)**0.25 * resolution**1.5 * dx_min**0.5
+              write (6,'(A,es11.4)') "Re (delta_I u_wbc / nu)     = ", Rey 
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
@@ -371,12 +376,12 @@ contains
 
   subroutine print_density_pert
     implicit none
-    integer :: k
-    real(8) :: eta_surf, z
-    type(Coord), parameter :: x_i = Coord (0.0_8, 0.0_8, 0.0_8)
+    integer     :: k
+    real(8)     :: eta_surf, z
+    type(Coord) :: x_i 
 
     eta_surf = 0.0_8
-
+    x_i = Coord (radius, 0.0_8, 0.0_8)
     write (6,'(a)') " Layer    z       drho"      
     do k = 1, zlevels
        z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
@@ -423,28 +428,30 @@ contains
   subroutine initialize_thresholds
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
-    integer :: k
-    real(8) :: dz, eta_surf, z
+    integer     :: k
+    real(8)     :: dz, eta_surf, z
+    type(Coord) :: x_i
 
     allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
     allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
 
+    x_i = Coord (radius, 0.0_8, 0.0_8)
     eta_surf = 0.0_8
     do k = 1, zlevels
        dz = a_vert_mass(k) * eta_surf + b_vert_mass(k) * max_depth
        z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
+
        lnorm(S_MASS,k) = ref_density*dz
-       if (drho /= 0.0_8) then
-          lnorm(S_TEMP,k) = abs(drho)*dz
-       else
-          lnorm(S_TEMP,k) = 1d16
-       end if
+
+       lnorm(S_TEMP,k) = ref_density*dz * abs(buoyancy (x_i, z))
+       if (lnorm(S_TEMP,k) == 0.0_8) lnorm(S_TEMP,k) = 1d16
+
        lnorm(S_VELO,k) = Udim
     end do
 
     if (mode_split) lnorm(:,zlevels+1) = lnorm(:,zlevels) ! not used
 
-    threshold_def = tol * lnorm
+    threshold_def = tol * lnorm  
   end subroutine initialize_thresholds
 
   subroutine initialize_dt_viscosity 
@@ -459,14 +466,14 @@ contains
     dx_max = sqrt (4/sqrt(3.0_8) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1)
+    dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1,  1.4*dx_min/u_wbc)
     dt_init = dt_cfl
 
     ! Permeability penalization parameter
     eta = dt_cfl
 
     ! Diffusion constants
-    C_visc = min (1/31d0, max (dt_cfl * beta * dx_min * resolution**3, 1d-4))  ! ensure stability and that Munk layer is resolved with resolution grid points
+    C_visc = min (1/35d0, max (dt_cfl * beta * dx_min * resolution**3, 1d-4))  ! ensure stability and that Munk layer is resolved with resolution grid points
     resolution = (C_visc/(dt_cfl * beta * dx_min))**(1/3d0)
     C_rotu = C_visc
     C_divu = C_visc * 4
@@ -702,13 +709,18 @@ contains
 
     implicit none
     real(8) :: lat, lon, peak, tau_zonal, tau_merid
+    
+    logical, parameter :: merid_stress = .false.
 
     peak = (abs(lat)*180/MATH_PI - 35.0_8) / 20
     tau_zonal = -tau_0 * 1.2 * exp (-peak**2) * sin (abs(lat)*6) - 5d-3*exp(-(lat*180/MATH_PI/10)**2)
 
-    !peak = lat*180/MATH_PI / 15
-    !tau_merid = -tau_0 * 2.5 * exp (-peak**2) * sin (2*lat) * peak**2
-    tau_merid = 0.0_8
+    if (merid_stress) then
+       peak = lat*180/MATH_PI / 15
+       tau_merid = -tau_0 * 2.5 * exp (-peak**2) * sin (2*lat) * peak**2
+    else
+       tau_merid = 0.0_8
+    end if
   end subroutine wind_stress
 
   subroutine set_save_level
