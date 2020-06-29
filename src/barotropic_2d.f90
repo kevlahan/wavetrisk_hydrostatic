@@ -166,6 +166,8 @@ contains
        end do
        nullify (dscalar, h_flux)
     end do
+    Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
+    call update_bdry (Laplacian_scalar(S_MASS), l, 101)
 
     ! Form complete linear operator 
     do d = 1, size(grid)
