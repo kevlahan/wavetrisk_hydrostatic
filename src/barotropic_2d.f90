@@ -259,9 +259,9 @@ contains
             dom%topo%elts(idE+1)*phi(1)*pl(1) + dom%topo%elts(idNE+1)*phi(2)*pl(2) + dom%topo%elts(idN+1)*phi(3)*pl(3) + &
             dom%topo%elts(idW+1)*phi(4)*pl(4) + dom%topo%elts(idSW+1)*phi(5)*pl(5) + dom%topo%elts(idS+1)*phi(6)*pl(6)) / phi(0)
 
-       Laplacian_diag = - dom%areas%elts(id_i)%hex_inv * grav_accel * (f1 + f2)/2
+       Laplacian_diag = - dom%areas%elts(id_i)%hex_inv * (f1 + f2)/2
 
-       diag(id_i) = scalar(id_i) / (dt**2*Laplacian_diag - 1.0_8)
+       diag(id_i) = scalar(id_i) / (grav_accel * dt**2 * Laplacian_diag - 1.0_8)
     end if
   end subroutine cal_elliptic_inv_diag
 
