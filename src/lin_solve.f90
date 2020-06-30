@@ -1,7 +1,7 @@
 module lin_solve_mod
   use ops_mod
   implicit none
-  real(8)                        :: dp_loc, linf_loc
+  real(8)                        :: dp_loc, linf_loc, l2_loc
   real(8), pointer               :: mu1, mu2
   real(8), dimension(:), pointer :: scalar2, scalar3
 contains
@@ -37,6 +37,39 @@ contains
 
     if (dom%mask_n%elts(id) >= ADJZONE) linf_loc = max (linf_loc, abs (scalar(id)))
   end subroutine cal_linf_scalar
+
+    real(8) function l2 (s, l)
+    ! Returns l_2 norm of scalar s at scale l
+    implicit none
+    integer                   :: l
+    type(Float_Field), target :: s
+
+    integer :: d, j
+
+    l2_loc = 0.0_8
+    do d = 1, size(grid)
+       scalar => s%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_l2_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar)
+    end do
+    l2 = sqrt (sum_real (l2_loc))
+  end function l2
+
+  subroutine cal_l2_scalar (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) l2_loc = l2_loc + scalar(id_i)**2
+  end subroutine cal_l2_scalar
 
   real(8) function dp (s1, s2, l)
     ! Calculates dot product of s1 and s2 at scale l
@@ -317,7 +350,7 @@ contains
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                                       :: i, l
+    integer                                       :: l
     real(8), parameter                            :: w0 = 1.0_8
     real(8), dimension(level_start:level_end)     :: nrm
     real(8), dimension(1:2,level_start:level_end) :: r_error
@@ -341,12 +374,12 @@ contains
 
     if (log_iter) then
        do l = level_start, level_end
-          nrm(l) = linf (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
-          r_error(1,l) = linf (residual (f, u, Lu, l), l) / nrm(l)
+          nrm(l) = l2 (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
+          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
        end do
     end if
 
-    call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter) 
+    call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter)
     do l = level_start+1, level_end
        call prolongation (u, l)
        if (l <= level_fill) then
@@ -358,7 +391,7 @@ contains
     
     if (log_iter) then
        do l = level_start, level_end
-          r_error(2,l) = linf (residual (f, u, Lu, l), l) / nrm(l)
+          r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
           if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es11.4,1x))') l, r_error(:,l)
        end do
     end if
@@ -373,7 +406,7 @@ contains
     type(Float_Field), target :: f, u
 
     integer                   :: i
-    real(8)                   :: alph, b, err_old, err_new, nrm, omga, rho, rho_old
+    real(8)                   :: alph, b, err_old, err_new, omga, rho, rho_old
     type(Float_Field), target :: res, res0, p, s, t, v
 
     interface
@@ -392,7 +425,6 @@ contains
     end interface
 
     ! Initialize
-    nrm = linf (f, l)
     res  = residual (f, u, Lu, l)
     res0 = res
     rho  = 1.0_8
@@ -424,7 +456,7 @@ contains
        call lc2 (u, alph, p, omga, s, l)
        
        res = lcf (s, -omga, t, l)
-       err_new = linf (res, l) 
+       err_new = l2 (res, l) 
        if (err_new > err_old .or. err_new < 1d-16) exit
        err_old = err_new
     end do
