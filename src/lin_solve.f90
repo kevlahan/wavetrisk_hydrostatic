@@ -402,7 +402,6 @@ contains
     ! This is a conjugate gradient type algorithm.
     implicit none
     integer                   :: l, iter
-    real(8)                   :: tol
     type(Float_Field), target :: f, u
 
     integer                   :: i
@@ -470,8 +469,7 @@ contains
     real(8)                   :: w0
     type(Float_Field), target :: f, u
 
-    integer                   :: i
-    type(Float_Field), target :: res
+    integer :: i
 
     interface
        function Lu (u, l)
