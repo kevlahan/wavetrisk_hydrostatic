@@ -345,13 +345,42 @@ contains
     scalar(idE_chd+1)  = Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  
   end subroutine IWT_interpolate
 
+  subroutine restriction (scaling, coarse)
+    ! Restrict scaling from fine scale coarse+1 to coarse scale coarse
+    use wavelet_mod
+    implicit none
+    integer                   :: coarse
+    type(Float_Field), target :: scaling
+
+    integer :: d, fine
+
+    fine = coarse + 1
+
+    ! Compute scalar wavelet coefficients
+    do d = 1, size(grid)
+       scalar => scaling%data(d)%elts
+       wc_s   => wav_coeff(S_MASS,1)%data(d)%elts
+       call apply_interscale_d (compute_scalar_wavelets, grid(d), coarse, z_null, 0, 0)
+       nullify (scalar, wc_s)
+    end do
+    wav_coeff(S_MASS,1)%bdry_uptodate = .false.
+    call update_bdry (wav_coeff(S_MASS,1), fine, 562)
+
+    ! Restrict (sub-sample and lift) to coarser grid
+    do d = 1, size(grid)
+       scalar => scaling%data(d)%elts
+       wc_s   => wav_coeff(S_MASS,1)%data(d)%elts
+       call apply_interscale_d (restrict_scalar, grid(d), coarse, z_null, 0, 1) ! +1 to include poles
+       nullify (scalar, wc_s)
+    end do
+  end subroutine restriction
+
   subroutine multiscale (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with jacobi as the smoother
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                                       :: l
-    real(8), parameter                            :: w0 = 1.0_8
+    integer                                       :: iter, l
     real(8), dimension(level_start:level_end)     :: nrm
     real(8), dimension(1:2,level_start:level_end) :: r_error
     
@@ -382,11 +411,7 @@ contains
     call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter)
     do l = level_start+1, level_end
        call prolongation (u, l)
-       if (l <= level_fill) then
-          call bicgstab (u, f, Lu, Lu_diag, l, fine_iter)
-       else
-          call jacobi (u, f, Lu, Lu_diag, l, fine_iter, w0)
-       end if
+       call jacobi (u, f, Lu, Lu_diag, l, fine_iter)
     end do
     
     if (log_iter) then
@@ -397,6 +422,36 @@ contains
     end if
   end subroutine multiscale
 
+  subroutine jacobi (u, f, Lu, Lu_diag, l, iter)
+    ! Damped Jacobi iterations for smoothing multigrid iterations
+    use adapt_mod
+    implicit none
+    integer                   :: l,iter
+    real(8), parameter        :: w0 = 1.0_8
+    type(Float_Field), target :: f, u
+
+    integer :: i
+
+    interface
+       function Lu (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu, u
+       end function Lu
+       function Lu_diag (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: u, Lu_diag
+       end function Lu_diag
+    end interface
+
+    do i = 1, iter
+       call lc (u, w0, Lu_diag (residual (f, u, Lu, l), l), u, l)
+    end do
+  end subroutine jacobi
+
   subroutine bicgstab (u, f, Lu, Lu_diag, l, iter)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
@@ -406,7 +461,8 @@ contains
 
     integer                   :: i
     real(8)                   :: alph, b, err_old, err_new, omga, rho, rho_old
-    type(Float_Field), target :: res, res0, p, s, t, v
+    logical, parameter        :: precond = .true.
+    type(Float_Field), target :: res, res0, p, s, t, v, y, z
 
     interface
        function Lu (u, l)
@@ -443,51 +499,32 @@ contains
 
        p = lcf (res, b, lcf (p, -omga, v, l), l)
 
-       v = Lu (p, l)
+       if (precond) then
+          y = Lu_diag (p, l)
+          v = Lu (y, l)
+       else
+          v = Lu (p, l)
+       end if
 
        alph = rho / dp (res0, v, l)
 
        s = lcf (res, -alph, v, l)
-       t = Lu (s, l)
 
-       omga = dp (t, s, l) / dp (t, t, l)
+       if (precond) then
+          z = Lu_diag (s, l)
+          t = Lu (z, l)
+          omga = dp (t, s, l) / dp (t, t, l)
+          call lc2 (u, alph, y, omga, z, l)
+       else
+          t = Lu (s, l)
+          omga = dp (t, s, l) / dp (t, t, l)
+          call lc2 (u, alph, p, omga, s, l)
+       end if
 
-       call lc2 (u, alph, p, omga, s, l)
-       
        res = lcf (s, -omga, t, l)
        err_new = l2 (res, l) 
        if (err_new > err_old .or. err_new < 1d-16) exit
        err_old = err_new
     end do
   end subroutine bicgstab
-
-  subroutine jacobi (u, f, Lu, Lu_diag, l, iter, w0)
-    ! Damped Jacobi iterations for smoothing multigrid iterations
-    use adapt_mod
-    implicit none
-    integer                   :: l,iter
-    real(8)                   :: w0
-    type(Float_Field), target :: f, u
-
-    integer :: i
-
-    interface
-       function Lu (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-       function Lu_diag (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: u, Lu_diag
-       end function Lu_diag
-    end interface
-
-    do i = 1, iter
-       call lc (u, w0, Lu_diag (residual (f, u, Lu, l), l), u, l)
-    end do
-  end subroutine jacobi
 end module lin_solve_mod
