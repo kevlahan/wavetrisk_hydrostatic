@@ -3,6 +3,7 @@ module barotropic_2d_mod
   use ops_mod
   use multi_level_mod
   implicit none
+  real(8) :: dxsq
 contains
   subroutine u_star (dt, q)
     ! Explicit Euler step for intermediate velocity u_star
@@ -199,6 +200,8 @@ contains
 
     integer :: d, j
 
+    dxsq = 16*MATH_PI*radius**2 / (sqrt(3.0_8) * 20 * 4**l) 
+
     elliptic_diag = q
     
     do d = 1, size(grid)
@@ -220,49 +223,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                 :: d, id, id_i, idE, idN, idNE, idS, idSW, idW
-    real(8)                 :: f1, f2, Laplacian_diag
-    real(8), dimension(1:6) :: pl
-    real(8), dimension(0:6) :: phi
+    integer :: id
     
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
+    id = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       d = dom%id+1
-       
-       idE  = idx (i+1, j,   offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
-       idW  = idx (i-1, j,   offs, dims)
-       idSW = idx (i-1, j-1, offs, dims) 
-       idS  = idx (i,   j-1, offs, dims)
-
-       phi(0) = phi_node (d, id+1,   zlevels)
-       phi(1) = phi_node (d, idE+1,  zlevels)
-       phi(2) = phi_node (d, idNE+1, zlevels)
-       phi(3) = phi_node (d, idN+1,  zlevels)
-       phi(4) = phi_node (d, idW+1,  zlevels)
-       phi(5) = phi_node (d, idSW+1, zlevels)
-       phi(6) = phi_node (d, idS+1,  zlevels)
-
-       pl(1) = dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)
-       pl(2) = dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)
-       pl(3) = dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)
-       pl(4) = dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)
-       pl(5) = dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1)
-       pl(6) = dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
-
-       f1 = abs (dom%topo%elts(id_i)) * sum (pl)
-            
-       f2 = abs ( &
-            dom%topo%elts(idE+1)*phi(1)*pl(1) + dom%topo%elts(idNE+1)*phi(2)*pl(2) + dom%topo%elts(idN+1)*phi(3)*pl(3) + &
-            dom%topo%elts(idW+1)*phi(4)*pl(4) + dom%topo%elts(idSW+1)*phi(5)*pl(5) + dom%topo%elts(idS+1)*phi(6)*pl(6)) / phi(0)
-
-       Laplacian_diag = - dom%areas%elts(id_i)%hex_inv * (f1 + f2)/2
-
-       diag(id_i) = scalar(id_i) / (grav_accel * dt**2 * Laplacian_diag - 1.0_8)
-    end if
+    if (dom%mask_n%elts(id) >= ADJZONE) diag(id) = - scalar(id) / ((2*wave_speed*dt)**2/dxsq + 1.0_8)
   end subroutine cal_elliptic_inv_diag
 
   subroutine barotropic_correction (q)
