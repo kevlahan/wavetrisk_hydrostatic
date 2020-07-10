@@ -11,6 +11,13 @@ program Drake
   implicit none
   logical :: aligned
 
+  interface
+     subroutine trend_relax (q, dq)
+       import
+       type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
+     end subroutine trend_relax
+  end interface
+
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -37,50 +44,66 @@ program Drake
   remapvelo_type     = "PPR"                          ! optimal remapping scheme
   Laplace_order_init = 1                              ! always run with Laplacian diffusion
   Laplace_order = Laplace_order_init
+
+  ! Relaxation of buoyancy to mean profile 
+  if (remap) then
+     k_T = 1.0_8 / (30 * DAY)               
+  else
+     k_T = 0.0_8
+  end if
  
   ! Depth and layer parameters
-  etopo_res          = 4                              ! resolution of etopo data in arcminutes (if used)
-  etopo_coast        = .false.                        ! use etopo data for coastlines (i.e. penalization)
+  etopo_res      = 4                                  ! resolution of etopo data in arcminutes (if used) 
+  etopo_coast    = .false.                            ! use etopo data for coastlines (i.e. penalization)
   min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   = -2000 * METRE
-     halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer =  -500 * METRE                      ! location of layer forced by surface wind stress
-     drho        =   0   * KG/METRE**3                
+     max_depth   =  -1000 * METRE
+     halocline   =  -1000 * METRE                     ! location of top (less dense) layer in two layer case
+     mixed_layer =  -1000 * METRE                     ! location of layer forced by surface wind stress
+     drho        =      0 * KG/METRE**3
+     tau_0       =      0.2 * NEWTON/METRE**2           ! maximum wind stress
+     u_wbc       =      1 * METRE/SECOND              ! estimated western boundary current speed
   elseif (zlevels == 2) then
-     max_depth   = -2000 * METRE
-     halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer =  -500 * METRE                      ! location of layer forced by surface wind stress
-     drho        =  -0.5 * KG/METRE**3                ! density difference in upper layer
-  elseif (zlevels == 3) then
-     max_depth   = -2000 * METRE
+     max_depth   = -4000 * METRE
+     halocline   = -2000 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer = -2000 * METRE                      ! location of layer forced by surface wind stress
+     drho        =    -1 * KG/METRE**3                ! density difference in upper layer
+     tau_0       =     4 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc       =   2.5 * METRE/SECOND               ! estimated western boundary current speed
+!!$     max_depth   = -2000 * METRE
+!!$     halocline   =  -100 * METRE                      ! location of top (less dense) layer in two layer case
+!!$     mixed_layer =  -100 * METRE                      ! location of layer forced by surface wind stress
+!!$     drho        =    -6 * KG/METRE**3                ! density difference in upper layer
+!!$     tau_0       =   0.5 * NEWTON/METRE**2            ! maximum wind stress
+!!$     u_wbc       =     5 * METRE/SECOND               ! estimated western boundary current speed
+  elseif (zlevels >= 3) then
+     max_depth   = -1000 * METRE
      halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer =  -100 * METRE                      ! location of layer forced by surface wind stress
-     drho        =  -0.5 * KG/METRE**3                ! density difference in upper layer
+     drho        =    -1 * KG/METRE**3                ! density difference in upper layer
+     tau_0       =   0.5 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc       =     2 * METRE/SECOND               ! estimated western boundary current speed
   end if
-
-  ! Maximum wind stress
-  if (zlevels == 1 .or. zlevels == 2) then
-     tau_0 = 0.02_8
-  elseif (zlevels == 3) then
-     tau_0 = 0.02_8
-  else
-     tau_0 = 0.02_8
-  end if
-
+ 
   ! Vertical level to save
-  save_zlev = zlevels
+  save_zlev = zlevels 
 
   ! Characteristic scales
-  wave_speed     = sqrt (grav_accel*abs(max_depth))                            ! inertia-gravity wave speed 
-  f0             = 2*omega*sin(30*DEG)          * RAD/SECOND                   ! representative Coriolis parameter
-  beta           = 2*omega*cos(30*DEG) / radius * RAD/(SECOND*METRE)           ! beta parameter at 30 degrees latitude
-  L_R            = wave_speed / f0              * METRE                        ! Rossby radius
-  bv             = sqrt (grav_accel/ref_density*abs(drho)/abs(halocline))      ! Brunt-Vaisala frequency         
-  c1             = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed  ! first baroclinic mode speed
-  u_wbc          = 1                            * METRE/SECOND                 ! western boundary current speed
-  delta_I        = sqrt (u_wbc/beta)            * METRE                        ! inertial layer
-  delta_sm       = u_wbc/f0                     * METRE                        ! barotropic submesoscale  
+  wave_speed     = sqrt (grav_accel*abs(max_depth))        ! inertia-gravity wave speed 
+  f0             = 2*omega*sin(30*DEG)                     ! representative Coriolis parameter
+  beta           = 2*omega*cos(30*DEG) / radius            ! beta parameter at 30 degrees latitude
+  L_R            = wave_speed / f0                         ! Rossby radius
+  drho_dz        = drho / halocline                        ! density gradient
+  bv             = sqrt (grav_accel * drho_dz/ref_density) ! Brunt-Vaisala frequency
+
+  if (zlevels == 2) then
+     c1 = sqrt (grav_accel*abs(drho)/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
+  elseif (zlevels >= 3) then
+     c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
+  endif
+  
+  delta_I        = sqrt (u_wbc/beta)                   ! inertial layer
+  delta_sm       = u_wbc/f0                            ! barotropic submesoscale  
 
   ! Dimensional scaling
   Udim           = u_wbc                              ! velocity scale
@@ -106,7 +129,10 @@ program Drake
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
-     call start_timing;  call time_step (dt_write, aligned, set_thresholds); call stop_timing
+     call start_timing
+     call time_step (dt_write, aligned, set_thresholds)
+     if (k_T /= 0.0_8) call euler (sol, wav_coeff, trend_relax, dt)
+     call stop_timing
 
      call update_diagnostics
      
@@ -265,34 +291,30 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      bottom_drag = 0.0_8
   end if
 
-  ! Internal wave drag to reduce oscillation amplitude (energy neutral) in two layer case
-  if (zlevels == 2) then
-     if (zlev == 1) then
-        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
-     elseif (zlev == 2) then
-        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
-     end if
-  elseif (zlevels == 3) then
-     if (zlev == 1) then
-        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
-     elseif (zlev == 2) then
-        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
-     elseif (zlev == 3) then
-        wave_drag = - wave_friction * (velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+  ! Internal wave drag to reduce oscillation amplitude (energy neutral) 
+  if (zlevels >= 2) then
+     if (zlev > 1) then
+        wave_drag = velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+     else
+        wave_drag = velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
      end if
   else
      wave_drag = 0.0_8
   end if
+  wave_drag = - wave_friction * wave_drag
   
   ! Permeability
   permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   
-  ! Complete source term for velocity trend (do not include drag in solid regions)
+  ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
   if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
      physics_velo_source = diffusion + permeability + bottom_drag + wave_drag + wind_drag
   else
      physics_velo_source = diffusion + permeability
   end if
+!!$ ! Smooth transition - appears to be less stable
+!!$  physics_velo_source = diffusion + permeability &
+!!$       + (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i)) * (bottom_drag + wave_drag + wind_drag)
 contains
   function grad_divu()
     implicit none
@@ -323,6 +345,69 @@ contains
     curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
   end function curl_rotu
 end function physics_velo_source
+
+subroutine trend_relax (q, dq)
+  ! Trend for Held-Suarez cooling
+  use domain_mod
+  use ops_mod
+  use time_integr_mod
+  implicit none
+  type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+
+  integer :: d, k, p
+
+  call update_array_bdry (sol, NONE, 27)
+
+  do k = 1, zlevels
+     do d = 1, size(grid)
+        temp   =>  q(S_TEMP,k)%data(d)%elts
+        dvelo  => dq(S_VELO,k)%data(d)%elts
+        do p = 3, grid(d)%patch%length
+           call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
+           call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
+        end do
+        nullify (temp, dvelo)
+     end do
+  end do
+  dq%bdry_uptodate = .false.
+contains
+  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
+    ! Relax buoyancy to mean
+    use test_case_mod
+    use main_mod
+    use domain_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    dq(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
+    dq(S_TEMP,k)%data(d)%elts(id_i) = - k_T * temp(id_i)
+  end subroutine trend_scalars
+
+  subroutine trend_velo (dom, i, j, zlev, offs, dims)
+    ! Velocity trend for cooling step (Rayleigh friction)
+    use test_case_mod
+    use main_mod
+    use domain_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims)
+
+    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+  end subroutine trend_velo
+end subroutine trend_relax
 
 
 

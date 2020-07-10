@@ -552,45 +552,58 @@ contains
     integer                        :: npts
     character(*)                   :: itype
 
-    integer     :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
-    real(8)     :: dx, lat, lon, mask, M_topo, r, s0, t0, sw_topo, topo_sum, wgt
-    type(Coord) :: p, q
+    integer            :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
+    real(8)            :: dx, lat, lat0, lat_width, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    real(8), parameter :: lat_max = 60, lat_min = -35, lon_width = 15
+    type(Coord)        :: p, q
 
-    d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
-
-    call cart2sph (dom%node%elts(id_i), lon, lat)
-    s0 = lon/DEG * BATHY_PER_DEG
-    t0 = lat/DEG * BATHY_PER_DEG
-    is0 = nint (s0); it0 = nint (t0)
-    p = proj_lon_lat (s0, t0)
 
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
     case ("penalize")
-       if (npts == 0) then ! no smoothing
-          mask = topo_data (is0, it0)
-       else ! smoothing
-          dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)))
-          sw_topo  = 0.0_8
-          topo_sum = 0.0_8
-          do ii = -npts, npts
-             s = is0+ii
-             do jj = -npts, npts
-                t = it0+jj
-                call wrap_lonlat (s, t)
-                q = proj_lon_lat (dble(s), dble(t))
-                r = norm (vector(p, q))
-                wgt = radial_basis_fun (r, npts, dx)
-                M_topo = topo_data (s, t)
-                topo_sum = topo_sum + wgt * M_topo
-                sw_topo  = sw_topo  + wgt
-             end do
-          end do
-          mask = topo_sum / sw_topo
-       end if
+       call cart2sph (dom%node%elts(id_i), lon, lat)
+!!$       dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
+       dx = dx_max
+      
+       ! Analytic land mass with smoothing
+       lat_width = (lat_max - lat_min) / 2
+       lat0 = lat_max - lat_width
+
+       n_lat = 4*radius * lat_width*DEG / (dx * npts_penal)
+       n_lon = 4*radius * lon_width*DEG / (dx * npts_penal)
+
+!!$       mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width/cos(lat)))**n_lon) ! constant distance width
+       mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
+
+!!$       ! ETOPO style land mass
+!!$       s0 = lon/DEG * BATHY_PER_DEG
+!!$       t0 = lat/DEG * BATHY_PER_DEG
+!!$       is0 = nint (s0); it0 = nint (t0)
+!!$       p = proj_lon_lat (s0, t0)
+!!$       if (npts == 0) then ! no smoothing
+!!$          mask = topo_data (is0, it0)
+!!$       else ! smoothing
+!!$          sw_topo  = 0.0_8
+!!$          topo_sum = 0.0_8
+!!$          do ii = -npts, npts
+!!$             s = is0+ii
+!!$             do jj = -npts, npts
+!!$                t = it0+jj
+!!$                call wrap_lonlat (s, t)
+!!$                q = proj_lon_lat (dble(s), dble(t))
+!!$                r = norm (vector(p, q))
+!!$                wgt = radial_basis_fun (r, npts, dx)
+!!$                M_topo = topo_data (s, t)
+!!$                topo_sum = topo_sum + wgt * M_topo
+!!$                sw_topo  = sw_topo  + wgt
+!!$             end do
+!!$          end do
+!!$          mask = topo_sum / sw_topo
+!!$       end if
+       d = dom%id + 1
        penal_node(zlev)%data(d)%elts(id_i) = mask
        do e = 1, EDGE
           id_e = EDGE*id + e
