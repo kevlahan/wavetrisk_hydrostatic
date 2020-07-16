@@ -12,7 +12,7 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, L_R, Rey, Ro
+  real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, Rb, Rd, Rey, Ro
   real(8)                              :: bottom_friction, max_depth, min_depth, mixed_layer, scale, halocline, u_wbc
   real(8)                              :: resolution, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -80,13 +80,6 @@ contains
        bottom_friction = 0.0_8
     end if
 
-    ! Internal wave drag to reduce oscillation of internal wave (ensure stability)
-    if (drho == 0.0_8) then
-       wave_friction = 0.0_8
-    else
-       wave_friction = min (1/(1000/bv), 1/dt_init)
-    end if
-
     delta_S = bottom_friction / beta      ! Stommel layer (want delta_S = delta_M/4)
     Rey     = u_wbc * delta_I / visc_rotu ! Reynolds number of western boundary current
     Ro      = u_wbc / (delta_M*f0)        ! Rossby number (based on boundary current)
@@ -98,82 +91,83 @@ contains
             '********************************************************** Parameters &
             ************************************************************'
        write (6,'(A)')        "RUN PARAMETERS"
-       write (6,'(A,A)')      "test_case            = ", trim (test_case)
-       write (6,'(A,A)')      "run_id               = ", trim (run_id)
-       write (6,'(A,L1)')     "compressible         = ", compressible
-       write (6,'(A,L1)')     "mean_split           = ", mean_split
-       write (6,'(A,L1)')     "mode_split           = ", mode_split
-       write (6,'(A,L1)')     "penalize             = ", penalize
-       write (6,'(A,i3)')     "npts_penal           = ", npts_penal
-       write (6,'(A,i3)')     "min_level            = ", min_level
-       write (6,'(A,i3)')     "max_level            = ", max_level
-       write (6,'(A,i3)')     "level_fill           = ", level_fill
-       write (6,'(A,i5)')     "number of domains    = ", N_GLO_DOMAIN
-       write (6,'(A,i5)')     "number of processors = ", n_process
-       write (6,'(A,i5)')     "DOMAIN_LEVEL         = ", DOMAIN_LEVEL
-       write (6,'(A,i5)')     "PATCH_LEVEL          = ", PATCH_LEVEL
-       write (6,'(A,i3)')     "zlevels              = ", zlevels
-       write (6,'(A,L1)')     "remap                = ", remap
-       write (6,'(a,a)')      "remapscalar_type     = ", trim (remapscalar_type)
-       write (6,'(a,a)')      "remapvelo_type       = ", trim (remapvelo_type)
-       write (6,'(a,i3)')     "iremap               = ", iremap
-       write (6,'(a,i3)')     "coarse_iter          = ", coarse_iter
-       write (6,'(a,i3)')     "fine_iter            = ", fine_iter
-       write (6,'(a,l1)')     "log_iter             = ", log_iter
-       write (6,'(A,L1)')     "adapt_trend          = ", adapt_trend
-       write (6,'(A,L1)')     "default_thresholds   = ", default_thresholds
-       write (6,'(A,L1)')     "perfect              = ", perfect
-       write (6,'(A,es10.4)') "tolerance            = ", tol
-       write (6,'(A,i1)')     "optimize_grid        = ", optimize_grid
-       write (6,'(A,L1)')     "adapt_dt             = ", adapt_dt
-       write (6,'(A,es10.4)') "cfl_num              = ", cfl_num
-       write (6,'(a,a)')      "timeint_type         = ", trim (timeint_type)
-       write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order_init
-       write (6,'(A,i1)')     "n_diffuse            = ", n_diffuse
-       write (6,'(A,es10.4)') "dt_write [d]         = ", dt_write/DAY
-       write (6,'(A,i6)')     "CP_EVERY             = ", CP_EVERY
-       write (6,'(a,l1)')     "rebalance            = ", rebalance
-       write (6,'(A,es10.4)') "time_end [d]         = ", time_end/DAY
-       write (6,'(A,i6)')     "resume               = ", resume_init
-       write (6,'(A,L1)')     "bottom drag          = ", drag
-       write (6,'(A,i3)')     "npts_penal           = ", npts_penal
-       write (6,'(A,i3)')     "etopo_res            = ", etopo_res
-       write (6,'(A,es10.4)') "resolution           = ", resolution
+       write (6,'(A,A)')      "test_case                      = ", trim (test_case)
+       write (6,'(A,A)')      "run_id                         = ", trim (run_id)
+       write (6,'(A,L1)')     "compressible                   = ", compressible
+       write (6,'(A,L1)')     "mean_split                     = ", mean_split
+       write (6,'(A,L1)')     "mode_split                     = ", mode_split
+       write (6,'(A,L1)')     "penalize                       = ", penalize
+       write (6,'(A,i3)')     "npts_penal                     = ", npts_penal
+       write (6,'(A,i3)')     "min_level                      = ", min_level
+       write (6,'(A,i3)')     "max_level                      = ", max_level
+       write (6,'(A,i3)')     "level_fill                     = ", level_fill
+       write (6,'(A,i5)')     "number of domains              = ", N_GLO_DOMAIN
+       write (6,'(A,i5)')     "number of processors           = ", n_process
+       write (6,'(A,i5)')     "DOMAIN_LEVEL                   = ", DOMAIN_LEVEL
+       write (6,'(A,i5)')     "PATCH_LEVEL                    = ", PATCH_LEVEL
+       write (6,'(A,i3)')     "zlevels                        = ", zlevels
+       write (6,'(A,L1)')     "remap                          = ", remap
+       write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
+       write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
+       write (6,'(a,i3)')     "iremap                         = ", iremap
+       write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
+       write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
+       write (6,'(a,l1)')     "log_iter                       = ", log_iter
+       write (6,'(A,L1)')     "adapt_trend                    = ", adapt_trend
+       write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
+       write (6,'(A,L1)')     "perfect                        = ", perfect
+       write (6,'(A,es10.4)') "tolerance                      = ", tol
+       write (6,'(A,i1)')     "optimize_grid                  = ", optimize_grid
+       write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
+       write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
+       write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
+       write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
+       write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
+       write (6,'(A,es10.4)') "dt_write [d]                   = ", dt_write/DAY
+       write (6,'(A,i6)')     "CP_EVERY                       = ", CP_EVERY
+       write (6,'(a,l1)')     "rebalance                      = ", rebalance
+       write (6,'(A,es10.4)') "time_end [d]                   = ", time_end/DAY
+       write (6,'(A,i6)')     "resume                         = ", resume_init
+       write (6,'(A,L1)')     "bottom drag                    = ", drag
+       write (6,'(A,i3)')     "npts_penal                     = ", npts_penal
+       write (6,'(A,i3)')     "etopo_res                      = ", etopo_res
+       write (6,'(A,es10.4)') "resolution                     = ", resolution
 
        write (6,'(/,A)')      "STANDARD PARAMETERS"
-       write (6,'(A,es10.4)') "radius             [km]     = ", radius / KM
-       write (6,'(A,es10.4)') "omega              [rad/s]  = ", omega
-       write (6,'(A,es10.4)') "ref density        [kg/m^3] = ", ref_density
-       write (6,'(A,es10.4)') "grav accel         [m/s^2]  = ", grav_accel
+       write (6,'(A,es10.4)') "radius                   [km]  = ", radius / KM
+       write (6,'(A,es10.4)') "omega                 [rad/s]  = ", omega
+       write (6,'(A,es10.4)') "ref density          [kg/m^3]  = ", ref_density
+       write (6,'(A,es10.4)') "grav accel            [m/s^2]  = ", grav_accel
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es11.4)') "min_depth          [m]      = ", abs (min_depth)
-       write (6,'(A,es11.4)') "max_depth          [m]      = ", abs (max_depth)
-       write (6,'(A,es11.4)') "halocline          [m]      = ", abs (halocline)
-       write (6,'(A,es11.4)') "mixed layer        [m]      = ", abs (mixed_layer)
-       write (6,'(A,es11.4)') "density difference [kg/m^3] = ", drho
-       write (6,'(A,es11.4)') "Brunt-Vaisala freq [1/s]    = ", bv
-       write (6,'(A,es11.4)') "c0 wave speed      [m/s]    = ", wave_speed
-       write (6,'(A,es11.4)') "c1 wave speed      [m/s]    = ", c1
-       write (6,'(A,es11.4)') "max wind stress    [N/m^2]  = ", tau_0
-       write (6,'(A,es11.4)') "eta (permeability) [s]      = ", eta
-       write (6,'(A,es11.4)') "alpha (porosity)            = ", alpha
-       write (6,'(A,es11.4)') "bottom friction    [m/s]    = ", bottom_friction
-       write (6,'(A,es11.4)') "bottom drag decay  [d]      = ", 1/bottom_friction / DAY
-       write (6,'(A,es11.4)') "wave drag decay    [h]      = ", 1/wave_friction / HOUR
-       write (6,'(A,es11.4)') "f0 at 30 deg       [rad/s]  = ", f0
-       write (6,'(A,es11.4,/)') "beta at 30 deg     [rad/ms] = ", beta
-       write (6,'(A,es11.4)') "dx_max             [km]     = ", dx_max   / KM
-       write (6,'(A,es11.4)') "dx_min             [km]     = ", dx_min   / KM
-       write (6,'(A,es11.4)') "L_R at 30 deg      [km]     = ", L_R      / KM
-       write (6,'(A,es11.4)') "Inertial layer     [km]     = ", delta_I  / KM
-       write (6,'(A,es11.4)') "Munk layer         [km]     = ", delta_M  / KM
-       write (6,'(A,es11.4)') "Stommel layer      [km]     = ", delta_S  / KM
-       write (6,'(A,es11.4,/)') "submesoscale       [km]     = ", delta_sm / KM
-       write (6,'(A,es11.4)') "Rossby number               = ", Ro
-       write (6,'(A,es11.4)') "Resolution of Munk layer    = ", resolution
-       write (6,'(A,es11.4)') "Resolution of Taylor scale  = ", (beta/u_wbc)**0.25 * resolution**1.5 * dx_min**0.5
-              write (6,'(A,es11.4)') "Re (delta_I u_wbc / nu)     = ", Rey 
+       write (6,'(A,es11.4)') "min_depth                 [m]  = ", abs (min_depth)
+       write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
+       write (6,'(A,es11.4)') "halocline                 [m]  = ", abs (halocline)
+       write (6,'(A,es11.4)') "mixed layer               [m]  = ", abs (mixed_layer)
+       write (6,'(A,es11.4)') "density difference   [kg/m^3]  = ", drho
+       write (6,'(A,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
+       write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
+       write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
+       write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
+       write (6,'(A,es11.4)') "eta (permeability)        [s]  = ", eta
+       write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
+       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction
+       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
+       write (6,'(A,es11.4)') "wave drag decay           [h]  = ", 1/wave_friction / HOUR
+       write (6,'(A,es11.4)') "f0 at 30 deg          [rad/s]  = ", f0
+       write (6,'(A,es11.4,/)') "beta at 30 deg       [rad/ms]  = ", beta
+       write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
+       write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
+       write (6,'(A,es11.4)') "Inertial layer           [km]  = ", delta_I  / KM
+       write (6,'(A,es11.4)') "Munk layer               [km]  = ", delta_M  / KM
+       write (6,'(A,es11.4)') "Stommel layer            [km]  = ", delta_S  / KM
+       write (6,'(A,es11.4)') "submesoscale             [km]  = ", delta_sm / KM
+       write (6,'(A,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM
+       write (6,'(A,es11.4,/)') "baroclinic Rossby radius [km]  = ", Rb / KM
+       write (6,'(A,es11.4)') "Rossby number                  = ", Ro
+       write (6,'(A,es11.4)') "Re (delta_I u_wbc / nu)        = ", Rey 
+       write (6,'(A,es11.4)') "Resolution of Munk layer       = ", (C_visc/(dt_cfl * beta * dx_min))**(1/3d0)
+       write (6,'(A,es11.4)') "Resolution of Taylor scale     = ", delta_I / sqrt(Rey) / dx_min
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
@@ -473,8 +467,13 @@ contains
     eta = dt_cfl
 
     ! Diffusion constants
-    C_visc = min (1/35d0, max (dt_cfl * beta * dx_min * resolution**3, 1d-4))  ! ensure stability and that Munk layer is resolved with resolution grid points
-    resolution = (C_visc/(dt_cfl * beta * dx_min))**(1/3d0)
+
+!!$    ! Ensure stability and that Munk layer is resolved with resolution grid points
+!!$    C_visc = min (1/35d0, max (dt_cfl * beta * dx_min * resolution**3, 1d-4))
+
+    ! Ensure stability and that Taylor scale is resolved with resolution grid points
+    C_visc = min (1/35d0, max (resolution**2 * dt_cfl*u_wbc/delta_I, 1d-4))
+    
     C_rotu = C_visc
     C_divu = C_visc * 4
     C_sclr = C_visc * 4

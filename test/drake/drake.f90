@@ -57,25 +57,19 @@ program Drake
   etopo_coast    = .false.                            ! use etopo data for coastlines (i.e. penalization)
   min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   =  -1000 * METRE
-     halocline   =  -1000 * METRE                     ! location of top (less dense) layer in two layer case
-     mixed_layer =  -1000 * METRE                     ! location of layer forced by surface wind stress
-     drho        =      0 * KG/METRE**3
-     tau_0       =      0.2 * NEWTON/METRE**2           ! maximum wind stress
-     u_wbc       =      1 * METRE/SECOND              ! estimated western boundary current speed
+     max_depth   = -1000 * METRE
+     halocline   = -1000 * METRE                     ! location of top (less dense) layer in two layer case
+     mixed_layer = -1000 * METRE                     ! location of layer forced by surface wind stress
+     drho        =     0 * KG/METRE**3               ! density difference in upper layer
+     tau_0       =     0.2 * NEWTON/METRE**2         ! maximum wind stress
+     u_wbc       =     1 * METRE/SECOND              ! estimated western boundary current speed
   elseif (zlevels == 2) then
      max_depth   = -4000 * METRE
      halocline   = -2000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -2000 * METRE                      ! location of layer forced by surface wind stress
      drho        =    -1 * KG/METRE**3                ! density difference in upper layer
      tau_0       =     4 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =   2.5 * METRE/SECOND               ! estimated western boundary current speed
-!!$     max_depth   = -2000 * METRE
-!!$     halocline   =  -100 * METRE                      ! location of top (less dense) layer in two layer case
-!!$     mixed_layer =  -100 * METRE                      ! location of layer forced by surface wind stress
-!!$     drho        =    -6 * KG/METRE**3                ! density difference in upper layer
-!!$     tau_0       =   0.5 * NEWTON/METRE**2            ! maximum wind stress
-!!$     u_wbc       =     5 * METRE/SECOND               ! estimated western boundary current speed
+     u_wbc       =     4 * METRE/SECOND               ! estimated western boundary current speed          
   elseif (zlevels >= 3) then
      max_depth   = -1000 * METRE
      halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
@@ -84,6 +78,9 @@ program Drake
      tau_0       =   0.5 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =     2 * METRE/SECOND               ! estimated western boundary current speed
   end if
+
+!!$  ! Estimate u_wbc (should also depend on Reynolds number)
+!!$  u_wbc = 4d3 * tau_0/abs(max_depth)
  
   ! Vertical level to save
   save_zlev = zlevels 
@@ -92,7 +89,7 @@ program Drake
   wave_speed     = sqrt (grav_accel*abs(max_depth))        ! inertia-gravity wave speed 
   f0             = 2*omega*sin(30*DEG)                     ! representative Coriolis parameter
   beta           = 2*omega*cos(30*DEG) / radius            ! beta parameter at 30 degrees latitude
-  L_R            = wave_speed / f0                         ! Rossby radius
+  Rd             = wave_speed / f0                         ! barotropic Rossby radius of deformation                   
   drho_dz        = drho / halocline                        ! density gradient
   bv             = sqrt (grav_accel * drho_dz/ref_density) ! Brunt-Vaisala frequency
 
@@ -101,6 +98,16 @@ program Drake
   elseif (zlevels >= 3) then
      c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   endif
+
+  ! First baroclinic Rossby radius of deformation
+  if (zlevels == 2) then
+     Rb = c1 / f0                                 
+  else
+     Rb = bv * abs(max_depth) / (MATH_PI*f0)
+  end if
+
+  ! Internal wave friction based on 3 e-folding growth times of internal wave
+  wave_friction  = u_wbc / Rb / 3
   
   delta_I        = sqrt (u_wbc/beta)                   ! inertial layer
   delta_sm       = u_wbc/f0                            ! barotropic submesoscale  
@@ -312,9 +319,6 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   else
      physics_velo_source = diffusion + permeability
   end if
-!!$ ! Smooth transition - appears to be less stable
-!!$  physics_velo_source = diffusion + permeability &
-!!$       + (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i)) * (bottom_drag + wave_drag + wind_drag)
 contains
   function grad_divu()
     implicit none

@@ -38,7 +38,7 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) linf_loc = max (linf_loc, abs (scalar(id)))
   end subroutine cal_linf_scalar
 
-    real(8) function l2 (s, l)
+  real(8) function l2 (s, l)
     ! Returns l_2 norm of scalar s at scale l
     implicit none
     integer                   :: l
@@ -417,21 +417,20 @@ contains
     if (log_iter) then
        do l = level_start, level_end
           r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
-          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es11.4,1x))') l, r_error(:,l)
+          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x))') l, r_error(:,l)
        end do
     end if
   end subroutine multiscale
 
   subroutine jacobi (u, f, Lu, Lu_diag, l, iter)
     ! Damped Jacobi iterations for smoothing multigrid iterations
-    use adapt_mod
     implicit none
-    integer                   :: l,iter
-    real(8), parameter        :: w0 = 1.0_8
+    integer                   :: l, iter
     type(Float_Field), target :: f, u
 
-    integer :: i
-
+    integer            :: i
+    real(8), parameter :: w0 = 1.0_8
+    
     interface
        function Lu (u, l)
          use domain_mod
