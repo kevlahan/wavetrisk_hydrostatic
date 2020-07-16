@@ -1212,8 +1212,9 @@ contains
 
     type(Coord)             :: x, y
     integer                 :: k, id, info
+    integer, dimension(6)   :: ipiv
     real(8), dimension(9)   :: weights
-    real(8), dimension(6)   :: b, ipiv
+    real(8), dimension(6)   :: b
     real(8), dimension(6,6) :: G
 
     call local_coord (dom%midpt%elts(idx(i0, j0, offs, dims)*EDGE + e0+1), &

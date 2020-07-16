@@ -19,6 +19,7 @@ contains
 
   integer function write_active_per_level ()
     ! Write out distribution of active nodes over levels
+    use mpi
     implicit none
     integer                                         :: l, n_full, fillin, n_lev_cur, recommended_level_start
     integer, dimension(2*(level_end-level_start+1)) :: n_active_all_loc, n_active_all_glo
@@ -71,6 +72,7 @@ contains
 
   subroutine write_load_conn (id, run_id)
     ! Write out load distribution and connectivity for load balancing
+    use mpi
     implicit none
     integer      :: id
     character(*) :: run_id
@@ -110,6 +112,7 @@ contains
   end subroutine cal_load_balance
 
   subroutine get_load_balance (mini, avg, maxi)
+    use mpi
     implicit none
     integer :: mini, maxi
     real(8) :: avg
@@ -129,6 +132,7 @@ contains
   end subroutine get_load_balance
 
   subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, run_id)
+    use mpi
     implicit none
     external       :: out_rout
     integer        :: fid, l, zlev
@@ -274,6 +278,7 @@ contains
   end subroutine alltoall_dom
 
   subroutine check_alltoall_lengths
+    use mpi
     implicit none
     integer, dimension(n_process) :: test_recv_len
 
@@ -285,6 +290,7 @@ contains
   end subroutine check_alltoall_lengths
 
   subroutine alltoall
+    use mpi
     implicit none
     integer :: i
 
@@ -309,6 +315,7 @@ contains
 
   subroutine comm_masks_mpi (l)
     ! Communication of mask information in a subdomain between different processes
+    use mpi
     implicit none
     integer :: l
     
@@ -516,6 +523,7 @@ contains
   end subroutine update_array_bdry__start
 
   subroutine update_bdry__start1 (field, l_start, l_end)
+    use mpi
     implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
@@ -592,6 +600,7 @@ contains
 
   subroutine update_vector_bdry__start1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
+    use mpi
     implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
@@ -686,6 +695,7 @@ contains
 
   subroutine update_array_bdry__start1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
+    use mpi
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           ::  l_start, l_end
@@ -823,6 +833,7 @@ contains
   end subroutine update_array_bdry__finish
 
   subroutine update_bdry__finish1 (field, l_start, l_end)
+    use mpi
     implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
@@ -863,6 +874,7 @@ contains
 
   subroutine update_vector_bdry__finish1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
+    use mpi
     implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
@@ -912,6 +924,7 @@ contains
   
   subroutine update_array_bdry__finish1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
+    use mpi
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
@@ -964,6 +977,7 @@ contains
   end subroutine update_array_bdry__finish1
   
   subroutine comm_nodes9_mpi (get, set, l)
+    use mpi
     implicit none
     external :: get, set
     integer :: l
@@ -1033,6 +1047,7 @@ contains
   end subroutine comm_nodes9_mpi
 
   subroutine comm_nodes3_mpi (get, set, l)
+    use mpi
     implicit none
     external    :: get, set
     type(Coord) :: get
@@ -1105,6 +1120,7 @@ contains
   end subroutine comm_nodes3_mpi
 
   subroutine comm_patch_conn_mpi
+    use mpi
     implicit none
     integer               :: r_src, r_dest, d_src, d_dest, i, b, c, p, s, d_glo, k, rot, d, ngh_pa, typ, l_par, rot_shift
     integer, dimension(4) :: st
@@ -1181,6 +1197,7 @@ contains
 
   real(8) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
+    use mpi
     implicit none
     integer               :: l, ierror, level_end_glo
     integer, dimension(2) :: n_active_loc
@@ -1215,6 +1232,7 @@ contains
 
   real(8) function cpt_min_mass ()
     ! Calculates minimum relative mass and checks diffusion stability limits
+    use mpi
     implicit none
     integer :: ierror, l
     real(8) :: beta_sclr, beta_divu, beta_rotu
@@ -1246,6 +1264,7 @@ contains
   end function cpt_min_mass
 
   integer function sync_max_int (val)
+    use mpi
     implicit none
     integer :: val
     
@@ -1256,6 +1275,7 @@ contains
   end function sync_max_int
 
   real(8) function sync_max_real (val)
+    use mpi
     implicit none
     real(8) :: val
 
@@ -1266,6 +1286,7 @@ contains
   end function sync_max_real
 
   real(8) function sum_real (val)
+    use mpi
     implicit none
     real(8) :: val
 
@@ -1276,6 +1297,7 @@ contains
   end function sum_real
 
   integer function sum_int (val)
+    use mpi
     implicit none
     integer :: val
 
@@ -1286,6 +1308,7 @@ contains
   end function sum_int
 
   subroutine start_timing
+    use mpi
     implicit none
     times(1) = MPI_Wtime()  
   end subroutine start_timing
@@ -1325,6 +1348,7 @@ contains
     ! Use like:
     ! call stop_and_record_timings(6500); call start_timing()
     ! call stop_and_record_timings(6501); call start_timing()
+    use mpi
     implicit none
     integer :: id
 
@@ -1345,6 +1369,7 @@ contains
     ! Uses Chan, Golub and LeVeque (1983) algorithm for partitioned data sets to combine zonal average results from each rank
     !   T.F. Chan, G.H. Golub & R.J. LeVeque (1983):
     !   "Algorithms for computing the sample variance: Analysis and recommendations." The American Statistician 37: 242–247.
+    use mpi
     implicit none
     integer                                  :: bin, k
     real(8), dimension(nvar_zonal)           :: temp
