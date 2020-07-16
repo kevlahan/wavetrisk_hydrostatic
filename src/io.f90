@@ -621,7 +621,7 @@ contains
     ! Compress files
     command = 'ls -1 '//trim(run_id)//'.3.?? > tmp' 
     call system (command)
-    command = 'tar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
+    command = 'gtar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
     call system (command)
   end subroutine write_out_stats
 
@@ -1575,13 +1575,13 @@ contains
 
     call system (command)
 
-    command = 'tar cfz '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files'
+    command = 'gtar cfz '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files'
     call system (command)
 
     command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2' 
     call system (command)
 
-    command = 'tar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
+    command = 'gtar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
     call system (command)
   end subroutine compress_files
 
