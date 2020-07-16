@@ -1314,16 +1314,19 @@ contains
   end subroutine start_timing
 
   subroutine stop_timing
+    use mpi
     implicit none
     times(2) = MPI_Wtime()  
   end subroutine stop_timing
 
   real(8) function get_timing()
+    use mpi
     implicit none
     get_timing = times(2) - times(1)
   end function get_timing
 
   subroutine sync (in, inout, len, type)
+    use mpi
     implicit none
     real, dimension(len) :: in, inout
     integer              :: len, type
@@ -1332,6 +1335,7 @@ contains
   end subroutine sync
 
   subroutine sync_array (arr, N)
+    use mpi
     implicit none
     real, dimension(N) :: arr
     integer            :: N
