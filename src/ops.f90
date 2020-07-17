@@ -966,7 +966,6 @@ contains
 
   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
     ! Integrate pressure (compressible case)/Lagrange multiplier (incompressible case) and geopotential up from surface to top layer
-    use, intrinsic :: ieee_arithmetic
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev

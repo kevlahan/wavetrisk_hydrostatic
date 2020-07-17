@@ -1020,7 +1020,6 @@ contains
 
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
-    use, intrinsic :: ieee_arithmetic
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1038,7 +1037,7 @@ contains
        col_mass = 0.0_8
        do k = 1, zlevels
           full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-          if (full_mass < 0.0_8 .or. ieee_is_nan (full_mass)) then
+          if (full_mass < 0.0_8 .or. full_mass /= full_mass) then
              write (6,'(A,i8,A,i2,2(A,i2),A)') "Mass negative at id = ", id_i, " with scale j = ", dom%level%elts(id_i),  &
                   " vertical level k = ", k, " and mask = ", dom%mask_n%elts(id_i), " ... aborting"
              call abort
