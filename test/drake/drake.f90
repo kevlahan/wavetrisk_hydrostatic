@@ -94,7 +94,7 @@ program Drake
   bv             = sqrt (grav_accel * drho_dz/ref_density) ! Brunt-Vaisala frequency
 
   if (zlevels == 2) then
-     c1 = sqrt (grav_accel*abs(drho)/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
+     c1 = sqrt (grav_accel*abs(drho)/2/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
   elseif (zlevels >= 3) then
      c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   endif
