@@ -613,7 +613,7 @@ contains
     close (funit)
 
     ! Non-dimensional pressure based vertical coordinates p_k/p_s
-    write (var_file, '(i2)') 22
+    Write (var_file, '(i2)') 22
     open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='WRITE', status='REPLACE') 
     write (funit,'(2047(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/p_0 + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
     close (funit)
@@ -1369,7 +1369,7 @@ contains
        minv = 1.0d63; maxv = -1.0d63
        u = 1000000+100*iwrite
 
-       if (compressible .or. zlevels /= 2) then
+       if (compressible .or. zlevels /= 2 .or. .not. mode_split) then
           if (compressible) then ! pressure, exner and geopotential at vertical level save_zlev and scale l
              do k = 1, save_zlev
                 do d = 1, size(grid)
