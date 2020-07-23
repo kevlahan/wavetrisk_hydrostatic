@@ -58,23 +58,30 @@ program Drake
   min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
      max_depth   = -1000 * METRE
-     halocline   = -1000 * METRE                     ! location of top (less dense) layer in two layer case
-     mixed_layer = -1000 * METRE                     ! location of layer forced by surface wind stress
-     drho        =     0 * KG/METRE**3               ! density difference in upper layer
-     tau_0       =     0.2 * NEWTON/METRE**2         ! maximum wind stress
-     u_wbc       =     1 * METRE/SECOND              ! estimated western boundary current speed
+     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
+     drho        =     0 * KG/METRE**3                ! density perturbation at free surface 
+     tau_0       =     0.1 * NEWTON/METRE**2          ! maximum wind stress
+     u_wbc       =     1 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels == 2) then
+!!$     max_depth   = -4000 * METRE
+!!$     halocline   = -2000 * METRE                      ! location of top (less dense) layer in two layer case
+!!$     mixed_layer = -2000 * METRE                      ! location of layer forced by surface wind stress
+!!$     drho        =    -1 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+!!$     tau_0       =     4 * NEWTON/METRE**2            ! maximum wind stress
+!!$     u_wbc       =     4 * METRE/SECOND               ! estimated western boundary current speed
+
      max_depth   = -4000 * METRE
-     halocline   = -2000 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer = -2000 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -1 * KG/METRE**3                ! density difference in upper layer
-     tau_0       =     4 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =     4 * METRE/SECOND               ! estimated western boundary current speed          
+     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
+     drho        =  -0.1 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc       =     1 * METRE/SECOND               ! estimated western boundary current speed     
   elseif (zlevels >= 3) then
      max_depth   = -1000 * METRE
      halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer =  -100 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -1 * KG/METRE**3                ! density difference in upper layer
+     drho        =    -1 * KG/METRE**3                ! density perturbation at free surface (linear stratification from free surface to halocline)
      tau_0       =   0.5 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =     2 * METRE/SECOND               ! estimated western boundary current speed
   end if
@@ -100,14 +107,20 @@ program Drake
   endif
 
   ! First baroclinic Rossby radius of deformation
-  if (zlevels == 2) then
+  if (zlevels == 1) then
+     Rb = 0.0_8
+  elseif (zlevels == 2) then
      Rb = c1 / f0                                 
   else
      Rb = bv * abs(max_depth) / (MATH_PI*f0)
   end if
 
   ! Internal wave friction based on 3 e-folding growth times of internal wave
-  wave_friction  = u_wbc / Rb / 3
+  if (drho == 0.0_8) then
+     wave_friction = 0.0_8
+  else
+     wave_friction = u_wbc / Rb / 3
+  end if
   
   delta_I        = sqrt (u_wbc/beta)                   ! inertial layer
   delta_sm       = u_wbc/f0                            ! barotropic submesoscale  
