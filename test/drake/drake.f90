@@ -42,7 +42,7 @@ program Drake
   mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
   remapscalar_type   = "PPR"                          ! optimal remapping scheme
   remapvelo_type     = "PPR"                          ! optimal remapping scheme
-  Laplace_order_init = 1                              ! always run with Laplacian diffusion
+  Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
 
   ! Relaxation of buoyancy to mean profile 
@@ -61,16 +61,9 @@ program Drake
      halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
      drho        =     0 * KG/METRE**3                ! density perturbation at free surface 
-     tau_0       =     0.1 * NEWTON/METRE**2          ! maximum wind stress
+     tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =     1 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels == 2) then
-!!$     max_depth   = -4000 * METRE
-!!$     halocline   = -2000 * METRE                      ! location of top (less dense) layer in two layer case
-!!$     mixed_layer = -2000 * METRE                      ! location of layer forced by surface wind stress
-!!$     drho        =    -1 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-!!$     tau_0       =     4 * NEWTON/METRE**2            ! maximum wind stress
-!!$     u_wbc       =     4 * METRE/SECOND               ! estimated western boundary current speed
-
      max_depth   = -4000 * METRE
      halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress

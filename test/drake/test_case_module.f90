@@ -74,8 +74,8 @@ contains
 
     ! Bottom drag
     if (drag) then
-       bottom_friction = beta * delta_M/4
-!!$      bottom_friction = 1.0_8/(110*DAY) * METRE/SECOND ! linear bottom friction coefficient (nemo is 4e-4/H for H = 4000m)
+!!$       bottom_friction = beta * delta_M/4    ! gyre paper value
+       bottom_friction = 4d-4/abs(max_depth) ! nemo value
     else
        bottom_friction = 0.0_8
     end if
@@ -166,7 +166,7 @@ contains
        write (6,'(A,es11.4,/)') "baroclinic Rossby radius [km]  = ", Rb / KM
        write (6,'(A,es11.4)') "Rossby number                  = ", Ro
        write (6,'(A,es11.4)') "Re (delta_I u_wbc / nu)        = ", Rey 
-       write (6,'(A,es11.4)') "Resolution of Munk layer       = ", (C_visc/(dt_cfl * beta * dx_min))**(1/3d0)
+       write (6,'(A,es11.4)') "Resolution of Munk layer       = ", delta_M / dx_min
        write (6,'(A,es11.4)') "Resolution of Taylor scale     = ", delta_I / sqrt(Rey) / dx_min
        write (6,'(A)') &
             '*********************************************************************&
@@ -208,7 +208,6 @@ contains
   end subroutine print_log
 
   subroutine apply_initial_conditions
-    use wavelet_mod
     implicit none
     integer :: d, k, l
 
@@ -469,14 +468,16 @@ contains
     ! Diffusion constants
 
 !!$    ! Ensure stability and that Munk layer is resolved with resolution grid points
-!!$    C_visc = min (1/35d0, max (dt_cfl * beta * dx_min * resolution**3, 1d-4))
-
+!!$    C_visc = dt_cfl * beta * dx_min * resolution**(2*Laplace_order_init+1)
+!!$    
     ! Ensure stability and that Taylor scale is resolved with resolution grid points
-    C_visc = min (1/35d0, max (resolution**2 * dt_cfl*u_wbc/delta_I, 1d-4))
+    C_visc = resolution**2 * dx_min**(2*(1-Laplace_order_init)) * dt_cfl * u_wbc / delta_I
+
+    C_visc = min ((1.0_8/30)**Laplace_order_init, max (C_visc, 1d-4))
     
     C_rotu = C_visc
-    C_divu = C_visc * 4
-    C_sclr = C_visc * 4
+    C_divu = C_visc
+    C_sclr = C_visc
 
     ! Diffusion time scales
     tau_sclr = dt_cfl / C_sclr
@@ -574,7 +575,6 @@ contains
        n_lat = 4*radius * lat_width*DEG / (dx * npts_penal)
        n_lon = 4*radius * lon_width*DEG / (dx * npts_penal)
 
-!!$       mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width/cos(lat)))**n_lon) ! constant distance width
        mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
 
 !!$       ! ETOPO style land mass

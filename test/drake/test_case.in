@@ -3,14 +3,14 @@ run_id             drake_2layer  ! name of run (for saved data)
 max_level	   8             ! maximum level of resolution
 level_fill	   5             ! make all points active up to level_level (accelerates elliptic solver)	
 zlevels            2             ! number of vertical levels
-remap              T             ! remap vertical grid
+remap              F             ! remap vertical grid
 iremap             10            ! remap every iremap time steps
-coarse_iter        20            ! number of bicgstab iterations at coarsest level
+coarse_iter        15            ! number of bicgstab iterations at coarsest level
 fine_iter          10            ! number of jacobi iterations at finer levels
 log_iter           T             ! print elliptic solver relative residual error
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 tol      	   5e-3          ! non-dimensional tolerance
-cfl_num            30.0          ! cfl number for barotropic mode
+cfl_num            40.0          ! cfl number for barotropic mode
 adapt_dt           T             ! adapt time step
 dt_write           5.0           ! save interval (days)
 CP_EVERY           4             ! checkpoint every CP_EVERY saves
@@ -18,6 +18,6 @@ time_end           1000          ! final time (days)
 resume            -1             ! restart from checkpoint (negative means fresh restart)
 alpha              1e-1          ! porosity penalization parameter
 drag               T             ! use bottom drag if T
-npts_penal         3             ! number of grid points over which to smooth mask
-resolution         1.2           ! number of grid points resolving Taylor scale (determines viscosity)
+npts_penal         4             ! number of grid points over which to smooth mask
+resolution         1.0           ! number of grid points resolving Taylor scale (determines viscosity)
 

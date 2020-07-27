@@ -460,7 +460,7 @@ contains
 
     integer                   :: i
     real(8)                   :: alph, b, err_old, err_new, omga, rho, rho_old
-    logical, parameter        :: precond = .true.
+    logical, parameter        :: precond = .false.
     type(Float_Field), target :: res, res0, p, s, t, v, y, z
 
     interface
