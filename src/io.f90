@@ -1538,7 +1538,7 @@ contains
 
     do e = 1, EDGE
        id_e = EDGE*id + e
-       velo(id_e) = sol(S_VELO,1)%data(d)%elts(id_e) - sol(S_VELO,2)%data(d)%elts(id_e)
+       velo(id_e) = (sol(S_VELO,1)%data(d)%elts(id_e) - sol(S_VELO,2)%data(d)%elts(id_e)) / 2
     end do
   end subroutine baroclinic_velocity
 
