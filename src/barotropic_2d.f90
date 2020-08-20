@@ -275,17 +275,20 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) then
        d = dom%id + 1
        full_mass  = mean_m(id) + mass(id)
-       full_theta = (mean_t(id) + temp(id)) / full_mass ! buoyancy
+       if (remap) full_theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
 
-       ! Correct mass
+       ! Correct mass perturbation
        mass(id) = ref_density*(scalar(id) - phi_node (d, id, zlev)*grid(d)%topo%elts(id))/scalar_2d(id) * full_mass &
             - mean_m(id)
 
        ! Correct mass-weighted buoyancy
-       full_mass = mean_m(id) + mass(id)
-       temp(id) = full_mass * full_theta - mean_t(id)
+       if (remap) then
+          full_mass = mean_m(id) + mass(id)
+          temp(id) = full_mass * full_theta - mean_t(id)
+       else ! assume buoyancy is constant in each layer
+          temp(id) = mass(id) * mean_t(id) / mean_m(id) 
+       end if
     end if
-!!$    if (penal_node(zlev)%data(d)%elts(id) > 1d-2) temp(id) = mass(id) * full_theta
   end subroutine cal_barotropic_correction
 
   subroutine sum_vertical_mass (q, q_2d)
