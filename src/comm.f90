@@ -948,8 +948,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer            :: d, e, id, id_e, id_i, k, l
-    real(8)            :: dx, v_mag
+    integer  :: d, e, id, id_e, id_i, k, l
+    real(8)  :: dx, v_mag
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
