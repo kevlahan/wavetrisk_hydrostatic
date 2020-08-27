@@ -1417,47 +1417,9 @@ contains
              nullify (vort)
           end do
        else
-          ! Baroclinic velocity
-          do d = 1, size(grid)
-             velo => sol(S_VELO,zlevels+1)%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (baroclinic_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
-             end do
-             nullify (velo)
-          end do
-          do d = 1, size(grid)
-             velo  => sol(S_VELO,zlevels+1)%data(d)%elts
-             velo1 => trend(S_VELO,1)%data(d)%elts
-             velo2 => trend(S_VELO,2)%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-             end do
-             nullify (velo, velo1, velo2)
-          end do
-          
-          ! Baroclinic vorticity
-          do d = 1, size(grid)
-             velo  => sol(S_VELO,zlevels+1)%data(d)%elts
-             vort  => grid(d)%vort%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
-             end do
-             call apply_to_penta_d (post_vort, grid(d), l, z_null)
-             nullify (velo, vort)
-          end do
-
-          ! Calculate baroclinic vorticity at hexagon points 
-          do d = 1, size(grid)
-             vort => grid(d)%geopot_lower%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-             end do
-             nullify (vort)
-          end do
-
           ! Barotropic velocity
           do d = 1, size(grid)
-             velo => sol(S_VELO,zlevels+1)%data(d)%elts
+             velo => sol(S_VELO,zlevels+1)%data(d)%elts ! barotropic velocity
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (barotropic_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
              end do
@@ -1492,6 +1454,46 @@ contains
              end do
              nullify (vort)
           end do
+          
+          ! Baroclinic velocity in top layer
+          do d = 1, size(grid)
+             velo1  => sol(S_VELO,zlevels+1)%data(d)%elts   ! barotropic velocity
+             velo2  => sol(S_VELO,zlevels)%data(d)%elts     ! velocity in top layer
+             velo   => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in top layer
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (baroclinic_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             end do
+             nullify (velo, velo1)
+          end do
+          do d = 1, size(grid)
+             velo  => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in top layer
+             velo1 => trend(S_VELO,1)%data(d)%elts
+             velo2 => trend(S_VELO,2)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             nullify (velo, velo1, velo2)
+          end do
+          
+          ! Baroclinic vorticity in top layer
+          do d = 1, size(grid)
+             velo  => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in top layer
+             vort  => grid(d)%vort%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+             end do
+             call apply_to_penta_d (post_vort, grid(d), l, z_null)
+             nullify (velo, vort)
+          end do
+
+          ! Calculate baroclinic vorticity in top layer at hexagon points 
+          do d = 1, size(grid)
+             vort => grid(d)%geopot_lower%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+             end do
+             nullify (vort)
+          end do
        end if
 
        call write_level_mpi (write_primal, u+l, l, save_zlev, .true., run_id)
@@ -1523,25 +1525,6 @@ contains
     call barrier
   end subroutine write_and_export
 
-  subroutine baroclinic_velocity (dom, i, j, zlev, offs, dims)
-    ! Calculate baroclinic velocity in two-layer model
-    implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id, id_e
-
-    id = idx (i, j, offs, dims)
-    d = dom%id + 1
-
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-       velo(id_e) = (sol(S_VELO,1)%data(d)%elts(id_e) - sol(S_VELO,2)%data(d)%elts(id_e)) / 2
-    end do
-  end subroutine baroclinic_velocity
-
   subroutine barotropic_velocity (dom, i, j, zlev, offs, dims)
     ! Calculate barotropic velocity in two-layer model
     implicit none
@@ -1550,6 +1533,42 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
+    integer                       :: d, e, id, id_e, id_i, idE, idNE, idN, k
+    real(8), dimension (1:EDGE,2) :: dz
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+    d = dom%id + 1
+
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
+    do k = 1, 2
+       dz(RT+1,k) = interp (sol_mean(S_MASS,k)%data(d)%elts(id_i)  + sol(S_MASS,k)%data(d)%elts(id_i), &
+                            sol_mean(S_MASS,k)%data(d)%elts(idE+1) + sol(S_MASS,k)%data(d)%elts(idE+1))
+
+       dz(DG+1,k) = interp (sol_mean(S_MASS,k)%data(d)%elts(id_i)   + sol(S_MASS,k)%data(d)%elts(id_i), &
+                            sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1))
+
+       dz(UP+1,k) = interp (sol_mean(S_MASS,k)%data(d)%elts(id_i)  + sol(S_MASS,k)%data(d)%elts(id_i), &
+                            sol_mean(S_MASS,k)%data(d)%elts(idN+1) + sol(S_MASS,k)%data(d)%elts(idN+1))
+    end do
+
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+       velo(id_e) = (dz(e,1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(e,2)*sol(S_VELO,2)%data(d)%elts(id_e)) / (dz(e,1) + dz(e,2))
+    end do
+  end subroutine barotropic_velocity
+
+  subroutine baroclinic_velocity (dom, i, j, zlev, offs, dims)
+    ! Calculate baroclinic velocity in top layer
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
     integer :: d, e, id, id_e
 
     id = idx (i, j, offs, dims)
@@ -1557,9 +1576,9 @@ contains
 
     do e = 1, EDGE
        id_e = EDGE*id + e
-       velo(id_e) = (sol(S_VELO,1)%data(d)%elts(id_e) + sol(S_VELO,2)%data(d)%elts(id_e)) / 2
+       velo(id_e) = velo2(id_e) - velo1(id_e)
     end do
-  end subroutine barotropic_velocity
+  end subroutine baroclinic_velocity
 
   subroutine compress_files (iwrite, run_id)
     implicit none
