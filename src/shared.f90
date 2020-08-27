@@ -215,7 +215,7 @@ module shared_mod
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
   
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
-  real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density
+  real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, tol_elliptic
   real(8)                                       :: visc_divu, visc_rotu
   real(8)                                       :: alpha, eta
   real(8), dimension(:), allocatable            :: visc_sclr
@@ -233,7 +233,7 @@ module shared_mod
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
   logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fill
-  logical :: log_iter, mode_split, penalize, perfect, rebalance, remap, uniform
+  logical :: log_iter, match_time, mode_split, penalize, perfect, rebalance, remap, uniform
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -298,6 +298,7 @@ contains
     default_thresholds  = .true.  ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false. ! fill up grid to level j_fill if true
     log_iter            = .false. ! print residual error in elliptic solver
+    match_time          = .false. ! match time exactly for data saving
     mode_split          = .false. ! calculate barotropic free surface mode separately (T)
     perfect             = .false. ! use perfect reconstruction criteria for wavelets and exact TRiSK operators (T) or less conservative wavetrisk version (F)
     rebalance           = .true.  ! rebalance computational load at each checkpoint if T
@@ -315,6 +316,7 @@ contains
     cfl_num             = 1.0_8
     C_visc              = 1d-2
     c1                  = 1d-16         ! default value for internal wave speed (used for incompressible cases)
+    tol_elliptic        = 1d-4          ! default tolerance for elliptic solver
     coarse_iter         = 10            ! number of bicgstab iterations at coarsest scale for elliptic solver
     fine_iter           = 10            ! number of jacobi iterations at finer scales for elliptic solver
     level_save          = level_start

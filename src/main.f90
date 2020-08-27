@@ -180,7 +180,6 @@ contains
     n_patch_old = grid%patch%length
     n_node_old  = grid%node%length
 
-    ! Match certain times exactly
     idt    = nint (dt*time_mult, 8)
     ialign = nint (align_time*time_mult, 8)
     if (ialign > 0 .and. istep /= 1) then
@@ -188,12 +187,15 @@ contains
     else
        aligned = .false.
     end if
-    if (aligned) idt = ialign - modulo (itime,ialign)
-    dt = idt/time_mult ! Modify time step
+
+    ! Adjust time step to match certain times exactly
+    if (aligned .and. match_time) then
+       idt = ialign - modulo (itime,ialign)
+       dt = idt/time_mult ! Modify time step
+    end if
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
-       if (istep <= 10) dt = 0.025 * dx_max/wave_speed ! take a few small times on start up to damp any spurious gravity waves on restart
        select case (timeint_type)
        case ("Euler")
           call Euler_split (dt)
@@ -240,7 +242,7 @@ contains
     
     call sum_total_mass (.false.)
 
-    Itime = itime + idt
+    itime = itime + idt
     time  = itime/time_mult
     
     ! Set new time step, find change in vertical levels and count active nodes
