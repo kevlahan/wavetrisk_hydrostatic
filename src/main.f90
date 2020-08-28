@@ -188,15 +188,14 @@ contains
        aligned = .false.
     end if
 
-    ! Adjust time step to match certain times exactly
+    ! Modify time step
     if (aligned .and. match_time) then
        idt = ialign - modulo (itime,ialign)
-       dt = idt/time_mult ! Modify time step
+       dt = idt/time_mult
     end if
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
-       if (istep == 1) dt = 0.8*dx_max/wave_speed ! first time step with CFL < 1
        select case (timeint_type)
        case ("Euler")
           call Euler_split (dt)
@@ -244,7 +243,12 @@ contains
     call sum_total_mass (.false.)
 
     itime = itime + idt
-    time  = itime/time_mult
+    
+    if (match_time) then
+       time  = itime/time_mult
+    else
+       time = time + dt
+    end if
     
     ! Set new time step, find change in vertical levels and count active nodes
     dt_new = cpt_dt ()

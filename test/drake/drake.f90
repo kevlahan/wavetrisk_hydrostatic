@@ -35,6 +35,7 @@ program Drake
   ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
 
   ! Numerical method parameters
+  match_time         = .false.
   mode_split         = .true.                         ! split barotropic mode if true
   penalize           = .true.                         ! penalize land regions
   timeint_type       = "RK4"                          ! always use RK4
@@ -67,9 +68,9 @@ program Drake
      max_depth   = -4000 * METRE
      halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
-     drho        =  -0.1 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
      tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =     1 * METRE/SECOND               ! estimated western boundary current speed     
+     u_wbc       =   1.2 * METRE/SECOND               ! estimated western boundary current speed     
   elseif (zlevels >= 3) then
      max_depth   = -1000 * METRE
      halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
@@ -205,7 +206,7 @@ function physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev, type)
   id_i = id + 1
   d = dom%id + 1
 
-  if (Laplace_order == 0) then
+  if (Laplace_order == 0 .or. maxval (visc_sclr) == 0.0_8) then
      physics_scalar_flux = 0.0_8
   else
      if (.not.local_type) then ! usual flux at edges E, NE, N

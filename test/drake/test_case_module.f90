@@ -41,6 +41,7 @@ contains
     read (fid,*) varname, zlevels
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
+    read (fid,*) varname, tol_elliptic
     read (fid,*) varname, coarse_iter
     read (fid,*) varname, fine_iter
     read (fid,*) varname, log_iter
@@ -110,6 +111,7 @@ contains
        write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
+       write (6,'(A,es10.4)') "tol_elliptic                   = ", tol_elliptic
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
        write (6,'(a,l1)')     "log_iter                       = ", log_iter
@@ -459,7 +461,7 @@ contains
     dx_max = sqrt (4/sqrt(3.0_8) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1,  1.4*dx_min/u_wbc)
+    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
     ! Permeability penalization parameter
@@ -489,7 +491,8 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
+       visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_sclr
+       visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_sclr
        visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
        visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
     elseif (Laplace_order_init > 2) then

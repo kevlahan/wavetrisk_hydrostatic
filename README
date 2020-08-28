@@ -1,5 +1,5 @@
 **********************************************************************************************************************************
-A brief user's guide for WAVETRISK 1.0 2020-03-26 N. Kevlahan kevlahan@mcmaster.ca
+A brief user's guide for WAVETRISK 1.0 2020-08-21 N. Kevlahan kevlahan@mcmaster.ca
 
 A dynamically adaptive wavelet experimental climate model that solves the multi-layer hydrostatic shallow water equations in
 Boussinesq form.  Both compressible (atmosphere) and incompressible (ocean) options are available. The incompressible option
@@ -95,16 +95,21 @@ BAROTROPIC - BARCOCLINIC MODE SPLITTING
 
 Incompressible (i.e. ocean) simulations can be run with 2D barotropic - 3D baroclinic mode splitting to avoid the stability
 constraint of the fast external mode with speed c = sqrt(g H). Setting mode_split = .true. chooses mode splitting, which integrates
-the barotropic component implicitly in time on the slow geostrophic time scale.  The associated elliptic equation is solved using a
-simple multigrid scheme on the adaptive grid. The baroclinic and barotropic modes are coupled at
-each time step. The barotropic part computes an implicit free surface.
-The CFL parameter is then based on the velocity, not the external wave speed.  The barotropic estimate of the location of the
-free surface is reconciled with the baroclinic estimate using layer dilation (Bleck and Smith 1990, J Geophys Res 95, 3273-3285).
-Layer dilation means that mass is not exactly conserved in each vertical layer, although it is conserved over all vertical layers.
-Mode splitting is suitable when the user is not interested in the evolution of the free surface, since it strongly diffuses free
-surface motion.
+the barotropic component implicitly in time on the slow geostrophic time scale. The computation is stable with
+CFL_barotropic = sqrt(g H) dt/dx < = 30, and often at larger values.  Recommended tolerance for the (coarse scale)
+elliptic solver = 1e-11 to ensure mass conservation and sufficient accuracy.  The method is similar to the "implicit free surface"
+option in MITgcm.
 
-The parameter level_fill can be set > min_level to make active all levels <= level_fill. This improves the efficiency of the
+The associated elliptic equation is solved using a simple multigrid scheme on the adaptive grid. The baroclinic and barotropic
+modes are coupled at each time step. The barotropic part computes an implicit free surface. The barotropic estimate of the location of
+the free surface is reconciled with the baroclinic estimate using layer dilation (Bleck and Smith 1990, J Geophys Res 95, 3273-3285).
+Layer dilation means that mass is not exactly conserved in each vertical layer, although it is conserved over all vertical layers.
+Mode splitting is suitable when the user is not interested in the evolution of the free surface, since it diffuses free
+surface motion. When the option remap = .false. it is assumed that the density remains constant in each vertical layer, equal to the
+initial density distribution.  Otherwise, horizontal density gradients are included with Ripa dynamics (e.g. Ripa 1996, J Geophys Res,
+101, 1233-1245, Ripa 1995 JFM 303, 169-201).
+
+The parameter level_fill can be set > min_level to make active all levels <= level_fill. This sometimes improves the efficiency of the
 multigrid solver by reducing the size of of the coarsest grid where the elliptic equation is solved exactly.
 
 GRID STRUCTURE
