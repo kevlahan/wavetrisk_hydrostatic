@@ -380,7 +380,8 @@ contains
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                                       :: iter, l
+    integer                                       :: l
+    integer, dimension(level_start:level_end)     :: iter
     real(8), dimension(level_start:level_end)     :: nrm
     real(8), dimension(1:2,level_start:level_end) :: r_error
     
@@ -405,30 +406,34 @@ contains
        do l = level_start, level_end
           nrm(l) = l2 (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
           r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
+          iter(l) = 0
        end do
     end if
 
-    call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter)
+    call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter, nrm(level_start), iter(level_start), tol_elliptic)
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call jacobi (u, f, Lu, Lu_diag, l, fine_iter)
+       call jacobi (u, f, Lu, Lu_diag, l, fine_iter, nrm(l), iter(l), 1d-2)
     end do
     
     if (log_iter) then
        do l = level_start, level_end
           r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
-          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x))') l, r_error(:,l)
+          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
+               l, r_error(:,l), iter(l)
        end do
     end if
   end subroutine multiscale
 
-  subroutine jacobi (u, f, Lu, Lu_diag, l, iter)
+  subroutine jacobi (u, f, Lu, Lu_diag, l, max_iter, nrm, iter, tol)
     ! Damped Jacobi iterations for smoothing multigrid iterations
     implicit none
-    integer                   :: l, iter
+    integer                   :: iter, l, max_iter
+    real(8)                   :: nrm, tol
     type(Float_Field), target :: f, u
 
     integer            :: i
+    real(8)            :: err
     real(8), parameter :: w0 = 1.0_8
     
     interface
@@ -446,16 +451,20 @@ contains
        end function Lu_diag
     end interface
 
-    do i = 1, iter
+    do i = 1, max_iter
+       iter = iter + 1
        call lc (u, w0, Lu_diag (residual (f, u, Lu, l), l), u, l)
+       err = l2 (residual (f, u, Lu, l), l) / nrm
+       if (err < tol) exit
     end do
   end subroutine jacobi
 
-  subroutine bicgstab (u, f, Lu, Lu_diag, l, iter)
+  subroutine bicgstab (u, f, Lu, Lu_diag, l, max_iter, nrm, iter, tol)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
-    integer                   :: l, iter
+    integer                   :: iter, l, max_iter
+    real(8)                   :: nrm, tol
     type(Float_Field), target :: f, u
 
     integer                   :: i
@@ -490,7 +499,8 @@ contains
     v = p
 
     err_old = 1d16
-    do i = 1, iter
+    do i = 1, max_iter
+       iter = iter + 1
        rho_old = rho
        rho = dp (res0, res, l)
 
@@ -521,8 +531,8 @@ contains
        end if
 
        res = lcf (s, -omga, t, l)
-       err_new = l2 (res, l) 
-       if (err_new > err_old .or. err_new < 1d-16) exit
+       err_new = l2 (res, l) / nrm
+       if (err_new < tol) exit
        err_old = err_new
     end do
   end subroutine bicgstab

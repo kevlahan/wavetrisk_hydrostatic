@@ -196,6 +196,7 @@ contains
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
+       if (istep == 1) dt = 0.8*dx_max/wave_speed ! first time step with CFL < 1
        select case (timeint_type)
        case ("Euler")
           call Euler_split (dt)
