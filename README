@@ -91,6 +91,13 @@ perturbation is therefore H + H0.
 The vertical coordinates are Lagrangian (i.e. they move as material surfaces) with periodic remapping onto a target (e.g. initial
 grid).  A collection of different conservative piecewise remapping routines are available.
 
+SOLID BOUNDARIES
+
+In ocean test cases solid lateral boundaries are modelled using Brinkman volume penalization (see Kevlahan, Dubos & Aechtner 2015,
+Geosci Model Dev 8).  The permeability parameter is fixed equal to dt and the porosity parameter alpha is set by the user
+(e.g. alpha = 0.1). The permeability friction term -1/eta u in the velocity equation is applied as a separate split step after the
+main time step, as in Rassmussen, Cottet & Walther 2011, J Comput Phys 230.
+
 BAROTROPIC - BARCOCLINIC MODE SPLITTING
 
 Incompressible (i.e. ocean) simulations can be run with 2D barotropic - 3D baroclinic mode splitting to avoid the stability

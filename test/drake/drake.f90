@@ -16,6 +16,12 @@ program Drake
        import
        type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
      end subroutine trend_relax
+     subroutine apply_penal (q)
+       use domain_mod
+       use ops_mod
+       implicit none
+       type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+     end subroutine apply_penal
   end interface
 
   ! Initialize mpi, shared variables and domains
@@ -35,7 +41,7 @@ program Drake
   ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
 
   ! Numerical method parameters
-  match_time         = .false.
+  match_time         = .false.                        ! avoid very small time steps when saving 
   mode_split         = .true.                         ! split barotropic mode if true
   penalize           = .true.                         ! penalize land regions
   timeint_type       = "RK4"                          ! always use RK4
@@ -58,19 +64,19 @@ program Drake
   etopo_coast    = .false.                            ! use etopo data for coastlines (i.e. penalization)
   min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   = -1000 * METRE
-     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
+     max_depth   = -4000 * METRE
+     halocline   = -4000 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer = -4000 * METRE                      ! location of layer forced by surface wind stress
      drho        =     0 * KG/METRE**3                ! density perturbation at free surface 
-     tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =     1 * METRE/SECOND               ! estimated western boundary current speed
+     tau_0       =   0.8 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc       =   1.5 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels == 2) then
      max_depth   = -4000 * METRE
      halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
      drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
      tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =   1.2 * METRE/SECOND               ! estimated western boundary current speed     
+     u_wbc       =   1.7 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
      max_depth   = -1000 * METRE
      halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
@@ -80,9 +86,6 @@ program Drake
      u_wbc       =     2 * METRE/SECOND               ! estimated western boundary current speed
   end if
 
-!!$  ! Estimate u_wbc (should also depend on Reynolds number)
-!!$  u_wbc = 4d3 * tau_0/abs(max_depth)
- 
   ! Vertical level to save
   save_zlev = zlevels 
 
@@ -109,15 +112,23 @@ program Drake
      Rb = bv * abs(max_depth) / (MATH_PI*f0)
   end if
 
-  ! Internal wave friction based on 3 e-folding growth times of internal wave
+  ! Bottom friction
+  if (drag) then
+     bottom_friction = 4d-4 / abs(max_depth) ! nemo value
+  else
+     bottom_friction = 0.0_8
+  end if
+
+  ! Internal wave friction 
   if (drho == 0.0_8) then
      wave_friction = 0.0_8
   else
-     wave_friction = u_wbc / Rb / 3
+     wave_friction = u_wbc / Rb / 3                   ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
+!!$     wave_friction = 1 / (200 * HOUR)                 ! fixed
   end if
   
-  delta_I        = sqrt (u_wbc/beta)                   ! inertial layer
-  delta_sm       = u_wbc/f0                            ! barotropic submesoscale  
+  delta_I        = sqrt (u_wbc/beta)                  ! inertial layer
+  delta_sm       = u_wbc/f0                           ! barotropic submesoscale  
 
   ! Dimensional scaling
   Udim           = u_wbc                              ! velocity scale
@@ -145,6 +156,7 @@ program Drake
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
+     call apply_penal (sol)
      if (k_T /= 0.0_8) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
 
@@ -268,7 +280,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                         :: d, id, id_i, idE, idN, idNE
-  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e, permeability, tau_wind, wave_drag, wind_drag
+  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e,tau_wind, wave_drag, wind_drag
   real(8), dimension(0:NORTHEAST) :: full_mass
 
   d = dom%id + 1
@@ -317,14 +329,11 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   end if
   wave_drag = - wave_friction * wave_drag
   
-  ! Permeability
-  permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/eta * velo(EDGE*id+RT+1:EDGE*id+UP+1)
-  
   ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
   if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
-     physics_velo_source = diffusion + permeability + bottom_drag + wave_drag + wind_drag
+     physics_velo_source = diffusion + bottom_drag + wave_drag + wind_drag
   else
-     physics_velo_source = diffusion + permeability
+     physics_velo_source = diffusion
   end if
 contains
   function grad_divu()
@@ -358,7 +367,7 @@ contains
 end function physics_velo_source
 
 subroutine trend_relax (q, dq)
-  ! Trend for Held-Suarez cooling
+  ! Trend relaxation to mean buoyancy
   use domain_mod
   use ops_mod
   use time_integr_mod
@@ -367,7 +376,7 @@ subroutine trend_relax (q, dq)
 
   integer :: d, k, p
 
-  call update_array_bdry (sol, NONE, 27)
+  call update_array_bdry (q, NONE, 27)
 
   do k = 1, zlevels
      do d = 1, size(grid)
@@ -385,8 +394,6 @@ contains
   subroutine trend_scalars (dom, i, j, zlev, offs, dims)
     ! Relax buoyancy to mean
     use test_case_mod
-    use main_mod
-    use domain_mod
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -402,10 +409,6 @@ contains
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
-    ! Velocity trend for cooling step (Rayleigh friction)
-    use test_case_mod
-    use main_mod
-    use domain_mod
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -419,6 +422,106 @@ contains
     dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine trend_velo
 end subroutine trend_relax
+
+subroutine apply_penal (q)
+  ! Apply permeability friction term to velocity as split step
+  use domain_mod
+  use ops_mod
+  implicit none
+  type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+
+  integer :: d, j, k, l
+
+  call update_array_bdry (q, NONE, 27)
+
+  do k = 1, zlevels
+     q(S_VELO,k)%bdry_uptodate = .false.
+     do l = level_end, level_start, -1
+        do d = 1, size(grid)
+           velo => q(S_VELO,k)%data(d)%elts       
+           if (l == level_end) then
+              do j = 1, grid(d)%lev(level_end)%length
+                 call apply_onescale_to_patch (cal_penal, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
+              end do
+           else
+              call cpt_or_restr_penal (grid(d), k, l)
+           end if
+        end do
+        nullify (velo)
+        call update_bdry (q(S_VELO,k), l, 20)
+     end do
+  end do
+contains
+  subroutine cal_penal (dom, i, j, zlev, offs, dims)
+    ! Apply penalization with maximum stable eta = 1/dt
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, e, id, id_e
+    
+    id = idx (i, j, offs, dims)
+    d = dom%id + 1
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+       velo(id_e) = (1.0_8 - penal_edge(zlev)%data(d)%elts(id_e)) * velo(id_e)
+    end do
+  end subroutine cal_penal
+
+  subroutine cpt_or_restr_penal (dom, zlev, l)
+    implicit none
+    type(Domain) :: dom
+    integer      :: zlev, l
+
+    integer :: c, j, p_par, p_chd
+
+    do j = 1, dom%lev(l)%length
+       p_par = dom%lev(l)%elts(j)
+       do c = 1, N_CHDRN
+          p_chd = dom%patch%elts(p_par+1)%children(c)
+          if (p_chd == 0) call apply_onescale_to_patch (cal_penal, dom, p_par, zlev, 0, 0)
+       end do
+       call apply_interscale_to_patch (penal_cpt_restr, dom, dom%lev(l)%elts(j), zlev, 0, 0)
+    end do
+  end subroutine cpt_or_restr_penal
+
+  subroutine penal_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Velocity restriction
+    implicit none
+    type(Domain)                     :: dom
+    integer                          :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
+
+    integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
+
+    id_par = idx (i_par, j_par, offs_par, dims_par)
+
+    id_chd   = idx(i_chd,   j_chd,   offs_chd, dims_chd)
+    idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
+
+    if (minval(dom%mask_e%elts(EDGE*id_chd+RT+1:EDGE*id_chd+UP+1)) < ADJZONE) &
+         call cal_penal (dom, i_par, j_par, zlev, offs_par, dims_par)
+
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) velo(EDGE*id_par+RT+1) = &
+         (velo(EDGE*id_chd+RT+1)*dom%len%elts(EDGE*id_chd+RT+1) + velo(EDGE*idE_chd+RT+1)*dom%len%elts(EDGE*idE_chd+RT+1)) &
+         / (dom%len%elts(EDGE*id_chd+RT+1) + dom%len%elts(EDGE*idE_chd+RT+1))
+
+    if (dom%mask_e%elts(DG+EDGE*id_chd+1) >= ADJZONE) velo(EDGE*id_par+DG+1) = &
+         (velo(EDGE*id_chd+DG+1)*dom%len%elts(EDGE*id_chd+DG+1) + velo(EDGE*idNE_chd+DG+1)*dom%len%elts(EDGE*idNE_chd+DG+1)) &
+         / (dom%len%elts(EDGE*id_chd+DG+1) + dom%len%elts(EDGE*idNE_chd+DG+1))
+
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) velo(EDGE*id_par+UP+1) = &
+         (velo(EDGE*id_chd+UP+1)*dom%len%elts(EDGE*id_chd+UP+1) + velo(EDGE*idN_chd+UP+1)*dom%len%elts(EDGE*idN_chd+UP+1)) &
+         / (dom%len%elts(EDGE*id_chd+UP+1) + dom%len%elts(EDGE*idN_chd+UP+1))
+  end subroutine penal_cpt_restr
+end subroutine apply_penal
+
+
 
 
 

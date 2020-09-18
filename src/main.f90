@@ -333,7 +333,7 @@ contains
             '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
              ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &
              ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
-            ' Jmax =', level_end, &
+            ' Jmax = ', level_end, &
             '  dof = ', sum (n_active)
        write (6,'(A)') &
             '********************************************************** End Restart &

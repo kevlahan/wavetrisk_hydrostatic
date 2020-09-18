@@ -217,7 +217,7 @@ module shared_mod
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, tol_elliptic
   real(8)                                       :: visc_divu, visc_rotu
-  real(8)                                       :: alpha, eta
+  real(8)                                       :: alpha
   real(8), dimension(:), allocatable            :: visc_sclr
   real(8)                                       :: c1, c_p, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
@@ -309,10 +309,7 @@ contains
     ! Default run values
     ! these parameters are typically reset in the input file, but are needed for compilation
 
-    ! Penalization parameters
     alpha               = 1d-1          ! porosity
-    eta                 = 1d-2 * SECOND ! permeability
-    
     cfl_num             = 1.0_8
     C_visc              = 1d-2
     c1                  = 1d-16         ! default value for internal wave speed (used for incompressible cases)

@@ -72,15 +72,6 @@ contains
     implicit none
 
     delta_M = (visc_rotu/beta)**(1.0_8/(2*Laplace_order_init+1)) ! Munk layer scale
-
-    ! Bottom drag
-    if (drag) then
-!!$       bottom_friction = beta * delta_M/4    ! gyre paper value
-       bottom_friction = 4d-4/abs(max_depth) ! nemo value
-    else
-       bottom_friction = 0.0_8
-    end if
-
     delta_S = bottom_friction / beta      ! Stommel layer (want delta_S = delta_M/4)
     Rey     = u_wbc * delta_I / visc_rotu ! Reynolds number of western boundary current
     Ro      = u_wbc / (delta_M*f0)        ! Rossby number (based on boundary current)
@@ -151,7 +142,6 @@ contains
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
-       write (6,'(A,es11.4)') "eta (permeability)        [s]  = ", eta
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
@@ -452,7 +442,8 @@ contains
   subroutine initialize_dt_viscosity 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
+    real(8)            :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
+    logical, parameter :: munk = .true.
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -464,22 +455,19 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    ! Permeability penalization parameter
-    eta = dt_cfl
-
     ! Diffusion constants
+    if (munk) then
+       C_visc = dt_cfl * beta * dx_min * resolution**(2*Laplace_order_init+1)                  ! resolve Munk layer with "resolution" points
+    else
+       C_visc = resolution**2 * dx_min**(2*(1-Laplace_order_init)) * dt_cfl * u_wbc / delta_I  ! resolve Taylor scale with "resolution" points
+    end if
 
-!!$    ! Ensure stability and that Munk layer is resolved with resolution grid points
-!!$    C_visc = dt_cfl * beta * dx_min * resolution**(2*Laplace_order_init+1)
-!!$    
-    ! Ensure stability and that Taylor scale is resolved with resolution grid points
-    C_visc = resolution**2 * dx_min**(2*(1-Laplace_order_init)) * dt_cfl * u_wbc / delta_I
-
+    ! Ensure stability
     C_visc = min ((1.0_8/30)**Laplace_order_init, max (C_visc, 1d-4))
     
     C_rotu = C_visc
     C_divu = C_visc
-    C_sclr = C_visc
+    C_sclr = 1d-2!C_visc
 
     ! Diffusion time scales
     tau_sclr = dt_cfl / C_sclr
@@ -507,7 +495,6 @@ contains
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-       write (6,'(a,es10.4,a)') "eta = ", eta," [s]"
     end if
   end subroutine initialize_dt_viscosity
 
