@@ -94,7 +94,7 @@ contains
     ! Inverse wavelet transform
     implicit none
     type(Float_Field), dimension(:,:), target :: scaling, wavelet
-    integer, optional                                            :: l_start0
+    integer, optional                         :: l_start0
 
     integer :: l, d, k, l_start, v
 
@@ -778,9 +778,9 @@ contains
 
   function Interp_node (dom, id, id1, id2, id3, id4)
     ! Interpolation at nodes
-    real(8)                        :: Interp_node
-    type(Domain)                   :: dom
-    integer                        :: id, id1, id2, id3, id4
+    real(8)      :: Interp_node
+    type(Domain) :: dom
+    integer      :: id, id1, id2, id3, id4
 
     Interp_node = ( &
          dom%overl_areas%elts(id+1)%a(1) * scalar(id1+1) + &
@@ -1170,20 +1170,20 @@ contains
   contains
     function restrict_s ()
       ! Restriction operator at nodes: sub-sample and lift
-      real(8)                        :: restrict_s
+      real(8) :: restrict_s
 
       integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
 
-      idE   = idx (i_chd+1, j_chd,     offs_chd, dims_chd)
+      idE   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
       idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
       idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
       id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
-      idN   = idx (i_chd,     j_chd+1, offs_chd, dims_chd)
-      idW   = idx (i_chd-1, j_chd,     offs_chd, dims_chd)
+      idN   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+      idW   = idx (i_chd-1, j_chd,   offs_chd, dims_chd)
       idNW  = idx (i_chd-1, j_chd+1, offs_chd, dims_chd)
       idS2W = idx (i_chd-2, j_chd-1, offs_chd, dims_chd)
       idSW  = idx (i_chd-1, j_chd-1, offs_chd, dims_chd)
-      idS   = idx (i_chd,     j_chd-1, offs_chd, dims_chd)
+      idS   = idx (i_chd,   j_chd-1, offs_chd, dims_chd)
       id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
       idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
 
@@ -1199,7 +1199,7 @@ contains
             wc_s(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
             wc_s(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
             wc_s(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
-            wc_s(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4))* &
+            wc_s(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4)) * &
            dom%areas%elts(id_par+1)%hex_inv
     end function restrict_s
   end subroutine restrict_scalar

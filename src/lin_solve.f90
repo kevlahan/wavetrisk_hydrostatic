@@ -402,13 +402,10 @@ contains
        end function Lu_diag
     end interface
 
-    if (log_iter) then
-       do l = level_start, level_end
-          nrm(l) = l2 (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
-          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
-          iter(l) = 0
-       end do
-    end if
+    do l = level_start, level_end
+       nrm(l) = l2 (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
+       if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
+    end do
 
     call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter, nrm(level_start), iter(level_start), tol_elliptic)
     do l = level_start+1, level_end
