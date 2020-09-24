@@ -262,10 +262,10 @@ contains
     type(Domain) :: dom
     integer      :: en, l, st, zlev
 
-    integer :: k
+    integer :: j
 
-    do k = 1, dom%lev(l)%length
-       call apply_interscale_to_patch22 (routine, dom, dom%lev(l)%elts(k), zlev, st, en)
+    do j = 1, dom%lev(l)%length
+       call apply_interscale_to_patch22 (routine, dom, dom%lev(l)%elts(j), zlev, st, en)
     end do
   end subroutine apply_interscale_d2
 
@@ -729,7 +729,7 @@ contains
        if (n > 0) then
           offs(i+1) = self%patch%elts(n+1)%elts_start
           dims(:,i+1) = PATCH_SIZE
-          if (present(inner_patch) .and. i .le. 4) inner_patch(i) = .True.
+          if (present(inner_patch) .and. i <= 4) inner_patch(i) = .true.
        else
           if (n < 0) then
              offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
@@ -758,13 +758,12 @@ contains
        if (n > 0) then
           offs(i+1) = self%patch%elts(n+1)%elts_start
           dims(:,i+1) = PATCH_SIZE
-          if (present(inner_bdry) .and. i .le. 4) inner_bdry(i) = .True.
+          if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = .true.
        else
           if (n < 0) then
              offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
              dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-             if (present(inner_bdry) .and. i .le. 4) &
-                  inner_bdry(i) = self%bdry_patch%elts(-n+1)%side < 0
+             if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = self%bdry_patch%elts(-n+1)%side < 0
           end if
        end if
     end do
@@ -788,7 +787,7 @@ contains
 
     find_neigh_bdry_patch_Domain = 0
 
-    if (p_par .le. 0) return
+    if (p_par <= 0) return
 
     p_chd = self%patch%elts(p_par+1)%children(c+1)
     if (p_chd > 0) find_neigh_bdry_patch_Domain = self%patch%elts(p_chd+1)%neigh(s+1)
