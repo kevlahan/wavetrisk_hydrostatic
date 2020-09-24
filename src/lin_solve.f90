@@ -271,6 +271,7 @@ contains
 
   subroutine prolongation (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
+    use wavelet_mod
     implicit none
     integer                   :: fine
     type(Float_Field), target :: scaling
@@ -282,7 +283,7 @@ contains
     ! Prolong scalar to finer nodes existing at coarser grid (subsample) 
     do d = 1, size(grid)
        scalar => scaling%data(d)%elts
-       call apply_interscale_d2 (IWT_subsample, grid(d), coarse, z_null, 0, 1)
+       call apply_interscale_d (subsample, grid(d), coarse, z_null, 0, 1)
        nullify (scalar)
     end do
     scaling%bdry_uptodate = .false.
@@ -291,14 +292,14 @@ contains
     ! Reconstruct scalar at finer nodes not existing at coarser grid by interpolation
     do d = 1, size(grid)
        scalar => scaling%data(d)%elts
-       call apply_interscale_d (IWT_interpolate, grid(d), coarse, z_null, 0, 0)
+       call apply_interscale_d (interpolate, grid(d), coarse, z_null, 0, 0)
        nullify (scalar)
     end do
     scaling%bdry_uptodate = .false.
     call update_bdry (scaling, NONE, 66)
   end subroutine prolongation
 
-  subroutine IWT_subsample (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine subsample (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Sub-sample to prolong coarse points to fine grid
     implicit none
     type(Domain)                   :: dom
@@ -314,9 +315,9 @@ contains
     if (dom%mask_n%elts(id_chd+1) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
     scalar(id_chd+1) = scalar(id_par+1) 
-  end subroutine IWT_subsample
+  end subroutine subsample
 
-  subroutine IWT_interpolate (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine interpolate (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Reconstruct scalars at fine nodes not existing at coarse scale by interpolation
     use wavelet_mod
     implicit none
@@ -343,7 +344,7 @@ contains
     scalar(idNE_chd+1) = Interp_node (dom, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) 
     scalar(idN_chd+1)  = Interp_node (dom, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)  
     scalar(idE_chd+1)  = Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  
-  end subroutine IWT_interpolate
+  end subroutine interpolate
 
   subroutine restriction (scaling, coarse)
     ! Restrict scaling from fine scale coarse+1 to coarse scale coarse
@@ -375,12 +376,12 @@ contains
     end do
   end subroutine restriction
 
-  subroutine multiscale (u, f, Lu, Lu_diag)
+  subroutine multiscale (u, f, Lu)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with jacobi as the smoother
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                                       :: l
+    integer                                       :: l, m
     integer, dimension(level_start:level_end)     :: iter
     real(8), dimension(level_start:level_end)     :: nrm
     real(8), dimension(1:2,level_start:level_end) :: r_error
@@ -393,26 +394,20 @@ contains
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
-       function Lu_diag (u, l)
-         ! Returns u divided by diagonal of linear operator
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: u, Lu_diag
-       end function Lu_diag
     end interface
 
+    iter = 0
     do l = level_start, level_end
        nrm(l) = l2 (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
        if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
     end do
 
-    call bicgstab (u, f, Lu, Lu_diag, level_start, coarse_iter, nrm(level_start), iter(level_start), tol_elliptic)
+    call bicgstab (u, f, Lu, level_start, coarse_iter, nrm(level_start), iter(level_start), tol_elliptic)
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call jacobi (u, f, Lu, Lu_diag, l, fine_iter, nrm(l), iter(l), 1d-2)
+       call jacobi (u, f, Lu, l, fine_iter, nrm(l), iter(l), 1d-2)
     end do
-    
+
     if (log_iter) then
        do l = level_start, level_end
           r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
@@ -422,16 +417,15 @@ contains
     end if
   end subroutine multiscale
 
-  subroutine jacobi (u, f, Lu, Lu_diag, l, max_iter, nrm, iter, tol)
-    ! Damped Jacobi iterations for smoothing multigrid iterations
+  subroutine jacobi (u, f, Lu, l, max_iter, nrm, iter, tol)
+    ! Jacobi iterations for smoothing multigrid iterations
     implicit none
     integer                   :: iter, l, max_iter
     real(8)                   :: nrm, tol
     type(Float_Field), target :: f, u
 
-    integer            :: i
-    real(8)            :: err
-    real(8), parameter :: w0 = 1.0_8
+    integer :: i
+    real(8) :: dxsq, err, inv_diag
     
     interface
        function Lu (u, l)
@@ -440,23 +434,20 @@ contains
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
-       function Lu_diag (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: u, Lu_diag
-       end function Lu_diag
     end interface
 
+    dxsq = 16*MATH_PI*radius**2 / (sqrt(3.0_8) * 20 * 4**l)
+    inv_diag = -1 / ((2*wave_speed*dt)**2/dxsq + 1.0_8)
+    
     do i = 1, max_iter
        iter = iter + 1
-       call lc (u, w0, Lu_diag (residual (f, u, Lu, l), l), u, l)
+       call lc (u, inv_diag, residual (f, u, Lu, l), u, l)
        err = l2 (residual (f, u, Lu, l), l) / nrm
        if (err < tol) exit
     end do
   end subroutine jacobi
 
-  subroutine bicgstab (u, f, Lu, Lu_diag, l, max_iter, nrm, iter, tol)
+  subroutine bicgstab (u, f, Lu, l, max_iter, nrm, iter, tol)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
@@ -466,7 +457,6 @@ contains
 
     integer                   :: i
     real(8)                   :: alph, b, err_old, err_new, omga, rho, rho_old
-    logical, parameter        :: precond = .false.
     type(Float_Field), target :: res, res0, p, s, t, v, y, z
 
     interface
@@ -476,12 +466,6 @@ contains
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
-       function Lu_diag (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: u, Lu_diag
-       end function Lu_diag
     end interface
 
     ! Initialize
@@ -505,27 +489,16 @@ contains
 
        p = lcf (res, b, lcf (p, -omga, v, l), l)
 
-       if (precond) then
-          y = Lu_diag (p, l)
-          v = Lu (y, l)
-       else
-          v = Lu (p, l)
-       end if
+       v = Lu (p, l)
 
        alph = rho / dp (res0, v, l)
 
        s = lcf (res, -alph, v, l)
+       t = Lu (s, l)
 
-       if (precond) then
-          z = Lu_diag (s, l)
-          t = Lu (z, l)
-          omga = dp (t, s, l) / dp (t, t, l)
-          call lc2 (u, alph, y, omga, z, l)
-       else
-          t = Lu (s, l)
-          omga = dp (t, s, l) / dp (t, t, l)
-          call lc2 (u, alph, p, omga, s, l)
-       end if
+       omga = dp (t, s, l) / dp (t, t, l)
+
+       call lc2 (u, alph, p, omga, s, l)
 
        res = lcf (s, -omga, t, l)
        err_new = l2 (res, l) / nrm

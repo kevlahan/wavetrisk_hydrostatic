@@ -2,8 +2,8 @@ module barotropic_2d_mod
   ! Files needed to solve barotropic free surface 
   use ops_mod
   use multi_level_mod
+  use lin_solve_mod
   implicit none
-  real(8) :: dxsq
 contains
   subroutine u_star (dt, q)
     ! Explicit Euler step for intermediate velocity u_star
@@ -15,9 +15,7 @@ contains
     integer :: d, ibeg, iend, k, l
 
     ! External pressure gradient
-    do l = level_end, level_start, -1
-       call grad_eta (q(:,zlevels+1), horiz_flux(S_TEMP), l)
-    end do
+    call grad_eta (q(:,zlevels+1), horiz_flux(S_TEMP))
     
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -55,7 +53,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     call rhs_elliptic (q)
-    call multiscale (q(S_MASS,zlevels+1), q(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag)
+    call multiscale (q(S_MASS,zlevels+1), q(S_TEMP,zlevels+1), elliptic_lo)
   end subroutine eta_update
 
   subroutine u_update (q)
@@ -67,9 +65,7 @@ contains
     integer :: d, ibeg, iend, k, l
     
     ! External pressure gradient
-    do l = level_end, level_start, -1
-       call grad_eta (q(:,zlevels+1), horiz_flux(S_TEMP), l)
-    end do
+    call grad_eta (q(:,zlevels+1), horiz_flux(S_TEMP))
     
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -191,44 +187,6 @@ contains
 
     if (dom%mask_n%elts(id) >= ADJZONE) dscalar(id) = dt**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
   end subroutine complete_elliptic_lo
-
-  function elliptic_diag (q, l)
-    ! Multiplies float array eta by inverse of diagonal part of barotropic elliptic equation linear operator l
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: elliptic_diag, q
-
-    integer :: d, j
-
-    dxsq = 16*MATH_PI*radius**2 / (sqrt(3.0_8) * 20 * 4**l) 
-
-    elliptic_diag = q
-    
-    do d = 1, size(grid)
-       scalar => q%data(d)%elts
-       diag   => elliptic_diag%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_elliptic_inv_diag, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (diag, scalar)
-    end do
-  end function elliptic_diag
-
-  subroutine cal_elliptic_inv_diag (dom, i, j, zlev, offs, dims)
-    ! Approximate inverse of diagonal part of barotropic elliptic equation linear operator
-    ! note that eta^n is saved in exner_fun(2)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-    
-    id = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) diag(id) = - scalar(id) / ((2*wave_speed*dt)**2/dxsq + 1.0_8)
-  end subroutine cal_elliptic_inv_diag
 
   subroutine barotropic_correction (q)
     ! Update baroclinic variables mass and mass-weighted buoyancy with new free surface perturbation
@@ -355,7 +313,6 @@ contains
 
   subroutine eta_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute or restrict eta for calculation of grad(eta)
-    ! (free surface eta is stored in pointer bernoulli)
     implicit none
     type(Domain)                   :: dom
     integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
@@ -377,7 +334,7 @@ contains
     type(Float_Field), target :: dq, q
 
     integer :: d, j
-    
+
     do d = 1, size(grid)
        h_flux => dq%data(d)%elts
        scalar => q%data(d)%elts
@@ -390,29 +347,26 @@ contains
     call update_bdry (dq, l, 301)
   end subroutine external_pressure_gradient_flux
 
-  subroutine grad_eta (q, dq, l)
+  subroutine grad_eta (q, dq)
     ! Calculates grad eta (external pressure gradient due to free surface perturbation)
     implicit none
-    integer                                 :: l
     type(Float_Field), dimension(:), target :: q
     type(Float_Field),               target :: dq
     
-    integer :: d, j, k
+    integer :: d, j, k, l
 
-    ! Copy eta to avoid modification by restriction
-    q(S_TEMP) = q(S_MASS)
-
-    do d = 1, size(grid)
-       h_flux => dq%data(d)%elts
-       scalar => q(S_TEMP)%data(d)%elts
-
-       if (l < level_end) call cpt_or_restr_eta (grid(d), l) ! restrict grad(eta) if possible (modifies eta)
-
-       ! Calculate external pressure gradient
-       do j = 1, grid(d)%lev(l)%length
-          call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=3)
+    ! Calculate external pressure gradient
+    q(S_TEMP) = q(S_MASS) ! copy eta to avoid modification by restriction
+    do l = level_end, level_start, -1 
+       do d = 1, size(grid)
+          h_flux => dq%data(d)%elts
+          scalar => q(S_TEMP)%data(d)%elts
+          if (l < level_end) call cpt_or_restr_eta (grid(d), l) ! restrict eta if possible
+          do j = 1, grid(d)%lev(l)%length
+             call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=3)
+          end do
+          nullify (h_flux, scalar)
        end do
-       nullify (h_flux, scalar)
     end do
   end subroutine grad_eta
 
