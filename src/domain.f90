@@ -87,7 +87,7 @@ contains
     type(Float_Field) :: self
     integer           :: pos
 
-    self%bdry_uptodate = .False.
+    self%bdry_uptodate = .false.
     self%pos = pos
 
     allocate (self%data(n_domain(rank+1)))
@@ -96,7 +96,7 @@ contains
   subroutine init_domain_mod
     implicit none
     integer :: i, v
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
 
@@ -113,7 +113,7 @@ contains
 
     chd_offs = reshape ((/PATCH_SIZE/2, PATCH_SIZE/2, PATCH_SIZE/2, 0, 0, 0, 0, PATCH_SIZE/2/), (/2, 4/))
 
-    initialized = .True.
+    initialized = .true.
   end subroutine init_domain_mod
 
   subroutine apply_onescale_d (routine, dom, l, zlev, st, en)
@@ -305,9 +305,9 @@ contains
     end do
   end subroutine apply_interscale_to_patch
 
-   subroutine apply_interscale_to_patch2 (routine, dom, p_par, zlev, st, en)
-     implicit none
-     external     :: routine
+  subroutine apply_interscale_to_patch2 (routine, dom, p_par, zlev, st, en)
+    implicit none
+    external     :: routine
     type(Domain) :: dom
     integer      :: en, st, p_par, zlev
 
@@ -353,7 +353,6 @@ contains
     integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
     integer, dimension(2,N_BDRY+1)   :: dims_chd, dims_par
     integer, dimension(JPlUS:IMINUS) :: bdry
-    logical, dimension(JPlUS:IMINUS) :: inner_bdry
 
     call get_offs_Domain (dom, p_par, offs_par, dims_par)
 
@@ -561,7 +560,7 @@ contains
     integer :: n, side
     logical :: penta
 
-    penta = .False.
+    penta = .false.
 
     n = dom%patch%elts(p+1)%neigh(s+1)
 
@@ -714,15 +713,15 @@ contains
     integer                         :: p
     integer, dimension(N_BDRY+1)    :: offs
     integer, dimension(2,N_BDRY+1)  :: dims
-    logical, dimension(4), optional :: inner_patch(4)
+    logical, dimension(4), optional :: inner_patch
 
     integer :: i, n
 
     offs = -1
-    dims = 0
+    dims =  0
     offs(1) = self%patch%elts(p+1)%elts_start
 
-    if (present(inner_patch)) inner_patch = .False.
+    if (present(inner_patch)) inner_patch = .false.
 
     do i = 1, N_BDRY
        n = self%patch%elts(p+1)%neigh(i)
@@ -758,7 +757,7 @@ contains
        if (n > 0) then
           offs(i+1) = self%patch%elts(n+1)%elts_start
           dims(:,i+1) = PATCH_SIZE
-          if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = .true.
+          if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = .true. 
        else
           if (n < 0) then
              offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
@@ -969,7 +968,7 @@ contains
        end do
     end do
 
-    self%pole_master = .False.
+    self%pole_master = .false.
   end subroutine init_Domain
 
   integer function add_patch_Domain (self, level)
@@ -981,7 +980,7 @@ contains
     p = self%patch%length
 
     call append (self%lev(level), p)
-    call append (self%patch, Patch(self%node%length, level, 0, 0, 0, .False.))
+    call append (self%patch, Patch(self%node%length, level, 0, 0, 0, .false.))
     call extend_Domain (self, PATCH_SIZE**2)
 
     add_patch_Domain = p
