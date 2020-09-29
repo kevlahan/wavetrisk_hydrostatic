@@ -271,7 +271,6 @@ contains
 
   subroutine prolongation (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
-    use wavelet_mod
     implicit none
     integer                   :: fine
     type(Float_Field), target :: scaling
@@ -283,7 +282,7 @@ contains
     ! Prolong scalar to finer nodes existing at coarser grid (subsample) 
     do d = 1, size(grid)
        scalar => scaling%data(d)%elts
-       call apply_interscale_d (subsample, grid(d), coarse, z_null, 0, 1)
+       call apply_interscale_d2 (subsample, grid(d), coarse, z_null, 0, 1)
        nullify (scalar)
     end do
     scaling%bdry_uptodate = .false.
@@ -312,8 +311,6 @@ contains
     id_par = idx (i_par, j_par, offs_par, dims_par)
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    if (dom%mask_n%elts(id_chd+1) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
-
     scalar(id_chd+1) = scalar(id_par+1) 
   end subroutine subsample
 
@@ -329,7 +326,6 @@ contains
     integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
 
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
-    if (dom%mask_n%elts(id_chd+1) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
     idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
     idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
@@ -346,36 +342,6 @@ contains
     scalar(idE_chd+1)  = Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  
   end subroutine interpolate
 
-  subroutine restriction (scaling, coarse)
-    ! Restrict scaling from fine scale coarse+1 to coarse scale coarse
-    use wavelet_mod
-    implicit none
-    integer                   :: coarse
-    type(Float_Field), target :: scaling
-
-    integer :: d, fine
-
-    fine = coarse + 1
-
-    ! Compute scalar wavelet coefficients
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       wc_s   => wav_coeff(S_MASS,1)%data(d)%elts
-       call apply_interscale_d (compute_scalar_wavelets, grid(d), coarse, z_null, 0, 0)
-       nullify (scalar, wc_s)
-    end do
-    wav_coeff(S_MASS,1)%bdry_uptodate = .false.
-    call update_bdry (wav_coeff(S_MASS,1), fine, 562)
-
-    ! Restrict (sub-sample and lift) to coarser grid
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       wc_s   => wav_coeff(S_MASS,1)%data(d)%elts
-       call apply_interscale_d (restrict_scalar, grid(d), coarse, z_null, 0, 1) ! +1 to include poles
-       nullify (scalar, wc_s)
-    end do
-  end subroutine restriction
-
   subroutine multiscale (u, f, Lu)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with jacobi as the smoother
     implicit none
@@ -383,7 +349,7 @@ contains
 
     integer                                       :: l, m
     integer, dimension(level_start:level_end)     :: iter
-    real(8), dimension(level_start:level_end)     :: nrm
+    real(8)                                       :: nrm
     real(8), dimension(1:2,level_start:level_end) :: r_error
     
     interface
@@ -397,20 +363,20 @@ contains
     end interface
 
     iter = 0
+    nrm = l2 (f, level_start) ; if (nrm == 0.0_8) nrm = 1.0_8
     do l = level_start, level_end
-       nrm(l) = l2 (f, l) ; if (nrm(l) == 0.0_8) nrm(l) = 1.0_8
-       if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
+       if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm
     end do
 
-    call bicgstab (u, f, Lu, level_start, coarse_iter, nrm(level_start), iter(level_start), tol_elliptic)
+    call bicgstab (u, f, Lu, level_start, coarse_iter, nrm, iter(level_start), tol_elliptic)
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call jacobi (u, f, Lu, l, fine_iter, nrm(l), iter(l), 1d-2)
+       call jacobi (u, f, Lu, l, fine_iter, nrm, iter(l), 1d-2)
     end do
 
     if (log_iter) then
        do l = level_start, level_end
-          r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm(l)
+          r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm
           if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
                l, r_error(:,l), iter(l)
        end do
@@ -437,7 +403,7 @@ contains
     end interface
 
     dxsq = 16*MATH_PI*radius**2 / (sqrt(3.0_8) * 20 * 4**l)
-    inv_diag = -1 / ((2*wave_speed*dt)**2/dxsq + 1.0_8)
+    inv_diag = -1 / ((2*wave_speed*dt)**2/dxsq + 1)
     
     do i = 1, max_iter
        iter = iter + 1

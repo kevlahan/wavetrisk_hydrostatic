@@ -3,7 +3,7 @@ module mask_mod
   use comm_mpi_mod
 contains
   subroutine set_masks (dom, p, i, j, zlev, offs, dims, mask)
-    ! Sets all nodes and edges to value mask unless node is FROZEN
+    ! Sets all nodes and edges to value mask 
     implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev, mask
@@ -14,8 +14,6 @@ contains
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
-
-    if (dom%mask_n%elts(id_i) == FROZEN) return
 
     dom%mask_n%elts(id_i)              = mask
     dom%mask_e%elts(EDGE*id:EDGE*id_i) = mask
@@ -70,8 +68,6 @@ contains
     d = dom%id + 1
     l = dom%level%elts(id_i)
 
-    if (dom%mask_n%elts(id_i) == FROZEN) return
-
     ! Scalars
     active = .false.
     do k = 1, zlevels
@@ -118,8 +114,6 @@ contains
     id_i = id + 1
     d = dom%id + 1
     l = dom%level%elts(id_i)
-
-    if (dom%mask_n%elts(id_i) == FROZEN) return
 
     ! Scalars
     active = .false.

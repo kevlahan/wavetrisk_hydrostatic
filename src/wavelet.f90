@@ -30,16 +30,16 @@ contains
              do v = scalars(1), scalars(2)
                 scalar => scaling(v,k)%data(d)%elts
                 wc_s   => wavelet(v,k)%data(d)%elts
-                call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
+                call apply_interscale_d (restrict_scalar, grid(d), l, z_null, 0, 1) ! +1 to include poles
                 nullify (scalar, wc_s)
              end do
              velo => scaling(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
+             call apply_interscale_d (restrict_velo, grid(d), l, z_null, 0, 0)
              nullify (velo)
           end do
        end do
 
-       scaling(:,k)%bdry_uptodate             = .false.
+       scaling(:,k)%bdry_uptodate                     = .false.
        wavelet(scalars(1):scalars(2),k)%bdry_uptodate = .false.
 
        call update_bdry (scaling(S_VELO,k), NONE, 3)
@@ -77,11 +77,11 @@ contains
           end do
           call update_bdry (wavelet(k), l+1, 62)
 
-          ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
+          ! Restrict scalars (sub-sample and lift) to coarser grid
           do d = 1, size(grid)
              scalar => scaling(k)%data(d)%elts
              wc_s   => wavelet(k)%data(d)%elts
-             call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1) ! +1 to include poles
+             call apply_interscale_d (restrict_scalar, grid(d), l, z_null, 0, 1) ! +1 to include poles
              nullify (scalar, wc_s)
           end do
        end do
@@ -297,7 +297,7 @@ contains
       idS   = idx (i_chd,   j_chd-1, offs_chd, dims_chd)
       id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
       idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
-
+      
       if (i_chd == 4 .and. j_chd == 4) then ! do not include zero area N2NE (wavelet not defined) 
          prolong_s = scalar(id_par+1) - &
              (wc_s(idE+1)   * dom%overl_areas%elts(idE+1)%a(1)   + &
@@ -340,7 +340,6 @@ contains
     integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
 
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
-    if (dom%mask_n%elts(id_chd+1) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
 
     idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
     idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
