@@ -384,7 +384,7 @@ contains
   end subroutine fill_up_level
 
   !!! Remaining routines were added by Matthias to prepare for allowing domain splitting for better rebalancing !!!
-  !!! they are not yet incorportated in the code !!!
+  !!! they are not yet incorporated in the code !!!
   logical function remove_inside_patches ()
     ! Removes patches that are not required because they are far enough away from the locally finest level
     implicit none

@@ -176,8 +176,8 @@ contains
       ! Computes physical quantities during upward integration
       implicit none
       integer                    :: idE, idN, idNE, idS, idSW, idW
-      integer                    :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i
-      real(8)                    :: circ_LORT, circ_UPLT, Phi_k
+      integer                    :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i, k
+      real(8)                    :: circ_LORT, circ_UPLT, Phi_k, dz, dz0
       real(8)                    :: u_prim_UP_E, u_prim_RT_N
       real(8), dimension(0:EDGE) :: phi
 
@@ -220,7 +220,26 @@ contains
       elseif (itype == 3) then ! external pressure gradient
          h_flux(EDGE*id+RT+1) = -grav_accel * (scalar(idE_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+RT+1) 
          h_flux(EDGE*id+DG+1) = -grav_accel * (scalar(id_i)/phi(0)  - scalar(idNE_i)/phi(2)) / dom%len%elts(EDGE*id+DG+1) 
-         h_flux(EDGE*id+UP+1) = -grav_accel * (scalar(idN_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+UP+1) 
+         h_flux(EDGE*id+UP+1) = -grav_accel * (scalar(idN_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+UP+1)
+      elseif (itype == 4) then ! sum vertical flux
+         h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+         do k = 1, zlevels
+            dz0 = q(S_MASS,k)%data(d)%elts(id+1)  + sol_mean(S_MASS,k)%data(d)%elts(id+1)
+            
+            dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idE+1) + sol_mean(S_MASS,k)%data(d)%elts(idE+1))
+            if (k == zlevels) dz = dz - interp (scalar(id+1), scalar(idE+1)) * ref_density
+            h_flux(EDGE*id+RT+1) = h_flux(EDGE*id+RT+1) + q(S_VELO,k)%data(d)%elts(EDGE*id+RT+1) * dz
+
+            dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idNE+1) + sol_mean(S_MASS,k)%data(d)%elts(idNE+1))
+            if (k == zlevels) dz = dz - interp (scalar(id+1), scalar(idNE+1)) * ref_density
+            h_flux(EDGE*id+DG+1) = h_flux(EDGE*id+DG+1) + q(S_VELO,k)%data(d)%elts(EDGE*id+DG+1) * dz
+
+            dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idN+1) + sol_mean(S_MASS,k)%data(d)%elts(idN+1))
+            if (k == zlevels) dz = dz - interp (scalar(id+1), scalar(idN+1)) * ref_density
+            h_flux(EDGE*id+UP+1) = h_flux(EDGE*id+UP+1) + q(S_VELO,k)%data(d)%elts(EDGE*id+UP+1) * dz
+         end do
+         h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = h_flux(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
+                                             / ref_density
       elseif (itype == 0) then ! standard 
          do v = scalars(1), scalars(2)
             full(0:NORTHEAST,v) = q(v,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE/)+1) &
@@ -314,8 +333,8 @@ contains
     subroutine comp_SW
       implicit none
       integer                    :: d, idS, idSW, idW
-      integer                    :: id_i, idS_i, idSW_i, idW_i
-      real(8)                    :: circ_SW_LORT, circ_SW_UPLT, u_prim_RT_SW, u_prim_UP_SW
+      integer                    :: id_i, idS_i, idSW_i, idW_i, k
+      real(8)                    :: circ_SW_LORT, circ_SW_UPLT, u_prim_RT_SW, u_prim_UP_SW, dz, dz0
       real(8), dimension(0:EDGE) :: phi
 
       d = dom%id + 1
@@ -355,7 +374,29 @@ contains
       elseif (itype == 3) then ! external pressure gradient
          h_flux(EDGE*idW+RT+1)  = grav_accel * (scalar(idW_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idW+RT+1) 
          h_flux(EDGE*idSW+DG+1) = grav_accel * (scalar(id_i)/phi(0)  - scalar(idSW_i)/phi(2)) / dom%len%elts(EDGE*idSW+DG+1) 
-         h_flux(EDGE*idS+UP+1)  = grav_accel * (scalar(idS_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idS+UP+1) 
+         h_flux(EDGE*idS+UP+1)  = grav_accel * (scalar(idS_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idS+UP+1)
+      elseif (itype == 4) then ! sum vertical flux
+         h_flux(EDGE*idW+RT+1)  = 0.0_8
+         h_flux(EDGE*idSW+DG+1) = 0.0_8
+         h_flux(EDGE*idS+UP+1)  = 0.0_8
+         do k = 1, zlevels
+            dz0 = q(S_MASS,k)%data(d)%elts(id+1)  + sol_mean(S_MASS,k)%data(d)%elts(id+1)
+            
+            dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idW+1) + sol_mean(S_MASS,k)%data(d)%elts(idW+1))
+            if (k == zlevels) dz = dz - interp (scalar(id+1), scalar(idW+1)) * ref_density
+            h_flux(EDGE*idW+RT+1) = h_flux(EDGE*idW+RT+1) + q(S_VELO,k)%data(d)%elts(EDGE*idW+RT+1) * dz
+
+            dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idSW+1) + sol_mean(S_MASS,k)%data(d)%elts(idSW+1))
+            if (k == zlevels) dz = dz - interp (scalar(id+1), scalar(idSW+1)) * ref_density
+            h_flux(EDGE*idSW+DG+1) = h_flux(EDGE*idSW+DG+1) + q(S_VELO,k)%data(d)%elts(EDGE*idSW+DG+1) * dz
+
+            dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idS+1) + sol_mean(S_MASS,k)%data(d)%elts(idS+1))
+            if (k == zlevels) dz = dz - interp (scalar(id+1), scalar(idS+1)) * ref_density
+            h_flux(EDGE*idS+UP+1) = h_flux(EDGE*idS+UP+1) + q(S_VELO,k)%data(d)%elts(EDGE*idS+UP+1) * dz
+         end do
+         h_flux(EDGE*idW+RT+1)  = h_flux(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)  / ref_density
+         h_flux(EDGE*idSW+DG+1) = h_flux(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) / ref_density
+         h_flux(EDGE*idS+UP+1)  = h_flux(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)  / ref_density
       elseif (itype == 0) then ! standard
          do v = scalars(1), scalars(2)
             full(0:SOUTHWEST,v) = q(v,zlev)%data(d)%elts((/id,id,id,idS,idW,id,id,idSW/)+1) &

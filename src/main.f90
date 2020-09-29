@@ -171,6 +171,7 @@ contains
     external             :: set_thresholds
 
     integer(8) :: idt, ialign
+    real(8)    :: dx
     
     istep       = istep+1
     istep_cumul = istep_cumul+1
@@ -196,6 +197,8 @@ contains
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
+       dx   = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end))   
+       if (istep <= 2) dt = 0.1*dx/wave_speed ! two small time steps to start
        select case (timeint_type)
        case ("Euler")
           call Euler_split (dt)
@@ -249,6 +252,8 @@ contains
     else
        time = time + dt
     end if
+
+    if (penalize) call apply_penal (sol)
     
     ! Set new time step, find change in vertical levels and count active nodes
     dt_new = cpt_dt ()

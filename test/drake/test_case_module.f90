@@ -281,7 +281,7 @@ contains
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
-    eta_surf  = init_free_surface (x_i)
+    eta_surf = init_free_surface (x_i)
 
     if (zlev == zlevels+1) then
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8

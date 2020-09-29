@@ -95,7 +95,7 @@ SOLID BOUNDARIES
 
 In ocean test cases solid lateral boundaries are modelled using Brinkman volume penalization (see Kevlahan, Dubos & Aechtner 2015,
 Geosci Model Dev 8).  The permeability parameter is fixed equal to dt and the porosity parameter alpha is set by the user
-(e.g. alpha = 0.1). The permeability friction term -1/eta u in the velocity equation is applied as a separate split step after the
+(e.g. alpha = 0.01). The permeability friction term -1/eta u in the velocity equation is applied as a separate split step after the
 main time step, as in Rassmussen, Cottet & Walther 2011, J Comput Phys 230.
 
 BAROTROPIC - BARCOCLINIC MODE SPLITTING
@@ -104,7 +104,7 @@ Incompressible (i.e. ocean) simulations can be run with 2D barotropic - 3D baroc
 constraint of the fast external mode with speed c = sqrt(g H). Setting mode_split = .true. chooses mode splitting, which integrates
 the barotropic component implicitly in time on the slow geostrophic time scale. The computation is stable with
 CFL_barotropic = sqrt(g H) dt/dx < = 30, and often at larger values.  Recommended tolerance for the (coarse scale)
-elliptic solver = 1e-11 to ensure mass conservation and sufficient accuracy.  The method is similar to the "implicit free surface"
+elliptic solver = 1e-8 to ensure mass conservation and sufficient accuracy.  The method is similar to the "implicit free surface"
 option in MITgcm.
 
 The associated elliptic equation is solved using a simple multigrid scheme on the adaptive grid. The baroclinic and barotropic

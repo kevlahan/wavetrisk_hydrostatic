@@ -82,12 +82,26 @@ contains
     implicit none
     type(Float_Field), dimension(:,:), target :: q
     
-    integer :: d, j, k, l
+    integer :: d, j, l
 
-    ! Vertically integrated horizontal flux of intermediate horizontal velocity u_star
-    call sum_vertical_flux (q, horiz_flux(S_MASS))
-    
     do l = level_end, level_start, -1
+       ! Calculate vertically integrated velocity flux
+       do d = 1, size(grid)
+          h_flux => horiz_flux(S_MASS)%data(d)%elts
+          scalar => sol(S_MASS,zlevels+1)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call step1 (q=q, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
+          end do
+          if (l < level_end) then
+             dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
+             call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
+             nullify (dscalar)
+          end if
+          nullify (h_flux, scalar)
+       end do
+       horiz_flux(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (horiz_flux(S_MASS), l, 211)
+       
        ! Calculate divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
        do d = 1, size(grid)
           dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
@@ -98,17 +112,7 @@ contains
           nullify (dscalar, h_flux)
        end do
        trend(S_MASS,zlevels+1)%bdry_uptodate = .false.
-       call update_bdry (trend(S_MASS,zlevels+1), l, 303)
-
-       ! Restrict flux F if possible
-       if (l < level_end) then
-          do d = 1, size(grid)
-             dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
-             h_flux  =>      horiz_flux(S_MASS)%data(d)%elts
-             call cpt_or_restr_flux (grid(d), l)
-             nullify (dscalar, h_flux)
-          end do
-       end if
+       call update_bdry (trend(S_MASS,zlevels+1), l, 212)
 
        ! Euler step for intermediate free surface perturbation eta_star
        do d = 1, size(grid)
@@ -146,9 +150,17 @@ contains
     integer :: d, j
 
     elliptic_lo = q
-
     ! Calculate external pressure gradient flux
-    call external_pressure_gradient_flux (q, horiz_flux(S_MASS), l)
+    do d = 1, size(grid)
+       h_flux => horiz_flux(S_MASS)%data(d)%elts
+       scalar => q%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=2)
+       end do
+       nullify (h_flux, scalar)
+    end do
+    horiz_flux(S_MASS)%bdry_uptodate = .false.
+    call update_bdry (horiz_flux(S_MASS), l, 213)
 
     ! Calculate divergence
     do d = 1, size(grid)
@@ -327,26 +339,6 @@ contains
     if (dom%mask_n%elts(id_par) >= RESTRCT) scalar(id_par) = scalar(id_chd)
   end subroutine eta_cpt_restr
 
-  subroutine external_pressure_gradient_flux (q, dq, l) 
-    ! Compute external pressure gradient flux term, depth^n * grad(eta^(n+1))
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: dq, q
-
-    integer :: d, j
-
-    do d = 1, size(grid)
-       h_flux => dq%data(d)%elts
-       scalar => q%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=2)
-       end do
-       nullify (h_flux, scalar)
-    end do
-    dq%bdry_uptodate = .false.
-    call update_bdry (dq, l, 301)
-  end subroutine external_pressure_gradient_flux
-
   subroutine grad_eta (q, dq)
     ! Calculates grad eta (external pressure gradient due to free surface perturbation)
     implicit none
@@ -369,71 +361,6 @@ contains
        end do
     end do
   end subroutine grad_eta
-
-  subroutine sum_vertical_flux (q, q_2d)
-    ! Vertical sum of flux of q, returned in q_2d
-    ! Assumes linearized free surface (i.e. remove free surface perturbation from sum)
-    implicit none
-    type(Float_Field),                 target :: q_2d
-    type(Float_Field), dimension(:,:), target :: q
-
-    integer :: d, k, p
-    
-    do d = 1, size(grid)
-       scalar  => q(S_MASS,zlevels+1)%data(d)%elts
-       velo_2d => q_2d%data(d)%elts
-
-       q_2d%data(d)%elts = 0.0_8
-       do k = 1, zlevels
-          mass   => q(S_MASS,k)%data(d)%elts
-          mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          velo   => q(S_VELO,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (cal_sum_vertical_flux, grid(d), p-1, k, 0, 0)
-          end do
-          nullify (mass, mean_m, velo)
-       end do
-       nullify (scalar, velo_2d)
-    end do
-
-    q_2d%bdry_uptodate = .false.
-    call update_bdry (q_2d, NONE, 301)
-  end subroutine sum_vertical_flux
-
-  subroutine cal_sum_vertical_flux (dom, i, j, zlev, offs, dims)
-    ! Vertical integration of edge quantity
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                    :: e, id, id_e, idE, idN, idNE
-    real(8), dimension(1:EDGE) :: dz
-
-    id = idx (i, j, offs, dims) 
-
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-    
-    ! Deduce (porous) layer heights from total mass
-    dz(RT+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idE+1) +mass(idE+1))  / ref_density 
-    dz(DG+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idNE+1)+mass(idNE+1)) / ref_density 
-    dz(UP+1) = interp (mean_m(id+1)+mass(id+1), mean_m(idN+1) +mass(idN+1))  / ref_density
-
-    ! Subtract free surface to linearize calculation
-    if (zlev == zlevels) then
-       dz(1) = dz(1) - interp (scalar(id+1), scalar(idE+1))  
-       dz(2) = dz(2) - interp (scalar(id+1), scalar(idNE+1)) 
-       dz(3) = dz(3) - interp (scalar(id+1), scalar(idN+1))  
-    end if
- 
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-       velo_2d(id_e) = velo_2d(id_e) + velo(id_e) * dom%pedlen%elts(id_e) * dz(e)
-    end do
-  end subroutine cal_sum_vertical_flux
 
   subroutine cal_div (dom, i, j, zlev, offs, dims)
     implicit none
