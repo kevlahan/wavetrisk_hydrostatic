@@ -183,7 +183,7 @@ contains
 
     idt    = nint (dt*time_mult, 8)
     ialign = nint (align_time*time_mult, 8)
-    if (ialign > 0 .and. istep /= 1) then
+    if (ialign > 0 .and. istep > 2) then
        aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
     else
        aligned = .false.
@@ -197,8 +197,11 @@ contains
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
-       dx   = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end))   
-       if (istep <= 2) dt = 0.1*dx/wave_speed ! two small time steps to start
+       if (istep <= 2) then  ! two small time steps to start
+          dx = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end)) 
+          dt = 0.1*dx/wave_speed
+       end if
+       
        select case (timeint_type)
        case ("Euler")
           call Euler_split (dt)
