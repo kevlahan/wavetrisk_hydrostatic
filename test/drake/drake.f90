@@ -37,7 +37,7 @@ program Drake
   ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
 
   ! Numerical method parameters
-  match_time         = .true.                        ! avoid very small time steps when saving 
+  match_time         = .false.                        ! avoid very small time steps when saving 
   mode_split         = .true.                         ! split barotropic mode if true
   penalize           = .true.                         ! penalize land regions
   timeint_type       = "RK4"                          ! always use RK4
