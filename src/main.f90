@@ -183,7 +183,7 @@ contains
 
     idt    = nint (dt*time_mult, 8)
     ialign = nint (align_time*time_mult, 8)
-    if (ialign > 0 .and. istep > 2) then
+    if (ialign > 0 .and. istep > 12) then
        aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
     else
        aligned = .false.
@@ -197,7 +197,7 @@ contains
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
-       if (istep <= 2) then  ! two small time steps to start
+       if (istep <= 10) then  ! two small time steps to start
           dx = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end)) 
           dt = 0.1*dx/wave_speed
        end if
@@ -274,7 +274,7 @@ contains
     if (rank == 0) then
        write (6,'(A,/)') &
             '********************************************************* Begin Restart &
-            *********************************************************'
+            **********************************************************'
        write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
     end if
 
