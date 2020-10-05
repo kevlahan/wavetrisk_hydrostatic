@@ -19,6 +19,6 @@ time_end           1000          ! final time (days)
 resume            -1             ! restart from checkpoint (negative means fresh restart)
 alpha              1e-2          ! porosity penalization parameter
 drag               T             ! use bottom drag if T
-npts_penal         4.25             ! number of grid points over which to smooth mask
+npts_penal         4.5             ! number of grid points over which to smooth mask
 resolution         4             ! number of grid points Munk scale (determines viscosity)
 
