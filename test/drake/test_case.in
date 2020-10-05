@@ -7,7 +7,7 @@ remap              F             ! remap vertical grid
 iremap             10            ! remap every iremap time steps
 tol_elliptic       1e-08          ! tolerance for elliptic solver 
 coarse_iter        500           ! maximum number of elliptic solver bicgstab iterations at coarsest level
-fine_iter          10             ! maximum number of elliptic solver jacobi iterations at finer levels
+fine_iter          2             ! maximum number of elliptic solver jacobi iterations at finer levels
 log_iter           T             ! print elliptic solver relative residual error
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 tol      	   4e-3          ! non-dimensional tolerance
@@ -19,6 +19,6 @@ time_end           1000          ! final time (days)
 resume            -1             ! restart from checkpoint (negative means fresh restart)
 alpha              1e-2          ! porosity penalization parameter
 drag               T             ! use bottom drag if T
-npts_penal         4             ! number of grid points over which to smooth mask
+npts_penal         4.25             ! number of grid points over which to smooth mask
 resolution         4             ! number of grid points Munk scale (determines viscosity)
 

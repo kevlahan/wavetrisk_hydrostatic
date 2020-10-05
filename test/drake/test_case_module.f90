@@ -6,14 +6,14 @@ Module test_case_mod
   implicit none
 
   ! Standard variables
-  integer                              :: bathy_per_deg, CP_EVERY, etopo_res, npts_penal, resume_init, save_zlev
+  integer                              :: bathy_per_deg, CP_EVERY, etopo_res, resume_init, save_zlev
   real(8)                              :: dt_cfl, initotalmass, k_T, mass_error, tau_diffusion, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, Rb, Rd, Rey, Ro
-  real(8)                              :: bottom_friction, max_depth, min_depth, mixed_layer, scale, halocline, u_wbc
+  real(8)                              :: bottom_friction, max_depth, min_depth, mixed_layer, scale, halocline, npts_penal, u_wbc
   real(8)                              :: resolution, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: drag, etopo_coast, mean_split
@@ -89,7 +89,7 @@ contains
        write (6,'(A,L1)')     "mean_split                     = ", mean_split
        write (6,'(A,L1)')     "mode_split                     = ", mode_split
        write (6,'(A,L1)')     "penalize                       = ", penalize
-       write (6,'(A,i3)')     "npts_penal                     = ", npts_penal
+       write (6,'(A,es10.4)') "npts_penal                     = ", npts_penal
        write (6,'(A,i3)')     "min_level                      = ", min_level
        write (6,'(A,i3)')     "max_level                      = ", max_level
        write (6,'(A,i3)')     "level_fill                     = ", level_fill
@@ -122,7 +122,6 @@ contains
        write (6,'(A,es10.4)') "time_end [d]                   = ", time_end/DAY
        write (6,'(A,i6)')     "resume                         = ", resume_init
        write (6,'(A,L1)')     "bottom drag                    = ", drag
-       write (6,'(A,i3)')     "npts_penal                     = ", npts_penal
        write (6,'(A,i3)')     "etopo_res                      = ", etopo_res
        write (6,'(A,es10.4)') "resolution                     = ", resolution
 
@@ -506,7 +505,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call topography (dom, i, j, zlev, offs, dims, 'bathymetry', npts_penal)
+    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
@@ -524,14 +523,14 @@ contains
     id_i = id + 1
 
     if (penalize) then
-       call topography (dom, i, j, zlev, offs, dims, "penalize", npts_penal)
+       call topography (dom, i, j, zlev, offs, dims, "penalize")
     else
        penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
     end if
   end subroutine set_penal
 
-  subroutine topography (dom, i, j, zlev, offs, dims, itype, npts)
+  subroutine topography (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
     ! uses radial basis function for smoothing (if specified)
     implicit none
@@ -539,7 +538,6 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer                        :: npts
     character(*)                   :: itype
 
     integer            :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
@@ -555,7 +553,6 @@ contains
        dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
-!!$       dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
        dx = dx_max
       
        ! Analytic land mass with smoothing
@@ -567,31 +564,6 @@ contains
 
        mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
 
-!!$       ! ETOPO style land mass
-!!$       s0 = lon/DEG * BATHY_PER_DEG
-!!$       t0 = lat/DEG * BATHY_PER_DEG
-!!$       is0 = nint (s0); it0 = nint (t0)
-!!$       p = proj_lon_lat (s0, t0)
-!!$       if (npts == 0) then ! no smoothing
-!!$          mask = topo_data (is0, it0)
-!!$       else ! smoothing
-!!$          sw_topo  = 0.0_8
-!!$          topo_sum = 0.0_8
-!!$          do ii = -npts, npts
-!!$             s = is0+ii
-!!$             do jj = -npts, npts
-!!$                t = it0+jj
-!!$                call wrap_lonlat (s, t)
-!!$                q = proj_lon_lat (dble(s), dble(t))
-!!$                r = norm (vector(p, q))
-!!$                wgt = radial_basis_fun (r, npts, dx)
-!!$                M_topo = topo_data (s, t)
-!!$                topo_sum = topo_sum + wgt * M_topo
-!!$                sw_topo  = sw_topo  + wgt
-!!$             end do
-!!$          end do
-!!$          mask = topo_sum / sw_topo
-!!$       end if
        d = dom%id + 1
        penal_node(zlev)%data(d)%elts(id_i) = mask
        do e = 1, EDGE
@@ -600,37 +572,6 @@ contains
        end do
     end select
   end subroutine topography
-
-  real(8) function radial_basis_fun (r, npts, dx)
-    ! Radial basis function for smoothing topography
-    implicit none
-    integer :: npts
-    real(8) :: r, dx
-
-    radial_basis_fun = exp (-(r/(npts*dx/2))**2)
-  end function radial_basis_fun
-
-  subroutine wrap_lonlat (s, t)
-    ! Longitude: wraparound allows for values outside [-180,180]
-    ! Latitude: works only if there is no coast at the pole
-    implicit none
-    integer :: s, t
-
-    if (t < lbound (topo_data,2)) t = lbound (topo_data,2) ! pole
-    if (t > ubound (topo_data,2)) t = ubound (topo_data,2) ! pole
-    if (s < lbound (topo_data,1)) s = s + 360*BATHY_PER_DEG
-    if (s > ubound (topo_data,1)) s = s - 360*BATHY_PER_DEG
-  end subroutine wrap_lonlat
-
-  type(Coord) function proj_lon_lat (s, t)
-    implicit none
-    real(8) :: s, t
-    real(8) :: lon, lat
-    
-    lon = s * DEG / BATHY_PER_DEG
-    lat = t * DEG / BATHY_PER_DEG
-    proj_lon_lat = project_on_sphere (sph2cart(lon, lat))
-  end function proj_lon_lat
 
   subroutine topography_data
     ! Defines analytic latitude-longitude topography data for Drake passage case
@@ -652,56 +593,6 @@ contains
           read (1086,*) topo_data(:,kk)
        end do
        close (1086)
-    else
-       ! Resolution
-       bathy_per_deg = max (1, nint (2*MATH_PI*radius/dx_min/360))
-       etopo_res = nint (60/(2*MATH_PI*radius/dx_min/360)) ! effective resolution of topography in arcminutes
-
-       if (.not. allocated (topo_data)) &
-            allocate (topo_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
-
-       if (.not. allocated (temp_data)) &
-            allocate (temp_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
-
-       sz(1) = ubound (topo_data,1) - lbound (topo_data,1)
-       sz(2) = ubound (topo_data,2) - lbound (topo_data,2)
-
-       ! Heaviside mask
-       temp_data = 0.0_8
-       do ilon = lbound (topo_data,1), ubound (topo_data,1)
-          lon = ilon / dble(bathy_per_deg)
-          do ilat = lbound (topo_data,2), ubound (topo_data,2)
-             lat = ilat / dble(bathy_per_deg)
-             if (abs(lon) < width/2/cos(lat*DEG) &
-                  .and. lat < lat_max .and. lat > lat_min &
-                  .and. lat < acos(cos(lat_max*DEG)/cos(lon*DEG)) * 180/MATH_PI &
-                  .and. lat > (acos(cos(lat_min*DEG)/cos(lon*DEG))-MATH_PI/2) * 180/MATH_PI) &
-                  temp_data(ilon,ilat) = land
-          end do
-       end do
-       topo_data = temp_data
-
-       ! Smoothing
-       do kk = 1, n_smooth
-          do ilon = lbound (topo_data,1), ubound (topo_data,1)
-             do ilat = lbound (topo_data,2), ubound (topo_data,2)
-                avg = 0.0_8
-                do ii = -npts, npts
-                   lon_avg = ilon + ii
-                   if (lon_avg < lbound (topo_data,1)) lon_avg = lon_avg + sz(1)
-                   if (lon_avg > ubound (topo_data,1)) lon_avg = lon_avg - sz(1)
-                   do jj = -npts, npts
-                      lat_avg = ilat + jj
-                      if (lat_avg < lbound (topo_data,2)) lat_avg = lat_avg + sz(2)
-                      if (lat_avg > ubound (topo_data,2)) lat_avg = lat_avg - sz(2)
-                      avg = avg + temp_data(lon_avg,lat_avg)
-                   end do
-                end do
-                topo_data(ilon,ilat) = avg/(2*npts+1)**2
-             end do
-          end do
-          temp_data = topo_data
-       end do
     end if
   end subroutine topography_data
 
