@@ -2,7 +2,7 @@ test_case = 'drake';
 run_id    = '2layer_fill'; 
 
 % Field to plot
-set_type = 9;
+set_type = 10;
 if set_type == 1
     itype = 'barotropic zonal velocity';
 elseif set_type == 2
@@ -21,6 +21,12 @@ elseif set_type == 8
     itype = 'layer 2 baroclinic meridional velocity'
 elseif set_type == 9
     itype = 'layer 2 baroclinic vorticity'
+elseif set_type == 10
+    itype = 'free surface'
+elseif set_type == 11
+    itype = 'internal free surface'
+elseif set_type == 12
+    itype = 'land'
 end
 
 lat_min   = -90;
@@ -92,11 +98,11 @@ elseif (strcmp(itype,'layer 2 baroclinic vorticity'))
     v_title = 'Layer 2 baroclinic vorticity';
 elseif (strcmp(itype,'free surface'))
     s_ll = load([file_base '.10']);
-    c_scale = linspace(-1, 1, 100);
+    c_scale = linspace(-0.6, 0.34, 100);
     v_title = 'Free surface';
 elseif (strcmp(itype,'internal free surface'))
     s_ll = load([file_base '.11']);
-    c_scale = linspace(-350, 1000, 100);
+    c_scale = linspace(-8.5, 27, 100);
     v_title = 'Internal  freesurface';
 elseif (strcmp(itype,'land'))
     s_ll = load([file_base '.12']);
