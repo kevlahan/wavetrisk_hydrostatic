@@ -67,7 +67,7 @@ elseif (strcmp(itype,'layer 1 baroclinic meridional velocity'))
     v_title = 'Baroclinic meridional velocity';
 elseif (strcmp(itype,'layer 1 baroclinic vorticity'))
     s_ll = load([file_base '.06']);
-    c_scale = linspace(-2.4e-6, 2.4e-6, 100);
+    
     v_title = 'Layer 1 baroclinic vorticity';
 elseif (strcmp(itype,'layer 2 baroclinic zonal velocity'))
     s_ll = load([file_base '.07']);
@@ -115,20 +115,19 @@ fprintf('Minimum value of variable %s = %8.4e\n', itype, min(min(s_ll)));
 fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_ll)));
 %% Plot latitude - longitude projection
 figure
+c_scale = linspace(-2e-5, 2e-5, 100);
 plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift, lines);
 axis(ax)
 system(['\rm ' run_id '.4*']);
-%% Energy spectrum
-
-% Periodize in latitude
+%% Periodize in latitude
 s_wrap = [s_ll(1:end-1,1:end-1); flipud(s_ll(1:end-1,1:end-1))]; 
 lat_wrap = [lat(1,1:256) 180+lat(1:256)]; 
 lon_wrap = lon(1:end-1);
 Ly = Lx;
 
-% figure
-% plot_lon_lat_data(s_wrap, lon_wrap, lat_wrap, c_scale, v_title, smooth, shift, lines);
-
+%figure
+%plot_lon_lat_data(s_wrap, lon_wrap, lat_wrap, c_scale, v_title, smooth, shift, lines);
+% Energy spectrum calculation and plot
 nx = size(s_wrap,1); ny = size(s_wrap,2);
 
 n1 = [0 1:nx/2-1 -nx/2 -fliplr(1:nx/2-1)];
@@ -147,7 +146,7 @@ for ix=1:nx
     end
 end
 nn = min(nx, ny);
-kmax = min(max(max(kvec)))/dk;
+kmax = round(min(max(max(kvec)))/dk);
 dk = pi/dx;
 
 % fft of data
@@ -168,8 +167,9 @@ k=(1:kmax)'*dk;
 loglog(k,Ek(2:end),'-r','LineWidth',1.2);hold on;grid on;
 xlabel('k');ylabel('E(k)');
 %%
-loglog(k(4:end),k(4:end).^(-3)/1e10,'-k','LineWidth',1.2);
-%loglog(k(4:end),k(4:end).^(-2)/1e8,'-k','LineWidth',1.2);
+loglog(k(4:end),k(4:end).^(-4)/4e9,'b--','LineWidth',1.2);
+loglog(k(4:end),k(4:end).^(-2)/1e8,'g--','LineWidth',1.2);
+loglog(k(4:end),k(4:end).^(-2)/1e7,'r--','LineWidth',1.2);
 %%
-legend('barotropic','layer 1 baroclinic','layer 2 baroclinic', 'k^{-3}');
-title('Energy spectrum');
+legend('barotropic','layer 1 baroclinic','layer 2 baroclinic', 'k^{-4}','k^{-2}','k^{-2}');
+title('Energy spectrum');set(gca,'FontSize',16);
