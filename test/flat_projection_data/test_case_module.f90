@@ -5,7 +5,7 @@ module test_case_mod
   use comm_mpi_mod
   implicit none
   integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev
-  real(8)                              :: initotalmass, mass_error, totalmass, ref_surf_press
+  real(8)                              :: initotalmass, mass_error, totalmass, ref_surf_press, scale
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
   
@@ -13,6 +13,10 @@ module test_case_mod
   real(8) :: eta_0, u_0 
   ! DCMIP2008c5
   real(8) :: d2, h_0, lat_c, lon_c
+  !Drake
+  integer               :: npts_penal
+  real(8)               :: drho, halocline, max_depth, mixed_layer
+  real(8), dimension(2) :: density, height
 contains
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
@@ -43,7 +47,7 @@ contains
        stop
     end if
   end function surf_geopot
-
+  
  subroutine initialize_a_b_vert
     implicit none
     integer :: k
@@ -220,13 +224,97 @@ contains
     pressure_save(1) = 100*press_save
   end subroutine read_test_case_parameters
 
+   subroutine topography (dom, i, j, zlev, offs, dims, itype)
+    ! Returns penalization mask for land penal and bathymetry coordinate topo 
+    ! uses radial basis function for smoothing (if specified)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer                        :: npts
+    character(*)                   :: itype
+
+    integer            :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
+    real(8)            :: dx, lat, lat0, lat_width, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    real(8), parameter :: lat_max = 60, lat_min = -35, lon_width = 15
+    type(Coord)        :: p, q
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    select case (itype)
+    case ("bathymetry")
+       dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
+    case ("penalize")
+       call cart2sph (dom%node%elts(id_i), lon, lat)
+       dx = dx_max
+      
+       ! Analytic land mass with smoothing
+       lat_width = (lat_max - lat_min) / 2
+       lat0 = lat_max - lat_width
+
+       n_lat = 4*radius * lat_width*DEG / (dx * npts_penal)
+       n_lon = 4*radius * lon_width*DEG / (dx * npts_penal)
+
+       mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
+
+       d = dom%id + 1
+       penal_node(zlev)%data(d)%elts(id_i) = mask
+       do e = 1, EDGE
+          id_e = EDGE*id + e
+          penal_edge(zlev)%data(d)%elts(id_e) = max (penal_edge(zlev)%data(d)%elts(id_e), mask)
+       end do
+    end select
+  end subroutine topography
+
+  subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
+    ! Set bathymetry
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+  end subroutine set_bathymetry
+
+  subroutine set_penal (dom, i, j, zlev, offs, dims)
+    ! Set penalization mask
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, id_i
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    if (penalize) then
+       call topography (dom, i, j, zlev, offs, dims, "penalize")
+    else
+       penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
+       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
+    end if
+  end subroutine set_penal
+  
   subroutine apply_initial_conditions
     implicit none
-    integer :: k, l
+    integer :: d, k, l
 
     do l = level_start, level_end
-       do k = 1, zlevels
-          call apply_onescale (init_sol, l, k, -1, 1)
+       call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       do k = 1, zmax
+          call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
+    end do
+
+    do l = level_start, level_end
+       do k = 1, zmax
+          call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
   end subroutine apply_initial_conditions
@@ -244,6 +332,59 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
   end subroutine init_sol
+
+  subroutine init_mean (dom, i, j, zlev, offs, dims)
+    ! Initialize mean values
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer     :: d, id, id_i
+    real (8)    :: dz, eta_surf, porous_density, z
+    type(Coord) :: x_i
+
+    d    = dom%id+1
+    id   = idx (i, j, offs, dims) 
+    id_i = id + 1
+
+    if (trim (test_case) == "drake") then
+       x_i  = dom%node%elts(id_i)
+       eta_surf = 0.0_8
+       
+       if (zlev == zlevels+1) then
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       else
+          dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
+          z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
+
+          porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
+       end if
+    else
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i)                      = 0.0_8
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)                      = 0.0_8
+       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+    end if
+  end subroutine init_mean
+
+  real(8) function buoyancy (x_i, z)
+    ! Buoyancy profile
+    ! buoyancy = (ref_density - density)/ref_density
+    implicit none
+    real(8)     :: z
+    type(Coord) :: x_i
+
+    if (zlevels /= 1 .and. z >= halocline) then
+       buoyancy = - (1.0_8 - z/halocline) * drho/ref_density
+    else
+       buoyancy = 0.0_8
+    end if
+  end function buoyancy
 
   subroutine set_thresholds
     ! Dummy routine

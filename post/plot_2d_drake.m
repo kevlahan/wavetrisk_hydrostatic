@@ -2,13 +2,13 @@ test_case = 'drake';
 run_id    = '2layer_fill'; 
 
 % Field to plot
-set_type = 10;
+set_type = 9;
 if set_type == 1
     itype = 'barotropic zonal velocity';
 elseif set_type == 2
-    itype     = 'barotropic meridional velocity';
+    itype = 'barotropic meridional velocity'
 elseif set_type == 3
-    itype = 'barotropic vorticity';
+    itype = 'barotropic vorticity'
 elseif set_type == 4
     itype = 'layer 1 baroclinic zonal velocity'
 elseif set_type == 5
@@ -29,22 +29,9 @@ elseif set_type == 12
     itype = 'land'
 end
 
-lat_min   = -90;
-lat_max   =  90;
-lon_min   =  0;
-lon_max   =  180;
-
-N         = 1024;  % resolution of projection
-radius    = 6371.229/6; % radius of Earth
-
-Nx        = N;     % number of points in longitude
-Ny        = N/2;   % number of points in latitude
-dx        = 2*pi*radius/Nx;
-dy        = dx;
-
-smooth    = false;  % smooth data over two points in each direction
-shift     = true;   % shift left boundary to zero longitude
-lines     = false;  % plot lines
+smooth = false;  % smooth data over two points in each direction
+shift  = false;   % shift left boundary to zero longitude
+lines  = false;  % plot lines
 
 % Load files
 run_dir = '';
@@ -57,8 +44,6 @@ system(file_tar);
 % Load coordinates
 lon = load([file_base '.20']); 
 lat = load([file_base '.21']);
-
-ax = [lon_min lon_max lat_min lat_max];
 
 if (strcmp(itype,'barotropic zonal velocity'))
     s_ll = load([file_base '.01']);
@@ -110,9 +95,81 @@ elseif (strcmp(itype,'land'))
     v_title = 'Land';
 end
 
+N         = size(s_ll,2); % resolution of projection
+radius    = 6371.229e3/6; % radius of Earth in metres
+
+Nx        = N;     % number of points in longitude
+Ny        = N/2;   % number of points in latitude
+Lx        = 2*pi*radius; 
+Ly        = pi*radius; 
+dx        = Lx/Nx;
+dy        = Ly/Ny;
+
+lat_min   = min(lat);
+lat_max   = max(lat);
+lon_min   = min(lon);
+lon_max   = max(lon);
+ax = [lon_min lon_max lat_min lat_max];
+
 fprintf('Minimum value of variable %s = %8.4e\n', itype, min(min(s_ll)));
 fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_ll)));
+%% Plot latitude - longitude projection
 figure
-plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift, lines)
+plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift, lines);
 axis(ax)
 system(['\rm ' run_id '.4*']);
+%% Energy spectrum
+
+% Periodize in latitude
+s_wrap = [s_ll(1:end-1,1:end-1); flipud(s_ll(1:end-1,1:end-1))]; 
+lat_wrap = [lat(1,1:256) 180+lat(1:256)]; 
+lon_wrap = lon(1:end-1);
+Ly = Lx;
+
+% figure
+% plot_lon_lat_data(s_wrap, lon_wrap, lat_wrap, c_scale, v_title, smooth, shift, lines);
+
+nx = size(s_wrap,1); ny = size(s_wrap,2);
+
+n1 = [0 1:nx/2-1 -nx/2 -fliplr(1:nx/2-1)];
+n2 = [0 1:ny/2-1 -ny/2 -fliplr(1:ny/2-1)];
+[n1, n2] = meshgrid(n1, n2);
+ 
+dk1 = pi/dx * [1 0];
+dk2 = pi/dy * [0 1];
+
+kvec = zeros(nx,ny,2);
+for ix=1:nx
+    for iy=1:ny
+        for jj=1:2
+            kvec(ix,iy,jj) = n1(ix,iy)*dk1(jj) + n2(ix,iy)*dk2(jj);
+        end
+    end
+end
+nn = min(nx, ny);
+kmax = min(max(max(kvec)))/dk;
+dk = pi/dx;
+
+% fft of data
+fk = fft2(s_wrap) / numel(s_wrap);
+
+% Energy spectrum integrated over shells
+Ek = zeros(kmax+1,1);
+for ix = 1:nx
+    for iy = 1:ny
+        k = round(sqrt(kvec(ix,iy,1)^2 + kvec(ix,iy,2)^2)/dk);
+        if k <= kmax
+            Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy)/(k*dk)^2;
+        end
+    end
+end
+Ek = Ek/2*dx^2;
+k=(1:kmax)'*dk;
+loglog(k,Ek(2:end),'-r','LineWidth',1.2);hold on;grid on;
+xlabel('k');ylabel('E(k)');
+%%
+loglog(k(4:end),k(4:end).^(-3)/1e10,'-k','LineWidth',1.2);
+%loglog(k(4:end),k(4:end).^(-2)/1e8,'-k','LineWidth',1.2);
+%%
+legend('barotropic','layer 1 baroclinic','layer 2 baroclinic', 'k^{-3}');
+title('Energy spectrum');

@@ -5,16 +5,19 @@ program flat_projection_data
   use io_mod  
   implicit none
   
-  integer                                :: nt, Ncumul
-  integer, parameter                     :: nvar_save=6 ! Number of variables to save
+  integer                                :: k, nt, Ncumul
+  integer, parameter                     :: nvar_save = 6 ! Number of variables to save
+  integer, parameter                     :: nvar_save_drake = 12 ! number of lat-lon projections to save for Drake case
   integer, dimension(2)                  :: Nx, Ny
   
   real(4), dimension(:,:),   allocatable :: field2d
-  real(8)                                :: dx_export, dy_export, kx_export, ky_export
+  real(8)                                :: dx_export, dy_export, kx_export, ky_export, area1, area2
   real(8), dimension(2)                  :: lon_lat_range
+  real(8), dimension(:,:),   allocatable :: two_layer_ke, two_layer_enstrophy
   real(8), dimension(:,:,:), allocatable :: field2d_save, zonal_av
   
   character(2)                           :: var_file
+  character(8)                           :: itype
   character(130)                         :: command
 
   logical, parameter                     :: welford = .true. ! use Welford's one-pass algorithm or naive two-pass algorithm
@@ -69,52 +72,90 @@ program flat_projection_data
      
      u_0            = 35.0_8                      ! maximum velocity of zonal wind
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
+  elseif (trim (test_case) == "drake") then
+     scale          = 6                                  ! scale factor for small planet (1/6 Earth radius)
+     radius         = 6371.229/scale   * KM              ! mean radius of the small planet
+     grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
+     omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
+     p_top          = 0.0_8            * hPa             ! pressure at free surface
+     ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
+     
+     max_depth   = -4000 * METRE
+     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
+     drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     density     = (/ ref_density, ref_density + drho/2 /)    ! densities in each layer
+     height      = (/ abs(max_depth - halocline), abs(halocline) /) ! depths of each layer
+     npts_penal  = 4
+
+     mode_split     = .true.                             ! split barotropic mode if true
+     compressible   = .false.                            ! always run with incompressible equations
+     penalize       = .true.                             ! penalize land regions
   else
      write (6,'(A)') "Test case not supported"
      stop
   end if
-  resume = mean_beg
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  resume = mean_beg
+  
   ! Initialize variables
   call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
 
   ! Initialize statistics
-  call initialize_stat
-
+  if (trim (test_case) == "drake") then
+     call initialize_stat_drake
+  else
+     call initialize_stat
+  end if
+  
   ! Calculate zonal average over all check points
   if (rank == 0) write (6,'(A)') "Calculating zonal averages over all checkpoints"
+
   Nt = 0
   do cp_idx = mean_beg, mean_end
      Nt = Nt + 1
      resume = NONE
      call restart (set_thresholds, load, run_id)
-     if (welford) then
-        call cal_zonal_av
+
+     if  (trim (test_case) == "drake") then
+        two_layer_ke(Nt,1) = time
+        two_layer_ke(Nt,2:5) = energy_drake ('adaptive')
+        two_layer_enstrophy(Nt,1) = time
+        two_layer_enstrophy(Nt,2:6) = pot_enstrophy_drake ('adaptive')
+        if (cp_idx == cp_2d) call latlon_drake
      else
-        call cal_average
+        if (welford) then
+           call cal_zonal_av
+        else
+           call cal_zonal_average
+        end if
+        if (cp_idx == cp_2d) call latlon
      end if
-     if (cp_idx == cp_2d) call latlon
   end do
-  
-  if (.not. welford) then
-     zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
-     zonal_av(:,:,3:5) = zonal_av(:,:,3:5) / Ncumul
-     call barrier
 
-     do cp_idx = mean_beg, mean_end
-        resume = NONE
-        call restart (set_thresholds, load, run_id)
-        call cal_variance
-     end do
-     call barrier
+  if (trim (test_case) == "drake") then
+     if (rank==0) call write_out_drake 
+  else
+     if (.not. welford) then
+        zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
+        zonal_av(:,:,3:5) = zonal_av(:,:,3:5) / Ncumul
+        call barrier
+
+        do cp_idx = mean_beg, mean_end
+           resume = NONE
+           call restart (set_thresholds, load, run_id)
+           call cal_variance
+        end do
+        call barrier
+     end if
+
+     ! Finish covariance calculations
+     zonal_av(:,:,2)   = zonal_av(:,:,2)   / (Ncumul-1)
+     zonal_av(:,:,6:9) = zonal_av(:,:,6:9) / (Ncumul-1)
+
+     if (rank==0) call write_out
   end if
-
-  ! Finish covariance calculations
-  zonal_av(:,:,2)   = zonal_av(:,:,2)   / (Ncumul-1)
-  zonal_av(:,:,6:9) = zonal_av(:,:,6:9) / (Ncumul-1)
-  
-  if (rank==0) call write_out
   call finalize
 contains
   subroutine cal_zonal_av
@@ -191,7 +232,7 @@ contains
     end do
   end subroutine cal_zonal_av
 
-  subroutine cal_average
+  subroutine cal_zonal_average
     ! Zonal average means over all checkpoints
     use domain_mod
     implicit none
@@ -237,7 +278,7 @@ contains
           zonal_av(k,:,5) = zonal_av(k,:,5) +  0.5 * (Uproj(ix,:)**2 + Vproj(ix,:)**2)
        end do
     end do
-  end subroutine cal_average
+  end subroutine cal_zonal_average
 
   subroutine cal_variance
     ! Zonal average variances over all checkpoints 
@@ -363,6 +404,366 @@ contains
     end do
   end subroutine latlon
 
+  function energy_drake (itype)
+    ! Calculates baroclinic and bartoropic energies for two layer case
+    use io_mod
+    implicit none
+    real(8), dimension(4) :: energy_drake
+    character(*)          :: itype
+    
+    integer :: d, j, l
+
+    if (trim(itype) == 'adaptive') then
+       energy_drake(1) = integrate_adaptive (layer1_ke)
+       energy_drake(2) = integrate_adaptive (layer2_ke)
+       energy_drake(3) = integrate_adaptive (barotropic_ke)
+    elseif (trim(itype) == 'coarse') then
+       energy_drake(1) = integrate_hex (layer1_ke,     level_start, z_null)
+       energy_drake(2) = integrate_hex (layer2_ke,     level_start, z_null)
+       energy_drake(3) = integrate_hex (barotropic_ke, level_start, z_null) 
+    end if
+    energy_drake(4) = energy_drake(1) + energy_drake(2) - energy_drake(3) ! baroclinic energy
+    energy_drake = energy_drake / (4*MATH_PI*radius**2*ref_density)
+  end function energy_drake
+
+  function pot_enstrophy_drake (itype)
+    use io_mod
+    implicit none
+    real(8), dimension(5) :: pot_enstrophy_drake
+    character(*)          :: itype
+    
+    integer :: d, j, l
+
+    pot_enstrophy_drake = 0.0_8
+
+    ! Potential enstrophy in each layer
+    do k = 1, 2
+       do l = level_start, level_end
+          do d = 1, size(grid)
+             velo  => sol(S_VELO,k)%data(d)%elts
+             vort  => grid(d)%vort%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             end do
+             call apply_to_penta_d (post_vort, grid(d), l, z_null)
+             nullify (velo, vort)
+          end do
+
+          ! Calculate vorticity at hexagon points (stored in press_lower)
+          do d = 1, size(grid)
+             vort => grid(d)%press_lower%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             nullify (vort)
+          end do
+       end do
+
+       if (trim(itype) == 'adaptive') then
+          pot_enstrophy_drake(k) = integrate_adaptive (pot_enstrophy)
+       elseif (trim(itype) == 'coarse') then
+          pot_enstrophy_drake(k) = integrate_hex (pot_enstrophy, level_start, z_null)
+       end if
+    end do
+
+    ! Barotropic enstrophy
+    do l = level_start, level_end
+       do d = 1, size(grid)
+          velo => sol(S_VELO,zlevels+1)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (barotropic_velocity_local, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          end do
+          nullify (velo)
+       end do
+       do d = 1, size(grid)
+          velo  => sol(S_VELO,zlevels+1)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (velo, velo1, velo2)
+       end do
+       do d = 1, size(grid)
+          velo  => sol(S_VELO,zlevels+1)%data(d)%elts
+          vort  => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), l, z_null)
+          nullify (velo, vort)
+       end do
+       do d = 1, size(grid)
+          vort => grid(d)%press_lower%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (vort)
+       end do
+    end do
+    k = 3
+    if (trim(itype) == 'adaptive') then
+       pot_enstrophy_drake(3) = integrate_adaptive (pot_enstrophy)
+    elseif (trim(itype) == 'coarse') then
+       pot_enstrophy_drake(3) = integrate_hex (pot_enstrophy, level_start, z_null)
+    end if
+
+    ! Baroclinic velocity and vorticity in each layer at hexagon points
+    do k = 1, 2
+       do l = level_start, level_end
+          do d = 1, size(grid)
+             velo1  => sol(S_VELO,zlevels+1)%data(d)%elts   ! barotropic velocity
+             velo2  => sol(S_VELO,k)%data(d)%elts           ! velocity in current layer
+             velo   => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in current layer
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (baroclinic_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             end do
+             nullify (velo, velo1, velo2)
+          end do
+          do d = 1, size(grid)
+             velo  => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in currrent layer
+             velo1 => trend(S_VELO,1)%data(d)%elts
+             velo2 => trend(S_VELO,2)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             nullify (velo, velo1, velo2)
+          end do
+          do d = 1, size(grid)
+             velo  => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in current layer
+             vort  => grid(d)%vort%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+             end do
+             call apply_to_penta_d (post_vort, grid(d), l, z_null)
+             nullify (velo, vort)
+          end do
+          do d = 1, size(grid)
+             vort => grid(d)%press_lower%elts ! baroclinic vorticity in current layer in 
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+             end do
+             nullify (vort)
+          end do
+       end do
+       if (trim(itype) == 'adaptive') then
+          pot_enstrophy_drake(k+3) = integrate_adaptive (pot_enstrophy)
+       elseif (trim(itype) == 'coarse') then
+          pot_enstrophy_drake(k+3) = integrate_hex (pot_enstrophy, level_start, z_null)
+       end if
+    end do
+  end function pot_enstrophy_drake
+
+  real(8) function pot_enstrophy (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                          :: d, id, id_i
+    real(8)                          :: f, h, w
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    d = dom%id + 1
+
+    if (dom%mask_n%elts(id) >= ADJZONE) then
+       ! Approximate Coriolis term
+       f = dom%coriolis%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1)
+       ! Total vorticity
+       w = dom%press_lower%elts(id_i) ! + f
+       ! Height
+       if (k == 3) then ! barotropic
+          h = sum (height) + sol(S_MASS,1)%data(d)%elts(id_i)/density(1) + sol(S_MASS,2)%data(d)%elts(id_i)/density(2)
+       else ! single layer
+          h = height(k) + sol(S_MASS,k)%data(d)%elts(id_i)/density(k)
+       end if
+       pot_enstrophy = 0.5 * (w / h)**2
+    else
+       pot_enstrophy = 0.0_8
+    end if
+  end function pot_enstrophy
+
+  subroutine barotropic_velocity_local (dom, i, j, zlev, offs, dims)
+    ! Calculate barotropic velocity in two-layer model
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                       :: d, e, id, id_e, id_i, idE, idNE, idN, k
+    real(8), dimension (1:EDGE,2) :: dz
+    
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+    d = dom%id + 1
+
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
+    do k = 1, 2
+       dz(RT+1,k) = height(k) + interp (sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idE+1))  / density(k)
+       dz(DG+1,k) = height(k) + interp (sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idNE+1)) / density(k)
+       dz(UP+1,k) = height(k) + interp (sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idN+1))  / density(k)
+    end do
+
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+!!$       velo(id_e) = (dz(e,1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(e,2)*sol(S_VELO,2)%data(d)%elts(id_e)) / (dz(e,1) + dz(e,2))
+       velo(id_e) = sol(S_VELO,1)%data(d)%elts(id_e)
+    end do
+  end subroutine barotropic_velocity_local
+
+  subroutine latlon_drake
+    ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels)
+    ! specific to 2 layer mode split drake test case
+    use domain_mod
+    use io_mod
+    integer :: d, ibeg, ibeg_m, iend, iend_m, j, k, l
+
+    if (rank == 0) write (6,'(A,i6)') "Saving latitude-longitude projection of checkpoint file = ", cp_2d
+
+    ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
+    l = level_save
+    call fill_up_grid_and_IWT (l)
+    trend = sol
+   
+    ! Compute barotropic velocity and vorticity at hexagon points
+    
+    ! Barotropic velocity
+    do d = 1, size(grid)
+       ibeg   = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       ibeg_m = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend   = sol(S_VELO,1)%data(d)%length
+       iend_m = sol(S_MASS,1)%data(d)%length
+
+       sol(S_VELO,zlevels+1)%data(d)%elts(ibeg:iend:3) = &
+            ((height(1) + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1)) * sol(S_VELO,1)%data(d)%elts(ibeg:iend:3) + &
+             (height(2) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2)) * sol(S_VELO,2)%data(d)%elts(ibeg:iend:3)) &
+             / (sum (height) &
+             + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2))
+
+       sol(S_VELO,zlevels+1)%data(d)%elts(ibeg+1:iend:3) = &
+            ((height(1) + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1)) * sol(S_VELO,1)%data(d)%elts(ibeg+1:iend:3) + &
+             (height(2) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2)) * sol(S_VELO,2)%data(d)%elts(ibeg+1:iend:3)) &
+             / (sum (height) &
+             + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2))
+
+       sol(S_VELO,zlevels+1)%data(d)%elts(ibeg+2:iend:3) = &
+            ((height(1) + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1)) * sol(S_VELO,1)%data(d)%elts(ibeg+2:iend:3) + &
+             (height(2) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2)) * sol(S_VELO,2)%data(d)%elts(ibeg+2:iend:3))  &
+             / (sum(height) &
+             + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2))
+    end do
+    do d = 1, size(grid)
+       velo  => sol(S_VELO,zlevels+1)%data(d)%elts
+       velo1 => grid(d)%u_zonal%elts
+       velo2 => grid(d)%v_merid%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (velo, velo1, velo2)
+    end do
+    
+    ! Barotropic vorticity
+    do d = 1, size(grid)
+       velo  => sol(S_VELO,zlevels+1)%data(d)%elts
+       vort  => grid(d)%vort%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+       end do
+       call apply_to_penta_d (post_vort, grid(d), l, z_null)
+       nullify (velo, vort)
+    end do
+    do d = 1, size(grid)
+       vort => grid(d)%press_lower%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+       end do
+       nullify (vort)
+    end do
+
+    ! Project barotropic velocity onto plane
+    call project_uzonal_onto_plane (l, 0.0_8)
+    field2d_save(:,:,1) = field2d
+    call project_vmerid_onto_plane (l, 0.0_8)
+    field2d_save(:,:,2) = field2d
+    ! Project barotropic vorticity onto plane
+    call project_vorticity_onto_plane (l, 1.0_8)
+    field2d_save(:,:,3) = field2d
+
+    ! Baroclinic velocity and baroclinic vorticity in each layer at hexagon points
+    do k = 1, 2
+       ! Baroclinic velocity 
+       do d = 1, size(grid)
+          ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = sol(S_VELO,1)%data(d)%length
+          trend(S_VELO,zlevels+1)%data(d)%elts(ibeg:iend) = &
+               sol(S_VELO,k)%data(d)%elts(ibeg:iend) - sol(S_VELO,3)%data(d)%elts(ibeg:iend)
+       end do
+       ! Baroclinic velocity on hexagons
+       do d = 1, size(grid)
+          velo  => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in currrent layer
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (velo, velo1, velo2)
+       end do
+       
+       ! Baroclinic vorticity 
+       do d = 1, size(grid)
+          velo  => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in current layer
+          vort  => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), l, z_null)
+          nullify (velo, vort)
+       end do
+       do d = 1, size(grid)
+          vort => grid(d)%press_lower%elts ! baroclinic vorticity in current layer
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          end do
+          nullify (vort)
+       end do
+
+       ! Project layer k baroclinic velocity onto plane
+       call project_uzonal_onto_plane (l, 0.0_8)
+       field2d_save(:,:,3*k+1) = field2d
+       call project_vmerid_onto_plane (l, 0.0_8)
+       field2d_save(:,:,3*k+2) = field2d
+       ! Project layer k barotropic vorticity onto plane
+       call project_vorticity_onto_plane (l, 1.0_8)
+       field2d_save(:,:,3*k+3) = field2d
+    end do
+
+    ! Free surface
+    call project_freesurface_onto_plane (l, 1.0_8)
+    field2d_save(:,:,10) = field2d
+
+    ! Internal free surface
+    call project_internal_freesurface_onto_plane (l, 1.0_8)
+    field2d_save(:,:,11) = field2d
+
+    ! Penalization
+    do k = 1, 2
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (set_penal, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+          end do
+       end do
+    end do
+    call project_penal_onto_plane (l, 1.0_8)
+    field2d_save(:,:,12) = field2d
+  end subroutine latlon_drake
+
   subroutine write_out
     ! Writes out results
     integer            :: i, k, v
@@ -416,6 +817,69 @@ contains
     deallocate (field2d, field2d_save, zonal_av)
   end subroutine write_out
 
+  subroutine write_out_drake
+    ! Writes out results
+    implicit none
+    integer            :: i, it, v
+    integer, parameter :: funit = 400
+
+    ! 2d projections
+    do v = 1, 9
+       write (var_file, '(i1)') v
+       open (unit=funit, file=trim(run_id)//'.4.0'//var_file)
+       do i = Ny(1), Ny(2)
+          write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
+       end do
+       close (funit)
+    end do
+
+     do v = 9, nvar_save_drake
+       write (var_file, '(i2)') v
+       open (unit=funit, file=trim(run_id)//'.4.'//var_file)
+       do i = Ny(1), Ny(2)
+          write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
+       end do
+       close (funit)
+    end do
+
+    ! Coordinates
+
+    ! Longitude values
+    write (var_file, '(i2)') 20
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
+    write (funit,'(2047(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
+    close (funit)
+
+    ! Latitude values
+    write (var_file, '(i2)') 21
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
+    write (funit,'(2047(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
+    close (funit)
+
+    ! Compress files
+    command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
+    call system (command)
+    command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
+    call system (command)
+    deallocate (field2d, field2d_save)
+
+    ! Write out kinetic energies
+    open (unit=funit, file=trim(run_id)//'_kinetic_energy')
+    do it = 1, mean_end-mean_beg+1
+       write (funit,'(5(es11.4,1x))') two_layer_ke(it,1)/DAY, two_layer_ke(it,2:5)
+    end do
+    close (funit)
+    deallocate (two_layer_ke)
+
+    ! Write out potential enstrophy
+    open (unit=funit, file=trim(run_id)//'_pot_enstrophy')
+    do it = 1, mean_end-mean_beg+1
+       write (funit,'(6(es11.4,1x))') two_layer_enstrophy(it,1)/DAY, two_layer_enstrophy(it,2:6)
+    end do
+    close (funit)
+    deallocate (two_layer_enstrophy)
+  end subroutine write_out_drake
+
   subroutine initialize_stat
     implicit none
 
@@ -431,6 +895,22 @@ contains
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
     zonal_av = 0.0_8
   end subroutine initialize_stat
+
+  subroutine initialize_stat_drake
+    implicit none
+
+    Nx = (/-N/2, N/2/)
+    Ny = (/-N/4, N/4/)
+
+    lon_lat_range = (/2*MATH_PI, MATH_PI/)
+    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
+    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
+
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
+    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),1:nvar_save_drake))
+    allocate (two_layer_ke(1:mean_end-mean_beg+1,1:5))
+    allocate (two_layer_enstrophy(1:mean_end-mean_beg+1,1:6))
+  end subroutine initialize_stat_drake
 
   subroutine project_onto_plane (field, l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
@@ -657,6 +1137,62 @@ contains
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_vorticity_onto_plane
 
+  subroutine project_baroclinic_vorticity_onto_plane (l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use comm_mpi_mod
+    integer               :: l, itype
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = grid(d)%geopot_lower%elts(id+1)
+                valN  = grid(d)%geopot_lower%elts(idN+1)
+                valE  = grid(d)%geopot_lower%elts(idE+1)
+                valNE = grid(d)%geopot_lower%elts(idNE+1)
+
+                if (abs(cN(2) - MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs(cE(2) + MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_baroclinic_vorticity_onto_plane
+
   subroutine project_uzonal_onto_plane (l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     use domain_mod
@@ -713,6 +1249,118 @@ contains
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_uzonal_onto_plane
 
+  subroutine project_baroclinic_uzonal_onto_plane (l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use comm_mpi_mod
+    integer               :: l, itype
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = trend(S_VELO,1)%data(d)%elts(id+1)
+                valN  = trend(S_VELO,1)%data(d)%elts(idN+1)
+                valE  = trend(S_VELO,1)%data(d)%elts(idE+1)
+                valNE = trend(S_VELO,1)%data(d)%elts(idNE+1)
+
+                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_baroclinic_uzonal_onto_plane
+
+   subroutine project_baroclinic_vmerid_onto_plane (l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use comm_mpi_mod
+    integer               :: l, itype
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = trend(S_VELO,2)%data(d)%elts(id+1)
+                valN  = trend(S_VELO,2)%data(d)%elts(idN+1)
+                valE  = trend(S_VELO,2)%data(d)%elts(idE+1)
+                valNE = trend(S_VELO,2)%data(d)%elts(idNE+1)
+
+                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_baroclinic_vmerid_onto_plane
+
   subroutine project_vmerid_onto_plane (l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     use domain_mod
@@ -768,6 +1416,177 @@ contains
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_vmerid_onto_plane
+
+   subroutine project_freesurface_onto_plane (l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use ops_mod
+    use comm_mpi_mod
+    integer               :: l, itype
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = sol(S_MASS,zlevels+1)%data(d)%elts(id+1)   / phi_node (d, id+1,   zlevels)
+                valN  = sol(S_MASS,zlevels+1)%data(d)%elts(idN+1)  / phi_node (d, idN+1,  zlevels)
+                valE  = sol(S_MASS,zlevels+1)%data(d)%elts(idE+1)  / phi_node (d, idE+1,  zlevels)
+                valNE = sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1) / phi_node (d, idNE+1, zlevels)
+
+                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_freesurface_onto_plane
+
+  subroutine project_internal_freesurface_onto_plane (l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use ops_mod
+    use comm_mpi_mod
+    integer               :: l, itype
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = sol(S_MASS,1)%data(d)%elts(id+1)   / (ref_density * phi_node (d, id+1,   1))
+                valN  = sol(S_MASS,1)%data(d)%elts(idN+1)  / (ref_density * phi_node (d, idN+1,  1))
+                valE  = sol(S_MASS,1)%data(d)%elts(idE+1)  / (ref_density * phi_node (d, idE+1,  1))
+                valNE = sol(S_MASS,1)%data(d)%elts(idNE+1) / (ref_density * phi_node (d, idNE+1, 1))
+
+                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_internal_freesurface_onto_plane
+
+  subroutine project_penal_onto_plane (l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use ops_mod
+    use comm_mpi_mod
+    integer               :: l, itype
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = penal_node(1)%data(d)%elts(id+1)   
+                valN  = penal_node(1)%data(d)%elts(idN+1)  
+                valE  = penal_node(1)%data(d)%elts(idE+1)  
+                valNE = penal_node(1)%data(d)%elts(idNE+1) 
+
+                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_penal_onto_plane
 
   subroutine interp_tri_to_2d (a, b, c, val)
     real(8), dimension(2) :: a, b, c
