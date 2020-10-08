@@ -124,47 +124,36 @@ s_wrap = [s_ll(1:end-1,1:end-1); flipud(s_ll(1:end-1,1:end-1))];
 lat_wrap = [lat(1,1:256) 180+lat(1:256)]; 
 lon_wrap = lon(1:end-1);
 Ly = Lx;
-
+%% Energy spectrum: assume square array
 %figure
 %plot_lon_lat_data(s_wrap, lon_wrap, lat_wrap, c_scale, v_title, smooth, shift, lines);
 % Energy spectrum calculation and plot
-nx = size(s_wrap,1); ny = size(s_wrap,2);
 
-n1 = [0 1:nx/2-1 -nx/2 -fliplr(1:nx/2-1)];
-n2 = [0 1:ny/2-1 -ny/2 -fliplr(1:ny/2-1)];
-[n1, n2] = meshgrid(n1, n2);
- 
-dk1 = pi/dx * [1 0];
-dk2 = pi/dy * [0 1];
+nx = size(s_wrap,1); 
 
-kvec = zeros(nx,ny,2);
-for ix=1:nx
-    for iy=1:ny
-        for jj=1:2
-            kvec(ix,iy,jj) = n1(ix,iy)*dk1(jj) + n2(ix,iy)*dk2(jj);
-        end
-    end
-end
-nn = min(nx, ny);
-kmax = round(min(max(max(kvec)))/dk);
-dk = pi/dx;
+n = [0 1:nx/2-1 -nx/2 -fliplr(1:nx/2-1)];
+[k1, k2] = meshgrid(n, n);
+
+kmax = nx/2;
 
 % fft of data
-fk = fft2(s_wrap) / numel(s_wrap);
+fk = fft2(s_wrap)/nx;
 
 % Energy spectrum integrated over shells
 Ek = zeros(kmax+1,1);
+dk = 2*pi/Lx;
 for ix = 1:nx
-    for iy = 1:ny
-        k = round(sqrt(kvec(ix,iy,1)^2 + kvec(ix,iy,2)^2)/dk);
+    for iy = 1:nx
+        k = round(sqrt(k1(ix,iy)^2 + k2(ix,iy)^2));
         if k <= kmax
-            Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy)/(k*dk)^2;
+%            Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy);
+             Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy) ./ (dk*k)^2;
         end
     end
 end
-Ek = Ek/2*dx^2;
-k=(1:kmax)'*dk;
-loglog(k,Ek(2:end),'-r','LineWidth',1.2);hold on;grid on;
+
+k=(0:kmax)'*dk;
+loglog(k(2:end),Ek(2:end),'-r','LineWidth',1.2);hold on;grid on;
 xlabel('k');ylabel('E(k)');
 %%
 loglog(k(4:end),k(4:end).^(-4)/4e9,'b--','LineWidth',1.2);
@@ -173,3 +162,26 @@ loglog(k(4:end),k(4:end).^(-2)/1e7,'r--','LineWidth',1.2);
 %%
 legend('barotropic','layer 1 baroclinic','layer 2 baroclinic', 'k^{-4}','k^{-2}','k^{-2}');
 title('Energy spectrum');set(gca,'FontSize',16);
+
+
+
+%% 2d cwt energy spectrum
+scales = 2.^(linspace(1,10,32));
+cwt2d = cwtft2(s_wrap,'wavelet',{'isomorl',{6,1}},'scales',scales,'angles',1,'norm','L2');
+
+% Average over space
+Ew = zeros(numel(scales),1);
+for s = 1:numel(scales)
+    Ew(s) = sum(abs(cwt2d.cfs(:,:,1,s,1)).^2,[1,2]);
+end
+
+% Rescale to energy spectrum
+k = 2*pi./(scales*dx)';
+%Ew = Ew .* k*pi;
+Ew = Ew ./k.^2 .* k*pi;
+loglog(k, Ew,'g');
+%% Plot cwt at a particular scale
+j_scl = 3;
+scl = scales(j_scl)
+figure;imagesc(abs(cwt2d.cfs(:,:,1,j_scl,1)).^2);
+
