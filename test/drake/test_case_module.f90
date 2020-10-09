@@ -462,7 +462,7 @@ contains
     end if
 
     ! Ensure stability
-    C_visc = min ((1.0_8/30)**Laplace_order_init, max (C_visc, 1d-4))
+    C_visc = min ((1.0_8/30)**Laplace_order_init, max (C_visc, 1d-3))
     
     C_rotu = C_visc
     C_divu = C_visc
