@@ -8,10 +8,10 @@ iremap             10            ! remap every iremap time steps
 tol_elliptic       1e-08          ! tolerance for elliptic solver 
 coarse_iter        500           ! maximum number of elliptic solver bicgstab iterations at coarsest level
 fine_iter          2             ! maximum number of elliptic solver jacobi iterations at finer levels
-log_iter           T             ! print elliptic solver relative residual error
+log_iter           F             ! print elliptic solver relative residual error
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 tol      	   4e-3          ! non-dimensional tolerance
-cfl_num            20           ! cfl number for barotropic mode
+cfl_num            15           ! cfl number for barotropic mode
 adapt_dt           T             ! adapt time step
 dt_write           5             ! save interval (days)
 CP_EVERY           1             ! checkpoint every CP_EVERY saves
@@ -20,5 +20,5 @@ resume            -1             ! restart from checkpoint (negative means fresh
 alpha              1e-2          ! porosity penalization parameter
 drag               T             ! use bottom drag if T
 npts_penal         4.5             ! number of grid points over which to smooth mask
-resolution         4             ! number of grid points Munk scale (determines viscosity)
+resolution         1.5             ! number of grid points Munk scale (determines viscosity)
 

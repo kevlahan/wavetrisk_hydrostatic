@@ -1,8 +1,10 @@
+clear all
+%%
 test_case = 'drake'; 
 run_id    = '2layer_fill'; 
 
 % Field to plot
-set_type = 9;
+set_type = 9
 if set_type == 1
     itype = 'barotropic zonal velocity';
 elseif set_type == 2
@@ -55,7 +57,7 @@ elseif (strcmp(itype,'barotropic meridional velocity'))
     v_title = 'Barotropic meridional velocity';
 elseif (strcmp(itype,'barotropic vorticity'))
     s_ll = load([file_base '.03']);
-    c_scale = linspace(-3.3e-5, 3.3e-5, 100);
+    c_scale = linspace(-3e-5, 3e-5, 100);
     v_title = 'Barotropic vorticity';
 elseif (strcmp(itype,'layer 1 baroclinic zonal velocity'))
     s_ll = load([file_base '.04']);
@@ -67,7 +69,7 @@ elseif (strcmp(itype,'layer 1 baroclinic meridional velocity'))
     v_title = 'Baroclinic meridional velocity';
 elseif (strcmp(itype,'layer 1 baroclinic vorticity'))
     s_ll = load([file_base '.06']);
-    
+    c_scale = linspace(-5e-6, 5e-6, 100);
     v_title = 'Layer 1 baroclinic vorticity';
 elseif (strcmp(itype,'layer 2 baroclinic zonal velocity'))
     s_ll = load([file_base '.07']);
@@ -79,7 +81,7 @@ elseif (strcmp(itype,'layer 2 baroclinic meridional velocity'))
     v_title = 'Baroclinic meridional velocity';
 elseif (strcmp(itype,'layer 2 baroclinic vorticity'))
     s_ll = load([file_base '.09']);
-    c_scale = linspace(-7.2e-6, 7.2e-6, 100);
+    c_scale = linspace(-2e-5, 2e-5, 100);
     v_title = 'Layer 2 baroclinic vorticity';
 elseif (strcmp(itype,'free surface'))
     s_ll = load([file_base '.10']);
@@ -113,18 +115,27 @@ ax = [lon_min lon_max lat_min lat_max];
 
 fprintf('Minimum value of variable %s = %8.4e\n', itype, min(min(s_ll)));
 fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_ll)));
+
+% Erase extracted files
+file_erase = ['\rm ' file_base '*'];
+system(file_erase);
 %% Plot latitude - longitude projection
 figure
-c_scale = linspace(-2e-5, 2e-5, 100);
 plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift, lines);
 axis(ax)
 system(['\rm ' run_id '.4*']);
+%%
+%print -dpng ~/hydro/drake/barotropic_proj.png
+%print -dpng ~/hydro/drake/barotropic1.png
+print -dpng ~/hydro/drake/barotropic2.png
 %% Periodize in latitude
 s_wrap = [s_ll(1:end-1,1:end-1); flipud(s_ll(1:end-1,1:end-1))]; 
-lat_wrap = [lat(1,1:256) 180+lat(1:256)]; 
+lat_wrap = [lat(1,1:size(s_ll,1)-1) 180+lat(1,1:size(s_ll,1)-1)]; 
 lon_wrap = lon(1:end-1);
 Ly = Lx;
+
 %% Energy spectrum: assume square array
+
 %figure
 %plot_lon_lat_data(s_wrap, lon_wrap, lat_wrap, c_scale, v_title, smooth, shift, lines);
 % Energy spectrum calculation and plot
@@ -141,47 +152,101 @@ fk = fft2(s_wrap)/nx;
 
 % Energy spectrum integrated over shells
 Ek = zeros(kmax+1,1);
-dk = 2*pi/Lx;
+%dk = 2*pi/Lx;
+dk = 1; % assume L = 2*pi
 for ix = 1:nx
     for iy = 1:nx
         k = round(sqrt(k1(ix,iy)^2 + k2(ix,iy)^2));
         if k <= kmax
-%            Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy);
-             Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy) ./ (dk*k)^2;
+            %Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy);
+            Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy) ./ (dk*k)^2;
         end
     end
 end
 
 k=(0:kmax)'*dk;
-loglog(k(2:end),Ek(2:end),'-r','LineWidth',1.2);hold on;grid on;
+
+% Check energy conservation
+%sum(s_wrap.^2,[1,2]) - sum(Ek)
+
+loglog(k(2:end),Ek(2:end)*dx^2/2,'-r','LineWidth',1.2,'DisplayName',itype);hold on;grid on;legend
 xlabel('k');ylabel('E(k)');
-%%
-loglog(k(4:end),k(4:end).^(-4)/4e9,'b--','LineWidth',1.2);
-loglog(k(4:end),k(4:end).^(-2)/1e8,'g--','LineWidth',1.2);
-loglog(k(4:end),k(4:end).^(-2)/1e7,'r--','LineWidth',1.2);
-%%
-legend('barotropic','layer 1 baroclinic','layer 2 baroclinic', 'k^{-4}','k^{-2}','k^{-2}');
 title('Energy spectrum');set(gca,'FontSize',16);
+%%
+loglog(k(4:end),k(4:end).^(-4)*6e3,'b--','LineWidth',1.2,'DisplayName','k^{-4}');
+%loglog(k(4:end),k(4:end).^(-2)/20,'g--','LineWidth',1.2,'DisplayName','k^{-2}');
+loglog(k(4:end),k(4:end).^(-2)/8,'r--','LineWidth',1.2,'DisplayName','k^{-2}');
+%%
+print -dpng ~/hydro/drake/energy_spectrum.png
 
+%% CWT for a subset of Earth
 
+selection = 'Vortical'
+if strcmp (selection, 'Vortical')
+    lon_min = -30;
+    lon_max =  60;
+    lat_min = -50;
+    lat_max = -15;
+elseif strcmp (selection, 'Laminar')
+    lon_min =  90;
+    lon_max = 270;
+    lat_min = -90;
+    lat_max =  90;
+elseif strcmp (selection, 'Entire')
+    lon_min = -180;
+    lon_max =  180;
+    lat_min = -90;
+    lat_max =  90+180;
+end
+
+A = find(abs(lat_wrap-lat_min)<180/(nx)); coord_lat(1) = A(1)
+A = find(abs(lat_wrap-lat_max)<180/(nx)); coord_lat(2) = min([A numel(lat_wrap)]);
+
+A = find(abs(lon_wrap-lon_min)<360/nx); coord_lon(1) = A(1)
+A = find(abs(lon_wrap-lon_max)<360/nx); coord_lon(2) = min([A numel(lon_wrap)]);
+
+lat_sel = lat_wrap(coord_lat(1):coord_lat(2));
+lon_sel = lon_wrap(coord_lon(1):coord_lon(2));
+s_sel = s_wrap(coord_lat(1):coord_lat(2), coord_lon(1):coord_lon(2));
+%% Show selection
+figure; 
+c_scale = linspace(min(s_sel(:)), max(s_sel(:)), 100); 
+colormap(jet(numel(c_scale)-1));caxis([min(c_scale) max(c_scale)]);c=colorbar;
+c.Label.String=v_title;c.Label.FontSize=16;c.YTick=c_scale;
+axis('equal'); 
+[~,h]=contourf(lon_sel, lat_sel, s_sel, c_scale, 'LineColor','none');
+xlabel('Longitude');ylabel('Latitude');
+title([selection ' selection for wavelet spectrum']);set(gca,'FontSize',16);
+%% 
+print_save = ["~/hydro/drake/selection_" selection ".png"]
+%print -dpng ~/hydro/drake/laminar_selection.png
+print -dpng ~/hydro/drake/vortical_selection.png
 
 %% 2d cwt energy spectrum
-scales = 2.^(linspace(1,10,32));
+n_select = min(coord_lat(2)-coord_lat(1)+1, coord_lon(2)-coord_lon(1)+1)
+scales = 2.^(linspace(1,log(n_select)/log(2),32));
 cwt2d = cwtft2(s_wrap,'wavelet',{'isomorl',{6,1}},'scales',scales,'angles',1,'norm','L2');
+%cwt2d = cwtft2(s_wrap,'wavelet','cauchy','scales',scales,'angles',1,'norm','L2');
 
 % Average over space
 Ew = zeros(numel(scales),1);
 for s = 1:numel(scales)
-    Ew(s) = sum(abs(cwt2d.cfs(:,:,1,s,1)).^2,[1,2]);
+    Ew(s) = sum(abs(cwt2d.cfs(coord_lat(1):coord_lat(2), coord_lon(1):coord_lon(2), 1, s, 1)).^2,[1,2]);
 end
+Ew = Ew*dx^2/nx^2;
 
-% Rescale to energy spectrum
-k = 2*pi./(scales*dx)';
+% Rescale to energy spectrum integrated over shells
+% k = 2*pi./(scales*dx)';
+k = 2*pi./(scales * 2*pi/nx)';
+
 %Ew = Ew .* k*pi;
 Ew = Ew ./k.^2 .* k*pi;
-loglog(k, Ew,'g');
+loglog(k, Ew,'g','DisplayName', [selection ' selection']);
+legend
+%%
+print -dpng ~/hydro/drake/wavelet_spectra.png
 %% Plot cwt at a particular scale
 j_scl = 3;
 scl = scales(j_scl)
-figure;imagesc(abs(cwt2d.cfs(:,:,1,j_scl,1)).^2);
+figure;colormap('jet');imagesc(abs(cwt2d.cfs(:,:,1,j_scl,1)).^2);
 
