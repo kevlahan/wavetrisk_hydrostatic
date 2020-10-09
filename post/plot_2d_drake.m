@@ -4,7 +4,7 @@ test_case = 'drake';
 run_id    = '2layer_fill'; 
 
 % Field to plot
-set_type = 9
+set_type = 3
 if set_type == 1
     itype = 'barotropic zonal velocity';
 elseif set_type == 2
@@ -158,8 +158,8 @@ for ix = 1:nx
     for iy = 1:nx
         k = round(sqrt(k1(ix,iy)^2 + k2(ix,iy)^2));
         if k <= kmax
-            %Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy);
-            Ek(k+1) = Ek(k+1) + conj(fk(ix,iy)).*fk(ix,iy) ./ (dk*k)^2;
+            %Ek(k+1) = Ek(k+1) + 0.5 * conj(fk(ix,iy)).*fk(ix,iy);
+            Ek(k+1) = Ek(k+1) + 0.5 * conj(fk(ix,iy)).*fk(ix,iy) * (dx./(dk*k))^2;
         end
     end
 end
@@ -169,27 +169,41 @@ k=(0:kmax)'*dk;
 % Check energy conservation
 %sum(s_wrap.^2,[1,2]) - sum(Ek)
 
-loglog(k(2:end),Ek(2:end)*dx^2/2,'-r','LineWidth',1.2,'DisplayName',itype);hold on;grid on;legend
-xlabel('k');ylabel('E(k)');
+if strcmp (itype, 'barotropic vorticity')
+    col = 'b';
+elseif strcmp (itype, 'layer 2 baroclinic vorticity')
+    col = 'r';
+end
+
+% Energy spectrum
+loglog(k(2:end),Ek(2:end),col,'LineWidth',1.2,'DisplayName',itype); hold on;
+
+% Power law scalings
+%loglog(k(4:end),k(4:end).^(-4)*6e3,'b--','LineWidth',1.2,'DisplayName','k^{-4}');
+loglog(k(4:end),k(4:end).^(-5/3)/1e2,'r--','LineWidth',1.2,'DisplayName','k^{-5/3}');
+loglog(k(4:end),k(4:end).^(-3)*5e1,'g--','LineWidth',1.2,'DisplayName','k^{-3}');
+
+legend
+
+xlabel('k');ylabel('E(k)');grid on;
 title('Energy spectrum');set(gca,'FontSize',16);
 %%
-loglog(k(4:end),k(4:end).^(-4)*6e3,'b--','LineWidth',1.2,'DisplayName','k^{-4}');
-%loglog(k(4:end),k(4:end).^(-2)/20,'g--','LineWidth',1.2,'DisplayName','k^{-2}');
-loglog(k(4:end),k(4:end).^(-2)/8,'r--','LineWidth',1.2,'DisplayName','k^{-2}');
-%%
 print -dpng ~/hydro/drake/energy_spectrum.png
-
 %% CWT for a subset of Earth
-
-selection = 'Vortical'
+selection = 'Laminar'
 if strcmp (selection, 'Vortical')
-    lon_min = -30;
-    lon_max =  60;
+    lon_min = -40;
+    lon_max =  80;
     lat_min = -50;
     lat_max = -15;
-elseif strcmp (selection, 'Laminar')
+elseif strcmp (selection, 'Filament')
     lon_min =  90;
     lon_max = 270;
+    lat_min = -90;
+    lat_max =  90;
+elseif strcmp (selection, 'Laminar')
+    lon_min = -150;
+    lon_max = -100;
     lat_min = -90;
     lat_max =  90;
 elseif strcmp (selection, 'Entire')
@@ -208,7 +222,8 @@ A = find(abs(lon_wrap-lon_max)<360/nx); coord_lon(2) = min([A numel(lon_wrap)]);
 lat_sel = lat_wrap(coord_lat(1):coord_lat(2));
 lon_sel = lon_wrap(coord_lon(1):coord_lon(2));
 s_sel = s_wrap(coord_lat(1):coord_lat(2), coord_lon(1):coord_lon(2));
-%% Show selection
+
+% Show selection
 figure; 
 c_scale = linspace(min(s_sel(:)), max(s_sel(:)), 100); 
 colormap(jet(numel(c_scale)-1));caxis([min(c_scale) max(c_scale)]);c=colorbar;
@@ -233,16 +248,18 @@ Ew = zeros(numel(scales),1);
 for s = 1:numel(scales)
     Ew(s) = sum(abs(cwt2d.cfs(coord_lat(1):coord_lat(2), coord_lon(1):coord_lon(2), 1, s, 1)).^2,[1,2]);
 end
-Ew = Ew*dx^2/nx^2;
+Ew = 0.5 * Ew * (dx/nx)^2;
 
 % Rescale to energy spectrum integrated over shells
-% k = 2*pi./(scales*dx)';
-k = 2*pi./(scales * 2*pi/nx)';
+k_wav = 2*pi./(scales * 2*pi/nx)';
 
-%Ew = Ew .* k*pi;
-Ew = Ew ./k.^2 .* k*pi;
-loglog(k, Ew,'g','DisplayName', [selection ' selection']);
+%Ew = Ew * pi.*k_wav;
+Ew = Ew ./k_wav.^2 * pi.*k_wav;
+loglog(k_wav, Ew,'g','DisplayName', [selection ' selection']); hold on;
+loglog(k(2:end),Ek(2:end),col,'LineWidth',1.2,'DisplayName',itype); hold on;
 legend
+xlabel('k');ylabel('E(k)');grid on;
+title('Energy and averaged wavelet spectra');set(gca,'FontSize',16);
 %%
 print -dpng ~/hydro/drake/wavelet_spectra.png
 %% Plot cwt at a particular scale
