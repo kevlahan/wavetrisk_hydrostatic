@@ -408,8 +408,8 @@ contains
     do i = 1, max_iter
        iter = iter + 1
        call lc (u, inv_diag, residual (f, u, Lu, l), u, l)
-       err = l2 (residual (f, u, Lu, l), l) / nrm
-       if (err < tol) exit
+!!$       err = l2 (residual (f, u, Lu, l), l) / nrm
+!!$       if (err < tol) exit
     end do
   end subroutine jacobi
 
