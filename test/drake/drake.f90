@@ -274,6 +274,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                         :: d, id, id_i, idE, idN, idNE
+  real(8)                         :: dx
   real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e,tau_wind, wave_drag, wind_drag
   real(8), dimension(0:NORTHEAST) :: full_mass
 
@@ -284,6 +285,17 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   idE  = idx (i+1, j,   offs, dims) + 1
   idNE = idx (i+1, j+1, offs, dims) + 1
   idN  = idx (i,   j+1, offs, dims) + 1
+
+  ! Increase diffusion near poles to remove noise at these lower accuracy points
+  if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4*dx_max)**2 < 1.0_8) then
+     dx = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end)) 
+     if (istep <= 2) then
+        visc_rotu = dx**2/(0.1*dx/wave_speed)/30
+     else
+        visc_rotu = dx**2/dt/30
+     end if
+     visc_divu = visc_rotu
+  end if
 
   ! Laplacian of velocity
   diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())

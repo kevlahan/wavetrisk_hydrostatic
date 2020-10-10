@@ -60,19 +60,31 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_e, id_i, k, l, v
-    logical :: active
+    integer            :: d, e, id, id_e, id_i, k, l, v
+    real(8)            :: dx, p, r
+    logical            :: active
+    logical, parameter :: penta_adjust = .false.
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     d = dom%id + 1
     l = dom%level%elts(id_i)
 
+    if (dom%mask_n%elts(id_i) == FROZEN) return
+
+    ! Increase tolerance at pentagons and near poles due to lower precision
+    p = 1.0_8
+!!$    if (mode_split .and. penta_adjust) then ! only apply in mode split case for now
+!!$       dx = dom%len%elts(EDGE*id+RT+1)
+!!$       r = (dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2) / (4*dx_max)**2
+!!$       if (r < 1.0_8 .or. (i == 0 .and. j == 0 .and. dom%penta(SOUTHWEST))) p = radius/dx
+!!$    end if
+   
     ! Scalars
     active = .false.
     do k = 1, zlevels
        do v = scalars(1), scalars(2)
-          if (abs (wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k) .or. l < level_fill) active = .true.
+          if (abs (wav_coeff(v,k)%data(d)%elts(id_i)) >= p*threshold(v,k) .or. l < level_fill) active = .true.
        end do
     end do
 
@@ -88,7 +100,7 @@ contains
 
        active = .false.
        do k = 1, zlevels
-          if (abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k) .or. l < level_fill) active = .true.
+          if (abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= p*threshold(S_VELO,k) .or. l < level_fill) active = .true.
        end do
 
        if (active) then
