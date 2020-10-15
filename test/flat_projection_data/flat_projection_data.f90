@@ -774,7 +774,7 @@ contains
        write (var_file, '(i1)') v
        open (unit=funit, file=trim(run_id)//'.4.0'//var_file)
        do i = Ny(1), Ny(2)
-          write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
+          write (funit,'(4096(E15.6, 1X))') field2d_save(:,i,v)
        end do
        close (funit)
     end do
@@ -784,7 +784,7 @@ contains
        write (var_file, '(i2)') v+10
        open (unit=funit, file=trim(run_id)//'.4.'//var_file)
        do k = zlevels,1,-1
-          write (funit,'(2047(E15.6, 1X))') zonal_av(k,:,v)
+          write (funit,'(4096(E15.6, 1X))') zonal_av(k,:,v)
        end do
        close (funit)
     end do
@@ -794,19 +794,19 @@ contains
     ! Longitude values
     write (var_file, '(i2)') 20
     open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
+    write (funit,'(4096(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
     open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
+    write (funit,'(4096(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
     ! Non-dimensional pressure based vertical coordinates p_k/p_s
     write (var_file, '(i2)') 22
     open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
+    write (funit,'(4096(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
     close (funit)
 
     ! Compress files
@@ -828,7 +828,7 @@ contains
        write (var_file, '(i1)') v
        open (unit=funit, file=trim(run_id)//'.4.0'//var_file)
        do i = Ny(1), Ny(2)
-          write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
+          write (funit,'(4096(E15.6, 1X))') field2d_save(:,i,v)
        end do
        close (funit)
     end do
@@ -837,7 +837,7 @@ contains
        write (var_file, '(i2)') v
        open (unit=funit, file=trim(run_id)//'.4.'//var_file)
        do i = Ny(1), Ny(2)
-          write (funit,'(2047(E15.6, 1X))') field2d_save(:,i,v)
+          write (funit,'(4096(E15.6, 1X))') field2d_save(:,i,v)
        end do
        close (funit)
     end do
@@ -847,13 +847,13 @@ contains
     ! Longitude values
     write (var_file, '(i2)') 20
     open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
+    write (funit,'(4096(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
     open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
-    write (funit,'(2047(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
+    write (funit,'(4096(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
     ! Compress files
