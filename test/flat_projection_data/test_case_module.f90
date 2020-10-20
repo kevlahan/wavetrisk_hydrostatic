@@ -328,8 +328,8 @@ contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Dummy routine
     implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, k, zlev
+    type (Domain)                   :: dom
+    integer                         :: i, j, k, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
   end subroutine init_sol
@@ -358,13 +358,8 @@ contains
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
        else
-          dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
-          z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
-
-          porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = ref_density * height(zlev) 
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = (density(zlev) - ref_density) * height(zlev)
        end if
     else
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i)                      = 0.0_8

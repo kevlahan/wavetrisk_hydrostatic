@@ -110,10 +110,10 @@ contains
     full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
   end function full_mass
 
-  real(8) function integrate_hex (fun, l, k)
+  real(8) function integrate_hex (fun, l, zlev)
     ! Integrate function defined by fun over hexagons
     implicit none
-    integer  :: l, k
+    integer  :: l, zlev
 
     integer                        :: d, ll, p, i, j, c, id
     integer, dimension(N_BDRY+1)   :: offs
@@ -139,7 +139,7 @@ contains
           do j = 1, PATCH_SIZE
              do i = 1, PATCH_SIZE
                 id = idx (i-1, j-1, offs, dims)
-                val = fun (grid(d), i-1, j-1, k, offs, dims)
+                val = fun (grid(d), i-1, j-1, zlev, offs, dims)
                 s = s + val/grid(d)%areas%elts(id+1)%hex_inv
              end do
           end do
@@ -158,11 +158,11 @@ contains
           call get_offs_Domain (grid(d), p, offs, dims)
           if (c == NORTHWEST) then
              id = idx (0, PATCH_SIZE, offs, dims)
-             val = fun (grid(d), 0, PATCH_SIZE, k, offs, dims)
+             val = fun (grid(d), 0, PATCH_SIZE, zlev, offs, dims)
              s = s + val/grid(d)%areas%elts(id+1)%hex_inv
           else
              id = idx (PATCH_SIZE, 0, offs, dims)
-             val = fun (grid(d), PATCH_SIZE, 0, k, offs, dims)
+             val = fun (grid(d), PATCH_SIZE, 0, zlev, offs, dims)
              s = s + val/grid(d)%areas%elts(id+1)%hex_inv
           end if
        end do
@@ -210,26 +210,27 @@ contains
     integrate_tri = sum_real (s)
   end function integrate_tri
   
-  real(8) function integrate_adaptive (routine)
+  real(8) function integrate_adaptive (routine, zlev)
     ! Integrates value define in routine over adaptive grid
     implicit none
+    integer           :: zlev
     real(8), external :: routine
 
     integer ::  l
         
     hex_int = 0.0_8
-    call fine_hex_area (routine, level_start)
+    call fine_hex_area (routine, level_start, zlev)
     do l = level_start+1, level_end-1
-       call fine_hex_area (routine, l)
-       call coarse_hex_area (routine, l)
+       call fine_hex_area (routine, l, zlev)
+       call coarse_hex_area (routine, l, zlev)
     end do
-    call fine_hex_area (routine, level_end)
+    call fine_hex_area (routine, level_end, zlev)
     integrate_adaptive = sum_real (hex_int)
   end function integrate_adaptive
 
-  subroutine fine_hex_area (routine, l)
+  subroutine fine_hex_area (routine, l, zlev)
     implicit none
-    integer           :: l
+    integer           :: l, zlev
     real(8), external :: routine
     
     integer                          :: d, i, id, j, jj, p
@@ -244,17 +245,17 @@ contains
           do j = 1, PATCH_SIZE 
              do i = 1, PATCH_SIZE
                 id = idx (i, j, offs, dims) + 1
-                hex_int = hex_int + routine (grid(d), i, j, z_null, offs, dims) / grid(d)%areas%elts(id)%hex_inv
+                hex_int = hex_int + routine (grid(d), i, j, zlev, offs, dims) / grid(d)%areas%elts(id)%hex_inv
              end do
           end do
        end do
     end do
   end subroutine fine_hex_area
 
-  subroutine coarse_hex_area (routine, l)
+  subroutine coarse_hex_area (routine, l, zlev)
     ! Remove cells that are not at locally finest scale
     implicit none
-    integer           :: l
+    integer           :: l, zlev
     real(8), external :: routine
     
     integer                          :: c, d, i, id, i_par, j, j_par, jj, p, p_chd, p_par, s
@@ -276,7 +277,7 @@ contains
                 do i = 1, PATCH_SIZE/2
                    i_par = i-1 + chd_offs(1,c)
                    id = idx (i_par, j_par, offs_par, dims_par) + 1
-                   hex_int = hex_int - routine (grid(d), i_par, j_par, z_null, offs_par, dims_par) &
+                   hex_int = hex_int - routine (grid(d), i_par, j_par, zlev, offs_par, dims_par) &
                         / grid(d)%areas%elts(id)%hex_inv
                 end do
              end do
@@ -471,7 +472,6 @@ contains
     integer, dimension(1:EDGE)  :: id_edge, id_node
     real(8)                     :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
     real(8)                     :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-    real(8), parameter          :: H_1 = 3d3, H_2 = 1d3, drho = -4d0
     real(8), dimension(1:EDGE)  :: u
 
     id = idx (i, j, offs, dims)
@@ -508,8 +508,9 @@ contains
        u_dual_DG_SW = u(2) * dom%pedlen%elts(EDGE*idSW+DG+1)         
        u_dual_UP_S  = u(3) * dom%pedlen%elts(EDGE*idS +UP+1)
 
-       barotropic_ke = (H_1*ref_density + H_2*(ref_density+drho) &
-            + sol(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,2)%data(d)%elts(id+1)) * &
+       barotropic_ke = &
+            (sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1) + &
+             sol_mean(S_MASS,2)%data(d)%elts(id+1) + sol(S_MASS,2)%data(d)%elts(id+1)) * &
             (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
@@ -520,26 +521,55 @@ contains
     function barotropic_velo ()
       real(8), dimension(1:EDGE) :: barotropic_velo
       
-      integer                        :: e, id_e, k
-      real(8), dimension(2)          :: mean_mass
-      real(8), dimension(1:EDGE,1:2) :: dz
-
-      mean_mass(1) = H_1 * ref_density
-      mean_mass(2) = H_2 * (ref_density + drho)
-      
-      do k = 1, 2
-         do e = 1, EDGE
-            dz(e,k) = mean_mass(k) + interp (sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(id_node(e)+1))
-         end do
-      end do
+      integer                    :: e, id_e, k
+      real(8), dimension(1:EDGE) :: dz
 
       do e = 1, EDGE
          id_e = EDGE*id_edge(e) + e
-         barotropic_velo(e) = (dz(e,1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(e,2)*sol(S_VELO,2)%data(d)%elts(id_e)) &
-              / (dz(e,1) + dz(e,2))
+
+         do k = 1, 2
+            dz(k) = interp (sol_mean(S_MASS,k)%data(d)%elts(id+1)         + sol(S_MASS,k)%data(d)%elts(id+1), &
+                            sol_mean(S_MASS,k)%data(d)%elts(id_node(e)+1) + sol(S_MASS,k)%data(d)%elts(id_node(e)+1))
+         end do
+         
+         barotropic_velo(e) = (dz(1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(2)*sol(S_VELO,2)%data(d)%elts(id_e)) / sum(dz)
       end do
     end function barotropic_velo
   end function barotropic_ke
+
+  real(8) function pot_enstrophy (dom, i, j, zlev, offs, dims)
+    ! Computes potential enstrophy in two layer mode split case
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, id_i
+    real(8) :: f, h, w
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    d = dom%id + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       ! Approximate Coriolis term
+       f = dom%coriolis%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1)
+       ! Total vorticity
+       w = dom%press_lower%elts(id_i)  + f
+       ! Height
+       if (zlev == 3) then ! barotropic
+          h = (sol_mean(S_MASS,1)%data(d)%elts(id_i) + sol(S_MASS,1)%data(d)%elts(id_i) + &
+               sol_mean(S_MASS,2)%data(d)%elts(id_i) + sol(S_MASS,2)%data(d)%elts(id_i)) / ref_density
+       else ! single layer
+          h = (sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i)) / ref_density
+       end if
+       pot_enstrophy = 0.5 * (w / h)**2
+    else
+       pot_enstrophy = 0.0_8
+    end if
+  end function pot_enstrophy
 
   real(8) function tri_only_area (dom, i, j, zlev, t, offs, dims)
     implicit none

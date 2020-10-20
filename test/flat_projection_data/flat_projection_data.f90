@@ -5,7 +5,7 @@ program flat_projection_data
   use io_mod  
   implicit none
   
-  integer                                :: k, nt, Ncumul
+  integer                                :: k, l, nt, Ncumul
   integer, parameter                     :: nvar_save = 6 ! Number of variables to save
   integer, parameter                     :: nvar_save_drake = 12 ! number of lat-lon projections to save for Drake case
   integer, dimension(2)                  :: Nx, Ny
@@ -117,6 +117,13 @@ program flat_projection_data
      Nt = Nt + 1
      resume = NONE
      call restart (set_thresholds, load, run_id)
+
+     ! Set means
+     do l = level_start, level_end
+        do k = 1, zmax
+           call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+        end do
+     end do
 
      if  (trim (test_case) == "drake") then
         two_layer_ke(Nt,1) = time
@@ -414,9 +421,9 @@ contains
     integer :: d, j, l
 
     if (trim(itype) == 'adaptive') then
-       energy_drake(1) = integrate_adaptive (layer1_ke)
-       energy_drake(2) = integrate_adaptive (layer2_ke)
-       energy_drake(3) = integrate_adaptive (barotropic_ke)
+       energy_drake(1) = integrate_adaptive (layer1_ke, z_null)
+       energy_drake(2) = integrate_adaptive (layer2_ke, z_null)
+       energy_drake(3) = integrate_adaptive (barotropic_ke, z_null)
     elseif (trim(itype) == 'coarse') then
        energy_drake(1) = integrate_hex (layer1_ke,     level_start, z_null)
        energy_drake(2) = integrate_hex (layer2_ke,     level_start, z_null)
@@ -458,11 +465,10 @@ contains
              nullify (vort)
           end do
        end do
-
        if (trim(itype) == 'adaptive') then
-          pot_enstrophy_drake(k) = integrate_adaptive (pot_enstrophy)
+          pot_enstrophy_drake(k) = integrate_adaptive (pot_enstrophy, k)
        elseif (trim(itype) == 'coarse') then
-          pot_enstrophy_drake(k) = integrate_hex (pot_enstrophy, level_start, z_null)
+          pot_enstrophy_drake(k) = integrate_hex (pot_enstrophy, level_start, k)
        end if
     end do
 
@@ -471,7 +477,7 @@ contains
        do d = 1, size(grid)
           velo => sol(S_VELO,zlevels+1)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (barotropic_velocity_local, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (barotropic_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
           nullify (velo)
        end do
@@ -501,13 +507,12 @@ contains
           nullify (vort)
        end do
     end do
-    k = 3
     if (trim(itype) == 'adaptive') then
-       pot_enstrophy_drake(3) = integrate_adaptive (pot_enstrophy)
+       pot_enstrophy_drake(3) = integrate_adaptive (pot_enstrophy, 3)
     elseif (trim(itype) == 'coarse') then
-       pot_enstrophy_drake(3) = integrate_hex (pot_enstrophy, level_start, z_null)
+       pot_enstrophy_drake(3) = integrate_hex (pot_enstrophy, level_start, 3)
     end if
-
+    
     ! Baroclinic velocity and vorticity in each layer at hexagon points
     do k = 1, 2
        do l = level_start, level_end
@@ -547,83 +552,20 @@ contains
           end do
        end do
        if (trim(itype) == 'adaptive') then
-          pot_enstrophy_drake(k+3) = integrate_adaptive (pot_enstrophy)
+          pot_enstrophy_drake(k+3) = integrate_adaptive (pot_enstrophy, k)
        elseif (trim(itype) == 'coarse') then
-          pot_enstrophy_drake(k+3) = integrate_hex (pot_enstrophy, level_start, z_null)
+          pot_enstrophy_drake(k+3) = integrate_hex (pot_enstrophy, level_start, k)
        end if
     end do
   end function pot_enstrophy_drake
-
-  real(8) function pot_enstrophy (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                          :: d, id, id_i
-    real(8)                          :: f, h, w
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    d = dom%id + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       ! Approximate Coriolis term
-       f = dom%coriolis%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1)
-       ! Total vorticity
-       w = dom%press_lower%elts(id_i) ! + f
-       ! Height
-       if (k == 3) then ! barotropic
-          h = sum (height) + sol(S_MASS,1)%data(d)%elts(id_i)/density(1) + sol(S_MASS,2)%data(d)%elts(id_i)/density(2)
-       else ! single layer
-          h = height(k) + sol(S_MASS,k)%data(d)%elts(id_i)/density(k)
-       end if
-       pot_enstrophy = 0.5 * (w / h)**2
-    else
-       pot_enstrophy = 0.0_8
-    end if
-  end function pot_enstrophy
-
-  subroutine barotropic_velocity_local (dom, i, j, zlev, offs, dims)
-    ! Calculate barotropic velocity in two-layer model
-    implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                       :: d, e, id, id_e, id_i, idE, idNE, idN, k
-    real(8), dimension (1:EDGE,2) :: dz
-    
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-    d = dom%id + 1
-
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-
-    do k = 1, 2
-       dz(RT+1,k) = height(k) + interp (sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idE+1))  / density(k)
-       dz(DG+1,k) = height(k) + interp (sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idNE+1)) / density(k)
-       dz(UP+1,k) = height(k) + interp (sol(S_MASS,k)%data(d)%elts(id_i), sol(S_MASS,k)%data(d)%elts(idN+1))  / density(k)
-    end do
-
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-!!$       velo(id_e) = (dz(e,1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(e,2)*sol(S_VELO,2)%data(d)%elts(id_e)) / (dz(e,1) + dz(e,2))
-       velo(id_e) = sol(S_VELO,1)%data(d)%elts(id_e)
-    end do
-  end subroutine barotropic_velocity_local
 
   subroutine latlon_drake
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels)
     ! specific to 2 layer mode split drake test case
     use domain_mod
     use io_mod
-    integer :: d, ibeg, ibeg_m, iend, iend_m, j, k, l
+    integer                              :: d, ibeg, ibeg_m, iend, iend_m, j, k, l
+    real(8), dimension(:,:), allocatable :: dz
 
     if (rank == 0) write (6,'(A,i6)') "Saving latitude-longitude projection of checkpoint file = ", cp_2d
 
@@ -631,6 +573,11 @@ contains
     l = level_save
     call fill_up_grid_and_IWT (l)
     trend = sol
+
+    ! Set mean on filled grid
+    do k = 1, zmax
+       call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+    end do
    
     ! Compute barotropic velocity and vorticity at hexagon points
     
@@ -640,24 +587,23 @@ contains
        ibeg_m = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
        iend   = sol(S_VELO,1)%data(d)%length
        iend_m = sol(S_MASS,1)%data(d)%length
+       
+       allocate (dz(ibeg_m:iend_m,1:2))
+       dz(:,1) = sol_mean(S_MASS,1)%data(d)%elts(ibeg_m:iend_m) + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)
+       dz(:,2) = sol_mean(S_MASS,2)%data(d)%elts(ibeg_m:iend_m) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)
 
        sol(S_VELO,zlevels+1)%data(d)%elts(ibeg:iend:3) = &
-            ((height(1) + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1)) * sol(S_VELO,1)%data(d)%elts(ibeg:iend:3) + &
-             (height(2) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2)) * sol(S_VELO,2)%data(d)%elts(ibeg:iend:3)) &
-             / (sum (height) &
-             + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2))
+            (dz(:,1) * sol(S_VELO,1)%data(d)%elts(ibeg:iend:3) + dz(:,2) * sol(S_VELO,2)%data(d)%elts(ibeg:iend:3)) &
+            / sum (dz, dim=2)
 
        sol(S_VELO,zlevels+1)%data(d)%elts(ibeg+1:iend:3) = &
-            ((height(1) + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1)) * sol(S_VELO,1)%data(d)%elts(ibeg+1:iend:3) + &
-             (height(2) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2)) * sol(S_VELO,2)%data(d)%elts(ibeg+1:iend:3)) &
-             / (sum (height) &
-             + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2))
+            (dz(:,1) * sol(S_VELO,1)%data(d)%elts(ibeg+1:iend:3) + dz(:,2) * sol(S_VELO,2)%data(d)%elts(ibeg+1:iend:3)) &
+            / sum (dz, dim=2)
 
        sol(S_VELO,zlevels+1)%data(d)%elts(ibeg+2:iend:3) = &
-            ((height(1) + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1)) * sol(S_VELO,1)%data(d)%elts(ibeg+2:iend:3) + &
-             (height(2) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2)) * sol(S_VELO,2)%data(d)%elts(ibeg+2:iend:3))  &
-             / (sum(height) &
-             + sol(S_MASS,1)%data(d)%elts(ibeg_m:iend_m)/density(1) + sol(S_MASS,2)%data(d)%elts(ibeg_m:iend_m)/density(2))
+            (dz(:,1) * sol(S_VELO,1)%data(d)%elts(ibeg+2:iend:3) + dz(:,2) * sol(S_VELO,2)%data(d)%elts(ibeg+2:iend:3))  &
+            / sum (dz, dim=2)
+       deallocate (dz)
     end do
     do d = 1, size(grid)
        velo  => sol(S_VELO,zlevels+1)%data(d)%elts
@@ -846,13 +792,13 @@ contains
 
     ! Longitude values
     write (var_file, '(i2)') 20
-    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file, form="FORMATTED", status="REPLACE") 
     write (funit,'(4096(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
-    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file,  form="FORMATTED", status="REPLACE") 
     write (funit,'(4096(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
