@@ -6,14 +6,13 @@ program flat_projection_data
   implicit none
   
   integer                                :: k, l, nt, Ncumul
-  integer, parameter                     :: nvar_save = 6 ! Number of variables to save
-  integer, parameter                     :: nvar_save_drake = 12 ! number of lat-lon projections to save for Drake case
+  integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
   integer, dimension(2)                  :: Nx, Ny
   
   real(4), dimension(:,:),   allocatable :: field2d
   real(8)                                :: dx_export, dy_export, kx_export, ky_export, area1, area2
   real(8), dimension(2)                  :: lon_lat_range
-  real(8), dimension(:,:),   allocatable :: two_layer_ke, two_layer_enstrophy
+  real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy
   real(8), dimension(:,:,:), allocatable :: field2d_save, zonal_av
   
   character(2)                           :: var_file
@@ -21,7 +20,7 @@ program flat_projection_data
   character(130)                         :: command
 
   logical, parameter                     :: welford = .true. ! use Welford's one-pass algorithm or naive two-pass algorithm
-
+  
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -126,11 +125,19 @@ program flat_projection_data
      end do
 
      if  (trim (test_case) == "drake") then
-        two_layer_ke(Nt,1) = time
-        two_layer_ke(Nt,2:5) = energy_drake ('adaptive')
-        two_layer_enstrophy(Nt,1) = time
-        two_layer_enstrophy(Nt,2:6) = pot_enstrophy_drake ('adaptive')
-        if (cp_idx == cp_2d) call latlon_drake
+        if (zlevels == 2) then
+           drake_ke(Nt,1) = time
+           drake_ke(Nt,2:5) = energy_drake ('adaptive')
+           drake_enstrophy(Nt,1) = time
+           drake_enstrophy(Nt,2:6) = pot_enstrophy_drake ('adaptive')
+           if (cp_idx == cp_2d) call latlon_drake
+        elseif (zlevels == 1) then
+           drake_ke(Nt,1) = time
+           drake_ke(Nt,2) = energy_1layer ('adaptive')
+           drake_enstrophy(Nt,1) = time
+           drake_enstrophy(Nt,2) = pot_enstrophy_1layer ('adaptive')
+           if (cp_idx == cp_2d) call latlon_1layer
+        end if
      else
         if (welford) then
            call cal_zonal_av
@@ -142,7 +149,13 @@ program flat_projection_data
   end do
 
   if (trim (test_case) == "drake") then
-     if (rank==0) call write_out_drake 
+     if (rank==0) then
+        if (zlevels == 2) then
+           call write_out_drake
+        elseif (zlevels == 1) then
+           call write_out_1layer
+        end if
+     end if
   else
      if (.not. welford) then
         zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
@@ -418,8 +431,6 @@ contains
     real(8), dimension(4) :: energy_drake
     character(*)          :: itype
     
-    integer :: d, j, l
-
     if (trim(itype) == 'adaptive') then
        energy_drake(1) = integrate_adaptive (layer1_ke, z_null)
        energy_drake(2) = integrate_adaptive (layer2_ke, z_null)
@@ -430,18 +441,31 @@ contains
        energy_drake(3) = integrate_hex (barotropic_ke, level_start, z_null) 
     end if
     energy_drake(4) = energy_drake(1) + energy_drake(2) - energy_drake(3) ! baroclinic energy
+    
     energy_drake = energy_drake / (4*MATH_PI*radius**2*ref_density)
   end function energy_drake
-
+  
+  real(8) function energy_1layer (itype)
+    ! Calculates baroclinic and bartoropic energies for two layer case
+    use io_mod
+    implicit none
+    character(*) :: itype
+    
+    if (trim(itype) == 'adaptive') then
+       energy_1layer = integrate_adaptive (one_layer_ke, z_null)
+    elseif (trim(itype) == 'coarse') then
+       energy_1layer = integrate_hex (one_layer_ke, level_start, z_null) 
+    end if
+    energy_1layer = energy_1layer / (4*MATH_PI*radius**2*ref_density)
+  end function energy_1layer
+  
   function pot_enstrophy_drake (itype)
     use io_mod
     implicit none
     real(8), dimension(5) :: pot_enstrophy_drake
     character(*)          :: itype
     
-    integer :: d, j, l
-
-    pot_enstrophy_drake = 0.0_8
+    integer :: d, j, k, l
 
     ! Potential enstrophy in each layer
     do k = 1, 2
@@ -558,6 +582,42 @@ contains
        end if
     end do
   end function pot_enstrophy_drake
+
+  real(8) function pot_enstrophy_1layer (itype)
+    use io_mod
+    implicit none
+    character(*) :: itype
+
+    integer :: d, j, l
+
+    ! Potential enstrophy in each layer
+    do l = level_start, level_end
+       do d = 1, size(grid)
+          velo  => sol(S_VELO,1)%data(d)%elts
+          vort  => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), l, z_null)
+          nullify (velo, vort)
+       end do
+
+       ! Calculate vorticity at hexagon points (stored in press_lower)
+       do d = 1, size(grid)
+          vort => grid(d)%press_lower%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (vort)
+       end do
+    end do
+    
+    if (trim(itype) == 'adaptive') then
+       pot_enstrophy_1layer = integrate_adaptive (pot_enstrophy, 1)
+    elseif (trim(itype) == 'coarse') then
+       pot_enstrophy_1layer = integrate_hex (pot_enstrophy, level_start, 1)
+    end if
+  end function pot_enstrophy_1layer
 
   subroutine latlon_drake
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels)
@@ -710,6 +770,80 @@ contains
     field2d_save(:,:,12) = field2d
   end subroutine latlon_drake
 
+  subroutine latlon_1layer
+    ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels)
+    ! specific to one layer mode split drake test case
+    use domain_mod
+    use io_mod
+    integer                              :: d, ibeg, ibeg_m, iend, iend_m, j, k, l
+    real(8), dimension(:,:), allocatable :: dz
+
+    if (rank == 0) write (6,'(A,i6)') "Saving latitude-longitude projection of checkpoint file = ", cp_2d
+
+    ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
+    l = level_save
+    call fill_up_grid_and_IWT (l)
+    trend = sol
+
+    ! Set mean on filled grid
+    do k = 1, zmax
+       call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+    end do
+   
+    ! Compute velocity at hexagon points
+    do d = 1, size(grid)
+       velo  => sol(S_VELO,1)%data(d)%elts
+       velo1 => grid(d)%u_zonal%elts
+       velo2 => grid(d)%v_merid%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (velo, velo1, velo2)
+    end do
+    
+    ! Vorticity at hexagon points
+    do d = 1, size(grid)
+       velo  => sol(S_VELO,1)%data(d)%elts
+       vort  => grid(d)%vort%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+       end do
+       call apply_to_penta_d (post_vort, grid(d), l, z_null)
+       nullify (velo, vort)
+    end do
+    do d = 1, size(grid)
+       vort => grid(d)%press_lower%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+       end do
+       nullify (vort)
+    end do
+
+    ! Project velocity onto plane
+    call project_uzonal_onto_plane (l, 0.0_8)
+    field2d_save(:,:,1) = field2d
+    call project_vmerid_onto_plane (l, 0.0_8)
+    field2d_save(:,:,2) = field2d
+    ! Project vorticity onto plane
+    call project_vorticity_onto_plane (l, 1.0_8)
+    field2d_save(:,:,3) = field2d
+
+    ! Free surface
+    call project_freesurface_onto_plane (l, 1.0_8)
+    field2d_save(:,:,4) = field2d
+
+    ! Penalization
+    do k = 1, 2
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (set_penal, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+          end do
+       end do
+    end do
+    call project_penal_onto_plane (l, 1.0_8)
+    field2d_save(:,:,5) = field2d
+  end subroutine latlon_1layer
+
   subroutine write_out
     ! Writes out results
     integer            :: i, k, v
@@ -718,9 +852,9 @@ contains
     ! 2d projections
     do v = 1, nvar_save*save_levels
        write (var_file, '(i1)') v
-       open (unit=funit, file=trim(run_id)//'.4.0'//var_file)
+       open (unit=funit, file=trim(run_id)//'.4.0'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
        do i = Ny(1), Ny(2)
-          write (funit,'(4096(E15.6, 1X))') field2d_save(:,i,v)
+          write (funit) field2d_save(:,i,v)
        end do
        close (funit)
     end do
@@ -728,9 +862,9 @@ contains
     ! Zonal average of solution over all vertical levels
     do v = 1, nvar_zonal
        write (var_file, '(i2)') v+10
-       open (unit=funit, file=trim(run_id)//'.4.'//var_file)
+       open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
        do k = zlevels,1,-1
-          write (funit,'(4096(E15.6, 1X))') zonal_av(k,:,v)
+          write (funit) zonal_av(k,:,v)
        end do
        close (funit)
     end do
@@ -739,20 +873,20 @@ contains
 
     ! Longitude values
     write (var_file, '(i2)') 20
-    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
-    write (funit,'(4096(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
+    write (funit) (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
-    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
-    write (funit,'(4096(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
+    write (funit) (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
     ! Non-dimensional pressure based vertical coordinates p_k/p_s
     write (var_file, '(i2)') 22
-    open (unit=funit, file=trim(run_id)//'.4.'//var_file) 
-    write (funit,'(4096(E15.6, 1X))') (0.5*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
+    write (funit) (0.5*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
     close (funit)
 
     ! Compress files
@@ -760,7 +894,6 @@ contains
     call system (command)
     command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
     call system (command)
-    deallocate (field2d, field2d_save, zonal_av)
   end subroutine write_out
 
   subroutine write_out_drake
@@ -772,18 +905,18 @@ contains
     ! 2d projections
     do v = 1, 9
        write (var_file, '(i1)') v
-       open (unit=funit, file=trim(run_id)//'.4.0'//var_file)
+       open (unit=funit, file=trim(run_id)//'.4.0'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
        do i = Ny(1), Ny(2)
-          write (funit,'(4096(E15.6, 1X))') field2d_save(:,i,v)
+          write (funit) field2d_save(:,i,v)
        end do
        close (funit)
     end do
 
-     do v = 9, nvar_save_drake
+    do v = 10, nvar_drake
        write (var_file, '(i2)') v
-       open (unit=funit, file=trim(run_id)//'.4.'//var_file)
+       open (unit=funit, file=trim(run_id)//'.4.0'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
        do i = Ny(1), Ny(2)
-          write (funit,'(4096(E15.6, 1X))') field2d_save(:,i,v)
+          write (funit) field2d_save(:,i,v)
        end do
        close (funit)
     end do
@@ -792,14 +925,66 @@ contains
 
     ! Longitude values
     write (var_file, '(i2)') 20
-    open (unit=funit, file=trim(run_id)//'.4.'//var_file, form="FORMATTED", status="REPLACE") 
-    write (funit,'(4096(E15.6, 1X))') (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
+    write (funit) (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
     close (funit)
 
     ! Latitude values
     write (var_file, '(i2)') 21
-    open (unit=funit, file=trim(run_id)//'.4.'//var_file,  form="FORMATTED", status="REPLACE") 
-    write (funit,'(4096(E15.6, 1X))') (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
+    close (funit)
+    
+    ! Compress files
+    command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
+    call system (command)
+    command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
+    call system (command)
+
+    ! Write out kinetic energies
+    open (unit=funit, file=trim(run_id)//'_kinetic_energy', form="FORMATTED", status="REPLACE")
+    do it = 1, mean_end-mean_beg+1
+       write (funit,'(5(es11.4,1x))') drake_ke(it,1)/DAY, drake_ke(it,2:5)
+    end do
+    close (funit)
+
+    ! Write out potential enstrophy
+    open (unit=funit, file=trim(run_id)//'_pot_enstrophy', form="FORMATTED", status="REPLACE")
+    do it = 1, mean_end-mean_beg+1
+       write (funit,'(6(es11.4,1x))') drake_enstrophy(it,1)/DAY, drake_enstrophy(it,2:6)
+    end do
+    close (funit)
+  end subroutine write_out_drake
+
+  subroutine write_out_1layer
+    ! Writes out results
+    implicit none
+    integer            :: i, it, v
+    integer, parameter :: funit = 400
+
+    ! 2d projections
+    do v = 1, nvar_1layer
+       write (var_file, '(i1)') v
+       open (unit=funit, file=trim(run_id)//'.4.0'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+       do i = Ny(1), Ny(2)
+          write (funit) field2d_save(:,i,v)
+       end do
+       close (funit)
+    end do
+
+    ! Coordinates
+
+    ! Longitude values
+    write (var_file, '(i2)') 20
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
+    write (funit) (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
+    
+    close (funit)
+
+    ! Latitude values
+    write (var_file, '(i2)') 21
+    open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
     close (funit)
 
     ! Compress files
@@ -807,24 +992,22 @@ contains
     call system (command)
     command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
     call system (command)
-    deallocate (field2d, field2d_save)
 
     ! Write out kinetic energies
-    open (unit=funit, file=trim(run_id)//'_kinetic_energy')
+    open (unit=funit, file=trim(run_id)//'_kinetic_energy', form="FORMATTED", status="REPLACE")
     do it = 1, mean_end-mean_beg+1
-       write (funit,'(5(es11.4,1x))') two_layer_ke(it,1)/DAY, two_layer_ke(it,2:5)
+       write (funit,'(5(es11.4,1x))') drake_ke(it,1)/DAY, drake_ke(it,2)
     end do
     close (funit)
-    deallocate (two_layer_ke)
+    deallocate (drake_ke)
 
     ! Write out potential enstrophy
-    open (unit=funit, file=trim(run_id)//'_pot_enstrophy')
+    open (unit=funit, file=trim(run_id)//'_pot_enstrophy', form="FORMATTED", status="REPLACE")
     do it = 1, mean_end-mean_beg+1
-       write (funit,'(6(es11.4,1x))') two_layer_enstrophy(it,1)/DAY, two_layer_enstrophy(it,2:6)
+       write (funit,'(6(es11.4,1x))') drake_enstrophy(it,1)/DAY, drake_enstrophy(it,2)
     end do
     close (funit)
-    deallocate (two_layer_enstrophy)
-  end subroutine write_out_drake
+  end subroutine write_out_1layer
 
   subroutine initialize_stat
     implicit none
@@ -853,9 +1036,21 @@ contains
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
 
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
-    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),1:nvar_save_drake))
-    allocate (two_layer_ke(1:mean_end-mean_beg+1,1:5))
-    allocate (two_layer_enstrophy(1:mean_end-mean_beg+1,1:6))
+
+    if (zlevels == 2) then
+       allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),1:nvar_drake))
+    else
+       allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),1:nvar_1layer))
+    end if
+
+    if (zlevels == 2) then
+       allocate (drake_ke(1:mean_end-mean_beg+1,1:5))
+       allocate (drake_enstrophy(1:mean_end-mean_beg+1,1:6))
+    elseif (zlevels == 1) then
+       allocate (drake_ke(1:mean_end-mean_beg+1,1:2))
+       allocate (drake_enstrophy(1:mean_end-mean_beg+1,1:2))
+    end if
+    
   end subroutine initialize_stat_drake
 
   subroutine project_onto_plane (field, l, default_val)

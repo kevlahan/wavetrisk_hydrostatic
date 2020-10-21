@@ -193,13 +193,6 @@ contains
     read (fid,*) varname, press_save
     close(fid)
 
-    if (N > 4096) then
-       write (6,'(A,i5,A)') "N = ", N, " is too large. Maximum allowed value of N = 4096."
-       write (6,'(A)') "Modify format in write_out and write_out_drake if necessary."
-       stop
-    end if
-
-
     if (rank==0) then
        write (6,'(A,A)')      "test_case              = ", trim (test_case)
        write (6,'(A,A)')      "run_id                 = ", trim (run_id)

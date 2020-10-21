@@ -1,101 +1,103 @@
-clear all
-%%
-test_case = 'drake'; 
-run_id    = '2layer_fill'; 
+%% Load file
+N         = 2048;  % number of longitude points in projection
+test_case = 'drake';
+run_id    = '1layer_J6'; zlevels   = 1;
+% run_id  = '2layer_J6'; zlevels   = 2;
+itype   = 'barotropic vorticity' % field to analyze
+machine = 'niagara.computecanada.ca'
 
-% Field to plot
-set_type = 3
-if set_type == 1
-    itype = 'barotropic zonal velocity';
-elseif set_type == 2
-    itype = 'barotropic meridional velocity'
-elseif set_type == 3
-    itype = 'barotropic vorticity'
-elseif set_type == 4
-    itype = 'layer 1 baroclinic zonal velocity'
-elseif set_type == 5
-    itype = 'layer 1 baroclinic meridional velocity'
-elseif set_type == 6
-    itype = 'layer 1 baroclinic vorticity'
-elseif set_type == 7
-    itype = 'layer 2 baroclinic zonal velocity'
-elseif set_type == 8
-    itype = 'layer 2 baroclinic meridional velocity'
-elseif set_type == 9
-    itype = 'layer 2 baroclinic vorticity'
-elseif set_type == 10
-    itype = 'free surface'
-elseif set_type == 11
-    itype = 'internal free surface'
-elseif set_type == 12
-    itype = 'land'
-end
+% itype values:
+% 'barotropic zonal velocity' .    (zonal velocity for single layer case)
+% 'barotropic meridional velocity' (meridional velocity for single layer case)
+% 'barotropic vorticity'           (vorticity for single layer case)
+% 'layer 1 baroclinic zonal velocity'
+% 'layer 1 baroclinic meridional velocity'
+% 'layer 1 baroclinic vorticity'
+% 'layer 2 baroclinic zonal velocity'
+% 'layer 2 baroclinic meridional velocity'
+% 'layer 2 baroclinic vorticity'
+% 'free surface'
+% 'internal free surface'
+% 'land'
 
+file_base   = [run_id '.4'];
+remote_file = ['~/hydro/' test_case '/' file_base '.tgz'];
+local_file  = ['~/hydro/' test_case '/' file_base '.tgz'];
+scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
+
+unix (sprintf(scp_cmd));
+
+file_tar = ['tar ' 'xf ' local_file];
+disp(['Uncompressing file ' local_file]);
+system(file_tar);
+
+% Load coordinates
+lon = fread(fopen([file_base '.20']),'double');
+lat = fread(fopen([file_base '.21']),'double');
+
+% Load field to analyze
 smooth = false;  % smooth data over two points in each direction
 shift  = false;   % shift left boundary to zero longitude
 lines  = false;  % plot lines
 
-% Load files
-run_dir = '';
-file_base = [run_id '.4'];
-pathid = ['/Users/kevlahan/hydro/' test_case '/' run_dir];
-file_tar = ['tar ' 'xf ' pathid file_base '.tgz'];
-disp(['Uncompressing file ' pathid file_base '.tgz']);
-system(file_tar);
-
-% Load coordinates
-lon = load([file_base '.20']); 
-lat = load([file_base '.21']);
-
 if (strcmp(itype,'barotropic zonal velocity'))
-    s_ll = load([file_base '.01']);
+    fid = fopen([file_base '.01']);
     c_scale = linspace(-0.8, 1.5, 100);
     v_title = 'Barotropic zonal velocity';
 elseif (strcmp(itype,'barotropic meridional velocity'))
-    s_ll = load([file_base '.02']);
+    fid = fopen([file_base '.02']);
     c_scale = linspace(-1.1, 1.1, 100);
     v_title = 'Barotropic meridional velocity';
 elseif (strcmp(itype,'barotropic vorticity'))
-    s_ll = load([file_base '.03']);
+    fid = fopen([file_base '.03']);
     c_scale = linspace(-3e-5, 3e-5, 100);
     v_title = 'Barotropic vorticity';
 elseif (strcmp(itype,'layer 1 baroclinic zonal velocity'))
-    s_ll = load([file_base '.04']);
+    fid = fopen([file_base '.04']);
     c_scale = linspace(-0.07, 0.04, 100);
     v_title = 'Baroclinic zonal velocity';
 elseif (strcmp(itype,'layer 1 baroclinic meridional velocity'))
-    s_ll = load([file_base '.05']);
+    fid = fopen([file_base '.05']);
     c_scale = linspace(-0.06, 0.05, 100);
     v_title = 'Baroclinic meridional velocity';
 elseif (strcmp(itype,'layer 1 baroclinic vorticity'))
-    s_ll = load([file_base '.06']);
+    fid = fopen([file_base '.06']);
     c_scale = linspace(-5e-6, 5e-6, 100);
     v_title = 'Layer 1 baroclinic vorticity';
 elseif (strcmp(itype,'layer 2 baroclinic zonal velocity'))
-    s_ll = load([file_base '.07']);
+    fid = fopen([file_base '.07']);
     c_scale = linspace(-0.1, 0.2, 100);
     v_title = 'Baroclinic zonal velocity';
 elseif (strcmp(itype,'layer 2 baroclinic meridional velocity'))
-    s_ll = load([file_base '.08']);
+    fid = fopen([file_base '.08']);
     c_scale = linspace(-0.13, 0.16, 100);
     v_title = 'Baroclinic meridional velocity';
 elseif (strcmp(itype,'layer 2 baroclinic vorticity'))
-    s_ll = load([file_base '.09']);
+    fid = fopen([file_base '.09']);
     c_scale = linspace(-2e-5, 2e-5, 100);
     v_title = 'Layer 2 baroclinic vorticity';
 elseif (strcmp(itype,'free surface'))
-    s_ll = load([file_base '.10']);
+    if zlevels == 2
+        fid = fopen([file_base '.10']);
+    elseif zlevels == 1
+        fid = fopen([file_base '.04']);
+    end
     c_scale = linspace(-0.6, 0.34, 100);
     v_title = 'Free surface';
 elseif (strcmp(itype,'internal free surface'))
-    s_ll = load([file_base '.11']);
+    fid = fopen([file_base '.11']);
     c_scale = linspace(-8.5, 27, 100);
     v_title = 'Internal  freesurface';
 elseif (strcmp(itype,'land'))
-    s_ll = load([file_base '.12']);
+    if zlevels == 2
+        fid = fopen([file_base '.12']);
+    elseif zlevels == 1
+        fid = fopen([file_base '.05']);
+    end
     c_scale = linspace(0, 1, 100);
     v_title = 'Land';
 end
+s_ll = reshape (fread(fid,'double'), N+1, N/2+1)';
 
 N         = size(s_ll,2); % resolution of projection
 radius    = 6371.229e3/6; % radius of Earth in metres
@@ -116,61 +118,58 @@ ax = [lon_min lon_max lat_min lat_max];
 fprintf('Minimum value of variable %s = %8.4e\n', itype, min(min(s_ll)));
 fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_ll)));
 
-% Erase extracted files
+% Erase files
 file_erase = ['\rm ' file_base '*'];
 system(file_erase);
 %% Plot latitude - longitude projection
 figure
+c_scale = linspace(-3.5e-5, 3.5e-5, 100);
 plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift, lines);
 axis(ax)
-system(['\rm ' run_id '.4*']);
 %%
 %print -dpng ~/hydro/drake/barotropic_proj.png
 %print -dpng ~/hydro/drake/barotropic1.png
 print -dpng ~/hydro/drake/barotropic2.png
-%% Periodize in latitude
+%% Energy spectrum: assume square array
+
+% Periodize in latitude
 s_wrap = [s_ll(1:end-1,1:end-1); flipud(s_ll(1:end-1,1:end-1))]; 
-lat_wrap = [lat(1,1:size(s_ll,1)-1) 180+lat(1,1:size(s_ll,1)-1)]; 
+lat_wrap = [lat(1:size(s_ll,1)-1) 180+lat(1:size(s_ll,1)-1)]; 
 lon_wrap = lon(1:end-1);
 Ly = Lx;
 
-%% Energy spectrum: assume square array
-
+% Plot wrapped data
 %figure
 %plot_lon_lat_data(s_wrap, lon_wrap, lat_wrap, c_scale, v_title, smooth, shift, lines);
-% Energy spectrum calculation and plot
 
 nx = size(s_wrap,1); 
-
 n = [0 1:nx/2-1 -nx/2 -fliplr(1:nx/2-1)];
 [k1, k2] = meshgrid(n, n);
 
 kmax = nx/2;
-
-% fft of data
-fk = fft2(s_wrap)/nx;
+dk   = 1; % assume L = 2*pi
+k    = (0:kmax)'*dk;
+Ek   = zeros(kmax+1,1); % initialize energy spectrum
 
 % Energy spectrum integrated over shells
-Ek = zeros(kmax+1,1);
-%dk = 2*pi/Lx;
-dk = 1; % assume L = 2*pi
+fk = fft2(s_wrap)/nx; % fft of data
 for ix = 1:nx
     for iy = 1:nx
-        k = round(sqrt(k1(ix,iy)^2 + k2(ix,iy)^2));
-        if k <= kmax
-            %Ek(k+1) = Ek(k+1) + 0.5 * conj(fk(ix,iy)).*fk(ix,iy);
-            Ek(k+1) = Ek(k+1) + 0.5 * conj(fk(ix,iy)).*fk(ix,iy) * (dx./(dk*k))^2;
+        K = round(sqrt(k1(ix,iy)^2 + k2(ix,iy)^2));
+        if K <= kmax
+            %Ek(K+1) = Ek(K+1) + 0.5 * conj(fk(ix,iy)).*fk(ix,iy);
+            Ek(K+1) = Ek(K+1) + 0.5 * conj(fk(ix,iy)).*fk(ix,iy) * (dx./(dk*K))^2;
         end
     end
 end
-
-k=(0:kmax)'*dk;
 
 % Check energy conservation
 %sum(s_wrap.^2,[1,2]) - sum(Ek)
 
 if strcmp (itype, 'barotropic vorticity')
     col = 'b';
+elseif strcmp (itype, 'layer 1 baroclinic vorticity')
+    col = 'm';
 elseif strcmp (itype, 'layer 2 baroclinic vorticity')
     col = 'r';
 end
@@ -179,14 +178,41 @@ end
 loglog(k(2:end),Ek(2:end),col,'LineWidth',1.2,'DisplayName',itype); hold on;
 
 % Power law scalings
-%loglog(k(4:end),k(4:end).^(-4)*6e3,'b--','LineWidth',1.2,'DisplayName','k^{-4}');
-loglog(k(4:end),k(4:end).^(-5/3)/1e2,'r--','LineWidth',1.2,'DisplayName','k^{-5/3}');
-loglog(k(4:end),k(4:end).^(-3)*5e1,'g--','LineWidth',1.2,'DisplayName','k^{-3}');
+if (strcmp(itype,'layer 2 baroclinic vorticity'))
+    k1 = 4; k2 = round(numel(k)/8);
+    loglog(k(k1:k2),k(4:k2).^(-5/3)/1.5e1,'b--','LineWidth',1.2,'DisplayName','k^{-5/3}');
+    k1 = 60; k2 = round(numel(k)*0.9);
+    loglog(k(k1:k2),k(60:k2).^(-4)*4e3,'g--','LineWidth',1.2,'DisplayName','k^{-4}');
+end
+
+if (strcmp(itype,'layer 1 baroclinic vorticity'))
+    k1 = 4; k2 = round(numel(k)/8);
+    loglog(k(k1:k2),k(4:k2).^(-5/3)/1.5e2,'b--','LineWidth',1.2,'DisplayName','k^{-5/3}');
+    k1 = 60; k2 = round(numel(k)*0.9);
+    loglog(k(k1:k2),k(60:k2).^(-4)*4e2,'g--','LineWidth',1.2,'DisplayName','k^{-4}');
+end
+
+if (strcmp(itype,'barotropic vorticity'))
+    if zlevels == 2
+        k1 = 4; k2 = round(numel(k)/4);
+        loglog(k(k1:k2),k(k1:k2).^(-3.3)*2e2,'r--','LineWidth',1.2,'DisplayName','k^{-3.3}');
+        k1 = 100; k2 = round(numel(k));
+        loglog(k(k1:k2),k(k1:k2).^(-5)*1e6,'g--','LineWidth',1.2,'DisplayName','k^{-5}');
+    elseif zlevels == 1
+        k1 = 4; k2 = round(numel(k)/4);
+        loglog(k(k1:k2),k(k1:k2).^(-3)*5e1,'r--','LineWidth',1.2,'DisplayName','k^{-3}');
+        k1 = 100; k2 = round(numel(k));
+        loglog(k(k1:k2),k(k1:k2).^(-5)*2e6,'g--','LineWidth',1.2,'DisplayName','k^{-5}');
+    end
+end
 
 legend
 
 xlabel('k');ylabel('E(k)');grid on;
 title('Energy spectrum');set(gca,'FontSize',16);
+%%
+Ek_av = [k Ek];
+save('Ek_layer2_baroclinic_av.mat','Ek_av');
 %%
 print -dpng ~/hydro/drake/energy_spectrum.png
 %% CWT for a subset of Earth
@@ -266,4 +292,3 @@ print -dpng ~/hydro/drake/wavelet_spectra.png
 j_scl = 3;
 scl = scales(j_scl)
 figure;colormap('jet');imagesc(abs(cwt2d.cfs(:,:,1,j_scl,1)).^2);
-
