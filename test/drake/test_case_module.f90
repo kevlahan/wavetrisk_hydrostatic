@@ -466,7 +466,7 @@ contains
     
     C_rotu = C_visc
     C_divu = C_visc
-    C_sclr = 1d-2!C_visc
+    C_sclr = C_visc
 
     ! Diffusion time scales
     tau_sclr = dt_cfl / C_sclr
