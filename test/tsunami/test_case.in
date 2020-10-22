@@ -4,7 +4,7 @@ penalize           T             ! penalize land regions
 etopo_coast        T             ! include realistic ETOPO coastlines
 etopo_bathy        T             ! include realistic ETOPO bathymetry
 etopo_res          4             ! resolution of ETOPO dat (4, 2 or 1 arc minutes)
-max_level	   9             ! maximum level of resolution
+max_level	   10             ! maximum level of resolution
 zlevels            1             ! number of vertical levels
 remap              F             ! remap vertical grid
 remapscalar_type   0             ! remap method for scalars  (0, 1, 2PPM, 2S, 2W, 4, PPR)
@@ -13,7 +13,7 @@ iremap             10            ! remap every iremap time steps
 adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)
-tol      	   4e-2          ! non-dimensional tolerance
+tol      	   6e-2          ! non-dimensional tolerance
 optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
 cfl_num            1.0           ! cfl number

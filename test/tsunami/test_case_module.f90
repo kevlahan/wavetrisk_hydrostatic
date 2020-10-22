@@ -112,14 +112,14 @@ contains
     implicit none
     type(Coord) :: x_i
 
-    real(8) :: lon, lat, rgrc
+    real(8)            :: lon, lat
+    real(8), parameter :: n_lat = 20, n_lon = 2
     
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
-    rgrc = radius * acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
-    ! Gaussian perturbation to free surface
-    init_free_surface = dH * exp__flush (-(rgrc/pert_radius)**2)
+    init_free_surface = dH * exp__flush (- abs((lat-lat_c)/(pert_radius/radius))**n_lat &
+         - abs((lon-lon_c)/(pert_radius/radius/40))**n_lon) 
   end function init_free_surface
 
   real(8) function buoyancy (x_i, zlev)
@@ -185,7 +185,7 @@ contains
   end subroutine initialize_thresholds
 
   subroutine initialize_dt_viscosity 
-    ! Initializes viscosity, time step and penalization parameter eta
+    ! Initializes viscosity and time step  
     implicit none
     real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
@@ -200,9 +200,6 @@ contains
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
     dt_init = dt_cfl
-
-    ! Permeability penalization parameter
-    eta = dt_cfl
 
     tau_sclr = dt_cfl / C_sclr
     tau_divu = dt_cfl / C_divu
@@ -227,7 +224,6 @@ contains
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
           " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
           " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-       write (6,'(a,es10.4,a)') "eta = ", eta," [s]"
     end if
   end subroutine initialize_dt_viscosity
 
@@ -497,11 +493,8 @@ contains
     close(fid)
 
     ! Always run with incompressible equations
-    compressible = .false.
+    
 
-    ! Use explicit time stepping on baroclinic scale for accuracy
-    mode_split = .false.
-        
     allocate (pressure_save(1))
     pressure_save(1) = press_save
     call set_save_level
@@ -575,7 +568,6 @@ contains
        write (6,'(A,es11.4)') "dH                   = ", dH
        write (6,'(A,es11.4)') "lon_c                = ", lon_c
        write (6,'(A,es11.4)') "lat_c                = ", lat_c
-       write (6,'(A,es11.4)') "eta                  = ", eta
        write (6,'(A,es11.4)') "alpha                = ", alpha
        write (6,'(A,es11.4)') "min_depth            = ", min_depth
        write (6,'(A,es11.4)') "max_depth            = ", max_depth

@@ -29,10 +29,10 @@ program Tsunami
 
   ! Local test case parameters
   min_depth      = -50  * METRE                 ! minimum allowed depth (must be negative)
-  max_depth      = -6   * KM                    ! maximum allowed depth (must be negative)
+  max_depth      = -4   * KM                    ! maximum allowed depth (must be negative)
 
   dH             =  7   * METRE                 ! initial perturbation to the free surface
-  pert_radius    =  5e2 * KM                    ! radius of Gaussian free surface perturbation
+  pert_radius    =  1e3 * KM                    ! radius of Gaussian free surface perturbation
   lon_c          = -50  * DEG                   ! longitude location of perturbation
   lat_c          =  25  * DEG                   ! latitude  location of perturbation
 
@@ -46,6 +46,9 @@ program Tsunami
   ! Parameters for 2D projection
   N              = 1024                         ! size of lat-lon grid in 2D projection
   lon_lat_range  = (/2*MATH_PI, MATH_PI/)       ! region to save in 2D projection
+
+  mode_split     = .false.                      ! use explicit time step for accuracy
+  compressible   = .false.                      ! incompressible
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize 2D projection grid
@@ -378,7 +381,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(2,N_BDRY+1) :: dims
 
   integer                    :: d, id, id_i, visc_scale
-  real(8), dimension(1:EDGE) :: diffusion, permeability
+  real(8), dimension(1:EDGE) :: diffusion
 
   d = dom%id + 1
   id = idx (i, j, offs, dims)
@@ -393,11 +396,8 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
      diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu()) * visc_scale
   end if
 
-  ! Permeability
-  permeability = - penal_edge(zlev)%data(d)%elts(EDGE*id+1:EDGE*id_i)/eta * velo(EDGE*id+1:EDGE*id_i)
-
   ! Total physics for source term of velocity trend including volume penalization
-  physics_velo_source = diffusion + permeability
+  physics_velo_source = diffusion 
 contains
   function grad_divu()
     implicit none
