@@ -1,10 +1,23 @@
 **********************************************************************************************************************************
-A brief user's guide for WAVETRISK 1.0 2020-08-21 N. Kevlahan kevlahan@mcmaster.ca
+A brief user's guide for WAVETRISK 2.0 2020-10-22
+N. Kevlahan
+Department of Mathematics and Statistics
+McMaster University
+Hamilton, Canada
+kevlahan@mcmaster.ca
 
 A dynamically adaptive wavelet experimental climate model that solves the multi-layer hydrostatic shallow water equations in
 Boussinesq form.  Both compressible (atmosphere) and incompressible (ocean) options are available. The incompressible option
-allows for separation of mean and fluctuating mass, realistic topography and for penalization of coastlines
+allows for separation of mean and fluctuating scalars, realistic topography and for penalization of coastlines
 (see drake and tsunami test cases) as well as 2D barotropic/ 3D baroclinic mode splitting.
+
+
+**********************************************************************************************************************************
+Changes compared to WAVETRISK 1.x
+
+1. Implicit free surface 2D barotropic - 3D baroclinic mode splitting capability.
+2. Separation of mean and fluctuating scalars (used with volume penalization).
+3. Additional test cases tsunami 
 
 **********************************************************************************************************************************
 TEST CASES
@@ -54,7 +67,8 @@ POST-PROCESS CHECKPOINTS FOR MATLAB PLOTTING OF 2-D PROJECTIONS ON LONGITUDE-LAT
 The m-file plot_2d.m provides various options for plotting 2-D projections of the data, zonal statistics and time history
 statistics.  The zonal statistics can be plotted from in-line calculations (e.g. Held_Suarez_J4L18.3.tgz file saved during the
 run) or from data post-processed from saved checkpoints (e.g. Held_Suarez_J4L18.4.tgz) using test/flat_projection_data.  plot_2d.m
-plots time history data from the log file saved during the run (e.g. Held_Suarez_log).
+plots time history data from the log file saved during the run (e.g. Held_Suarez_log).  Additional post-processing m-files are
+provided for specific test cases and applications.
 
 
 **********************************************************************************************************************************
@@ -96,7 +110,7 @@ SOLID BOUNDARIES
 In ocean test cases solid lateral boundaries are modelled using Brinkman volume penalization (see Kevlahan, Dubos & Aechtner 2015,
 Geosci Model Dev 8).  The permeability parameter is fixed equal to dt and the porosity parameter alpha is set by the user
 (e.g. alpha = 0.01). The permeability friction term -1/eta u in the velocity equation is applied as a separate split step after the
-main time step, as in Rassmussen, Cottet & Walther 2011, J Comput Phys 230.
+main time step, as in Rassmussen, Cottet & Walther (J Comput Phys 230, 2011).
 
 BAROTROPIC - BARCOCLINIC MODE SPLITTING
 
@@ -114,7 +128,8 @@ Layer dilation means that mass is not exactly conserved in each vertical layer, 
 Mode splitting is suitable when the user is not interested in the evolution of the free surface, since it diffuses free
 surface motion. When the option remap = .false. it is assumed that the density remains constant in each vertical layer, equal to the
 initial density distribution.  Otherwise, horizontal density gradients are included with Ripa dynamics (e.g. Ripa 1996, J Geophys Res,
-101, 1233-1245, Ripa 1995 JFM 303, 169-201).
+101, 1233-1245, Ripa 1995 JFM 303, 169-201).  The drake test case also includes an option that relaxes the layer densities to their initial
+values.
 
 The parameter level_fill can be set > min_level to make active all levels <= level_fill. This sometimes improves the efficiency of the
 multigrid solver by reducing the size of of the coarsest grid where the elliptic equation is solved exactly.
