@@ -540,10 +540,10 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer            :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
-    real(8)            :: dx, lat, lat0, lat_width, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    integer            :: d, e, id, id_e, id_i
+    real(8)            :: dx, lat, lat0, lat_width, lon, mask, n_lat, n_lon
     real(8), parameter :: lat_max = 60, lat_min = -35, lon_width = 15
-    type(Coord)        :: p, q
+    type(Coord)        :: p
 
     id = idx (i, j, offs, dims)
     id_i = id + 1

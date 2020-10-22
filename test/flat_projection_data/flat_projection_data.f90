@@ -188,7 +188,7 @@ contains
     real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
     real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
 
-    ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
+    ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level_save
     call fill_up_grid_and_IWT (level_save)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun)
@@ -205,11 +205,13 @@ contains
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
-          velo => sol(S_VELO,k)%data(d)%elts
+          velo  => sol(S_VELO,k)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(level_save)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
-          nullify (velo)
+          nullify (velo, velo1, velo2)
        end do
        call project_uzonal_onto_plane (level_save, 0.0_8)
        Uproj = field2d
@@ -277,11 +279,13 @@ contains
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
-          velo => sol(S_VELO,k)%data(d)%elts
+          velo  => sol(S_VELO,k)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(level_save)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
-          nullify (velo)
+          nullify (velo, velo1, velo2)
        end do
        call project_uzonal_onto_plane (level_save, 0.0_8)
        Uproj = field2d
@@ -362,8 +366,9 @@ contains
   end subroutine cal_variance
 
   subroutine latlon
-    ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels),
+    ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels)
     use domain_mod
+    implicit none
     integer :: d, j, k
 
     if (rank == 0) write (6,'(A,i6)') "Saving latitude-longitude projection of checkpoint file = ", cp_2d
@@ -390,20 +395,22 @@ contains
 
        ! Calculate zonal and meridional velocities and vorticity
        do d = 1, size(grid)
-          velo => sol_save(S_VELO,k)%data(d)%elts
-          vort => grid(d)%vort%elts
+          velo  => sol_save(S_VELO,k)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
+          vort  => grid(d)%vort%elts
           do j = 1, grid(d)%lev(level_save)%length
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
              call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
-          nullify (velo, vort)
+          nullify (velo, velo1, velo2, vort)
        end do
 
        ! Zonal velocity
        call project_uzonal_onto_plane (level_save, 0.0_8)
        field2d_save(:,:,2+k-1) = field2d
-
+       
        ! Meridional velocity
        call project_vmerid_onto_plane (level_save, 0.0_8)
        field2d_save(:,:,3+k-1) = field2d
@@ -414,7 +421,13 @@ contains
        field2d_save(:,:,4+k-1) = field2d
 
        ! Vorticity
-       call apply_onescale (vort_triag_to_hex, level_save, z_null, 0, 1)
+       do d = 1, size(grid)
+          vort => grid(d)%press_lower%elts
+          do j = 1, grid(d)%lev(level_save)%length
+             call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
+          end do
+          nullify (vort)
+       end do
        call project_vorticity_onto_plane (level_save, 1.0_8)
        field2d_save(:,:,5+k-1) = field2d
 
