@@ -147,7 +147,7 @@ contains
        nullify (vort)
     end do
     call project_vorticity_onto_plane (l, 1.0_8)
-    if (rank == 0) call spectrum_lon_lat ('vort')
+    if (rank == 0) call spectrum_lon_lat ("barotropic")
     deallocate (field2d)
   end subroutine spec_latlon_1layer
 
