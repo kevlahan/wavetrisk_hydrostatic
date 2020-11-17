@@ -43,41 +43,16 @@ else ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
   LIBS   = -mkl
   #FLAGS  =  $(OPTIM) -g -trace -profile=vtmc -module $(BUILD_DIR) -Isrc/ppr -cpp -diag-disable 8291	
   FLAGS  =  $(OPTIM) -traceback -module $(BUILD_DIR) -Isrc/ppr -cpp -diag-disable 8291
-# else ifeq ($(MACHINE),$(filter $(MACHINE),nia))
-#   # Need to load: module load gcc/7.3.0 openmpi/3.1.0 mkl/2018.2
-#   F90    = gfortran
-#   MPIF90 = mpif90
-#   OPTIM  = -O2
-#   LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
-#   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all -I${MKLROOT}/include
-else ifeq ($(MACHINE),$(filter $(MACHINE),login)) # occigen
-  # Need module load intel; module load intelmpi                                                                                                                        
-  F90    = ifort
-  MPIF90 = mpif90
-  OPTIM  = -O2
-  LIBS   = -mkl
-  FLAGS  = $(OPTIM) -traceback -module $(BUILD_DIR) -cpp -diag-disable 8291
-  # Need to load: module load openmpi/gnu/2.0.2 mkl/18.1
-  # F90    = gfortran
-  # MPIF90 = mpif90
-  # OPTIM  = -O2
-  # LIBS   = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm
-  # FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all -B /opt/software/common/intel/compilers_and_libraries_2018.1.163/linux/mkl/lib/intel64
 else ifeq ($(MACHINE),mac)
   F90    = gfortran
-  OPTIM  = -O2
+  OPTIM  = -O2 -std=gnu -ffast-math
   LIBS   = -llapack	
   MPIF90 = mpif90
-  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
-else ifeq ($(MACHINE),froggy)
-  F90    = gfortran
-  MPIF90 = mpif90
-  OPTIM  = -O2
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
 else # try gfortran as default
   F90    = gfortran
   MPIF90 = mpif90
-  OPTIM  = -O2
+  OPTIM  = -O2 -std=gnu -ffast-math
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
 endif
 
@@ -87,6 +62,12 @@ else
   COMPILER = $(MPIF90)
 endif
 LINKER = $(COMPILER)
+
+# add shtools and supporting libraries
+ifeq ($(TEST_CASE), spherical_harmonics)
+FLAGS = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all -I/usr/local/include -m64 -fPIC -std=gnu -ffast-math
+LIBS = -L/usr/local/lib -lSHTOOLS -lfftw3 -lm -llapack -lblas
+endif
 
 $(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
 	mkdir -p $(PREFIX)/bin

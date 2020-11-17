@@ -1,0 +1,425 @@
+module test_case_mod
+  ! Module file for flat_projection_data
+  use shared_mod
+  use domain_mod
+  use comm_mpi_mod
+  implicit none
+  integer                              :: m, N, ntaper, save_zlev
+  real(8)                              :: concentration, lat0, lon0, theta0
+  real(8)                              :: initotalmass, mass_error, ref_surf_press, totalmass
+  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8), allocatable, dimension(:,:) :: threshold_def
+  character(255)                       :: spec_type
+  logical                              :: local_spec
+  
+  ! DCMIP2012c4
+  real(8) :: eta_0, u_0 
+  ! DCMIP2008c5
+  real(8) :: d2, h_0, lat_c, lon_c
+  !Drake
+  integer               :: npts_penal
+  real(8)               :: drho, halocline, max_depth, mixed_layer, scale
+  real(8), dimension(2) :: density, height
+contains
+  real(8) function surf_geopot (x_i)
+    ! Surface geopotential
+    implicit none
+    Type(Coord) :: x_i
+    real(8)     :: c1, cs2, sn2, lon, lat, rgrc
+
+    ! Find latitude and longitude from Cartesian coordinates
+    call cart2sph (x_i, lon, lat)
+    cs2 = cos(lat)**2
+    sn2 = sin(lat)**2
+    
+    if (trim (test_case) == "DCMIP2012c4") then
+       c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
+
+       surf_geopot = c1 * (c1 * (-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + &
+            radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
+    elseif (trim (test_case) == "DCMIP2008c5") then
+       rgrc = radius*acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
+
+       surf_geopot = grav_accel*h_0*exp__flush (-rgrc**2/d2)
+    elseif (trim (test_case) == "Held_Suarez") then
+       c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
+       surf_geopot = c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
+       ! surf_geopot = 0.0_8
+    else
+       write(6,'(A)') "Test case not supported"
+       stop
+    end if
+  end function surf_geopot
+  
+ subroutine initialize_a_b_vert
+    implicit none
+    integer :: k
+
+    ! Allocate vertical grid parameters
+    allocate (a_vert(1:zlevels+1),    b_vert(1:zlevels+1))
+    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
+
+    if (uniform) then
+       do k = 1, zlevels+1
+          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
+          b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
+       end do
+    else
+       if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4' .or. trim (test_case) == 'Held_Suarez') then
+          if (zlevels==18) then
+             a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
+                  0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
+                  0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
+                  0.0_8, 0.0_8 /)
+             b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
+                  0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
+                  0.953189_8, 0.985056_8, 1.0_8 /)
+          elseif (zlevels==26) then
+             a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
+                  0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
+                  0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
+                  0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
+             b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
+                  0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
+                  0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
+          elseif (zlevels==30) then
+             a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
+                  0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
+                  0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
+                  0.155995160341263, 0.14416541159153, 0.130248308181763, 0.113875567913055, 0.0946138575673103, &
+                  0.0753444507718086, 0.0576589405536652, 0.0427346378564835, 0.0316426791250706, 0.0252212174236774, &
+                  0.0191967375576496, 0.0136180268600583, 0.00853108894079924, 0.00397881818935275, 0.0, 0.0 /)
+             b_vert = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0393548272550106, &
+                  0.0856537595391273, 0.140122056007385, 0.204201176762581, 0.279586911201477, 0.368274360895157,  &
+                  0.47261056303978, 0.576988518238068, 0.672786951065063, 0.753628432750702, 0.813710987567902, &
+                  0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
+                  0.985112190246582, 1.0 /)
+          elseif (zlevels==49) then
+             a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
+                  0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
+                  0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
+                  0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
+                  0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
+                  0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
+                  0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
+                  0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
+                  0.0_8, 0.0_8 /)
+             b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
+                  0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
+                  0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
+                  0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
+                  0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
+                  0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
+                  0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
+                  0.9851122_8, 1.0_8/)
+          else
+             write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
+             stop
+          end if
+          ! DCMIP order is opposite to ours
+          a_vert = a_vert(zlevels+1:1:-1) * p_0
+          b_vert = b_vert(zlevels+1:1:-1)
+       else
+          ! LMDZ grid
+          call cal_AB
+       end if
+    end if
+    
+    ! Set pressure at infinity
+    p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
+
+    ! Set mass coefficients
+    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
+    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
+  end subroutine initialize_a_b_vert
+
+  subroutine cal_AB
+    ! Computes A and B coefficients for hybrid vertical grid as in LMDZ
+    implicit none
+
+    integer                         :: l
+    real(8)                         :: snorm
+    real(8), dimension(1:zlevels)   :: dsig
+    real(8), dimension(1:zlevels+1) :: sig
+
+    snorm  = 0.0_8
+    do l = 1, zlevels
+       dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
+       snorm = snorm + dsig(l)
+    end do
+
+    do l = 1, zlevels
+       dsig(l) = dsig(l)/snorm
+    end do
+
+    sig(zlevels+1) = 0.0_8
+    do l = zlevels, 1, -1
+       sig(l) = sig(l+1) + dsig(l)
+    end do
+
+    b_vert(zlevels+1) = 0.0_8
+    do  l = 1, zlevels
+       b_vert(l) = exp (1.0_8 - 1/sig(l)**2)
+       a_vert(l) = (sig(l) - b_vert(l)) * p_0
+    end do
+    b_vert(1) = 1.0_8
+    a_vert(1) = 0.0_8
+    a_vert(zlevels+1) = (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
+  end subroutine cal_AB
+
+  subroutine read_test_case_parameters
+    implicit none
+    integer        :: fid = 500
+    character(255) :: filename, varname
+
+    ! Find input parameters file name
+    if (iargc() >= 1) then
+       CALL getarg (1, filename)
+    else
+       filename = 'spherical_harmonics.in'
+    end if
+    if (rank == 0) write (6,'(A,A)') "Input file = ", trim (filename)
+
+    open (unit=fid, file=filename, action='READ')
+    read (fid,*) varname, spec_type
+    read (fid,*) varname, test_case
+    read (fid,*) varname, run_id
+    read (fid,*) varname, cp_idx
+    read (fid,*) varname, max_level
+    read (fid,*) varname, zlevels
+    read (fid,*) varname, uniform
+    read (fid,*) varname, adapt_trend
+    read (fid,*) varname, level_fill
+    read (fid,*) varname, N
+    read (fid,*) varname, local_spec
+    read (fid,*) varname, lat0
+    read (fid,*) varname, lon0
+    read (fid,*) varname, theta0
+    read (fid,*) varname, concentration
+    read (fid,*) varname, ntaper
+    read (fid,*) varname, m
+    close(fid)
+
+    if (rank==0) then
+       write (6,'(A,A)')      "spec_type              = ", trim (spec_type)
+       write (6,'(A,A)')      "test_case              = ", trim (test_case)
+       write (6,'(A,A)')      "run_id                 = ", trim (run_id)
+       write (6,'(A,i5)')     "number of domains      = ", N_GLO_DOMAIN
+       write (6,'(A,i5)')     "number of processors   = ", n_process
+       write (6,'(A,i5)')     "DOMAIN_LEVEL           = ", DOMAIN_LEVEL
+       write (6,'(A,i5)')     "PATCH_LEVEL            = ", PATCH_LEVEL
+       write (6,'(A,i4)')     "spectrum of file       = ", cp_idx
+       write (6,'(A,i3)')     "min_level              = ", min_level
+       write (6,'(A,i3)')     "max_level              = ", max_level
+       write (6,'(A,i3)')     "zlevels                = ", zlevels
+       write(6,'(A,L1)')      "uniform                = ", uniform
+       write (6,'(A,L1)')     "adapt_trend            = ", adapt_trend
+       write (6,'(A,i3)')     "level_fill             = ", level_fill
+       write (6,'(A,i5)')     "N                      = ", N
+       write (6,'(a,L1)')     "local_spec             = ", local_spec
+       write (6,'(A,es11.4)') "lat0                   = ", lat0
+       write (6,'(A,es11.4)') "lon0                   = ", lon0
+       write (6,'(A,es10.4)') "theta0                 = ", theta0
+       write (6,'(A,es10.4)') "concentration          = ", concentration
+       write (6,'(A,i3)')     "ntaper                 = ", ntaper
+       write (6,'(A,i3)')     "m                      = ", m
+       write (6,*) ' '
+    end if
+  end subroutine read_test_case_parameters
+
+   subroutine topography (dom, i, j, zlev, offs, dims, itype)
+    ! Returns penalization mask for land penal and bathymetry coordinate topo 
+    ! uses radial basis function for smoothing (if specified)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer                        :: npts
+    character(*)                   :: itype
+
+    integer            :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
+    real(8)            :: dx, lat, lat0, lat_width, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    real(8), parameter :: lat_max = 60, lat_min = -35, lon_width = 15
+    type(Coord)        :: p, q
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    select case (itype)
+    case ("bathymetry")
+       dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
+    case ("penalize")
+       call cart2sph (dom%node%elts(id_i), lon, lat)
+       dx = dx_max
+      
+       ! Analytic land mass with smoothing
+       lat_width = (lat_max - lat_min) / 2
+       lat0 = lat_max - lat_width
+
+       n_lat = 4*radius * lat_width*DEG / (dx * npts_penal)
+       n_lon = 4*radius * lon_width*DEG / (dx * npts_penal)
+
+       mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
+
+       d = dom%id + 1
+       penal_node(zlev)%data(d)%elts(id_i) = mask
+       do e = 1, EDGE
+          id_e = EDGE*id + e
+          penal_edge(zlev)%data(d)%elts(id_e) = max (penal_edge(zlev)%data(d)%elts(id_e), mask)
+       end do
+    end select
+  end subroutine topography
+
+  subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
+    ! Set bathymetry
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+  end subroutine set_bathymetry
+
+  subroutine set_penal (dom, i, j, zlev, offs, dims)
+    ! Set penalization mask
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, id_i
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    if (penalize) then
+       call topography (dom, i, j, zlev, offs, dims, "penalize")
+    else
+       penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
+       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
+    end if
+  end subroutine set_penal
+  
+  subroutine apply_initial_conditions
+    implicit none
+    integer :: d, k, l
+
+    do l = level_start, level_end
+       call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       do k = 1, zmax
+          call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
+    end do
+
+    do l = level_start, level_end
+       do k = 1, zmax
+          call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
+    end do
+  end subroutine apply_initial_conditions
+
+  subroutine update
+    ! dummy routine
+
+  end subroutine update
+
+  subroutine init_sol (dom, i, j, zlev, offs, dims)
+    ! Dummy routine
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, k, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+  end subroutine init_sol
+
+  subroutine init_mean (dom, i, j, zlev, offs, dims)
+    ! Initialize mean values
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer     :: d, id, id_i
+    real (8)    :: dz, eta_surf, porous_density, z
+    type(Coord) :: x_i
+
+    d    = dom%id+1
+    id   = idx (i, j, offs, dims) 
+    id_i = id + 1
+
+    if (trim (test_case) == "drake") then
+       x_i  = dom%node%elts(id_i)
+       eta_surf = 0.0_8
+       
+       if (zlev == zlevels+1) then
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       else
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = ref_density * height(zlev) 
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = (density(zlev) - ref_density) * height(zlev)
+       end if
+    else
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i)                      = 0.0_8
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)                      = 0.0_8
+       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+    end if
+  end subroutine init_mean
+
+  real(8) function buoyancy (x_i, z)
+    ! Buoyancy profile
+    ! buoyancy = (ref_density - density)/ref_density
+    implicit none
+    real(8)     :: z
+    type(Coord) :: x_i
+
+    if (zlevels /= 1 .and. z >= halocline) then
+       buoyancy = - (1.0_8 - z/halocline) * drho/ref_density
+    else
+       buoyancy = 0.0_8
+    end if
+  end function buoyancy
+
+  subroutine set_thresholds
+    ! Dummy routine
+  end subroutine set_thresholds
+
+  subroutine initialize_thresholds
+    ! Set default thresholds based on dimensional scalings of norms
+    implicit none
+
+    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
+    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
+  end subroutine initialize_thresholds
+
+  subroutine initialize_dt_viscosity 
+    implicit none
+  end subroutine initialize_dt_viscosity
+
+  subroutine set_save_level
+    implicit none
+    save_zlev = zlevels
+  end subroutine set_save_level
+
+  subroutine dump (fid)
+    implicit none
+    integer :: fid
+
+    write (fid) itime
+    write (fid) iwrite
+    write (fid) threshold
+  end subroutine dump
+
+  subroutine load (fid)
+    implicit none
+    integer :: fid
+
+    read (fid) itime
+    read (fid) iwrite
+    read (fid) threshold
+  end subroutine load
+end module test_case_mod
