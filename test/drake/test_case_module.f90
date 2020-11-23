@@ -13,7 +13,8 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, Rb, Rd, Rey, Ro
-  real(8)                              :: bottom_friction, max_depth, min_depth, mixed_layer, scale, halocline, npts_penal, u_wbc
+  real(8)                              :: bottom_friction, max_depth, min_depth, mixed_layer
+  real(8)                              :: radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc
   real(8)                              :: resolution, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: drag, etopo_coast, mean_split
@@ -36,6 +37,8 @@ contains
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
+    read (fid,*) varname, scale
+    read (fid,*) varname, scale_omega
     read (fid,*) varname, max_level
     read (fid,*) varname, level_fill
     read (fid,*) varname, zlevels
@@ -85,6 +88,8 @@ contains
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case                      = ", trim (test_case)
        write (6,'(A,A)')      "run_id                         = ", trim (run_id)
+       write (6,'(A,es10.4)') "scale                          = ", scale
+       write (6,'(A,es10.4)') "scale_omega                    = ", scale_omega
        write (6,'(A,L1)')     "compressible                   = ", compressible
        write (6,'(A,L1)')     "mean_split                     = ", mean_split
        write (6,'(A,L1)')     "mode_split                     = ", mode_split

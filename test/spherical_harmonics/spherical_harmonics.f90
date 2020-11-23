@@ -379,7 +379,7 @@ contains
     deallocate (eigenvalues, mtse, sd, taper_order, tapers)
   end subroutine local_spectrum
 
-  subroutine spec_sphere
+  subroutine spec_sphere 
     ! Combine vorticity and coordinate data on triangles into single vectors on rank 0 and compute spectrum
     use domain_mod
     implicit none
@@ -451,11 +451,11 @@ contains
     call mpi_gatherv (lon_loc,  n_loc, MPI_DOUBLE_PRECISION, lon,  n_glo, displs, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
 
     ! Calculate spherical harmonics power spectrum on rank 0
-    if (rank == 0) call spectrum
+    if (rank == 0) call spectrum_sphere ("vort_lsq")
     deallocate (data, lat, lon, data_loc, lat_loc, lon_loc)
   end subroutine spec_sphere
 
-  subroutine spectrum
+  subroutine spectrum_sphere (data_type)
 !!$  Uses shtools routine SHExpandDH to expand data at irregularly spaced grid points on the sphere using a least squares inversion and then
 !!$  the power spectrum is calculated using SHPowerSpectrum or SHPowerSpectrumDensity. For a given spherical harmonic degree l,
 !!$
@@ -472,10 +472,12 @@ contains
 !!$ 0 = No errors; 1 = Improper dimensions of input array; 2 = Improper bounds for input variable; 3 = Error allocating memory; 4 = File IO error.
 !!$
 !!$ pspectrum : output, real(8), dimension (lmax+1)
-!!$ pspectrum(l) = Sum_{i=1}^2 Sum_{m=0}^l cilm(i, l+1, m+1)**2 
+!!$ pspectrum(l) = Sum_{i=1}^2 Sum_{m=0}^l cilm(i, l+1, m+1)**2
     use SHTOOLS
     implicit none
-    integer                                 :: ierr, j, lmax
+    character(*)                            :: data_type
+
+    integer                                 :: ierr, j, lmax, lwin
     real(8), dimension(:),      allocatable :: pspectrum
     real(8), dimension (:,:,:), allocatable :: cilm
     character(4)                            :: var_file
@@ -499,8 +501,18 @@ contains
        write (6,'(i4,1x,es10.4)')  j, pspectrum(j) / (4*MATH_PI*radius**2)
     end do
     close (10)
+
+    if (local_spec) then
+       open (unit=10, file=trim(run_id)//'_'//var_file//'_'//trim(data_type)//'_local_spec', form="FORMATTED", status="REPLACE")
+
+       ! Determine the spherical-harmonic bandwidth needed to achieve specified concentration factor
+       lwin = SHFindLWin (theta0*DEG, m, concentration)
+
+       ! Compute local spectrum and associated error
+       call local_spectrum (cilm, lmax, lwin)
+    end if
     deallocate (cilm, pspectrum)
-  end subroutine spectrum
+  end subroutine spectrum_sphere
 
   subroutine define_data_triag (dom, i, j, zlev, offs, dims)
     ! Stores vorticity and associated latitude-longitude coordinates for spherical harmonic calculation

@@ -1,19 +1,21 @@
-% Analysis spherical harmonic data
+% Analyse spherical harmonic data
 clear;
 test_case  = 'drake';
-run_id     = '2layer_J6';
-type       = 'baroclinic_2';
-%type       = 'barotropic';
-cp_id      = '0030';
+run_id     = '1layer_J6';
+%run_id     = '2layer_fill';
+%type       = 'baroclinic_2';
+type       = 'barotropic';
+cp_id      = '0027';
 local      = false;
 machine    = 'if.mcmaster.ca';
 %machine    = 'mac';
+new_transfer = true;
 %% Plot data
 file_base   = [run_id '_' cp_id '_' type];
 remote_file = ['~/hydro/' test_case '/' file_base];
 local_file  = ['~/hydro/' test_case '/' file_base];
 scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
-if ~strcmp(machine,'mac') 
+if ~strcmp(machine,'mac') && new_transfer 
     unix (sprintf(scp_cmd));
 end
 
@@ -31,15 +33,25 @@ lat  = (-N/4:N/4) * 360/N;
 
 % Target area for local spectral analysis
 if local
-%     % Vortical region at southern edge of land mass
-%     lat0   = -40;
-%     lon0   =  15;
-%     theta0 =  10;
-    
-    % Vortical region at 45 N
-    lat0   =  45;
+    % Vortical region at southern edge of land mass
+    lat0   = -40;
     lon0   =  20;
-    theta0 =  20;
+    theta0 =  30;
+
+%     % Vortical region at southern edge of land mass 2layer_fill
+%      lat0   = -40;
+%      lon0   =  10;
+%      theta0 =  50;
+    
+%     % Vortical region at equator
+%     lat0   = 0;
+%     lon0   = 20;
+%     theta0 = 15;
+    
+%     % Vortical region at 45 N
+%     lat0   =  45;
+%     lon0   =  20;
+%     theta0 =  20;
     
 %     % Laminar region
 %     lat0   =  0;
@@ -76,16 +88,65 @@ if ~strcmp(machine,'mac')
 end
 pspec = load(local_file);
 pspec(:,2) = pspec(:,2)./pspec(:,1).^2; % convert vorticity spectrum to energy spectrum integrated over shells
-loglog(pspec(:,1),pspec(:,2),'b-','linewidth',1.5,'DisplayName','global');hold on;grid on;
-p = -3; 
-nspec=numel(pspec(:,1));
-k1 = 10; k2 = round(0.3*nspec); knorm = 100;
-loglog(pspec(k1:k2,1),0.9*pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'m-','linewidth',1.5,'DisplayName','k^{-3}');
+loglog(pspec(:,1),pspec(:,2),'r-','linewidth',1.5,'DisplayName','global');hold on;grid on;
 
-% p = -8;
-% nspec=numel(pspec(:,1));
-% k1 = 250; k2 = round(nspec);knorm=0.8*nspec;
-% loglog(pspec(k1:k2,1),1.0*pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'r-','linewidth',1.5,'DisplayName','k^{-8}');
+if strcmp(type,'barotropic')
+    if strcmp(run_id,'1layer_J8')
+        p = -2;
+        nspec=numel(pspec(:,1));
+        k1 = 80; k2 = round(0.8*nspec); knorm = 200;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'m--','linewidth',1.5,'DisplayName','k^{-2}');
+    elseif strcmp(run_id,'1layer_J6')
+        p = -3; k1 = 3; k2 = 400; knorm = 80;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'b--','linewidth',1.5,'DisplayName','k^{-3}');
+        p = -5; k1 = 400; k2 = 2000; knorm = 1000;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-5}');
+    elseif strcmp(run_id,'2layer_J8')
+        p = -2.2;
+        nspec=numel(pspec(:,1));
+        k1 = 50; k2 = round(0.8*nspec); knorm = 200;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'m--','linewidth',1.5,'DisplayName','k^{-2.2}');
+    elseif strcmp(run_id,'2layer_J6')
+        p = -3.3; k1 = 3; k2 = 500; knorm = 80;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
+        p = -6; k1 = 300; k2 = 2500; knorm = 800;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
+    elseif strcmp(run_id,'2layer_fill')
+        p = -3.3;
+        nspec=numel(pspec(:,1));
+        k1 = 3; k2 = 200; knorm = 50;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
+        
+        p = -6;
+        nspec=numel(pspec(:,1));
+        k1 = 100; k2 = 2400; knorm = 500;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
+    end
+end
+
+if strcmp(type,'baroclinic_1') || strcmp(type,'baroclinic_2')
+    if strcmp(run_id,'2layer_J8')
+        p = -5/3;
+        nspec=numel(pspec(:,1));
+        k1 = 40; k2 = round(nspec); knorm = 200;
+        loglog(pspec(k1:k2,1),0.9*pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'m--','linewidth',1.5,'DisplayName','k^{-5/3}');
+    elseif strcmp(run_id,'2layer_fill')
+        p = -5/3;
+        nspec=numel(pspec(:,1));
+        k1 = 4; k2 = 150; knorm = 50;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'b--','linewidth',1.5,'DisplayName','k^{-5/3}');
+        
+        p = -6;
+        nspec=numel(pspec(:,1));
+        k1 = 150; k2 = 2400; knorm = 500;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
+    elseif strcmp(run_id,'2layer_J6')
+        p = -5/3; k1 = 3; k2 = 500; knorm = 80;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'b--','linewidth',1.5,'DisplayName','k^{-5/3}');
+        p = -5; k1 = 300; k2 = 2500; knorm = 800;
+        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-5}');
+    end
+end
 
 if local
     file_base   = [run_id '_' cp_id '_' type '_local_spec'];
@@ -100,19 +161,53 @@ if local
     loglog(lspec(:,1),lspec(:,2),'g-','linewidth',1.5,'DisplayName','local');hold on; grid on;
     
     nspec=numel(lspec(:,1));
-%     p = -2.5;
-%     nspec=numel(lspec(:,1));
-%     k1 = 5; k2 = nspec;%round(0.2*nspec); 
-%     knorm=50;
-%     loglog(lspec(k1:k2,1),lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'k-','linewidth',1.5,'DisplayName','k^{-2.5}');
-    p = -4;
-    k1 = 5; k2 = round(nspec); 
-    knorm=50;
-    loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r-','linewidth',1.5,'DisplayName','k^{-4}');
+    
+    if strcmp(type,'barotropic')
+        if strcmp(run_id,'1layer_J8')
+            p = -2;
+            k1 = 100; k2 = round(nspec); knorm = 200;
+            loglog(lspec(k1:k2,1),lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'m--','linewidth',1.5,'DisplayName','k^{-2}');
+        elseif strcmp(run_id,'2layer_fill')
+            p = -3.3;
+            k1 = 10; k2 = round(0.3*nspec); knorm = 50;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
+            p = -6;
+            k1 = 200; k2 = 700; knorm = 500;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'k--','linewidth',1.5,'DisplayName','k^{-6}');
+        elseif strcmp(run_id,'2layer_J6')
+            p = -3.3;
+            k1 = 10; k2 = round(0.3*nspec); knorm = 50;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
+            p = -6;
+            k1 = 200; k2 = 700; knorm = 500;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'k--','linewidth',1.5,'DisplayName','k^{-6}');
+        end
+    end
+    
+    if strcmp(type,'baroclinic_1')||strcmp(type,'baroclinic_2')
+        if strcmp(run_id,'1layer_J8')
+            p = -3.3;
+            k1 = 40; k2 = round(nspec);knorm=50;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
+        elseif strcmp(run_id,'2layer_fill')
+            p = -1.2;
+            k1 = 3; k2 = 150; knorm = 50;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-1.2}');
+            p = -6;
+            k1 = 200; k2 = 2000; knorm = 500;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
+        elseif strcmp(run_id,'2layer_J6')
+            p = -1.2;
+            k1 = 3; k2 = 150; knorm = 50;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-1.2}');
+            p = -6;
+            k1 = 200; k2 = 2000; knorm = 500;
+            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
+        end
+    end
 end
-%
 
-
-titl = [type ' power spectrum'];
+titl = [type ' spherical harmonics spectrum'];
 xlabel('l');ylabel('power');title(titl);legend;
+axis([1 1e4 1e-12 1e1])
 set (gca,'fontsize',18);

@@ -28,14 +28,17 @@ program Drake
   call read_test_case_parameters
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Standard parameters 
-  scale          = 6                                  ! scale factor for small planet (1/6 Earth radius)
-  radius         = 6371.229/scale   * KM              ! mean radius of the small planet
-  grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
-  omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
-  p_top          = 0.0_8            * hPa             ! pressure at free surface
-  ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
+  ! Standard parameters
+  radius_earth   = 6371.229                * KM
+  omega_earth    = 7.29211d-5              * RAD/SECOND
+  grav_accel     = 9.80616                 * METRE/SECOND**2 ! gravitational acceleration 
+  p_top          = 0.0_8                   * hPa             ! pressure at free surface
+  ref_density    = 1028                    * KG/METRE**3     ! reference density at depth (seawater)
 
+  radius         = radius_earth/scale                        ! mean radius of the small planet
+  omega          = omega_earth/scale_omega                   ! angular velocity (scaled for small planet to keep beta constant)
+
+  
   ! Numerical method parameters
   match_time         = .false.                        ! avoid very small time steps when saving 
   mode_split         = .true.                         ! split barotropic mode if true
@@ -60,26 +63,26 @@ program Drake
   etopo_coast    = .false.                            ! use etopo data for coastlines (i.e. penalization)
   min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
   if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   = -4000 * METRE
+     max_depth   = -4000 * METRE                      ! total depth
      halocline   = -4000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -4000 * METRE                      ! location of layer forced by surface wind stress
      drho        =     0 * KG/METRE**3                ! density perturbation at free surface 
      tau_0       =   0.8 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels == 2) then
-     max_depth   = -4000 * METRE
+     max_depth   = -4000 * METRE                      ! total depth
      halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
      drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
      tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.7 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     max_depth   = -1000 * METRE
-     halocline   =  -500 * METRE                      ! location of top (less dense) layer in two layer case
+     max_depth   = -4000 * METRE                      ! total depth
+     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer =  -100 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -1 * KG/METRE**3                ! density perturbation at free surface (linear stratification from free surface to halocline)
-     tau_0       =   0.5 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =     2 * METRE/SECOND               ! estimated western boundary current speed
+     drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (linear stratification from free surface to halocline)
+     tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc       =   1.7 * METRE/SECOND               ! estimated western boundary current speed
   end if
 
   ! Vertical level to save

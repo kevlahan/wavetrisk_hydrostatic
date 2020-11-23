@@ -213,13 +213,13 @@ elseif (strcmp(itype,'eddy_heat_flux')) % Plot zonal eddy heat flux
     v_title = 'Eddy heat flux (K m/s)';
     fid_zo = fopen([file_base '19']);
 end
-s_ll = reshape (fread(fid_ll,'double'), N+1, N/2+1)';
+s_ll = reshape (fread(fid_ll,'double'), N, N/2)';
 
 if zonal_avg
     if not(strcmp(itype,'eddy_ke'))
-        s_zo = reshape (fread(fid_zo,'double'), N/2+1, Nz)';
+        s_zo = reshape (fread(fid_zo,'double'), N/2, Nz)';
     else
-        s_zo = 0.5 * reshape(fread(fid_zo1,'double') + fread(fid_zo1,'double'), N+1, Nz)';
+        s_zo = 0.5 * reshape(fread(fid_zo1,'double') + fread(fid_zo1,'double'), N, Nz)';
     end
 end
 
