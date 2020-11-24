@@ -1,15 +1,42 @@
 % Analyse spherical harmonic data
 clear;
 test_case  = 'drake';
-run_id     = '1layer_J6';
+run_id     = '2layer_slow';
 %run_id     = '2layer_fill';
 %type       = 'baroclinic_2';
 type       = 'barotropic';
-cp_id      = '0027';
+cp_id      = '0015';
 local      = false;
 machine    = 'if.mcmaster.ca';
 %machine    = 'mac';
 new_transfer = true;
+
+% Parameters
+scale_omega =  1;
+scale_earth =  6;
+
+theta       =  45; % latitude at which to calculate f0 and beta
+omega       =  7.29211e-5/scale_omega;
+radius      =  6371.229e3/scale_earth;   
+g           =  9.80616;
+drho        = -4;
+ref_density =  1028;
+H1          =  3e3;
+H2          =  1e3;
+H           =  H1 + H2;
+f0          =  2*omega*sin(deg2rad(theta));
+beta        =  2*omega*cos(deg2rad(theta))/radius;
+c0          =  sqrt(g*H);
+c1          =  sqrt (g*abs(drho)/2/ref_density * H2*(H-H2)/H);
+uwbc        =  1.8;
+visc        =  8.25e-1;
+
+% Lengthscales (km)
+lambda0    = c0/f0;             % external radius of deformation
+lambda1    = c1/f0;             % internal radius of deformation
+deltaSM    = uwbc/f0;           % submesoscale
+deltaI     = sqrt(uwbc/beta);   % inertial layer
+deltaM     = (visc/beta)^(1/3); % Munk layer 
 %% Plot data
 file_base   = [run_id '_' cp_id '_' type];
 remote_file = ['~/hydro/' test_case '/' file_base];
@@ -88,66 +115,31 @@ if ~strcmp(machine,'mac')
 end
 pspec = load(local_file);
 pspec(:,2) = pspec(:,2)./pspec(:,1).^2; % convert vorticity spectrum to energy spectrum integrated over shells
-loglog(pspec(:,1),pspec(:,2),'r-','linewidth',1.5,'DisplayName','global');hold on;grid on;
+scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
 if strcmp(type,'barotropic')
-    if strcmp(run_id,'1layer_J8')
-        p = -2;
-        nspec=numel(pspec(:,1));
-        k1 = 80; k2 = round(0.8*nspec); knorm = 200;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'m--','linewidth',1.5,'DisplayName','k^{-2}');
-    elseif strcmp(run_id,'1layer_J6')
-        p = -3; k1 = 3; k2 = 400; knorm = 80;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'b--','linewidth',1.5,'DisplayName','k^{-3}');
-        p = -5; k1 = 400; k2 = 2000; knorm = 1000;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-5}');
-    elseif strcmp(run_id,'2layer_J8')
-        p = -2.2;
-        nspec=numel(pspec(:,1));
-        k1 = 50; k2 = round(0.8*nspec); knorm = 200;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'m--','linewidth',1.5,'DisplayName','k^{-2.2}');
-    elseif strcmp(run_id,'2layer_J6')
-        p = -3.3; k1 = 3; k2 = 500; knorm = 80;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
-        p = -6; k1 = 300; k2 = 2500; knorm = 800;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
-    elseif strcmp(run_id,'2layer_fill')
-        p = -3.3;
-        nspec=numel(pspec(:,1));
-        k1 = 3; k2 = 200; knorm = 50;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
-        
-        p = -6;
-        nspec=numel(pspec(:,1));
-        k1 = 100; k2 = 2400; knorm = 500;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
+    % Power spectrum
+    loglog(scales(:,1),pspec(:,2),'b-','linewidth',3,'DisplayName',type);hold on;grid on;
+    
+    % Power laws
+    if strcmp(run_id,'2layer_slow')
+        powerlaw (scales, pspec(:,2), 2000, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2),   20,  2, -6, 'c--')
     end
 end
 
 if strcmp(type,'baroclinic_1') || strcmp(type,'baroclinic_2')
-    if strcmp(run_id,'2layer_J8')
-        p = -5/3;
-        nspec=numel(pspec(:,1));
-        k1 = 40; k2 = round(nspec); knorm = 200;
-        loglog(pspec(k1:k2,1),0.9*pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'m--','linewidth',1.5,'DisplayName','k^{-5/3}');
-    elseif strcmp(run_id,'2layer_fill')
-        p = -5/3;
-        nspec=numel(pspec(:,1));
-        k1 = 4; k2 = 150; knorm = 50;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'b--','linewidth',1.5,'DisplayName','k^{-5/3}');
-        
-        p = -6;
-        nspec=numel(pspec(:,1));
-        k1 = 150; k2 = 2400; knorm = 500;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
-    elseif strcmp(run_id,'2layer_J6')
-        p = -5/3; k1 = 3; k2 = 500; knorm = 80;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'b--','linewidth',1.5,'DisplayName','k^{-5/3}');
-        p = -5; k1 = 300; k2 = 2500; knorm = 800;
-        loglog(pspec(k1:k2,1),pspec(k1:k2,1).^p * pspec(knorm,2)/pspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-5}');
+    % Power spectrum
+    loglog(scales(:,1),pspec(:,2),'r-','linewidth',3,'DisplayName',type);hold on;grid on;
+    
+    % Power laws
+    if strcmp(run_id,'2layer_slow')
+        powerlaw (scales, pspec(:,2), 2000, 20, -3, 'k--')
+        powerlaw (scales, pspec(:,2),   20,  2, -6, 'c--')
     end
 end
 
+% Local power spectra
 if local
     file_base   = [run_id '_' cp_id '_' type '_local_spec'];
     remote_file = ['~/hydro/' test_case '/' file_base];
@@ -158,56 +150,33 @@ if local
     end
     lspec = load(local_file);
     lspec(:,2) = lspec(:,2)./lspec(:,1).^2;
-    loglog(lspec(:,1),lspec(:,2),'g-','linewidth',1.5,'DisplayName','local');hold on; grid on;
+    lscales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
+
+    loglog(lscales,lspec(:,2),'g-','linewidth',2,'DisplayName','local');hold on; grid on;
     
     nspec=numel(lspec(:,1));
-    
-    if strcmp(type,'barotropic')
-        if strcmp(run_id,'1layer_J8')
-            p = -2;
-            k1 = 100; k2 = round(nspec); knorm = 200;
-            loglog(lspec(k1:k2,1),lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'m--','linewidth',1.5,'DisplayName','k^{-2}');
-        elseif strcmp(run_id,'2layer_fill')
-            p = -3.3;
-            k1 = 10; k2 = round(0.3*nspec); knorm = 50;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
-            p = -6;
-            k1 = 200; k2 = 700; knorm = 500;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'k--','linewidth',1.5,'DisplayName','k^{-6}');
-        elseif strcmp(run_id,'2layer_J6')
-            p = -3.3;
-            k1 = 10; k2 = round(0.3*nspec); knorm = 50;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
-            p = -6;
-            k1 = 200; k2 = 700; knorm = 500;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'k--','linewidth',1.5,'DisplayName','k^{-6}');
-        end
-    end
-    
-    if strcmp(type,'baroclinic_1')||strcmp(type,'baroclinic_2')
-        if strcmp(run_id,'1layer_J8')
-            p = -3.3;
-            k1 = 40; k2 = round(nspec);knorm=50;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-3.3}');
-        elseif strcmp(run_id,'2layer_fill')
-            p = -1.2;
-            k1 = 3; k2 = 150; knorm = 50;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-1.2}');
-            p = -6;
-            k1 = 200; k2 = 2000; knorm = 500;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
-        elseif strcmp(run_id,'2layer_J6')
-            p = -1.2;
-            k1 = 3; k2 = 150; knorm = 50;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'r--','linewidth',1.5,'DisplayName','k^{-1.2}');
-            p = -6;
-            k1 = 200; k2 = 2000; knorm = 500;
-            loglog(lspec(k1:k2,1),1.0*lspec(k1:k2,1).^p * lspec(knorm,2)/lspec(knorm,1)^p,'g--','linewidth',1.5,'DisplayName','k^{-6}');
-        end
-    end
 end
 
-titl = [type ' spherical harmonics spectrum'];
-xlabel('l');ylabel('power');title(titl);legend;
-axis([1 1e4 1e-12 1e1])
-set (gca,'fontsize',18);
+xlabel("l (km)");ylabel("S(l)");title("\Omega = \Omega_{Earth}");
+set (gca,'Xdir','reverse');legend;
+axis([1 1e4 1e-12 1e1]); set (gca,'fontsize',20);
+plot_scale(lambda0/1e3,"\lambda_0");
+plot_scale(lambda1/1e3,"\lambda_1");
+plot_scale(deltaSM/1e3,"\delta_{SM}");
+%plot_scale(deltaM/1e3,"\delta_{M}");
+
+%%
+function powerlaw (scales, power, s1, s2, p, col)
+% Plots power law -p between scales s1 and s2 (s2 > s1) with color col
+[~,k1] = min(abs(scales-s1)); [~,k2] = min(abs(scales-s2)); knorm = round((k1+k2)/2);
+str = "k^{" + compose("%1i",p) + "}";
+loglog(scales(k1:k2),scales(k1:k2).^(-p) * power(knorm)/scales(knorm)^(-p),col,'linewidth',3,'DisplayName',str);
+end
+
+function plot_scale (scale,name)
+y = ylim;
+x = scale;
+h=loglog([x x], y, 'k','linewidth',1.5,'linewidth',2);
+set(get(get(h,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+text(0.85*scale,10*y(1),name,"fontsize",16)
+end
