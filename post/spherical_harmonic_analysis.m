@@ -1,19 +1,36 @@
 % Analyse spherical harmonic data
 clear;
 test_case  = 'drake';
-run_id     = '2layer_slow';
-%run_id     = '2layer_fill';
+%run_id     = '2layer_slow'; cp_id = '0015';
+run_id     = '1layer_J6'; cp_id = '0015';
+%run_id     = '2layer_J6'; cp_id = '0015';
+%run_id     = '1layer_fast'; cp_id = '0015';
+%run_id     = '2layer_fast'; cp_id = '0015';
 %type       = 'baroclinic_2';
 type       = 'barotropic';
-cp_id      = '0015';
 local      = false;
 machine    = 'if.mcmaster.ca';
 %machine    = 'mac';
 new_transfer = true;
 
 % Parameters
-scale_omega =  1;
 scale_earth =  6;
+if strcmp(run_id,'1layer_fast')
+    scale_omega =  1;
+    uwbc        =  1.0;
+elseif strcmp(run_id,'2layer_fast')
+    scale_omega =  1;
+    uwbc        =  1.0;
+elseif strcmp(run_id,'1layer_J6')
+    scale_omega =  6;
+    uwbc        =  1.8;
+elseif strcmp(run_id,'2layer_J6')
+    scale_omega =  6;
+    uwbc        =  1.8;
+elseif strcmp(run_id,'2layer_slow')
+    scale_omega =  24;
+    uwbc        =  1.8;
+end
 
 theta       =  45; % latitude at which to calculate f0 and beta
 omega       =  7.29211e-5/scale_omega;
@@ -28,7 +45,6 @@ f0          =  2*omega*sin(deg2rad(theta));
 beta        =  2*omega*cos(deg2rad(theta))/radius;
 c0          =  sqrt(g*H);
 c1          =  sqrt (g*abs(drho)/2/ref_density * H2*(H-H2)/H);
-uwbc        =  1.8;
 visc        =  8.25e-1;
 
 % Lengthscales (km)
@@ -123,8 +139,20 @@ if strcmp(type,'barotropic')
     
     % Power laws
     if strcmp(run_id,'2layer_slow')
-        powerlaw (scales, pspec(:,2), 2000, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2), 2000, 20, -2.7, 'm--')
         powerlaw (scales, pspec(:,2),   20,  2, -6, 'c--')
+    elseif strcmp(run_id,'1layer_fast')
+        powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
+    elseif strcmp(run_id,'2layer_fast')
+        powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
+    elseif strcmp(run_id,'1layer_J6')
+        powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
+    elseif strcmp(run_id,'2layer_J6')
+        powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
     end
 end
 
@@ -134,8 +162,12 @@ if strcmp(type,'baroclinic_1') || strcmp(type,'baroclinic_2')
     
     % Power laws
     if strcmp(run_id,'2layer_slow')
-        powerlaw (scales, pspec(:,2), 2000, 20, -3, 'k--')
-        powerlaw (scales, pspec(:,2),   20,  2, -6, 'c--')
+        powerlaw (scales, pspec(:,2), 1500, 15, -3, 'b--')
+    elseif strcmp(run_id,'2layer_fast')
+        powerlaw (scales, pspec(:,2), 2000, 10, -5/3, 'b--')
+    elseif strcmp(run_id,'2layer_J6')
+        powerlaw (scales, pspec(:,2), 2000, 10, -5/3, 'b--')
+        powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
     end
 end
 
@@ -157,9 +189,22 @@ if local
     nspec=numel(lspec(:,1));
 end
 
-xlabel("l (km)");ylabel("S(l)");title("\Omega = \Omega_{Earth}");
+xlabel("l (km)");ylabel("S(l)");
+
+if strcmp(run_id,'2layer_slow')
+    title("\Omega = \Omega_{Earth}/24");
+elseif strcmp(run_id,'1layer_fast') || strcmp(run_id,'2layer_fast')
+    title("\Omega = \Omega_{Earth}");
+elseif strcmp(run_id,'2layer_J6')
+    title("\Omega = \Omega_{Earth}/6");
+end
 set (gca,'Xdir','reverse');legend;
-axis([1 1e4 1e-12 1e1]); set (gca,'fontsize',20);
+if strcmp(type,'barotropic')
+    axis([1 1e4 1e-12 1e1]);
+elseif strcmp(type,'baroclinic_1') || strcmp(type,'baroclinic_2')
+    axis([1 1e4 1e-13 1e-0]);
+end
+set (gca,'fontsize',20);
 plot_scale(lambda0/1e3,"\lambda_0");
 plot_scale(lambda1/1e3,"\lambda_1");
 plot_scale(deltaSM/1e3,"\delta_{SM}");
@@ -169,7 +214,7 @@ plot_scale(deltaSM/1e3,"\delta_{SM}");
 function powerlaw (scales, power, s1, s2, p, col)
 % Plots power law -p between scales s1 and s2 (s2 > s1) with color col
 [~,k1] = min(abs(scales-s1)); [~,k2] = min(abs(scales-s2)); knorm = round((k1+k2)/2);
-str = "k^{" + compose("%1i",p) + "}";
+str = "k^{" + compose("%1.2f",p) + "}";
 loglog(scales(k1:k2),scales(k1:k2).^(-p) * power(knorm)/scales(knorm)^(-p),col,'linewidth',3,'DisplayName',str);
 end
 
