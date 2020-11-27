@@ -90,8 +90,8 @@ program Drake
 
   ! Characteristic scales
   wave_speed     = sqrt (grav_accel*abs(max_depth))        ! inertia-gravity wave speed 
-  f0             = 2*omega*sin(30*DEG)                     ! representative Coriolis parameter
-  beta           = 2*omega*cos(30*DEG) / radius            ! beta parameter at 30 degrees latitude
+  f0             = 2*omega*sin(45*DEG)                     ! representative Coriolis parameter
+  beta           = 2*omega*cos(45*DEG) / radius            ! beta parameter at 30 degrees latitude
   Rd             = wave_speed / f0                         ! barotropic Rossby radius of deformation                   
   drho_dz        = drho / halocline                        ! density gradient
   bv             = sqrt (grav_accel * drho_dz/ref_density) ! Brunt-Vaisala frequency
@@ -119,7 +119,7 @@ program Drake
   end if
 
   ! Internal wave friction 
-  if (drho == 0.0_8) then
+  if (drho == 0.0_8 .or. k_T /= 0.0_8) then
      wave_friction = 0.0_8
   else
      wave_friction = u_wbc / Rb / 3                   ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)

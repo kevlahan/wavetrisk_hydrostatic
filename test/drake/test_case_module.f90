@@ -150,6 +150,7 @@ contains
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
        write (6,'(A,es11.4)') "wave drag decay           [h]  = ", 1/wave_friction / HOUR
+       write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 30 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 30 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
