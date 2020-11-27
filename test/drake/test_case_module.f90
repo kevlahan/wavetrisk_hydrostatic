@@ -151,8 +151,8 @@ contains
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
        write (6,'(A,es11.4)') "wave drag decay           [h]  = ", 1/wave_friction / HOUR
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
-       write (6,'(A,es11.4)') "f0 at 30 deg          [rad/s]  = ", f0
-       write (6,'(A,es11.4,/)') "beta at 30 deg       [rad/ms]  = ", beta
+       write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
+       write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
        write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
        write (6,'(A,es11.4)') "Inertial layer           [km]  = ", delta_I  / KM
@@ -693,4 +693,67 @@ contains
     read (fid) iwrite
     read (fid) threshold
   end subroutine load
+
+  subroutine trend_relax (q, dq)
+    ! Trend relaxation to mean buoyancy
+    implicit none
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+
+    integer :: d, k, p
+
+    call update_array_bdry (q, NONE, 27)
+    
+    do k = 1, zlevels
+       ! Scalars
+       do d = 1, size(grid)
+          temp  =>  q(S_TEMP,k)%data(d)%elts
+          dmass => dq(S_MASS,k)%data(d)%elts
+          dtemp => dq(S_TEMP,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (dmass, dscalar, temp)
+       end do
+
+       ! Velocity and mass 
+       do d = 1, size(grid)
+          dvelo => dq(S_VELO,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (trend_velo, grid(d), p-1, k, 0, 0)
+          end do
+          nullify (dvelo)
+       end do
+    end do
+    dq%bdry_uptodate = .false.
+  end subroutine trend_relax
+
+  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
+    ! Relax buoyancy to mean
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+    
+    dmass(id_i) = 0.0_8
+    dtemp(id_i) = - k_T * temp(id_i)
+  end subroutine trend_scalars
+
+  subroutine trend_velo (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims)
+
+    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+  end subroutine trend_velo
 end module test_case_mod

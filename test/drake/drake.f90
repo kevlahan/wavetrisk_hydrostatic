@@ -13,13 +13,6 @@ program Drake
   real(8) :: total_eta
   logical :: aligned
 
-  interface
-     subroutine trend_relax (q, dq)
-       import
-       type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
-     end subroutine trend_relax
-    end interface
-
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -119,7 +112,7 @@ program Drake
   end if
 
   ! Internal wave friction 
-  if (drho == 0.0_8 .or. k_T /= 0.0_8) then
+  if (drho == 0.0_8 .or. remap) then
      wave_friction = 0.0_8
   else
      wave_friction = u_wbc / Rb / 3                   ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
@@ -374,69 +367,3 @@ contains
     curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
   end function curl_rotu
 end function physics_velo_source
-
-subroutine trend_relax (q, dq)
-  ! Trend relaxation to mean buoyancy
-  use domain_mod
-  use ops_mod
-  use time_integr_mod
-  implicit none
-  type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-
-  integer :: d, k, p
-
-  call update_array_bdry (q, NONE, 27)
-
-  do k = 1, zlevels
-     do d = 1, size(grid)
-        temp   =>  q(S_TEMP,k)%data(d)%elts
-        dvelo  => dq(S_VELO,k)%data(d)%elts
-        do p = 3, grid(d)%patch%length
-           call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
-        end do
-        nullify (temp, dvelo)
-     end do
-  end do
-  dq%bdry_uptodate = .false.
-contains
-  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
-    ! Relax buoyancy to mean
-    use test_case_mod
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-
-    id_i = idx (i, j, offs, dims) + 1
-
-    dq(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
-    dq(S_TEMP,k)%data(d)%elts(id_i) = - k_T * temp(id_i)
-  end subroutine trend_scalars
-
-  subroutine trend_velo (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims)
-
-    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
-  end subroutine trend_velo
-end subroutine trend_relax
-
-
-
-
-
-
-
-
-
