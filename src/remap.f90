@@ -231,8 +231,8 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: dz, full_mass, full_theta
-    real(8), dimension (1:zlevels) :: density_new, density_old 
+    real(8)                        :: full_mass, full_theta
+    real(8), dimension (1:zlevels) :: b_new, b_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
@@ -245,16 +245,15 @@ contains
 
     call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
 
-    ! Old density
+    ! Old buoyancy
     do k = 1, zlevels
        full_mass  = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
        full_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
-       dz = full_mass / (ref_density * phi_node (d, id_i, k))
-       density_old(k) = (full_mass - full_theta) / dz
+       b_old(k) = (full_mass - full_theta) / full_mass
     end do
 
     ! Remap density
-    call interp_scalar (zlevels, density_new, z_new, density_old, z_old)
+    call interp_scalar (zlevels, b_new, z_new, b_old, z_old)
 
     do k = 1, zlevels
        ! New full mass 
@@ -264,8 +263,7 @@ contains
        sol(S_MASS,k)%data(d)%elts(id_i) = full_mass - sol_mean(S_MASS,k)%data(d)%elts(id_i)
 
        ! New mass-weighted buoyancy
-       dz = full_mass / (ref_density * phi_node (d, id_i, k))
-       full_theta = full_mass - density_new(k) * dz
+       full_theta = full_mass * (1.0_8 - b_new(k)) 
        sol(S_TEMP,k)%data(d)%elts(id_i) = full_theta - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
   end subroutine remap_scalars_incompressible
@@ -298,7 +296,7 @@ contains
        z_edge_old = 0.5 * (z_old + z_edge_old)
        dz_new = z_edge_new(1:zlevels) - z_edge_new(0:zlevels-1)
        dz_old = z_edge_old(1:zlevels) - z_edge_old(0:zlevels-1)
-
+ 
        do k = 1, zlevels
           flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
        end do
