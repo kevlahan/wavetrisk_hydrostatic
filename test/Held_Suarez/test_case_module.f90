@@ -635,4 +635,153 @@ contains
     read (fid) iwrite
     read (fid) threshold
   end subroutine load
+  
+  subroutine trend_cooling (q, dq)
+    ! Trend for Held-Suarez cooling
+    implicit none
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+
+    integer :: d, k, p
+
+    call update_array_bdry (sol, NONE, 27)
+
+    ! Current surface pressure
+    call cal_surf_press_HS (sol)
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          mean_m =>  sol_mean(S_MASS,k)%data(d)%elts
+          mass   =>  q(S_MASS,k)%data(d)%elts
+          temp   =>  q(S_TEMP,k)%data(d)%elts
+          velo   =>  q(S_VELO,k)%data(d)%elts
+          dmass  => dq(S_MASS,k)%data(d)%elts
+          dtemp  => dq(S_TEMP,k)%data(d)%elts
+          dvelo  => dq(S_VELO,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (cal_press_HS,  grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
+          end do
+          nullify (dmass, dtemp, dvelo, mass, temp, velo)
+       end do
+    end do
+    dq%bdry_uptodate = .false.
+  end subroutine trend_cooling
+
+  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
+    ! Trend for cooling step (relaxation to equilibrium temperature)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+    real(8) :: k_T, lat, lon, theta_equil
+
+    id_i = idx (i, j, offs, dims) + 1
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+    call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+
+    dmass(id_i) = 0.0_8
+    dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
+  end subroutine trend_scalars
+
+  subroutine trend_velo (dom, i, j, zlev, offs, dims)
+    ! Velocity trend for cooling step (Rayleigh friction)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_i
+    real(8) :: k_v, sigma
+
+    id = idx (i, j, offs, dims)
+    id_i = id+1
+
+    sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
+    k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
+
+    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - k_v * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+  end subroutine trend_velo
+
+  subroutine cal_press_HS (dom, i, j, zlev, offs, dims)
+    ! Integrate pressure up from surface to top layer
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+    real(8) :: full_mass, p_upper
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    full_mass = mass(id_i) + mean_m(id_i)
+    p_upper = dom%press_lower%elts(id_i) - grav_accel * full_mass
+    
+    dom%press%elts(id_i) = 0.5 * (dom%press_lower%elts(id_i) + p_upper)
+    dom%press_lower%elts(id_i) = p_upper
+  end subroutine cal_press_HS
+
+  subroutine cal_surf_press_HS (q)
+    implicit none
+    ! Compute surface pressure and save in press_lower for upward integration
+    ! Set geopotential to surface geopotential for upward integration
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+
+    integer :: d, k, mass_type, p
+
+    call apply (set_surf_geopot_HS, z_null)
+
+    do d = 1, size(grid)
+       grid(d)%surf_press%elts = 0.0_8
+       do k = 1, zlevels
+          mass   => q(S_MASS,k)%data(d)%elts
+          temp   => q(S_TEMP,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (column_mass_HS, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (mass, mean_m, mean_t, temp)
+       end do
+       grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + p_top
+
+       grid(d)%press_lower%elts = grid(d)%surf_press%elts
+    end do
+  end subroutine cal_surf_press_HS
+
+  subroutine column_mass_HS (dom, i, j, zlev, offs, dims)
+    ! Sum up mass
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+     
+    dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
+  end subroutine column_mass_HS
+
+  subroutine set_surf_geopot_HS (dom, i, j, zlev, offs, dims)
+    ! Set initial geopotential to surface geopotential
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
+  end subroutine set_surf_geopot_HS
 end module test_case_mod

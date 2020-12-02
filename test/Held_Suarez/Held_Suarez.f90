@@ -9,13 +9,6 @@ program Held_Suarez
 
   logical        :: aligned
   character(256) :: input_file
-    
-  interface
-     subroutine trend_cooling (q, dq)
-       import
-       type(Float_Field), dimension(S_MASS:S_VELO,1:zlevels), target :: q, dq
-     end subroutine trend_cooling
-  end interface
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -259,84 +252,6 @@ contains
     curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
   end function curl_rotu
 end function physics_velo_source
-
-subroutine trend_cooling (q, dq)
-  ! Trend for Held-Suarez cooling
-  use domain_mod
-  use ops_mod
-  use time_integr_mod
-  implicit none
-  type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-
-  integer :: d, k, p
-
-  call update_array_bdry (sol, NONE, 27)
-
-  ! Current surface pressure
-  call cal_surf_press (sol)
-
-  do k = 1, zlevels
-     do d = 1, size(grid)
-        mean_m =>  sol_mean(S_MASS,k)%data(d)%elts
-        mass   =>  q(S_MASS,k)%data(d)%elts
-        temp   =>  q(S_TEMP,k)%data(d)%elts
-        velo   =>  q(S_VELO,k)%data(d)%elts
-        dvelo  => dq(S_VELO,k)%data(d)%elts
-        do p = 2, grid(d)%patch%length
-           call apply_onescale_to_patch (cal_pressure,  grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
-           call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
-        end do
-        nullify (mass, temp, velo, dvelo)
-     end do
-  end do
-  dq%bdry_uptodate = .false.
-contains
-  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
-    ! Trend for cooling step (relaxation to equilibrium temperature)
-    use test_case_mod
-    use main_mod
-    use domain_mod
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-    real(8) :: k_T, lat, lon, theta_equil
-
-    id_i = idx (i, j, offs, dims) + 1
-    call cart2sph (dom%node%elts(id_i), lon, lat)
-    call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
-
-    dq(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
-    dq(S_TEMP,k)%data(d)%elts(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
-  end subroutine trend_scalars
-
-  subroutine trend_velo (dom, i, j, zlev, offs, dims)
-    ! Velocity trend for cooling step (Rayleigh friction)
-    use test_case_mod
-    use main_mod
-    use domain_mod
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id, id_i
-    real(8) :: k_v, sigma
-
-    id = idx (i, j, offs, dims)
-    id_i = id+1
-
-    sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
-    k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
-
-    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - k_v * velo(EDGE*id+RT+1:EDGE*id+UP+1)
-  end subroutine trend_velo
-end subroutine trend_cooling
 
 
 
