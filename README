@@ -1,6 +1,6 @@
 **********************************************************************************************************************************
-A brief user's guide for WAVETRISK 2.01 2020-10-22
-N. Kevlahan
+A brief user's guide for WAVETRISK 2.1 2020-12-03
+N Kevlahan
 Department of Mathematics and Statistics
 McMaster University
 Hamilton, Canada
@@ -13,11 +13,17 @@ allows for separation of mean and fluctuating scalars, realistic topography and 
 
 
 **********************************************************************************************************************************
+Significant changes compared to WAVETRISK 2.01
+
+1. Addition of spherical harmonics test case and associated matlab m-file.
+2. Modifications to drake two layer test case.
+
 Changes compared to WAVETRISK 1.x
 
 1. Implicit free surface 2D barotropic - 3D baroclinic mode splitting capability.
 2. Separation of mean and fluctuating scalars (used with volume penalization).
-3. Additional test cases tsunami 
+3. Additional test cases tsunami
+
 
 **********************************************************************************************************************************
 TEST CASES
@@ -39,14 +45,12 @@ ifort compilers and the openmpi and intelmpi mpi libraries.
 
 !! Always do "make clean" when compiling a new test case !!
 
-Note that the code requires the LAPACK library and an appropriate link must be defined in Makefile.
-
 TO RUN (using test case Held_Suarez as an example): cd to-working_directory (move to working directory, mkdir if necessary) ln -s
 wavetrisk_hydrostatic/bin/Held_Suarez .  (provide symbolic link to executable) ln -s path-to-grid_HR .  (provide symbolic link to
 Heikes and Randall grids, if using) cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in . (copy parameters files and then edit
 as appropriate) mpirun -n 40 Held_Suarez > log & (run on 40 processors using mpi)
 
-If running with bathymetry data (e.g. incompressible tsunami test case) need to provide a symbolic link to the etopo data:
+If running with bathymetry data (e.g. incompressible tsunami test case) need to provide a symbolic link to the ETOPO data:
 
 ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute etopo topography data)
 
@@ -75,13 +79,17 @@ SPHERICAL HARMONICS GLOBAL AND LOCAL SPECTRAL ANALYSIS
 
 The test case spherical_harmonics provides tools for computing spherical harmonics energy spectra. The energy spectra may be
 computed over the entire sphere, or over a local spherical cap region.  This test case uses the SHTOOLS package, which is
-available at https://shtools.github.io/SHTOOLS/index.html for information about SHTOOLS and described in the references:
+available at https://shtools.github.io/SHTOOLS/index.html.  The algorithms used in SHTOOLS are described in:
 
 Wieczorek, M. A. and F. J. Simons 2007 Minimum-variance multitaper spectral estimation on the sphere, J. Fourier Anal. Appl., 13,
 doi:10.1007/s00041-006-6904-1, 665-692.
 
 Wieczorek, M. A. and Meschede, M. 2018 SHTools: Tools for Working with Spherical Harmonics.Geochemistry, Geophysics, Geosystems,
 19(8), 2574-2592.
+
+SHTOOLS requires the libraries lapack, blas and fftw3.
+
+An example matlab m-file spherical_harmonic_analysis.m is also provided for visualizing the spectra produced by this test case.
 
 
 **********************************************************************************************************************************
@@ -297,6 +305,3 @@ This means that some operations on the entire grid could produce intermediate ov
 incorrect values at these nodes or their neighbours. Functions and subroutines should take this into account.  Similarly,
 circulation, vorticity and qe (potential vorticity are first computed incorrectly at pentagon points in step1 (or cal_vort) and
 then corrected in post_step1 (or post_vort).
-
-
-

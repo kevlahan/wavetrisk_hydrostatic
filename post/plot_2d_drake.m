@@ -1,10 +1,14 @@
 %% Load file
-N         = 2048;  % number of longitude points in projection
+clear
 test_case = 'drake';
-run_id    = '1layer_J6'; zlevels   = 1;
-% run_id  = '2layer_J6'; zlevels   = 2;
-itype   = 'barotropic vorticity' % field to analyze
-machine = 'niagara.computecanada.ca'
+%run_id    = '2layer_J8'; zlevels = 2;
+%run_id  = '2layer_J6'; zlevels = 1;
+run_id  = '2layer_fill'; zlevels = 2;
+%itype   = 'layer 2 baroclinic vorticity' % field to analyze
+itype   = 'barotropic vorticity'; % field to analyze
+%machine = 'niagara.computecanada.ca'
+machine = 'if.mcmaster.ca'
+new_transfer = false;
 
 % itype values:
 % 'barotropic zonal velocity' .    (zonal velocity for single layer case)
@@ -21,11 +25,17 @@ machine = 'niagara.computecanada.ca'
 % 'land'
 
 file_base   = [run_id '.4'];
-remote_file = ['~/hydro/' test_case '/' file_base '.tgz'];
+if strcmp(machine,'if.mcmaster.ca')
+    remote_file = ['~/hydro/' test_case '/' file_base '.tgz'];
+elseif strcmp(machine,'niagara.computecanada.ca')
+    remote_file = ['~/proj/' test_case '/J6/' file_base '.tgz'];
+end
 local_file  = ['~/hydro/' test_case '/' file_base '.tgz'];
 scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
 
-unix (sprintf(scp_cmd));
+if new_transfer
+    unix (sprintf(scp_cmd));
+end
 
 file_tar = ['tar ' 'xf ' local_file];
 disp(['Uncompressing file ' local_file]);
@@ -97,9 +107,14 @@ elseif (strcmp(itype,'land'))
     c_scale = linspace(0, 1, 100);
     v_title = 'Land';
 end
-s_ll = reshape (fread(fid,'double'), N+1, N/2+1)';
 
-N         = size(s_ll,2); % resolution of projection
+s_ll = fread(fid,'double');
+N = round(-3/2 + sqrt(2*(numel(s_ll)+1)));
+s_ll = reshape (s_ll, N+1, N/2+1)';
+
+lon  = (-N/2:N/2) * 360/N;
+lat  = (-N/4:N/4) * 360/N;
+
 radius    = 6371.229e3/6; % radius of Earth in metres
 
 Nx        = N;     % number of points in longitude
@@ -123,7 +138,8 @@ file_erase = ['\rm ' file_base '*'];
 system(file_erase);
 %% Plot latitude - longitude projection
 figure
-c_scale = linspace(-3.5e-5, 3.5e-5, 100);
+%c_scale = linspace(-5e-4, 5e-4, 100); % barotropic vorticity
+c_scale = linspace(-3e-5, 3e-5, 100); % baroclinic vorticity
 plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift, lines);
 axis(ax)
 %%
@@ -147,7 +163,7 @@ n = [0 1:nx/2-1 -nx/2 -fliplr(1:nx/2-1)];
 [k1, k2] = meshgrid(n, n);
 
 kmax = nx/2;
-dk   = 1; % assume L = 2*pi
+dk   = 1; % assume L = 2*pi (in general k_n = 2 pi n/L or k_n = n/a on sphere, scale = 2 pi a / n)
 k    = (0:kmax)'*dk;
 Ek   = zeros(kmax+1,1); % initialize energy spectrum
 
@@ -175,48 +191,67 @@ elseif strcmp (itype, 'layer 2 baroclinic vorticity')
 end
 
 % Energy spectrum
-loglog(k(2:end),Ek(2:end),col,'LineWidth',1.2,'DisplayName',itype); hold on;
+loglog(k(2:end),Ek(2:end),col,'LineWidth',1.5,'DisplayName',itype); hold on;
+
+if (strcmp(itype,'barotropic vorticity'))
+    if zlevels == 2
+        p = -3.3; k1 = 4; k2 = 200; knorm = 50;
+        loglog(k(k1:k2),k(k1:k2).^p* Ek(knorm)/k(knorm)^p,'r--','LineWidth',1.5,'DisplayName','k^{-3.3}');
+        
+        p = -6; k1 = 100; k2 = 1000; knorm = 300;
+        loglog(k(k1:k2),k(k1:k2).^p * Ek(knorm)/k(knorm)^p,'g--','LineWidth',1.5,'DisplayName','k^{-6}');
+    elseif zlevels == 1
+        p = -3; k1 = 4; k2 = round(numel(k)/4);
+        loglog(k(k1:k2),k(k1:k2).^p,'r--','LineWidth',1.5,'DisplayName','k^{-3}');
+        p = -6; k1 = 100; k2 = round(numel(k));
+        loglog(k(k1:k2),k(k1:k2).^p,'g--','LineWidth',1.5,'DisplayName','k^{-6}');
+    end
+end
 
 % Power law scalings
 if (strcmp(itype,'layer 2 baroclinic vorticity'))
-    k1 = 4; k2 = round(numel(k)/8);
-    loglog(k(k1:k2),k(4:k2).^(-5/3)/1.5e1,'b--','LineWidth',1.2,'DisplayName','k^{-5/3}');
-    k1 = 60; k2 = round(numel(k)*0.9);
-    loglog(k(k1:k2),k(60:k2).^(-4)*4e3,'g--','LineWidth',1.2,'DisplayName','k^{-4}');
+    p = -5/3; k1 = 4; k2 = 150; knorm = 30;
+    loglog(k(k1:k2),k(k1:k2).^p* Ek(knorm)/k(knorm)^p,'b--','LineWidth',1.5,'DisplayName','k^{-5/3}');
+    
+    p = -5; k1 = 150; k2 = 1600; knorm = 500;
+    loglog(k(k1:k2),k(k1:k2).^p * Ek(knorm)/k(knorm)^p,'g--','LineWidth',1.5,'DisplayName','k^{-5}');
 end
 
 if (strcmp(itype,'layer 1 baroclinic vorticity'))
     k1 = 4; k2 = round(numel(k)/8);
-    loglog(k(k1:k2),k(4:k2).^(-5/3)/1.5e2,'b--','LineWidth',1.2,'DisplayName','k^{-5/3}');
+    loglog(k(k1:k2),k(4:k2).^(-5/3)/1.5e2,'b--','LineWidth',1.5,'DisplayName','k^{-5/3}');
     k1 = 60; k2 = round(numel(k)*0.9);
-    loglog(k(k1:k2),k(60:k2).^(-4)*4e2,'g--','LineWidth',1.2,'DisplayName','k^{-4}');
-end
-
-if (strcmp(itype,'barotropic vorticity'))
-    if zlevels == 2
-        k1 = 4; k2 = round(numel(k)/4);
-        loglog(k(k1:k2),k(k1:k2).^(-3.3)*2e2,'r--','LineWidth',1.2,'DisplayName','k^{-3.3}');
-        k1 = 100; k2 = round(numel(k));
-        loglog(k(k1:k2),k(k1:k2).^(-5)*1e6,'g--','LineWidth',1.2,'DisplayName','k^{-5}');
-    elseif zlevels == 1
-        k1 = 4; k2 = round(numel(k)/4);
-        loglog(k(k1:k2),k(k1:k2).^(-3)*5e1,'r--','LineWidth',1.2,'DisplayName','k^{-3}');
-        k1 = 100; k2 = round(numel(k));
-        loglog(k(k1:k2),k(k1:k2).^(-5)*2e6,'g--','LineWidth',1.2,'DisplayName','k^{-5}');
-    end
+    loglog(k(k1:k2),k(60:k2).^(-4)*4e2,'g--','LineWidth',1.5,'DisplayName','k^{-4}');
 end
 
 legend
 
 xlabel('k');ylabel('E(k)');grid on;
 title('Energy spectrum');set(gca,'FontSize',16);
+set (gca,'fontsize',18); axis([1 1e4 1e-12 1e1])
+%%
+loglog(k(2:end),Ek_1layer(2:end),'b','LineWidth',1.2,'DisplayName','1 layer'); hold on;
+loglog(k(2:end),Ek_2layer(2:end),'r','LineWidth',1.2,'DisplayName','2 layer');
+k1 = 4; k2 = round(numel(k)/4);
+loglog(k(k1:k2),k(k1:k2).^(-3)*2e2,'m--','LineWidth',1.2,'DisplayName','k^{-3}');
+k1 = 100; k2 = round(numel(k));
+loglog(k(k1:k2),k(k1:k2).^(-5)*6e6,'g--','LineWidth',1.2,'DisplayName','k^{-5}');
+xlabel('k');ylabel('E(k)');grid on;
+title('Energy spectrum');set(gca,'FontSize',16);
+legend
 %%
 Ek_av = [k Ek];
 save('Ek_layer2_baroclinic_av.mat','Ek_av');
 %%
 print -dpng ~/hydro/drake/energy_spectrum.png
 %% CWT for a subset of Earth
-selection = 'Laminar'
+s_wrap = [s_ll(1:end-1,1:end-1); flipud(s_ll(1:end-1,1:end-1))]; 
+nx = size(s_wrap,1); 
+lat_wrap = [lat(1:size(s_ll,1)-1) 180+lat(1:size(s_ll,1)-1)]; 
+lon_wrap = lon(1:end-1);
+Lx  = 2*pi*radius; Ly = Lx;
+
+selection = 'Vortical'
 if strcmp (selection, 'Vortical')
     lon_min = -40;
     lon_max =  80;
@@ -256,7 +291,7 @@ colormap(jet(numel(c_scale)-1));caxis([min(c_scale) max(c_scale)]);c=colorbar;
 c.Label.String=v_title;c.Label.FontSize=16;c.YTick=c_scale;
 axis('equal'); 
 [~,h]=contourf(lon_sel, lat_sel, s_sel, c_scale, 'LineColor','none');
-xlabel('Longitude');ylabel('Latitude');
+xlabel('Longitude');ylabel('Latitude');axis('equal');
 title([selection ' selection for wavelet spectrum']);set(gca,'FontSize',16);
 %% 
 print_save = ["~/hydro/drake/selection_" selection ".png"]
@@ -277,7 +312,7 @@ end
 Ew = 0.5 * Ew * (dx/nx)^2;
 
 % Rescale to energy spectrum integrated over shells
-k_wav = 2*pi./(scales * 2*pi/nx)';
+k_wav = 2*pi./(scales * 2*pi/Nx)';
 
 %Ew = Ew * pi.*k_wav;
 Ew = Ew ./k_wav.^2 * pi.*k_wav;

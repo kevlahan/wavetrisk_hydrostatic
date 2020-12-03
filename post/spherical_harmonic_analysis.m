@@ -2,12 +2,13 @@
 clear;
 test_case  = 'drake';
 %run_id     = '2layer_slow'; cp_id = '0015';
-run_id     = '1layer_J6'; cp_id = '0015';
+%run_id     = '1layer_J6'; cp_id = '0015';
 %run_id     = '2layer_J6'; cp_id = '0015';
 %run_id     = '1layer_fast'; cp_id = '0015';
-%run_id     = '2layer_fast'; cp_id = '0015';
+run_id     = '2layer_fast'; cp_id = '0015';
 %type       = 'baroclinic_2';
-type       = 'barotropic';
+type       = 'total_2';
+%type       = 'barotropic';
 local      = false;
 machine    = 'if.mcmaster.ca';
 %machine    = 'mac';
@@ -171,6 +172,22 @@ if strcmp(type,'baroclinic_1') || strcmp(type,'baroclinic_2')
     end
 end
 
+if strcmp(type,'total_1') || strcmp(type,'total_2')
+    % Power spectrum
+    loglog(scales(:,1),pspec(:,2),'r-','linewidth',3,'DisplayName',type);hold on;grid on;
+    
+    % Power laws
+    if strcmp(run_id,'2layer_slow')
+        powerlaw (scales, pspec(:,2), 1500, 15, -3, 'b--')
+    elseif strcmp(run_id,'2layer_fast')
+        powerlaw (scales, pspec(:,2), 2000, 10, -3, 'b--')
+        powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
+    elseif strcmp(run_id,'2layer_J6')
+        powerlaw (scales, pspec(:,2), 2000, 10, -5/3, 'b--')
+        powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
+    end
+end
+
 % Local power spectra
 if local
     file_base   = [run_id '_' cp_id '_' type '_local_spec'];
@@ -195,6 +212,8 @@ if strcmp(run_id,'2layer_slow')
     title("\Omega = \Omega_{Earth}/24");
 elseif strcmp(run_id,'1layer_fast') || strcmp(run_id,'2layer_fast')
     title("\Omega = \Omega_{Earth}");
+elseif strcmp(run_id,'1layer_J6')
+    title("\Omega = \Omega_{Earth}/6");
 elseif strcmp(run_id,'2layer_J6')
     title("\Omega = \Omega_{Earth}/6");
 end
