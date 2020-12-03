@@ -468,7 +468,7 @@ contains
     end if
 
     ! Ensure stability
-    C_visc = min ((1.0_8/30)**Laplace_order_init, max (C_visc, 1d-4))
+    C_visc = min ((1.0_8/32)**Laplace_order_init, max (C_visc, 1d-4))
     
     C_rotu = C_visc
     C_divu = C_visc
@@ -740,7 +740,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
     
     dmass(id_i) = 0.0_8
-    dtemp(id_i) = - k_T * temp(id_i)
+    dtemp(id_i) = - temp(id_i) * k_T
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)

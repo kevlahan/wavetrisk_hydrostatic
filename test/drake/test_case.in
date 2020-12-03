@@ -1,7 +1,7 @@
 test_case          drake         ! name of test case
 run_id             drake_2layer  ! name of run (for saved data)
 scale       	   6             ! scaling factor for radius: radius = radius_earth/scale
-scale_omega        6             ! scaling factor for omega: omega = omega_earth/scale	
+scale_omega        1             ! scaling factor for omega: omega = omega_earth/scale	
 max_level	   8             ! maximum level of resolution
 level_fill	   5             ! make all points active up to level_level (accelerates elliptic solver)	
 zlevels            2             ! number of vertical levels
@@ -13,7 +13,7 @@ fine_iter          20             ! maximum number of elliptic solver jacobi ite
 log_iter           F             ! print elliptic solver relative residual error
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 tol      	   4e-3          ! non-dimensional tolerance
-cfl_num            20           ! cfl number for barotropic mode
+cfl_num            25           ! cfl number for barotropic mode
 adapt_dt           T             ! adapt time step
 dt_write           5             ! save interval (days)
 CP_EVERY           1             ! checkpoint every CP_EVERY saves
@@ -22,5 +22,5 @@ resume            -1             ! restart from checkpoint (negative means fresh
 alpha              1e-2          ! porosity penalization parameter
 drag               T             ! use bottom drag if T
 npts_penal         4.5             ! number of grid points over which to smooth mask
-resolution         2.0            ! number of grid points Munk scale (determines viscosity)
+resolution         3.0            ! number of grid points Munk scale (determines viscosity)
 

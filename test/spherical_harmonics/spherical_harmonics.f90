@@ -174,6 +174,32 @@ contains
        call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
 
+    ! Total (non split) vorticity in each layer
+    do k = 1, 2
+       do d = 1, size(grid)
+          velo  => sol(S_VELO,k)%data(d)%elts
+          vort  => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), l, z_null)
+          nullify (velo, vort)
+       end do
+       do d = 1, size(grid)
+          vort => grid(d)%press_lower%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          end do
+          nullify (vort)
+       end do
+       field2d = 0.0_8
+       call project_vorticity_onto_plane (l, 1.0_8)
+       if (rank == 0) then
+          write (data_type, '(a6,i1)') "total_", k
+          call spectrum_lon_lat (data_type)
+       end if
+    end do
+
     ! Barotropic velocity
     do d = 1, size(grid)
        ibeg   = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
