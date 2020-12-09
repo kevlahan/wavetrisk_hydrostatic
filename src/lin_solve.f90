@@ -349,7 +349,8 @@ contains
 
     integer                                       :: l, m
     integer, dimension(level_start:level_end)     :: iter
-    real(8)                                       :: nrm
+    real(8), parameter                            :: tol_jacobi = 1d-2
+    real(8)                                       :: nrm_f, nrm_u
     real(8), dimension(1:2,level_start:level_end) :: r_error
     
     interface
@@ -362,24 +363,38 @@ contains
        end function Lu
     end interface
 
-    iter = 0
-    nrm = l2 (f, level_start) ; if (nrm == 0.0_8) nrm = 1.0_8
-    do l = level_start, level_end
-       if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm
-    end do
+    nrm_f = l2 (f, level_start)
+    nrm_u = l2 (u, level_start)
 
-    call bicgstab (u, f, Lu, level_start, coarse_iter, nrm, iter(level_start), tol_elliptic)
-    do l = level_start+1, level_end
-       call prolongation (u, l)
-       call jacobi (u, f, Lu, l, fine_iter, nrm, iter(l), 1d-2)
-    end do
-
-    if (log_iter) then
-       do l = level_start, level_end
-          r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm
-          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
-               l, r_error(:,l), iter(l)
+    if (nrm_f > tol * nrm_u) then
+       if (log_iter) then
+          do l = level_start, level_end
+             r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
+          end do
+       end if
+    
+       iter = 0
+       call bicgstab (u, f, Lu, level_start, coarse_iter, nrm_f, iter(level_start), tol_elliptic)
+       do l = level_start+1, level_end
+          call prolongation (u, l)
+          call jacobi (u, f, Lu, l, fine_iter, nrm_f, iter(l), tol_jacobi)
        end do
+       
+       if (log_iter) then
+          do l = level_start, level_end
+             r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
+             if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
+                  l, r_error(:,l), iter(l)
+          end do
+       end if
+    else ! solution is zero
+       if (log_iter) then
+          do l = level_start, level_end
+             call set_zero (u, l)
+             r_error(1,l) = l2 (residual (f, u, Lu, l), l)
+             if (rank == 0) write (6, '("residual at scale ", i2, " = ", es10.4,1x)') l, r_error(1,l)
+          end do
+       end if
     end if
   end subroutine multiscale
 
@@ -408,8 +423,8 @@ contains
     do i = 1, max_iter
        iter = iter + 1
        call lc (u, inv_diag, residual (f, u, Lu, l), u, l)
-!!$       err = l2 (residual (f, u, Lu, l), l) / nrm
-!!$       if (err < tol) exit
+       err = l2 (residual (f, u, Lu, l), l) / nrm
+       if (err < tol) exit
     end do
   end subroutine jacobi
 
@@ -456,14 +471,12 @@ contains
        p = lcf (res, b, lcf (p, -omga, v, l), l)
 
        v = Lu (p, l)
-
        alph = rho / dp (res0, v, l)
 
        s = lcf (res, -alph, v, l)
        t = Lu (s, l)
 
        omga = dp (t, s, l) / dp (t, t, l)
-
        call lc2 (u, alph, p, omga, s, l)
 
        res = lcf (s, -omga, t, l)

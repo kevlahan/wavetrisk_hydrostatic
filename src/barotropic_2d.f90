@@ -5,29 +5,7 @@ module barotropic_2d_mod
   use lin_solve_mod
   implicit none
 contains
-  subroutine u_star (dt, q)
-    ! Explicit Euler step for intermediate velocity u_star
-    ! remove external pressure gradient
-    implicit none
-    real(8)                                   :: dt
-    type(Float_Field), dimension(:,:), target :: q
-    
-    integer :: d, ibeg, iend, k, l
-
-    ! External pressure gradient
-    call grad_eta (q(:,zlevels+1), horiz_flux(S_TEMP))
-    
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = sol(S_VELO,k)%data(d)%length
-          q(S_VELO,k)%data(d)%elts(ibeg:iend) = sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
-               + dt * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) - horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
-       end do
-    end do
-  end subroutine u_star
-
-  subroutine scalar_star (dt, q)
+   subroutine scalar_star (dt, q)
     ! Explicit Euler step for density
     implicit none
     real(8)                                   :: dt
@@ -39,49 +17,130 @@ contains
        do d = 1, size(grid)
           do v = scalars(1), scalars(2)
              ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = sol(v,k)%data(d)%length
+             iend = q(v,k)%data(d)%length
              q(v,k)%data(d)%elts(ibeg:iend) = sol(v,k)%data(d)%elts(ibeg:iend) + dt * trend(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
     end do
   end subroutine scalar_star
 
-  subroutine eta_update (q)
-    ! Backwards Euler step for eta update
-    use lin_solve_mod
+  subroutine u_star (dt, q)
+    ! Explicit Euler step for intermediate velocity u_star
+    ! remove external pressure gradient
     implicit none
-    type(Float_Field), dimension(:,:), target :: q
-
-    call rhs_elliptic (q)
-    call multiscale (q(S_MASS,zlevels+1), q(S_TEMP,zlevels+1), elliptic_lo)
-  end subroutine eta_update
-
-  subroutine u_update (q)
-    ! Explicit Euler velocity update with new external pressure gradient
-    ! penalization is advanced using a backwards Euler scheme
-    implicit none
+    real(8)                                   :: dt
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, ibeg, iend, k, l
-    
+
     ! External pressure gradient
-    call grad_eta (q(:,zlevels+1), horiz_flux(S_TEMP))
-    
+    call grad_eta
+
     do k = 1, zlevels
        do d = 1, size(grid)
           ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
           iend = q(S_VELO,k)%data(d)%length
-          q(S_VELO,k)%data(d)%elts(ibeg:iend) = (q(S_VELO,k)%data(d)%elts(ibeg:iend) &
+          q(S_VELO,k)%data(d)%elts(ibeg:iend) = sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
+               + dt * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) - horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
+       end do
+    end do
+  end subroutine u_star
+
+  subroutine barotropic_correction (q)
+    ! Update baroclinic variables mass and mass-weighted buoyancy with new free surface perturbation
+    ! uses Bleck and Smith (J. Geophys. Res. 95, 3273–3285 1990) layer dilation method
+    ! NOTE: individual layers no longer conserve mass (although total mass is conserved)
+    implicit none
+    type(Float_Field), dimension(:,:), target :: q
+    
+    integer :: d, k, p
+
+    ! Sum mass perturbations
+    call sum_vertical_mass (q(S_MASS,1:zlevels), exner_fun(1))
+
+    do d = 1, size(grid)
+       scalar    => sol(S_MASS,zlevels+1)%data(d)%elts ! free surface perturbation
+       scalar_2d => exner_fun(1)%data(d)%elts        ! sum of mass perturbations
+       do k = 1, zlevels
+          mass   => q(S_MASS,k)%data(d)%elts
+          temp   => q(S_TEMP,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (cal_barotropic_correction, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (mass, temp, mean_m, mean_t)
+       end do
+       nullify (scalar, scalar_2d)
+    end do
+  end subroutine barotropic_correction
+
+  subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
+    ! Correct baroclinic mass and buoyancy based on baroclinic estimate of free surface using layer dilation
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+    real(8) :: full_mass, mean_theta, theta
+
+    id = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id) >= ADJZONE) then
+       d = dom%id + 1
+       full_mass  = mean_m(id) + mass(id)
+       if (remap) then
+          mean_theta = mean_t(id)  /mean_m(id)
+          theta = (temp(id) - mass(id) * mean_theta) / mean_m(id) ! do not include quadratic fluctuation terms
+       end if
+
+       ! Correct mass perturbation
+       mass(id) = ref_density*(scalar(id) - phi_node (d, id, zlev)*grid(d)%topo%elts(id))/scalar_2d(id) * full_mass &
+            - mean_m(id)
+
+       ! Correct mass-weighted buoyancy
+       if (remap) then
+          full_mass = mean_m(id) + mass(id)
+          temp(id) = mean_m(id) * theta + mass(id) * mean_theta ! do not include quadratic fluctuation terms
+       else ! assume buoyancy is constant in each layer
+          temp(id) = mass(id) * mean_t(id) / mean_m(id) 
+       end if
+    end if
+  end subroutine cal_barotropic_correction
+
+  subroutine eta_update
+    ! Backwards Euler step for eta update
+    use lin_solve_mod
+    implicit none
+  
+    call rhs_elliptic
+    call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
+  end subroutine eta_update
+
+  subroutine u_update
+    ! Explicit Euler velocity update with new external pressure gradient
+    ! penalization is advanced using a backwards Euler scheme
+    implicit none
+    integer :: d, ibeg, iend, k, l
+    
+    ! External pressure gradient
+    call grad_eta
+    
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = sol(S_VELO,k)%data(d)%length
+          sol(S_VELO,k)%data(d)%elts(ibeg:iend) = (sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
                + dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
        end do
     end do
   end subroutine u_update
 
-  subroutine rhs_elliptic (q)
+  subroutine rhs_elliptic 
     ! Forms rhs of elliptic equation for free surface, -eta^* in q(S_TEMP_zlevels+1)
     implicit none
-    type(Float_Field), dimension(:,:), target :: q
-    
     integer :: d, j, l
 
     do l = level_end, level_start, -1
@@ -90,14 +149,15 @@ contains
           h_flux => horiz_flux(S_MASS)%data(d)%elts
           scalar => sol(S_MASS,zlevels+1)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
-             call step1 (q=q, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
+             call step1 (q=sol, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
           end do
+          nullify (scalar)
           if (l < level_end) then
              dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
              call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
              nullify (dscalar)
           end if
-          nullify (h_flux, scalar)
+          nullify (h_flux)
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
        call update_bdry (horiz_flux(S_MASS), l, 211)
@@ -118,7 +178,7 @@ contains
        do d = 1, size(grid)
           dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
           mass    =>   sol(S_MASS,zlevels+1)%data(d)%elts
-          mass1   =>     q(S_TEMP,zlevels+1)%data(d)%elts
+          mass1   =>   sol(S_TEMP,zlevels+1)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (cal_rhs_elliptic, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
@@ -200,70 +260,6 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) dscalar(id) = dt**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
   end subroutine complete_elliptic_lo
 
-  subroutine barotropic_correction (q)
-    ! Update baroclinic variables mass and mass-weighted buoyancy with new free surface perturbation
-    ! uses Bleck and Smith (J. Geophys. Res. 95, 3273–3285 1990) layer dilation method
-    ! NOTE: individual layers no longer conserve mass (although total mass is conserved)
-    implicit none
-    type(Float_Field), dimension(:,:), target :: q
-    
-    integer :: d, k, p
-
-    ! Sum mass perturbations
-    call sum_vertical_mass (q(S_MASS,1:zlevels), exner_fun(1))
-
-    do d = 1, size(grid)
-       scalar    => q(S_MASS,zlevels+1)%data(d)%elts ! free surface perturbation
-       scalar_2d => exner_fun(1)%data(d)%elts        ! sum of mass perturbations
-       do k = 1, zlevels
-          mass   => q(S_MASS,k)%data(d)%elts
-          temp   => q(S_TEMP,k)%data(d)%elts
-          mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (cal_barotropic_correction, grid(d), p-1, k, 0, 1)
-          end do
-          nullify (mass, temp, mean_m, mean_t)
-       end do
-       nullify (scalar, scalar_2d)
-    end do
-  end subroutine barotropic_correction
-
-  subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
-    ! Correct baroclinic mass and buoyancy based on baroclinic estimate of free surface using layer dilation
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id
-    real(8) :: full_mass, mean_theta, theta
-
-    id = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       d = dom%id + 1
-       full_mass  = mean_m(id) + mass(id)
-       if (remap) then
-          mean_theta = mean_t(id)  /mean_m(id)
-          theta = (temp(id) - mass(id) * mean_theta) / mean_m(id) ! do not include quadratic fluctuation terms
-       end if
-
-       ! Correct mass perturbation
-       mass(id) = ref_density*(scalar(id) - phi_node (d, id, zlev)*grid(d)%topo%elts(id))/scalar_2d(id) * full_mass &
-            - mean_m(id)
-
-       ! Correct mass-weighted buoyancy
-       if (remap) then
-          full_mass = mean_m(id) + mass(id)
-          temp(id) = mean_m(id) * theta + mass(id) * mean_theta ! do not include quadratic fluctuation terms
-       else ! assume buoyancy is constant in each layer
-          temp(id) = mass(id) * mean_t(id) / mean_m(id) 
-       end if
-    end if
-  end subroutine cal_barotropic_correction
-
   subroutine sum_vertical_mass (q, q_2d)
     ! Vertical sum of flux of q, returned in q_2d
     ! Assumes linearized free surface (i.e. remove free surface perturbation from sum)
@@ -342,20 +338,17 @@ contains
     if (dom%mask_n%elts(id_par) >= RESTRCT) scalar(id_par) = scalar(id_chd)
   end subroutine eta_cpt_restr
 
-  subroutine grad_eta (q, dq)
+  subroutine grad_eta
     ! Calculates grad eta (external pressure gradient due to free surface perturbation)
     implicit none
-    type(Float_Field), dimension(:), target :: q
-    type(Float_Field),               target :: dq
-    
     integer :: d, j, k, l
 
     ! Calculate external pressure gradient
-    q(S_TEMP) = q(S_MASS) ! copy eta to avoid modification by restriction
+    sol(S_TEMP,zlevels+1) = sol(S_MASS,zlevels+1) ! copy eta to avoid modification by restriction
     do l = level_end, level_start, -1 
        do d = 1, size(grid)
-          h_flux => dq%data(d)%elts
-          scalar => q(S_TEMP)%data(d)%elts
+          h_flux => horiz_flux(S_TEMP)%data(d)%elts
+          scalar => sol(S_TEMP,zlevels+1)%data(d)%elts
           if (l < level_end) call cpt_or_restr_eta (grid(d), l) ! restrict eta if possible
           do j = 1, grid(d)%lev(l)%length
              call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=3)

@@ -308,10 +308,14 @@ contains
     implicit none        
     real(8) :: dt
 
-    call trend_ml (sol(:,1:zlevels), trend(:,1:zlevels))
-    call RK_split (dt, sol)
+    call trend_ml (sol, trend)
+    
+    call u_star (dt, sol)
+    call scalar_star (dt, sol)
+    call barotropic_correction (sol)
     call WT_after_step (sol, wav_coeff)
-    call free_surface_update (sol)
+
+    call free_surface_update
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine Euler_split
 
@@ -328,55 +332,50 @@ contains
 
     call trend_ml (sol, trend)
     call RK_split (dt/4, q1)
-    call WT_after_step (q1, wav_coeff)
+    call WT_after_step (q1(:,1:zlevels), wav_coeff)
 
     call trend_ml (q1, trend)
     call RK_split (dt/3, q1)
-    call WT_after_step (q1, wav_coeff)
+    call WT_after_step (q1(:,1:zlevels), wav_coeff)
 
     call trend_ml (q1, trend)
     call RK_split (dt/2, q1)
-    call WT_after_step (q1, wav_coeff)
+    call WT_after_step (q1(:,1:zlevels), wav_coeff)
 
     call trend_ml (q1, trend)
-    call RK_split (dt, q1)
-    call WT_after_step (q1, wav_coeff)
+    call RK_split (dt, sol)
+    call WT_after_step (sol(:,1:zlevels), wav_coeff)
 
-    call free_surface_update (q1); sol = q1
-
+    call free_surface_update 
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK4_split
 
   subroutine RK_split (dt, dest)
     ! Explicit Euler integration of velocity and scalars used in RK4_split
     implicit none
-    real(8)                                           :: dt
-    type(Float_Field), dimension(:,:), intent (inout) :: dest
-
-    ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
-    call u_star (dt, dest)
-
+    real(8)                           :: dt
+    type(Float_Field), dimension(:,:) :: dest
+   
     ! Explicit Euler step for scalars
     call scalar_star (dt, dest)
+
+     ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
+    call u_star (dt, dest)
 
     ! Make layer heights and buoyancy consistent with free surface
     call barotropic_correction (dest)
   end subroutine RK_split
 
-  subroutine free_surface_update (dest)
+  subroutine free_surface_update
     ! Backwards Euler implicit calculation of new free surface and correction of velocity and scalars
     ! (free surface correction step of RK4_split)
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), intent(inout) :: dest
 
     ! Backwards Euler step for new free surface, updates sol(S_MASS,zlevels+1)
-    call eta_update (dest)
+    call eta_update
 
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
-    call u_update (dest)
-
-    ! Make layer heights and buoyancy consistent with new free surface
-    call barotropic_correction (dest)
+    call u_update
   end subroutine free_surface_update
 
   subroutine apply_penal (q)
