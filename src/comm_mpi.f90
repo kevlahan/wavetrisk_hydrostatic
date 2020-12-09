@@ -2,11 +2,12 @@ module comm_mpi_mod
   use domain_mod
   use comm_mod
   implicit none
-  integer                              :: nreq
-  type(Int_Array)                      :: recv_buf_i, send_buf_i
-  type(Float_Array)                    :: recv_buf, send_buf
-  integer, dimension(:),   allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
-  real(8), dimension(2)                :: times
+  integer                            :: nreq
+  type(Int_Array)                    :: recv_buf_i, send_buf_i
+  type(Float_Array)                  :: recv_buf, send_buf
+  integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
+  real(8), dimension(2)              :: times
+  logical, parameter                 :: deadlock = .false. ! test for communication deadlocks
 contains
   subroutine init_comm_mpi
     implicit none
@@ -428,7 +429,7 @@ contains
     integer           :: flag, l_start, l_end
 
     call update_bdry__start1  (field, l_start, l_end)
-    call deadlock_test (flag)
+    if (deadlock) call deadlock_test (flag)
     call update_bdry__finish1 (field, l_start, l_end)
   end subroutine update_bdry1
 
@@ -438,7 +439,7 @@ contains
     integer                         :: flag, l_start, l_end
 
     call update_vector_bdry__start1  (field, l_start, l_end)
-    call deadlock_test (flag)
+    if (deadlock) call deadlock_test (flag)
     call update_vector_bdry__finish1 (field, l_start, l_end)
   end subroutine update_vector_bdry1
 
@@ -448,7 +449,7 @@ contains
     integer                           :: flag, l_start, l_end
 
     call update_array_bdry__start1  (field, l_start, l_end)
-    call deadlock_test (flag)
+    if (deadlock) call deadlock_test (flag)
     call update_array_bdry__finish1 (field, l_start, l_end)
   end subroutine update_array_bdry1
 
@@ -458,7 +459,7 @@ contains
     integer           :: flag, l
 
     call update_bdry__start  (field, l)
-    call deadlock_test (flag)
+    if (deadlock) call deadlock_test (flag)
     call update_bdry__finish (field, l)
   end subroutine update_bdry
 
@@ -469,7 +470,7 @@ contains
     integer                         :: flag, l
 
     call update_vector_bdry__start  (field, l)
-    call deadlock_test (flag)
+    if (deadlock) call deadlock_test (flag)
     call update_vector_bdry__finish (field, l)
   end subroutine update_vector_bdry
   
@@ -480,7 +481,7 @@ contains
     integer                           :: flag, l
 
     call update_array_bdry__start  (field, l)
-    call deadlock_test (flag)
+    if (deadlock) call deadlock_test (flag)
     call update_array_bdry__finish (field, l)
   end subroutine update_array_bdry
 

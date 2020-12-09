@@ -309,7 +309,7 @@ contains
     ! Default run values
     ! these parameters are typically reset in the input file, but are needed for compilation
 
-    alpha               = 1d-1          ! porosity
+    alpha               = 1d-2          ! porosity
     cfl_num             = 1.0_8
     C_visc              = 1d-2
     c1                  = 1d-16         ! default value for internal wave speed (used for incompressible cases)
