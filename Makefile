@@ -40,7 +40,7 @@ else # gfortran as default
   F90    = gfortran
   MPIF90 = mpif90
   OPTIM  = -O2
-  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all -std=gnu -ffast-math -fPIC
+  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
   LIBS   = 
 endif
 
