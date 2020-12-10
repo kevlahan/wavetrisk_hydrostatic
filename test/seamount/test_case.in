@@ -1,0 +1,20 @@
+test_case          seamount      ! name of test case
+run_id             seamount      ! name of run (for saved data)
+max_level	   7             ! maximum level of resolution
+level_fill	   5             ! make all points active up to level_level (accelerates elliptic solver)	
+zlevels            20             ! number of vertical levels
+remap              F             ! remap vertical grid
+iremap             10            ! remap every iremap time steps
+tol_elliptic       1e-08          ! tolerance for elliptic solver 
+coarse_iter        20           ! maximum number of elliptic solver bicgstab iterations at coarsest level
+fine_iter          20             ! maximum number of elliptic solver jacobi iterations at finer levels
+log_iter           F             ! print elliptic solver relative residual error
+default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
+tol      	   4e-3          ! non-dimensional tolerance
+cfl_num            25           ! cfl number for barotropic mode
+adapt_dt           T             ! adapt time step
+dt_write           5             ! save interval (days)
+CP_EVERY           1             ! checkpoint every CP_EVERY saves
+time_end           1000          ! final time (days)
+resume            -1             ! restart from checkpoint (negative means fresh restart)
+
