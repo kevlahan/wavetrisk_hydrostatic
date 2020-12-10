@@ -376,6 +376,9 @@ contains
 
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
     call u_update
+
+    ! Make layer heights and buoyancy consistent with free surface
+    call barotropic_correction (sol)
   end subroutine free_surface_update
 
   subroutine apply_penal (q)
