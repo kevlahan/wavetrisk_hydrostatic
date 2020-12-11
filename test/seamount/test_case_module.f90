@@ -12,12 +12,14 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  real(8)                              :: beta, bv, drho, drho_dz, f0, Rb, Rd, Rey, Ro
+  real(8)                              :: beta, bu, bv, drho, drho_dz, f0, Rb, Rd, Rey, Ro
   real(8)                              :: bottom_friction, delta, h0, lat_c, lon_c, max_depth, min_depth, mixed_layer, width
-  real(8)                              :: radius_earth, omega_earth, scale, halocline, visc
+  real(8)                              :: radius_earth, omega_earth, scale, halocline, tke, visc
   real(8)                              :: tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: drag, mean_split
+
+  character(255)                       :: coords, stratification                   
 contains
   subroutine read_test_case_parameters
     implicit none
@@ -127,8 +129,11 @@ contains
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
        write (6,'(A,es11.4)') "halocline                 [m]  = ", abs (halocline)
        write (6,'(A,es11.4)') "mixed layer               [m]  = ", abs (mixed_layer)
+       write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
+       write (6,'(a,a)')      "stratification                 = ", trim (stratification)
        write (6,'(A,es11.4)') "density difference   [kg/m^3]  = ", drho
        write (6,'(A,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
+       write (6,'(A,es11.4)') "Burger number                  = ", bu
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
@@ -155,22 +160,27 @@ contains
 
   subroutine print_log
     ! Prints out and saves logged data to a file
+    use lnorms_mod
     implicit none
 
     integer :: min_load, max_load
-    real(8) :: avg_load, rel_imbalance, timing
+    real(8) :: avg_load, maxv, rel_imbalance, timing
 
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
+    call cal_lnorm_sol (sol, "inf")
+    maxv = 100 * maxval (lnorm(S_VELO,:))
+
     if (rank == 0) then
-       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
+       write (6,'(a,es12.6,5(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', threshold(S_MASS,zlevels), &
             ' temp tol = ', threshold(S_TEMP,zlevels), &
             ' velo tol = ', threshold(S_VELO,zlevels), &
+            ' maxv = ', maxv, &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' min rel mass = ', min_mass, &
@@ -178,8 +188,8 @@ contains
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
-       write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
-            threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
+       write (12,'(6(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
+            threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), maxv, &
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
@@ -212,7 +222,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta_surf, phi, porous_density, z
+    real (8)    :: dz, eta_surf, phi, porous_density, z, z_s
     type(Coord) :: x_i
 
     d    = dom%id+1
@@ -220,6 +230,7 @@ contains
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
     eta_surf = init_free_surface (x_i)
+    z_s = dom%topo%elts(id_i)
 
     if (zlev == zlevels+1) then ! 2D barotropic mode
        phi = 1.0_8 + (alpha - 1.0_8) * penal_node(zlevels)%data(d)%elts(id_i)
@@ -227,8 +238,7 @@ contains
        sol(S_MASS,zlev)%data(d)%elts(id_i) = phi * eta_surf ! free surface perturbation
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     else ! 3D layers
-       dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
-       z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
+       dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
 
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
 
@@ -241,7 +251,7 @@ contains
           sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
        else
           sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
+          sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (z_s, x_i, zlev)
        end if
     end if
     ! Set initial velocity field to zero
@@ -257,7 +267,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta_surf, porous_density, z
+    real (8)    :: dz, eta_surf, porous_density, z_s
     type(Coord) :: x_i
 
     d    = dom%id+1
@@ -265,19 +275,19 @@ contains
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
     eta_surf = init_free_surface (x_i)
+    z_s = dom%topo%elts(id_i)
 
     if (zlev == zlevels+1) then
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     else
-       dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
-       z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
+       dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
 
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
 
        if (mean_split) then
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (z_s, x_i, zlev)
        else
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
@@ -332,43 +342,61 @@ contains
     init_free_surface = 0.0_8
   end function init_free_surface
 
-  real(8) function buoyancy (x_i, z)
+  real(8) function buoyancy (z_s, x_i, zlev)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
+    implicit none
+    integer     :: id_i, zlev
+    real(8)     :: z_s
+    type(Coord) :: x_i
+
+    real(8) :: rho, z1, z2
+    real(8) :: eta_surf = 0.0_8
+
+    z1 = a_vert(zlev-1) * eta_surf + b_vert(zlev-1) * z_s
+    z2 = a_vert(zlev)   * eta_surf + b_vert(zlev)   * z_s
+
+    rho = 0.5 * (density (x_i, z1) + density (x_i, z2))
+    
+    buoyancy = (ref_density - rho) / ref_density 
+  end function buoyancy
+
+  real(8) function density (x_i, z)
     implicit none
     real(8)     :: z
     type(Coord) :: x_i
 
-    real(8) :: density
-    
-    density = ref_density + drho * exp__flush (z/delta)
-    
-    buoyancy = (density - ref_density) / ref_density 
-  end function buoyancy
-
+    if (trim(stratification) == "linear") then 
+       density = ref_density + drho * (max_depth-z)/max_depth
+    elseif (trim(stratification) == "exponential") then
+       density = ref_density + drho * exp__flush (z/delta)
+    end if
+  end function density
+  
   subroutine print_density_pert
     implicit none
     integer     :: k
-    real(8)     :: depth, eta_surf, lat, lon, z
+    real(8)     :: eta_surf, lat, lon, z, z_s
     type(Coord) :: p 
 
     eta_surf = 0.0_8
 
-    p = sph2cart (lon_c, lat_c) ! centre of seamount
+!!$    p = sph2cart (lon_c, lat_c) ! centre of seamount
 !!$    p = sph2cart (lon_c + width/radius / DEG, lat_c) ! edge of seamount
+    p = sph2cart (lon_c + width/radius / DEG, lat_c + width/radius / DEG) ! mid ocean
     
     p%x = radius * p%x ; p%y = radius * p%y ; p%z = radius * p%z  
 
-    depth = max_depth + surf_geopot (p) / grav_accel
+    z_s = max_depth + surf_geopot (p) / grav_accel
+    
     write (6,'(a)') " Layer    z       drho"      
     do k = 1, zlevels
-       z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * depth)
-       write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, buoyancy (p, z)*ref_density
+       z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * z_s)
+       write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, -ref_density * buoyancy (z_s, p, k)
     end do
     write (6,'(/)')
-    write (6,'(a)') " Layer    z"    
     do k = 0, zlevels
-       z = a_vert(k) * eta_surf + b_vert(k) * depth
+       z = a_vert(k) * eta_surf + b_vert(k) * z_s
        write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z
     end do
     write (6,'(A)') &
@@ -427,7 +455,7 @@ contains
 
        lnorm(S_MASS,k) = ref_density*dz
 
-       lnorm(S_TEMP,k) = ref_density*dz * abs(buoyancy (x_i, z))
+       lnorm(S_TEMP,k) = ref_density*dz * buoyancy (max_depth, x_i, k)
        if (lnorm(S_TEMP,k) == 0.0_8) lnorm(S_TEMP,k) = 1d16
 
        lnorm(S_VELO,k) = Udim
@@ -450,12 +478,12 @@ contains
     dx_max = sqrt (4/sqrt(3.0_8) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1)
+    dt_cfl = cfl_num * dx_min / wave_speed
     dt_init = dt_cfl
 
-    C_sclr = 1d-3
-    C_divu = 1d-3
-    C_rotu = 1d-3
+    C_sclr = 5d-3
+    C_divu = 5d-3
+    C_rotu = 5d-3
     
     ! Diffusion time scales
     tau_sclr = dt_cfl / C_sclr
@@ -524,12 +552,11 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer            :: id, id_i
-    type(Coord)        :: p
+    integer :: id_i
 
-    id_i = idx (i, j, offs, dims)
+    id_i = idx (i, j, offs, dims) + 1
 
-    dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
+    dom%topo%elts(id_i) = max_depth + surf_geopot (dom%node%elts(id_i)) / grav_accel
   end subroutine topography
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
@@ -577,11 +604,20 @@ contains
     elseif (zlevels == 3) then
        a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;               a_vert(2) = 0.0_8;                 a_vert(3) = 1.0_8 
        b_vert(0) = 1.0_8; b_vert(1) = halocline/max_depth; b_vert(2) = mixed_layer/max_depth; b_vert(3) = 0.0_8
-    else ! uniform sigma grid: z = a_vert*eta + b_vert*z_s
-       do k = 0, zlevels
-          a_vert(k) = dble(k)/dble(zlevels)
-          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-       end do
+    else
+       if (trim (coords) == "uniform") then 
+          do k = 0, zlevels
+             a_vert(k) = dble(k)/dble(zlevels)
+             b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
+          end do
+       elseif (trim (coords) == "chebyshev") then
+          a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
+          do k = 1, zlevels-1
+             a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+             b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+          end do
+          a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
+       end if
     end if
     
     ! Vertical grid spacing

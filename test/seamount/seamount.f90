@@ -26,37 +26,39 @@ program Seamount
   p_top          = 0.0_8                   * hPa             ! pressure at free surface
   ref_density    = 1000                    * KG/METRE**3     ! reference density at depth (seawater)
 
-  scale          = 40                                        ! scaling factor for small planet
+  scale          = 80                                        ! scaling factor for small planet
   radius         = radius_earth/scale                        ! mean radius of the small planet
   omega          = omega_earth                               ! angular velocity (scaled for small planet to keep beta constant)
 
+  ! Depth and layer parameters
+  min_depth   =   -50 * METRE                                ! minimum allowed depth (must be negative)
+  max_depth   = -5000 * METRE                                ! total depth
+  halocline   = -1000 * METRE                                ! based on 90% decrease in density perturbation
+  drho        =    -3 * KG/METRE**3                      ! density perturbation at free surface 
+  tau_0       =     0 * NEWTON/METRE**2                      ! maximum wind stress
+  
   ! Seamount
   lat_c          = 43.29 * DEG                               ! latitude of seamount
   lon_c          =     0 * DEG                               ! longitude
-  h0             = 4500  * METRE                             ! height of seamount
+  h0             =  4500 * METRE                             ! height of seamount
   width          =    40 * KM                                ! radius of seamount
   delta          =   500 * METRE                             ! vertical decay of density
   visc           =    50 * METRE**2/SECOND                   ! viscosity for rotu
   drag           = .false.                                   ! no bottom friction
+  coords         = "chebyshev"                               ! uniform or chebyshev
+  stratification = "exponential"                             ! linear or exponential
   
   ! Numerical method parameters
-  match_time         = .false.                        ! avoid very small time steps when saving 
-  mode_split         = .true.                         ! split barotropic mode if true
-  penalize           = .true.                        ! no penalization
-  timeint_type       = "RK4"                          ! always use RK4
-  compressible       = .false.                        ! always run with incompressible equations
-  mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
-  remapscalar_type   = "PPR"                          ! optimal remapping scheme
-  remapvelo_type     = "PPR"                          ! optimal remapping scheme
+  match_time         = .false.                               ! avoid very small time steps when saving 
+  mode_split         = .true.                                ! split barotropic mode if true
+  penalize           = .false.                               ! no penalization
+  timeint_type       = "RK4"                                 ! always use RK4
+  compressible       = .false.                               ! always run with incompressible equations
+  mean_split         = .true.                                ! always split into mean and fluctuation (solve for fluctuation)
+  remapscalar_type   = "PPR"                                 ! optimal remapping scheme
+  remapvelo_type     = "PPR"                                 ! optimal remapping scheme
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
-
-  ! Depth and layer parameters
-  min_depth   =   -50 * METRE                      ! minimum allowed depth (must be negative)
-  max_depth   = -5000 * METRE                      ! total depth
-  halocline   = -1000 * METRE                      ! based on 90% decrease in density perturbation
-  drho        =    -3 * KG/METRE**3                ! density perturbation at free surface 
-  tau_0       =     0 * NEWTON/METRE**2            ! maximum wind stress
 
   ! Vertical level to save
   save_zlev = zlevels 
@@ -67,9 +69,10 @@ program Seamount
   beta           = 2*omega*cos(lat_c) / radius             ! beta parameter at 30 degrees latitude
   Rd             = wave_speed / f0                         ! barotropic Rossby radius of deformation                   
   drho_dz        = drho / halocline                        ! approximate density gradient
-  bv             = sqrt (grav_accel * drho_dz/ref_density) ! Brunt-Vaisala frequency
+  bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
   Ro             = 0.0_8                                   ! Rossby number
-
+  bu             = bv * h0 / (f0 * width)                  ! Burger number
+  if (rank==0) write (6,'(4(es11.4,1x))') drho_dz, grav_accel, ref_density, bv
   if (zlevels == 2) then
      c1 = sqrt (grav_accel*abs(drho)/2/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
   elseif (zlevels >= 3) then
