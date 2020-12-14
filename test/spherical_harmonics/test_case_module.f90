@@ -4,7 +4,7 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  integer                              :: m, N, ntaper, save_zlev
+  integer                              :: angular_order, N, ntaper, save_zlev
   real(8)                              :: concentration, lat0, lon0, theta0
   real(8)                              :: initotalmass, mass_error, ref_surf_press, totalmass
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
@@ -197,7 +197,7 @@ contains
     read (fid,*) varname, theta0
     read (fid,*) varname, concentration
     read (fid,*) varname, ntaper
-    read (fid,*) varname, m
+    read (fid,*) varname, angular_order
     close(fid)
 
     if (rank==0) then
@@ -222,7 +222,7 @@ contains
        write (6,'(A,es10.4)') "theta0                 = ", theta0
        write (6,'(A,es10.4)') "concentration          = ", concentration
        write (6,'(A,i3)')     "ntaper                 = ", ntaper
-       write (6,'(A,i3)')     "m                      = ", m
+       write (6,'(A,i3)')     "angular_order          = ", angular_order
        write (6,*) ' '
     end if
   end subroutine read_test_case_parameters

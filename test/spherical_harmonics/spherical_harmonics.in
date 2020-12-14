@@ -14,4 +14,4 @@ lon0            0.0         ! longitude (in degrees) of local region
 theta0          20          ! angular radius of spherical region for local spectrum
 concentration   0.99        ! percentage of total energy in local region
 ntaper          6           ! number of tapers (windows) to use in spectrum estimate (use all tapers with concentration close to desired value)
-m               2           ! angular order used to estimate spherical bandwidth for tapers (windows)
+angular_order   2           ! angular order used to estimate spherical bandwidth for tapers (windows)

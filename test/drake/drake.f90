@@ -79,7 +79,7 @@ program Drake
   beta           = 2*omega*cos(45*DEG) / radius            ! beta parameter at 30 degrees latitude
   Rd             = wave_speed / f0                         ! barotropic Rossby radius of deformation                   
   drho_dz        = drho / halocline                        ! density gradient
-  bv             = sqrt (grav_accel * drho_dz/ref_density) ! Brunt-Vaisala frequency
+  bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
 
   if (zlevels == 2) then
      c1 = sqrt (grav_accel*abs(drho)/2/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed

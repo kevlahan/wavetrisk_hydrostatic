@@ -1,18 +1,21 @@
-% Analyse spherical harmonic data
-clear;
+%% Analyse spherical harmonic data
 test_case  = 'drake';
 %run_id     = '2layer_slow'; cp_id = '0015';
 %run_id     = '1layer_J6'; cp_id = '0015';
 %run_id     = '2layer_J6'; cp_id = '0015';
 %run_id     = '1layer_fast'; cp_id = '0015';
-run_id     = '2layer_fast'; cp_id = '0015';
-%type       = 'baroclinic_2';
-type       = 'total_2';
+run_id     =  '2layer_fast'; cp_id = '0015';
+%run_id     = '2layer_equal'; cp_id = '0019';
+%run_id     = '2layer_mix'; cp_id = '0075';
+%run_id     = '2layer_thin'; cp_id = '0014';
+%run_id     = '2layer_mix_slow'; cp_id = '0009';
+type       = 'baroclinic_2';
+%type       = 'total_2';
 %type       = 'barotropic';
-local      = false;
+local      = true;
 machine    = 'if.mcmaster.ca';
+%machine    = 'niagara.computecanada.ca';
 %machine    = 'mac';
-new_transfer = true;
 
 % Parameters
 scale_earth =  6;
@@ -31,6 +34,18 @@ elseif strcmp(run_id,'2layer_J6')
 elseif strcmp(run_id,'2layer_slow')
     scale_omega =  24;
     uwbc        =  1.8;
+elseif strcmp(run_id,'2layer_mix')
+    scale_omega =  1;
+    uwbc        =  0.5;
+elseif strcmp(run_id,'2layer_mix_slow')
+    scale_omega =  6;
+    uwbc        =  0.5;
+elseif strcmp(run_id,'2layer_equal')
+    scale_omega =  1;
+    uwbc        =  1.0;
+elseif strcmp(run_id,'2layer_thin')
+    scale_omega =  1;
+    uwbc        =  2.0;
 end
 
 theta       =  45; % latitude at which to calculate f0 and beta
@@ -54,15 +69,16 @@ lambda1    = c1/f0;             % internal radius of deformation
 deltaSM    = uwbc/f0;           % submesoscale
 deltaI     = sqrt(uwbc/beta);   % inertial layer
 deltaM     = (visc/beta)^(1/3); % Munk layer 
-%% Plot data
+%% Load local region data
 file_base   = [run_id '_' cp_id '_' type];
 remote_file = ['~/hydro/' test_case '/' file_base];
 local_file  = ['~/hydro/' test_case '/' file_base];
 scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
-if ~strcmp(machine,'mac') && new_transfer 
+if ~strcmp(machine,'mac') 
     unix (sprintf(scp_cmd));
 end
 
+%% Plot local region
 fid = fopen(local_file);
 data = fread(fid,'single');
 N = round(-3/2 + sqrt(2*(numel(data)+1)));
@@ -77,30 +93,25 @@ lat  = (-N/4:N/4) * 360/N;
 
 % Target area for local spectral analysis
 if local
-    % Vortical region at southern edge of land mass
-    lat0   = -40;
-    lon0   =  20;
-    theta0 =  30;
-
-%     % Vortical region at southern edge of land mass 2layer_fill
-%      lat0   = -40;
-%      lon0   =  10;
-%      theta0 =  50;
+%     % Vortical region at southern edge of land mass
+%     lat0   = -40;
+%     lon0   =  20;
+%     theta0 =  30;
     
-%     % Vortical region at equator
-%     lat0   = 0;
-%     lon0   = 20;
-%     theta0 = 15;
+    % Vortical region at equator
+    lat0   = 0;
+    lon0   = 20;
+    theta0 = 15;
     
 %     % Vortical region at 45 N
 %     lat0   =  45;
-%     lon0   =  20;
+%     lon0   =  30;
 %     theta0 =  20;
     
 %     % Laminar region
 %     lat0   =  0;
 %     lon0   = -100;
-%     theta0 =  30;
+%     theta0 =  20;
     
     lat_min = lat0 - theta0;
     lat_max = lat0 + theta0;
@@ -121,8 +132,7 @@ lines   = 0;
 shift   = 0;
 plot_lon_lat_data(data, lon, lat, c_scale, v_title, smooth, shift, lines);
 axis(ax);
-%% Plot spectrum
-%figure;
+%% Load spectrum data
 file_base   = [run_id '_' cp_id '_' type '_spec'];
 remote_file = ['~/hydro/' test_case '/' file_base];
 local_file  = ['~/hydro/' test_case '/' file_base];
@@ -130,6 +140,8 @@ scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
 if ~strcmp(machine,'mac') 
     unix (sprintf(scp_cmd));
 end
+
+% Plot spectrum
 pspec = load(local_file);
 pspec(:,2) = pspec(:,2)./pspec(:,1).^2; % convert vorticity spectrum to energy spectrum integrated over shells
 scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
@@ -142,18 +154,25 @@ if strcmp(type,'barotropic')
     if strcmp(run_id,'2layer_slow')
         powerlaw (scales, pspec(:,2), 2000, 20, -2.7, 'm--')
         powerlaw (scales, pspec(:,2),   20,  2, -6, 'c--')
+    elseif strcmp(run_id,'1layer_J6')
+        powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
     elseif strcmp(run_id,'1layer_fast')
         powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
         powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
     elseif strcmp(run_id,'2layer_fast')
         powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
         powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
-    elseif strcmp(run_id,'1layer_J6')
-        powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
-        powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
-    elseif strcmp(run_id,'2layer_J6')
-        powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
-        powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
+    elseif strcmp(run_id,'2layer_mix')
+        powerlaw (scales, pspec(:,2), 200, 30, -2.5, 'm--')
+        powerlaw (scales, pspec(:,2),  30,  6, -4.5, 'c--')
+    elseif strcmp(run_id,'2layer_mix_slow')
+        powerlaw (scales, pspec(:,2), 500, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
+    elseif strcmp(run_id,'2layer_equal')
+        powerlaw (scales, pspec(:,2), 2000, 10, -3, 'm--')
+    elseif strcmp(run_id,'2layer_thin')
+        powerlaw (scales, pspec(:,2), 2000, 10, -3, 'm--')
     end
 end
 
@@ -169,6 +188,16 @@ if strcmp(type,'baroclinic_1') || strcmp(type,'baroclinic_2')
     elseif strcmp(run_id,'2layer_J6')
         powerlaw (scales, pspec(:,2), 2000, 10, -5/3, 'b--')
         powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
+    elseif strcmp(run_id,'2layer_mix')
+        powerlaw (scales, pspec(:,2), 200, 30, -3, 'b--')
+        powerlaw (scales, pspec(:,2),  30,  5, -4.5, 'c--')
+    elseif strcmp(run_id,'2layer_mix_slow')
+        powerlaw (scales, pspec(:,2), 1000, 30, -3, 'b--')
+        powerlaw (scales, pspec(:,2),  30,  5, -5, 'c--')
+    elseif strcmp(run_id,'2layer_equal')
+        powerlaw (scales, pspec(:,2), 2000, 10, -2, 'b--')
+    elseif strcmp(run_id,'2layer_thin')
+        powerlaw (scales, pspec(:,2), 2000, 10, -2, 'b--')
     end
 end
 
@@ -184,13 +213,17 @@ if strcmp(type,'total_1') || strcmp(type,'total_2')
         powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
     elseif strcmp(run_id,'2layer_J6')
         powerlaw (scales, pspec(:,2), 2000, 10, -5/3, 'b--')
+        powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
+    elseif strcmp(run_id,'2layer_thin')
+        powerlaw (scales, pspec(:,2), 2000, 20, -2.8, 'm--')
         powerlaw (scales, pspec(:,2),  20,  2, -6, 'c--')
     end
 end
 
 % Local power spectra
 if local
-    file_base   = [run_id '_' cp_id '_' type '_local_spec'];
+    theta0 = 20;
+    file_base   = [run_id '_' cp_id '_' type '_local_turb_spec'];
     remote_file = ['~/hydro/' test_case '/' file_base];
     local_file  = ['~/hydro/' test_case '/' file_base];
     scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
@@ -198,25 +231,29 @@ if local
         unix (sprintf(scp_cmd));
     end
     lspec = load(local_file);
-    lspec(:,2) = lspec(:,2)./lspec(:,1).^2;
-    lscales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
+    lspec(:,2) = lspec(:,2)./lspec(:,1).^2 * (1 - cos(deg2rad(theta0)));
+    lscales = 2*pi*radius/1e3./sqrt(lspec(:,1).*(lspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
-    loglog(lscales,lspec(:,2),'g-','linewidth',2,'DisplayName','local');hold on; grid on;
+    loglog(lscales,lspec(:,2),'g-','linewidth',2,'DisplayName','turbulent');hold on; grid on;
     
     nspec=numel(lspec(:,1));
+    
+    if strcmp(type,'barotropic')
+        powerlaw (lscales, lspec(:,2),  2500,  100, -0.8, 'r--')
+    end
 end
 
 xlabel("l (km)");ylabel("S(l)");
 
-if strcmp(run_id,'2layer_slow')
-    title("\Omega = \Omega_{Earth}/24");
-elseif strcmp(run_id,'1layer_fast') || strcmp(run_id,'2layer_fast')
-    title("\Omega = \Omega_{Earth}");
-elseif strcmp(run_id,'1layer_J6')
-    title("\Omega = \Omega_{Earth}/6");
-elseif strcmp(run_id,'2layer_J6')
-    title("\Omega = \Omega_{Earth}/6");
-end
+% if strcmp(run_id,'2layer_slow')
+%     title("\Omega = \Omega_{Earth}/24");
+% elseif strcmp(run_id,'1layer_fast') || strcmp(run_id,'2layer_fast')
+%     title("\Omega = \Omega_{Earth}");
+% elseif strcmp(run_id,'1layer_J6')
+%     title("\Omega = \Omega_{Earth}/6");
+% elseif strcmp(run_id,'2layer_J6')
+%     title("\Omega = \Omega_{Earth}/6");
+% end
 set (gca,'Xdir','reverse');legend;
 if strcmp(type,'barotropic')
     axis([1 1e4 1e-12 1e1]);
