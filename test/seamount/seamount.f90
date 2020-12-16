@@ -26,15 +26,13 @@ program Seamount
   p_top          = 0.0_8                   * hPa             ! pressure at free surface
   ref_density    = 1000                    * KG/METRE**3     ! reference density at depth (seawater)
 
-  scale          = 80                                        ! scaling factor for small planet
+  scale          = 41.75d0                                     ! scaling factor for small planet
   radius         = radius_earth/scale                        ! mean radius of the small planet
   omega          = omega_earth                               ! angular velocity (scaled for small planet to keep beta constant)
 
   ! Depth and layer parameters
   min_depth   =   -50 * METRE                                ! minimum allowed depth (must be negative)
   max_depth   = -5000 * METRE                                ! total depth
-  halocline   = -1000 * METRE                                ! based on 90% decrease in density perturbation
-  drho        =    -3 * KG/METRE**3                      ! density perturbation at free surface 
   tau_0       =     0 * NEWTON/METRE**2                      ! maximum wind stress
   
   ! Seamount
@@ -45,8 +43,6 @@ program Seamount
   delta          =   500 * METRE                             ! vertical decay of density
   visc           =    50 * METRE**2/SECOND                   ! viscosity for rotu
   drag           = .false.                                   ! no bottom friction
-  coords         = "chebyshev"                               ! uniform or chebyshev
-  stratification = "exponential"                             ! linear or exponential
   
   ! Numerical method parameters
   match_time         = .false.                               ! avoid very small time steps when saving 
@@ -55,6 +51,8 @@ program Seamount
   timeint_type       = "RK4"                                 ! always use RK4
   compressible       = .false.                               ! always run with incompressible equations
   mean_split         = .true.                                ! always split into mean and fluctuation (solve for fluctuation)
+  default_thresholds = .true.                                ! always use default threshold
+  adapt_dt           = .true.                                ! always adapt time steps
   remapscalar_type   = "PPR"                                 ! optimal remapping scheme
   remapvelo_type     = "PPR"                                 ! optimal remapping scheme
   Laplace_order_init = 1                              
@@ -68,16 +66,12 @@ program Seamount
   f0             = 2*omega*sin(lat_c)                      ! representative Coriolis parameter
   beta           = 2*omega*cos(lat_c) / radius             ! beta parameter at 30 degrees latitude
   Rd             = wave_speed / f0                         ! barotropic Rossby radius of deformation                   
-  drho_dz        = drho / halocline                        ! approximate density gradient
-  bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
+  drho_dz        = drho/max_depth                          ! approximate density gradient
+  bv             = sqrt (grav_accel * drho_dz/ref_density) ! Brunt-Vaisala frequency
   Ro             = 0.0_8                                   ! Rossby number
-  bu             = bv * h0 / (f0 * width)                  ! Burger number
-  if (rank==0) write (6,'(4(es11.4,1x))') drho_dz, grav_accel, ref_density, bv
-  if (zlevels == 2) then
-     c1 = sqrt (grav_accel*abs(drho)/2/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
-  elseif (zlevels >= 3) then
-     c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
-  endif
+  bu             = bv * abs(max_depth) / (f0 * width)      ! Burger number
+
+  c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
 
   ! First baroclinic Rossby radius of deformation
   Rb = bv * abs(max_depth) / (MATH_PI*f0)
@@ -122,6 +116,7 @@ program Seamount
 
      call update_diagnostics
 
+     tke = total_ke ("adaptive") / (4*MATH_PI*radius**2)
      call print_log
 
      if (aligned) then

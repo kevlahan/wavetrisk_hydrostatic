@@ -13,8 +13,8 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bu, bv, drho, drho_dz, f0, Rb, Rd, Rey, Ro
-  real(8)                              :: bottom_friction, delta, h0, lat_c, lon_c, max_depth, min_depth, mixed_layer, width
-  real(8)                              :: radius_earth, omega_earth, scale, halocline, tke, visc
+  real(8)                              :: bottom_friction, delta, h0, lat_c, lon_c, max_depth, min_depth, r_max, r_max_loc, width
+  real(8)                              :: radius_earth, omega_earth, scale, tke, visc
   real(8)                              :: tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: drag, mean_split
@@ -48,14 +48,15 @@ contains
     read (fid,*) varname, coarse_iter
     read (fid,*) varname, fine_iter
     read (fid,*) varname, log_iter
-    read (fid,*) varname, default_thresholds
     read (fid,*) varname, tol
     read (fid,*) varname, cfl_num
-    read (fid,*) varname, adapt_dt
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
+    read (fid,*) varname, drho
+    read (fid,*) varname, stratification   
+    read (fid,*) varname, coords
     close(fid)
 
     press_save = 0.0_8
@@ -72,6 +73,8 @@ contains
     Rey  = Udim * delta / visc_rotu ! Reynolds number 
 
     call set_save_level
+
+    call cal_r_max
 
     if (rank==0) then
        write (6,'(A)') &
@@ -127,8 +130,6 @@ contains
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
        write (6,'(A,es11.4)') "min_depth                 [m]  = ", abs (min_depth)
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
-       write (6,'(A,es11.4)') "halocline                 [m]  = ", abs (halocline)
-       write (6,'(A,es11.4)') "mixed layer               [m]  = ", abs (mixed_layer)
        write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
        write (6,'(a,a)')      "stratification                 = ", trim (stratification)
        write (6,'(A,es11.4)') "density difference   [kg/m^3]  = ", drho
@@ -149,7 +150,8 @@ contains
        write (6,'(A,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM
        write (6,'(A,es11.4,/)') "baroclinic Rossby radius [km]  = ", Rb / KM
        write (6,'(A,es11.4)') "Rossby number                  = ", Ro
-       write (6,'(A,es11.4)') "Re (delta_I u_wbc / nu)        = ", Rey 
+       write (6,'(A,es11.4)') "Re (delta_I u_wbc / nu)        = ", Rey
+       write (6,'(a,es11.4)') "r_max                          = ", r_max
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
@@ -174,13 +176,14 @@ contains
     maxv = 100 * maxval (lnorm(S_VELO,:))
 
     if (rank == 0) then
-       write (6,'(a,es12.6,5(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
+       write (6,'(a,es12.6,6(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', threshold(S_MASS,zlevels), &
             ' temp tol = ', threshold(S_TEMP,zlevels), &
             ' velo tol = ', threshold(S_VELO,zlevels), &
             ' maxv = ', maxv, &
+            ' tke = ', tke, &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' min rel mass = ', min_mass, &
@@ -188,8 +191,8 @@ contains
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
-       write (12,'(6(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
-            threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), maxv, &
+       write (12,'(7(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
+            threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), maxv, tke, &
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
@@ -455,7 +458,8 @@ contains
 
        lnorm(S_MASS,k) = ref_density*dz
 
-       lnorm(S_TEMP,k) = ref_density*dz * buoyancy (max_depth, x_i, k)
+!!$       lnorm(S_TEMP,k) = ref_density*dz * buoyancy (max_depth, x_i, k)
+       lnorm(S_TEMP,k) = 1d16
        if (lnorm(S_TEMP,k) == 0.0_8) lnorm(S_TEMP,k) = 1d16
 
        lnorm(S_VELO,k) = Udim
@@ -478,7 +482,7 @@ contains
     dx_max = sqrt (4/sqrt(3.0_8) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = cfl_num * dx_min / wave_speed
+    dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1)
     dt_init = dt_cfl
 
     C_sclr = 5d-3
@@ -589,7 +593,7 @@ contains
     if (rank==0) write (6,'(/,A,i2,A,es11.4,A,/)') "Saving vertical level ", save_zlev, &
          " (approximate height = ", save_height, " [m])"
   end subroutine set_save_level
-
+  
   subroutine initialize_a_b_vert
     ! Initialize hybrid sigma-coordinate vertical grid
     implicit none
@@ -598,32 +602,78 @@ contains
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    if (zlevels == 2) then 
-       a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;               a_vert(2) = 1.0_8
-       b_vert(0) = 1.0_8; b_vert(1) = halocline/max_depth; b_vert(2) = 0.0_8
-    elseif (zlevels == 3) then
-       a_vert(0) = 0.0_8; a_vert(1) = 0.0_8;               a_vert(2) = 0.0_8;                 a_vert(3) = 1.0_8 
-       b_vert(0) = 1.0_8; b_vert(1) = halocline/max_depth; b_vert(2) = mixed_layer/max_depth; b_vert(3) = 0.0_8
-    else
-       if (trim (coords) == "uniform") then 
-          do k = 0, zlevels
-             a_vert(k) = dble(k)/dble(zlevels)
-             b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-          end do
-       elseif (trim (coords) == "chebyshev") then
-          a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
-          do k = 1, zlevels-1
-             a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-             b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-          end do
-          a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
-       end if
+    if (trim (coords) == "uniform") then 
+       do k = 0, zlevels
+          a_vert(k) = dble(k)/dble(zlevels)
+          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
+       end do
+    elseif (trim (coords) == "chebyshev") then
+       a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
+       do k = 1, zlevels-1
+          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+          b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+       end do
+       a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
     end if
-    
+
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
   end subroutine initialize_a_b_vert
+
+  subroutine cal_r_max
+    ! Calculates minimum relative mass and checks diffusion stability limits
+    use mpi
+    implicit none
+    integer :: ierror, k, l
+
+    r_max_loc = 1d-16
+    do l = level_start, level_end
+       do k = 1, zlevels
+          call apply_onescale (cal_rmax_loc, l, k, 0, 0)
+       end do
+    end do
+
+    call MPI_Allreduce (r_max_loc, r_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+  end subroutine cal_r_max
+
+  subroutine cal_rmax_loc (dom, i, j, zlev, offs, dims)
+    ! Calculates minimum mass and diffusion stability limits
+    implicit none
+    type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, idE, idN, idNE, idS, idSW, idW, k
+    real(8) :: r_loc
+
+    id   = idx (i,   j,   offs, dims)
+    
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    
+    d    = dom%id + 1
+    
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)) / &
+            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idE+1))
+       r_max_loc = max (r_max_loc, r_loc)
+
+       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1)) / &
+            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1))
+       r_max_loc = max (r_max_loc, r_loc)
+
+       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)) / &
+            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idN+1))
+       r_max_loc = max (r_max_loc, r_loc)
+    end if
+  end subroutine cal_rmax_loc
 
   subroutine update_diagnostics
     ! Update diagnostics
