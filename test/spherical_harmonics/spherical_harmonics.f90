@@ -164,7 +164,7 @@ contains
 
     call initialize_lonlat_2layer
 
-     ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
+    ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
     l = level_fill
     call fill_up_grid_and_IWT (l)
     trend = sol
@@ -303,7 +303,7 @@ contains
 !!$  The maximum spherical harmonic bandwidth of the input grid, which is n/2-1.
 !!$  If the optional parameter lmax_calc is not specified, this corresponds to the maximum spherical harmonic degree of the output coefficients cilm.
     character(*)                            :: data_type
-    
+
     integer                                 :: ierr, i, j, lmax, lwin
     real(8)                                 :: area
     real(8), dimension (:,:,:), allocatable :: cilm      ! spherical harmonic coefficients
@@ -320,19 +320,19 @@ contains
        end do
        close (10)
     end if
-    
+
     lmax = N/4 - 1
     allocate (cilm(2, lmax+1, lmax+1))
 
     ! Expand latitude-longitude data in spherical harmonics (reorder elements in latitude from N to S)
     call SHExpandDH (transpose(dble(field2d(Nx(1):Nx(2)-1,Ny(2):Ny(1)+1:-1))), N/2, cilm, lmax, norm=1, sampling=2, exitstatus=ierr)
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHExpandDH"
-       
+
     ! Calculate power spectrum
     allocate (pspectrum(lmax+1))
     call SHPowerSpectrum (cilm, lmax, pspectrum, exitstatus=ierr)
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHPowerSpectrum"
-    
+
     write (var_file, '(i4.4)') cp_idx
     open (unit=10, file=trim(run_id)//'_'//var_file//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
     area = 4*MATH_PI*radius**2
@@ -344,9 +344,9 @@ contains
 
     if (local_spec) then
        open (unit=10, file=trim(run_id)//'_'//var_file//'_'//trim(data_type)//'_local_spec', form="FORMATTED", status="REPLACE")
-       
+
        ! Determine the spherical-harmonic bandwidth needed to achieve specified concentration factor
-       lwin = SHFindLWin (theta0*DEG, m, concentration)
+       lwin = SHFindLWin (theta0*DEG, angular_order, concentration)
 
        ! Compute local spectrum and associated error
        call local_spectrum (cilm, lmax, lwin)
@@ -385,8 +385,7 @@ contains
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHMultiTaperSE"
 
     ! Save data
-!!$    area = 2*MATH_PI*radius**2 * (1.0_8 - cos(theta0*DEG))
-    area =  4*MATH_PI*radius**2
+    area = 2*MATH_PI*radius**2 * (1.0_8 - cos(theta0*DEG))
     do j = 1, lmax - lwin + 1
        write (6, '(i4,1x,2(es10.4,1x))') j, mtse(j) * area, sd(j) * area
        write (10,'(i4,1x,2(es10.4,1x))') j, mtse(j) * area, sd(j) * area
@@ -532,7 +531,7 @@ contains
        open (unit=10, file=trim(run_id)//'_'//var_file//'_'//trim(data_type)//'_local_spec', form="FORMATTED", status="REPLACE")
 
        ! Determine the spherical-harmonic bandwidth needed to achieve specified concentration factor
-       lwin = SHFindLWin (theta0*DEG, m, concentration)
+       lwin = SHFindLWin (theta0*DEG, angular_order, concentration)
 
        ! Compute local spectrum and associated error
        call local_spectrum (cilm, lmax, lwin)

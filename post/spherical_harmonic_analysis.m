@@ -4,10 +4,10 @@ test_case  = 'drake';
 %run_id     = '1layer_J6'; cp_id = '0015';
 %run_id     = '2layer_J6'; cp_id = '0015';
 %run_id     = '1layer_fast'; cp_id = '0015';
-run_id     =  '2layer_fast'; cp_id = '0015';
+%run_id     =  '2layer_fast'; cp_id = '0015';
 %run_id     = '2layer_equal'; cp_id = '0019';
 %run_id     = '2layer_mix'; cp_id = '0075';
-%run_id     = '2layer_thin'; cp_id = '0014';
+run_id     = '2layer_thin'; cp_id = '0014';
 %run_id     = '2layer_mix_slow'; cp_id = '0009';
 type       = 'baroclinic_2';
 %type       = 'total_2';
@@ -98,20 +98,20 @@ if local
 %     lon0   =  20;
 %     theta0 =  30;
     
-    % Vortical region at equator
-    lat0   = 0;
-    lon0   = 20;
-    theta0 = 15;
+%     % Vortical region at equator
+%     lat0   = 0;
+%     lon0   = 20;
+%     theta0 = 15;
     
 %     % Vortical region at 45 N
 %     lat0   =  45;
 %     lon0   =  30;
 %     theta0 =  20;
     
-%     % Laminar region
-%     lat0   =  0;
-%     lon0   = -100;
-%     theta0 =  20;
+    % Laminar region
+    lat0   =  0;
+    lon0   = -100;
+    theta0 =  20;
     
     lat_min = lat0 - theta0;
     lat_max = lat0 + theta0;
@@ -125,7 +125,7 @@ else
 end
 ax = [lon_min lon_max lat_min lat_max];
 
-c_scale = linspace(dmin, dmax, 100); 
+c_scale = linspace(dmin/10, dmax/10, 100); 
 v_title = 'vorticity';
 smooth  = 0;
 lines   = 0;
@@ -231,15 +231,55 @@ if local
         unix (sprintf(scp_cmd));
     end
     lspec = load(local_file);
-    lspec(:,2) = lspec(:,2)./lspec(:,1).^2 * (1 - cos(deg2rad(theta0)));
+    lspec(:,2) = lspec(:,2)./lspec(:,1).^2; %* (1 - cos(deg2rad(theta0)));
     lscales = 2*pi*radius/1e3./sqrt(lspec(:,1).*(lspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
     loglog(lscales,lspec(:,2),'g-','linewidth',2,'DisplayName','turbulent');hold on; grid on;
-    
-    nspec=numel(lspec(:,1));
-    
-    if strcmp(type,'barotropic')
+    if strcmp(type,'barotropic') && ~strcmp(run_id,'2layer_thin')
         powerlaw (lscales, lspec(:,2),  2500,  100, -0.8, 'r--')
+    elseif strcmp(run_id,'2layer_thin')
+       powerlaw (lscales, lspec(:,2),  2500,  100, -1.3, 'r--') 
+    end
+    
+    file_base   = [run_id '_' cp_id '_' type '_local_lam_spec'];
+    remote_file = ['~/hydro/' test_case '/' file_base];
+    local_file  = ['~/hydro/' test_case '/' file_base];
+    scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
+    if ~strcmp(machine,'mac')
+        unix (sprintf(scp_cmd));
+    end
+    lspec = load(local_file);
+    lspec(:,2) = lspec(:,2)./lspec(:,1).^2 * (1 - cos(deg2rad(theta0)));
+    loglog(lscales,lspec(:,2),'k-','linewidth',2,'DisplayName','laminar');
+    
+    if strcmp(run_id,'2layer_fast')
+        if strcmp(type,'barotropic')
+            powerlaw (lscales, lspec(:,2), 700, 20, -4, 'm--')
+        elseif strcmp(type,'baroclinic_2')
+            powerlaw (lscales, lspec(:,2), 200, 40, -3, 'm--')
+            powerlaw (lscales, lspec(:,2), 40, 10, -5/3, 'b--')
+        end
+    elseif strcmp(run_id,'2layer_equal')
+        if strcmp(type,'barotropic')
+            powerlaw (lscales, lspec(:,2), 700, 20, -4, 'm--')
+        elseif strcmp(type,'baroclinic_2')
+            powerlaw (lscales, lspec(:,2), 200, 40, -3.4, 'm--')
+            powerlaw (lscales, lspec(:,2), 40, 10, -2, 'b--')
+        end
+    elseif strcmp(run_id,'2layer_thin')
+        if strcmp(type,'barotropic')
+            powerlaw (lscales, lspec(:,2), 700, 20, -4, 'm--')
+        elseif strcmp(type,'baroclinic_2')
+            powerlaw (lscales, lspec(:,2), 200, 40, -3, 'm--')
+            powerlaw (lscales, lspec(:,2), 40, 10, -5/3, 'b--')
+        end
+    elseif strcmp(run_id,'1layer_fast')
+        if strcmp(type,'barotropic')
+            powerlaw (lscales, lspec(:,2), 700, 1, -4, 'm:')
+        elseif strcmp(type,'baroclinic_2')
+            powerlaw (lscales, lspec(:,2), 200, 40, -3, 'm:')
+            powerlaw (lscales, lspec(:,2), 40, 10, -5/3, 'b--')
+        end
     end
 end
 
@@ -277,7 +317,7 @@ end
 function plot_scale (scale,name)
 y = ylim;
 x = scale;
-h=loglog([x x], y, 'k','linewidth',1.5,'linewidth',2);
+h=loglog([x x], y, 'k','linewidth',1.5);
 set(get(get(h,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
 text(0.85*scale,10*y(1),name,"fontsize",16)
 end
