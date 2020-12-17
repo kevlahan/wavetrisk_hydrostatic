@@ -12,8 +12,9 @@ program flat_projection_data
   real(4), dimension(:,:),   allocatable :: field2d
   real(8)                                :: dx_export, dy_export, kx_export, ky_export, area1, area2
   real(8), dimension(2)                  :: lon_lat_range
-  real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy
-  real(8), dimension(:,:,:), allocatable :: field2d_save, zonal_av
+  real(8), dimension(:),     allocatable :: eta_lat, eta_lon, lat, lon
+  real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy, xcoord_lat, xcoord_lon
+  real(8), dimension(:,:,:), allocatable :: field2d_save, lat_slice, lon_slice, zonal_av, zcoord_lat, zcoord_lon
   
   character(2)                           :: var_file
   character(8)                           :: itype
@@ -31,7 +32,8 @@ program flat_projection_data
 
   if (trim (test_case) == 'DCMIP2012c4') then
      compressible   = .true.                      ! Compressible equations
-
+     mean_split     = .false.
+     
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
      omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
@@ -44,7 +46,8 @@ program flat_projection_data
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
   elseif (trim (test_case) == "DCMIP2008c5") then
      compressible   = .true.                      ! Compressible equations
-
+     mean_split     = .false.
+     
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
      omega          = 7.29211d-5                  ! Earth’s angular velocity in radians per second
@@ -59,7 +62,8 @@ program flat_projection_data
      lat_c          = MATH_PI/6                   ! latitude location of mountain
   elseif (trim (test_case) == "Held_Suarez") then
      compressible   = .true.                      ! Compressible equations
-
+     mean_split     = .false.
+     
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
      omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
@@ -88,8 +92,33 @@ program flat_projection_data
      npts_penal  = 4
 
      mode_split     = .true.                             ! split barotropic mode if true
+     mean_split     = .true.
      compressible   = .false.                            ! always run with incompressible equations
      penalize       = .true.                             ! penalize land regions
+  elseif (trim (test_case) == "seamount") then
+     scale          = 41.75d0                             
+     radius         = 6371.229/scale   * KM              
+     grav_accel     = 9.80616          * METRE/SECOND**2 
+     omega          = 7.29211d-5       * RAD/SECOND      
+     p_top          = 0.0_8            * hPa             
+     ref_density    = 1000             * KG/METRE**3     
+
+     max_depth   = -5000 * METRE
+     drho        =    -3 * KG/METRE**3               
+     
+     mode_split     = .true.
+     mean_split     = .true.
+     compressible   = .false.                            
+     penalize       = .false.
+
+     lat_c          = 43.29 * DEG                               ! latitude of seamount
+     lon_c          =     0 * DEG                               ! longitude
+     h0             =  4500 * METRE                             ! height of seamount
+     width          =    40 * KM                                ! radius of seamount
+     delta          =   500 * METRE                             ! vertical decay of density
+
+     coords         = "chebyshev"
+     stratification = "exponential"
   else
      write (6,'(A)') "Test case not supported"
      stop
@@ -104,6 +133,8 @@ program flat_projection_data
   ! Initialize statistics
   if (trim (test_case) == "drake") then
      call initialize_stat_drake
+  elseif (trim (test_case) == "seamount") then
+     call initialize_stat_seamount
   else
      call initialize_stat
   end if
@@ -138,6 +169,8 @@ program flat_projection_data
            drake_enstrophy(Nt,2) = pot_enstrophy_1layer ('adaptive')
            if (cp_idx == cp_2d) call latlon_1layer
         end if
+     elseif  (trim (test_case) == "seamount") then
+        if (cp_idx == cp_2d) call vertical_slice
      else
         if (welford) then
            call cal_zonal_av
@@ -156,6 +189,8 @@ program flat_projection_data
            call write_out_1layer
         end if
      end if
+  elseif (trim (test_case) == "seamount") then
+     if (rank==0) call write_slice
   else
      if (.not. welford) then
         zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
@@ -436,6 +471,113 @@ contains
        field2d_save(:,:,6+k-1) = field2d
     end do
   end subroutine latlon
+
+  subroutine vertical_slice
+    ! Save vertical slicse along given latitude and longitude for incompressible test cases
+    implicit none
+    integer :: d, i, j, k, l, idx_lat, idx_lon
+    real(8) :: z_s
+
+    ! Find indices of latitude and longitude slices
+    idx_lat = minloc (abs(lat-lat_val), DIM=1) + Ny(1) - 1
+    idx_lon = minloc (abs(lon-lon_val), DIM=1) + Nx(1) - 1
+    
+    ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
+    l = level_save
+    call fill_up_grid_and_IWT (l)
+    
+    call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    do k = 1, zmax
+       call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+    end do
+
+    do k = 1, zmax
+       call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+    end do
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          mass   => sol(S_MASS,k)%data(d)%elts
+          temp   => sol(S_TEMP,k)%data(d)%elts
+          scalar => sol(S_TEMP,zlevels+1)%data(d)%elts
+          velo   => sol(S_VELO,k)%data(d)%elts
+          velo1  => grid(d)%u_zonal%elts
+          velo2  => grid(d)%v_merid%elts
+          vort   => grid(d)%vort%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (density_perturbation, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (interp_vel_hex,       grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,             grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          end do
+          call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
+          nullify (mass, mean_m, mean_t, scalar, temp, velo, velo1, velo2, vort)
+       end do
+       call project_uzonal_onto_plane (l, 0.0_8)
+       lat_slice(:,k,1) = field2d(idx_lon,:)
+       lon_slice(:,k,1) = field2d(:,idx_lat)
+       
+       call project_vmerid_onto_plane (l, 0.0_8)
+       lat_slice(:,k,2) = field2d(idx_lon,:)
+       lon_slice(:,k,2) = field2d(:,idx_lat)
+       
+       call project_onto_plane (sol(S_TEMP,zlevels+1), l, 0.0_8)
+       lat_slice(:,k,3) = field2d(idx_lon,:)
+       lon_slice(:,k,3) = field2d(:,idx_lat)
+
+       call project_vorticity_onto_plane (l, 1.0_8)
+       lat_slice(:,k,4) = field2d(idx_lon,:)
+       lon_slice(:,k,4) = field2d(:,idx_lat)
+    end do
+
+    ! Set free surface
+    call project_onto_plane (sol(S_MASS,zlevels+1), l, 0.0_8)
+    eta_lat = field2d(idx_lon,:)
+    eta_lon = field2d(:,idx_lat)
+    
+    do i = Ny(1), Ny(2)
+       xcoord_lat(i,1) = lat(i) - dy_export/2 / DEG
+       xcoord_lat(i,2) = lat(i) + dy_export/2 / DEG
+
+       z_s = max_depth + surf_geopot_latlon (lat(i)*DEG, lon_val*DEG) / grav_accel
+       do k = 1, zlevels
+          zcoord_lat(i,k,1) = a_vert(k-1) * eta_lat(i) + b_vert(k-1) * z_s
+          zcoord_lat(i,k,2) = a_vert(k)   * eta_lat(i) + b_vert(k)   * z_s
+       end do
+    end do
+
+    do i = Nx(1), Nx(2)
+       xcoord_lon(i,1) = lon(i) - dx_export/2 / DEG
+       xcoord_lon(i,2) = lon(i) + dx_export/2 / DEG
+
+       z_s = max_depth + surf_geopot_latlon (lat_val*DEG, lon(i)*DEG) / grav_accel
+       do k = 1, zlevels
+          zcoord_lon(i,k,1) = a_vert(k-1) * eta_lon(i) + b_vert(k-1) * z_s
+          zcoord_lon(i,k,2) = a_vert(k)   * eta_lon(i) + b_vert(k)   * z_s
+       end do
+    end do
+  end subroutine vertical_slice
+
+  subroutine density_perturbation (dom, i, j, zlev, offs, dims)
+    ! Write primal grid for vertical level zlev
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                       :: id_i
+    real(8)                       :: full_mass, full_temp
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       full_mass = mass(id_i) + mean_m(id_i)
+       full_temp = temp(id_i) + mean_t(id_i)
+       scalar(id_i) = -ref_density * full_temp / full_mass
+    end if
+  end subroutine density_perturbation
 
   function energy_drake (itype)
     ! Calculates baroclinic and bartoropic energies for two layer case
@@ -1022,8 +1164,67 @@ contains
     close (funit)
   end subroutine write_out_1layer
 
+   subroutine write_slice
+    ! Writes out results
+    integer            :: i, k, v
+    integer, parameter :: funit = 400
+
+    ! Coordinates
+
+    ! Longitude values
+    write (var_file, '(i2)') 50
+    open (unit=funit, file=trim(run_id)//'.5.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
+    write (funit) lon
+    close (funit)
+
+    ! Latitude values
+    write (var_file, '(i2)') 51
+    open (unit=funit, file=trim(run_id)//'.5.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) lat
+    close (funit)
+
+    ! coordinates
+    write (var_file, '(i2)') 52
+    open (unit=funit, file=trim(run_id)//'.5.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) xcoord_lat
+    close (funit)
+    
+    write (var_file, '(i2)') 53
+    open (unit=funit, file=trim(run_id)//'.5.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) xcoord_lon
+    close (funit)
+
+    write (var_file, '(i2)') 54
+    open (unit=funit, file=trim(run_id)//'.5.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) zcoord_lat
+    close (funit)
+    
+    write (var_file, '(i2)') 55
+    open (unit=funit, file=trim(run_id)//'.5.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) zcoord_lon
+    close (funit)
+
+    ! data
+    write (var_file, '(i2)') 56
+    open (unit=funit, file=trim(run_id)//'.5.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) lat_slice
+    close (funit)
+
+    write (var_file, '(i2)') 57
+    open (unit=funit, file=trim(run_id)//'.5.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+    write (funit) lon_slice
+    close (funit)
+
+     ! Compress files
+    command = 'ls -1 '//trim(run_id)//'.5.?? > tmp' 
+    call system (command)
+    command = 'tar czf '//trim(run_id)//'.5.tgz -T tmp --remove-files &'
+    call system (command)
+  end subroutine write_slice
+
   subroutine initialize_stat
     implicit none
+    integer :: i
 
     Nx = (/-N/2, N/2/)
     Ny = (/-N/4, N/4/)
@@ -1035,11 +1236,21 @@ contains
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
     allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
+    allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
     zonal_av = 0.0_8
+
+    do i = 1, Nx(2)-Nx(1)+1
+       lon(i) = -180+dx_export*(i-1)/MATH_PI*180
+    end do
+
+    do i = 1, Ny(2)-Ny(1)+1
+       lat = -90+dy_export*(i-1)/MATH_PI*180
+    end do
   end subroutine initialize_stat
 
   subroutine initialize_stat_drake
     implicit none
+    integer :: i
 
     Nx = (/-N/2, N/2/)
     Ny = (/-N/4, N/4/)
@@ -1063,8 +1274,44 @@ contains
        allocate (drake_ke(1:mean_end-mean_beg+1,1:2))
        allocate (drake_enstrophy(1:mean_end-mean_beg+1,1:2))
     end if
-    
+
+    allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
+    do i = 1, Nx(2)-Nx(1)+1
+       lon(i) = -180+dx_export*(i-1)/MATH_PI*180
+    end do
+
+    do i = 1, Ny(2)-Ny(1)+1
+       lat = -90+dy_export*(i-1)/MATH_PI*180
+    end do
   end subroutine initialize_stat_drake
+
+  subroutine initialize_stat_seamount
+    implicit none
+    integer :: i
+
+    Nx = (/-N/2, N/2/)
+    Ny = (/-N/4, N/4/)
+
+    lon_lat_range = (/2*MATH_PI, MATH_PI/)
+    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
+    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
+
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
+    allocate (lon_slice(Nx(1):Nx(2),1:zlevels,1:4))
+    allocate (lat_slice(Ny(1):Ny(2),1:zlevels,1:4))
+    allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
+    allocate (xcoord_lat(Ny(1):Ny(2),1:2), xcoord_lon(Nx(1):Nx(2),1:2))
+    allocate (zcoord_lat(Ny(1):Ny(2),1:zlevels,2), zcoord_lon(Nx(1):Nx(2),1:zlevels,2))
+    allocate (eta_lat(Ny(1):Ny(2)), eta_lon(Nx(1):Nx(2)))
+
+    do i = Nx(1), Nx(2)
+       lon(i) = -180+dx_export*(i-Nx(1))/MATH_PI*180
+    end do
+
+    do i = Ny(1), Ny(2)
+       lat(i) = -90+dy_export*(i-Ny(1))/MATH_PI*180
+    end do
+  end subroutine initialize_stat_seamount
 
   subroutine project_onto_plane (field, l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
