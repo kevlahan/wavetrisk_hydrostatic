@@ -1,12 +1,18 @@
 clear
-test_case = 'seamount';
-run_id    = 'sea_drho_3_nonadapt';
+% test_case = 'seamount';
+% run_id    = 'sea_drho_3_nonadapt';
 
-machine   = 'if.mcmaster.ca';
+test_case = 'upwelling';
+run_id    = 'upwelling';
+
+%machine   = 'if.mcmaster.ca';
+machine   = 'cherry';
 
 % Transfer data
 directory   = ['~/hydro/' test_case];
 file_base   = [run_id '.5'];
+
+if ~strcmp(machine,'cherry')
 remote_file = [directory '/' file_base '.tgz'];
 local_file  = remote_file;
 scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
@@ -14,6 +20,7 @@ unix (sprintf(scp_cmd));
 file_tar = ['tar ' 'xf ' local_file ' -C ' directory];
 disp(['Uncompressing file ' local_file]);
 system(file_tar);
+end
 %%
 zlevels = 20;
 
@@ -31,10 +38,10 @@ lat_slice = fread(fopen([directory '/' file_base '.56']),'double');lat_slice = r
 lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = reshape(lon_slice,[Nlon,zlevels,4]);
 %% Plot vertical grid
 hf1=figure(1);
-plot(lat,zlat(:,:,1)'/1e3,'k-','linewidth',1.2); axis([-90 90 -5 0]);
+plot(lat,zlat(:,:,1)','k-','linewidth',1.2); axis([0 90 -150 0]);
 xlabel('latitude'); ylabel('z (km)'); hold on;
 plot([xlat(:,1) xlat(:,1)], ylim, 'k-','linewidth',1.2);
-set(gca,'DataAspectRatio',[10 1 1])
+%set(gca,'DataAspectRatio',[10 1 1])
 pos = get(hf1,'position');
 set(hf1,'position',[pos(1:2)/4 pos(3:4)*2])
 set(gca,'fontsize',18);hold off

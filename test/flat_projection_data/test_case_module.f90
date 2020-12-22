@@ -19,14 +19,17 @@ module test_case_mod
   real(8)               :: drho, halocline, max_depth, mixed_layer
   real(8), dimension(2) :: density, height
   ! Seamount
-  real(8)        :: delta, h0, lat_val, lon_val, width
+  real(8) :: delta, h0, lat_val, lon_val, width
+  ! Upwelling
+  real(8) :: lat_width
   character(255) :: coords, stratification
 contains
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
     implicit none
-    Type(Coord) :: x_i
-    real(8)     :: c1, cs2, sn2, lon, lat, rgrc
+    Type(Coord)        :: x_i
+    real(8)            :: c1, cs2, sn2, lon, lat, rgrc
+    real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
@@ -48,8 +51,17 @@ contains
     elseif (trim (test_case) == "seamount") then
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
+    elseif (trim (test_case) == "upwelling") then
+       lat = lat / DEG
+
+       if (abs(lat-lat_c) <= lat_width/2) then
+          surf_geopot =  - grav_accel * (max_depth - d_min) &
+               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1)))+ tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+       else
+          surf_geopot = 0.0_8
+       end if
     else
-       write(6,'(A)') "Test case not supported"
+       if (rank == 0) write(6,'(A)') "Test case not supported"
        stop
     end if
   end function surf_geopot
@@ -59,6 +71,7 @@ contains
     implicit none
     real(8) :: lon, lat
     real(8) :: c1, cs2, sn2, rgrc
+    real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
 
     ! Find latitude and longitude from Cartesian coordinates
     cs2 = cos(lat)**2
@@ -80,6 +93,15 @@ contains
     elseif (trim (test_case) == "seamount") then
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot_latlon = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
+    elseif (trim (test_case) == "upwelling") then
+       lat = lat / DEG
+
+       if (abs(lat-lat_c) <= lat_width/2) then
+          surf_geopot_latlon =  - grav_accel * (max_depth - d_min) &
+               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1)))+ tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+       else
+          surf_geopot_latlon = 0.0_8
+       end if
     else
        write(6,'(A)') "Test case not supported"
        stop
@@ -91,7 +113,7 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    if (trim(test_case) == "drake" .or. trim(test_case) == "seamount") then
+    if (trim(test_case) == "drake" .or. trim(test_case) == "seamount" .or. trim(test_case) == "upwelling") then
        allocate (a_vert(0:zlevels), b_vert(0:zlevels))
        allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
     else
@@ -175,6 +197,24 @@ contains
           a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
        end if
        
+       ! Vertical grid spacing
+       a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
+       b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
+    elseif (trim (test_case) == "upwelling") then
+       if (trim (coords) == "uniform") then 
+          do k = 0, zlevels
+             a_vert(k) = dble(k)/dble(zlevels)
+             b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
+          end do
+       elseif (trim (coords) == "chebyshev") then
+          a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
+          do k = 1, zlevels-1
+             a_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
+             b_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
+          end do
+          a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
+       end if
+
        ! Vertical grid spacing
        a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
@@ -285,7 +325,8 @@ contains
     character(*)                   :: itype
 
     integer            :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
-    real(8)            :: dx, lat, lat0, lat_width, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    real(8)            :: lat, lat0, lat_width, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    real(8)            :: n_smth_N, n_smth_S, width_N, width_S
     real(8), parameter :: lat_max = 60, lat_min = -35, lon_width = 15
     type(Coord)        :: p, q
 
@@ -297,17 +338,29 @@ contains
        dom%topo%elts(id_i) = max_depth + surf_geopot (dom%node%elts(id_i)) / grav_accel
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
-       dx = dx_max
-      
-       ! Analytic land mass with smoothing
-       lat_width = (lat_max - lat_min) / 2
-       lat0 = lat_max - lat_width
+       if (trim (test_case) == "seamount") then
+          ! Analytic land mass with smoothing
+          lat_width = (lat_max - lat_min) / 2
+          lat0 = lat_max - lat_width
 
-       n_lat = 4*radius * lat_width*DEG / (dx * npts_penal)
-       n_lon = 4*radius * lon_width*DEG / (dx * npts_penal)
+          n_lat = 4*radius * lat_width*DEG / (dx_max * npts_penal)
+          n_lon = 4*radius * lon_width*DEG / (dx_max * npts_penal)
 
-       mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
+          mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
+       elseif (trim (test_case) == "upwelling") then
+          width_S = lat_c - lat_width/2 + 90_8
+          width_N = lat_c - lat_width/2
 
+          ! Smoothing exponent for land mass
+          n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
+          n_smth_N = 4*radius * width_S*DEG / (dx_max * npts_penal)
+
+          mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
+       else
+          if (rank == 0) write(6,'(A)') "Test case not supported"
+          stop
+       end if
+       
        d = dom%id + 1
        penal_node(zlev)%data(d)%elts(id_i) = mask
        do e = 1, EDGE

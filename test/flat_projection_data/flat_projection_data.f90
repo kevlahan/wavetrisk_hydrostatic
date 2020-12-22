@@ -119,8 +119,27 @@ program flat_projection_data
 
      coords         = "chebyshev"
      stratification = "exponential"
+  elseif (trim (test_case) == "upwelling") then
+     radius         = 5.7296d1 * KM             
+     grav_accel     = 9.80616          * METRE/SECOND**2 
+     omega          = 7.29211d-5       * RAD/SECOND      
+     p_top          = 0.0_8            * hPa             
+     ref_density    = 1027             * KG/METRE**3     
+
+     max_depth   = - 150 * METRE
+     drho        =    -3 * KG/METRE**3               
+
+     mode_split     = .true.
+     mean_split     = .true.
+     compressible   = .false.                            
+     penalize       = .true.
+
+     lat_c          = 45                                ! centre of zonal channel (in degrees)
+     lat_width      = 20                                ! width of zonal channel (in degrees)
+
+     coords         = "chebyshev"
   else
-     write (6,'(A)') "Test case not supported"
+     if (rank == 0) write (6,'(A)') "Test case not supported"
      stop
   end if
 
@@ -133,7 +152,7 @@ program flat_projection_data
   ! Initialize statistics
   if (trim (test_case) == "drake") then
      call initialize_stat_drake
-  elseif (trim (test_case) == "seamount") then
+  elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling") then
      call initialize_stat_seamount
   else
      call initialize_stat
@@ -169,7 +188,7 @@ program flat_projection_data
            drake_enstrophy(Nt,2) = pot_enstrophy_1layer ('adaptive')
            if (cp_idx == cp_2d) call latlon_1layer
         end if
-     elseif  (trim (test_case) == "seamount") then
+     elseif  (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling") then
         if (cp_idx == cp_2d) call vertical_slice
      else
         if (welford) then
@@ -189,7 +208,7 @@ program flat_projection_data
            call write_out_1layer
         end if
      end if
-  elseif (trim (test_case) == "seamount") then
+  elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling") then
      if (rank==0) call write_slice
   else
      if (.not. welford) then
@@ -1239,12 +1258,12 @@ contains
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
     zonal_av = 0.0_8
 
-    do i = 1, Nx(2)-Nx(1)+1
-       lon(i) = -180+dx_export*(i-1)/MATH_PI*180
+    do i = Nx(1), Nx(2)
+       lon(i) = -180+dx_export*(i-Nx(1))/MATH_PI*180
     end do
 
-    do i = 1, Ny(2)-Ny(1)+1
-       lat = -90+dy_export*(i-1)/MATH_PI*180
+    do i = Ny(1), Ny(2)
+       lat(i) = -90+dy_export*(i-Ny(1))/MATH_PI*180
     end do
   end subroutine initialize_stat
 
@@ -1274,14 +1293,15 @@ contains
        allocate (drake_ke(1:mean_end-mean_beg+1,1:2))
        allocate (drake_enstrophy(1:mean_end-mean_beg+1,1:2))
     end if
-
+    
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
-    do i = 1, Nx(2)-Nx(1)+1
-       lon(i) = -180+dx_export*(i-1)/MATH_PI*180
+
+    do i = Nx(1), Nx(2)
+       lon(i) = -180+dx_export*(i-Nx(1))/MATH_PI*180
     end do
 
-    do i = 1, Ny(2)-Ny(1)+1
-       lat = -90+dy_export*(i-1)/MATH_PI*180
+    do i = Ny(1), Ny(2)
+       lat(i) = -90+dy_export*(i-Ny(1))/MATH_PI*180
     end do
   end subroutine initialize_stat_drake
 
