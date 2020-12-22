@@ -209,17 +209,6 @@ contains
   end function grad_physics
 end function physics_scalar_flux
 
-function physics_scalar_source (q, id, zlev)
-  ! Additional physics for the source term of the scalar trend
-  use domain_mod
-  implicit none
-  real(8), dimension(scalars(1):scalars(2))            :: physics_scalar_source
-  integer                                              :: id, zlev
-  type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-
-  physics_scalar_source = 0.0_8
-end function physics_scalar_source
-
 function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
   use domain_mod
