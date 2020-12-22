@@ -562,10 +562,6 @@ contains
     id_i = id + 1
 
     dom%topo%elts(id+1) = max_depth + surf_geopot (dom%node%elts(id_i)) / grav_accel
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-       dom%topo%elts(id_e) = max_depth + surf_geopot (dom%node%elts(id_e)) / grav_accel
-    end do
   end subroutine topography
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)

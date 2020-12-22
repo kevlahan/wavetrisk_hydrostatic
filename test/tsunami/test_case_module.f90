@@ -300,10 +300,6 @@ contains
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          dom%topo%elts(id_e) = max_depth + surf_geopot (p) / grav_accel
-       end do
     case ("penalize")
        call cart2sph (p, lon, lat)
        rgrc = radius * acos(sin(lat_land)*sin(lat) + cos(lat_land)*cos(lat)*cos(lon-lon_land))

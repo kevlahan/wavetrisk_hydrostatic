@@ -557,10 +557,6 @@ contains
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot (dom%node%elts(id_i)) / grav_accel
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          dom%topo%elts(id_e) = max_depth + surf_geopot (dom%node%elts(id_e)) / grav_accel
-       end do
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
        dx = dx_max
