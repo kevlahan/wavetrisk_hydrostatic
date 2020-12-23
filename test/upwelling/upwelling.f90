@@ -25,14 +25,14 @@ program upwelling
   ref_density        = 1027     * KG/METRE**3     ! reference density at depth (seawater)
 
   ! Numerical method parameters
-  zlevels            = 20                            ! always run with 20 vertical layers
+  zlevels            = 16                            ! always run with 20 vertical layers
   default_thresholds = .true.                        ! use default threshold
   adapt_dt           = .true.                        ! adapt time step
   match_time         = .false.                       ! avoid very small time steps when saving 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
   alpha              = 1d-2                          ! porosity used in penalization
-  npts_penal         = 5                           ! number of points to smooth over in penalization
+  npts_penal         = 5.0                           ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver

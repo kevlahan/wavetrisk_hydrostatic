@@ -17,12 +17,12 @@ module test_case_mod
   ! Drake
   integer               :: npts_penal
   real(8)               :: drho, halocline, max_depth, mixed_layer
-  real(8), dimension(2) :: density, height
+  real(8), dimension(2) :: density_drake, height
   ! Seamount
   real(8) :: delta, h0, lat_val, lon_val, width
-  ! Upwelling
-  real(8) :: lat_width
   character(255) :: coords, stratification
+  ! Upwelling
+  real(8)  :: lat_width
 contains
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
@@ -53,12 +53,11 @@ contains
        surf_geopot = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
        lat = lat / DEG
-
        if (abs(lat-lat_c) <= lat_width/2) then
-          surf_geopot =  - grav_accel * (max_depth - d_min) &
-               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1)))+ tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+          surf_geopot = - grav_accel * (max_depth - d_min) &
+               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
        else
-          surf_geopot = 0.0_8
+          surf_geopot = grav_accel * 132
        end if
     else
        if (rank == 0) write(6,'(A)') "Test case not supported"
@@ -69,8 +68,8 @@ contains
   real(8) function surf_geopot_latlon (lat, lon)
     ! Surface geopotential
     implicit none
-    real(8) :: lon, lat
-    real(8) :: c1, cs2, sn2, rgrc
+    real(8)            :: lon, lat
+    real(8)            :: c1, cs2, sn2, rgrc
     real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
 
     ! Find latitude and longitude from Cartesian coordinates
@@ -95,12 +94,11 @@ contains
        surf_geopot_latlon = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
        lat = lat / DEG
-
        if (abs(lat-lat_c) <= lat_width/2) then
           surf_geopot_latlon =  - grav_accel * (max_depth - d_min) &
                * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1)))+ tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
        else
-          surf_geopot_latlon = 0.0_8
+          surf_geopot_latlon = grav_accel * 131
        end if
     else
        write(6,'(A)') "Test case not supported"
@@ -191,8 +189,8 @@ contains
        elseif (trim (coords) == "chebyshev") then
           a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
           do k = 1, zlevels-1
-             a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-             b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+             a_vert(k) = 0.85*(1.006 + cos ((dble(2*k-1)/dble(4*(zlevels-1))+0.5) * MATH_PI)) 
+             b_vert(k) = 0.85*(1.006 + cos ((dble(2*k-1)/dble(4*(zlevels-1))+0.5) * MATH_PI)) 
           end do
           a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
        end if
@@ -325,9 +323,8 @@ contains
     character(*)                   :: itype
 
     integer            :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
-    real(8)            :: lat, lat0, lat_width, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    real(8)            :: lat, lat0, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
     real(8)            :: n_smth_N, n_smth_S, width_N, width_S
-    real(8), parameter :: lat_max = 60, lat_min = -35, lon_width = 15
     type(Coord)        :: p, q
 
     id = idx (i, j, offs, dims)
@@ -338,16 +335,8 @@ contains
        dom%topo%elts(id_i) = max_depth + surf_geopot (dom%node%elts(id_i)) / grav_accel
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
-       if (trim (test_case) == "seamount") then
-          ! Analytic land mass with smoothing
-          lat_width = (lat_max - lat_min) / 2
-          lat0 = lat_max - lat_width
-
-          n_lat = 4*radius * lat_width*DEG / (dx_max * npts_penal)
-          n_lon = 4*radius * lon_width*DEG / (dx_max * npts_penal)
-
-          mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
-       elseif (trim (test_case) == "upwelling") then
+       
+       if (trim (test_case) == "upwelling") then
           width_S = lat_c - lat_width/2 + 90_8
           width_N = lat_c - lat_width/2
 
@@ -451,21 +440,19 @@ contains
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    if (trim (test_case) == "drake") then
-       x_i  = dom%node%elts(id_i)
-       eta_surf = 0.0_8
+    x_i  = dom%node%elts(id_i)
+    eta_surf = 0.0_8
+    z_s = dom%topo%elts(id_i)
 
+    if (trim (test_case) == "drake") then
        if (zlev == zlevels+1) then
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
        else
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = ref_density * height(zlev) 
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = (density(zlev) - ref_density) * height(zlev)
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = (density_drake(zlev) - ref_density) * height(zlev)
        end if
     elseif (trim (test_case) == "seamount") then
-       eta_surf = 0.0_8
-       z_s = dom%topo%elts(id_i)
-
        if (zlev == zlevels+1) then
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
@@ -476,59 +463,96 @@ contains
 
           if (mean_split) then
              sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-             sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy_sea (z_s, x_i, zlev)
+             sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) &
+                  * buoyancy (eta_surf, z_s, zlev)
           else
              sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
              sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
           end if
        end if
+    elseif (trim (test_case) == "upwelling") then
+       if (zlev == zlevels+1) then
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       else
+          dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
+          porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (eta_surf, z_s, zlev)
+       end if
     end if
   end subroutine init_mean
-
-  real(8) function buoyancy (x_i, z)
+  
+  real(8) function buoyancy (eta, z_s, zlev)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
-    real(8)     :: z
-    type(Coord) :: x_i
+    integer :: zlev
+    real(8) :: eta, z_s
 
-    if (zlevels /= 1 .and. z >= halocline) then
-       buoyancy = - (1.0_8 - z/halocline) * drho/ref_density
+    real(8) :: rho, z, z1, z2
+
+    if (trim (test_case) == "drake") then
+       z = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
+       if (zlevels /= 1 .and. z >= halocline) then
+          buoyancy = - (1.0_8 - z/halocline) * drho/ref_density
+       else
+          buoyancy = 0.0_8
+       end if
+    elseif (trim (test_case) == "seamount") then
+       z1 = a_vert(zlev-1) * eta + b_vert(zlev-1) * z_s
+       z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
+
+       rho = 0.5 * (density (z1) + density (z2))
+
+       buoyancy = (ref_density - rho) / ref_density 
+    elseif (trim (test_case) == "upwelling") then
+       z1 = a_vert(zlev-1) * eta + b_vert(zlev-1) * z_s
+       z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
+
+       rho = 0.5 * (density (z1) + density (z2))
+       buoyancy = (ref_density - rho) / ref_density
     else
-       buoyancy = 0.0_8
+       if (rank == 0) write(6,'(A)') "Test case not supported"
+       stop
     end if
   end function buoyancy
 
-  real(8) function buoyancy_sea (z_s, x_i, zlev)
-    ! Buoyancy profile
-    ! buoyancy = (ref_density - density)/ref_density
+  real(8) function density (z)
     implicit none
-    integer     :: id_i, zlev
-    real(8)     :: z_s
-    type(Coord) :: x_i
+    real(8) :: z
 
-    real(8) :: rho, z1, z2
-    real(8) :: eta_surf = 0.0_8
-
-    z1 = a_vert(zlev-1) * eta_surf + b_vert(zlev-1) * z_s
-    z2 = a_vert(zlev)   * eta_surf + b_vert(zlev)   * z_s
-
-    rho = 0.5 * (density_sea (x_i, z1) + density_sea (x_i, z2))
-    
-    buoyancy_sea = (ref_density - rho) / ref_density 
-  end function buoyancy_sea
-
-  real(8) function density_sea (x_i, z)
-    implicit none
-    real(8)     :: z
-    type(Coord) :: x_i
-
-    if (trim(stratification) == "linear") then 
-       density_sea = ref_density + drho * (max_depth-z)/max_depth
-    elseif (trim(stratification) == "exponential") then
-       density_sea = ref_density + drho * exp__flush (z/delta)
+    if (trim (test_case) == "seamount") then
+       if (trim(stratification) == "linear") then 
+          density = ref_density + drho * (max_depth-z)/max_depth
+       elseif (trim(stratification) == "exponential") then
+          density = ref_density + drho * exp__flush (z/delta)
+       end if
+    elseif (trim (test_case) == "upwelling") then
+       density = eqn_of_state (temp_profile(z))
+    else
+       if (rank == 0) write(6,'(A)') "Test case not supported"
+       stop
     end if
-  end function density_sea
+  end function density
+
+  real(8) function temp_profile (z)
+    implicit none
+    real(8) :: z
+    
+    real(8), parameter :: h_z = 6.5_8, ref_temp = 14_8, strat = 150_8, z0 = -35_8, z1 = -75_8
+
+    temp_profile = ref_temp + 4*tanh ((z - z0) / h_z) + (z - z1) / strat
+  end function temp_profile
+
+  real(8) function eqn_of_state (temperature)
+    implicit none
+    real(8) :: temperature
+
+    real(8), parameter :: T0 = 9.5_8
+
+    eqn_of_state = ref_density * (1.0_8 + drho/ref_density * (temperature - T0)/9)
+  end function eqn_of_state
 
   subroutine set_thresholds
     ! Dummy routine
@@ -544,6 +568,13 @@ contains
 
   subroutine initialize_dt_viscosity 
     implicit none
+    real(8) :: area
+
+    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
+    dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
+
+    area = 4*MATH_PI*radius**2/(20*4**min_level)
+    dx_max = sqrt (4/sqrt(3.0_8) * area)
   end subroutine initialize_dt_viscosity
 
   subroutine set_save_level

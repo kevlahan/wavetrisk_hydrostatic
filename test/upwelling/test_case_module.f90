@@ -197,18 +197,18 @@ contains
 
     integer     :: d, id, id_i
     real (8)    :: dz, eta, phi, porous_density, z_s
-    type(Coord) :: x_i
+    type(Coord) :: p
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
-    
-    eta = init_free_surface (x_i)
+
+    p = dom%node%elts(id_i)
+    eta = init_free_surface (p)
     z_s = dom%topo%elts(id_i)
 
     if (zlev == zlevels+1) then ! 2D barotropic mode
        phi = 1.0_8 + (alpha - 1.0_8) * penal_node(zlevels)%data(d)%elts(id_i)
-
        sol(S_MASS,zlev)%data(d)%elts(id_i) = phi * eta ! free surface perturbation
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     else ! 3D layers
@@ -219,7 +219,7 @@ contains
        else
           sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        end if
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = porous_density * dz * buoyancy (eta, z_s, zlev)
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     end if
     ! Set initial velocity field to zero
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
@@ -251,8 +251,9 @@ contains
     else
        dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (eta, z_s, zlev)
     end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_mean
@@ -295,9 +296,9 @@ contains
     
     if (abs(lat-lat_c) <= lat_width/2) then
        surf_geopot =  - grav_accel * (max_depth - d_min) &
-            * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1)))+ tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+            * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
     else
-       surf_geopot = 0.0_8
+       surf_geopot = grav_accel * 132
     end if
    end function surf_geopot
 
@@ -354,7 +355,7 @@ contains
   subroutine print_density
     implicit none
     integer     :: k
-    real(8)     :: eta, z, z_s
+    real(8)     :: dz, eta, z, z_s
     type(Coord) :: p
 
     p = Coord (radius, 0.0_8, 0.0_8)
@@ -362,10 +363,11 @@ contains
     eta = 0.0_8
     z_s = max_depth
 
-    write (6,'(a)') " Layer    z       drho"      
+    write (6,'(a)') " Layer    z        dz        drho"      
     do k = 1, zlevels
+       dz = a_vert_mass(k) * eta + b_vert_mass(k) * z_s
        z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta + (b_vert(k)+b_vert(k-1)) * z_s)
-       write (6, '(2x,i2, 1x, es9.2,1x, es11.4)') k, z, ref_density * (1.0_8 - buoyancy (eta, z_s, k))
+       write (6, '(2x,i2, 1x, 2(es9.2, 1x), es11.4)') k, z, dz, ref_density * (1.0_8 - buoyancy (eta, z_s, k))
     end do
     write (6,'(A)') &
          '*********************************************************************&
@@ -596,8 +598,8 @@ contains
     elseif (trim (coords) == "chebyshev") then
        a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
        do k = 1, zlevels-1
-          a_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
-          b_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
+          a_vert(k) = 0.85*(1.006 + cos ((dble(2*k-1)/dble(4*(zlevels-1))+0.5) * MATH_PI)) 
+          b_vert(k) = 0.85*(1.006 + cos ((dble(2*k-1)/dble(4*(zlevels-1))+0.5) * MATH_PI)) 
        end do
        a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
     end if
@@ -752,13 +754,15 @@ contains
       implicit none
       integer :: itype, k
 
-      real(8) :: b_0, b_l, dz_l, mass_0, mass_l
+      real(8) :: b_0, b_l, dz_l, mass_0, temp_0, mass_l, temp_l
 
       mass_0 = mean_m(id_i) + mass(id_i)
-      b_0 = temp(id_i) / mass_0
+      temp_0 = mean_t(id_i) + temp(id_i)
+      b_0 = temp_0 / mass_0
 
       mass_l = sol_mean(S_MASS,k+itype)%data(d)%elts(id_i) + sol(S_MASS,k+itype)%data(d)%elts(id_i)
-      b_l = sol(S_TEMP,k+itype)%data(d)%elts(id_i) / mass_l
+      temp_l = sol_mean(S_TEMP,k+itype)%data(d)%elts(id_i) + sol(S_TEMP,k+itype)%data(d)%elts(id_i)
+      b_l = temp_l / mass_l
 
       dz_l = 0.5 * (mass_0 + mass_l) / ref_density
 

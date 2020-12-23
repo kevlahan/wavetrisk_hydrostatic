@@ -87,7 +87,7 @@ program flat_projection_data
      halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
      drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     density     = (/ ref_density, ref_density + drho/2 /)    ! densities in each layer
+     density_drake = (/ ref_density, ref_density + drho/2 /)    ! densities in each layer
      height      = (/ abs(max_depth - halocline), abs(halocline) /) ! depths of each layer
      npts_penal  = 4
 
@@ -121,12 +121,12 @@ program flat_projection_data
      stratification = "exponential"
   elseif (trim (test_case) == "upwelling") then
      radius         = 5.7296d1 * KM             
-     grav_accel     = 9.80616          * METRE/SECOND**2 
-     omega          = 7.29211d-5       * RAD/SECOND      
-     p_top          = 0.0_8            * hPa             
-     ref_density    = 1027             * KG/METRE**3     
+     grav_accel     = 9.80616  * METRE/SECOND**2 
+     omega          = 5d-5     * RAD/SECOND      
+     p_top          = 0.0_8    * hPa             
+     ref_density    = 1027     * KG/METRE**3     
 
-     max_depth   = - 150 * METRE
+     max_depth   =  -150 * METRE
      drho        =    -3 * KG/METRE**3               
 
      mode_split     = .true.
@@ -134,9 +134,10 @@ program flat_projection_data
      compressible   = .false.                            
      penalize       = .true.
 
+     alpha          = 1d-2    ! porosity
+     npts_penal     = 5
      lat_c          = 45                                ! centre of zonal channel (in degrees)
-     lat_width      = 20                                ! width of zonal channel (in degrees)
-
+     lat_width      = 20
      coords         = "chebyshev"
   else
      if (rank == 0) write (6,'(A)') "Test case not supported"
@@ -586,8 +587,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: id_i
-    real(8)                       :: full_mass, full_temp
+    integer  :: id_i
+    real(8)  :: full_mass, full_temp
 
     id_i = idx (i, j, offs, dims) + 1
 
