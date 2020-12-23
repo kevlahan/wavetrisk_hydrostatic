@@ -18,8 +18,8 @@ program upwelling
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
-  radius             = 5.7296d1 * KM              ! so zonal channel of width 20 degrees is 80 km wide
-  omega              = 5d-5     * RAD/SECOND
+  radius             = 2.2918d2 * KM              ! so zonal channel of width 20 degrees is 80 km wide
+  omega              = 6d-5     * RAD/SECOND
   grav_accel         = 9.80616  * METRE/SECOND**2 ! gravitational acceleration 
   p_top              = 0.0_8    * hPa             ! pressure at free surface
   ref_density        = 1027     * KG/METRE**3     ! reference density at depth (seawater)
@@ -32,7 +32,7 @@ program upwelling
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
   alpha              = 1d-2                          ! porosity used in penalization
-  npts_penal         = 5.0                           ! number of points to smooth over in penalization
+  npts_penal         = 4.5                           ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
@@ -45,21 +45,21 @@ program upwelling
   coords             = "chebyshev"                   ! chebyshev or unifom
   
   ! Depth and layer parameters
-  min_depth      =  -20 * METRE                      ! minimum allowed depth (matches min depth from bathymetry profile)
+  min_depth      =   -5 * METRE                      ! minimum allowed depth (matches min depth from bathymetry profile)
   max_depth      = -150 * METRE                      ! total depth
 
   ! Land mass parameters
   lat_c          = 45                                ! centre of zonal channel (in degrees)
   lat_width      = 20                                ! width of zonal channel (in degrees)
 
-  ! Eddy diffusivity
-  K_t            = 1d-6 * METRE**2/SECOND
-
   ! Density difference at sea surface
-  drho           = -3 * KG/METRE**3
+  drho           = -1 * KG/METRE**3
 
   ! Eddy viscosity parameter
   K_m            = 2d-3  * METRE**2/SECOND
+
+  ! Eddy diffusivity
+  K_t            = 1d-6 * METRE**2/SECOND
 
   ! Bottom friction
   bottom_friction = 3d-4
@@ -102,7 +102,7 @@ program upwelling
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
+     !call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
      call stop_timing
 
      call update_diagnostics

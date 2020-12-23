@@ -300,6 +300,7 @@ contains
     else
        surf_geopot = grav_accel * 132
     end if
+!!$    surf_geopot = 0.0_8
    end function surf_geopot
 
   real(8) function init_free_surface (x_i)
@@ -331,7 +332,8 @@ contains
     implicit none
     real(8) :: z
     
-    density = eqn_of_state (temp_profile(z))
+!!$    density = eqn_of_state (temp_profile(z))
+    density = ref_density + drho * exp__flush (z/50) ! seamount
   end function density
 
   real(8) function temp_profile (z)
@@ -548,7 +550,7 @@ contains
 
        ! Smoothing exponent for land mass
        n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
-       n_smth_N = 4*radius * width_S*DEG / (dx_max * npts_penal)
+       n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
        
        mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
        penal_node(zlev)%data(d)%elts(id_i) = mask
@@ -566,7 +568,7 @@ contains
     if (time/DAY <= 2.0_8) then
        tau_zonal = -tau_0 * sin (MATH_PI * time/DAY)
     else
-       tau_zonal = 0.0_8
+       tau_zonal = -tau_0
     end if
     tau_merid = 0.0_8
   end subroutine wind_stress
@@ -598,8 +600,8 @@ contains
     elseif (trim (coords) == "chebyshev") then
        a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
        do k = 1, zlevels-1
-          a_vert(k) = 0.85*(1.006 + cos ((dble(2*k-1)/dble(4*(zlevels-1))+0.5) * MATH_PI)) 
-          b_vert(k) = 0.85*(1.006 + cos ((dble(2*k-1)/dble(4*(zlevels-1))+0.5) * MATH_PI)) 
+          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+          b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
        end do
        a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
     end if
@@ -711,16 +713,18 @@ contains
     do d = 1, size(grid)
        do k = 1, zlevels
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
           mass   =>  q(S_MASS,k)%data(d)%elts
           temp   =>  q(S_TEMP,k)%data(d)%elts
+          velo   =>  q(S_VELO,k)%data(d)%elts
           dmass  => dq(S_MASS,k)%data(d)%elts
           dtemp  => dq(S_TEMP,k)%data(d)%elts
           dvelo  => dq(S_VELO,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_velo,    grid(d), p-1, z_null, 0, 0)
+             call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
           end do
-          nullify (mean_m, mass, temp, dmass, dtemp)
+          nullify (dmass, dtemp, mass, mean_m, mean_t, temp)
        end do
     end do
     dq%bdry_uptodate = .false.
@@ -734,7 +738,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id_i, k
+    integer :: d, id_i
 
     id_i = idx (i, j, offs, dims) + 1
     d = dom%id + 1
@@ -742,26 +746,26 @@ contains
     dmass(id_i) = 0.0_8
 
     if (zlev == 1) then
-       dtemp(id_i) =  ref_density * flux(zlev, 1) ! f1 = 0 boundary condition
+       dtemp(id_i) =  ref_density * flux( 1) ! f1 = 0 boundary condition
     elseif (zlev == zlevels) then
-       dtemp(id_i) = -ref_density * flux(zlev,-1) ! f2 = 0 boundary condition
+       dtemp(id_i) = -ref_density * flux(-1) ! f2 = 0 boundary condition
     else
-       dtemp(id_i) =  ref_density * (flux(zlev,1) - flux(zlev,-1))
+       dtemp(id_i) = ref_density * (flux(1) - flux(-1))
     end if
   contains
-    real(8) function flux (k, itype)
-      ! Computes flux at interface below (itype=-1) or above (itype=1) current level k
+    real(8) function flux (itype)
+      ! Computes flux at interface below (itype=-1) or above (itype=1) current level
       implicit none
-      integer :: itype, k
+      integer :: itype
 
-      real(8) :: b_0, b_l, dz_l, mass_0, temp_0, mass_l, temp_l
+      real(8) :: b_0, b_l, dz_l, mass_0, mass_l, temp_0, temp_l
 
       mass_0 = mean_m(id_i) + mass(id_i)
       temp_0 = mean_t(id_i) + temp(id_i)
       b_0 = temp_0 / mass_0
 
-      mass_l = sol_mean(S_MASS,k+itype)%data(d)%elts(id_i) + sol(S_MASS,k+itype)%data(d)%elts(id_i)
-      temp_l = sol_mean(S_TEMP,k+itype)%data(d)%elts(id_i) + sol(S_TEMP,k+itype)%data(d)%elts(id_i)
+      mass_l = sol_mean(S_MASS,zlev+itype)%data(d)%elts(id_i) + sol(S_MASS,zlev+itype)%data(d)%elts(id_i)
+      temp_l = sol_mean(S_TEMP,zlev+itype)%data(d)%elts(id_i) + sol(S_TEMP,zlev+itype)%data(d)%elts(id_i)
       b_l = temp_l / mass_l
 
       dz_l = 0.5 * (mass_0 + mass_l) / ref_density
@@ -797,10 +801,10 @@ contains
     ! Find current layer heights at edges
     dz = dz_e (zlev)
     
-     if (zlev == 1) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - bottom_friction * velo) / dz ! lower boundary condition (bottom friction)
+    if (zlev == 1) then
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz ! lower boundary condition (bottom friction)
     elseif (zlev == zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (tau_wind()/ref_density - flux(-1)) / dz    ! upper boundary condition (wind stress)
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (tau_wind()/ref_density - flux(-1)) / dz ! upper boundary condition (wind stress)
     else
        dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - flux(-1)) / dz
     end if
@@ -852,10 +856,9 @@ contains
     function dz_e (k)
       ! Thickness of layer k at edges
       implicit none
-      integer                     :: k
+      integer                    :: k
       real(8), dimension(1:EDGE) :: dz_e
 
-      integer :: d, id_i
       real(8) :: mass0
 
       mass0 = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
