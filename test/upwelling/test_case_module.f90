@@ -196,7 +196,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta, phi, porous_density, z_s
+    real (8)    :: dz, eta, phi, z_s
     type(Coord) :: p
 
     d    = dom%id+1
@@ -213,9 +213,8 @@ contains
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     else ! 3D layers
        dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
-       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
        if (zlev == zlevels) then
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (d, id, zlev) * eta
        else
           sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        end if
@@ -234,7 +233,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta, porous_density, z_s
+    real (8)    :: dz, eta, z_s
     type(Coord) :: p
 
     d    = dom%id+1
@@ -250,9 +249,7 @@ contains
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     else
        dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
-       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (d, id, zlev) * dz
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (eta, z_s, zlev)
     end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
@@ -294,9 +291,9 @@ contains
 
     lat = lat / DEG
 
-!!$    surf_geopot =  - grav_accel * (max_depth - d_min) &
-!!$         * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
-    surf_geopot = 0.0_8
+    surf_geopot =  - grav_accel * (max_depth - d_min) &
+         * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+!!$    surf_geopot = 0.0_8
   end function surf_geopot
 
   real(8) function init_free_surface (x_i)
@@ -330,8 +327,8 @@ contains
 
     real(8), parameter :: delta = 50 * METRE
     
-    density = eqn_of_state (temp_profile(z))
-!!$    density = ref_density + drho * exp__flush (z/delta) ! seamount
+!!$    density = eqn_of_state (temp_profile(z))
+    density = ref_density + drho * exp__flush (z/delta) ! seamount
   end function density
 
   real(8) function temp_profile (z)
@@ -666,12 +663,12 @@ contains
     ! Calculates minimum mass and diffusion stability limits
     implicit none
     type(Domain)                   :: dom
-      integer                        :: i, j, zlev
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id, idE, idN, idNE, idS, idSW, idW, k
-    real(8) :: r_loc
+    real(8) :: dz0, dz_e, r_loc
 
     id   = idx (i,   j,   offs, dims)
     
@@ -686,16 +683,16 @@ contains
     d    = dom%id + 1
     
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)) / &
-            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idE+1))
+       dz0  = sol_mean(S_MASS,zlev)%data(d)%elts(id+1) / porous_density (d, id, zlev)
+       
+       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idE+1) / porous_density (d, idE, zlev)
+       r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
        r_max_loc = max (r_max_loc, r_loc)
 
-       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1)) / &
-            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1))
+       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) / porous_density (d, idNE, zlev)
        r_max_loc = max (r_max_loc, r_loc)
 
-       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)) / &
-            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idN+1))
+       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idN+1) / porous_density (d, idN, zlev)
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
@@ -738,24 +735,22 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id_i
+    integer :: d, id, id_i
 
-    id_i = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
     d = dom%id + 1
-
-    dmass(id_i) = 0.0_8
     
-    if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
-       if (zlev == 1) then
-          dtemp(id_i) =  ref_density * flux( 1) ! f1 = 0 boundary condition
-       elseif (zlev == zlevels) then
-          dtemp(id_i) = -ref_density * flux(-1) ! f2 = 0 boundary condition
-       else
-          dtemp(id_i) = ref_density * (flux(1) - flux(-1))
-       end if
+    dmass(id_i) = 0.0_8
+
+    if (zlev == 1) then
+       dtemp(id_i) = flux( 1) ! f1 = 0 boundary condition
+    elseif (zlev == zlevels) then
+       dtemp(id_i) = - flux(-1) ! f2 = 0 boundary condition
     else
-       dtemp(id_i) = 0.0_8
+       dtemp(id_i) = (flux(1) - flux(-1))
     end if
+    dtemp(id_i) = porous_density (d, id, zlev) * dtemp(id_i)
   contains
     real(8) function flux (itype)
       ! Computes flux at interface below (itype=-1) or above (itype=1) current level
@@ -772,7 +767,7 @@ contains
       temp_l = sol_mean(S_TEMP,zlev+itype)%data(d)%elts(id_i) + sol(S_TEMP,zlev+itype)%data(d)%elts(id_i)
       b_l = temp_l / mass_l
 
-      dz_l = 0.5 * (mass_0 + mass_l) / ref_density
+      dz_l = 0.5 * (mass_0 + mass_l) / porous_density (d, id, zlev)
 
       flux = itype * K_t * (b_l - b_0) / dz_l
     end function flux
@@ -791,25 +786,21 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
     d = dom%id + 1    
+    
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
 
-    if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
-       idE  = idx (i+1, j,   offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
-  
-       call cal_eta
-       z = z_e ()
-       dz = dz_e (zlev)
+    call cal_eta
+    z = z_e ()
+    dz = dz_e (zlev)
 
-       if (zlev > 1 .and. zlev < zlevels) then
-          dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - flux(-1)) / dz
-       elseif  (zlev == 1) then
-          dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz ! lower boundary condition (bottom friction)
-       elseif (zlev == zlevels) then
-          dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (tau_wind()/ref_density - flux(-1)) / dz ! upper boundary condition (wind stress)
-       end if
-    else
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+    if (zlev > 1 .and. zlev < zlevels) then
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - flux(-1)) / dz
+    elseif  (zlev == 1) then
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz ! lower boundary condition (bottom friction)
+    elseif (zlev == zlevels) then
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (tau_wind()/ref_density - flux(-1)) / dz ! upper boundary condition (wind stress)
     end if
   contains
     function flux (itype)
@@ -862,12 +853,16 @@ contains
       integer                    :: k
       real(8), dimension(1:EDGE) :: dz_e
 
-      real(8) :: mass0
+      real(8), dimension(0:EDGE) :: dz
 
-      mass0 = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
-      dz_e(RT+1) = 0.5 * (mass0 + sol_mean(S_MASS,k)%data(d)%elts(idE+1)  + sol(S_MASS,k)%data(d)%elts(idE+1))  / ref_density
-      dz_e(DG+1) = 0.5 * (mass0 + sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1)) / ref_density
-      dz_e(UP+1) = 0.5 * (mass0 + sol_mean(S_MASS,k)%data(d)%elts(idN+1)  + sol(S_MASS,k)%data(d)%elts(idN+1))  / ref_density
+      dz(0)    = (sol_mean(S_MASS,k)%data(d)%elts(id_i)   + sol(S_MASS,k)%data(d)%elts(id_i))   / porous_density (d, id,   k)
+      dz(RT+1) = (sol_mean(S_MASS,k)%data(d)%elts(idE+1)  + sol(S_MASS,k)%data(d)%elts(idE+1))  / porous_density (d, idE,  k)
+      dz(DG+1) = (sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1)) / porous_density (d, idNE, k)
+      dz(UP+1) = (sol_mean(S_MASS,k)%data(d)%elts(idN+1)  + sol(S_MASS,k)%data(d)%elts(idN+1))  / porous_density (d, idN,  k)
+      
+      dz_e(RT+1) = 0.5 * (dz(0) + dz(RT+1))
+      dz_e(DG+1) = 0.5 * (dz(0) + dz(DG+1))
+      dz_e(UP+1) = 0.5 * (dz(0) + dz(UP+1))
     end function dz_e
 
     function z_e ()
@@ -876,19 +871,28 @@ contains
       real(8), dimension(1:EDGE) :: z_e
 
       integer :: k
-      real(8) :: mass0
+      real(8) :: dz0
 
       ! bathymetry
       z_e = 0.0_8
       do k = 1, zlev
-         mass0 = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
-         z_e(RT+1) = z_e(RT+1) + 0.5 * (mass0 + sol_mean(S_MASS,k)%data(d)%elts(idE+1)  + sol(S_MASS,k)%data(d)%elts(idE+1))  
-         z_e(DG+1) = z_e(DG+1) + 0.5 * (mass0 + sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1))
-         z_e(UP+1) = z_e(UP+1) + 0.5 * (mass0 + sol_mean(S_MASS,k)%data(d)%elts(idN+1)  + sol(S_MASS,k)%data(d)%elts(idN+1))
+         dz0 = (sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)) / porous_density (d, id, k)
+         
+         z_e(RT+1) = z_e(RT+1) + 0.5 * (dz0 + (sol_mean(S_MASS,k)%data(d)%elts(idE+1)  + sol(S_MASS,k)%data(d)%elts(idE+1)) &
+              / porous_density (d, idE, k))
+         z_e(DG+1) = z_e(DG+1) + 0.5 * (dz0 + (sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1)) &
+              / porous_density (d, idNE, k))
+         z_e(UP+1) = z_e(UP+1) + 0.5 * (dz0 + (sol_mean(S_MASS,k)%data(d)%elts(idN+1)  + sol(S_MASS,k)%data(d)%elts(idN+1)) &
+              / porous_density (d, idN, k))
       end do
-      z_e(RT+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idE+1))  + z_e(RT+1) / ref_density
-      z_e(DG+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idNE+1)) + z_e(DG+1) / ref_density
-      z_e(UP+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idN+1))  + z_e(UP+1) / ref_density
+      z_e(RT+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idE+1))  + z_e(RT+1) 
+      z_e(DG+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idNE+1)) + z_e(DG+1) 
+      z_e(UP+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idN+1))  + z_e(UP+1) 
     end function z_e
   end subroutine trend_velo
+
+  real(8) function porous_density (d, id, k)
+      integer :: d, id, k
+      porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id+1))
+    end function porous_density
 end module test_case_mod
