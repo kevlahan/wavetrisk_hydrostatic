@@ -293,15 +293,11 @@ contains
     call cart2sph (p, lon, lat)
 
     lat = lat / DEG
-    
-    if (abs(lat-lat_c) <= lat_width/2) then
-       surf_geopot =  - grav_accel * (max_depth - d_min) &
-            * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
-    else
-       surf_geopot = grav_accel * 132
-    end if
-!!$    surf_geopot = 0.0_8
-   end function surf_geopot
+
+!!$    surf_geopot =  - grav_accel * (max_depth - d_min) &
+!!$         * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+    surf_geopot = 0.0_8
+  end function surf_geopot
 
   real(8) function init_free_surface (x_i)
     ! Free surface perturbation
@@ -331,9 +327,11 @@ contains
   real(8) function density (z)
     implicit none
     real(8) :: z
+
+    real(8), parameter :: delta = 50 * METRE
     
-!!$    density = eqn_of_state (temp_profile(z))
-    density = ref_density + drho * exp__flush (z/50) ! seamount
+    density = eqn_of_state (temp_profile(z))
+!!$    density = ref_density + drho * exp__flush (z/delta) ! seamount
   end function density
 
   real(8) function temp_profile (z)
@@ -453,9 +451,9 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    C_rotu = 1d-4
-    C_divu = 1d-4
-    C_sclr = 1d-4
+    C_rotu = 1d-3
+    C_divu = 1d-3
+    C_sclr = 1d-3
 
     ! Diffusion time scales
     tau_sclr = dt_cfl / C_sclr
@@ -600,8 +598,10 @@ contains
     elseif (trim (coords) == "chebyshev") then
        a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
        do k = 1, zlevels-1
-          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-          b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+!!$          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+!!$          b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+          a_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
+          b_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
        end do
        a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
     end if
@@ -744,13 +744,17 @@ contains
     d = dom%id + 1
 
     dmass(id_i) = 0.0_8
-
-    if (zlev == 1) then
-       dtemp(id_i) =  ref_density * flux( 1) ! f1 = 0 boundary condition
-    elseif (zlev == zlevels) then
-       dtemp(id_i) = -ref_density * flux(-1) ! f2 = 0 boundary condition
+    
+    if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
+       if (zlev == 1) then
+          dtemp(id_i) =  ref_density * flux( 1) ! f1 = 0 boundary condition
+       elseif (zlev == zlevels) then
+          dtemp(id_i) = -ref_density * flux(-1) ! f2 = 0 boundary condition
+       else
+          dtemp(id_i) = ref_density * (flux(1) - flux(-1))
+       end if
     else
-       dtemp(id_i) = ref_density * (flux(1) - flux(-1))
+       dtemp(id_i) = 0.0_8
     end if
   contains
     real(8) function flux (itype)
@@ -783,30 +787,29 @@ contains
 
     integer                    :: d, id, id_i, idE, idN, idNE
     real(8), dimension(1:EDGE) :: dz, eta, z
-    
+
     id = idx (i, j, offs, dims)
     id_i = id + 1
-    d = dom%id + 1
+    d = dom%id + 1    
 
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
+    if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
+       idE  = idx (i+1, j,   offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
+       idN  = idx (i,   j+1, offs, dims)
+  
+       call cal_eta
+       z = z_e ()
+       dz = dz_e (zlev)
 
-    ! Set free surface at edges
-    call cal_eta
-
-    ! Find current vertical coordinate at edges
-    z = z_e ()
-
-    ! Find current layer heights at edges
-    dz = dz_e (zlev)
-    
-    if (zlev == 1) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz ! lower boundary condition (bottom friction)
-    elseif (zlev == zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (tau_wind()/ref_density - flux(-1)) / dz ! upper boundary condition (wind stress)
+       if (zlev > 1 .and. zlev < zlevels) then
+          dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - flux(-1)) / dz
+       elseif  (zlev == 1) then
+          dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz ! lower boundary condition (bottom friction)
+       elseif (zlev == zlevels) then
+          dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (tau_wind()/ref_density - flux(-1)) / dz ! upper boundary condition (wind stress)
+       end if
     else
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - flux(-1)) / dz
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end if
   contains
     function flux (itype)

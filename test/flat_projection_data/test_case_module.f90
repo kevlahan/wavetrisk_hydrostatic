@@ -52,13 +52,10 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
-       lat = lat / DEG
-       if (abs(lat-lat_c) <= lat_width/2) then
-          surf_geopot = - grav_accel * (max_depth - d_min) &
-               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
-       else
-          surf_geopot = grav_accel * 132
-       end if
+!!$       lat = lat / DEG
+!!$          surf_geopot = - grav_accel * (max_depth - d_min) &
+!!$               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+       surf_geopot = 0.0_8
     else
        if (rank == 0) write(6,'(A)') "Test case not supported"
        stop
@@ -93,13 +90,10 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot_latlon = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
-       lat = lat / DEG
-       if (abs(lat-lat_c) <= lat_width/2) then
-          surf_geopot_latlon =  - grav_accel * (max_depth - d_min) &
-               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1)))+ tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
-       else
-          surf_geopot_latlon = grav_accel * 131
-       end if
+!!$       lat = lat / DEG
+!!$          surf_geopot_latlon =  - grav_accel * (max_depth - d_min) &
+!!$               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1)))+ tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+       surf_geopot_latlon = 0.0_8
     else
        write(6,'(A)') "Test case not supported"
        stop

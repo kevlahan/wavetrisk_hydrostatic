@@ -138,7 +138,7 @@ program flat_projection_data
      npts_penal     = 5
      lat_c          = 45                                ! centre of zonal channel (in degrees)
      lat_width      = 20
-     coords         = "chebyshev"
+     coords         = "uniform"
   else
      if (rank == 0) write (6,'(A)') "Test case not supported"
      stop

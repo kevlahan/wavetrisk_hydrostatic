@@ -5,8 +5,8 @@ clear
 test_case = 'upwelling';
 run_id    = 'upwelling';
 
-%machine   = 'if.mcmaster.ca';
-machine   = 'cherry';
+machine   = 'if.mcmaster.ca';
+%machine   = 'cherry';
 
 % Transfer data
 directory   = ['~/hydro/' test_case];

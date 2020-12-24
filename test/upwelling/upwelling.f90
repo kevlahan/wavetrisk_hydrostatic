@@ -42,7 +42,7 @@ program upwelling
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
-  coords             = "chebyshev"                   ! chebyshev or unifom
+  coords             = "uniform"                   ! chebyshev or unifom
   
   ! Depth and layer parameters
   min_depth      =   -5 * METRE                      ! minimum allowed depth (matches min depth from bathymetry profile)
@@ -53,7 +53,7 @@ program upwelling
   lat_width      = 20                                ! width of zonal channel (in degrees)
 
   ! Density difference at sea surface
-  drho           = -1 * KG/METRE**3
+  drho           = -3 * KG/METRE**3
 
   ! Eddy viscosity parameter
   K_m            = 2d-3  * METRE**2/SECOND
@@ -93,7 +93,7 @@ program upwelling
   call print_test_case_parameters
   call write_and_export (iwrite)
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
@@ -102,7 +102,7 @@ program upwelling
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     !call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
+     call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
      call stop_timing
 
      call update_diagnostics
@@ -224,16 +224,15 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   integer, dimension(N_BDRY+1)   :: offs
   integer, dimension(2,N_BDRY+1) :: dims
 
-  integer                         :: id
-  real(8), dimension(1:EDGE)      :: diffusion
-
-  id = idx (i, j, offs, dims)
+  integer                    :: id
+  real(8), dimension(1:EDGE) :: diffusion
   
+  id = idx (i, j, offs, dims)
+ 
   ! Horizontal diffusion
   diffusion = (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
 
-  ! Complete source term for velocity trend
-  physics_velo_source = diffusion 
+  physics_velo_source = diffusion
 contains
   function grad_divu()
     implicit none
