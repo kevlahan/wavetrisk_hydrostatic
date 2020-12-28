@@ -33,7 +33,7 @@ program upwelling
   penalize           = .true.                        ! penalize land regions
   alpha              = 1d-2                          ! porosity used in penalization
   npts_penal         = 4.5                           ! number of points to smooth over in penalization
-  coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
+  coarse_iter        = 40                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
   timeint_type       = "RK4"                         ! always use RK4
@@ -42,10 +42,9 @@ program upwelling
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
-  coords             = "uniform"                   ! chebyshev or unifom
+  coords             = "chebyshev"                   ! chebyshev or unifom
   
   ! Depth and layer parameters
-  min_depth      =   -5 * METRE                      ! minimum allowed depth (matches min depth from bathymetry profile)
   max_depth      = -150 * METRE                      ! total depth
 
   ! Land mass parameters
@@ -77,7 +76,7 @@ program upwelling
   Rd             = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
 
   ! Dimensional scaling
-  Udim           = 2d-1                               ! velocity scale
+  Udim           = 1.0_8                            ! velocity scale
   Ldim           = lat_width*DEG * radius             ! length scale 
   Tdim           = Ldim/Udim                          ! time scale
   Hdim           = abs (max_depth)                    ! vertical length scale
@@ -102,7 +101,7 @@ program upwelling
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
+     !call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
      call stop_timing
 
      call update_diagnostics

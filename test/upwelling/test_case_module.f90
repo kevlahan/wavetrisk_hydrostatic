@@ -13,7 +13,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, beta0, drho, f0, K_m, K_t, Rd, ref_temp
-  real(8)                              :: bottom_friction, max_depth, min_depth, r_max, r_max_loc
+  real(8)                              :: bottom_friction, max_depth, r_max, r_max_loc
   real(8)                              :: npts_penal, u_wbc
   real(8)                              :: lat_c, lat_width, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -114,7 +114,6 @@ contains
        write (6,'(A,es10.4)') "grav accel            [m/s^2]  = ", grav_accel
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es11.4)') "min_depth                 [m]  = ", abs (min_depth)
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
@@ -293,7 +292,6 @@ contains
 
     surf_geopot =  - grav_accel * (max_depth - d_min) &
          * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
-!!$    surf_geopot = 0.0_8
   end function surf_geopot
 
   real(8) function init_free_surface (x_i)
@@ -595,10 +593,8 @@ contains
     elseif (trim (coords) == "chebyshev") then
        a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
        do k = 1, zlevels-1
-!!$          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-!!$          b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-          a_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
-          b_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
+          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+          b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
        end do
        a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
     end if
@@ -721,7 +717,7 @@ contains
              call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
              call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
           end do
-          nullify (dmass, dtemp, mass, mean_m, mean_t, temp)
+          nullify (dmass, dtemp, dvelo, mass, mean_m, mean_t, temp, velo)
        end do
     end do
     dq%bdry_uptodate = .false.
@@ -743,12 +739,12 @@ contains
     
     dmass(id_i) = 0.0_8
 
-    if (zlev == 1) then
-       dtemp(id_i) = flux( 1) ! f1 = 0 boundary condition
-    elseif (zlev == zlevels) then
-       dtemp(id_i) = - flux(-1) ! f2 = 0 boundary condition
-    else
+    if (zlev > 1 .and. zlev < zlevels) then
        dtemp(id_i) = (flux(1) - flux(-1))
+    elseif (zlev == 1) then
+       dtemp(id_i) =  flux( 1) ! f1 = 0 boundary condition
+    elseif (zlev == zlevels) then
+       dtemp(id_i) = -flux(-1) ! f2 = 0 boundary condition
     end if
     dtemp(id_i) = porous_density (d, id, zlev) * dtemp(id_i)
   contains
@@ -779,14 +775,14 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-
+    
     integer                    :: d, id, id_i, idE, idN, idNE
     real(8), dimension(1:EDGE) :: dz, eta, z
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     d = dom%id + 1    
-    
+
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
@@ -800,7 +796,7 @@ contains
     elseif  (zlev == 1) then
        dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz ! lower boundary condition (bottom friction)
     elseif (zlev == zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (tau_wind()/ref_density - flux(-1)) / dz ! upper boundary condition (wind stress)
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = wind_flux() - flux(-1)/dz ! upper boundary condition (wind stress)
     end if
   contains
     function flux (itype)
@@ -828,15 +824,26 @@ contains
       eta(UP+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id_i) + sol(S_MASS,zlevels+1)%data(d)%elts(idN+1))
     end subroutine cal_eta
 
-    function tau_wind ()
-      ! Evaluates wind stress at edges
+    function wind_flux ()
+      ! Flux due to wind stress evaluated at edges
       implicit none
-      real(8), dimension(1:EDGE) :: tau_wind
+      real(8), dimension(1:EDGE) :: wind_flux
+      
+      real(8), dimension(1:EDGE)      :: mass_e, tau_wind
+      real(8), dimension(0:NORTHEAST) :: full_mass
+
+      full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+
+      mass_e(RT+1) = 0.5 * (full_mass(0) + full_mass(EAST))
+      mass_e(DG+1) = 0.5 * (full_mass(0) + full_mass(NORTHEAST))
+      mass_e(UP+1) = 0.5 * (full_mass(0) + full_mass(NORTH))
 
       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idE+1))
       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id_i))
       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idN+1))
-    end function tau_wind
+
+      wind_flux = tau_wind / mass_e
+    end function wind_flux
 
     function eddy_viscosity (z)
       ! Eddy viscosity at height z at edges
@@ -892,7 +899,7 @@ contains
   end subroutine trend_velo
 
   real(8) function porous_density (d, id, k)
-      integer :: d, id, k
-      porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id+1))
-    end function porous_density
+    integer :: d, id, k
+    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id+1))
+  end function porous_density
 end module test_case_mod
