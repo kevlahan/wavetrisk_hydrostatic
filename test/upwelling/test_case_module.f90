@@ -325,8 +325,8 @@ contains
 
     real(8), parameter :: delta = 50 * METRE
     
-!!$    density = eqn_of_state (temp_profile(z))
-    density = ref_density + drho * exp__flush (z/delta) ! seamount
+    density = eqn_of_state (temp_profile(z))
+!!$    density = ref_density + drho * exp__flush (z/delta) ! exponential stratification
   end function density
 
   real(8) function temp_profile (z)
@@ -342,9 +342,9 @@ contains
     implicit none
     real(8) :: temperature
 
-    real(8), parameter :: T0 = 9.5_8
+    real(8), parameter :: beta = -1.65e-1
 
-    eqn_of_state = ref_density * (1.0_8 + drho/ref_density * (temperature - T0)/9)
+    eqn_of_state = ref_density + beta * temperature
   end function eqn_of_state
 
   subroutine print_density
@@ -694,7 +694,7 @@ contains
   end subroutine cal_rmax_loc
 
   subroutine trend_vertical_diffusion (q, dq)
-    ! Trend for eddy diffusivity 
+    ! Trend for eddy diffusivity and eddy viscosity 
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
 
@@ -740,11 +740,11 @@ contains
     dmass(id_i) = 0.0_8
 
     if (zlev > 1 .and. zlev < zlevels) then
-       dtemp(id_i) = (flux(1) - flux(-1))
+       dtemp(id_i) = flux(1) - flux(-1)
     elseif (zlev == 1) then
-       dtemp(id_i) =  flux( 1) ! f1 = 0 boundary condition
+       dtemp(id_i) =  flux( 1) ! lower boundary condition (no heat source at bathymetry)
     elseif (zlev == zlevels) then
-       dtemp(id_i) = -flux(-1) ! f2 = 0 boundary condition
+       dtemp(id_i) = -flux(-1) ! upper boundary condition (no heat source at free surface)
     end if
     dtemp(id_i) = porous_density (d, id, zlev) * dtemp(id_i)
   contains
