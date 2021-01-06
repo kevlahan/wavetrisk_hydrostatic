@@ -1,8 +1,8 @@
 Module test_case_mod
   ! Module file for Drake passage test case
   use shared_mod
-  use domain_mod
   use comm_mpi_mod
+  use utils_mod
   implicit none
 
   ! Standard variables
@@ -323,28 +323,26 @@ contains
     implicit none
     real(8) :: z
 
-    real(8), parameter :: delta = 50 * METRE
-    
     density = eqn_of_state (temp_profile(z))
-!!$    density = ref_density + drho * exp__flush (z/delta) ! exponential stratification
   end function density
 
   real(8) function temp_profile (z)
     implicit none
     real(8) :: z
     
-    real(8), parameter :: h_z = 6.5_8, ref_temp = 14_8, strat = 150_8, z0 = -35_8, z1 = -75_8
+    real(8), parameter :: h_z = 6.5_8, T0 = 14_8, strat = 150_8, z0 = -35_8, z1 = -75_8
 
-    temp_profile = ref_temp + 4*tanh ((z - z0) / h_z) + (z - z1) / strat
+    temp_profile = T0 + 4*tanh ((z - z0) / h_z) + (z - z1) / strat
   end function temp_profile
 
   real(8) function eqn_of_state (temperature)
     implicit none
     real(8) :: temperature
 
-    real(8), parameter :: beta = -1.65e-1
+    real(8), parameter :: beta = 0.28, T0 = 14_8
 
-    eqn_of_state = ref_density + beta * temperature
+    eqn_of_state = ref_density - beta * (temperature - T0)
+!!$    eqn_of_stat  = ref_density - 0.165 * temperature
   end function eqn_of_state
 
   subroutine print_density
@@ -559,9 +557,9 @@ contains
     real(8) :: lat, lon, tau_zonal, tau_merid
     
     if (time/DAY <= 2.0_8) then
-       tau_zonal = -tau_0 * sin (MATH_PI * time/DAY)
+       tau_zonal = tau_0 * sin (MATH_PI * time/DAY)
     else
-       tau_zonal = -tau_0
+       tau_zonal = tau_0
     end if
     tau_merid = 0.0_8
   end subroutine wind_stress
@@ -693,213 +691,104 @@ contains
     end if
   end subroutine cal_rmax_loc
 
-  subroutine trend_vertical_diffusion (q, dq)
-    ! Trend for eddy diffusivity and eddy viscosity 
-    implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-
-    integer :: d, k, p
-    
-    call update_array_bdry (q, NONE, 27)
-
-    ! Scalars
-    do d = 1, size(grid)
-       do k = 1, zlevels
-          mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-          mass   =>  q(S_MASS,k)%data(d)%elts
-          temp   =>  q(S_TEMP,k)%data(d)%elts
-          velo   =>  q(S_VELO,k)%data(d)%elts
-          dmass  => dq(S_MASS,k)%data(d)%elts
-          dtemp  => dq(S_TEMP,k)%data(d)%elts
-          dvelo  => dq(S_VELO,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
-          end do
-          nullify (dmass, dtemp, dvelo, mass, mean_m, mean_t, temp, velo)
-       end do
-    end do
-    dq%bdry_uptodate = .false.
-  end subroutine trend_vertical_diffusion
-
-  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
-    ! Vertical eddy diffusivity of buoyancy
+  real(8) function eddy_diffusivity (dom, i, j, zlev, offs, dims)
+    ! Eddy diffusivity at nodes
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, id_i
+    eddy_diffusivity = K_t
+  end function eddy_diffusivity
 
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-    d = dom%id + 1
-    
-    dmass(id_i) = 0.0_8
-
-    if (zlev > 1 .and. zlev < zlevels) then
-       dtemp(id_i) = flux(1) - flux(-1)
-    elseif (zlev == 1) then
-       dtemp(id_i) =  flux( 1) ! lower boundary condition (no heat source at bathymetry)
-    elseif (zlev == zlevels) then
-       dtemp(id_i) = -flux(-1) ! upper boundary condition (no heat source at free surface)
-    end if
-    dtemp(id_i) = porous_density (d, id, zlev) * dtemp(id_i)
-  contains
-    real(8) function flux (itype)
-      ! Computes flux at interface below (itype=-1) or above (itype=1) current level
-      implicit none
-      integer :: itype
-
-      real(8) :: b_0, b_l, dz_l, mass_0, mass_l, temp_0, temp_l
-
-      mass_0 = mean_m(id_i) + mass(id_i)
-      temp_0 = mean_t(id_i) + temp(id_i)
-      b_0 = temp_0 / mass_0
-
-      mass_l = sol_mean(S_MASS,zlev+itype)%data(d)%elts(id_i) + sol(S_MASS,zlev+itype)%data(d)%elts(id_i)
-      temp_l = sol_mean(S_TEMP,zlev+itype)%data(d)%elts(id_i) + sol(S_TEMP,zlev+itype)%data(d)%elts(id_i)
-      b_l = temp_l / mass_l
-
-      dz_l = 0.5 * (mass_0 + mass_l) / porous_density (d, id, zlev)
-
-      flux = itype * K_t * (b_l - b_0) / dz_l
-    end function flux
-  end subroutine trend_scalars
-
-  subroutine trend_velo (dom, i, j, zlev, offs, dims)
+  function eddy_viscosity (dom, i, j, zlev, offs, dims)
+    ! Eddy viscosity at at edges
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: eddy_viscosity
+
+    real(8), dimension(1:EDGE) :: eta, z
+
+    z = z_e (dom, i, j, zlev, offs, dims)
+    eta = eta_e (dom, i, j, zlev, offs, dims)
     
-    integer                    :: d, id, id_i, idE, idN, idNE
-    real(8), dimension(1:EDGE) :: dz, eta, z
+    eddy_viscosity = K_m * (1.0_8 + 4 * exp ( (z - eta) / abs(max_depth) ))
+  end function eddy_viscosity
+
+  real(8) function bottom_temp_source (dom, i, j, zlev, offs, dims)
+    ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    bottom_temp_source = 0.0_8
+  end function bottom_temp_source
+
+  real(8) function top_temp_source (dom, i, j, zlev, offs, dims)
+    ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    top_temp_source = 0.0_8
+  end function top_temp_source
+  
+  function bottom_velo_source (dom, i, j, zlev, offs, dims)
+    ! Linear bottom friction  (bottom boundary condition for vertical diffusion of velocity)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: bottom_velo_source
+
+    integer                     :: id
+    real(8), dimension(1:EDGE)  :: dz
+
 
     id = idx (i, j, offs, dims)
-    id_i = id + 1
-    d = dom%id + 1    
 
+    dz = dz_e (dom, i, j, zlev, offs, dims)
+
+    bottom_velo_source = - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1) / dz
+  end function bottom_velo_source
+
+  function top_velo_source (dom, i, j, zlev, offs, dims)
+    ! Flux due to wind stress evaluated at edges (top boundary condition for vertical diffusion of velocity)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: top_velo_source
+
+    integer                         :: id, idE, idN, idNE               
+    real(8), dimension(1:EDGE)      :: mass_e, tau_wind
+    real(8), dimension(0:NORTHEAST) :: full_mass
+
+    id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
-    call cal_eta
-    z = z_e ()
-    dz = dz_e (zlev)
+    full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
 
-    if (zlev > 1 .and. zlev < zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - flux(-1)) / dz
-    elseif  (zlev == 1) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz ! lower boundary condition (bottom friction)
-    elseif (zlev == zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = wind_flux() - flux(-1)/dz ! upper boundary condition (wind stress)
-    end if
-  contains
-    function flux (itype)
-      ! Flux at upper interface (itype=1) or lower interface (itype=-1)
-      implicit none
-      integer               :: itype
-      real(8), dimension(3) :: flux
+    mass_e(RT+1) = 0.5 * (full_mass(0) + full_mass(EAST))
+    mass_e(DG+1) = 0.5 * (full_mass(0) + full_mass(NORTHEAST))
+    mass_e(UP+1) = 0.5 * (full_mass(0) + full_mass(NORTH))
 
-      integer               :: e, id_e
-      real(8), dimension(3) :: dz_l, z_l
+    tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
+    tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
+    tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-      z_l = z + min (itype,0) * dz           ! height of interface
-      dz_l = 0.5 * (dz + dz_e(zlev+itype))   ! thickness of layer centred on interface
-      
-      flux = itype * eddy_viscosity (z_l) &
-           * (sol(S_VELO,zlev+itype)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_l
-    end function flux
-    
-    subroutine cal_eta
-      ! Free surface at edges
-      implicit none
-      
-      eta(RT+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id_i) + sol(S_MASS,zlevels+1)%data(d)%elts(idE+1))
-      eta(DG+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id_i) + sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
-      eta(UP+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id_i) + sol(S_MASS,zlevels+1)%data(d)%elts(idN+1))
-    end subroutine cal_eta
-
-    function wind_flux ()
-      ! Flux due to wind stress evaluated at edges
-      implicit none
-      real(8), dimension(1:EDGE) :: wind_flux
-      
-      real(8), dimension(1:EDGE)      :: mass_e, tau_wind
-      real(8), dimension(0:NORTHEAST) :: full_mass
-
-      full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
-
-      mass_e(RT+1) = 0.5 * (full_mass(0) + full_mass(EAST))
-      mass_e(DG+1) = 0.5 * (full_mass(0) + full_mass(NORTHEAST))
-      mass_e(UP+1) = 0.5 * (full_mass(0) + full_mass(NORTH))
-
-      tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idE+1))
-      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id_i))
-      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idN+1))
-
-      wind_flux = tau_wind / mass_e
-    end function wind_flux
-
-    function eddy_viscosity (z)
-      ! Eddy viscosity at height z at edges
-      implicit none
-      real(8), dimension(1:EDGE) :: eddy_viscosity
-      real(8), dimension(1:EDGE) :: z
-
-      eddy_viscosity = K_m * (1.0_8 + 4 * exp ( (z-eta) / abs(max_depth) ))
-    end function eddy_viscosity
-
-    function dz_e (k)
-      ! Thickness of layer k at edges
-      implicit none
-      integer                    :: k
-      real(8), dimension(1:EDGE) :: dz_e
-
-      real(8), dimension(0:EDGE) :: dz
-
-      dz(0)    = (sol_mean(S_MASS,k)%data(d)%elts(id_i)   + sol(S_MASS,k)%data(d)%elts(id_i))   / porous_density (d, id,   k)
-      dz(RT+1) = (sol_mean(S_MASS,k)%data(d)%elts(idE+1)  + sol(S_MASS,k)%data(d)%elts(idE+1))  / porous_density (d, idE,  k)
-      dz(DG+1) = (sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1)) / porous_density (d, idNE, k)
-      dz(UP+1) = (sol_mean(S_MASS,k)%data(d)%elts(idN+1)  + sol(S_MASS,k)%data(d)%elts(idN+1))  / porous_density (d, idN,  k)
-      
-      dz_e(RT+1) = 0.5 * (dz(0) + dz(RT+1))
-      dz_e(DG+1) = 0.5 * (dz(0) + dz(DG+1))
-      dz_e(UP+1) = 0.5 * (dz(0) + dz(UP+1))
-    end function dz_e
-
-    function z_e ()
-      ! Height of upper interface of current level at edges
-      implicit none
-      real(8), dimension(1:EDGE) :: z_e
-
-      integer :: k
-      real(8) :: dz0
-
-      ! bathymetry
-      z_e = 0.0_8
-      do k = 1, zlev
-         dz0 = (sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)) / porous_density (d, id, k)
-         
-         z_e(RT+1) = z_e(RT+1) + 0.5 * (dz0 + (sol_mean(S_MASS,k)%data(d)%elts(idE+1)  + sol(S_MASS,k)%data(d)%elts(idE+1)) &
-              / porous_density (d, idE, k))
-         z_e(DG+1) = z_e(DG+1) + 0.5 * (dz0 + (sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1)) &
-              / porous_density (d, idNE, k))
-         z_e(UP+1) = z_e(UP+1) + 0.5 * (dz0 + (sol_mean(S_MASS,k)%data(d)%elts(idN+1)  + sol(S_MASS,k)%data(d)%elts(idN+1)) &
-              / porous_density (d, idN, k))
-      end do
-      z_e(RT+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idE+1))  + z_e(RT+1) 
-      z_e(DG+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idNE+1)) + z_e(DG+1) 
-      z_e(UP+1) = 0.5 * (dom%topo%elts(id_i) + dom%topo%elts(idN+1))  + z_e(UP+1) 
-    end function z_e
-  end subroutine trend_velo
-
-  real(8) function porous_density (d, id, k)
-    integer :: d, id, k
-    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id+1))
-  end function porous_density
+    top_velo_source = tau_wind / mass_e
+  end function top_velo_source
 end module test_case_mod

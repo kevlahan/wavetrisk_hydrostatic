@@ -33,7 +33,7 @@ program upwelling
   penalize           = .true.                        ! penalize land regions
   alpha              = 1d-2                          ! porosity used in penalization
   npts_penal         = 4.5                           ! number of points to smooth over in penalization
-  coarse_iter        = 40                            ! number of coarse scale iterations of elliptic solver
+  coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
   timeint_type       = "RK4"                         ! always use RK4
@@ -45,41 +45,41 @@ program upwelling
   coords             = "chebyshev"                   ! chebyshev or unifom
   
   ! Depth and layer parameters
-  max_depth      = -150 * METRE                      ! total depth
+  max_depth          = -150 * METRE                      ! total depth
 
   ! Land mass parameters
-  lat_c          = 45                                ! centre of zonal channel (in degrees)
-  lat_width      = 20                                ! width of zonal channel (in degrees)
+  lat_c              = 45                                ! centre of zonal channel (in degrees)
+  lat_width          = 20                                ! width of zonal channel (in degrees)
 
   ! Density difference at sea surface
-  drho           = -3 * KG/METRE**3
+  drho               = -3 * KG/METRE**3
 
   ! Eddy viscosity parameter
-  K_m            = 2d-3  * METRE**2/SECOND
+  K_m                = 2d-3  * METRE**2/SECOND
 
   ! Eddy diffusivity
-  K_t            = 1d-6 * METRE**2/SECOND
-
+  K_t                = 1d-6 * METRE**2/SECOND
+ 
   ! Bottom friction
-  bottom_friction = 3d-4
+  bottom_friction    = 3d-4
 
   ! Wind stress
-  tau_0           = 0.1_8
+  tau_0              = 0.1_8
 
   ! Vertical level to save
   save_zlev = zlevels 
 
   ! Characteristic scales
-  wave_speed     = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
-  f0             = 2*omega*sin(45*DEG)               ! representative Coriolis parameter
-  beta           = 2*omega*cos(45*DEG) / radius      ! beta parameter at 30 degrees latitude
-  Rd             = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
+  wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
+  f0                 = 2*omega*sin(45*DEG)               ! representative Coriolis parameter
+  beta               = 2*omega*cos(45*DEG) / radius      ! beta parameter at 30 degrees latitude
+  Rd                 = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
 
   ! Dimensional scaling
-  Udim           = 1.0_8                            ! velocity scale
-  Ldim           = lat_width*DEG * radius             ! length scale 
-  Tdim           = Ldim/Udim                          ! time scale
-  Hdim           = abs (max_depth)                    ! vertical length scale
+  Udim               = 1.0_8                            ! velocity scale
+  Ldim               = lat_width*DEG * radius             ! length scale 
+  Tdim               = Ldim/Udim                          ! time scale
+  Hdim               = abs (max_depth)                    ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize variables
