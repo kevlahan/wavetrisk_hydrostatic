@@ -962,8 +962,7 @@ contains
           
           dx = minval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))
           do k = 1, zlevels
-!!$             v_mag = maxval (abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)))
-             v_mag = sqrt (2*dom%ke%elts(id_i))
+             v_mag = maxval (abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)))
              if (mode_split) then
                 dt_loc = min (dt_loc, dt_init, cfl_num*dx/wave_speed, 1.4*dx/v_mag, dx/c1)
              else
