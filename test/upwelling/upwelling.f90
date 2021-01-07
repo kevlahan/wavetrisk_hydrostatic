@@ -18,7 +18,7 @@ program upwelling
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
-  radius             = 2.2918d2 * KM              ! so zonal channel of width 20 degrees is 80 km wide
+  radius             = 130      * KM              ! so zonal channel of width 20 degrees is 80 km wide
   omega              = 6d-5     * RAD/SECOND
   grav_accel         = 9.80616  * METRE/SECOND**2 ! gravitational acceleration 
   p_top              = 0.0_8    * hPa             ! pressure at free surface
@@ -42,24 +42,19 @@ program upwelling
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
-  coords             = "chebyshev"                   ! chebyshev or unifom
+  coords             = "roms"                   ! chebyshev, roms or unifom
   
   ! Depth and layer parameters
   max_depth          = -150 * METRE                      ! total depth
 
   ! Land mass parameters
+  width              = 80 * KM                           ! width of zonal channel
+  lat_width          = (width/radius)/DEG                ! width of zonal channel (in degrees)
   lat_c              = 45                                ! centre of zonal channel (in degrees)
-  lat_width          = 20                                ! width of zonal channel (in degrees)
-
+  
   ! Density difference at sea surface
   drho               = -3 * KG/METRE**3
 
-  ! Eddy viscosity parameter
-  K_m                = 2d-3  * METRE**2/SECOND
-
-  ! Eddy diffusivity
-  K_t                = 1d-6 * METRE**2/SECOND
- 
   ! Bottom friction
   bottom_friction    = 3d-4
 

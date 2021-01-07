@@ -4,6 +4,7 @@ clear
 
 test_case = 'upwelling';
 run_id    = 'upwelling';
+time      = 2;
 
 machine   = 'if.mcmaster.ca';
 %machine   = 'cherry';
@@ -13,7 +14,7 @@ directory   = ['~/hydro/' test_case];
 file_base   = [run_id '.5'];
 
 if ~strcmp(machine,'cherry')
-remote_file = [directory '/' file_base '.tgz'];
+remote_file = [directory '/' file_base '.' sprintf( '%04d', time) '.tgz'];
 local_file  = remote_file;
 scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
 unix (sprintf(scp_cmd));
@@ -38,14 +39,14 @@ lat_slice = fread(fopen([directory '/' file_base '.56']),'double');lat_slice = r
 lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = reshape(lon_slice,[Nlon,zlevels,4]);
 %% Plot vertical grid
 hf1=figure(1);
-plot(lat,zlat(:,:,1)','k-','linewidth',1.2); axis([30 60 -150 0]);
-xlabel('latitude'); ylabel('z (km)'); hold on;
-plot([xlat(:,1) xlat(:,1)], ylim, 'k-','linewidth',1.2);
-%set(gca,'DataAspectRatio',[10 1 1])
-%pos = get(hf1,'position');
-%set(hf1,'position',[pos(1:2)/4 pos(3:4)*2])
+plot(lat,zlat(:,:,1)','k-','linewidth',1.2); hold on;
+plot([lat lat], ylim, 'k-','linewidth',1.2);
+lat_width = 80/130*180/pi;
+axis([45-lat_width/2 45+lat_width/2 -150 0]);
+%axis([0 90 -150 0])
+xlabel('latitude'); ylabel('z (m)'); hold on;
 set(gca,'fontsize',18);hold off
-%% Plot data
+%% Plot density
 hf2=figure(2);
 for i = 1:Nlat
     for k = 1:zlevels
@@ -54,14 +55,26 @@ for i = 1:Nlat
         patch(x,y,lat_slice(i,k,3),'LineStyle','none');
     end
 end
-hcb=colorbar;hcb=colorbar; hcb.Label.String = "Density perturbation (kg/m^3)";
-xlabel('latitude'); ylabel('z (km)');colormap(flipud(jet)) 
-axis([35 55 -150 0]);hold on;
+xlabel('latitude'); ylabel('z (m)');colormap(flipud(jet)) 
+colormap(jet);
+hcb=colorbar; hcb.Label.String = "Density (kg/m^3)";
+axis([45-lat_width/2 45+lat_width/2 -150 0]);
 set(gca,'fontsize',18);
-%set(gca,'DataAspectRatio',[10 1 1])
-%pos = get(hf2,'position');
-%set(hf2,'position',[pos(1:2)/4 pos(3:4)*2])
-%hcb.FontSize=10;
+%% Plot temperature
+hf2=figure(3);
+temp = @(rho) 14 + (1027-rho)/0.28;
+for i = 1:Nlat
+    for k = 1:zlevels
+        x = [xlat(i,1) xlat(i,2) xlat(i,2) xlat(i,1)];
+        y = [zlat(i,k,1) zlat(i,k,1) zlat(i,k,2) zlat(i,k,2)];
+        patch(x,y,temp(lat_slice(i,k,3)),'LineStyle','none');
+    end
+end
+xlabel('latitude'); ylabel('z (m)');colormap(flipud(jet)) 
+colormap(jet);
+hcb=colorbar; hcb.Label.String = "Temperature (celsius)";
+axis([45-lat_width/2 45+lat_width/2 -150 0]);
+set(gca,'fontsize',18);
 
 
 

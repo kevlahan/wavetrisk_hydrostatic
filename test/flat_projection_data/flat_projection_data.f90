@@ -120,7 +120,7 @@ program flat_projection_data
      coords         = "chebyshev"
      stratification = "exponential"
   elseif (trim (test_case) == "upwelling") then
-     radius         = 5.7296d1 * KM             
+     radius         = 130      * KM             
      grav_accel     = 9.80616  * METRE/SECOND**2 
      omega          = 5d-5     * RAD/SECOND      
      p_top          = 0.0_8    * hPa             
@@ -136,9 +136,12 @@ program flat_projection_data
 
      alpha          = 1d-2    ! porosity
      npts_penal     = 5
+     
+     width          = 80 * KM                           ! width of channel in km
+     lat_width      = (width/radius)/DEG
      lat_c          = 45                                ! centre of zonal channel (in degrees)
-     lat_width      = 20
-     coords         = "uniform"
+
+     coords         = "roms"
   else
      if (rank == 0) write (6,'(A)') "Test case not supported"
      stop
@@ -527,9 +530,9 @@ contains
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (density_perturbation, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (interp_vel_hex,       grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (cal_vort,             grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (rho,            grid(d), grid(d)%lev(l)%elts(j), k,  0, 1)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
           nullify (mass, mean_m, mean_t, scalar, temp, velo, velo1, velo2, vort)
@@ -579,7 +582,7 @@ contains
     end do
   end subroutine vertical_slice
 
-  subroutine density_perturbation (dom, i, j, zlev, offs, dims)
+  subroutine rho (dom, i, j, zlev, offs, dims)
     ! Write primal grid for vertical level zlev
     implicit none
     type(Domain)                   :: dom
@@ -591,13 +594,11 @@ contains
     real(8)  :: full_mass, full_temp
 
     id_i = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       full_mass = mass(id_i) + mean_m(id_i)
-       full_temp = temp(id_i) + mean_t(id_i)
-       scalar(id_i) = -ref_density * full_temp / full_mass
-    end if
-  end subroutine density_perturbation
+        
+    full_mass = mass(id_i) + mean_m(id_i)
+    full_temp = temp(id_i) + mean_t(id_i)
+    scalar(id_i) = ref_density * (1.0_8 - full_temp / full_mass)
+  end subroutine rho
 
   function energy_drake (itype)
     ! Calculates baroclinic and bartoropic energies for two layer case
@@ -1188,6 +1189,7 @@ contains
     ! Writes out results
     integer            :: i, k, v
     integer, parameter :: funit = 400
+    character(4)       :: s_time
 
     ! Coordinates
 
@@ -1235,10 +1237,11 @@ contains
     write (funit) lon_slice
     close (funit)
 
-     ! Compress files
+    ! Compress files
+    write (s_time, '(i4.4)') cp_2d
     command = 'ls -1 '//trim(run_id)//'.5.?? > tmp' 
     call system (command)
-    command = 'tar czf '//trim(run_id)//'.5.tgz -T tmp --remove-files &'
+    command = 'tar czf '//trim(run_id)//'.5.'//s_time//'.tgz -T tmp --remove-files &'
     call system (command)
   end subroutine write_slice
 

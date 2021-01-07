@@ -15,10 +15,20 @@ $(shell \rm $(BUILD_DIR)/test_case_module.o $(BUILD_DIR)/test_case_mod.mod)
 $(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src/.)
 
 vpath %.f90 src
-SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
-      base_$(ARCH).f90 dgesv.f90 domain.f90 init.f90 comm.f90 comm_$(ARCH).f90 \
-      wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 utils.f90 test_case_module.f90 ops.f90 multi_level.f90 vert_diffusion.f90   \
-      adapt.f90 lin_solve.f90 barotropic_2d.f90 io.f90 time_integr.f90 remap.f90 main.f90 
+
+
+ifeq ($(TEST_CASE), upwelling) # include vertical diffusion routines
+  SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
+  base_$(ARCH).f90 dgesv.f90 domain.f90 init.f90 comm.f90 comm_$(ARCH).f90 \
+  wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 utils.f90 test_case_module.f90 ops.f90 multi_level.f90 vert_diffusion.f90   \
+  adapt.f90 lin_solve.f90 barotropic_2d.f90 io.f90 time_integr.f90 remap.f90 main.f90
+else
+  SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
+  base_$(ARCH).f90 dgesv.f90 domain.f90 init.f90 comm.f90 comm_$(ARCH).f90 \
+  wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 utils.f90 test_case_module.f90 ops.f90 multi_level.f90  \
+  adapt.f90 lin_solve.f90 barotropic_2d.f90 io.f90 time_integr.f90 remap.f90 main.f90
+endif 
+
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
 SYSTEM = $(shell uname -a | cut -c 1-6 -)

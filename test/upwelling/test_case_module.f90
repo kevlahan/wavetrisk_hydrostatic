@@ -12,10 +12,10 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  real(8)                              :: beta, beta0, drho, f0, K_m, K_t, Rd, ref_temp
+  real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
   real(8)                              :: bottom_friction, max_depth, r_max, r_max_loc
   real(8)                              :: npts_penal, u_wbc
-  real(8)                              :: lat_c, lat_width, tau_0, wave_friction
+  real(8)                              :: lat_c, lat_width, tau_0, width
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
 contains
@@ -120,8 +120,6 @@ contains
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
-       write (6,'(A,es11.4)') "wave drag decay           [h]  = ", 1/wave_friction / HOUR
-       write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
@@ -213,7 +211,7 @@ contains
     else ! 3D layers
        dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
        if (zlev == zlevels) then
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (d, id, zlev) * eta
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * eta
        else
           sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        end if
@@ -248,7 +246,7 @@ contains
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     else
        dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (d, id, zlev) * dz
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (eta, z_s, zlev)
     end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
@@ -283,16 +281,31 @@ contains
     implicit none
     type(Coord) :: p
 
-    real(8)            :: lat, lon
+    real(8)            :: lat, lon, y
     real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
 
     call cart2sph (p, lon, lat)
 
     lat = lat / DEG
-
-    surf_geopot =  - grav_accel * (max_depth - d_min) &
-         * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
+    if (abs(lat-lat_c) <= lat_width/2) then
+       y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
+       surf_geopot = 65.5_8 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+    else
+       surf_geopot = 65.5_8 - 66.526 * tanh (-1.875d-5*width)
+    end if
+    surf_geopot = grav_accel * surf_geopot
   end function surf_geopot
+
+  real(8) function f (y)
+    implicit none
+    real(8) :: y
+
+    if (y <= width/2) then
+       f = y
+    else
+       f = width - y
+    end if
+  end function f
 
   real(8) function init_free_surface (x_i)
     ! Free surface perturbation
@@ -342,13 +355,12 @@ contains
     real(8), parameter :: beta = 0.28, T0 = 14_8
 
     eqn_of_state = ref_density - beta * (temperature - T0)
-!!$    eqn_of_stat  = ref_density - 0.165 * temperature
   end function eqn_of_state
 
   subroutine print_density
     implicit none
     integer     :: k
-    real(8)     :: dz, eta, z, z_s
+    real(8)     :: bv, c1, drho, dz, eta, rho, rho_above, z, z_s, z_above
     type(Coord) :: p
 
     p = Coord (radius, 0.0_8, 0.0_8)
@@ -356,11 +368,29 @@ contains
     eta = 0.0_8
     z_s = max_depth
 
-    write (6,'(a)') " Layer    z        dz        drho"      
+    write (6,'(a)') " Layer    z        dz            rho "
     do k = 1, zlevels
        dz = a_vert_mass(k) * eta + b_vert_mass(k) * z_s
        z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta + (b_vert(k)+b_vert(k-1)) * z_s)
-       write (6, '(2x,i2, 1x, 2(es9.2, 1x), es11.4)') k, z, dz, ref_density * (1.0_8 - buoyancy (eta, z_s, k))
+       write (6, '(2x, i2, 1x, 3(es11.4, 1x))') k, z, dz, ref_density * (1.0_8 - buoyancy (eta, z_s, k))
+    end do
+    
+    write (6,'(/,a)') " Interface     a_vert      b_vert        z"
+    do k = 0, zlevels
+       write (6, '(3x, i3, 5x, 3(1x, es11.4))') k, a_vert(k), b_vert(k), a_vert(k) * eta + b_vert(k) * z_s
+    end do
+
+    write (6,'(/,a)') " Interface    V        c1     CFL_c1"
+    do k = 1, zlevels-1
+       z_above = 0.5 * ((a_vert(k+1)+a_vert(k)) * eta + (b_vert(k+1)+b_vert(k)) * z_s)
+       z       = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta + (b_vert(k)+b_vert(k-1)) * z_s)
+       dz = z_above - z
+       rho_above = ref_density * (1.0_8 - buoyancy (eta, z_s, k+1))
+       rho  = ref_density * (1.0_8 - buoyancy (eta, z_s, k))
+       drho = rho_above - rho
+       bv = sqrt(- grav_accel * drho/dz/rho)
+       c1 = bv * abs(max_depth) / MATH_PI
+       write (6, '(3x, i3, 5x,3(es8.2,1x))') k, bv, c1, c1*dt_init/dx_min
     end do
     write (6,'(A)') &
          '*********************************************************************&
@@ -583,20 +613,35 @@ contains
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    if (trim (coords) == "uniform") then 
-       do k = 0, zlevels
-          a_vert(k) = dble(k)/dble(zlevels)
+    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
+    do k = 1, zlevels-1
+       if (trim (coords) == "uniform") then 
           b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-       end do
-    elseif (trim (coords) == "chebyshev") then
-       a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
-       do k = 1, zlevels-1
-          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+       elseif (trim (coords) == "chebyshev") then
           b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-       end do
-       a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
-    end if
-
+       elseif (trim(coords) == "roms") then
+          b_vert(0) = -150
+          b_vert(1) = -103.935
+          b_vert(2) =  -73.66
+          b_vert(3) =  -53.57
+          b_vert(4) =  -40.06
+          b_vert(5) =  -30.80
+          b_vert(6) =  -24.28
+          b_vert(7) =  -19.54
+          b_vert(8) =  -15.94
+          b_vert(9) =  -13.07
+          b_vert(10) = -10.68 
+          b_vert(11) =  -8.60
+          b_vert(12) =  -6.71
+          b_vert(13) =  -4.95
+          b_vert(14) =  -3.26
+          b_vert(15) =  -1.62
+          b_vert(16) =   0
+          b_vert = b_vert/max_depth
+       end if
+    end do
+    a_vert = 1.0_8 - b_vert
+       
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
@@ -677,46 +722,43 @@ contains
     d    = dom%id + 1
     
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       dz0  = sol_mean(S_MASS,zlev)%data(d)%elts(id+1) / porous_density (d, id, zlev)
+       dz0  = sol_mean(S_MASS,zlev)%data(d)%elts(id+1) / porous_density (dom, i, j, zlev, offs, dims)
        
-       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idE+1) / porous_density (d, idE, zlev)
+       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idE+1) / porous_density (dom, i+1, j, zlev, offs, dims)
        r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
        r_max_loc = max (r_max_loc, r_loc)
 
-       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) / porous_density (d, idNE, zlev)
+       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) / porous_density (dom, i+1, j+1, zlev, offs, dims)
        r_max_loc = max (r_max_loc, r_loc)
 
-       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idN+1) / porous_density (d, idN, zlev)
+       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idN+1) / porous_density(dom, i, j+1, zlev, offs, dims)
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
 
-  real(8) function eddy_diffusivity (dom, i, j, zlev, offs, dims)
+  real(8) function eddy_diffusivity (eta, ri, z)
     ! Eddy diffusivity at nodes
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    real(8) :: eta, ri, z
+
+    real(8), parameter :: K_t = 1d-6
+    real(8), parameter :: a = 5, A_ric = 1d-4, At_b = 1.2d-5
 
     eddy_diffusivity = K_t
+!!$    eddy_diffusivity = A_ric/(1.0_8 + a*ri**2) + At_b
   end function eddy_diffusivity
 
-  function eddy_viscosity (dom, i, j, zlev, offs, dims)
+  function eddy_viscosity (eta, ri, z)
     ! Eddy viscosity at at edges
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: eddy_viscosity
-
+    real(8), dimension(1:EDGE) :: eddy_viscosity
+    real(8)                    :: ri
     real(8), dimension(1:EDGE) :: eta, z
 
-    z = z_e (dom, i, j, zlev, offs, dims)
-    eta = eta_e (dom, i, j, zlev, offs, dims)
+    real(8), parameter :: a = 5, Av_b = 1.2d-4, K_m = 2d-3
     
     eddy_viscosity = K_m * (1.0_8 + 4 * exp ( (z - eta) / abs(max_depth) ))
+!!$    eddy_viscosity = eddy_diffusivity (eta(1), ri, z(1)) / (1.0_8 + a*ri) + Av_b
   end function eddy_viscosity
 
   real(8) function bottom_temp_source (dom, i, j, zlev, offs, dims)
@@ -742,7 +784,7 @@ contains
   end function top_temp_source
   
   function bottom_velo_source (dom, i, j, zlev, offs, dims)
-    ! Linear bottom friction  (bottom boundary condition for vertical diffusion of velocity)
+    ! Linear bottom friction source term (bottom boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -762,7 +804,7 @@ contains
   end function bottom_velo_source
 
   function top_velo_source (dom, i, j, zlev, offs, dims)
-    ! Flux due to wind stress evaluated at edges (top boundary condition for vertical diffusion of velocity)
+    ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev

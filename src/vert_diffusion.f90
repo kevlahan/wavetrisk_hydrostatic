@@ -54,14 +54,15 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, id_i
-
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-   
+    integer :: id_i
+    real(8) :: dz_k
+    
+    id_i = idx (i, j, offs, dims) + 1
+      
     dmass(id_i) = 0.0_8
 
+    dz_k = dz_i (dom, i, j, zlev, offs, dims)
+    
     if (zlev > 1 .and. zlev < zlevels) then
        dtemp(id_i) = flux_scalar(1) - flux_scalar(-1)
     elseif (zlev == 1) then
@@ -69,26 +70,34 @@ contains
     elseif (zlev == zlevels) then
        dtemp(id_i) =  top_temp_source(dom, i, j, zlev, offs, dims) - flux_scalar(-1)
     end if
-    dtemp(id_i) = porous_density (d, id, zlev) * dtemp(id_i)
+    dtemp(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dtemp(id_i)
   contains
-    real(8) function flux_scalar (itype)
-      ! Computes flux at interface below (itype=-1) or above (itype=1) current level
+    real(8) function flux_scalar (l)
+      ! Computes flux at interface below (l=-1) or above (l=1) vertical level zlev
       implicit none
-      integer :: itype
+      integer :: l
 
-      real(8) :: b_0, b_l, dz_l, mass_0, mass_l, temp_0, temp_l
+      integer :: d
+      real(8) :: b_0, b_l, dz_l, eta, mass_0, mass_l, ri, temp_0, temp_l, visc, z
+
+      d = dom%id + 1
+
+      eta = scalar(id_i)
+      ri  = richardson (dom, i, j, zlev, offs, dims, l)
+      z   = zl_i (dom, i, j, zlev, offs, dims, l)
+      visc = eddy_diffusivity (eta, ri, z)
 
       mass_0 = mean_m(id_i) + mass(id_i)
       temp_0 = mean_t(id_i) + temp(id_i)
       b_0 = temp_0 / mass_0
 
-      mass_l = sol_mean(S_MASS,zlev+itype)%data(d)%elts(id_i) + sol(S_MASS,zlev+itype)%data(d)%elts(id_i)
-      temp_l = sol_mean(S_TEMP,zlev+itype)%data(d)%elts(id_i) + sol(S_TEMP,zlev+itype)%data(d)%elts(id_i)
+      mass_l = sol_mean(S_MASS,zlev+l)%data(d)%elts(id_i) + sol(S_MASS,zlev+l)%data(d)%elts(id_i)
+      temp_l = sol_mean(S_TEMP,zlev+l)%data(d)%elts(id_i) + sol(S_TEMP,zlev+l)%data(d)%elts(id_i)
       b_l = temp_l / mass_l
 
-      dz_l = 0.5 * (mass_0 + mass_l) / porous_density (d, id, zlev)
+      dz_l = 0.5 * (dz_k + dz_i(dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
 
-      flux_scalar = itype * eddy_diffusivity (dom, i, j, zlev, offs, dims) * (b_l - b_0) / dz_l
+      flux_scalar = l * visc * (b_l - b_0) / dz_l
     end function flux_scalar
   end subroutine trend_scalars
 
@@ -100,35 +109,40 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: id
-    real(8), dimension(1:EDGE) :: dz
+    real(8), dimension(1:EDGE) :: dz_k
 
     id = idx (i, j, offs, dims)
     
-    dz = dz_e (dom, i, j, zlev, offs, dims)
+    dz_k = dz_e (dom, i, j, zlev, offs, dims)
 
     if (zlev > 1 .and. zlev < zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux_velo(1) - flux_velo(-1)) / dz
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux_velo(1) - flux_velo(-1)) / dz_k
     elseif  (zlev == 1) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = flux_velo(1)/dz + bottom_velo_source(dom, i, j, zlev, offs, dims)
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = flux_velo(1)/dz_k + bottom_velo_source(dom, i, j, zlev, offs, dims)
     elseif (zlev == zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = top_velo_source(dom, i, j, zlev, offs, dims) - flux_velo(-1)/dz 
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = top_velo_source(dom, i, j, zlev, offs, dims) - flux_velo(-1)/dz_k 
     end if
   contains
-    function flux_velo (itype)
-      ! Flux at upper interface (itype=1) or lower interface (itype=-1)
+    function flux_velo (l)
+      ! Flux at upper interface (l=1) or lower interface (l=-1)
       implicit none
-      integer               :: itype
+      integer               :: l
       real(8), dimension(3) :: flux_velo
 
       integer               :: d
-      real(8), dimension(3) ::dz_l
+      real(8)               :: ri
+      real(8), dimension(3) :: dz_l, eta, visc, z
       
-      d = dom%id + 1    
+      d = dom%id + 1
 
-      dz_l = 0.5 * (dz + dz_e (dom, i, j, zlev+itype, offs, dims))  ! thickness of layer centred on interface
+      eta = eta_e (dom, i, j, zlev, offs, dims)
+      ri  = richardson (dom, i, j, zlev, offs, dims, l)
+      z   = zl_e  (dom, i, j, zlev, offs, dims, l)
+      visc = eddy_viscosity (eta, ri, z)
 
-      flux_velo = itype * eddy_viscosity (dom, i, j, zlev, offs, dims) &
-           * (sol(S_VELO,zlev+itype)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_l
+      dz_l = 0.5 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
+
+      flux_velo = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_l
     end function flux_velo
   end subroutine trend_velo
 end module vert_diffusion_mod

@@ -28,7 +28,7 @@ contains
     ! Surface geopotential
     implicit none
     Type(Coord)        :: x_i
-    real(8)            :: c1, cs2, sn2, lon, lat, rgrc
+    real(8)            :: c1, cs2, sn2, lon, lat, rgrc, y
     real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
 
     ! Find latitude and longitude from Cartesian coordinates
@@ -52,10 +52,14 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
-!!$       lat = lat / DEG
-!!$          surf_geopot = - grav_accel * (max_depth - d_min) &
-!!$               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1))) + tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
-       surf_geopot = 0.0_8
+       lat = lat / DEG
+       if (abs(lat-lat_c) <= lat_width/2) then
+          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
+          surf_geopot = 65.5 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+       else
+          surf_geopot = 65.5 - 66.526 * tanh (-1.875d-5*width)
+       end if
+       surf_geopot = grav_accel * surf_geopot
     else
        if (rank == 0) write(6,'(A)') "Test case not supported"
        stop
@@ -66,7 +70,7 @@ contains
     ! Surface geopotential
     implicit none
     real(8)            :: lon, lat
-    real(8)            :: c1, cs2, sn2, rgrc
+    real(8)            :: c1, cs2, sn2, rgrc, y
     real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
 
     ! Find latitude and longitude from Cartesian coordinates
@@ -90,15 +94,30 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot_latlon = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
-!!$       lat = lat / DEG
-!!$          surf_geopot_latlon =  - grav_accel * (max_depth - d_min) &
-!!$               * (1.0_8 + ( tanh (b2*(lat-(lat_c+lat_width*b1)))+ tanh (-b2*(lat-(lat_c-lat_width*b1))) )/2)
-       surf_geopot_latlon = 0.0_8
+       lat = lat / DEG
+       if (abs(lat-lat_c) <= lat_width/2) then
+          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
+          surf_geopot_latlon = 65.5_8 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+       else
+          surf_geopot_latlon = 65.5_8 - 66.526 * tanh (-1.875d-5*width)
+       end if
+       surf_geopot_latlon = grav_accel * surf_geopot_latlon
     else
        write(6,'(A)') "Test case not supported"
        stop
     end if
   end function surf_geopot_latlon
+  
+  real(8) function f (y)
+    implicit none
+    real(8) :: y
+
+    if (y <= width/2) then
+       f = y
+    else
+       f = width - y
+    end if
+  end function f
 
   subroutine initialize_a_b_vert
     implicit none
@@ -193,19 +212,34 @@ contains
        a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
     elseif (trim (test_case) == "upwelling") then
-       if (trim (coords) == "uniform") then 
-          do k = 0, zlevels
-             a_vert(k) = dble(k)/dble(zlevels)
+       b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
+       do k = 1, zlevels-1
+          if (trim (coords) == "uniform") then 
              b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-          end do
-       elseif (trim (coords) == "chebyshev") then
-          a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
-          do k = 1, zlevels-1
-             a_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
-             b_vert(k) = (1.0_8 + cos ((dble(2*k-1)/dble(4*(zlevels-1)) + 0.5) * MATH_PI)) / 2
-          end do
-          a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
-       end if
+          elseif (trim (coords) == "chebyshev") then
+             b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+          elseif (trim(coords) == "roms") then
+             b_vert(0) = -150
+             b_vert(1) = -103.935
+             b_vert(2) =  -73.66
+             b_vert(3) =  -53.57
+             b_vert(4) =  -40.06
+             b_vert(5) =  -30.80
+             b_vert(6) =  -24.28
+             b_vert(7) =  -19.54
+             b_vert(8) =  -15.94
+             b_vert(9) =  -13.07
+             b_vert(10) = -10.68 
+             b_vert(11) =  -8.60
+             b_vert(12) =  -6.71
+             b_vert(13) =  -4.95
+             b_vert(14) =  -3.26
+             b_vert(15) =  -1.62
+             b_vert(16) =   0
+             b_vert = b_vert/max_depth
+          end if
+       end do
+       a_vert = b_vert(zlevels:0:-1)
 
        ! Vertical grid spacing
        a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
@@ -487,7 +521,7 @@ contains
     real(8) :: rho, z, z1, z2
 
     if (trim (test_case) == "drake") then
-       z = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
+       z = a_vert(zlev) * eta + b_vert(zlev) * z_s
        if (zlevels /= 1 .and. z >= halocline) then
           buoyancy = - (1.0_8 - z/halocline) * drho/ref_density
        else
@@ -534,18 +568,18 @@ contains
     implicit none
     real(8) :: z
     
-    real(8), parameter :: h_z = 6.5_8, ref_temp = 14_8, strat = 150_8, z0 = -35_8, z1 = -75_8
+    real(8), parameter :: h_z = 6.5_8, T0 = 14_8, strat = 150_8, z0 = -35_8, z1 = -75_8
 
-    temp_profile = ref_temp + 4*tanh ((z - z0) / h_z) + (z - z1) / strat
+    temp_profile = T0 + 4*tanh ((z - z0) / h_z) + (z - z1) / strat
   end function temp_profile
 
   real(8) function eqn_of_state (temperature)
     implicit none
     real(8) :: temperature
 
-    real(8), parameter :: T0 = 9.5_8
+    real(8), parameter :: beta = 0.28, T0 = 14_8
 
-    eqn_of_state = ref_density * (1.0_8 + drho/ref_density * (temperature - T0)/9)
+    eqn_of_state = ref_density - beta * (temperature - T0)
   end function eqn_of_state
 
   subroutine set_thresholds

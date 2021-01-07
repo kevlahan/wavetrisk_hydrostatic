@@ -595,7 +595,7 @@ contains
          " (approximate height = ", save_height, " [m])"
   end subroutine set_save_level
   
-  subroutine initialize_a_b_vert
+ subroutine initialize_a_b_vert
     ! Initialize hybrid sigma-coordinate vertical grid
     implicit none
     integer :: k
@@ -603,20 +603,16 @@ contains
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    if (trim (coords) == "uniform") then 
-       do k = 0, zlevels
-          a_vert(k) = dble(k)/dble(zlevels)
+    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
+    do k = 1, zlevels
+       if (trim (coords) == "uniform") then 
           b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-       end do
-    elseif (trim (coords) == "chebyshev") then
-       a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
-       do k = 1, zlevels-1
-          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+       elseif (trim (coords) == "chebyshev") then
           b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-       end do
-       a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
-    end if
-
+       end if
+    end do
+    a_vert = 1.0_8 - b_vert
+       
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)

@@ -16,7 +16,8 @@ contains
     d = dom%id + 1
     id = idx (i, j, offs, dims)
 
-    dz_i = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol(S_MASS,zlev)%data(d)%elts(id+1)) / porous_density (d, id, zlev)
+    dz_i = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol(S_MASS,zlev)%data(d)%elts(id+1)) &
+         / porous_density (dom, i, j, zlev, offs, dims)
   end function dz_i
   
   function dz_e (dom, i, j, zlev, offs, dims)
@@ -32,24 +33,33 @@ contains
     real(8), dimension(0:EDGE) :: dz
 
     d = dom%id + 1
-    id   = idx (i,   j,   offs, dims)
+
+    id   = idx (i, j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
-
-    dz(0)    = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + sol(S_MASS,zlev)%data(d)%elts(id+1))  /porous_density (d, id,   zlev)
-    dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)  + sol(S_MASS,zlev)%data(d)%elts(idE+1)) /porous_density (d, idE,  zlev)
-    dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) + sol(S_MASS,zlev)%data(d)%elts(idNE+1))/porous_density (d, idNE, zlev)
-    dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)  + sol(S_MASS,zlev)%data(d)%elts(idN+1)) /porous_density (d, idN,  zlev)
+   
+    dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + sol(S_MASS,zlev)%data(d)%elts(id+1)) &
+         / porous_density (dom, i, j, zlev, offs, dims)
+    
+    dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)  + sol(S_MASS,zlev)%data(d)%elts(idE+1)) &
+         / porous_density (dom, i+1, j, zlev, offs, dims)
+    
+    dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) + sol(S_MASS,zlev)%data(d)%elts(idNE+1)) &
+         / porous_density (dom, i+1, j+1, zlev, offs, dims)
+    
+    dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)  + sol(S_MASS,zlev)%data(d)%elts(idN+1)) &
+         / porous_density (dom, i, j+1, zlev, offs, dims)
 
     dz_e = 0.5 * (dz(0) + dz(1:EDGE))
   end function dz_e
   
-  real(8) function z_i (dom, i, j, zlev, offs, dims)
-    ! Position of upper interface of level zlev  at nodes
+  real(8) function zl_i (dom, i, j, zlev, offs, dims, l)
+    ! Position of interface below (l=-1) or above (l=1) vertical level zlev nodes
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
+    integer                        :: l
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -57,20 +67,21 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    z_i = dom%topo%elts(id+1)
-    do k = 1, zlev
-       z_i = z_i + dz_i (dom, i, j, k, offs, dims)
+    zl_i = dom%topo%elts(id+1)
+    do k = 1, zlev+l
+       zl_i = zl_i + dz_i (dom, i, j, k, offs, dims)
     end do
-  end function z_i
+  end function zl_i
 
-  function z_e (dom, i, j, zlev, offs, dims)
-    ! Position of upper interface of level zlev at edges
+  function zl_e (dom, i, j, zlev, offs, dims, l)
+    ! Position of interface below (l=-1) or above (l=1) vertical level zlev at edges
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
+    integer                        :: l
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: z_e
+    real(8), dimension(1:EDGE)     :: zl_e
 
     integer :: id, idE, idN, idNE, k
 
@@ -79,13 +90,13 @@ contains
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
 
-    z_e(RT+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idE+1))  
-    z_e(DG+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idNE+1)) 
-    z_e(UP+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idN+1))  
-    do k = 1, zlev
-       z_e = z_e + dz_e (dom, i, j, k, offs, dims)
+    zl_e(RT+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idE+1))  
+    zl_e(DG+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idNE+1)) 
+    zl_e(UP+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idN+1))  
+    do k = 1, zlev+l
+       zl_e = zl_e + dz_e (dom, i, j, k, offs, dims)
     end do
-  end function z_e
+  end function zl_e
 
   function eta_e (dom, i, j, zlev, offs, dims)
     ! Free surface perturbation at edges
@@ -108,11 +119,52 @@ contains
     eta_e(UP+1) = 0.5 * (scalar(id+1) + scalar(idN+1))
   end function eta_e
 
-  real(8) function porous_density (d, id, k)
+  real(8) function richardson (dom, i, j, zlev, offs, dims, l)
+    ! Richardson number at interface below (l=-1) or above (l=1) level zlev
+    ! (defined at nodes)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer                        :: l
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                    :: d, id, id_i
+    real(8)                    :: dz_l, mass_0, mass_l, rho_0, rho_l, temp_0, temp_l, u_0, u_l
+    real(8), dimension(1:EDGE) :: du_e
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    mass_0 = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i)
+    temp_0 = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
+    rho_0 = (1.0_8 - temp_0 / mass_0) * porous_density (dom, i, j, zlev, offs, dims)
+
+    mass_l = sol_mean(S_MASS,zlev+l)%data(d)%elts(id_i) + sol(S_MASS,zlev+l)%data(d)%elts(id_i)
+    temp_l = sol_mean(S_TEMP,zlev+l)%data(d)%elts(id_i) + sol(S_TEMP,zlev+l)%data(d)%elts(id_i)
+    rho_l = (1.0_8 - temp_l / mass_l) * porous_density (dom, i, j, zlev+l, offs, dims)
+
+    du_e = sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    
+    dz_l = 0.5 * (dz_i(dom, i, j, zlev, offs, dims) + dz_i(dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
+
+    richardson = - grav_accel * l * (rho_l - rho_0)/ref_density * dz_l / maxval(du_e**2)
+  end function richardson
+
+  real(8) function porous_density (dom, i, j, zlev, offs, dims)
     ! Porous density at nodes
     implicit none
-    integer :: d, id, k
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
     
-    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id+1))
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    
+    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id+1))
   end function porous_density
 end module utils_mod
