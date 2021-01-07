@@ -16,7 +16,7 @@ contains
   subroutine trend_vertical_diffusion (q, dq)
     ! Trend for eddy diffusivity and eddy viscosity 
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
 
     integer :: d, k, p
 
@@ -66,7 +66,7 @@ contains
     if (zlev > 1 .and. zlev < zlevels) then
        dtemp(id_i) = flux_scalar(1) - flux_scalar(-1)
     elseif (zlev == 1) then
-       dtemp(id_i) =  flux_scalar( 1) + bottom_temp_source(dom, i, j, zlev, offs, dims)
+       dtemp(id_i) =  flux_scalar(1) + bottom_temp_source(dom, i, j, zlev, offs, dims)
     elseif (zlev == zlevels) then
        dtemp(id_i) =  top_temp_source(dom, i, j, zlev, offs, dims) - flux_scalar(-1)
     end if

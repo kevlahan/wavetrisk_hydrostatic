@@ -3,7 +3,8 @@ program upwelling
   ! An extension to the sphere of a test case used in ROMS and CROCO.
   use main_mod
   use test_case_mod
-  use io_mod  
+  use io_mod
+  use vert_diffusion_mod
   implicit none
   integer :: l
   real(8) :: total_eta
@@ -96,7 +97,7 @@ program upwelling
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     !call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
+     call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
      call stop_timing
 
      call update_diagnostics
