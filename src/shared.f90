@@ -182,12 +182,12 @@ module shared_mod
   real(8), parameter :: GRAM    = KG / 1000
 
   ! Time
-  integer, parameter :: SECOND  = 1
-  integer, parameter :: MINUTE  = 60  * SECOND
-  integer, parameter :: HOUR    = 60  * MINUTE
-  integer, parameter :: DAY     = 24  * HOUR
-  integer, parameter :: WEEK    =   7 * DAY
-  integer, parameter :: YEAR    = 365 * DAY
+  real(8), parameter :: SECOND  = 1
+  real(8), parameter :: MINUTE  = 60  * SECOND
+  real(8), parameter :: HOUR    = 60  * MINUTE
+  real(8), parameter :: DAY     = 24  * HOUR
+  real(8), parameter :: WEEK    =   7 * DAY
+  real(8), parameter :: YEAR    = 365 * DAY
    
   ! Angle
   real(8), parameter :: RAD     = 1
