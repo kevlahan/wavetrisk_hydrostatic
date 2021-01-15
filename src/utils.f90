@@ -107,16 +107,17 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8), dimension(1:EDGE)     :: eta_e
 
-    integer :: id, idE, idN, idNE
+    integer :: d, id, idE, idN, idNE
 
+    d = dom%id + 1
     id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    eta_e(RT+1) = 0.5 * (scalar(id+1) + scalar(idE+1))
-    eta_e(DG+1) = 0.5 * (scalar(id+1) + scalar(idNE+1))
-    eta_e(UP+1) = 0.5 * (scalar(id+1) + scalar(idN+1))
+    eta_e(RT+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idE+1))
+    eta_e(DG+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
+    eta_e(UP+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idN+1))
   end function eta_e
 
   real(8) function richardson (dom, i, j, zlev, offs, dims, l)
@@ -130,7 +131,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: d, id, id_i
-    real(8)                    :: dz_l, mass_0, mass_l, rho_0, rho_l, temp_0, temp_l, u_0, u_l
+    real(8)                    :: drho, dz_l, mass_0, mass_l, rho_0, rho_l, temp_0, temp_l, u_0, u_l, v_mag
     real(8), dimension(1:EDGE) :: du_e
 
     d = dom%id + 1
@@ -145,11 +146,20 @@ contains
     temp_l = sol_mean(S_TEMP,zlev+l)%data(d)%elts(id_i) + sol(S_TEMP,zlev+l)%data(d)%elts(id_i)
     rho_l = (1.0_8 - temp_l / mass_l) * porous_density (dom, i, j, zlev+l, offs, dims)
 
+    drho = rho_l - rho_0
+
     du_e = sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    v_mag = sum(du_e**2)/3
     
     dz_l = 0.5 * (dz_i(dom, i, j, zlev, offs, dims) + dz_i(dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
 
-    richardson = - grav_accel * l * (rho_l - rho_0)/ref_density * dz_l / maxval(du_e**2)
+    if (drho == 0.0_8) then
+       richardson = 0.0_8
+    elseif (v_mag == 0.0_8) then
+       richardson = 1d10
+    else
+       richardson = - grav_accel * l * drho/ref_density * dz_l / v_mag
+    end if
   end function richardson
 
   real(8) function porous_density (dom, i, j, zlev, offs, dims)

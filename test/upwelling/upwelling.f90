@@ -6,9 +6,9 @@ program upwelling
   use io_mod
   use vert_diffusion_mod
   implicit none
-  integer :: l
-  real(8) :: total_eta
+  integer :: it
   logical :: aligned
+  real(8) :: radius_earth
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -19,11 +19,11 @@ program upwelling
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
-  radius             = 130      * KM              ! so zonal channel of width 20 degrees is 80 km wide
-  omega              = 6d-5     * RAD/SECOND
-  grav_accel         = 9.80616  * METRE/SECOND**2 ! gravitational acceleration 
-  p_top              = 0.0_8    * hPa             ! pressure at free surface
-  ref_density        = 1027     * KG/METRE**3     ! reference density at depth (seawater)
+  radius             = 120     * KM
+  omega              = 6d-5    * RAD/SECOND
+  grav_accel         = 9.80616 * METRE/SECOND**2     ! gravitational acceleration 
+  p_top              = 0.0_8   * hPa                 ! pressure at free surface
+  ref_density        = 1027    * KG/METRE**3         ! reference density at depth (seawater)
 
   ! Numerical method parameters
   zlevels            = 16                            ! always run with 20 vertical layers
@@ -32,7 +32,7 @@ program upwelling
   match_time         = .false.                       ! avoid very small time steps when saving 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-2                          ! porosity used in penalization
+  alpha              = 1d-1                          ! porosity used in penalization
   npts_penal         = 4.5                           ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
@@ -43,21 +43,21 @@ program upwelling
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
-  coords             = "roms"                   ! chebyshev, roms or unifom
+  coords             = "roms"                        ! chebyshev, roms or uniform
   
   ! Depth and layer parameters
-  max_depth          = -150 * METRE                      ! total depth
+  max_depth          = -150 * METRE                  ! total depth
 
   ! Land mass parameters
-  width              = 80 * KM                           ! width of zonal channel
-  lat_width          = (width/radius)/DEG                ! width of zonal channel (in degrees)
-  lat_c              = 45                                ! centre of zonal channel (in degrees)
+  width              = 80 * KM                       ! width of zonal channel
+  lat_width          = (width/radius)/DEG            ! width of zonal channel (in degrees)
+  lat_c              = 45                            ! centre of zonal channel (in degrees)
   
-  ! Density difference at sea surface
-  drho               = -3 * KG/METRE**3
-
   ! Bottom friction
   bottom_friction    = 3d-4
+
+  ! Vertical diffusion type
+  rich_diff          = .false.                        ! richardson if true, roms if false               
 
   ! Wind stress
   tau_0              = 0.1_8
@@ -72,7 +72,7 @@ program upwelling
   Rd                 = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
 
   ! Dimensional scaling
-  Udim               = 1.0_8                            ! velocity scale
+  Udim               = 1.0_8                              ! velocity scale
   Ldim               = lat_width*DEG * radius             ! length scale 
   Tdim               = Ldim/Udim                          ! time scale
   Hdim               = abs (max_depth)                    ! vertical length scale
@@ -97,7 +97,10 @@ program upwelling
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, set_thresholds)
-     call euler (sol, wav_coeff, trend_vertical_diffusion, dt)
+!!$     do it = 1, 6
+!!$        call euler (sol, wav_coeff, trend_vertical_diffusion, dt/6)
+!!$     end do
+     call implicit_vertical_diffusion
      call stop_timing
 
      call update_diagnostics
@@ -221,9 +224,9 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   integer                    :: id
   real(8), dimension(1:EDGE) :: diffusion
-  
+
   id = idx (i, j, offs, dims)
- 
+  
   ! Horizontal diffusion
   diffusion = (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
 

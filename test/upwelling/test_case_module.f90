@@ -15,9 +15,10 @@ Module test_case_mod
   real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
   real(8)                              :: bottom_friction, max_depth, r_max, r_max_loc
   real(8)                              :: npts_penal, u_wbc
-  real(8)                              :: lat_c, lat_width, tau_0, width
+  real(8)                              :: lat_c, lat_width, tau_0, wave_friction, width
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
+  logical                              :: rich_diff
 contains
   subroutine read_test_case_parameters
     implicit none
@@ -120,6 +121,7 @@ contains
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
+       write (6,'(A,es11.4)') "wave friction decay       [d]  = ", 1/wave_friction / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
@@ -277,12 +279,11 @@ contains
 
   real(8) function surf_geopot (p)
     ! Surface geopotential: postive if greater than mean seafloor
-    ! Gives minimum depth of approximately 20 m.
+    ! Gives minimum depth of approximately 24 m.
     implicit none
     type(Coord) :: p
 
-    real(8)            :: lat, lon, y
-    real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
+    real(8) :: lat, lon, y
 
     call cart2sph (p, lon, lat)
 
@@ -328,24 +329,46 @@ contains
     z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
 
     rho = 0.5 * (density (z1) + density (z2))
-    
-    buoyancy = (ref_density - rho) / ref_density 
+
+    buoyancy = (ref_density - rho) / ref_density
   end function buoyancy
 
   real(8) function density (z)
     implicit none
     real(8) :: z
 
-    density = eqn_of_state (temp_profile(z))
+    real(8)            :: delta
+    real(8), parameter :: drho = -2.5d0
+    character(255)     :: stratification
+
+    delta = abs(max_depth)/3
+
+    stratification = "temp"
+
+    if (trim(stratification) == "temp") then
+       density = eqn_of_state (temp_profile(z))
+    elseif (trim(stratification) == "linear") then 
+       density = ref_density + drho * (max_depth-z)/max_depth
+    elseif (trim(stratification) == "exponential") then
+       density = ref_density + drho * exp__flush (z/delta)
+       elseif (trim(stratification) == "none") then
+       density = ref_density 
+    end if
   end function density
 
   real(8) function temp_profile (z)
     implicit none
     real(8) :: z
-    
-    real(8), parameter :: h_z = 6.5_8, T0 = 14_8, strat = 150_8, z0 = -35_8, z1 = -75_8
 
-    temp_profile = T0 + 4*tanh ((z - z0) / h_z) + (z - z1) / strat
+    real(8)            :: hz, strat, z0, z1
+    real(8), parameter :: h0 = 150_8, hz_0 = 6.5_8, T0 = 14_8, z0_0 = -35_8, z1_0 = -75_8
+
+    strat = abs(max_depth)
+    hz = hz_0 * abs(max_depth/h0)
+    z0 = z0_0 * abs(max_depth/h0)
+    z1 = z1_0 * abs(max_depth/h0)
+
+    temp_profile = T0 + 4*tanh ((z - z0) / hz) + (z - z1) / strat
   end function temp_profile
 
   real(8) function eqn_of_state (temperature)
@@ -355,13 +378,14 @@ contains
     real(8), parameter :: beta = 0.28, T0 = 14_8
 
     eqn_of_state = ref_density - beta * (temperature - T0)
+!!$    eqn_of_state = ref_density - 0.164 * temperature
   end function eqn_of_state
 
   subroutine print_density
     implicit none
-    integer     :: k
-    real(8)     :: bv, c1, drho, dz, eta, rho, rho_above, z, z_s, z_above
-    type(Coord) :: p
+    integer                       :: k
+    real(8)                       :: bv, c1, drho, dz, eta, rho, rho_above, z, z_s, z_above
+    type(Coord)                   :: p
 
     p = Coord (radius, 0.0_8, 0.0_8)
 
@@ -390,7 +414,7 @@ contains
        drho = rho_above - rho
        bv = sqrt(- grav_accel * drho/dz/rho)
        c1 = bv * abs(max_depth) / MATH_PI
-       write (6, '(3x, i3, 5x,3(es8.2,1x))') k, bv, c1, c1*dt_init/dx_min
+       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c1, c1*dt_init/dx_min
     end do
     write (6,'(A)') &
          '*********************************************************************&
@@ -551,7 +575,7 @@ contains
     character(*)                   :: itype
 
     integer     :: d, e, id, id_e, id_i, idE, idN, idNE
-    real(8)     :: lat, lon, mask, n_smth_N, n_smth_S, width_N, width_S
+    real(8)     :: dlat, lat, lon, mask, n_smth_N, n_smth_S, width_N, width_S
     type(Coord) :: p
 
     id = idx (i, j, offs, dims)
@@ -566,8 +590,10 @@ contains
        d = dom%id + 1
        call cart2sph (dom%node%elts(id_i), lon, lat)
 
-       width_S = lat_c - lat_width/2 + 90_8
-       width_N = lat_c - lat_width/2
+       dlat = npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+
+       width_S = lat_c - (lat_width/2 + dlat) + 90_8
+       width_N = lat_c - (lat_width/2 + dlat)       
 
        ! Smoothing exponent for land mass
        n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
@@ -587,7 +613,7 @@ contains
     real(8) :: lat, lon, tau_zonal, tau_merid
     
     if (time/DAY <= 2.0_8) then
-       tau_zonal = tau_0 * sin (MATH_PI * time/DAY)
+       tau_zonal = tau_0 * sin (MATH_PI/4 * time/DAY)
     else
        tau_zonal = tau_0
     end if
@@ -637,7 +663,7 @@ contains
           b_vert(14) =  -3.26
           b_vert(15) =  -1.62
           b_vert(16) =   0
-          b_vert = b_vert/max_depth
+          b_vert = -b_vert/150
        end if
     end do
     a_vert = 1.0_8 - b_vert
@@ -741,87 +767,73 @@ contains
     implicit none
     real(8) :: eta, ri, z
 
-    real(8), parameter :: K_t = 1d-6
-    real(8), parameter :: a = 5, A_ric = 1d-4, At_b = 1.2d-5
-
-    eddy_diffusivity = K_t
-!!$    eddy_diffusivity = A_ric/(1.0_8 + a*ri**2) + At_b
+    real(8), parameter :: a = 5, A_ric = 1d-4, At_b = 1.2d-5, K_t = 1d-6
+    
+    if (rich_diff) then
+       eddy_diffusivity = A_ric/(1.0_8 + a*ri**2) + At_b
+    else
+       eddy_diffusivity = K_t
+    end if
   end function eddy_diffusivity
 
   function eddy_viscosity (eta, ri, z)
     ! Eddy viscosity at at edges
     implicit none
-    real(8), dimension(1:EDGE) :: eddy_viscosity
+    real(8), dimension(1:EDGE) :: eddy_viscosity, eta, z
     real(8)                    :: ri
-    real(8), dimension(1:EDGE) :: eta, z
 
     real(8), parameter :: a = 5, Av_b = 1.2d-4, K_m = 2d-3
-    
-    eddy_viscosity = K_m * (1.0_8 + 4 * exp ( (z - eta) / abs(max_depth) ))
-!!$    eddy_viscosity = eddy_diffusivity (eta(1), ri, z(1)) / (1.0_8 + a*ri) + Av_b
+
+    if (rich_diff) then
+       eddy_viscosity = eddy_diffusivity (eta(1), ri, z(1)) / (1.0_8 + a*ri) + Av_b
+    else
+       eddy_viscosity = K_m * (1.0_8 + 4 * exp ( (z - eta) / abs(max_depth) ))
+    end if
   end function eddy_viscosity
 
-  real(8) function bottom_temp_source (dom, i, j, zlev, offs, dims)
+  real(8) function bottom_temp_source (dom, i, j, z_null, offs, dims)
     ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j, zlev
+    integer                        :: i, j, z_null
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     bottom_temp_source = 0.0_8
   end function bottom_temp_source
 
-  real(8) function top_temp_source (dom, i, j, zlev, offs, dims)
+  real(8) function top_temp_source (dom, i, j, z_null, offs, dims)
     ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j, zlev
+    integer                        :: i, j, z_null
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     top_temp_source = 0.0_8
   end function top_temp_source
-  
-  function bottom_velo_source (dom, i, j, zlev, offs, dims)
-    ! Linear bottom friction source term (bottom boundary condition for vertical diffusion of velocity)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: bottom_velo_source
 
-    integer                     :: id
-    real(8), dimension(1:EDGE)  :: dz
-
-
-    id = idx (i, j, offs, dims)
-
-    dz = dz_e (dom, i, j, zlev, offs, dims)
-
-    bottom_velo_source = - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1) / dz
-  end function bottom_velo_source
-
-  function top_velo_source (dom, i, j, zlev, offs, dims)
+  function wind_drag (dom, i, j, z_null, offs, dims)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j, zlev
+    integer                        :: i, j, z_null
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: top_velo_source
+    real(8), dimension(1:EDGE)     :: wind_drag
 
-    integer                         :: id, idE, idN, idNE               
+    integer                         :: d, id, idE, idN, idNE               
     real(8), dimension(1:EDGE)      :: mass_e, tau_wind
     real(8), dimension(0:NORTHEAST) :: full_mass
 
+    d = dom%id + 1
     id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
 
-    full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+    full_mass(0:NORTHEAST) = sol_mean(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1) &
+                                + sol(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1)
 
     mass_e(RT+1) = 0.5 * (full_mass(0) + full_mass(EAST))
     mass_e(DG+1) = 0.5 * (full_mass(0) + full_mass(NORTHEAST))
@@ -831,6 +843,6 @@ contains
     tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
     tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-    top_velo_source = tau_wind / mass_e
-  end function top_velo_source
+    wind_drag = tau_wind / mass_e
+  end function wind_drag
 end module test_case_mod
