@@ -223,8 +223,8 @@ contains
   end subroutine remap_velo
 
   subroutine remap_scalars_incompressible (dom, i, j, z_null, offs, dims)
-    ! Remap mass-weighted buoyancy and layer heights
-    ! (full density is remapped and then mass-weighted buoyancy is formed)
+    ! Remap full buoyancy and layer heights
+    ! (full buoyancy is remapped and then mass-weighted buoyancy is formed)
     type (Domain)                   :: dom
     integer                         :: i, j, z_null
     integer, dimension (N_BDRY+1)   :: offs
@@ -232,7 +232,7 @@ contains
 
     integer                        :: d, id_i, k
     real(8)                        :: full_mass, full_theta
-    real(8), dimension (1:zlevels) :: b_new, b_old 
+    real(8), dimension (1:zlevels) :: theta_new, theta_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
@@ -249,11 +249,11 @@ contains
     do k = 1, zlevels
        full_mass  = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
        full_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
-       b_old(k) = (full_mass - full_theta) / full_mass
+       theta_old(k) = full_theta / full_mass
     end do
 
     ! Remap density
-    call interp_scalar (zlevels, b_new, z_new, b_old, z_old)
+    call interp_scalar (zlevels, theta_new, z_new, theta_old, z_old)
 
     do k = 1, zlevels
        ! New full mass 
@@ -263,8 +263,7 @@ contains
        sol(S_MASS,k)%data(d)%elts(id_i) = full_mass - sol_mean(S_MASS,k)%data(d)%elts(id_i)
 
        ! New mass-weighted buoyancy
-       full_theta = full_mass * (1.0_8 - b_new(k)) 
-       sol(S_TEMP,k)%data(d)%elts(id_i) = full_theta - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = full_mass * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i) 
     end do
   end subroutine remap_scalars_incompressible
 
@@ -277,7 +276,7 @@ contains
 
     integer                        :: d, e, id, id_i, k
     integer, dimension(1:EDGE)     :: id_r
-    real(8), dimension (1:zlevels) :: dz_new, dz_old, flux_new, flux_old 
+    real(8), dimension (1:zlevels) :: flux_new, flux_old 
     real(8), dimension (0:zlevels) :: z_new, z_edge_new, z_old, z_edge_old
 
     d    = dom%id + 1
@@ -294,8 +293,6 @@ contains
        call find_coordinates_incompressible (z_edge_new, z_edge_old, dom%topo%elts(id_i), d, id_r(e))
        z_edge_new = 0.5 * (z_new + z_edge_new)
        z_edge_old = 0.5 * (z_old + z_edge_old)
-       dz_new = z_edge_new(1:zlevels) - z_edge_new(0:zlevels-1)
-       dz_old = z_edge_old(1:zlevels) - z_edge_old(0:zlevels-1)
  
        do k = 1, zlevels
           flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
