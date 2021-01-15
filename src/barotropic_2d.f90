@@ -91,10 +91,7 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) then
        d = dom%id + 1
        full_mass  = mean_m(id) + mass(id)
-       if (remap) then
-          mean_theta = mean_t(id)  /mean_m(id)
-          theta = (temp(id) - mass(id) * mean_theta) / mean_m(id) ! do not include quadratic fluctuation terms
-       end if
+       if (remap) theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
 
        ! Correct mass perturbation
        mass(id) = ref_density*(scalar(id) - phi_node (d, id, zlev)*grid(d)%topo%elts(id))/scalar_2d(id) * full_mass &
@@ -102,8 +99,7 @@ contains
 
        ! Correct mass-weighted buoyancy
        if (remap) then
-          full_mass = mean_m(id) + mass(id)
-          temp(id) = mean_m(id) * theta + mass(id) * mean_theta ! do not include quadratic fluctuation terms
+          temp(id) = (mean_m(id) + mass(id)) * theta - mean_t(id)
        else ! assume buoyancy is constant in each layer
           temp(id) = mass(id) * mean_t(id) / mean_m(id) 
        end if
