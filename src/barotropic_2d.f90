@@ -56,11 +56,11 @@ contains
     integer :: d, k, p
 
     ! Sum mass perturbations
-    call sum_vertical_mass (q(S_MASS,1:zlevels), exner_fun(1))
+    call total_height (q(S_MASS,1:zlevels), exner_fun(1))
 
     do d = 1, size(grid)
        scalar    => sol(S_MASS,zlevels+1)%data(d)%elts ! free surface perturbation
-       scalar_2d => exner_fun(1)%data(d)%elts        ! sum of mass perturbations
+       scalar_2d => exner_fun(1)%data(d)%elts          ! sum of mass perturbations
        do k = 1, zlevels
           mass   => q(S_MASS,k)%data(d)%elts
           temp   => q(S_TEMP,k)%data(d)%elts
@@ -84,7 +84,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: full_mass, mean_theta, theta
+    real(8) :: eta, full_mass, height, mean_theta, theta, z_s
 
     id = idx (i, j, offs, dims) + 1
 
@@ -92,10 +92,10 @@ contains
        d = dom%id + 1
        full_mass  = mean_m(id) + mass(id)
        if (remap) theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
-
+       
        ! Correct mass perturbation
-       mass(id) = ref_density*(scalar(id) - phi_node (d, id, zlev)*grid(d)%topo%elts(id))/scalar_2d(id) * full_mass &
-            - mean_m(id)
+       eta = scalar(id) / phi_node (d, id, zlevels) ! free surface perturbation
+       mass(id) = (eta - grid(d)%topo%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
 
        ! Correct mass-weighted buoyancy
        if (remap) then
@@ -256,7 +256,7 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) dscalar(id) = dt**2*Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
   end subroutine complete_elliptic_lo
 
-  subroutine sum_vertical_mass (q, q_2d)
+  subroutine total_height (q, q_2d)
     ! Vertical sum of flux of q, returned in q_2d
     ! Assumes linearized free surface (i.e. remove free surface perturbation from sum)
     implicit none
@@ -272,15 +272,15 @@ contains
           mass   => q(k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (cal_sum_vertical_mass, grid(d), p-1, z_null, 0, 1)
+             call apply_onescale_to_patch (cal_height, grid(d), p-1, k, 0, 1)
           end do
           nullify (mass, mean_m)
        end do
        nullify (scalar_2d)
     end do
-  end subroutine sum_vertical_mass
+  end subroutine total_height
 
-  subroutine cal_sum_vertical_mass (dom, i, j, zlev, offs, dims)
+  subroutine cal_height (dom, i, j, zlev, offs, dims)
     ! Vertical integration of edge quantity
     implicit none
     type(Domain)                   :: dom
@@ -289,11 +289,15 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
+    real(8) :: dz
     
     id = idx (i, j, offs, dims) + 1
     
-    if (dom%mask_n%elts(id) >= ADJZONE) scalar_2d(id) = scalar_2d(id) + (mean_m(id) + mass(id))
-  end subroutine cal_sum_vertical_mass
+    if (dom%mask_n%elts(id) >= ADJZONE) then
+       dz =  (mean_m(id) + mass(id)) / porous_density (dom, i, j, zlev, offs, dims)
+       scalar_2d(id) = scalar_2d(id) + dz
+    end if
+  end subroutine cal_height
 
   subroutine cpt_or_restr_eta (dom, l)
     implicit none
