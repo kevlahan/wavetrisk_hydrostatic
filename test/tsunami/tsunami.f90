@@ -58,7 +58,7 @@ program Tsunami
   call read_test_case_parameters
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call initialize (run_id)
 
   ! Initialize tsunami diagnostic variables
   call init_diagnostics
@@ -74,7 +74,7 @@ program Tsunami
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
-     call start_timing;  call time_step (dt_write, aligned, set_thresholds); call stop_timing
+     call start_timing;  call time_step (dt_write, aligned); call stop_timing
 
      call update_diagnostics
      
@@ -87,7 +87,7 @@ program Tsunami
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then
            call deallocate_diagnostics
-           call write_checkpoint (dump, load, run_id, rebalance)
+           call write_checkpoint (run_id, rebalance)
            call init_diagnostics !! resets diagnostics !!
         end if
 

@@ -1,6 +1,6 @@
 module vert_diffusion_mod
-  ! Provides a backwards Euler step and trend routines for forward Euler for vertical diffusion of buoyancy (temp variable) and
-  ! velocity for ocean models. Forward Euler requires nu dt/dz_min^2 <= 1/2 for stability. Backwards Euler is unconditionally stable.
+  ! Provides a backwards Euler step for vertical diffusion of buoyancy (temp variable) and
+  ! velocity for ocean models. Backwards Euler is unconditionally stable.
   !
   ! implicit_vertical_diffusion = backwards Euler step
   ! trend_vertical_diffusion    = trend routines for forward Euler step
@@ -15,15 +15,98 @@ module vert_diffusion_mod
   !        wind_drag
   !
   ! scalar variable
-  !        bottom_friction 
-  use test_case_mod
+  !        bottom_friction
+  use utils_mod
   implicit none
+  real(8) :: friction
+  
+  abstract interface
+     real(8) function fun1 (eta, ri, z)
+       implicit none
+       real(8) :: eta, ri, z
+     end function fun1
+     function fun2 (eta, ri, z)
+       use shared_mod
+       implicit none
+       real(8), dimension(1:EDGE) :: fun2, eta, z
+       real(8)                    :: ri
+     end function fun2
+     real(8) function fun3 (dom, i, j, z_lev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, z_lev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end function fun3
+     function fun4 (dom, i, j, z_lev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, z_lev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+       real(8), dimension(1:EDGE)     :: fun4
+     end function fun4
+  end interface
+  procedure (fun1), pointer :: eddy_diffusivity   => null ()
+  procedure (fun2), pointer :: eddy_viscosity     => null ()
+  procedure (fun3), pointer :: bottom_temp_source => null ()
+  procedure (fun3), pointer :: top_temp_source    => null ()
+  procedure (fun4), pointer :: wind_drag          => null ()
 contains
-  subroutine implicit_vertical_diffusion
+  subroutine implicit_vertical_diffusion (eddy_d, eddy_v, r, wind_d, source_b, source_t)
     ! Backwards euler step for vertical diffusion
     use adapt_mod
     implicit none
     integer :: d, p
+    real(8) :: r
+
+    interface
+       real(8) function eddy_d (eta, ri, z)
+         implicit none
+         real(8) :: eta, ri, z
+       end function eddy_d
+       function eddy_v (eta, ri, z)
+         use shared_mod
+         implicit none
+         real(8), dimension(1:EDGE) :: eddy_v, eta, z
+         real(8)                    :: ri
+       end function eddy_v
+       real(8) function source_b (dom, i, j, z_lev, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, z_lev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end function source_b
+       real(8) function source_t (dom, i, j, z_lev, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, z_lev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end function source_t
+       function wind_d (dom, i, j, z_lev, offs, dims)
+         use domain_mod
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, z_lev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+         real(8), dimension(1:EDGE)     :: wind_d
+       end function wind_d
+    end interface
+
+    eddy_diffusivity   => eddy_d
+    eddy_viscosity     => eddy_v
+    bottom_temp_source => source_b
+    top_temp_source    => source_t
+    wind_drag          => wind_d
+
+    friction = r
 
     call update_array_bdry (sol, NONE, 27)
     
@@ -161,7 +244,7 @@ contains
     k = 1
     dz_k = dz_e (dom, i, j, k, offs, dims)
     diag_u(:,k) = - coeff(1) ! super-diagonal
-    diag(:,k)   = 1.0_8 - diag_u(:,k) + dt * bottom_friction/dz_k
+    diag(:,k)   = 1.0_8 - diag_u(:,k) + dt * friction/dz_k
     rhs(:,k)    = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) 
 
     do k = 2, zlevels-1
@@ -205,134 +288,4 @@ contains
       coeff = dt / (dz_l * dz_k) * eddy_viscosity (eta, ri, z)
     end function coeff
   end subroutine backwards_euler_velo
-  
-  subroutine trend_vertical_diffusion (q, dq)
-    ! Trend for eddy diffusivity and eddy viscosity 
-    implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
-
-    integer :: d, k, p
-
-    call update_array_bdry (q, NONE, 27)
-
-    ! Scalars
-    do d = 1, size(grid)
-       scalar => q(S_MASS,zlevels+1)%data(d)%elts ! free surface
-       do k = 1, zlevels
-          mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-          mass   =>  q(S_MASS,k)%data(d)%elts
-          temp   =>  q(S_TEMP,k)%data(d)%elts
-          velo   =>  q(S_VELO,k)%data(d)%elts
-          dmass  => dq(S_MASS,k)%data(d)%elts
-          dtemp  => dq(S_TEMP,k)%data(d)%elts
-          dvelo  => dq(S_VELO,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
-          end do
-          nullify (dmass, dtemp, dvelo, mass, mean_m, mean_t, temp, velo)
-       end do
-       nullify (scalar)
-    end do
-    dq%bdry_uptodate = .false.
-  end subroutine trend_vertical_diffusion
-
-  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
-    ! Vertical eddy diffusivity of buoyancy
-    ! (layer height is not diffused)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer            :: id_i
-    real(8)            :: dz_k
-    
-    id_i = idx (i, j, offs, dims) + 1
-    dz_k = dz_i (dom, i, j, zlev, offs, dims)
-    
-    if (zlev > 1 .and. zlev < zlevels) then
-       dtemp(id_i) = flux_temp(1) - flux_temp(-1)
-    elseif (zlev == 1) then
-       dtemp(id_i) =  flux_temp(1) + bottom_temp_source(dom, i, j, z_null, offs, dims)
-    elseif (zlev == zlevels) then
-       dtemp(id_i) =  top_temp_source (dom, i, j, z_null, offs, dims) - flux_temp(-1)
-    end if
-    dtemp(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dtemp(id_i)
-  contains
-    real(8) function flux_temp (l)
-      ! Computes flux at interface below (l=-1) or above (l=1) vertical level zlev
-      implicit none
-      integer :: l
-
-      integer :: d
-      real(8) :: b_0, b_l, dz_l, eta, mass_0, mass_l, ri, temp_0, temp_l, visc, z
-
-      d = dom%id + 1
-
-      eta = scalar(id_i)
-      ri  = richardson (dom, i, j, zlev, offs, dims, l)
-      z   = zl_i (dom, i, j, zlev, offs, dims, l)
-      visc = eddy_diffusivity (eta, ri, z)
-
-      mass_0 = mean_m(id_i) + mass(id_i)
-      temp_0 = mean_t(id_i) + temp(id_i)
-      b_0 = temp_0 / mass_0
-
-      mass_l = sol_mean(S_MASS,zlev+l)%data(d)%elts(id_i) + sol(S_MASS,zlev+l)%data(d)%elts(id_i)
-      temp_l = sol_mean(S_TEMP,zlev+l)%data(d)%elts(id_i) + sol(S_TEMP,zlev+l)%data(d)%elts(id_i)
-      b_l = temp_l / mass_l
-
-      dz_l = 0.5 * (dz_k + dz_i(dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
-
-      flux_temp = l * visc * (b_l - b_0) / dz_l
-    end function flux_temp
-  end subroutine trend_scalars
-
-  subroutine trend_velo (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                    :: id
-    real(8), dimension(1:EDGE) :: dz_k, eta
-
-    id = idx (i, j, offs, dims)
-    
-    dz_k = dz_e (dom, i, j, zlev, offs, dims)
-    eta = eta_e (dom, i, j, zlev, offs, dims)
-
-    if (zlev > 1 .and. zlev < zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (flux_velo(1) - flux_velo(-1)) / dz_k
-    elseif  (zlev == 1) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = flux_velo(1) / dz_k - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)
-    elseif (zlev == zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = wind_drag (dom, i, j, z_null, offs, dims) - flux_velo(-1) / dz_k 
-    end if
-  contains
-    function flux_velo (l)
-      ! Flux at upper interface (l=1) or lower interface (l=-1)
-      implicit none
-      integer                    :: l
-      real(8), dimension(1:EDGE) :: flux_velo
-
-      integer                    :: d
-      real(8)                    :: ri
-      real(8), dimension(1:EDGE) :: dz_l, visc, z
-      
-      d = dom%id + 1
-      
-      ri  = richardson (dom, i, j, zlev, offs, dims, l)
-      z   = zl_e  (dom, i, j, zlev, offs, dims, l)
-      visc = eddy_viscosity (eta, ri, z)
-
-      dz_l = 0.5 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
-
-      flux_velo = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_l
-    end function flux_velo
-  end subroutine trend_velo
 end module vert_diffusion_mod

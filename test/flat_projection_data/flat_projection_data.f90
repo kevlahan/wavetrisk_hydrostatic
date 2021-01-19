@@ -141,7 +141,7 @@ program flat_projection_data
      lat_width      = (width/radius)/DEG
      lat_c          = 45                                ! centre of zonal channel (in degrees)
 
-     coords         = "roms"
+     coords         = "uniform"
   else
      if (rank == 0) write (6,'(A)') "Test case not supported"
      stop
@@ -151,7 +151,7 @@ program flat_projection_data
   resume = mean_beg
   
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call initialize (run_id)
 
   ! Initialize statistics
   if (trim (test_case) == "drake") then
@@ -169,7 +169,7 @@ program flat_projection_data
   do cp_idx = mean_beg, mean_end
      Nt = Nt + 1
      resume = NONE
-     call restart (set_thresholds, load, run_id)
+     call restart (run_id)
 
      ! Set means
      do l = level_start, level_end
@@ -222,7 +222,7 @@ program flat_projection_data
 
         do cp_idx = mean_beg, mean_end
            resume = NONE
-           call restart (set_thresholds, load, run_id)
+           call restart (run_id)
            call cal_variance
         end do
         call barrier
@@ -583,7 +583,6 @@ contains
   end subroutine vertical_slice
 
   subroutine rho (dom, i, j, zlev, offs, dims)
-    ! Write primal grid for vertical level zlev
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev

@@ -71,7 +71,7 @@ program Held_Suarez
   call read_test_case_parameters
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call initialize (run_id)
 
   ! Save initial conditions
   call print_test_case_parameters
@@ -85,7 +85,7 @@ program Held_Suarez
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned, set_thresholds)
+     call time_step (dt_write, aligned)
      if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call euler (sol, wav_coeff, trend_cooling, dt)
      call stop_timing
@@ -98,7 +98,7 @@ program Held_Suarez
         if (remap) call remap_vertical_coordinates
 
         if (modulo (iwrite, CP_EVERY) == 0) then
-           call write_checkpoint (dump, load, run_id, rebalance) ! save checkpoint (and rebalance)
+           call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
 
            ! Save statistics
            call combine_stats

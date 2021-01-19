@@ -108,7 +108,7 @@ program Drake
      wave_friction = 0.0_8
   else
      wave_friction = u_wbc / Rb / 3                   ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
-!!$     wave_friction = 1 / (200 * HOUR)                 ! fixed
+!!$     wave_friction = 1.0_8 / (200 * HOUR)                 ! fixed
   end if
 
   ! Relaxation of buoyancy to mean profile 
@@ -130,7 +130,7 @@ program Drake
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call initialize (run_id)
 
   ! Initialize diagnostic variables
   call init_diagnostics
@@ -147,7 +147,7 @@ program Drake
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned, set_thresholds)
+     call time_step (dt_write, aligned)
      if (k_T /= 0.0_8) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
 
@@ -162,7 +162,7 @@ program Drake
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then
            call deallocate_diagnostics
-           call write_checkpoint (dump, load, run_id, rebalance)
+           call write_checkpoint (run_id, rebalance)
            call init_diagnostics !! resets diagnostics !!
         end if
 
@@ -260,7 +260,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   integer                         :: d, id, id_i, idE, idN, idNE
   real(8)                         :: dx, visc
-  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e,tau_wind, wave_drag, wind_drag
+  real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e, tau_wind, wave_drag, wind_drag
   real(8), dimension(0:NORTHEAST) :: full_mass
 
   d = dom%id + 1

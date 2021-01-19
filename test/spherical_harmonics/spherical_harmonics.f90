@@ -99,10 +99,10 @@ program spherical_harmonics
   resume = cp_idx
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call initialize (run_id)
 
   resume = NONE
-  call restart (set_thresholds, load, run_id)
+  call restart (run_id)
 
   if (trim (spec_type) == 'sphere') then
      call spec_sphere

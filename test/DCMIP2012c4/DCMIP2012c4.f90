@@ -59,7 +59,7 @@ program DCMIP2012c4
   call read_test_case_parameters
  
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call initialize (run_id)
 
   ! Save initial conditions
   call print_test_case_parameters
@@ -73,7 +73,7 @@ program DCMIP2012c4
   total_cpu_time = 0.0_8
   do while (time < time_end)
      ! Time step
-     call start_timing; call time_step (dt_write, aligned, set_thresholds); call stop_timing
+     call start_timing; call time_step (dt_write, aligned); call stop_timing
 
      call sum_total_mass (.false.)
      call print_log
@@ -83,7 +83,7 @@ program DCMIP2012c4
         !if (remap) call remap_vertical_coordinates
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (dump, load, run_id, rebalance)
+        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
 
         ! Save fields
         call write_and_export (iwrite)

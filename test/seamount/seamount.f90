@@ -93,7 +93,7 @@ program Seamount
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call initialize (run_id)
 
   ! Initialize diagnostic variables
   call init_diagnostics
@@ -110,7 +110,7 @@ program Seamount
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned, set_thresholds)
+     call time_step (dt_write, aligned)
      if (k_T /= 0.0_8) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
 
@@ -126,7 +126,7 @@ program Seamount
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then
            call deallocate_diagnostics
-           call write_checkpoint (dump, load, run_id, rebalance)
+           call write_checkpoint (run_id, rebalance)
            call init_diagnostics !! resets diagnostics !!
         end if
 

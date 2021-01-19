@@ -27,11 +27,10 @@ contains
     time_mult = 1.0_8
   end subroutine init_basic
 
-  subroutine initialize (apply_init_cond, set_thresholds, custom_dump, custom_load, run_id)
+  subroutine initialize (run_id)
     ! Initialize from checkpoint or adapt to initialize conditions
     ! Solution is saved and restarted to balance load
     implicit none
-    external     :: apply_init_cond, set_thresholds, custom_dump, custom_load
     character(*) :: run_id
     
     character(255) :: command
@@ -50,7 +49,7 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
-       call restart (set_thresholds, custom_load, run_id)
+       call restart (run_id)
        resume = NONE
     else
        ! Initialize basic structures
@@ -66,7 +65,7 @@ contains
        call initialize_dt_viscosity
 
        call init_structures (run_id)
-       call apply_init_cond
+       call apply_initial_conditions
       
        ! Initialize thresholds to default values 
        call initialize_thresholds
@@ -89,7 +88,7 @@ contains
           dt_new = cpt_dt()
           call adapt (set_thresholds)
 
-          call apply_init_cond
+          call apply_initial_conditions
          
           call forward_wavelet_transform (sol, wav_coeff)
           if (adapt_trend) then
@@ -136,7 +135,7 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
        
-       call write_checkpoint (custom_dump, custom_load, run_id, .true.)
+       call write_checkpoint (run_id, .true.)
     end if
     call barrier
   end subroutine initialize
@@ -164,14 +163,54 @@ contains
     end do
   end subroutine record_init_state
 
-  subroutine time_step (align_time, aligned, set_thresholds)
+  subroutine time_step (align_time, aligned, eddy_d, eddy_v, bottom_friction, wind_d, source_b, source_t)
+    use vert_diffusion_mod
     implicit none
     real(8)              :: align_time
     logical, intent(out) :: aligned
-    external             :: set_thresholds
+    real(8), optional    :: bottom_friction
+    optional             :: eddy_d, eddy_v, wind_d, source_b, source_t
 
     integer(8) :: idt, ialign
     real(8)    :: dx
+
+    interface
+     real(8) function eddy_d (eta, ri, z)
+       implicit none
+       real(8) :: eta, ri, z
+     end function eddy_d
+     function eddy_v (eta, ri, z)
+       use shared_mod
+       implicit none
+       real(8), dimension(1:EDGE) :: eddy_v, eta, z
+       real(8)                    :: ri
+     end function eddy_v
+     real(8) function source_b (dom, i, j, z_lev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, z_lev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end function source_b
+     real(8) function source_t (dom, i, j, z_lev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, z_lev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end function source_t
+     function wind_d (dom, i, j, z_lev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, z_lev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+       real(8), dimension(1:EDGE)     :: wind_d
+     end function wind_d
+  end interface
     
     istep       = istep+1
     istep_cumul = istep_cumul+1
@@ -230,8 +269,13 @@ contains
        end select
     end if
 
+    ! Split step routines
+    if (vert_diffuse)  call implicit_vertical_diffusion (eddy_d, eddy_v, bottom_friction, wind_d, source_b, source_t)
+    if (penalize) call apply_penal (sol)
+
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
+    
     min_mass = cpt_min_mass ()
     
     ! Add diffusion
@@ -255,17 +299,14 @@ contains
     else
        time = time + dt
     end if
-
-    if (penalize) call apply_penal (sol)
     
     ! Set new time step, find change in vertical levels and count active nodes
     dt_new = cpt_dt ()
   end subroutine time_step
 
-  subroutine restart (set_thresholds, custom_load, run_id)
+  subroutine restart (run_id)
     ! Fresh restart from checkpoint data (all structures reset)
     implicit none
-    external     :: set_thresholds, custom_load
     character(*) :: run_id
 
     integer        :: ierror, l    
@@ -306,7 +347,7 @@ contains
     call initialize_thresholds
 
     ! Load checkpoint data
-    call load_adapt_mpi (cp_idx, custom_load, run_id)
+    call load_adapt_mpi (cp_idx, load, run_id)
 
     ! Delete temporary files
     call barrier ! Do not delete files before everyone has read them
@@ -349,9 +390,8 @@ contains
     end if
   end subroutine restart
 
-  subroutine write_checkpoint (custom_dump, custom_load, run_id, rebal)
+  subroutine write_checkpoint (run_id, rebal)
     implicit none
-    external     :: custom_dump, custom_load
     character(*) :: run_id
     logical      :: rebal
 
@@ -367,7 +407,7 @@ contains
     end if
     
     call write_load_conn (cp_idx, run_id)
-    call dump_adapt_mpi (cp_idx, custom_dump, run_id)
+    call dump_adapt_mpi  (cp_idx, dump, run_id)
     
     ! Archive checkpoint (overwriting existing checkpoint if present)
     call barrier ! Make sure all processors have written data
@@ -381,7 +421,7 @@ contains
     call barrier ! Make sure data is archived before restarting
     
     ! Must restart if want to load balance (compiled with mpi-lb)
-    if (rebal) call restart (set_thresholds, custom_load, run_id)
+    if (rebal) call restart (run_id)
   end subroutine write_checkpoint
 
   subroutine init_structures (run_id)

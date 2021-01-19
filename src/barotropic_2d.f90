@@ -3,6 +3,7 @@ module barotropic_2d_mod
   use ops_mod
   use multi_level_mod
   use lin_solve_mod
+  use utils_mod
   implicit none
 contains
    subroutine scalar_star (dt, q)

@@ -32,7 +32,7 @@ program upwelling
   match_time         = .false.                       ! avoid very small time steps when saving 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-1                          ! porosity used in penalization
+  alpha              = 1d-4                          ! porosity used in penalization
   npts_penal         = 4.5                           ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
@@ -43,6 +43,7 @@ program upwelling
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
+  vert_diffuse       = .true.                        ! include vertical diffusion
   coords             = "roms"                        ! chebyshev, roms or uniform
   
   ! Depth and layer parameters
@@ -54,7 +55,7 @@ program upwelling
   lat_c              = 45                            ! centre of zonal channel (in degrees)
   
   ! Bottom friction
-  bottom_friction    = 3d-4
+  friction_upwelling = 3d-4
 
   ! Vertical diffusion type
   rich_diff          = .false.                        ! richardson if true, roms if false               
@@ -79,7 +80,7 @@ program upwelling
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize variables
-  call initialize (apply_initial_conditions, set_thresholds, dump, load, run_id)
+  call initialize (run_id)
 
   ! Initialize diagnostic variables
   call init_diagnostics
@@ -96,11 +97,8 @@ program upwelling
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned, set_thresholds)
-!!$     do it = 1, 6
-!!$        call euler (sol, wav_coeff, trend_vertical_diffusion, dt/6)
-!!$     end do
-     call implicit_vertical_diffusion
+     call time_step (dt_write, aligned, eddy_d=upwelling_diffusivity, eddy_v=upwelling_viscosity, &
+          bottom_friction=friction_upwelling, wind_d=upwelling_drag, source_b=upwelling_bottom, source_t=upwelling_top)
      call stop_timing
 
      call update_diagnostics
@@ -114,7 +112,7 @@ program upwelling
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then
            call deallocate_diagnostics
-           call write_checkpoint (dump, load, run_id, rebalance)
+           call write_checkpoint (run_id, rebalance)
            call init_diagnostics !! resets diagnostics !!
         end if
 

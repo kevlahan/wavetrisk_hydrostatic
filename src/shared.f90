@@ -233,7 +233,7 @@ module shared_mod
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
   logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fill
-  logical :: log_iter, match_time, mode_split, penalize, perfect, rebalance, remap, uniform
+  logical :: log_iter, match_time, mode_split, penalize, perfect, rebalance, remap, uniform, vert_diffuse
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -304,11 +304,11 @@ contains
     rebalance           = .true.  ! rebalance computational load at each checkpoint if T
     remap               = .true.  ! remap Lagrangian coordinates (T) or no remapping (F)
     penalize            = .false. ! include penalization of topography if T
-    uniform             = .true.  ! Uniform vertical grid in pressure (T) or hybrid (F)
+    uniform             = .true.  ! uniform vertical grid in pressure (T) or hybrid (F)
+    vert_diffuse        = .false. ! include vertical diffusion
 
     ! Default run values
-    ! these parameters are typically reset in the input file, but are needed for compilation
-
+    ! these parameters are typically reset in the test case file, but are needed for compilation
     alpha               = 1d-2          ! porosity
     cfl_num             = 1.0_8
     C_visc              = 1d-2

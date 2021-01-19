@@ -13,9 +13,9 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
-  real(8)                              :: bottom_friction, max_depth, r_max, r_max_loc
+  real(8)                              :: friction_upwelling, max_depth, r_max, r_max_loc
   real(8)                              :: npts_penal, u_wbc
-  real(8)                              :: lat_c, lat_width, tau_0, wave_friction, width
+  real(8)                              :: lat_c, lat_width, tau_0, width
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
   logical                              :: rich_diff
@@ -119,9 +119,8 @@ contains
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
-       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction
-       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
-       write (6,'(A,es11.4)') "wave friction decay       [d]  = ", 1/wave_friction / DAY
+       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", friction_upwelling
+       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/friction_upwelling / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
@@ -590,7 +589,7 @@ contains
        d = dom%id + 1
        call cart2sph (dom%node%elts(id_i), lon, lat)
 
-       dlat = npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+       dlat = 0.0_8!npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
 
        width_S = lat_c - (lat_width/2 + dlat) + 90_8
        width_N = lat_c - (lat_width/2 + dlat)       
@@ -762,7 +761,7 @@ contains
     end if
   end subroutine cal_rmax_loc
 
-  real(8) function eddy_diffusivity (eta, ri, z)
+  real(8) function upwelling_diffusivity (eta, ri, z)
     ! Eddy diffusivity at nodes
     implicit none
     real(8) :: eta, ri, z
@@ -770,39 +769,28 @@ contains
     real(8), parameter :: a = 5, A_ric = 1d-4, At_b = 1.2d-5, K_t = 1d-6
     
     if (rich_diff) then
-       eddy_diffusivity = A_ric/(1.0_8 + a*ri**2) + At_b
+       upwelling_diffusivity = A_ric/(1.0_8 + a*ri**2) + At_b
     else
-       eddy_diffusivity = K_t
+       upwelling_diffusivity = K_t
     end if
-  end function eddy_diffusivity
+  end function upwelling_diffusivity
 
-  function eddy_viscosity (eta, ri, z)
+  function upwelling_viscosity (eta, ri, z)
     ! Eddy viscosity at at edges
     implicit none
-    real(8), dimension(1:EDGE) :: eddy_viscosity, eta, z
+    real(8), dimension(1:EDGE) :: upwelling_viscosity, eta, z
     real(8)                    :: ri
 
     real(8), parameter :: a = 5, Av_b = 1.2d-4, K_m = 2d-3
 
     if (rich_diff) then
-       eddy_viscosity = eddy_diffusivity (eta(1), ri, z(1)) / (1.0_8 + a*ri) + Av_b
+       upwelling_viscosity = upwelling_diffusivity (eta(1), ri, z(1)) / (1.0_8 + a*ri) + Av_b
     else
-       eddy_viscosity = K_m * (1.0_8 + 4 * exp ( (z - eta) / abs(max_depth) ))
+       upwelling_viscosity = K_m * (1.0_8 + 4 * exp ( (z - eta) / abs(max_depth) ))
     end if
-  end function eddy_viscosity
-
-  real(8) function bottom_temp_source (dom, i, j, z_null, offs, dims)
-    ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    bottom_temp_source = 0.0_8
-  end function bottom_temp_source
-
-  real(8) function top_temp_source (dom, i, j, z_null, offs, dims)
+  end function upwelling_viscosity
+  
+  real(8) function upwelling_bottom (dom, i, j, z_null, offs, dims)
     ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
     type(Domain)                   :: dom
@@ -810,17 +798,28 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    top_temp_source = 0.0_8
-  end function top_temp_source
+    upwelling_bottom = 0.0_8
+  end function upwelling_bottom
 
-  function wind_drag (dom, i, j, z_null, offs, dims)
+  real(8) function upwelling_top (dom, i, j, z_null, offs, dims)
+    ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, z_null
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+   upwelling_top = 0.0_8
+  end function upwelling_top
+
+  function upwelling_drag (dom, i, j, z_null, offs, dims)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, z_null
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: wind_drag
+    real(8), dimension(1:EDGE)     :: upwelling_drag
 
     integer                         :: d, id, idE, idN, idNE               
     real(8), dimension(1:EDGE)      :: mass_e, tau_wind
@@ -843,6 +842,6 @@ contains
     tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
     tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-    wind_drag = tau_wind / mass_e
-  end function wind_drag
+    upwelling_drag = tau_wind / mass_e
+  end function upwelling_drag
 end module test_case_mod
