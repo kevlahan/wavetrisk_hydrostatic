@@ -639,34 +639,55 @@ contains
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
-    do k = 1, zlevels-1
-       if (trim (coords) == "uniform") then 
+    
+    if (trim (coords) == "uniform") then
+       do k = 1, zlevels
           b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-       elseif (trim (coords) == "chebyshev") then
+       end do
+    elseif (trim (coords) == "chebyshev") then
+       do k = 1, zlevels
           b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-       elseif (trim(coords) == "roms") then
-          b_vert(0) = -150
-          b_vert(1) = -103.935
-          b_vert(2) =  -73.66
-          b_vert(3) =  -53.57
-          b_vert(4) =  -40.06
-          b_vert(5) =  -30.80
-          b_vert(6) =  -24.28
-          b_vert(7) =  -19.54
-          b_vert(8) =  -15.94
-          b_vert(9) =  -13.07
-          b_vert(10) = -10.68 
-          b_vert(11) =  -8.60
-          b_vert(12) =  -6.71
-          b_vert(13) =  -4.95
-          b_vert(14) =  -3.26
-          b_vert(15) =  -1.62
-          b_vert(16) =   0
-          b_vert = -b_vert/150
-       end if
-    end do
+       end do
+    elseif (trim(coords) == "croco") then
+       b_vert(0) = -150
+       b_vert(1) = -103.935
+       b_vert(2) =  -73.66
+       b_vert(3) =  -53.57
+       b_vert(4) =  -40.06
+       b_vert(5) =  -30.80
+       b_vert(6) =  -24.28
+       b_vert(7) =  -19.54
+       b_vert(8) =  -15.94
+       b_vert(9) =  -13.07
+       b_vert(10) = -10.68 
+       b_vert(11) =  -8.60
+       b_vert(12) =  -6.71
+       b_vert(13) =  -4.95
+       b_vert(14) =  -3.26
+       b_vert(15) =  -1.62
+       b_vert(16) =   0
+       b_vert = -b_vert/150
+    elseif (trim(coords) == "roms") then
+       b_vert(0)  = 1.0000
+       b_vert(1)  = 0.9192
+       b_vert(2)  = 0.6970
+       b_vert(3)  = 0.5606
+       b_vert(4)  = 0.4646
+       b_vert(5)  = 0.3889
+       b_vert(6)  = 0.3232
+       b_vert(7)  = 0.2778
+       b_vert(8)  = 0.2323
+       b_vert(9)  = 0.1919
+       b_vert(10) = 0.1566
+       b_vert(11) = 0.1263
+       b_vert(12) = 0.0960
+       b_vert(13) = 0.0707
+       b_vert(14) = 0.0404
+       b_vert(15) = 0.0101
+       b_vert(16) = 0.0
+    end if
     a_vert = 1.0_8 - b_vert
-       
+
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)

@@ -120,9 +120,9 @@ program flat_projection_data
      coords         = "chebyshev"
      stratification = "exponential"
   elseif (trim (test_case) == "upwelling") then
-     radius         = 130      * KM             
+     radius         = 120      * KM             
      grav_accel     = 9.80616  * METRE/SECOND**2 
-     omega          = 5d-5     * RAD/SECOND      
+     omega          = 6d-5     * RAD/SECOND      
      p_top          = 0.0_8    * hPa             
      ref_density    = 1027     * KG/METRE**3     
 
@@ -141,7 +141,7 @@ program flat_projection_data
      lat_width      = (width/radius)/DEG
      lat_c          = 45                                ! centre of zonal channel (in degrees)
 
-     coords         = "uniform"
+     coords         = "croco"
   else
      if (rank == 0) write (6,'(A)') "Test case not supported"
      stop
@@ -157,7 +157,7 @@ program flat_projection_data
   if (trim (test_case) == "drake") then
      call initialize_stat_drake
   elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling") then
-     call initialize_stat_seamount
+     call initialize_stat_vertical
   else
      call initialize_stat
   end if
@@ -193,7 +193,8 @@ program flat_projection_data
            if (cp_idx == cp_2d) call latlon_1layer
         end if
      elseif  (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling") then
-        if (cp_idx == cp_2d) call vertical_slice
+        call vertical_slice
+        if (rank == 0) call write_slice
      else
         if (welford) then
            call cal_zonal_av
@@ -212,9 +213,7 @@ program flat_projection_data
            call write_out_1layer
         end if
      end if
-  elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling") then
-     if (rank==0) call write_slice
-  else
+  elseif (.not. (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling")) then
      if (.not. welford) then
         zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
         zonal_av(:,:,3:5) = zonal_av(:,:,3:5) / Ncumul
@@ -499,7 +498,9 @@ contains
     ! Save vertical slicse along given latitude and longitude for incompressible test cases
     implicit none
     integer :: d, i, j, k, l, idx_lat, idx_lon
-    real(8) :: z_s
+    real(8) :: dz, z_s
+    real(8), dimension(Ny(1):Ny(2),0:zlevels) :: lat_slice_l
+    real(8), dimension(Nx(1):Nx(2),0:zlevels) :: lon_slice_l
 
     ! Find indices of latitude and longitude slices
     idx_lat = minloc (abs(lat-lat_val), DIM=1) + Ny(1) - 1
@@ -526,16 +527,18 @@ contains
           temp   => sol(S_TEMP,k)%data(d)%elts
           scalar => sol(S_TEMP,zlevels+1)%data(d)%elts
           velo   => sol(S_VELO,k)%data(d)%elts
+          divu  => grid(d)%divu%elts
           velo1  => grid(d)%u_zonal%elts
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (rho,            grid(d), grid(d)%lev(l)%elts(j), k,  0, 1)
+             call apply_onescale_to_patch (rho,            grid(d), grid(d)%lev(l)%elts(j), k,       0, 1)
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
              call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (cal_divu,       grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
-          nullify (mass, mean_m, mean_t, scalar, temp, velo, velo1, velo2, vort)
+          nullify (mass, mean_m, mean_t, scalar, temp, velo, divu, velo1, velo2, vort)
        end do
        call project_uzonal_onto_plane (l, 0.0_8)
        lat_slice(:,k,1) = field2d(idx_lon,:)
@@ -552,6 +555,10 @@ contains
        call project_vorticity_onto_plane (l, 1.0_8)
        lat_slice(:,k,4) = field2d(idx_lon,:)
        lon_slice(:,k,4) = field2d(:,idx_lat)
+
+       call project_divu_onto_plane (l, 0.0_8)
+       lat_slice(:,k,5) = field2d(idx_lon,:)
+       lon_slice(:,k,5) = field2d(:,idx_lat)
     end do
 
     ! Set free surface
@@ -580,6 +587,23 @@ contains
           zcoord_lon(i,k,2) = a_vert(k)   * eta_lon(i) + b_vert(k)   * z_s
        end do
     end do
+
+    ! Vertical velocities at interfaces
+    lat_slice_l(:,0) = 0.0_8
+    lon_slice_l(:,0) = 0.0_8
+    do k = 1, zlevels
+       do i = Ny(1), Ny(2)
+          dz = zcoord_lat(i,k,2) - zcoord_lat(i,k,1)
+          lat_slice_l(i,k) = lat_slice_l(i,k-1) - lat_slice(i,k,5) * dz
+       end do
+       do i = Nx(1), Nx(2)
+          dz = zcoord_lon(i,k,2) - zcoord_lon(i,k,1)
+          lon_slice_l(i,k) = lon_slice_l(i,k-1) - lon_slice(i,k,5) * dz
+       end do
+    end do
+    ! Interpolate to layers
+    lat_slice(:,1:zlevels,6) = 0.5 * (lat_slice_l(:,0:zlevels-1) + lat_slice_l(:,1:zlevels))
+    lon_slice(:,1:zlevels,6) = 0.5 * (lon_slice_l(:,0:zlevels-1) + lon_slice_l(:,1:zlevels))
   end subroutine vertical_slice
 
   subroutine rho (dom, i, j, zlev, offs, dims)
@@ -1237,7 +1261,7 @@ contains
     close (funit)
 
     ! Compress files
-    write (s_time, '(i4.4)') cp_2d
+    write (s_time, '(i4.4)') cp_idx
     command = 'ls -1 '//trim(run_id)//'.5.?? > tmp' 
     call system (command)
     command = 'tar czf '//trim(run_id)//'.5.'//s_time//'.tgz -T tmp --remove-files &'
@@ -1308,7 +1332,7 @@ contains
     end do
   end subroutine initialize_stat_drake
 
-  subroutine initialize_stat_seamount
+  subroutine initialize_stat_vertical
     implicit none
     integer :: i
 
@@ -1320,8 +1344,8 @@ contains
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
 
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
-    allocate (lon_slice(Nx(1):Nx(2),1:zlevels,1:4))
-    allocate (lat_slice(Ny(1):Ny(2),1:zlevels,1:4))
+    allocate (lon_slice(Nx(1):Nx(2),1:zlevels,1:6))
+    allocate (lat_slice(Ny(1):Ny(2),1:zlevels,1:6))
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
     allocate (xcoord_lat(Ny(1):Ny(2),1:2), xcoord_lon(Nx(1):Nx(2),1:2))
     allocate (zcoord_lat(Ny(1):Ny(2),1:zlevels,2), zcoord_lon(Nx(1):Nx(2),1:zlevels,2))
@@ -1334,7 +1358,7 @@ contains
     do i = Ny(1), Ny(2)
        lat(i) = -90+dy_export*(i-Ny(1))/MATH_PI*180
     end do
-  end subroutine initialize_stat_seamount
+  end subroutine initialize_stat_vertical
 
   subroutine project_onto_plane (field, l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
@@ -1616,6 +1640,62 @@ contains
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_baroclinic_vorticity_onto_plane
+
+  subroutine project_divu_onto_plane (l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use comm_mpi_mod
+    integer               :: l, itype
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = grid(d)%divu%elts(id+1)
+                valN  = grid(d)%divu%elts(idN+1)
+                valE  = grid(d)%divu%elts(idE+1)
+                valNE = grid(d)%divu%elts(idNE+1)
+
+                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_divu_onto_plane
 
   subroutine project_uzonal_onto_plane (l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
