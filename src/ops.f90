@@ -1049,16 +1049,17 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: full_mass, p_upper
+    real(8) :: full_mass, full_temp, p_upper
 
     id_i = idx (i, j, offs, dims) + 1
 
     if (compressible) then ! Compressible case
-       full_mass = mass(id_i) + mean_m(id_i)
+       full_mass = mean_m(id_i) + mass(id_i)
        p_upper = dom%press_lower%elts(id_i) - grav_accel * full_mass
     else ! Incompressible case
-       full_mass = mass(id_i) + mean_m(id_i)
-       p_upper = dom%press_lower%elts(id_i) - grav_accel * (full_mass - temp(id_i))
+       full_mass = mean_m(id_i) + mass(id_i)
+       full_temp = mean_t(id_i) + temp(id_i)
+       p_upper = dom%press_lower%elts(id_i) - grav_accel * (full_mass - full_temp)
     end if
     dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
     dom%press_lower%elts(id_i) = p_upper
