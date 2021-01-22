@@ -372,5 +372,76 @@ contains
 
     if (dom%mask_n%elts(id) >= ADJZONE) dscalar(id) = div (h_flux, dom, i, j, offs, dims)
   end subroutine cal_div
+
+  subroutine vertical_velocity
+    ! Computes vertical velocity at nodes, stored in  trend(S_MASS,k).
+    implicit none
+    integer :: d, j, k, l, p
+
+    ! Vertically integrated velocity flux
+    do l = level_end, level_start, -1
+       do d = 1, size(grid)
+          h_flux => horiz_flux(S_MASS)%data(d)%elts
+          scalar => sol(S_MASS,zlevels+1)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call step1 (q=sol, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
+          end do
+          nullify (scalar)
+          if (l < level_end) then
+             dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
+             call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
+             nullify (dscalar)
+          end if
+          nullify (h_flux)
+       end do
+       horiz_flux(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (horiz_flux(S_MASS), l, 211)
+
+       ! Divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
+       do d = 1, size(grid)
+          dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
+          h_flux  =>      horiz_flux(S_MASS)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (dscalar, h_flux)
+       end do
+       trend(S_MASS,zlevels+1)%bdry_uptodate = .false.
+       call update_bdry (trend(S_MASS,zlevels+1), l, 212)
+    end do
+
+    ! Vertical velocity, stored in trend(S_MASS,1:zlevels)
+    do d = 1, size(grid)
+       dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
+       do k = 1, zlevels
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mass   =>      sol(S_MASS,k)%data(d)%elts
+          velo    =>   trend(S_MASS,k)%data(d)%elts 
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (cal_vertical_velocity, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (mass, mean_m, velo)
+       end do
+       nullify (dscalar)
+    end do
+    call update_vector_bdry (trend(S_MASS,1:zlevels), l, 212)
+  end subroutine vertical_velocity
+
+  subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)
+    ! Vertical velocity
+    use utils_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+    
+    id = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id) >= ADJZONE) &
+         velo(id) = - (mean_m(id) + mass(id)) * dscalar(id) / porous_density (dom, i, j, zlev, offs, dims)
+  end subroutine cal_vertical_velocity
 end module barotropic_2d_mod
 

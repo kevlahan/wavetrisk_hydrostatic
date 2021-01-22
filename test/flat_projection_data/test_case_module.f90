@@ -55,9 +55,9 @@ contains
        lat = lat / DEG
        if (abs(lat-lat_c) <= lat_width/2) then
           y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
-          surf_geopot = 65.5 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+          surf_geopot = 66.505710477328847 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
        else
-          surf_geopot = 65.5 - 66.526 * tanh (-1.875d-5*width)
+          surf_geopot = 66.505710477328847 - 66.526 * tanh (-1.875d-5*width)
        end if
        surf_geopot = grav_accel * surf_geopot
     else
@@ -97,9 +97,9 @@ contains
        lat = lat / DEG
        if (abs(lat-lat_c) <= lat_width/2) then
           y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
-          surf_geopot_latlon = 65.5_8 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+          surf_geopot_latlon = 66.505710477328847 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
        else
-          surf_geopot_latlon = 65.5_8 - 66.526 * tanh (-1.875d-5*width)
+          surf_geopot_latlon = 66.505710477328847 - 66.526 * tanh (-1.875d-5*width)
        end if
        surf_geopot_latlon = grav_accel * surf_geopot_latlon
     else

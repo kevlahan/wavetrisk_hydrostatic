@@ -134,7 +134,7 @@ program flat_projection_data
      compressible   = .false.                            
      penalize       = .true.
 
-     alpha          = 1d-2    ! porosity
+     alpha          = 1d-4    ! porosity
      npts_penal     = 5
      
      width          = 80 * KM                           ! width of channel in km
@@ -496,11 +496,12 @@ contains
 
   subroutine vertical_slice
     ! Save vertical slicse along given latitude and longitude for incompressible test cases
+    use barotropic_2d_mod
     implicit none
     integer :: d, i, j, k, l, idx_lat, idx_lon
     real(8) :: dz, z_s
-    real(8), dimension(Ny(1):Ny(2),0:zlevels) :: lat_slice_l
-    real(8), dimension(Nx(1):Nx(2),0:zlevels) :: lon_slice_l
+    real(8), dimension(Ny(1):Ny(2),0:zlevels) :: w_lat
+    real(8), dimension(Nx(1):Nx(2),0:zlevels) :: w_lon
 
     ! Find indices of latitude and longitude slices
     idx_lat = minloc (abs(lat-lat_val), DIM=1) + Ny(1) - 1
@@ -527,15 +528,14 @@ contains
           temp   => sol(S_TEMP,k)%data(d)%elts
           scalar => sol(S_TEMP,zlevels+1)%data(d)%elts
           velo   => sol(S_VELO,k)%data(d)%elts
-          divu  => grid(d)%divu%elts
+          divu   => grid(d)%divu%elts
           velo1  => grid(d)%u_zonal%elts
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (rho,            grid(d), grid(d)%lev(l)%elts(j), k,       0, 1)
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
-             call apply_onescale_to_patch (cal_divu,       grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (rho,               grid(d), grid(d)%lev(l)%elts(j), k,       0, 1)
+             call apply_onescale_to_patch (interp_vel_hex,    grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,          grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
           nullify (mass, mean_m, mean_t, scalar, temp, velo, divu, velo1, velo2, vort)
@@ -555,12 +555,16 @@ contains
        call project_vorticity_onto_plane (l, 1.0_8)
        lat_slice(:,k,4) = field2d(idx_lon,:)
        lon_slice(:,k,4) = field2d(:,idx_lat)
+    end do
 
-       call project_divu_onto_plane (l, 0.0_8)
+    ! Compute and project vertical velocity
+    call vertical_velocity 
+    do k = 1, zlevels
+       call project_w_onto_plane (k, l, 0.0_8)
        lat_slice(:,k,5) = field2d(idx_lon,:)
        lon_slice(:,k,5) = field2d(:,idx_lat)
     end do
-
+    
     ! Set free surface
     call project_onto_plane (sol(S_MASS,zlevels+1), l, 0.0_8)
     eta_lat = field2d(idx_lon,:)
@@ -587,23 +591,6 @@ contains
           zcoord_lon(i,k,2) = a_vert(k)   * eta_lon(i) + b_vert(k)   * z_s
        end do
     end do
-
-    ! Vertical velocities at interfaces
-    lat_slice_l(:,0) = 0.0_8
-    lon_slice_l(:,0) = 0.0_8
-    do k = 1, zlevels
-       do i = Ny(1), Ny(2)
-          dz = zcoord_lat(i,k,2) - zcoord_lat(i,k,1)
-          lat_slice_l(i,k) = lat_slice_l(i,k-1) - lat_slice(i,k,5) * dz
-       end do
-       do i = Nx(1), Nx(2)
-          dz = zcoord_lon(i,k,2) - zcoord_lon(i,k,1)
-          lon_slice_l(i,k) = lon_slice_l(i,k-1) - lon_slice(i,k,5) * dz
-       end do
-    end do
-    ! Interpolate to layers
-    lat_slice(:,1:zlevels,6) = 0.5 * (lat_slice_l(:,0:zlevels-1) + lat_slice_l(:,1:zlevels))
-    lon_slice(:,1:zlevels,6) = 0.5 * (lon_slice_l(:,0:zlevels-1) + lon_slice_l(:,1:zlevels))
   end subroutine vertical_slice
 
   subroutine rho (dom, i, j, zlev, offs, dims)
@@ -1641,11 +1628,11 @@ contains
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_baroclinic_vorticity_onto_plane
 
-  subroutine project_divu_onto_plane (l, default_val)
+  subroutine project_w_onto_plane (k, l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     use domain_mod
     use comm_mpi_mod
-    integer               :: l, itype
+    integer               :: k, l, itype
     real(8)               :: default_val
 
     integer                        :: d, i, j, jj, p, c, p_par, l_cur
@@ -1671,10 +1658,10 @@ contains
                 call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
                 call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
 
-                val   = grid(d)%divu%elts(id+1)
-                valN  = grid(d)%divu%elts(idN+1)
-                valE  = grid(d)%divu%elts(idE+1)
-                valNE = grid(d)%divu%elts(idNE+1)
+                val   = trend(S_MASS,k)%data(d)%elts(id+1)
+                valN  = trend(S_MASS,k)%data(d)%elts(idN+1)
+                valE  = trend(S_MASS,k)%data(d)%elts(idE+1)
+                valNE = trend(S_MASS,k)%data(d)%elts(idNE+1)
 
                 if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
@@ -1695,7 +1682,7 @@ contains
     ! Synchronize array over all processors
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_divu_onto_plane
+  end subroutine project_w_onto_plane
 
   subroutine project_uzonal_onto_plane (l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)

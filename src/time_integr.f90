@@ -392,23 +392,42 @@ contains
     do k = 1, zlevels
        do l = level_end, level_start, -1
           do d = 1, size(grid)
+             temp => q(S_TEMP,k)%data(d)%elts 
              velo => q(S_VELO,k)%data(d)%elts       
              if (l < level_end) then
                 call cpt_or_restr_penal (grid(d), k, l)
              else
                 do j = 1, grid(d)%lev(l)%length
-                   call apply_onescale_to_patch (cal_penal, grid(d), grid(d)%lev(l)%elts(j), k, 0, 0)
+                   call apply_onescale_to_patch (cal_penal_temp, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                   call apply_onescale_to_patch (cal_penal_velo, grid(d), grid(d)%lev(l)%elts(j), k, 0, 0)
                 end do
              end if
-             nullify (velo)
+             nullify (temp, velo)
           end do
        end do
     end do
+    q(S_TEMP,1:zlevels)%bdry_uptodate = .false.
+    call update_vector_bdry (q(S_TEMP,1:zlevels), NONE, 316)
     q(S_VELO,1:zlevels)%bdry_uptodate = .false.
     call update_vector_bdry (q(S_VELO,1:zlevels), NONE, 316)
   end subroutine apply_penal
 
-  subroutine cal_penal (dom, i, j, zlev, offs, dims)
+   subroutine cal_penal_temp (dom, i, j, zlev, offs, dims)
+    ! Apply penalization with maximum stable eta = 1/dt
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) temp(id_i) = (1 - penal_node(zlev)%data(dom%id+1)%elts(id_i)) * temp(id_i)
+  end subroutine cal_penal_temp
+  
+  subroutine cal_penal_velo (dom, i, j, zlev, offs, dims)
     ! Apply penalization with maximum stable eta = 1/dt
     implicit none
     type(Domain)                   :: dom
@@ -427,7 +446,7 @@ contains
           velo(id_e) = (1 - penal_edge(zlev)%data(d)%elts(id_e)) * velo(id_e)
        end do
     end if
-  end subroutine cal_penal
+  end subroutine cal_penal_velo
 
   subroutine cpt_or_restr_penal (dom, zlev, l)
     implicit none
@@ -440,7 +459,7 @@ contains
        p_par = dom%lev(l)%elts(j)
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd == 0) call apply_onescale_to_patch (cal_penal, dom, p_par, zlev, 0, 0)
+          if (p_chd == 0) call apply_onescale_to_patch (cal_penal_velo, dom, p_par, zlev, 0, 0)
        end do
        call apply_interscale_to_patch (penal_cpt_restr, dom, dom%lev(l)%elts(j), zlev, 0, 0)
     end do
@@ -464,7 +483,7 @@ contains
     idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
 
     if (minval(dom%mask_e%elts(EDGE*id_chd+RT+1:EDGE*id_chd+UP+1)) < ADJZONE) &
-         call cal_penal (dom, i_par, j_par, zlev, offs_par, dims_par)
+         call cal_penal_velo (dom, i_par, j_par, zlev, offs_par, dims_par)
 
     if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) velo(EDGE*id_par+RT+1) = &
          (velo(EDGE*id_chd+RT+1)*dom%len%elts(EDGE*id_chd+RT+1) + velo(EDGE*idE_chd+RT+1)*dom%len%elts(EDGE*idE_chd+RT+1)) &
