@@ -360,6 +360,7 @@ contains
   end subroutine grad_eta
 
   subroutine cal_div (dom, i, j, zlev, offs, dims)
+    ! Divergence of h_flux
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -373,13 +374,52 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) dscalar(id) = div (h_flux, dom, i, j, offs, dims)
   end subroutine cal_div
 
+  subroutine cal_mass_flux (dom, i, j, zlev, offs, dims)
+    ! Divergence of thickness flux (for vertical velocity computation)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                      :: d, id, idE, idNE, idN, idW, idSW, idS
+    real(8)                      :: u_dual_RT, u_dual_RT_W, u_dual_DG_SW, u_dual_DG, u_dual_UP, u_dual_UP_S
+    real(8), dimension(0:N_BDRY) :: h
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+       idE  = idx (i+1, j,   offs, dims) 
+       idNE = idx (i+1, j+1, offs, dims)
+       idN =  idx (i,   j+1, offs, dims) 
+       idW  = idx (i-1, j,   offs, dims) 
+       idSW = idx (i-1, j-1, offs, dims)
+       idS  = idx (i,   j-1, offs, dims) 
+
+       h(0:SOUTHWEST) = (sol(S_MASS,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE,id,idSW/)+1) &
+                  + sol_mean(S_MASS,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE,id,idSW/)+1)) / ref_density
+
+       u_dual_RT    = interp (h(0), h(EAST))      * velo(EDGE*id  +RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+       u_dual_DG    = interp (h(0), h(NORTHEAST)) * velo(EDGE*id  +DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+       u_dual_UP    = interp (h(0), h(NORTH))     * velo(EDGE*id  +UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+
+       u_dual_RT_W  = interp (h(0), h(WEST))      * velo(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW+RT+1)
+       u_dual_DG_SW = interp (h(0), h(SOUTHWEST)) * velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+       u_dual_UP_S  = interp (h(0), h(SOUTH))     * velo(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS+UP+1)
+
+       divu(id+1) =  (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id+1)%hex_inv 
+    end if
+  end subroutine cal_mass_flux
+
   subroutine vertical_velocity
-    ! Computes vertical velocity at nodes, stored in  trend(S_MASS,k).
+    ! Computes vertical velocity at nodes, stored in  trend(S_MASS,k)
     implicit none
     integer :: d, j, k, l, p
 
-    ! Vertically integrated velocity flux
+    ! Divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
     do l = level_end, level_start, -1
+       ! Vertically integrated velocity flux
        do d = 1, size(grid)
           h_flux => horiz_flux(S_MASS)%data(d)%elts
           scalar => sol(S_MASS,zlevels+1)%data(d)%elts
@@ -396,8 +436,7 @@ contains
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
        call update_bdry (horiz_flux(S_MASS), l, 211)
-
-       ! Divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
+       
        do d = 1, size(grid)
           dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
           h_flux  =>      horiz_flux(S_MASS)%data(d)%elts
@@ -409,22 +448,38 @@ contains
        trend(S_MASS,zlevels+1)%bdry_uptodate = .false.
        call update_bdry (trend(S_MASS,zlevels+1), l, 212)
     end do
-
-    ! Vertical velocity, stored in trend(S_MASS,1:zlevels)
+       
+    ! Vertical velocity computed over entire grid, stored in trend(S_MASS,1:zlevels)
     do d = 1, size(grid)
+       ! Integrate upwards to find vertical velocities at interfaces
        dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
-       do k = 1, zlevels
-          mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          mass   =>      sol(S_MASS,k)%data(d)%elts
-          velo    =>   trend(S_MASS,k)%data(d)%elts 
+       divu    => grid(d)%divu%elts
+       trend(S_TEMP,1)%data(d)%elts = 0.0_8 
+       do k = 1, zlevels-1 
+          velo  => sol(S_VELO,k)%data(d)%elts
+          velo1 => trend(S_TEMP,k+1)%data(d)%elts
+          velo2 => trend(S_TEMP,k)%data(d)%elts 
           do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (cal_mass_flux,         grid(d), p-1, k, 0, 1) 
              call apply_onescale_to_patch (cal_vertical_velocity, grid(d), p-1, k, 0, 1)
           end do
-          nullify (mass, mean_m, velo)
+          nullify (velo, velo1, velo2)
        end do
-       nullify (dscalar)
+       trend(S_TEMP,zlevels+1)%data(d)%elts = 0.0_8
+       nullify (divu, dscalar)
+
+       ! Interpolate vertical velocity from interfaces to nodes
+       do k = 1, zlevels
+          velo  => trend(S_MASS,k)%data(d)%elts
+          velo1 => trend(S_TEMP,k)%data(d)%elts
+          velo2 => trend(S_TEMP,k+1)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (interp_vertical_velocity, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (velo, velo1, velo2)
+       end do
     end do
-    call update_vector_bdry (trend(S_MASS,1:zlevels), l, 212)
+    call update_vector_bdry (trend(S_MASS,1:zlevels), NONE, 212)
   end subroutine vertical_velocity
 
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)
@@ -437,11 +492,29 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
+    real(8) :: dz
     
     id = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id) >= ADJZONE) &
-         velo(id) = - (mean_m(id) + mass(id)) * dscalar(id) / porous_density (dom, i, j, zlev, offs, dims)
+    if (dom%mask_n%elts(id) >= ADJZONE) then
+       dz = dz_i (dom, i, j, zlev, offs, dims)
+       velo1(id) = velo2(id) + dz *  (a_vert_mass(zlev) * dscalar(id) - divu (id))
+    end if
   end subroutine cal_vertical_velocity
-end module barotropic_2d_mod
 
+  subroutine interp_vertical_velocity (dom, i, j, zlev, offs, dims)
+    ! Interpolate vertical velocity to full levels and divde by area
+    use utils_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+    real(8) :: dz
+    
+    id = idx (i, j, offs, dims) + 1
+    if (dom%mask_n%elts(id) >= ADJZONE) velo(id) = interp (velo1(id), velo2(id)) 
+  end subroutine interp_vertical_velocity
+end module barotropic_2d_mod
