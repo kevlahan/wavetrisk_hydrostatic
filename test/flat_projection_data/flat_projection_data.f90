@@ -599,13 +599,10 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: full_mass, full_temp
 
     id_i = idx (i, j, offs, dims) + 1
 
-    full_mass = mean_m(id_i) + mass(id_i)
-    full_temp = mean_t(id_i) + temp(id_i)
-    scalar(id_i) = - ref_density * full_temp / full_mass ! constant
+    scalar(id_i) = ref_density * (1.0_8 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
   end subroutine rho
 
   function energy_drake (itype)

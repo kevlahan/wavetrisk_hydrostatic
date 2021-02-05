@@ -14,6 +14,7 @@ Module test_case_mod
   ! Local variables
   real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
   real(8)                              :: friction_upwelling, max_depth, r_max, r_max_loc
+  real(8)                              :: n_smth_N, n_smth_S, width_N, width_S
   real(8)                              :: npts_penal, u_wbc
   real(8)                              :: lat_c, lat_width, tau_0, width
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -39,6 +40,7 @@ contains
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
+    read (fid,*) varname, zlevels
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
     read (fid,*) varname, log_iter
@@ -195,14 +197,12 @@ contains
 
     integer     :: d, id, id_i
     real (8)    :: dz, eta, phi, z_s
-    type(Coord) :: p
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    p = dom%node%elts(id_i)
-    eta = init_free_surface (p)
+    eta = init_free_surface (dom%node%elts(id_i))
     z_s = dom%topo%elts(id_i)
 
     if (zlev == zlevels+1) then ! 2D barotropic mode
@@ -216,9 +216,8 @@ contains
        else
           sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        end if
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz * buoyancy (eta, z_s, zlev)
     end if
-    ! Set initial velocity field to zero
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
   end subroutine init_sol
 
@@ -232,14 +231,12 @@ contains
 
     integer     :: d, id, id_i
     real (8)    :: dz, eta, z_s
-    type(Coord) :: p
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
-    p = dom%node%elts(id_i)
 
-    eta = init_free_surface (p)
+    eta = init_free_surface (dom%node%elts(id_i))
     z_s = dom%topo%elts(id_i)
 
     if (zlev == zlevels+1) then
@@ -248,7 +245,7 @@ contains
     else
        dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (eta, z_s, zlev)
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_mean
@@ -289,9 +286,9 @@ contains
     lat = lat / DEG
     if (abs(lat-lat_c) <= lat_width/2) then
        y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
-       surf_geopot = 65.5_8 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+       surf_geopot = 66.505710477328847 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
     else
-       surf_geopot = 65.5_8 - 66.526 * tanh (-1.875d-5*width)
+       surf_geopot = 66.505710477328847 - 66.526 * tanh (-1.875d-5*width)
     end if
     surf_geopot = grav_accel * surf_geopot
   end function surf_geopot
@@ -322,13 +319,11 @@ contains
     integer :: zlev
     real(8) :: eta, z_s
 
-    real(8) :: rho, z1, z2
+    real(8) :: rho, z, z1, z2
 
     z1 = a_vert(zlev-1) * eta + b_vert(zlev-1) * z_s
     z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
-
     rho = 0.5 * (density (z1) + density (z2))
-
     buoyancy = (ref_density - rho) / ref_density
   end function buoyancy
 
@@ -362,12 +357,16 @@ contains
     real(8)            :: hz, strat, z0, z1
     real(8), parameter :: h0 = 150_8, hz_0 = 6.5_8, T0 = 14_8, z0_0 = -35_8, z1_0 = -75_8
 
-    strat = abs(max_depth)
-    hz = hz_0 * abs(max_depth/h0)
-    z0 = z0_0 * abs(max_depth/h0)
-    z1 = z1_0 * abs(max_depth/h0)
+    if (trim(coords) == "croco") then
+       strat = abs(max_depth)
+       hz = hz_0 * abs(max_depth/h0)
+       z0 = z0_0 * abs(max_depth/h0)
+       z1 = z1_0 * abs(max_depth/h0)
 
-    temp_profile = T0 + 4*tanh ((z - z0) / hz) + (z - z1) / strat
+       temp_profile = T0 + 4*tanh ((z - z0) / hz) + (z - z1) / strat
+    elseif (trim(coords) == "roms") then
+       temp_profile = 3.0677d-6 * z**3 +   1.0747d-3 * z**2 + 1.4386d-1 * z + 2.1597d1
+    end if
   end function temp_profile
 
   real(8) function eqn_of_state (temperature)
@@ -403,7 +402,7 @@ contains
        write (6, '(3x, i3, 5x, 3(1x, es11.4))') k, a_vert(k), b_vert(k), a_vert(k) * eta + b_vert(k) * z_s
     end do
 
-    write (6,'(/,a)') " Interface    V        c1     CFL_c1"
+    write (6,'(/,a)') " Interface        V        c1     CFL_c1"
     do k = 1, zlevels-1
        z_above = 0.5 * ((a_vert(k+1)+a_vert(k)) * eta + (b_vert(k+1)+b_vert(k)) * z_s)
        z       = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta + (b_vert(k)+b_vert(k-1)) * z_s)
@@ -463,16 +462,13 @@ contains
     allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
     allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
 
-    x_i = Coord (radius, 0.0_8, 0.0_8)
     eta = 0.0_8
     z_s = max_depth
     do k = 1, zlevels
        dz = a_vert_mass(k) * eta + b_vert_mass(k) * z_s
        lnorm(S_MASS,k) = ref_density * dz
-
-!!$       lnorm(S_TEMP,k) = ref_density*dz * buoyancy (max_depth, x_i, k)
-       lnorm(S_TEMP,k) = 1d16
-
+!!$       lnorm(S_TEMP,k) = lnorm(S_MASS,k)
+       lnorm(S_TEMP,k) = drho * dz
        lnorm(S_VELO,k) = Udim
     end do
 
@@ -484,8 +480,7 @@ contains
   subroutine initialize_dt_viscosity 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8)            :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
-    logical, parameter :: munk = .true.
+    real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, C_visc, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
@@ -497,12 +492,15 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    C_rotu = 1d-3
-    C_divu = 1d-3
-    C_sclr = 1d-3
+    C = 5d-3
+    C_rotu = C
+    C_divu = C
+    C_mu   = C
+    C_b    = C
 
     ! Diffusion time scales
-    tau_sclr = dt_cfl / C_sclr
+    tau_mu   = dt_cfl / C_mu
+    tau_b    = dt_cfl / C_b
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
 
@@ -511,8 +509,8 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_sclr
+       visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_mu
+       visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_b
        visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
        visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
     elseif (Laplace_order_init > 2) then
@@ -523,11 +521,22 @@ contains
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
             "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
-       write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
+       write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  "C_b = ", C_mu, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
+    
+    ! Penalization parameterss
+!!$    dlat = npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+    dlat = 0.0_8
+
+    width_S = lat_c - (lat_width/2 + dlat) + 90_8
+    width_N = lat_c - (lat_width/2 + dlat)       
+
+    ! Smoothing exponent for land mass
+    n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
+    n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
   end subroutine initialize_dt_viscosity
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -574,9 +583,9 @@ contains
     character(*)                   :: itype
 
     integer     :: d, e, id, id_e, id_i, idE, idN, idNE
-    real(8)     :: dlat, lat, lon, mask, n_smth_N, n_smth_S, width_N, width_S
     type(Coord) :: p
 
+    d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
@@ -586,25 +595,19 @@ contains
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
-       d = dom%id + 1
-       call cart2sph (dom%node%elts(id_i), lon, lat)
-
-       dlat = 0.0_8!npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
-
-       width_S = lat_c - (lat_width/2 + dlat) + 90_8
-       width_N = lat_c - (lat_width/2 + dlat)       
-
-       ! Smoothing exponent for land mass
-       n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
-       n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
-       
-       mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
-       penal_node(zlev)%data(d)%elts(id_i) = mask
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          penal_edge(zlev)%data(d)%elts(id_e) = max (penal_edge(zlev)%data(d)%elts(id_e), mask)
-       end do
+       penal_node(zlev)%data(d)%elts(id_i) = mask(id)
+       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1) = max (mask(id), mask(idx(i+1, j,   offs, dims)))
+       penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1) = max (mask(id), mask(idx(i+1, j+1, offs, dims)))
+       penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1) = max (mask(id), mask(idx(i,   j+1, offs, dims)))
     end select
+  contains
+    real(8) function mask (id)
+      integer :: id
+      real(8) :: lat, lon
+      
+      call cart2sph (dom%node%elts(id+1), lon, lat)
+      mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
+    end function mask
   end subroutine topography
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
@@ -633,58 +636,33 @@ contains
   subroutine initialize_a_b_vert
     ! Initialize hybrid sigma-coordinate vertical grid
     implicit none
-    integer :: k
+    integer               :: k
+    real(8)               :: z
+    real(8), dimension(6) :: p
 
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
-
+    
     b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
     
     if (trim (coords) == "uniform") then
-       do k = 1, zlevels
+       do k = 2, zlevels-1
           b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
        end do
     elseif (trim (coords) == "chebyshev") then
-       do k = 1, zlevels
+       do k = 2, zlevels-1
           b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
        end do
-    elseif (trim(coords) == "croco") then
-       b_vert(0) = -150
-       b_vert(1) = -103.935
-       b_vert(2) =  -73.66
-       b_vert(3) =  -53.57
-       b_vert(4) =  -40.06
-       b_vert(5) =  -30.80
-       b_vert(6) =  -24.28
-       b_vert(7) =  -19.54
-       b_vert(8) =  -15.94
-       b_vert(9) =  -13.07
-       b_vert(10) = -10.68 
-       b_vert(11) =  -8.60
-       b_vert(12) =  -6.71
-       b_vert(13) =  -4.95
-       b_vert(14) =  -3.26
-       b_vert(15) =  -1.62
-       b_vert(16) =   0
-       b_vert = -b_vert/150
-    elseif (trim(coords) == "roms") then
-       b_vert(0)  = 1.0000
-       b_vert(1)  = 0.9192
-       b_vert(2)  = 0.6970
-       b_vert(3)  = 0.5606
-       b_vert(4)  = 0.4646
-       b_vert(5)  = 0.3889
-       b_vert(6)  = 0.3232
-       b_vert(7)  = 0.2778
-       b_vert(8)  = 0.2323
-       b_vert(9)  = 0.1919
-       b_vert(10) = 0.1566
-       b_vert(11) = 0.1263
-       b_vert(12) = 0.0960
-       b_vert(13) = 0.0707
-       b_vert(14) = 0.0404
-       b_vert(15) = 0.0101
-       b_vert(16) = 0.0
+    elseif (trim(coords) == "croco" .or. trim(coords) == "roms") then
+       if (trim(coords) == "croco") then
+          p = (/ -5.7831,  18.9754, -24.6521,  16.1698, -5.7092, 0.9972 /)
+       elseif (trim(coords) == "roms") then
+          p = (/ 0.0, 0.85230, -3.2106,  4.4745, -3.1587,  1.0343 /)
+       end if
+       do k = 1, zlevels-1
+          z = dble(k)/dble(zlevels)
+          b_vert(k) = p(1)*z**5 + p(2)*z**4 + p(3)*z**3 + p(4)*z**2 + p(5)*z + p(6)
+       end do
     end if
     a_vert = 1.0_8 - b_vert
 
@@ -787,10 +765,11 @@ contains
     implicit none
     real(8) :: eta, ri, z
 
-    real(8), parameter :: a = 5, A_ric = 1d-4, At_b = 1.2d-5, K_t = 1d-6
+    real(8), parameter :: a = 5, A_ric = 1d-4, At_b = 1.2d-5
+    real(8), parameter :: K_t  = 1d-6
     
     if (rich_diff) then
-       upwelling_diffusivity = A_ric/(1.0_8 + a*ri**2) + At_b
+       upwelling_diffusivity = A_ric/(1.0_8 + a*ri)**2 + At_b
     else
        upwelling_diffusivity = K_t
     end if
@@ -802,7 +781,8 @@ contains
     real(8), dimension(1:EDGE) :: upwelling_viscosity, eta, z
     real(8)                    :: ri
 
-    real(8), parameter :: a = 5, Av_b = 1.2d-4, K_m = 2d-3
+    real(8), parameter :: a = 5, Av_b = 1.2d-4
+    real(8), parameter :: K_m = 2d-3
 
     if (rich_diff) then
        upwelling_viscosity = upwelling_diffusivity (eta(1), ri, z(1)) / (1.0_8 + a*ri) + Av_b

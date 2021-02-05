@@ -271,7 +271,6 @@ contains
 
     ! Split step routines
     if (vert_diffuse)  call implicit_vertical_diffusion (eddy_d, eddy_v, bottom_friction, wind_d, source_b, source_t)
-    if (penalize) call apply_penal (sol)
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
@@ -289,6 +288,9 @@ contains
     if (min_level /= max_level) call adapt_grid (set_thresholds)
 
     call update
+
+    ! Apply velocity penalization
+    if (penalize) call apply_penal (sol)
     
     call sum_total_mass (.false.)
 
@@ -361,6 +363,9 @@ contains
 
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+
+    ! Apply velocity penalization
+    if (penalize) call apply_penal (sol)
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity

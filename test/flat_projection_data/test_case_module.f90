@@ -359,7 +359,8 @@ contains
        call cart2sph (dom%node%elts(id_i), lon, lat)
 
        if (trim (test_case) == "upwelling") then
-          dlat = npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+!!$          dlat = npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+          dlat = 0.0_8
           width_S = lat_c - (lat_width/2 + dlat) + 90_8
           width_N = lat_c - (lat_width/2 + dlat)       
           n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)

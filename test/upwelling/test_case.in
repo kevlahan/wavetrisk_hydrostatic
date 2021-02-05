@@ -1,6 +1,7 @@
 test_case          upwelling     ! name of test case
 run_id             upwelling     ! name of run (for saved data)
 max_level	   6             ! maximum level of resolution
+zlevels           16             ! number of vertical levels
 remap              T             ! remap vertical grid
 iremap             10            ! remap every iremap time steps
 log_iter           F             ! print elliptic solver relative residual error

@@ -26,14 +26,13 @@ program upwelling
   ref_density        = 1027    * KG/METRE**3         ! reference density at depth (seawater)
 
   ! Numerical method parameters
-  zlevels            = 16                            ! always run with 20 vertical layers
   default_thresholds = .true.                        ! use default threshold
   adapt_dt           = .true.                        ! adapt time step
-  match_time         = .false.                       ! avoid very small time steps when saving 
+  match_time         = .true.                        ! avoid very small time steps when saving (if false) 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-4                          ! porosity used in penalization
-  npts_penal         = 4.5                           ! number of points to smooth over in penalization
+  alpha              = 1d-2                          ! porosity used in penalization
+  npts_penal         = 4.5                          ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
@@ -44,7 +43,7 @@ program upwelling
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
   vert_diffuse       = .true.                        ! include vertical diffusion
-  coords             = "roms"                        ! chebyshev, roms or uniform
+  coords             = "croco"                       ! chebyshev, croco, roms, or uniform
   
   ! Depth and layer parameters
   max_depth          = -150 * METRE                  ! total depth
@@ -73,10 +72,12 @@ program upwelling
   Rd                 = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
 
   ! Dimensional scaling
-  Udim               = 1.0_8                              ! velocity scale
+  drho               = 2.5 * KG/METRE**3                  ! magnitude of density perturbation
+  Udim               = 0.5_8                              ! velocity scale
   Ldim               = lat_width*DEG * radius             ! length scale 
   Tdim               = Ldim/Udim                          ! time scale
   Hdim               = abs (max_depth)                    ! vertical length scale
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize variables
@@ -209,9 +210,7 @@ end function physics_scalar_source
 function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
   ! wind stress and bottom friction are included as surface fluxes in the split eddy viscosity split step
-  use domain_mod
   use test_case_mod
-  use ops_mod
   implicit none
 
   real(8), dimension(1:EDGE)     :: physics_velo_source
@@ -228,7 +227,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Horizontal diffusion
   diffusion = (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
 
-  physics_velo_source = diffusion
+  physics_velo_source = diffusion 
 contains
   function grad_divu()
     implicit none

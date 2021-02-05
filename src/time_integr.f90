@@ -157,12 +157,12 @@ contains
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
 
     integer :: d, ibeg, iend, k, v
-
+    
     do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = 1, N_VARIABLE
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = sols(v,k)%data(d)%length
+       do v = 1, N_VARIABLE
+          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = dest(v,1)%data(d)%length
+          do d = 1, size(grid)
              dest(v,k)%data(d)%elts(ibeg:iend) = sols(v,k)%data(d)%elts(ibeg:iend) + dt * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
@@ -180,10 +180,10 @@ contains
     integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = 1, N_VARIABLE
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
-             iend = sols(v,k)%data(d)%length
+       do v = 1, N_VARIABLE
+          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = sols(v,1)%data(d)%length
+          do d = 1, size(grid)
              dest(v,k)%data(d)%elts(ibeg:iend) = alpha * sols(v,k)%data(d)%elts(ibeg:iend) &
                   + dt * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
@@ -203,10 +203,10 @@ contains
     integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = 1, N_VARIABLE
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
-             iend = dest(v,k)%data(d)%length
+       do v = 1, N_VARIABLE
+          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = dest(v,1)%data(d)%length
+          do d = 1, size(grid)
              dest(v,k)%data(d)%elts(ibeg:iend) = alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) &
                   + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) + dt*trends(v,k)%data(d)%elts(ibeg:iend)
           end do
@@ -226,14 +226,14 @@ contains
     integer :: k, v, d, ibeg, iend
 
     do k = 1, zlevels
-       do d = 1, size(grid)
-          do v = 1, N_VARIABLE
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start+1 ! start of second level
-             iend = dest(v,k)%data(d)%length
+       do v = 1, N_VARIABLE
+          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = dest(v,1)%data(d)%length
+          do d = 1, size(grid)
              dest(v,k)%data(d)%elts(ibeg:iend) = &
                   alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) &
-                  + alpha(3)*sol3(v,k)%data(d)%elts(ibeg:iend) + alpha(4)*sol4(v,k)%data(d)%elts(ibeg:iend) &
-                  + dt(1)*trend1(v,k)%data(d)%elts(ibeg:iend) + dt(2)*trend2(v,k)%data(d)%elts(ibeg:iend)
+                + alpha(3)*sol3(v,k)%data(d)%elts(ibeg:iend) + alpha(4)*sol4(v,k)%data(d)%elts(ibeg:iend) &
+                 + dt(1)*trend1(v,k)%data(d)%elts(ibeg:iend) + dt(2)*trend2(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
        dest(:,k)%bdry_uptodate = .False.
@@ -384,190 +384,22 @@ contains
   subroutine apply_penal (q)
     ! Apply permeability friction term to velocity as split step
     use domain_mod
+    use adapt_mod
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
 
-    integer :: d, j, k, l
-
-    do k = 1, zlevels
-       do l = level_end, level_start, -1
-          do d = 1, size(grid)
-             temp => q(S_TEMP,k)%data(d)%elts 
-             velo => q(S_VELO,k)%data(d)%elts       
-             if (l < level_end) then
-                call cpt_or_restr_penal (grid(d), k, l)
-             else
-                do j = 1, grid(d)%lev(l)%length
-                   call apply_onescale_to_patch (cal_penal_temp, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-                   call apply_onescale_to_patch (cal_penal_velo, grid(d), grid(d)%lev(l)%elts(j), k, 0, 0)
-                end do
-             end if
-             nullify (temp, velo)
-          end do
+    integer :: d, ibeg, iend, k
+    
+    do d = 1, size(grid)
+       ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend = q(S_VELO,1)%data(d)%length
+       do k = 1, zlevels
+          q(S_VELO,k)%data(d)%elts(ibeg:iend) = (1 - penal_edge(k)%data(d)%elts(ibeg:iend)) * q(S_VELO,k)%data(d)%elts(ibeg:iend)
        end do
     end do
-    q(S_TEMP,1:zlevels)%bdry_uptodate = .false.
-    call update_vector_bdry (q(S_TEMP,1:zlevels), NONE, 316)
     q(S_VELO,1:zlevels)%bdry_uptodate = .false.
-    call update_vector_bdry (q(S_VELO,1:zlevels), NONE, 316)
+
+    ! Wavelet transform and interpolate back onto adapted grid
+    call WT_after_step (q, wav_coeff, level_start-1)
   end subroutine apply_penal
-
-   subroutine cal_penal_temp (dom, i, j, zlev, offs, dims)
-    ! Apply penalization with maximum stable eta = 1/dt
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-
-    id_i = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id_i) >= ADJZONE) temp(id_i) = (1 - penal_node(zlev)%data(dom%id+1)%elts(id_i)) * temp(id_i)
-  end subroutine cal_penal_temp
-  
-  subroutine cal_penal_velo (dom, i, j, zlev, offs, dims)
-    ! Apply penalization with maximum stable eta = 1/dt
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id, id_e
-
-    id = idx (i, j, offs, dims)
-
-    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
-       d = dom%id + 1
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          velo(id_e) = (1 - penal_edge(zlev)%data(d)%elts(id_e)) * velo(id_e)
-       end do
-    end if
-  end subroutine cal_penal_velo
-
-  subroutine cpt_or_restr_penal (dom, zlev, l)
-    implicit none
-    type(Domain) :: dom
-    integer      :: zlev, l
-
-    integer :: c, j, p_par, p_chd
-
-    do j = 1, dom%lev(l)%length
-       p_par = dom%lev(l)%elts(j)
-       do c = 1, N_CHDRN
-          p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd == 0) call apply_onescale_to_patch (cal_penal_velo, dom, p_par, zlev, 0, 0)
-       end do
-       call apply_interscale_to_patch (penal_cpt_restr, dom, dom%lev(l)%elts(j), zlev, 0, 0)
-    end do
-  end subroutine cpt_or_restr_penal
-
-  subroutine penal_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Velocity restriction
-    implicit none
-    type(Domain)                     :: dom
-    integer                          :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
-
-    integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
-
-    id_par = idx (i_par, j_par, offs_par, dims_par)
-
-    id_chd   = idx (i_chd,   j_chd,   offs_chd, dims_chd)
-    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
-
-    if (minval(dom%mask_e%elts(EDGE*id_chd+RT+1:EDGE*id_chd+UP+1)) < ADJZONE) &
-         call cal_penal_velo (dom, i_par, j_par, zlev, offs_par, dims_par)
-
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) velo(EDGE*id_par+RT+1) = &
-         (velo(EDGE*id_chd+RT+1)*dom%len%elts(EDGE*id_chd+RT+1) + velo(EDGE*idE_chd+RT+1)*dom%len%elts(EDGE*idE_chd+RT+1)) &
-         / (dom%len%elts(EDGE*id_chd+RT+1) + dom%len%elts(EDGE*idE_chd+RT+1))
-
-    if (dom%mask_e%elts(DG+EDGE*id_chd+1) >= ADJZONE) velo(EDGE*id_par+DG+1) = &
-         (velo(EDGE*id_chd+DG+1)*dom%len%elts(EDGE*id_chd+DG+1) + velo(EDGE*idNE_chd+DG+1)*dom%len%elts(EDGE*idNE_chd+DG+1)) &
-         / (dom%len%elts(EDGE*id_chd+DG+1) + dom%len%elts(EDGE*idNE_chd+DG+1))
-
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) velo(EDGE*id_par+UP+1) = &
-         (velo(EDGE*id_chd+UP+1)*dom%len%elts(EDGE*id_chd+UP+1) + velo(EDGE*idN_chd+UP+1)*dom%len%elts(EDGE*idN_chd+UP+1)) &
-         / (dom%len%elts(EDGE*id_chd+UP+1) + dom%len%elts(EDGE*idN_chd+UP+1))
-  end subroutine penal_cpt_restr
-
-  subroutine WT_velo_after_step (q)
-    ! Compute velocity wavelets, compress, and inverse wavelet transform onto grid
-    use adapt_mod
-    implicit none
-    type(Float_Field), dimension(:), target :: q
-
-    integer :: d, k, l
-
-    ! Compute velocity wavelets
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          velo => q(k)%data(d)%elts
-          call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
-          nullify (velo)
-       end do
-    end do
-    q%bdry_uptodate = .false.
-    call update_vector_bdry (q, NONE, 16)
-    do k = 1, zlevels
-       do l = level_start-1, level_end-1
-          do d = 1, size(grid)
-             velo => q(k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
-             call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
-             nullify (velo, wc_u)
-          end do
-       end do
-    end do
-
-    ! Compress velocity wavelets
-    do k = 1, zlevels
-       do d = 1, size (grid)
-          do l = level_start+1, level_end
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             call apply_onescale_d (compress_vector, grid(d), l, z_null, 0, 0)
-             nullify (wc_u)
-          end do
-       end do
-    end do
-    wav_coeff(S_VELO,1:zlevels)%bdry_uptodate = .false.
-
-    ! Inverse velocity wavelet transform
-    call update_vector_bdry1 (wav_coeff(S_VELO,1:zlevels), level_start, level_end, 304)
-    call update_vector_bdry1 (q,                           level_start, level_end, 305)
-    q%bdry_uptodate = .false.
-    do k = 1, zlevels
-       do l = level_start, level_end-1
-          if (l > level_start) call update_bdry__finish (q(k), l) ! for next outer velocity
-
-          ! Reconstruct outer velocities at finer edges (interpolate and add wavelet coefficients)
-          do d = 1, size(grid)
-             velo => q(k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             call apply_interscale_d2 (reconstruct_outer_velo, grid(d), l, z_null, 0, 1) ! needs val
-             call apply_to_penta_d (reconstruct_velo_penta, grid(d), l, z_null)
-             nullify (velo, wc_u)
-          end do
-          call update_bdry (q(k), l+1, 301)
-
-          ! Reconstruct inner velocities at finer edges (interpolate and add wavelet coefficients)
-          do d = 1, size(grid)
-             velo => q(k)%data(d)%elts
-             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (reconstruct_velo_inner, grid(d), l, z_null, 0, 0)
-             nullify (velo, wc_u)
-          end do
-
-          if (l < level_end-1) call update_bdry__start (q(k), l+1) ! for next outer velocity
-       end do
-    end do
-  end subroutine WT_velo_after_step
 end module time_integr_mod
