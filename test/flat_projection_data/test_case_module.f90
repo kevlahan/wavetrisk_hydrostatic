@@ -4,8 +4,8 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   implicit none
-  integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev
-  real(8)                              :: initotalmass, mass_error, totalmass, ref_surf_press, scale
+  integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev 
+  real(8)                              :: initotalmass, mass_error, npts_penal, totalmass, ref_surf_press, scale
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
   logical                              :: mean_split
@@ -15,7 +15,6 @@ module test_case_mod
   ! DCMIP2008c5
   real(8) :: d2, h_0, lat_c, lon_c
   ! Drake
-  integer               :: npts_penal
   real(8)               :: drho, halocline, max_depth, mixed_layer
   real(8), dimension(2) :: density_drake, height
   ! Seamount
@@ -122,6 +121,8 @@ contains
   subroutine initialize_a_b_vert
     implicit none
     integer :: k
+    real(8) :: z
+    real(8), dimension(6) :: p
 
     ! Allocate vertical grid parameters
     if (trim(test_case) == "drake" .or. trim(test_case) == "seamount" .or. trim(test_case) == "upwelling") then
@@ -213,7 +214,7 @@ contains
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
     elseif (trim (test_case) == "upwelling") then
        b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
-
+       
        if (trim (coords) == "uniform") then
           do k = 1, zlevels
              b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
@@ -222,43 +223,16 @@ contains
           do k = 1, zlevels
              b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
           end do
-       elseif (trim(coords) == "croco") then
-          b_vert(0) = -150
-          b_vert(1) = -103.935
-          b_vert(2) =  -73.66
-          b_vert(3) =  -53.57
-          b_vert(4) =  -40.06
-          b_vert(5) =  -30.80
-          b_vert(6) =  -24.28
-          b_vert(7) =  -19.54
-          b_vert(8) =  -15.94
-          b_vert(9) =  -13.07
-          b_vert(10) = -10.68 
-          b_vert(11) =  -8.60
-          b_vert(12) =  -6.71
-          b_vert(13) =  -4.95
-          b_vert(14) =  -3.26
-          b_vert(15) =  -1.62
-          b_vert(16) =   0
-          b_vert = -b_vert/150
-       elseif (trim(coords) == "roms") then
-          b_vert(0)  = 1.0000
-          b_vert(1)  = 0.9192
-          b_vert(2)  = 0.6970
-          b_vert(3)  = 0.5606
-          b_vert(4)  = 0.4646
-          b_vert(5)  = 0.3889
-          b_vert(6)  = 0.3232
-          b_vert(7)  = 0.2778
-          b_vert(8)  = 0.2323
-          b_vert(9)  = 0.1919
-          b_vert(10) = 0.1566
-          b_vert(11) = 0.1263
-          b_vert(12) = 0.0960
-          b_vert(13) = 0.0707
-          b_vert(14) = 0.0404
-          b_vert(15) = 0.0101
-          b_vert(16) = 0.0
+       elseif (trim(coords) == "croco" .or. trim(coords) == "roms") then
+          if (trim(coords) == "croco") then
+             p = (/ -5.7831,  18.9754, -24.6521,  16.1698, -5.7092, 0.9972 /)
+          elseif (trim(coords) == "roms") then
+             p = (/ 0.0, 0.85230,  -3.2106,  4.4745, -3.1587,  1.0343 /)
+          end if
+          do k = 1, zlevels-1
+             z = dble(k)/dble(zlevels)
+             b_vert(k) = p(1)*z**5 + p(2)*z**4 + p(3)*z**3 + p(4)*z**2 + p(5)*z + p(6)
+          end do
        end if
        a_vert = 1.0_8 - b_vert
 
@@ -368,14 +342,13 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer                        :: npts
     character(*)                   :: itype
 
-    integer            :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
-    real(8)            :: lat, lat0, lon, mask, M_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
-    real(8)            :: n_smth_N, n_smth_S, width_N, width_S
-    type(Coord)        :: p, q
+    integer  :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
+    real(8)  :: dlat, lat, lat0, lon, m_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    real(8)  :: n_smth_N, n_smth_S, width_N, width_S
 
+    d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
@@ -384,28 +357,30 @@ contains
        dom%topo%elts(id_i) = max_depth + surf_geopot (dom%node%elts(id_i)) / grav_accel
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
-       
+
        if (trim (test_case) == "upwelling") then
-          width_S = lat_c - lat_width/2 + 90_8
-          width_N = lat_c - lat_width/2
-
-          ! Smoothing exponent for land mass
+          dlat = npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+          width_S = lat_c - (lat_width/2 + dlat) + 90_8
+          width_N = lat_c - (lat_width/2 + dlat)       
           n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
-          n_smth_N = 4*radius * width_S*DEG / (dx_max * npts_penal)
+          n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
 
-          mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
-       else
-          if (rank == 0) write(6,'(A)') "Test case not supported"
-          stop
+         ! write (6,'(4(es10.4,1x))') dx_max, width_S, width_N, npts_penal
+
+          penal_node(zlev)%data(d)%elts(id_i) = mask(id)
+          penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1) = max (mask(id), mask(idx(i+1, j,   offs, dims)))
+          penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1) = max (mask(id), mask(idx(i+1, j+1, offs, dims)))
+          penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1) = max (mask(id), mask(idx(i,   j+1, offs, dims)))
        end if
-       
-       d = dom%id + 1
-       penal_node(zlev)%data(d)%elts(id_i) = mask
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          penal_edge(zlev)%data(d)%elts(id_e) = max (penal_edge(zlev)%data(d)%elts(id_e), mask)
-       end do
     end select
+  contains
+    real(8) function mask (id)
+      integer :: id
+      real(8) :: lat, lon
+
+      call cart2sph (dom%node%elts(id+1), lon, lat)
+      mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
+    end function mask
   end subroutine topography
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -475,6 +450,7 @@ contains
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values
+    use utils_mod
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
@@ -482,7 +458,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta_surf, porous_density, z, z_s
+    real (8)    :: dz, eta, z, z_s
     type(Coord) :: x_i
 
     d    = dom%id+1
@@ -490,7 +466,7 @@ contains
     id_i = id + 1
 
     x_i  = dom%node%elts(id_i)
-    eta_surf = 0.0_8
+    eta = 0.0_8
     z_s = dom%topo%elts(id_i)
 
     if (trim (test_case) == "drake") then
@@ -506,14 +482,11 @@ contains
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
        else
-          dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
-
-          porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-
+          dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
           if (mean_split) then
-             sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+             sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz
              sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) &
-                  * buoyancy (eta_surf, z_s, zlev)
+                  * buoyancy (eta, z_s, zlev)
           else
              sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
              sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
@@ -524,11 +497,11 @@ contains
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
        else
-          dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
-          porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (eta_surf, z_s, zlev)
+          dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
        end if
+       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end if
   end subroutine init_mean
   
@@ -559,27 +532,9 @@ contains
     elseif (trim (test_case) == "upwelling") then
        z1 = a_vert(zlev-1) * eta + b_vert(zlev-1) * z_s
        z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
-       
-       if (roms) then
-          if (zlev == 1)  rho = 1.027000d3
-          if (zlev == 2)  rho = 1.026860d3
-          if (zlev == 3)  rho = 1.026720d3
-          if (zlev == 4)  rho = 1.026580d3
-          if (zlev == 5)  rho = 1.026440d3
-          if (zlev == 6)  rho = 1.026300d3
-          if (zlev == 7)  rho = 1.026160d3
-          if (zlev == 8)  rho = 1.026020d3
-          if (zlev == 9)  rho = 1.025880d3
-          if (zlev == 10) rho = 1.025740d3
-          if (zlev == 11) rho = 1.025600d3
-          if (zlev == 12) rho = 1.025460d3
-          if (zlev == 13) rho = 1.025320d3
-          if (zlev == 14) rho = 1.025180d3
-          if (zlev == 15) rho = 1.025040d3
-          if (zlev == 16) rho = 1.024900d3
-       else
-          rho = 0.5 * (density (z1) + density (z2))
-       end if
+!!$       z = 0.5 * (z1 + z2)
+!!$       rho = density (z)
+       rho = 0.5 * (density (z1) + density (z2))
        buoyancy = (ref_density - rho) / ref_density
     else
        if (rank == 0) write(6,'(A)') "Test case not supported"
@@ -608,10 +563,20 @@ contains
   real(8) function temp_profile (z)
     implicit none
     real(8) :: z
-    
-    real(8), parameter :: h_z = 6.5_8, T0 = 14_8, strat = 150_8, z0 = -35_8, z1 = -75_8
 
-    temp_profile = T0 + 4*tanh ((z - z0) / h_z) + (z - z1) / strat
+    real(8)            :: hz, strat, z0, z1
+    real(8), parameter :: h0 = 150_8, hz_0 = 6.5_8, T0 = 14_8, z0_0 = -35_8, z1_0 = -75_8
+
+    if (trim(coords) == "croco") then
+       strat = abs(max_depth)
+       hz = hz_0 * abs(max_depth/h0)
+       z0 = z0_0 * abs(max_depth/h0)
+       z1 = z1_0 * abs(max_depth/h0)
+
+       temp_profile = T0 + 4*tanh ((z - z0) / hz) + (z - z1) / strat
+    elseif (trim(coords) == "roms") then
+       temp_profile = 3.0677d-6 * z**3 +   1.0747d-3 * z**2 + 1.4386d-1 * z + 2.1597d1
+    end if
   end function temp_profile
 
   real(8) function eqn_of_state (temperature)

@@ -29,11 +29,12 @@ program flat_projection_data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters
-
-  if (trim (test_case) == 'DCMIP2012c4') then
+  
+  select case (test_case)
+  case ("DCMIP2012c4")
      compressible   = .true.                      ! Compressible equations
      mean_split     = .false.
-     
+
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
      omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
@@ -44,10 +45,10 @@ program flat_projection_data
 
      u_0            = 35.0_8                      ! maximum velocity of zonal wind
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
-  elseif (trim (test_case) == "DCMIP2008c5") then
+  case ("DCMIP2008c5")
      compressible   = .true.                      ! Compressible equations
      mean_split     = .false.
-     
+
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
      omega          = 7.29211d-5                  ! Earth’s angular velocity in radians per second
@@ -60,10 +61,10 @@ program flat_projection_data
      h_0            = 2.0d3                       ! mountain height in meters
      lon_c          = MATH_PI/2                   ! longitude location of mountain
      lat_c          = MATH_PI/6                   ! latitude location of mountain
-  elseif (trim (test_case) == "Held_Suarez") then
+  case ("Held_Suarez")
      compressible   = .true.                      ! Compressible equations
      mean_split     = .false.
-     
+
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
      omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
@@ -72,17 +73,17 @@ program flat_projection_data
      R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
      gamma          = c_p/c_v                     ! heat capacity ratio
      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
-     
+
      u_0            = 35.0_8                      ! maximum velocity of zonal wind
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
-  elseif (trim (test_case) == "drake") then
+  case ("drake")
      scale          = 6                                  ! scale factor for small planet (1/6 Earth radius)
      radius         = 6371.229/scale   * KM              ! mean radius of the small planet
      grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
      omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
      p_top          = 0.0_8            * hPa             ! pressure at free surface
      ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
-     
+
      max_depth   = -4000 * METRE
      halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
@@ -95,7 +96,7 @@ program flat_projection_data
      mean_split     = .true.
      compressible   = .false.                            ! always run with incompressible equations
      penalize       = .true.                             ! penalize land regions
-  elseif (trim (test_case) == "seamount") then
+  case ("seamount") 
      scale          = 41.75d0                             
      radius         = 6371.229/scale   * KM              
      grav_accel     = 9.80616          * METRE/SECOND**2 
@@ -105,7 +106,7 @@ program flat_projection_data
 
      max_depth   = -5000 * METRE
      drho        =    -3 * KG/METRE**3               
-     
+
      mode_split     = .true.
      mean_split     = .true.
      compressible   = .false.                            
@@ -119,7 +120,7 @@ program flat_projection_data
 
      coords         = "chebyshev"
      stratification = "exponential"
-  elseif (trim (test_case) == "upwelling") then
+  case ("upwelling")
      radius         = 120      * KM             
      grav_accel     = 9.80616  * METRE/SECOND**2 
      omega          = 6d-5     * RAD/SECOND      
@@ -127,25 +128,22 @@ program flat_projection_data
      ref_density    = 1027     * KG/METRE**3     
 
      max_depth   =  -150 * METRE
-     drho        =    -3 * KG/METRE**3               
+     drho        =    -2.5 * KG/METRE**3               
 
      mode_split     = .true.
      mean_split     = .true.
      compressible   = .false.                            
      penalize       = .true.
 
-     alpha          = 1d-4    ! porosity
-     npts_penal     = 5
-     
+     alpha          = 1d-2    ! porosity
+     npts_penal     = 4.5
+
      width          = 80 * KM                           ! width of channel in km
      lat_width      = (width/radius)/DEG
      lat_c          = 45                                ! centre of zonal channel (in degrees)
 
      coords         = "croco"
-  else
-     if (rank == 0) write (6,'(A)') "Test case not supported"
-     stop
-  end if
+  end select
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   resume = mean_beg
@@ -533,9 +531,9 @@ contains
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (rho,               grid(d), grid(d)%lev(l)%elts(j), k,       0, 1)
-             call apply_onescale_to_patch (interp_vel_hex,    grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (cal_vort,          grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (rho,            grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
+             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
           nullify (mass, mean_m, mean_t, scalar, temp, velo, divu, velo1, velo2, vort)
@@ -600,14 +598,14 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer  :: id_i
-    real(8)  :: full_mass, full_temp
+    integer :: id_i
+    real(8) :: full_mass, full_temp
 
     id_i = idx (i, j, offs, dims) + 1
-        
-    full_mass = mass(id_i) + mean_m(id_i)
-    full_temp = temp(id_i) + mean_t(id_i)
-    scalar(id_i) = ref_density * (1.0_8 - full_temp / full_mass)
+
+    full_mass = mean_m(id_i) + mass(id_i)
+    full_temp = mean_t(id_i) + temp(id_i)
+    scalar(id_i) = - ref_density * full_temp / full_mass ! constant
   end subroutine rho
 
   function energy_drake (itype)
@@ -824,7 +822,7 @@ contains
     do k = 1, zmax
        call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
-   
+
     ! Compute barotropic velocity and vorticity at hexagon points
     
     ! Barotropic velocity
@@ -1331,8 +1329,8 @@ contains
     kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
 
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
-    allocate (lon_slice(Nx(1):Nx(2),1:zlevels,1:6))
-    allocate (lat_slice(Ny(1):Ny(2),1:zlevels,1:6))
+    allocate (lon_slice(Nx(1):Nx(2),1:zlevels,1:5))
+    allocate (lat_slice(Ny(1):Ny(2),1:zlevels,1:5))
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
     allocate (xcoord_lat(Ny(1):Ny(2),1:2), xcoord_lon(Nx(1):Nx(2),1:2))
     allocate (zcoord_lat(Ny(1):Ny(2),1:zlevels,2), zcoord_lon(Nx(1):Nx(2),1:zlevels,2))
