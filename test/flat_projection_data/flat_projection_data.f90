@@ -121,7 +121,7 @@ program flat_projection_data
      coords         = "chebyshev"
      stratification = "exponential"
   case ("upwelling")
-     radius         = 120      * KM             
+     radius         = 240      * KM             
      grav_accel     = 9.80616  * METRE/SECOND**2 
      omega          = 6d-5     * RAD/SECOND      
      p_top          = 0.0_8    * hPa             

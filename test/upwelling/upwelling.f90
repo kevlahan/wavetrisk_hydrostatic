@@ -19,7 +19,7 @@ program upwelling
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
-  radius             = 120     * KM
+  radius             = 240     * KM
   omega              = 6d-5    * RAD/SECOND
   grav_accel         = 9.80616 * METRE/SECOND**2     ! gravitational acceleration 
   p_top              = 0.0_8   * hPa                 ! pressure at free surface

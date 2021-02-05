@@ -5,7 +5,7 @@ clear all
 test_case = 'upwelling';
 run_id    = 'upwelling_J7';
 time      = 1;
-radius    = 120; % radius of planet in km
+radius    = 240; % radius of planet in km
 lat_w     = 80;  % width of zonal channel in km
 lat_w_deg = lat_w/radius * 180/pi;
 
@@ -39,12 +39,10 @@ zlon = fread(fopen([directory '/' file_base '.55']),'double'); zlon = reshape(zl
 lat_slice = fread(fopen([directory '/' file_base '.56']),'double');lat_slice = reshape(lat_slice,Nlat,[],5);
 lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = reshape(lon_slice,Nlon,[],5);
 
-type='raw';
-figure;plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical', type)
 %% Plot results
 figure
 sgtitle('Upwelling results at day 5 for J7 Npts = 1.5 K_m = 2e-2')
-type = 'raw'; % 'raw' or 'interp'
+type = 'interp'; % 'raw' or 'interp'
 subplot(2,2,1); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'temperature', type)
 subplot(2,2,2); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'zonal',       type)
 subplot(2,2,3); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'meridional',  type)
@@ -61,7 +59,7 @@ set(gca,'fontsize',18);hold off
 
 %%
 function plot_field (xlat, zlat, lat_slice, lat_width, field, type)
-
+nz = 30; % interpolate to this number of vertical levels
 zlevels = size(zlat,2);
 Nlat    = size(zlat,1);
 DAY = 60^2 * 24;
@@ -91,19 +89,31 @@ dat = trans(lat_slice(:,:,m));
 %c_scale = linspace(min(dat(:)), max(dat(:)), 100);
 
 if strcmp(type,'interp')
+    % Croco grid
+    p = [-5.7831  18.9754 -24.6521  16.1698 -5.7092 0.9972];
+    b_vert(1) = 1; b_vert(nz+1) = 0;
+    for k = 2:nz
+        b_vert(k) = polyval(p,(k-1)/nz);
+    end
+    %b_vert_mass = 0.5 * (b_vert(2:nz+1) + b_vert(1:nz));
+    
     x_node = repelem(0.5*(xlat(:,1)+xlat(:,2)),1,zlevels+2);
     z_node = [zlat(:,1,1) 0.5*(zlat(:,:,1)+zlat(:,:,2)) zlat(:,zlevels,2)];
     
-    nz = zlevels;
-    skip = 2;
-    x_unif = repelem(0.5*(xlat(:,1)+xlat(:,2)),1,nz); x_unif = x_unif(1:skip:end,:);
+    skip = 1;
+    x_unif = repelem(0.5*(xlat(:,1)+xlat(:,2)),1,nz+1); x_unif = x_unif(1:skip:end,:);
+    
     for i = 1:size(x_unif,1)
         j = 1 + skip*(i-1);
-        z_unif(i,:) = linspace(min(z_node(j,:)),max(z_node(j,:)), nz);
+%         z_unif(i,:) = linspace(min(z_node(j,:)),max(z_node(j,:)), nz);
+        z_s = min(z_node(j,:));
+        for k = 1:nz+1
+            z_unif(i,k) = b_vert(k) * z_s;
+        end
     end
-%     dat = smooth2a([dat(:,1) dat dat(:,zlevels)],2,2);
+    %dat = smooth2a([dat(:,1) dat dat(:,zlevels)],2,2);
     dat = [dat(:,1) dat dat(:,zlevels)];
-    data = griddata(x_node, z_node, dat, x_unif, z_unif);
+    data = smooth2a(griddata(x_node, z_node, dat, x_unif, z_unif),2,2);
     contourf(x_unif, z_unif, data, c_scale, 'LineColor', 'none' );
 elseif strcmp(type,'raw')
     for i = 1:Nlat
