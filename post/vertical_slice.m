@@ -3,8 +3,8 @@ clear all
 % run_id    = 'sea_drho_3_nonadapt';
 
 test_case = 'upwelling';
-run_id    = 'upwelling';
-time      = 5;
+run_id    = 'upwelling_J7';
+time      = 1;
 radius    = 120; % radius of planet in km
 lat_w     = 80;  % width of zonal channel in km
 lat_w_deg = lat_w/radius * 180/pi;
@@ -39,20 +39,16 @@ zlon = fread(fopen([directory '/' file_base '.55']),'double'); zlon = reshape(zl
 lat_slice = fread(fopen([directory '/' file_base '.56']),'double');lat_slice = reshape(lat_slice,Nlat,[],5);
 lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = reshape(lon_slice,Nlon,[],5);
 
-%% Plot density
-figure; plot_field (xlat, zlat, lat_slice, lat_w_deg, 'density', 'interp')
-
-%% Plot temperature
-plot_field (xlat, zlat, lat_slice, lat_w_deg, 'temperature', 'interp')
-
-%% Plot zonal velocity
-plot_field (xlat, zlat, lat_slice, lat_w_deg, 'zonal', 'interp')
-
-%% Plot meridional velocity
-plot_field (xlat, zlat, lat_slice, lat_w_deg, 'meridional', 'interp')
-
-%% Plot vertical velocity
-figure;plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical', 'interp')
+type='raw';
+figure;plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical', type)
+%% Plot results
+figure
+sgtitle('Upwelling results at day 5 for J7 Npts = 1.5 K_m = 2e-2')
+type = 'raw'; % 'raw' or 'interp'
+subplot(2,2,1); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'temperature', type)
+subplot(2,2,2); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'zonal',       type)
+subplot(2,2,3); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'meridional',  type)
+subplot(2,2,4); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical',    type)
 
 %% Plot vertical grid
 plot(lat,zlat(:,:,1)',  'k-','linewidth',1.2); hold on;
@@ -71,23 +67,23 @@ Nlat    = size(zlat,1);
 DAY = 60^2 * 24;
 if strcmp(field,'density')
     m = 3;
-    c_scale = linspace(1025.5, 1028, 100);
+    c_scale = linspace(1025.5, 1028, 200);
     trans = @(rho) rho;
 elseif strcmp(field,'temperature')
     m = 3;
-    c_scale = linspace(9, 20, 100); 
+    c_scale = linspace(9.5, 18.5, 200); 
     trans = @(rho) 14 + (1027-rho)/0.28;
 elseif strcmp(field,'zonal')
     m = 1;
-    c_scale = linspace(-45, 45, 100); 
+    c_scale = linspace(-35, 35, 200); 
     trans = @(u) 100 * u;
 elseif strcmp(field,'meridional')
     m = 2;
-    c_scale = linspace(-10, 10, 100); 
+    c_scale = linspace(-10, 10, 200); 
     trans = @(u) 100 * u;
 elseif strcmp(field,'vertical')
     m = 5;
-    c_scale = linspace(-150, 150, 31); 
+    c_scale = linspace(-150, 150, 200); 
     trans = @(u) DAY * u;
 end
 
@@ -99,7 +95,7 @@ if strcmp(type,'interp')
     z_node = [zlat(:,1,1) 0.5*(zlat(:,:,1)+zlat(:,:,2)) zlat(:,zlevels,2)];
     
     nz = zlevels;
-    skip = 1;
+    skip = 2;
     x_unif = repelem(0.5*(xlat(:,1)+xlat(:,2)),1,nz); x_unif = x_unif(1:skip:end,:);
     for i = 1:size(x_unif,1)
         j = 1 + skip*(i-1);
@@ -127,8 +123,7 @@ else
 end
 caxis([min(c_scale) max(c_scale)]);
 axis([45-lat_width/2 45+lat_width/2 -150 0]);
-axis([10 70 -150 10])
-%axis([-90 90 -150 10])
+%axis([0 90 -155 10])
 set(gca,'fontsize',18);
 
 hcb=colorbar;
