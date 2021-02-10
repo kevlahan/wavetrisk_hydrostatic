@@ -955,6 +955,7 @@ contains
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, funit)
     ! Write primal grid for vertical level zlev
+    use utils_mod
     implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev, funit
@@ -1012,7 +1013,7 @@ contains
              if (mode_split) then 
                 outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
              else
-                outv(6) = free_surface (dom, id_i, zlev) 
+                outv(6) = free_surface (dom, i, j, zlev, offs, dims)
              end if
           end if
     
@@ -1047,7 +1048,7 @@ contains
           if (mode_split) then 
              outv(9) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
           else
-             outv(9) = free_surface (dom, id_i, zlev) 
+             outv(9) = free_surface (dom, i, j, zlev, offs, dims)
           end if
 
           ! Topography
@@ -1066,25 +1067,6 @@ contains
        where (maxv < outv) maxv = outv
     end if
   end subroutine write_primal
-
-  real(8) function free_surface (dom, id_i, zlev)
-    ! Computes free surface perturbations
-    implicit none
-    type(Domain) :: dom
-    integer      :: id_i, zlev
-
-    integer :: d, k
-    real(8) :: full_mass, total_depth
-
-    d = dom%id + 1
-
-    total_depth = 0.0_8
-    do k = 1, zlevels
-       full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-       total_depth = total_depth + full_mass / (ref_density * phi_node (d, id_i, zlev))
-    end do
-    free_surface = total_depth + dom%topo%elts(id_i)
-  end function free_surface
 
   subroutine write_dual (dom, p, i, j, zlev, offs, dims, funit)
     implicit none

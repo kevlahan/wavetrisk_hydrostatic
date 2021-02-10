@@ -115,9 +115,15 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    eta_e(RT+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idE+1))
-    eta_e(DG+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
-    eta_e(UP+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idN+1))
+    if (mode_split) then
+       eta_e(RT+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idE+1))
+       eta_e(DG+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
+       eta_e(UP+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idN+1))
+    else
+       eta_e(RT+1) = free_surface (dom, i+1, j, zlev, offs, dims)
+       eta_e(DG+1) = free_surface (dom, i+1, j+1, zlev, offs, dims)
+       eta_e(UP+1) = free_surface (dom, i,   j+1, zlev, offs, dims)
+    end if
   end function eta_e
 
   real(8) function richardson (dom, i, j, zlev, offs, dims, l)
@@ -177,4 +183,26 @@ contains
     
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id+1))
   end function porous_density
+
+  real(8) function free_surface (dom, i, j, zlev, offs, dims)
+    ! Computes free surface perturbations
+    implicit none
+     type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id_i, k
+    real(8) :: full_mass, total_depth
+
+    d = dom%id + 1
+    id_i  = idx (i, j, offs, dims) + 1
+    
+    total_depth = 0.0_8
+    do k = 1, zlevels
+       full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       total_depth = total_depth + full_mass /  porous_density (dom, i, j, k, offs, dims)
+    end do
+    free_surface = total_depth + dom%topo%elts(id_i)
+  end function free_surface
 end module utils_mod

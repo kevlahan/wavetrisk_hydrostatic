@@ -980,6 +980,7 @@ contains
 
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
+    use utils_mod
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1011,7 +1012,7 @@ contains
              init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
              min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
           else
-             init_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i)
+             init_mass = porous_density (dom, i, j, k, offs, dims) * b_vert_mass(k) * dom%topo%elts(id_i) ! ignore initial free surface perturbation
              full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
              min_mass_loc = min (min_mass_loc, full_mass/init_mass)
           end if

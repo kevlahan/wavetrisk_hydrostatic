@@ -162,7 +162,7 @@ contains
 
     ! Solve tridiagonal linear system
     call dgtsv (zlevels, 1, diag_l, diag, diag_u, rhs, zlevels, info)
-    if (info /= 0) write (6,'(a,i2)') "Warning: dgtsv failed with info = ", info
+    if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed with info = ", info
 
     ! Backwards Euler step
     do k = 1, zlevels
@@ -266,7 +266,7 @@ contains
     do e = 1, EDGE
        dl = diag_l(e,:); dd = diag(e,:); du = diag_u(e,:); r = rhs(e,:)
        call dgtsv (zlevels, 1, dl, dd, du, r, zlevels, info)
-       if (info /= 0) write (6,'(a,i2)') "Warning: dgtsv failed with info = ", info
+       if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed with info = ", info
        do k = 1, zlevels
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = r(k)
        end do

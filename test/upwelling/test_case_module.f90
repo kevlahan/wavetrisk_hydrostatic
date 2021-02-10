@@ -195,8 +195,8 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: d, id, id_i
-    real (8)    :: dz, eta, phi, z_s
+    integer  :: d, id, id_i
+    real (8) :: dz, eta, phi, z_s
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
@@ -746,16 +746,20 @@ contains
     d    = dom%id + 1
     
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       dz0  = sol_mean(S_MASS,zlev)%data(d)%elts(id+1) / porous_density (dom, i, j, zlev, offs, dims)
+       dz0  = (sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)) &
+            / porous_density (dom, i, j, zlev, offs, dims)
        
-       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idE+1) / porous_density (dom, i+1, j, zlev, offs, dims)
+       dz_e = (sol(S_MASS,zlev)%data(d)%elts(idE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)) &
+            / porous_density (dom, i+1, j, zlev, offs, dims)
        r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
        r_max_loc = max (r_max_loc, r_loc)
 
-       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) / porous_density (dom, i+1, j+1, zlev, offs, dims)
+       dz_e = (sol(S_MASS,zlev)%data(d)%elts(idNE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1)) &
+            / porous_density (dom, i+1, j+1, zlev, offs, dims)
        r_max_loc = max (r_max_loc, r_loc)
 
-       dz_e = sol_mean(S_MASS,zlev)%data(d)%elts(idN+1) / porous_density(dom, i, j+1, zlev, offs, dims)
+       dz_e = (sol(S_MASS,zlev)%data(d)%elts(idN+1)  + sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)) &
+            / porous_density(dom, i, j+1, zlev, offs, dims)
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
