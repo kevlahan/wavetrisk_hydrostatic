@@ -160,9 +160,9 @@ contains
     
     do k = 1, zlevels
        do v = 1, N_VARIABLE
-          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = dest(v,1)%data(d)%length
           do d = 1, size(grid)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+             iend = dest(v,1)%data(d)%length
              dest(v,k)%data(d)%elts(ibeg:iend) = sols(v,k)%data(d)%elts(ibeg:iend) + dt * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
@@ -181,9 +181,9 @@ contains
 
     do k = 1, zlevels
        do v = 1, N_VARIABLE
-          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = sols(v,1)%data(d)%length
           do d = 1, size(grid)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+             iend = sols(v,1)%data(d)%length
              dest(v,k)%data(d)%elts(ibeg:iend) = alpha * sols(v,k)%data(d)%elts(ibeg:iend) &
                   + dt * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
@@ -204,9 +204,9 @@ contains
 
     do k = 1, zlevels
        do v = 1, N_VARIABLE
-          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = dest(v,1)%data(d)%length
           do d = 1, size(grid)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+             iend = dest(v,1)%data(d)%length
              dest(v,k)%data(d)%elts(ibeg:iend) = alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) &
                   + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) + dt*trends(v,k)%data(d)%elts(ibeg:iend)
           end do
@@ -227,9 +227,9 @@ contains
 
     do k = 1, zlevels
        do v = 1, N_VARIABLE
-          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = dest(v,1)%data(d)%length
           do d = 1, size(grid)
+             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+             iend = dest(v,1)%data(d)%length
              dest(v,k)%data(d)%elts(ibeg:iend) = &
                   alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) &
                 + alpha(3)*sol3(v,k)%data(d)%elts(ibeg:iend) + alpha(4)*sol4(v,k)%data(d)%elts(ibeg:iend) &
