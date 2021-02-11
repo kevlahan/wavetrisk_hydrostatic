@@ -3,6 +3,7 @@ module test_case_mod
   use shared_mod
   use domain_mod
   use comm_mpi_mod
+  use utils_mod
   implicit none
   integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev 
   real(8)                              :: initotalmass, mass_error, npts_penal, totalmass, ref_surf_press, scale
