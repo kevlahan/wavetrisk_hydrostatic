@@ -1371,14 +1371,6 @@ contains
          + hflux(EDGE*id+UP+1)-hflux(EDGE*idS+UP+1)) * dom%areas%elts(id+1)%hex_inv
   end function div
 
-  real(8) function interp (e1, e2)
-    ! Centred average interpolation of quantities e1 and e2
-    implicit none
-    real(8) :: e1, e2
-
-    interp = 0.5 * (e1 + e2)
-  end function interp
-
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
@@ -1405,22 +1397,6 @@ contains
 
     divu(id_i) =  (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
   end subroutine cal_divu
-
-  real(8) function phi_node (d, id_i, zlev)
-    ! Returns porosity at node given by (d, id_i, zlev)
-    implicit none
-    integer :: d, id_i, zlev
-
-    phi_node = 1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i)
-  end function phi_node
-
-  real(8) function phi_edge (d, id_e, zlev)
-    ! Returns porosity at edge given by (d, id_e, zlev)
-    implicit none
-    integer :: d, id_e, zlev
-
-    phi_edge = 1.0_8 + (alpha - 1.0_8) * penal_edge(zlev)%data(d)%elts(id_e)
-  end function phi_edge
 
   subroutine comp_offs3 (dom, p, offs, dims)
     implicit none

@@ -3,6 +3,7 @@ Module test_case_mod
   use shared_mod
   use domain_mod
   use comm_mpi_mod
+  use utils_mod
   implicit none
 
   ! Standard variables
@@ -17,7 +18,7 @@ Module test_case_mod
   real(8)                              :: radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc
   real(8)                              :: resolution, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
-  logical                              :: drag, etopo_coast, mean_split
+  logical                              :: drag, etopo_coast
 contains
   subroutine read_test_case_parameters
     implicit none
@@ -91,7 +92,6 @@ contains
        write (6,'(A,es10.4)') "scale                          = ", scale
        write (6,'(A,es10.4)') "scale_omega                    = ", scale_omega
        write (6,'(A,L1)')     "compressible                   = ", compressible
-       write (6,'(A,L1)')     "mean_split                     = ", mean_split
        write (6,'(A,L1)')     "mode_split                     = ", mode_split
        write (6,'(A,L1)')     "penalize                       = ", penalize
        write (6,'(A,es10.4)') "npts_penal                     = ", npts_penal
@@ -254,17 +254,12 @@ contains
 
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
 
-       if (mean_split) then
-          if (zlev == zlevels) then
-             sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta_surf
-          else
-             sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-          end if
-          sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       if (zlev == zlevels) then
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta_surf
        else
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          sol(S_TEMP,zlev)%data(d)%elts(id_i) = sol(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        end if
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     end if
     ! Set initial velocity field to zero
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
@@ -296,14 +291,9 @@ contains
        z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
 
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-
-       if (mean_split) then
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
-       else
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-       end if
+       
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, z)
     end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine init_mean

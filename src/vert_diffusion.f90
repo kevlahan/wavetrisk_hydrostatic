@@ -136,7 +136,12 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
     d = dom%id + 1
-    eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+    
+    if (mode_split) then
+       eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+    else
+       eta = free_surface (dom, i, j, z_null, offs, dims)
+    end if
 
     ! Bottom layer
     k = 1
@@ -179,7 +184,7 @@ contains
 
       ri  = richardson (dom, i, j, k, offs, dims, l)
       z   = zl_i (dom, i, j, k, offs, dims, l)
-      dz_l = 0.5 * (dz + dz_i(dom, i, j, k+l, offs, dims))
+      dz_l = interp (dz, dz_i(dom, i, j, k+l, offs, dims))
       coeff = dt / (dz_l * dz) * eddy_diffusivity (eta, ri, z) 
     end function coeff
     
@@ -215,7 +220,7 @@ contains
 
       ri  = richardson (dom, i, j, k, offs, dims, l)
       z   = zl_i (dom, i, j, k, offs, dims, l)
-      dz_l = 0.5 * (dz + dz_i(dom, i, j, k+l, offs, dims)) ! thickness of layer centred on interface
+      dz_l = interp (dz, dz_i(dom, i, j, k+l, offs, dims)) ! thickness of layer centred on interface
 
       flux_mean = l * eddy_diffusivity (eta, ri, z) * (b_l - b_0) / dz_l
     end function flux_mean

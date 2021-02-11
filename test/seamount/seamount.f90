@@ -50,7 +50,6 @@ program Seamount
   penalize           = .false.                               ! no penalization
   timeint_type       = "RK4"                                 ! always use RK4
   compressible       = .false.                               ! always run with incompressible equations
-  mean_split         = .true.                                ! always split into mean and fluctuation (solve for fluctuation)
   default_thresholds = .true.                                ! always use default threshold
   adapt_dt           = .true.                                ! always adapt time steps
   remapscalar_type   = "PPR"                                 ! optimal remapping scheme

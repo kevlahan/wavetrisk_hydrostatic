@@ -90,9 +90,9 @@ contains
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
 
-    zl_e(RT+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idE+1))  
-    zl_e(DG+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idNE+1)) 
-    zl_e(UP+1) = 0.5 * (dom%topo%elts(id+1) + dom%topo%elts(idN+1))  
+    zl_e(RT+1) = interp (dom%topo%elts(id+1), dom%topo%elts(idE+1))  
+    zl_e(DG+1) = interp (dom%topo%elts(id+1), dom%topo%elts(idNE+1)) 
+    zl_e(UP+1) = interp (dom%topo%elts(id+1), dom%topo%elts(idN+1))  
     do k = 1, zlev+l
        zl_e = zl_e + dz_e (dom, i, j, k, offs, dims)
     end do
@@ -108,6 +108,7 @@ contains
     real(8), dimension(1:EDGE)     :: eta_e
 
     integer :: d, id, idE, idN, idNE
+    real(8) :: eta0
 
     d = dom%id + 1
     id   = idx (i,   j,   offs, dims)
@@ -116,13 +117,14 @@ contains
     idN  = idx (i,   j+1, offs, dims)
 
     if (mode_split) then
-       eta_e(RT+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idE+1))
-       eta_e(DG+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
-       eta_e(UP+1) = 0.5 * (sol(S_MASS,zlevels+1)%data(d)%elts(id+1) + sol(S_MASS,zlevels+1)%data(d)%elts(idN+1))
+       eta_e(RT+1) = interp (sol(S_MASS,zlevels+1)%data(d)%elts(id+1), sol(S_MASS,zlevels+1)%data(d)%elts(idE+1))
+       eta_e(DG+1) = interp (sol(S_MASS,zlevels+1)%data(d)%elts(id+1), sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
+       eta_e(UP+1) = interp (sol(S_MASS,zlevels+1)%data(d)%elts(id+1), sol(S_MASS,zlevels+1)%data(d)%elts(idN+1))
     else
-       eta_e(RT+1) = free_surface (dom, i+1, j, zlev, offs, dims)
-       eta_e(DG+1) = free_surface (dom, i+1, j+1, zlev, offs, dims)
-       eta_e(UP+1) = free_surface (dom, i,   j+1, zlev, offs, dims)
+       eta0 = free_surface (dom, i, j, zlev, offs, dims)
+       eta_e(RT+1) = interp (eta0, free_surface (dom, i+1, j,   zlev, offs, dims))
+       eta_e(DG+1) = interp (eta0, free_surface (dom, i+1, j+1, zlev, offs, dims))
+       eta_e(UP+1) = interp (eta0, free_surface (dom, i,   j+1, zlev, offs, dims))
     end if
   end function eta_e
 
@@ -157,7 +159,7 @@ contains
     du_e = sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
     v_mag = sum(du_e**2)/3
     
-    dz_l = 0.5 * (dz_i(dom, i, j, zlev, offs, dims) + dz_i(dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
+    dz_l = interp (dz_i(dom, i, j, zlev, offs, dims), dz_i(dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
 
     if (drho == 0.0_8) then
        richardson = 0.0_8
@@ -184,6 +186,22 @@ contains
     porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id+1))
   end function porous_density
 
+  real(8) function phi_node (d, id_i, zlev)
+    ! Returns porosity at node given by (d, id_i, zlev)
+    implicit none
+    integer :: d, id_i, zlev
+
+    phi_node = 1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i)
+  end function phi_node
+
+  real(8) function phi_edge (d, id_e, zlev)
+    ! Returns porosity at edge given by (d, id_e, zlev)
+    implicit none
+    integer :: d, id_e, zlev
+
+    phi_edge = 1.0_8 + (alpha - 1.0_8) * penal_edge(zlev)%data(d)%elts(id_e)
+  end function phi_edge
+
   real(8) function free_surface (dom, i, j, zlev, offs, dims)
     ! Computes free surface perturbations
     implicit none
@@ -205,4 +223,12 @@ contains
     end do
     free_surface = total_depth + dom%topo%elts(id_i)
   end function free_surface
+
+  real(8) function interp (e1, e2)
+    ! Centred average interpolation of quantities e1 and e2
+    implicit none
+    real(8) :: e1, e2
+
+    interp = 0.5 * (e1 + e2)
+  end function interp
 end module utils_mod

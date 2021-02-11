@@ -37,7 +37,6 @@ program Drake
   penalize           = .true.                         ! penalize land regions
   timeint_type       = "RK4"                          ! always use RK4
   compressible       = .false.                        ! always run with incompressible equations
-  mean_split         = .true.                         ! always split into mean and fluctuation (solve for fluctuation)
   remapscalar_type   = "PPR"                          ! optimal remapping scheme
   remapvelo_type     = "PPR"                          ! optimal remapping scheme
   Laplace_order_init = 1                              

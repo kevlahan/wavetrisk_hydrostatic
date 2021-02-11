@@ -3,6 +3,7 @@ Module test_case_mod
   use shared_mod
   use domain_mod
   use comm_mpi_mod
+  use utils_mod
   implicit none
 
   ! Standard variables
@@ -17,7 +18,6 @@ Module test_case_mod
   real(4), allocatable, dimension(:,:) :: topo_data
   real(8), parameter                   :: theta0 = 0.01
   logical                              :: etopo_bathy, etopo_coast
-  logical, parameter                   :: mean_split = .true. ! Split into mean and fluctuation (solve for fluctuation) if true
   type(Float_Field)                    :: arrival_time, max_wave_height
 contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -49,18 +49,10 @@ contains
        sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) ! free surface perturbation
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
     else ! 3D layers
-       if (mean_split) then
-          if (zlev == zlevels) then
-             sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) * ref_density
-          else
-             sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-          end if
+       if (zlev == zlevels) then
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) * ref_density
        else
-          if (zlev == zlevels) then
-             sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * (dz + init_free_surface (x_i))
-          else
-             sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
-          end if
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
        end if
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = ref_density*dz * buoyancy (x_i, zlev)
     end if
@@ -83,19 +75,14 @@ contains
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
+    
+    x_i  = dom%node%elts(id_i)
+    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+    dz = - dom%topo%elts(id_i) / zlevels
+    z = - (zlevels - zlev + 0.5_8) * dz
 
-    if (mean_split) then
-       x_i  = dom%node%elts(id_i)
-       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-       dz = - dom%topo%elts(id_i) / zlevels
-       z = - (zlevels - zlev + 0.5_8) * dz
-       
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz ! add a small amount of noise to stabilize split case
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8!sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
-    else
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-    end if
+    sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz ! add a small amount of noise to stabilize split case
+    sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8!sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
   end subroutine init_mean
 
