@@ -398,8 +398,5 @@ contains
        end do
     end do
     q(S_VELO,1:zlevels)%bdry_uptodate = .false.
-
-    ! Wavelet transform and interpolate back onto adapted grid
-    call WT_after_step (q, wav_coeff, level_start-1)
   end subroutine apply_penal
 end module time_integr_mod
