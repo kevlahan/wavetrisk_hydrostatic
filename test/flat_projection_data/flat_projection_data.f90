@@ -531,7 +531,7 @@ contains
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (rho,            grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
+             call apply_onescale_to_patch (cal_density,            grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
              call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
@@ -590,20 +590,6 @@ contains
        end do
     end do
   end subroutine vertical_slice
-
-  subroutine rho (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-
-    id_i = idx (i, j, offs, dims) + 1
-
-    scalar(id_i) = ref_density * (1.0_8 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
-  end subroutine rho
 
   function energy_drake (itype)
     ! Calculates baroclinic and bartoropic energies for two layer case

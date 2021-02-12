@@ -1397,6 +1397,21 @@ contains
 
     divu(id_i) =  (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
   end subroutine cal_divu
+  
+  subroutine cal_density (dom, i, j, zlev, offs, dims)
+    ! Compute total density in the incompressible case
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    scalar(id_i) = ref_density * (1.0_8 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
+  end subroutine cal_density
 
   subroutine comp_offs3 (dom, p, offs, dims)
     implicit none
