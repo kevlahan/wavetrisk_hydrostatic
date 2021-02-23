@@ -417,18 +417,20 @@ contains
     implicit none
     integer :: d, j, k, l, p
 
+    call update_array_bdry (sol, NONE, 500)
+
     ! Divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
     do l = level_end, level_start, -1
        ! Vertically integrated velocity flux
        do d = 1, size(grid)
           h_flux => horiz_flux(S_MASS)%data(d)%elts
-          scalar => sol(S_MASS,zlevels+1)%data(d)%elts
+          if (mode_split) scalar => sol(S_MASS,zlevels+1)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
              call step1 (q=sol, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
           end do
-          nullify (scalar)
+          if (mode_split) nullify (scalar)
           if (l < level_end) then
-             dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
+             dscalar => trend(S_MASS,1)%data(d)%elts
              call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
              nullify (dscalar)
           end if
@@ -436,24 +438,26 @@ contains
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
        call update_bdry (horiz_flux(S_MASS), l, 211)
-       
+
+       ! Divergence of velocity flux
        do d = 1, size(grid)
-          dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
-          h_flux  =>      horiz_flux(S_MASS)%data(d)%elts
+          dscalar =>    trend(S_MASS,1)%data(d)%elts
+          h_flux  => horiz_flux(S_MASS)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
           nullify (dscalar, h_flux)
        end do
-       trend(S_MASS,zlevels+1)%bdry_uptodate = .false.
-       call update_bdry (trend(S_MASS,zlevels+1), l, 212)
+       trend(S_MASS,1)%bdry_uptodate = .false.
+       call update_bdry (trend(S_MASS,1), l, 212)
     end do
-       
-    ! Vertical velocity computed over entire grid, stored in trend(S_MASS,1:zlevels)
+
+    ! Vertical velocity at interfaces, stored in trend(S_TEMP,1:zlevels)
     do d = 1, size(grid)
-       ! Integrate upwards to find vertical velocities at interfaces
-       dscalar => trend(S_MASS,zlevels+1)%data(d)%elts
+       dscalar => trend(S_MASS,1)%data(d)%elts
        divu    => grid(d)%divu%elts
+
+       ! Integrate upwards
        trend(S_TEMP,1)%data(d)%elts = 0.0_8 
        do k = 1, zlevels-1 
           velo  => sol(S_VELO,k)%data(d)%elts
@@ -465,18 +469,17 @@ contains
           end do
           nullify (velo, velo1, velo2)
        end do
-       trend(S_TEMP,zlevels+1)%data(d)%elts = 0.0_8
        nullify (divu, dscalar)
-
-       ! Interpolate vertical velocity from interfaces to nodes
+    end do
+    
+    ! Interpolate vertical velocity from interfaces to nodes, stored in trend(S_MASS,1:zlevels)
+    do d = 1, size(grid)
        do k = 1, zlevels
-          velo  => trend(S_MASS,k)%data(d)%elts
-          velo1 => trend(S_TEMP,k)%data(d)%elts
-          velo2 => trend(S_TEMP,k+1)%data(d)%elts
+          velo => trend(S_MASS,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (interp_vertical_velocity, grid(d), p-1, k, 0, 1)
           end do
-          nullify (velo, velo1, velo2)
+          nullify (velo)
        end do
     end do
     call update_vector_bdry (trend(S_MASS,1:zlevels), NONE, 212)
@@ -511,10 +514,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
-    real(8) :: dz
-    
+    integer :: d, id
+
     id = idx (i, j, offs, dims) + 1
-    if (dom%mask_n%elts(id) >= ADJZONE) velo(id) = interp (velo1(id), velo2(id)) 
+    if (dom%mask_n%elts(id) >= ADJZONE) then
+       d = dom%id + 1 
+       if (zlev < zlevels) then
+          velo(id) = interp (trend(S_TEMP,zlev)%data(d)%elts(id), trend(S_TEMP,zlev+1)%data(d)%elts(id))
+       else
+          velo(id) = interp (trend(S_TEMP,zlev)%data(d)%elts(id), 0.0_8)
+       end if
+    end if
   end subroutine interp_vertical_velocity
 end module barotropic_2d_mod

@@ -208,6 +208,50 @@ contains
     end do
   end subroutine inverse_scalar_transform
 
+   subroutine inverse_velo_transform (wavelet, scaling, l_start0)
+    ! Inverse wavelet transform of velocity
+    implicit none
+    type(Float_Field), dimension(:), target :: scaling, wavelet
+    integer, optional                       :: l_start0
+
+    integer :: l, d, k, l_start, v
+
+    if (present(l_start0)) then
+       l_start = l_start0
+    else
+       l_start = level_start
+    end if
+
+    call update_vector_bdry1 (wavelet, level_start, level_end, 4)
+    call update_vector_bdry1 (scaling, l_start,     level_end, 5)
+
+    scaling%bdry_uptodate = .false.
+
+    do k = 1, size(scaling)
+       do l = l_start, level_end-1
+          ! Reconstruct outer velocities at finer edges (interpolate and add wavelet coefficients)
+          do d = 1, size(grid)
+             velo => scaling(k)%data(d)%elts
+             wc_u => wavelet(k)%data(d)%elts
+             call apply_interscale_d2 (reconstruct_outer_velo, grid(d), l, z_null, 0, 1) ! needs val
+             call apply_to_penta_d (reconstruct_velo_penta, grid(d), l, z_null)
+             nullify (velo, wc_u)
+          end do
+          call update_bdry (scaling(k), l+1, 200)
+
+          ! Reconstruct inner velocities at finer edges (interpolate and add wavelet coefficients)
+          do d = 1, size(grid)
+             velo => scaling(k)%data(d)%elts
+             wc_u => wavelet(k)%data(d)%elts
+             call apply_interscale_d (reconstruct_velo_inner, grid(d), l, z_null, 0, 0)
+             nullify (velo, wc_u)
+          end do
+          if (l < level_end-1) call update_bdry (scaling(k), l+1, 201) ! for next outer velocity
+          scaling(k)%bdry_uptodate = .false.
+       end do
+    end do
+  end subroutine inverse_velo_transform
+
   subroutine restrict_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Restrict both scalar and potential temperature
     type(Domain)                   :: dom
