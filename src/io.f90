@@ -988,8 +988,9 @@ contains
        if (compressible .or. zlevels /= 2) then
           if (compressible) then ! temperature in layer zlev
              outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i) / full_mass * (dom%press%elts(id_i)/p_0)**kappa
-          else ! density perturbation
-             outv(1) = -ref_density * full_temp / full_mass
+          else
+             outv(1) = ref_density * (1.0_8 - full_temp / full_mass) ! density
+!!$             outv(1) = -ref_density * full_temp / full_mass  ! density perturbation
           end if
           
           outv(2) = dom%u_zonal%elts(id_i)              ! zonal velocity
@@ -998,7 +999,8 @@ contains
           if (compressible) then ! geopotential height at level zlev
              outv(4) = dom%geopot%elts(id_i)/grav_accel
           else ! topography
-             outv(4) = -dom%topo%elts(id_i)
+!!$             outv(4) = -dom%topo%elts(id_i) ! bathymetry
+             outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
           end if
 
           if (compressible .or. .not. penalize) then
