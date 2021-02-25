@@ -531,7 +531,7 @@ contains
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_density,            grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
+             call apply_onescale_to_patch (cal_density,    grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
              call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
              call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
@@ -1639,10 +1639,10 @@ contains
                 call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
                 call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
 
-                val   = trend(S_MASS,k)%data(d)%elts(id+1)
-                valN  = trend(S_MASS,k)%data(d)%elts(idN+1)
-                valE  = trend(S_MASS,k)%data(d)%elts(idE+1)
-                valNE = trend(S_MASS,k)%data(d)%elts(idNE+1)
+                val   = trend(S_TEMP,k)%data(d)%elts(id+1)
+                valN  = trend(S_TEMP,k)%data(d)%elts(idN+1)
+                valE  = trend(S_TEMP,k)%data(d)%elts(idE+1)
+                valNE = trend(S_TEMP,k)%data(d)%elts(idNE+1)
 
                 if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
                    call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
