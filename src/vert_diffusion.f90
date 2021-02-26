@@ -59,7 +59,7 @@ contains
     ! Backwards euler step for vertical diffusion
     use adapt_mod
     implicit none
-    integer :: d, p
+    integer :: l
     real(8) :: r
 
     interface
@@ -109,13 +109,11 @@ contains
     friction = r
 
     call update_array_bdry (sol, NONE, 27)
-    
+
     ! Backwards Euler step for each vertical colum
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (backwards_euler_temp, grid(d), p-1, z_null, 0, 1)
-          call apply_onescale_to_patch (backwards_euler_velo, grid(d), p-1, z_null, 0, 0)
-       end do
+    do l = level_end, level_start, -1
+       call apply_onescale (backwards_euler_temp, l, z_null, 0, 1)
+       call apply_onescale (backwards_euler_velo, l, z_null, 0, 0)
     end do
     sol%bdry_uptodate = .false.
     call WT_after_step (sol, wav_coeff, level_start-1)

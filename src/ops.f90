@@ -240,6 +240,17 @@ contains
          end do
          h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = h_flux(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
               / ref_density
+      elseif (itype == 5) then ! mass flux for vertical velocity
+         dz0 = mass(id+1) + mean_m(id+1)
+         
+         dz = interp (dz0, mass(idE+1) + mean_m(idE+1)) / ref_density
+         h_flux(EDGE*id+RT+1) = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) * dz
+
+         dz = interp (dz0, mass(idNE+1) + mean_m(idNE+1)) / ref_density
+         h_flux(EDGE*id+DG+1) = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1) * dz
+
+         dz = interp (dz0, mass(idN+1) + mean_m(idN+1)) / ref_density
+         h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) * dz
       elseif (itype == 0) then ! standard 
          do v = scalars(1), scalars(2)
             full(0:NORTHEAST,v) = q(v,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE/)+1) &
@@ -397,6 +408,17 @@ contains
          h_flux(EDGE*idW+RT+1)  = h_flux(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)  / ref_density
          h_flux(EDGE*idSW+DG+1) = h_flux(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) / ref_density
          h_flux(EDGE*idS+UP+1)  = h_flux(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)  / ref_density
+      elseif (itype == 5) then ! mass flux for vertical velocity
+         dz0 = mass(id+1) + mean_m(id+1)
+         
+         dz = interp (dz0, mass(idW+1) + mean_m(idW+1))  / ref_density
+         h_flux(EDGE*idW+RT+1) = velo(EDGE*idW+RT+1) * dom%pedlen%elts(EDGE*idW+RT+1) * dz
+
+         dz = interp (dz0, mass(idSW+1) + mean_m(idSW+1))  / ref_density
+         h_flux(EDGE*idSW+DG+1) = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) * dz
+
+         dz = interp (dz0, mass(idS+1) + mean_m(idS+1)) / ref_density
+         h_flux(EDGE*idS+UP+1) = velo(EDGE*idS+UP+1) * dom%pedlen%elts(EDGE*idS+UP+1) * dz
       elseif (itype == 0) then ! standard
          do v = scalars(1), scalars(2)
             full(0:SOUTHWEST,v) = q(v,zlev)%data(d)%elts((/id,id,id,idS,idW,id,id,idSW/)+1) &
@@ -640,7 +662,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                           :: id_i
+    integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
 

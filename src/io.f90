@@ -989,8 +989,8 @@ contains
           if (compressible) then ! temperature in layer zlev
              outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i) / full_mass * (dom%press%elts(id_i)/p_0)**kappa
           else
-             outv(1) = ref_density * (1.0_8 - full_temp / full_mass) ! density
-!!$             outv(1) = -ref_density * full_temp / full_mass  ! density perturbation
+!!$             outv(1) = ref_density * (1.0_8 - full_temp / full_mass) ! density
+             outv(1) = -ref_density * full_temp / full_mass  ! density perturbation
           end if
           
           outv(2) = dom%u_zonal%elts(id_i)              ! zonal velocity
@@ -1005,8 +1005,8 @@ contains
 
           if (compressible .or. .not. penalize) then
              outv(5) = full_mass / ref_density ! layer depth
-          else ! penalization mask
-             outv(5) = penal_node(zlev)%data(d)%elts(id_i)
+          else 
+             outv(5) = penal_node(zlev)%data(d)%elts(id_i) ! penalization mask
           end if
 
           if (compressible) then ! surface pressure
