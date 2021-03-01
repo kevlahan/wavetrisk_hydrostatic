@@ -706,13 +706,7 @@ contains
        physics = physics_velo_source (dom, i, j, zlev, offs, dims)
 
        ! Trend
-       do e = 1, EDGE
-          if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
-             dvelo(EDGE*id+e) = - Qperp_e(e) + physics(e) * dom%len%elts(EDGE*id+e)
-          else
-             dvelo(EDGE*id+e) = 0.0_8
-          end if
-       end do
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - Qperp_e + physics * dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
     else
        dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end if
