@@ -1251,15 +1251,15 @@ contains
 
     ! Check Klemp (2018) diffusion stability limits are satisfied
     if (rank == 0) then
-       if (beta_sclr > (1.0_8/6)**Laplace_order_init) &
+       if (beta_sclr > (1.0_8/2)**Laplace_order_init .and. .not. implicit_diff_sclr) &
             write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &
-            " is larger than ",  (1.0_8/6)**Laplace_order_init
-       if (beta_divu > (1.0_8/6)**Laplace_order_init) &
+            " is larger than ",  (1.0_8/2)**Laplace_order_init
+       if (beta_divu > (1.0_8/2)**Laplace_order_init .and. .not. implicit_diff_divu) &
             write (6,'(2(a,es8.2))') "WARNING: divu diffusion coefficient = ", beta_divu, &
-            " is larger than ",  (1.0_8/6)**Laplace_order_init
-       if (beta_rotu > (1.0_8/6/4)**Laplace_order_init) &
+            " is larger than ",  (1.0_8/2)**Laplace_order_init
+       if (beta_rotu > (1.0_8/2/4)**Laplace_order_init) &
             write (6,'(2(a,es8.2))') "WARNING: rotu diffusion coefficient = ", beta_rotu, &
-            " is larger than ",  (1.0_8/6/4)**Laplace_order_init
+            " is larger than ",  (1.0_8/2/4)**Laplace_order_init
     end if
   end function cpt_min_mass
 

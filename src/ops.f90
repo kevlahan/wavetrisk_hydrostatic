@@ -1324,7 +1324,6 @@ contains
   function gradi_e (scalar, dom, i, j, offs, dims)
     ! Gradient of a scalar at nodes x_i
     ! output is at edges
-    ! If type = .true. then compute the gradient at the southwest edges of the hexagon
     implicit none
     real(8), dimension(3)          :: gradi_e
     real(8), dimension(:), pointer :: scalar
@@ -1344,6 +1343,26 @@ contains
     gradi_e(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1)
     gradi_e(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1)
   end function gradi_e
+
+  subroutine grad_divu (dom, i, j, zlev, offs, dims)
+    ! Gradient of divu (i.e. compressible part of Laplacian of velocity)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, idE, idN, idNE
+
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+
+    Laplacian(EDGE*id+RT+1) = (divu(idE+1) - divu(id+1))  /dom%len%elts(EDGE*id+RT+1)
+    Laplacian(EDGE*id+DG+1) = (divu(id+1)  - divu(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+    Laplacian(EDGE*id+UP+1) = (divu(idN+1) - divu(id+1))  /dom%len%elts(EDGE*id+UP+1)
+  end subroutine grad_divu
 
   function curlv_e (curl, dom, i, j, offs, dims)
     ! Curl of vorticity given at triangle circumcentres x_v, rot(rot(u))

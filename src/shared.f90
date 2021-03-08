@@ -232,7 +232,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fill
+  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, match_time, mode_split, penalize, perfect, rebalance, remap, uniform, vert_diffuse
 contains
   subroutine init_shared_mod
@@ -297,6 +297,8 @@ contains
     compressible        = .true.  ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.  ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false. ! fill up grid to level j_fill if true
+    implicit_diff_sclr    = .false. ! use implicit lateral diffusion of scalars
+    implicit_diff_divu    = .false. ! use implicit lateral diffusion of scalars
     log_iter            = .false. ! print residual error in elliptic solver
     match_time          = .false. ! match time exactly for data saving
     mode_split          = .false. ! calculate barotropic free surface mode separately (T)

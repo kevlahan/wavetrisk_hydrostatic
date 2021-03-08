@@ -164,6 +164,7 @@ contains
   end subroutine record_init_state
 
   subroutine time_step (align_time, aligned, eddy_d, eddy_v, bottom_friction, wind_d, source_b, source_t)
+    use lateral_diffusion_mod
     use vert_diffusion_mod
     implicit none
     real(8)              :: align_time
@@ -270,7 +271,8 @@ contains
     end if
 
     ! Split step routines
-    if (vert_diffuse)  call implicit_vertical_diffusion (eddy_d, eddy_v, bottom_friction, wind_d, source_b, source_t)
+    if (implicit_diff_sclr .or. implicit_diff_divu) call implicit_lateral_diffusion
+    if (vert_diffuse)     call implicit_vertical_diffusion (eddy_d, eddy_v, bottom_friction, wind_d, source_b, source_t)
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
