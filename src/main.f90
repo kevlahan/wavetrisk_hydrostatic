@@ -291,8 +291,8 @@ contains
 
     call update
 
-    ! Apply velocity penalization
-    if (penalize) call apply_penal (sol)
+    ! Apply velocity penalization (no slip boundary condition)
+    if (penalize .and. no_slip) call apply_penal (sol)
     
     call sum_total_mass (.false.)
 
