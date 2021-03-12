@@ -238,18 +238,17 @@ contains
             if (k == zlevels .and. mode_split) dz = dz - interp (scalar(id+1), scalar(idN+1)) * ref_density
             h_flux(EDGE*id+UP+1) = h_flux(EDGE*id+UP+1) + q(S_VELO,k)%data(d)%elts(EDGE*id+UP+1) * dz
          end do
-         h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = h_flux(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
-              / ref_density
+         h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = h_flux(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1) 
       elseif (itype == 5) then ! mass flux for vertical velocity
          dz0 = mass(id+1) + mean_m(id+1)
          
-         dz = interp (dz0, mass(idE+1) + mean_m(idE+1)) / ref_density
+         dz = interp (dz0, mass(idE+1) + mean_m(idE+1))
          h_flux(EDGE*id+RT+1) = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) * dz
 
-         dz = interp (dz0, mass(idNE+1) + mean_m(idNE+1)) / ref_density
+         dz = interp (dz0, mass(idNE+1) + mean_m(idNE+1)) 
          h_flux(EDGE*id+DG+1) = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1) * dz
 
-         dz = interp (dz0, mass(idN+1) + mean_m(idN+1)) / ref_density
+         dz = interp (dz0, mass(idN+1) + mean_m(idN+1)) 
          h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) * dz
       elseif (itype == 0) then ! standard 
          do v = scalars(1), scalars(2)
@@ -405,19 +404,19 @@ contains
             if (k == zlevels .and. mode_split) dz = dz - interp (scalar(id+1), scalar(idS+1)) * ref_density
             h_flux(EDGE*idS+UP+1) = h_flux(EDGE*idS+UP+1) + q(S_VELO,k)%data(d)%elts(EDGE*idS+UP+1) * dz
          end do
-         h_flux(EDGE*idW+RT+1)  = h_flux(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)  / ref_density
-         h_flux(EDGE*idSW+DG+1) = h_flux(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) / ref_density
-         h_flux(EDGE*idS+UP+1)  = h_flux(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)  / ref_density
+         h_flux(EDGE*idW+RT+1)  = h_flux(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1) 
+         h_flux(EDGE*idSW+DG+1) = h_flux(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) 
+         h_flux(EDGE*idS+UP+1)  = h_flux(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)  
       elseif (itype == 5) then ! mass flux for vertical velocity
          dz0 = mass(id+1) + mean_m(id+1)
          
-         dz = interp (dz0, mass(idW+1) + mean_m(idW+1))  / ref_density
+         dz = interp (dz0, mass(idW+1) + mean_m(idW+1)) 
          h_flux(EDGE*idW+RT+1) = velo(EDGE*idW+RT+1) * dom%pedlen%elts(EDGE*idW+RT+1) * dz
 
-         dz = interp (dz0, mass(idSW+1) + mean_m(idSW+1))  / ref_density
+         dz = interp (dz0, mass(idSW+1) + mean_m(idSW+1)) 
          h_flux(EDGE*idSW+DG+1) = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) * dz
 
-         dz = interp (dz0, mass(idS+1) + mean_m(idS+1)) / ref_density
+         dz = interp (dz0, mass(idS+1) + mean_m(idS+1))
          h_flux(EDGE*idS+UP+1) = velo(EDGE*idS+UP+1) * dom%pedlen%elts(EDGE*idS+UP+1) * dz
       elseif (itype == 0) then ! standard
          do v = scalars(1), scalars(2)

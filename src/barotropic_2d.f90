@@ -196,7 +196,7 @@ contains
     id = idx (i, j, offs, dims) + 1
         
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       mass1(id) = - (mass(id) + dt * dscalar(id))
+       mass1(id) = - (mass(id) + dt * dscalar(id) / ref_density)
     else
        mass1(id) = 0.0_8
     end if
@@ -369,12 +369,13 @@ contains
 
   subroutine vertical_velocity
     ! Computes vertical velocity at nodes, stored in  trend(S_MASS,k)
+    use adapt_mod
     implicit none
     integer :: d, j, k, l, p
 
     call update_array_bdry (sol, NONE, 500)
 
-    ! Divergence of vertically integrated thickness flux, stored in trend(S_MASS,1)
+    ! - Divergence of vertically integrated thickness flux, stored in trend(S_MASS,1)
     do l = level_end, level_start, -1
        do d = 1, size(grid)
           h_flux => horiz_flux(S_MASS)%data(d)%elts
@@ -404,7 +405,7 @@ contains
        if (level_start /= level_end) call update_bdry (trend(S_MASS,1), l, 212)
     end do
 
-    ! Divergence of thickness flux at each vertical level, stored in exner_fun(1:zlevels)
+    ! - Divergence of thickness flux at each vertical level, stored in exner_fun(1:zlevels)
     do k = 1, zlevels
        do l = level_end, level_start, -1
           do d = 1, size(grid)
@@ -448,6 +449,7 @@ contains
 
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)
     ! Vertical velocity
+    ! (recall that we compute -div quantities)
     use utils_mod
     implicit none
     type(Domain)                   :: dom
@@ -455,29 +457,27 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, k
-    real(8) :: deta_dt, dz
+    integer                        :: d, id, k
+    real(8)                        :: deta_dt, rho
+    real(8), dimension (0:zlevels) :: w_vert
     
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
        d = dom%id + 1
        deta_dt = trend(S_MASS,1)%data(d)%elts(id)
-       
+
        ! Vertical velocity at layer interfaces
-       dz = dz_i (dom, i, j, 1, offs, dims)
-       trend(S_TEMP,1)%data(d)%elts(id) = dz * (exner_fun(1)%data(d)%elts(id) - a_vert_mass(1) * deta_dt)
-       do k = 2, zlevels
-          dz = dz_i (dom, i, j, k, offs, dims)
-          trend(S_TEMP,k)%data(d)%elts(id) = trend(S_TEMP,k-1)%data(d)%elts(id) &
-               + dz * (exner_fun(k)%data(d)%elts(id) - a_vert_mass(k) * deta_dt)
+       w_vert(0) = 0.0_8; w_vert(zlevels) = 0.0_8 ! impose zero flux at bottom and top
+       do k = 1, zlevels-1
+          w_vert(k) = w_vert(k-1) - (a_vert_mass(k) * deta_dt - exner_fun(k)%data(d)%elts(id)) 
        end do
 
-       ! Interpolate to nodes
-       do k = zlevels, 2, -1
-          trend(S_TEMP,k)%data(d)%elts(id) = interp (trend(S_TEMP,k)%data(d)%elts(id), trend(S_TEMP,k-1)%data(d)%elts(id))
+       ! Interpolate to nodes and normalize
+       do k = 1, zlevels
+          rho = porous_density (dom, i, j, 1, offs, dims)
+          trend(S_TEMP,k)%data(d)%elts(id) = interp (w_vert(k-1), w_vert(k)) / rho
        end do
-       trend(S_TEMP,1)%data(d)%elts(id) = interp (trend(S_TEMP,1)%data(d)%elts(id), 0.0_8)
     end if
   end subroutine cal_vertical_velocity
 end module barotropic_2d_mod
