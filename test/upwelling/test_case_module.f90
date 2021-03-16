@@ -41,6 +41,7 @@ contains
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
+    read (fid,*) varname, no_slip
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
     read (fid,*) varname, log_iter
@@ -77,6 +78,7 @@ contains
        write (6,'(A,L1)')     "compressible                   = ", compressible
        write (6,'(A,L1)')     "mode_split                     = ", mode_split
        write (6,'(A,L1)')     "penalize                       = ", penalize
+       write (6,'(A,L1)')     "no_slip                        = ", no_slip
        write (6,'(A,es10.4)') "npts_penal                     = ", npts_penal
        write (6,'(A,i3)')     "min_level                      = ", min_level
        write (6,'(A,i3)')     "max_level                      = ", max_level
@@ -172,14 +174,14 @@ contains
     implicit none
     integer :: d, k, l
 
-    do l = level_start, level_end
+    do l = level_end, level_start, -1
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        do k = 1, zmax
           call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
 
-    do l = level_start, level_end
+    do l = level_end, level_start, -1
        do k = 1, zmax
           call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
           call apply_onescale (init_sol,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -187,6 +189,136 @@ contains
     end do
   end subroutine apply_initial_conditions
 
+  subroutine wlt_after_topo (l_start0)
+    use wavelet_mod
+    implicit none
+    integer, optional :: l_start0
+
+    integer :: d, l, l_start
+    type(Float_Field), dimension(1), target :: scaling
+
+    scaling(1) = sol(S_TEMP,zlevels+1)
+    scaling(1)%data = grid%topo
+
+    scaling(1)%bdry_uptodate = .false.
+    call update_bdry (scaling(1), NONE, 16)
+    
+    if (present(l_start0)) then
+       l_start = l_start0
+    else
+       l_start = level_start
+    end if
+
+    do l = l_start, level_end-1
+       do d = 1, size(grid)
+          scalar => scaling(1)%data(d)%elts
+          wc_s   => wav_coeff(S_TEMP,zlevels+1)%data(d)%elts
+          call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+          nullify (scalar, wc_s)
+       end do
+       wav_coeff(S_TEMP,zlevels+1)%bdry_uptodate = .false.
+    end do
+
+    call update_bdry1 (wav_coeff(S_TEMP,zlevels+1), level_start, level_end, 64)
+    call update_bdry1 (scaling(1),                  l_start,     level_end, 65)
+    
+    scaling%bdry_uptodate = .false.
+    
+    do l = l_start, level_end-1
+       ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
+       do d = 1, size(grid)
+          scalar => scaling(1)%data(d)%elts
+          wc_s   => wav_coeff(S_TEMP,zlevels+1)%data(d)%elts
+          call apply_interscale_d2 (prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
+          nullify (scalar, wc_s)
+       end do
+       call update_bdry (scaling(1), l+1, 66)
+
+       ! Reconstruct scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
+       do d = 1, size(grid)
+          scalar => scaling(1)%data(d)%elts
+          wc_s   => wav_coeff(S_TEMP,zlevels+1)%data(d)%elts
+          call apply_interscale_d (reconstruct_scalar, grid(d), l, z_null, 0, 0)
+          nullify (scalar, wc_s)
+       end do
+       scaling(1)%bdry_uptodate = .false.
+    end do
+    scaling(1)%bdry_uptodate = .false.
+    call update_bdry (scaling(1), NONE, 16)
+    grid%topo = scaling(1)%data
+  end subroutine wlt_after_topo
+
+  subroutine wlt_after_scalar (q, wav, l_start0)
+    use wavelet_mod
+    implicit none
+    type(Float_Field), dimension(:), target :: q, wav
+    integer, optional                       :: l_start0
+
+    integer :: d, k, l, l_start
+
+    if (present(l_start0)) then
+       l_start = l_start0
+    else
+       l_start = level_start
+    end if
+
+    q%bdry_uptodate = .false.
+    call update_vector_bdry (q, NONE, 16)
+
+    do k = 1, size(q)
+       do l = l_start, level_end-1
+          do d = 1, size(grid)
+             scalar =>   q(k)%data(d)%elts
+             wc_s   => wav(k)%data(d)%elts
+             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+             nullify (scalar, wc_s)
+          end do
+          wav(k)%bdry_uptodate = .false.
+       end do
+    end do
+    call inverse_scalar_transform (wav, q)
+  end subroutine wlt_after_scalar
+
+  subroutine wlt_after_velo (q, wav, l_start0)
+    use wavelet_mod
+    implicit none
+    type(Float_Field), dimension(:), target :: q, wav
+    integer, optional                       :: l_start0
+
+    integer :: d, k, l, l_start
+
+    if (present(l_start0)) then
+       l_start = l_start0
+       do k = 1, size(q)
+          do d = 1, size(grid)
+             velo => q(k)%data(d)%elts
+             call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
+             nullify (velo)
+          end do
+       end do
+    else
+       l_start = level_start
+    end if
+
+    q%bdry_uptodate = .false.
+    call update_vector_bdry (q, NONE, 16)
+
+    do k = 1, size(q)
+       do l = l_start, level_end-1
+          do d = 1, size(grid)
+             velo => q(k)%data(d)%elts
+             wc_u => wav(k)%data(d)%elts
+             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
+             nullify (velo, wc_u)
+          end do
+          wav(k)%bdry_uptodate = .false.
+       end do
+    end do
+    call inverse_velo_transform (wav, q)
+    call update_vector_bdry (q, NONE, 100)
+  end subroutine wlt_after_velo
+  
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Initial perturbation to mean 
     implicit none
@@ -253,7 +385,7 @@ contains
   subroutine update
     ! Update means, bathymetry and penalization mask
     implicit none
-    integer :: d, k, p
+    integer :: d, k, l, p
 
     do d = 1, size(grid)
        do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
@@ -275,20 +407,24 @@ contains
 
   real(8) function surf_geopot (p)
     ! Surface geopotential: postive if greater than mean seafloor
-    ! Gives minimum depth of approximately 24 m.
+    ! Gives minimum depth of approximately 24 m
     implicit none
     type(Coord) :: p
 
-    real(8) :: lat, lon, y
+    real(8)            :: amp, lat, lon, y
+    real(8), parameter :: b_max = 1.2d2  ! maximum height of bathymetry
+    real(8), parameter :: slope = 1.2d-4 ! slope parameter (larger value -> steeper slope)
 
     call cart2sph (p, lon, lat)
 
+    amp = b_max / (1.0_8 - tanh (-slope*width/8))
+
     lat = lat / DEG
     if (abs(lat-lat_c) <= lat_width/2) then
-       y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
-       surf_geopot = 66.505710477328847 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+       y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel
+       surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/8)))
     else
-       surf_geopot = 66.505710477328847 - 66.526 * tanh (-1.875d-5*width)
+       surf_geopot = b_max
     end if
     surf_geopot = grav_accel * surf_geopot
   end function surf_geopot
@@ -382,7 +518,7 @@ contains
   subroutine print_density
     implicit none
     integer                       :: k
-    real(8)                       :: bv, c1, drho, dz, eta, rho, rho_above, z, z_s, z_above
+    real(8)                       :: bv, c_k, c1, drho, dz, eta, rho, rho_above, z, z_s, z_above
     type(Coord)                   :: p
 
     p = Coord (radius, 0.0_8, 0.0_8)
@@ -390,7 +526,7 @@ contains
     eta = 0.0_8
     z_s = max_depth
 
-    write (6,'(a)') " Layer    z        dz            rho "
+    write (6,'(a)') " Layer    z           dz         rho "
     do k = 1, zlevels
        dz = a_vert_mass(k) * eta + b_vert_mass(k) * z_s
        z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta + (b_vert(k)+b_vert(k-1)) * z_s)
@@ -403,6 +539,7 @@ contains
     end do
 
     write (6,'(/,a)') " Interface        V        c1     CFL_c1"
+    c1 = 0.0_8
     do k = 1, zlevels-1
        z_above = 0.5 * ((a_vert(k+1)+a_vert(k)) * eta + (b_vert(k+1)+b_vert(k)) * z_s)
        z       = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta + (b_vert(k)+b_vert(k-1)) * z_s)
@@ -411,9 +548,11 @@ contains
        rho  = ref_density * (1.0_8 - buoyancy (eta, z_s, k))
        drho = rho_above - rho
        bv = sqrt(- grav_accel * drho/dz/rho)
-       c1 = bv * abs(max_depth) / MATH_PI
-       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c1, c1*dt_init/dx_min
+       c_k = bv * abs(max_depth) / MATH_PI
+       c1 = max (c1, c_k)
+       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c1*dt_init/dx_min
     end do
+    write (6,'(/,a,es10.4)') "Maximum internal wave speed = ", c1
     write (6,'(A)') &
          '*********************************************************************&
          ************************************************************'
@@ -467,7 +606,6 @@ contains
     do k = 1, zlevels
        dz = a_vert_mass(k) * eta + b_vert_mass(k) * z_s
        lnorm(S_MASS,k) = ref_density * dz
-!!$       lnorm(S_TEMP,k) = lnorm(S_MASS,k)
        lnorm(S_TEMP,k) = drho * dz
        lnorm(S_VELO,k) = Udim
     end do
@@ -483,21 +621,21 @@ contains
     real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, C_visc, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
+    dx_min = 0.891 * sqrt (4/sqrt(3.0_8) * area) ! edge length of average triangle
 
     area = 4*MATH_PI*radius**2/(20*4**min_level)
     dx_max = sqrt (4/sqrt(3.0_8) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, dx_min/c1)
+    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, 1.2*dx_min/c1)
     dt_init = dt_cfl
 
-    C = 5d-3
-    C_rotu = C
-    C_divu = C
+    C = 2d-3 ! <= 1/2 if explicit
+    C_rotu = C / 4**Laplace_order_init
+    C_divu = 1d-2
     C_mu   = C
     C_b    = C
-
+    
     ! Diffusion time scales
     tau_mu   = dt_cfl / C_mu
     tau_b    = dt_cfl / C_b
@@ -521,15 +659,14 @@ contains
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
             "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
-       write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  "C_b = ", C_mu, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
+       write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  " C_b = ", C_mu, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
     
     ! Penalization parameterss
-!!$    dlat = npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
-    dlat = 0.0_8
+    dlat = 0.4*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
 
     width_S = lat_c - (lat_width/2 + dlat) + 90_8
     width_N = lat_c - (lat_width/2 + dlat)       
@@ -582,38 +719,105 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer     :: d, e, id, id_e, id_i, idE, idN, idNE
-    type(Coord) :: p
+    integer                        :: d, e, id, id_e, id_i, l, nsmth
+    real(8)                        :: dx
+    type(Coord)                    :: p
+    type(Coord), dimension(1:EDGE) :: q
 
-    d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
-
+    d = dom%id + 1
+    
     p = dom%node%elts(id_i)
+    l = dom%level%elts(id_i)
+
+!!$       dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
+    dx = dx_max
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
+!!$       nsmth = 2 * (l - min_level)
+       nsmth = 0
+       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
-       penal_node(zlev)%data(d)%elts(id_i) = mask(id)
-       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1) = max (mask(id), mask(idx(i+1, j,   offs, dims)))
-       penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1) = max (mask(id), mask(idx(i+1, j+1, offs, dims)))
-       penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1) = max (mask(id), mask(idx(i,   j+1, offs, dims)))
-    end select
-  contains
-    real(8) function mask (id)
-      integer :: id
-      real(8) :: lat, lon
+       nsmth = 0
+       
+       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, nsmth)
       
-      call cart2sph (dom%node%elts(id+1), lon, lat)
-      mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
-    end function mask
+       q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
+       q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1)
+       q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
+       do e = 1, EDGE
+          id_e = EDGE*id + e
+          penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
+       end do
+    end select
   end subroutine topography
+
+  real(8) function smooth (fun, p, dx, npts)
+    ! Smooth a function using radial basis functions
+    implicit none
+    integer     :: npts
+    real(8)     :: dx
+    type(Coord) :: p
+
+    integer     :: ii, jj
+    real(8)     :: dtheta, lat, lat0, lon, lon0, nrm, r, rbf, wgt
+    type(Coord) :: q
+
+    interface
+       real(8) function fun (q)
+         use geom_mod
+         type(Coord) :: q
+       end function fun
+    end interface
+
+    if (npts == 0) then
+       smooth = fun (p)
+    else
+       dtheta = dx/radius
+       call cart2sph (p, lon0, lat0)
+       nrm = 0.0_8
+       rbf = 0.0_8
+       do ii = -npts, npts
+          lat = lat0 + dtheta * ii
+          do jj = -npts, npts
+             lon = lon0 + dtheta * jj
+
+             q = project_on_sphere (sph2cart(lon, lat))
+             r = norm (vector(p, q))
+             wgt = radial_basis_fun ()
+
+             nrm = nrm + wgt
+             rbf = rbf + wgt * fun (q)
+          end do
+       end do
+       smooth = rbf /nrm
+    end if
+  contains
+    real(8) function radial_basis_fun ()
+      ! Radial basis function for smoothing topography
+      implicit none
+
+      radial_basis_fun = exp (-(r/(npts*dx/2))**2)
+    end function radial_basis_fun
+  end function smooth
+
+  real(8) function mask (p)
+    implicit none
+    type(Coord) :: p
+
+    real(8) :: lat, lon
+
+    call cart2sph (p, lon, lat)
+
+    mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
+  end function mask
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     implicit none
     real(8) :: lat, lon, tau_zonal, tau_merid
-    
+
     if (time/DAY <= 2.0_8) then
        tau_zonal = tau_0 * sin (MATH_PI/4 * time/DAY)
     else
@@ -763,37 +967,6 @@ contains
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
-
-  real(8) function upwelling_diffusivity (eta, ri, z)
-    ! Eddy diffusivity at nodes
-    implicit none
-    real(8) :: eta, ri, z
-
-    real(8), parameter :: a = 5, A_ric = 1d-4, At_b = 1.2d-5
-    real(8), parameter :: K_t  = 1d-6
-    
-    if (rich_diff) then
-       upwelling_diffusivity = A_ric/(1.0_8 + a*ri)**2 + At_b
-    else
-       upwelling_diffusivity = K_t
-    end if
-  end function upwelling_diffusivity
-
-  function upwelling_viscosity (eta, ri, z)
-    ! Eddy viscosity at at edges
-    implicit none
-    real(8), dimension(1:EDGE) :: upwelling_viscosity, eta, z
-    real(8)                    :: ri
-
-    real(8), parameter :: a = 5, Av_b = 1.2d-4
-    real(8), parameter :: K_m = 2d-3
-
-    if (rich_diff) then
-       upwelling_viscosity = upwelling_diffusivity (eta(1), ri, z(1)) / (1.0_8 + a*ri) + Av_b
-    else
-       upwelling_viscosity = K_m * (1.0_8 + 4 * exp ( (z - eta) / abs(max_depth) ))
-    end if
-  end function upwelling_viscosity
   
   real(8) function upwelling_bottom (dom, i, j, z_null, offs, dims)
     ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
@@ -817,11 +990,11 @@ contains
    upwelling_top = 0.0_8
   end function upwelling_top
 
-  function upwelling_drag (dom, i, j, z_null, offs, dims)
+  function upwelling_drag (dom, i, j, zlev, offs, dims)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j, z_null
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     real(8), dimension(1:EDGE)     :: upwelling_drag
@@ -830,23 +1003,29 @@ contains
     real(8), dimension(1:EDGE)      :: mass_e, tau_wind
     real(8), dimension(0:NORTHEAST) :: full_mass
 
-    d = dom%id + 1
-    id   = idx (i,   j,   offs, dims)
-    idE  = idx (i+1, j,   offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
 
-    full_mass(0:NORTHEAST) = sol_mean(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1) &
-                                + sol(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1)
+    id   = idx (i, j, offs, dims)
 
-    mass_e(RT+1) = 0.5 * (full_mass(0) + full_mass(EAST))
-    mass_e(DG+1) = 0.5 * (full_mass(0) + full_mass(NORTHEAST))
-    mass_e(UP+1) = 0.5 * (full_mass(0) + full_mass(NORTH))
+    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
+       d = dom%id + 1
+       idE  = idx (i+1, j,   offs, dims)
+       idN  = idx (i,   j+1, offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
 
-    tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
-    tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
-    tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
+       full_mass(0:NORTHEAST) = sol_mean(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1) &
+            + sol(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1)
 
-    upwelling_drag = tau_wind / mass_e
+       mass_e(RT+1) = 0.5 * (full_mass(0) + full_mass(EAST))
+       mass_e(DG+1) = 0.5 * (full_mass(0) + full_mass(NORTHEAST))
+       mass_e(UP+1) = 0.5 * (full_mass(0) + full_mass(NORTH))
+
+       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
+       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
+       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
+
+       upwelling_drag = tau_wind / mass_e * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+    else
+       upwelling_drag = 0.0_8
+    end if
   end function upwelling_drag
 end module test_case_mod

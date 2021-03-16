@@ -4,7 +4,6 @@ program upwelling
   use main_mod
   use test_case_mod
   use io_mod
-  use vert_diffusion_mod
   implicit none
   integer :: it
   logical :: aligned
@@ -31,8 +30,8 @@ program upwelling
   match_time         = .true.                        ! avoid very small time steps when saving (if false) 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-2                          ! porosity used in penalization
-  npts_penal         = 4.5                          ! number of points to smooth over in penalization
+  alpha              = 1d-6                          ! porosity used in penalization
+  npts_penal         = 4.5                           ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
@@ -40,9 +39,13 @@ program upwelling
   compressible       = .false.                       ! always run with incompressible equations
   remapscalar_type   = "PPR"                         ! optimal remapping scheme
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
+  
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
+  implicit_diff_sclr = .false.
+  implicit_diff_divu = .false.
   vert_diffuse       = .true.                        ! include vertical diffusion
+  
   coords             = "croco"                       ! chebyshev, croco, roms, or uniform
   
   ! Depth and layer parameters
@@ -57,13 +60,13 @@ program upwelling
   friction_upwelling = 3d-4
 
   ! Vertical diffusion type
-  rich_diff          = .false.                        ! richardson if true, roms if false               
+  rich_diff          = .false.                       ! richardson if true, roms if false               
 
   ! Wind stress
   tau_0              = 0.1_8
 
   ! Vertical level to save
-  save_zlev = zlevels 
+  save_zlev          = 3
 
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
@@ -98,7 +101,7 @@ program upwelling
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned, eddy_d=upwelling_diffusivity, eddy_v=upwelling_viscosity, &
+     call time_step (dt_write, aligned, &
           bottom_friction=friction_upwelling, wind_d=upwelling_drag, source_b=upwelling_bottom, source_t=upwelling_top)
      call stop_timing
 
@@ -118,6 +121,7 @@ program upwelling
         end if
 
         ! Save fields
+        call vertical_velocity
         call write_and_export (iwrite)
      end if
   end do
@@ -156,12 +160,12 @@ function physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev, type)
      local_type = .false.
   end if
 
-  id_i = id + 1
-  d = dom%id + 1
-
-  if (Laplace_order == 0 .or. maxval (visc_sclr) == 0.0_8) then
+  if (implicit_diff_sclr .or. Laplace_order == 0 .or. maxval (visc_sclr) == 0.0_8) then
      physics_scalar_flux = 0.0_8
   else
+     id_i = id + 1
+     d = dom%id + 1
+     
      if (.not.local_type) then ! usual flux at edges E, NE, N
         l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
         d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
@@ -225,7 +229,11 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   id = idx (i, j, offs, dims)
   
   ! Horizontal diffusion
-  diffusion = (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+  if (implicit_diff_divu) then
+     diffusion = - visc_rotu * curl_rotu()
+  else
+     diffusion = (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+  end if
 
   physics_velo_source = diffusion 
 contains

@@ -163,29 +163,19 @@ contains
     end do
   end subroutine record_init_state
 
-  subroutine time_step (align_time, aligned, eddy_d, eddy_v, bottom_friction, wind_d, source_b, source_t)
+  subroutine time_step (align_time, aligned, bottom_friction, wind_d, source_b, source_t)
     use lateral_diffusion_mod
     use vert_diffusion_mod
     implicit none
     real(8)              :: align_time
     logical, intent(out) :: aligned
     real(8), optional    :: bottom_friction
-    optional             :: eddy_d, eddy_v, wind_d, source_b, source_t
+    optional             :: wind_d, source_b, source_t
 
     integer(8) :: idt, ialign
     real(8)    :: dx
 
     interface
-     real(8) function eddy_d (eta, ri, z)
-       implicit none
-       real(8) :: eta, ri, z
-     end function eddy_d
-     function eddy_v (eta, ri, z)
-       use shared_mod
-       implicit none
-       real(8), dimension(1:EDGE) :: eddy_v, eta, z
-       real(8)                    :: ri
-     end function eddy_v
      real(8) function source_b (dom, i, j, z_lev, offs, dims)
        use domain_mod
        implicit none
@@ -272,7 +262,7 @@ contains
 
     ! Split step routines
     if (implicit_diff_sclr .or. implicit_diff_divu) call implicit_lateral_diffusion
-    if (vert_diffuse)     call implicit_vertical_diffusion (eddy_d, eddy_v, bottom_friction, wind_d, source_b, source_t)
+    if (vert_diffuse) call implicit_vertical_diffusion (bottom_friction, wind_d, source_b, source_t)
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
@@ -292,7 +282,7 @@ contains
     call update
 
     ! Apply velocity penalization (no slip boundary condition)
-    if (penalize .and. no_slip) call apply_penal (sol)
+    if (penalize) call apply_penal (sol)
     
     call sum_total_mass (.false.)
 

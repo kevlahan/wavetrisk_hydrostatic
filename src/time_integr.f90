@@ -390,14 +390,24 @@ contains
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
 
-    integer :: d, ibeg, iend, k
+    integer :: d, ibeg, iend, ii, k
+    real(8) :: eta
     
     do d = 1, size(grid)
        ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
        iend = q(S_VELO,1)%data(d)%length
-       do k = 1, zlevels
-          q(S_VELO,k)%data(d)%elts(ibeg:iend) = (1 - penal_edge(k)%data(d)%elts(ibeg:iend)) * q(S_VELO,k)%data(d)%elts(ibeg:iend)
-       end do
+       if (no_slip) then
+          do k = 1, zlevels
+             q(S_VELO,k)%data(d)%elts(ibeg:iend) = (1 - penal_edge(k)%data(d)%elts(ibeg:iend)) * q(S_VELO,k)%data(d)%elts(ibeg:iend)
+          end do
+       else ! free slip: damp velocity away from boundary
+          do k = 1, zlevels
+             do ii = ibeg, iend
+                eta = penal_edge(k)%data(d)%elts(ii)
+                if (eta > 0.9_8) q(S_VELO,k)%data(d)%elts(ii) = (1 - eta) * q(S_VELO,k)%data(d)%elts(ii)
+             end do
+          end do
+       end if
     end do
     q(S_VELO,1:zlevels)%bdry_uptodate = .false.
   end subroutine apply_penal
