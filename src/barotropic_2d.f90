@@ -475,7 +475,7 @@ contains
 
        ! Interpolate to nodes and normalize
        do k = 1, zlevels
-          rho = porous_density (dom, i, j, 1, offs, dims)
+          rho = porous_density (dom, i, j, k, offs, dims)
           trend(S_TEMP,k)%data(d)%elts(id) = interp (w_vert(k-1), w_vert(k)) / rho
        end do
     end if
