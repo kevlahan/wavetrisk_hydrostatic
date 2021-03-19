@@ -6,7 +6,6 @@ cp_2d	        2000        ! checkpoint for 2d projection
 max_level	6           ! maximum level of resolution
 zlevels         18          ! number of vertical levels
 uniform         F           ! uniform (T) or hybrid (F) vertical grid
-adapt_trend     F           ! adapt on trend (T) or variables (F)
 level_save      6           ! resolution level to interpolate to
 N               200         ! resolution of interpolated grid (N/2 latitude x N longitude)	
 pressure_save   850.0       ! pressure level to save (hPa)

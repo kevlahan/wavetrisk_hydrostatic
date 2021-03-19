@@ -130,11 +130,7 @@ contains
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
     else
-       if (adapt_trend) then
-          call cal_lnorm_trend (trend, order)
-       else
-          call cal_lnorm_sol (sol, order)
-       end if
+       call cal_lnorm_sol (sol, order)
        threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
        threshold_new = tol*lnorm
     end if
@@ -288,7 +284,6 @@ contains
     read (fid,*) varname, remapscalar_type
     read (fid,*) varname, remapvelo_type
     read (fid,*) varname, iremap
-    read (fid,*) varname, adapt_trend
     read (fid,*) varname, default_thresholds
     read (fid,*) varname, perfect
     read (fid,*) varname, tol
@@ -336,7 +331,6 @@ contains
        write (6,'(a,a)')      "remapscalar_type    = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type      = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap              = ", iremap
-       write (6,'(A,L1)')     "adapt_trend         = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds  = ", default_thresholds
        write (6,'(A,L1)')     "perfect             = ", perfect
        write (6,'(A,es10.4)') "tolerance           = ", tol
@@ -428,7 +422,6 @@ contains
     end do
     lnorm(S_TEMP,:) = lnorm(S_TEMP,:) + Tempdim*lnorm(S_MASS,:) ! Add component due to tendency in mass 
     lnorm(S_VELO,:) = Udim
-    if (adapt_trend) lnorm = lnorm/Tdim
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds
 

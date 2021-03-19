@@ -33,11 +33,6 @@ contains
        local_type = .true.
     end if
 
-    if (adapt_trend) then
-       call trend_ml (sol, trend)
-       call forward_wavelet_transform (trend, trend_wav_coeff)
-    end if
-
     ! Find significant wavelets, adaptive grid and all masks
     call adapt (set_thresholds, local_type)
 
@@ -47,15 +42,12 @@ contains
 
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
-    ! Assumes that trend wavelets have been calculated
-    ! Does NOT transform solution and trend wavelets back onto adaptive grid
     implicit none
     external           :: set_thresholds
-    logical, optional  :: type ! Recalculate thresholds
+    logical, optional  :: type ! recalculate thresholds
     
     integer :: k, l, d
     logical :: local_type
-
 
     ! Recalculate thresholds?
     if (present(type)) then
@@ -72,13 +64,8 @@ contains
     end do
     
     ! Make nodes and edges with significant wavelet coefficients active
-    if (adapt_trend) then
-       call update_array_bdry1 (trend_wav_coeff, level_start, level_end, 14)
-       call mask_active ("trend")
-    else
-       call update_array_bdry1 (wav_coeff, level_start, level_end, 15)
-       call mask_active ("vars")
-    end if
+    call update_array_bdry1 (wav_coeff, level_start, level_end, 15)
+    call mask_active 
     
    ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
@@ -132,7 +119,6 @@ contains
     ! Set insignificant wavelet coefficients to zero
     if (local_type) then
        call compress_wavelets (wav_coeff)
-       if (adapt_trend) call compress_wavelets (trend_wav_coeff)
     end if
   end subroutine adapt
 
@@ -227,22 +213,22 @@ contains
     end do
   end subroutine compress_vector
 
-  subroutine WT_after_step (q, wav, l_start0)
+  subroutine WT_after_step (scaling, wavelet, l_start0)
     !  Everything needed in terms of forward and backward wavelet transform
     !  after one time step (e.g. RK sub-step)
     !    A) compute wavelets and perform backwards transform to conserve mass
     !    B) interpolate values onto adapted grid for next step
     implicit none
-    type(Float_Field), dimension(:,:), target :: q, wav
+    type(Float_Field), dimension(:,:), target :: scaling, wavelet
     integer, optional                         :: l_start0
     
     integer :: d, j, k, l, l_start, v
 
     if (present(l_start0)) then
        l_start = l_start0
-       do k = 1, size(q,2)
+       do k = 1, size(scaling,2)
           do d = 1, size(grid)
-             velo => q(S_VELO,k)%data(d)%elts
+             velo => scaling(S_VELO,k)%data(d)%elts
              call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
              nullify (velo)
           end do
@@ -251,30 +237,77 @@ contains
        l_start = level_start
     end if
 
-    q%bdry_uptodate = .false.
-    call update_array_bdry (q, NONE, 16)
+    scaling%bdry_uptodate = .false.
+    call update_array_bdry (scaling, NONE, 16)
 
-    do k = 1, size(q,2)
+    do k = 1, size(scaling,2)
        do l = l_start, level_end-1
           do d = 1, size(grid)
              do v = scalars(1), scalars(2)
-                scalar => q(v,k)%data(d)%elts
-                wc_s  => wav(v,k)%data(d)%elts
+                scalar => scaling(v,k)%data(d)%elts
+                wc_s   => wavelet(v,k)%data(d)%elts
                 call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
                 nullify (scalar, wc_s)
              end do
-             velo => q(S_VELO,k)%data(d)%elts
-             wc_u => wav(S_VELO,k)%data(d)%elts
+             velo => scaling(S_VELO,k)%data(d)%elts
+             wc_u => wavelet(S_VELO,k)%data(d)%elts
              call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
              call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
              nullify (velo, wc_u)
           end do
-          wav(:,k)%bdry_uptodate = .false.
+          wavelet(:,k)%bdry_uptodate = .false.
        end do
     end do
-    call compress_wavelets (wav)
-    call inverse_wavelet_transform (wav, q)
+    call compress_wavelets (wavelet)
+    call inverse_wavelet_transform (wavelet, scaling)
   end subroutine WT_after_step
+
+  subroutine WT_after_scalar (scaling, wavelet, l_start0)
+    !  Everything needed in terms of forward and backward wavelet transform
+    !  after one time step for a vector of scalars
+    !    A) compute wavelets and perform backwards transform to conserve mass
+    !    B) interpolate values onto adapted grid for next step
+    implicit none
+    type(Float_Field), dimension(:), target :: scaling, wavelet
+    integer, optional                       :: l_start0
+    
+    integer :: d, j, k, l, l_start
+
+    if (present(l_start0)) then
+       l_start = l_start0
+    else
+       l_start = level_start
+    end if
+
+    scaling%bdry_uptodate = .false.
+    call update_vector_bdry (scaling, NONE, 16)
+
+    do k = 1, size (scaling)
+       do l = l_start, level_end-1
+          do d = 1, size(grid)
+             scalar => scaling(k)%data(d)%elts
+             wc_s   => wavelet(k)%data(d)%elts
+             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+             nullify (scalar, wc_s)
+          end do
+          wavelet(k)%bdry_uptodate = .false.
+       end do
+    end do
+    
+    ! Compress wavelets
+    do k = 1, size(scaling)
+       do d = 1, size (grid)
+          do l = level_start+1, level_end
+             wc_s => wavelet(k)%data(d)%elts
+             call apply_onescale_d (compress_scalar, grid(d), l, z_null, 0, 1)
+             nullify (wc_s)
+          end do
+       end do
+    end do
+    wavelet%bdry_uptodate = .false.
+    
+    call inverse_scalar_transform (wavelet, scaling)
+  end subroutine WT_after_scalar
   
   logical function refine ()
     ! Determines where new patches are needed

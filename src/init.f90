@@ -29,12 +29,13 @@ contains
     allocate (grid(n_domain(rank+1)))
     allocate (sol(1:N_VARIABLE,1:zmax), sol_mean(1:N_VARIABLE,1:zmax))
     allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zmax))
-    allocate (wav_coeff(1:N_VARIABLE,1:zmax), trend_wav_coeff(1:N_VARIABLE,1:zmax))
+    allocate (wav_coeff(1:N_VARIABLE,1:zmax))
     allocate (exner_fun(1:zmax+1))
     allocate (penal_node(1:zmax), penal_edge(1:zmax))
     allocate (horiz_flux(scalars(1):scalars(2)), Laplacian_scalar(scalars(1):scalars(2)))
     allocate (Laplacian_vector(S_DIVU:S_ROTU))
     allocate (lnorm(1:N_VARIABLE,1:zmax))
+    if (vert_diffuse) allocate (tke(1:zlevels), wav_tke(1:zlevels))
 
     do k = 1, zmax
        call init_Float_Field (penal_node(k), AT_NODE)
@@ -47,6 +48,12 @@ contains
        end do
     end do
     call init_Float_Field (exner_fun(zmax+1), AT_NODE)
+    
+    if (vert_diffuse) then
+       do k = 1, zlevels
+          call init_Float_Field (tke(k), AT_NODE)
+       end do
+    end if
     
     do k = 1, save_levels
        do v = 1, N_VARIABLE
@@ -345,6 +352,14 @@ contains
        end do
     end do
 
+    if (vert_diffuse) then
+       do k = 1, zlevels
+          do d = 1, size(grid)
+             call init (tke(k)%data(d), grid(d)%node%length)
+          end do
+       end do
+    end if
+    
     do d = 1, size(grid)
        call init (exner_fun(zmax+1)%data(d), grid(d)%node%length)
     end do

@@ -1179,15 +1179,22 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, v
+    integer :: d, id, k, v
 
     d = dom%id+1
-    id = idx(i, j, offs, dims)
+    id = idx(i, j, offs, dims) + 1
 
-    do v = scalars(1), scalars(2)
-       write (fid) sol(v,zlev)%data(d)%elts(id+1) 
-       if (adapt_trend) write (fid) trend(v,zlev)%data(d)%elts(id+1) 
+    do k = 1, zmax
+       do v = scalars(1), scalars(2)
+          write (fid) sol(v,k)%data(d)%elts(id)
+       end do
     end do
+
+    if (vert_diffuse) then
+       do k = 1, zlevels
+          write (fid) tke(k)%data(d)%elts(id)
+       end do
+    end if
   end subroutine write_scalar
 
   subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
@@ -1198,15 +1205,22 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, v
+    integer :: d, id, k, v
 
     d  = dom%id+1
-    id = idx(i, j, offs, dims)
+    id = idx (i, j, offs, dims) + 1
 
-    do v = scalars(1), scalars(2)
-       read (fid) sol(v,zlev)%data(d)%elts(id+1)
-       if (adapt_trend) read (fid) trend(v,zlev)%data(d)%elts(id+1)
+    do k = 1, zmax
+       do v = scalars(1), scalars(2)
+          read (fid) sol(v,k)%data(d)%elts(id)
+       end do
     end do
+
+    if (vert_diffuse) then
+       do k = 1, zlevels
+          read (fid) tke(k)%data(d)%elts(id)
+       end do
+    end if
   end subroutine read_scalar
 
   subroutine dump_adapt_mpi (id, custom_dump, run_id)
@@ -1234,24 +1248,25 @@ contains
     fid_gr = id+3000000
 
     call update_array_bdry (wav_coeff(scalars(1):scalars(2),1:zmax), NONE, 20)
-    if (adapt_trend) call update_array_bdry (trend_wav_coeff(scalars(1):scalars(2),1:zmax), NONE, 20)
-
-    do k = 1, zmax
-       do d = 1, size(grid)
+    if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 20)
+    
+    do d = 1, size(grid)
+       do k = 1, zmax
           do v = scalars(1), scalars(2)
              scalar => sol(v,k)%data(d)%elts
              wc_s   => wav_coeff(v,k)%data(d)%elts
              call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
              nullify (scalar, wc_s)
-
-             if (adapt_trend) then
-                scalar => trend(v,k)%data(d)%elts
-                wc_s   => trend_wav_coeff(v,k)%data(d)%elts
-                call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
-                nullify (scalar, wc_s)
-             end if
           end do
        end do
+       if (vert_diffuse) then
+          do k = 1, zlevels
+             scalar => tke(k)%data(d)%elts
+             wc_s   => wav_tke(k)%data(d)%elts
+             call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+             nullify (scalar, wc_s)
+          end do
+       end if
     end do
 
     do d = 1, size(grid)
@@ -1268,15 +1283,23 @@ contains
 
        ! Write data at coarsest scale (scaling functions)
        p_par = 1
+       call apply_to_pole_d (write_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
+       
        do k = 1, zmax
-          call apply_to_pole_d (write_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
              write (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
-             if (adapt_trend) write (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
+       
+       if (vert_diffuse) then
+          do k = 1, zlevels
+             ibeg = grid(d)%patch%elts(p_par+1)%elts_start + 1
+             iend = ibeg + PATCH_SIZE**2 - 1
+             write (fid_no(d)) tke(k)%data(d)%elts(ibeg:iend)
+          end do
+       end if
 
        ! Write wavelets at finer scales
        do l = min_level, level_end
@@ -1296,9 +1319,16 @@ contains
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
                    write (fid_no(d)) wav_coeff(v,k)%data(d)%elts(ibeg:iend)
-                   if (adapt_trend) write (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
              end do
+
+             if (vert_diffuse) then
+                do k = 1, zlevels
+                   ibeg = grid(d)%patch%elts(p_par+1)%elts_start + 1
+                   iend = ibeg + PATCH_SIZE**2 - 1
+                   write (fid_no(d)) wav_tke(k)%data(d)%elts(ibeg:iend)
+                end do
+             end if
 
              ! Record whether patch needs to be refined
              do c = 1, N_CHDRN
@@ -1360,15 +1390,23 @@ contains
        call custom_load (fid_no(d))
 
        p_par = 1
+       call apply_to_pole_d (read_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
+       
        do k = 1, zmax
-          call apply_to_pole_d (read_scalar, grid(d), min_level-1, k, fid_no(d), .true.)
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
              read (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
-             if (adapt_trend) read (fid_no(d)) trend(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
+
+       if (vert_diffuse) then
+          do k = 1, zlevels
+             ibeg = grid(d)%patch%elts(p_par+1)%elts_start + 1
+             iend = ibeg + PATCH_SIZE**2 - 1
+             read (fid_no(d)) tke(k)%data(d)%elts(ibeg:iend)
+          end do
+       end if
     end do
 
     ! Load finer scales (wavelets) if present
@@ -1386,9 +1424,16 @@ contains
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
                    read (fid_no(d)) wav_coeff(v,k)%data(d)%elts(ibeg:iend)
-                   if (adapt_trend) read (fid_no(d)) trend_wav_coeff(v,k)%data(d)%elts(ibeg:iend)
                 end do
              end do
+
+             if (vert_diffuse) then
+                do k = 1, zlevels
+                   ibeg = grid(d)%patch%elts(p_par+1)%elts_start + 1
+                   iend = ibeg + PATCH_SIZE**2 - 1
+                   read (fid_no(d)) wav_tke(k)%data(d)%elts(ibeg:iend)
+                end do
+             end if
 
              read (fid_gr(d)) required
              do c = 1, N_CHDRN
@@ -1411,6 +1456,11 @@ contains
 
     sol%bdry_uptodate       = .false.
     wav_coeff%bdry_uptodate = .false.
+
+    if (vert_diffuse) then
+       tke%bdry_uptodate     = .false.
+       wav_tke%bdry_uptodate = .false.
+    end if
   end subroutine load_adapt_mpi
 
   subroutine proj_xz_plane (cin, cout)

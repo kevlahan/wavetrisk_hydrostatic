@@ -30,7 +30,7 @@ program upwelling
   match_time         = .true.                        ! avoid very small time steps when saving (if false) 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-6                          ! porosity used in penalization
+  alpha              = 1d-6                         ! porosity used in penalization
   npts_penal         = 4.5                           ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver

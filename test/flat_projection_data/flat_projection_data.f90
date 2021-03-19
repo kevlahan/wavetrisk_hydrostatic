@@ -134,9 +134,10 @@ program flat_projection_data
      mean_split     = .true.
      compressible   = .false.                            
      penalize       = .true.
+     vert_diffuse   = .true.
 
      alpha          = 1d-2    ! porosity
-     npts_penal     = 4.5
+     npts_penal     = 2.5
 
      width          = 80 * KM                           ! width of channel in km
      lat_width      = (width/radius)/DEG
@@ -498,8 +499,9 @@ contains
     implicit none
     integer :: d, i, j, k, l, idx_lat, idx_lon
     real(8) :: dz, z_s
-    real(8), dimension(Ny(1):Ny(2),0:zlevels) :: w_lat
-    real(8), dimension(Nx(1):Nx(2),0:zlevels) :: w_lon
+    real(8), dimension(Ny(1):Ny(2)) :: bathy_lat
+    real(8), dimension(Nx(1):Nx(2)) :: bathy_lon
+    logical, parameter :: zonal = .true. ! compute zonal averages
 
     ! Find indices of latitude and longitude slices
     idx_lat = minloc (abs(lat-lat_val), DIM=1) + Ny(1) - 1
@@ -539,19 +541,35 @@ contains
           nullify (mass, mean_m, mean_t, scalar, temp, velo, divu, velo1, velo2, vort)
        end do
        call project_uzonal_onto_plane (l, 0.0_8)
-       lat_slice(:,k,1) = field2d(idx_lon,:)
+        if (zonal) then
+          lat_slice(:,k,1) = sum(field2d, 1) / size(field2d,1) 
+       else
+          lat_slice(:,k,1) = field2d(idx_lon,:)
+       end if
        lon_slice(:,k,1) = field2d(:,idx_lat)
        
        call project_vmerid_onto_plane (l, 0.0_8)
-       lat_slice(:,k,2) = field2d(idx_lon,:)
+        if (zonal) then
+          lat_slice(:,k,2) = sum(field2d, 1) / size(field2d,1) 
+       else
+          lat_slice(:,k,2) = field2d(idx_lon,:)
+       end if
        lon_slice(:,k,2) = field2d(:,idx_lat)
        
        call project_onto_plane (sol(S_TEMP,zlevels+1), l, 0.0_8)
-       lat_slice(:,k,3) = field2d(idx_lon,:)
+        if (zonal) then
+          lat_slice(:,k,3) = sum(field2d, 1) / size(field2d,1) 
+       else
+          lat_slice(:,k,3) = field2d(idx_lon,:)
+       end if
        lon_slice(:,k,3) = field2d(:,idx_lat)
 
        call project_vorticity_onto_plane (l, 1.0_8)
-       lat_slice(:,k,4) = field2d(idx_lon,:)
+       if (zonal) then
+          lat_slice(:,k,4) = sum(field2d, 1) / size(field2d,1) 
+       else
+          lat_slice(:,k,4) = field2d(idx_lon,:)
+       end if
        lon_slice(:,k,4) = field2d(:,idx_lat)
     end do
 
@@ -559,7 +577,11 @@ contains
     call vertical_velocity 
     do k = 1, zlevels
        call project_w_onto_plane (k, l, 0.0_8)
-       lat_slice(:,k,5) = field2d(idx_lon,:)
+       if (zonal) then
+          lat_slice(:,k,5) = sum(field2d, 1) / size(field2d,1) 
+       else
+          lat_slice(:,k,5) = field2d(idx_lon,:)
+       end if
        lon_slice(:,k,5) = field2d(:,idx_lat)
     end do
     
@@ -567,12 +589,17 @@ contains
     call project_onto_plane (sol(S_MASS,zlevels+1), l, 0.0_8)
     eta_lat = field2d(idx_lon,:)
     eta_lon = field2d(:,idx_lat)
+
+    ! Set bathymetry
+    call project_topo_onto_plane (l, 0.0_8)
+    bathy_lat = field2d(idx_lon,:)
+    bathy_lon = field2d(:,idx_lat)
     
     do i = Ny(1), Ny(2)
        xcoord_lat(i,1) = lat(i) - dy_export/2 / DEG
        xcoord_lat(i,2) = lat(i) + dy_export/2 / DEG
 
-       z_s = max_depth + surf_geopot_latlon (lat(i)*DEG, lon_val*DEG) / grav_accel
+       z_s = bathy_lat(i)
        do k = 1, zlevels
           zcoord_lat(i,k,1) = a_vert(k-1) * eta_lat(i) + b_vert(k-1) * z_s
           zcoord_lat(i,k,2) = a_vert(k)   * eta_lat(i) + b_vert(k)   * z_s
@@ -583,7 +610,7 @@ contains
        xcoord_lon(i,1) = lon(i) - dx_export/2 / DEG
        xcoord_lon(i,2) = lon(i) + dx_export/2 / DEG
 
-       z_s = max_depth + surf_geopot_latlon (lat_val*DEG, lon(i)*DEG) / grav_accel
+       z_s = bathy_lon(i)
        do k = 1, zlevels
           zcoord_lon(i,k,1) = a_vert(k-1) * eta_lon(i) + b_vert(k-1) * z_s
           zcoord_lon(i,k,2) = a_vert(k)   * eta_lon(i) + b_vert(k)   * z_s
@@ -1888,6 +1915,62 @@ contains
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_vmerid_onto_plane
+
+  subroutine project_topo_onto_plane (l, default_val)
+    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    use domain_mod
+    use comm_mpi_mod
+    integer               :: l, itype
+    real(8)               :: default_val
+
+    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: id, idN, idE, idNE
+    real(8)                        :: val, valN, valE, valNE
+    real(8), dimension(2)          :: cC, cN, cE, cNE
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    field2d = default_val
+    do d = 1, size(grid)
+       do jj = 1, grid(d)%lev(l)%length
+          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
+          do j = 0, PATCH_SIZE-1
+             do i = 0, PATCH_SIZE-1
+                id   = idx(i,   j,   offs, dims)
+                idN  = idx(i,   j+1, offs, dims)
+                idE  = idx(i+1, j,   offs, dims)
+                idNE = idx(i+1, j+1, offs, dims)
+
+                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
+                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
+                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
+                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
+
+                val   = grid(d)%topo%elts(id+1)
+                valN  = grid(d)%topo%elts(idN+1)
+                valE  = grid(d)%topo%elts(idE+1)
+                valNE = grid(d)%topo%elts(idNE+1)
+
+                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                end if
+                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
+                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                else
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                end if
+             end do
+          end do
+       end do
+    end do
+    ! Synchronize array over all processors
+    sync_val = default_val
+    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
+  end subroutine project_topo_onto_plane
 
    subroutine project_freesurface_onto_plane (l, default_val)
     ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)

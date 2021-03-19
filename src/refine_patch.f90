@@ -171,13 +171,18 @@ contains
        do v = scalars(1), scalars(2)
           call extend (trend(v,k)%data(d),           num, 0.0_8)
           call extend (wav_coeff(v,k)%data(d),       num, 0.0_8)
-          call extend (trend_wav_coeff(v,k)%data(d), num, 0.0_8)
        end do
        call extend (trend(S_VELO,k)%data(d),           EDGE*num, 0.0_8)
        call extend (wav_coeff(S_VELO,k)%data(d),       EDGE*num, 0.0_8)
-       call extend (trend_wav_coeff(S_VELO,k)%data(d), EDGE*num, 0.0_8)
     end do
     call extend (exner_fun(zmax+1)%data(d), num, 0.0_8)
+
+    if (vert_diffuse) then
+       do k = 1, zlevels
+          call extend (tke(k)%data(d),     num, 0.0_8)
+          call extend (wav_tke(k)%data(d), num, 0.0_8)
+       end do
+    end if
     
     call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0.0_8)
     call extend (Laplacian_vector(S_ROTU)%data(d), EDGE*num, 0.0_8)

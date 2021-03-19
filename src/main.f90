@@ -75,10 +75,6 @@ contains
             -----------------------------------------------------'
 
        call forward_wavelet_transform (sol, wav_coeff)
-       if (adapt_trend) then
-          call trend_ml (sol, trend)
-          call forward_wavelet_transform (trend, trend_wav_coeff)
-       end if
 
        do while (level_end < max_level)
           if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level ', level_end, ' -> ', level_end+1
@@ -91,30 +87,18 @@ contains
           call apply_initial_conditions
          
           call forward_wavelet_transform (sol, wav_coeff)
-          if (adapt_trend) then
-             call trend_ml (sol, trend)
-             call forward_wavelet_transform (trend, trend_wav_coeff)
-          end if
 
           ! Check whether there are any active nodes or edges at this scale
           n_active = 0
           do k = 1, zmax
              do d = 1, size(grid)
                 do v = scalars(1), scalars(2)
-                   if (adapt_trend) then
-                      wc_s => trend_wav_coeff(v,k)%data(d)%elts
-                   else
-                      wc_s => wav_coeff(v,k)%data(d)%elts
-                   end if
+                   wc_s => wav_coeff(v,k)%data(d)%elts
                    n_active(AT_NODE) = n_active(AT_NODE) &
                         + count (abs(wc_s(node_level_start(d):grid(d)%node%length)) >= threshold(v,k))
                    nullify (wc_s)
                 end do
-                if (adapt_trend) then
-                   wc_u => trend_wav_coeff(S_VELO,k)%data(d)%elts
-                else
-                   wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-                end if
+                wc_u => wav_coeff(S_VELO,k)%data(d)%elts
                 n_active(AT_EDGE) = n_active(AT_EDGE) &
                      + count (abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k))
                 nullify (wc_u)
@@ -355,6 +339,7 @@ contains
 
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
+    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, level_start-1)
 
     ! Apply velocity penalization
     if (penalize) call apply_penal (sol)
@@ -569,12 +554,19 @@ contains
              deallocate (sol_mean(v,k)%data(d)%elts)
              deallocate (trend(v,k)%data(d)%elts)
              deallocate (wav_coeff(v,k)%data(d)%elts)
-             deallocate (trend_wav_coeff(v,k)%data(d)%elts)
           end do
+         
           do k = 1, save_levels
              deallocate (sol_save(v,k)%data(d)%elts) 
           end do
        end do
+       
+       if (vert_diffuse) then
+          do k = 1, zlevels
+             deallocate (tke(k)%data(d)%elts)
+             deallocate (wav_tke(k)%data(d)%elts)
+          end do
+       end if
     end do
     
     deallocate (Laplacian_vector(S_DIVU)%data)
@@ -598,20 +590,27 @@ contains
           deallocate (sol_mean(v,k)%data)
           deallocate (trend(v,k)%data)
           deallocate (wav_coeff(v,k)%data)
-          deallocate (trend_wav_coeff(v,k)%data)
        end do
        do k = 1, save_levels
           deallocate (sol_save(v,k)%data)
        end do
     end do
 
+    if (vert_diffuse) then
+       do k = 1, zlevels
+          deallocate (tke(k)%data)
+          deallocate (wav_tke(k)%data)
+       end do
+    end if
+
     deallocate (grid, n_patch_old, n_node_old)
     deallocate (edge_level_start, node_level_start, n_active_edges, n_active_nodes)
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)
-    deallocate (sol, sol_mean, sol_save, trend, trend_wav_coeff, wav_coeff)       
+    deallocate (sol, sol_mean, sol_save, trend, wav_coeff)       
     deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal_node, penal_edge)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
+    if (vert_diffuse) deallocate (tke, wav_tke)
 
     nullify (mass, dscalar, h_flux, velo, dvelo, bernoulli, divu, exner, ke, qe, scalar, temp, vort, wc_s, wc_u)
   end subroutine deallocate_structures

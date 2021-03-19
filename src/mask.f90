@@ -19,30 +19,18 @@ contains
     dom%mask_e%elts(EDGE*id:EDGE*id_i) = mask
   end subroutine set_masks
  
-  subroutine mask_active (type)
+  subroutine mask_active
     ! Determine active grid points
     implicit none
-    character(*) :: type
-    
     integer :: d, j, k, l
 
     ! Set active grid at finest scale
-    select case (type)
-    case ("vars")
-       call apply_onescale (mask_tol_vars, level_end, z_null, -1, 2)
-    case ("trend")
-       call apply_onescale (mask_tol_trend, level_end, z_null, -1, 2)
-    end select
+    call apply_onescale (mask_tol_vars, level_end, z_null, -1, 2)
     call comm_masks_mpi (level_end)
        
     ! Set active grid at coarser scales
     do l = level_end-1, level_start, -1
-       select case (type)
-       case ("vars")
-          call apply_onescale (mask_tol_vars, l, z_null, -1, 2)
-       case ("trend")
-          call apply_onescale (mask_tol_trend, l, z_null, -1, 2)
-       end select
+       call apply_onescale (mask_tol_vars, l, z_null, -1, 2)
 
        ! Make parents active
        call apply_interscale (mask_parent_nodes, l, z_null,  0, 1)
@@ -110,53 +98,6 @@ contains
        end if
     end do
   end subroutine mask_tol_vars
-
-   subroutine mask_tol_trend (dom, i, j, zlev, offs, dims)
-    ! Set active wavelets (determines which grid points are active at adjacent finer scale)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id, id_e, id_i, k, l, v
-    logical :: active
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-    d = dom%id + 1
-    l = dom%level%elts(id_i)
-
-    ! Scalars
-    active = .false.
-    do k = 1, zlevels
-       do v = scalars(1), scalars(2)
-          if (abs (trend_wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k) .or. l < level_fill) active = .true.
-       end do
-    end do
-
-    if (active) then
-       dom%mask_n%elts(id_i) = TOLRNZ
-    else
-       if (dom%mask_n%elts(id_i) > ADJZONE) dom%mask_n%elts(id_i) = ADJZONE
-    end if
-
-    ! Velocity
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-
-       active = .false.
-       do k = 1, zlevels
-          if (abs (trend_wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k) .or. l < level_fill) active = .true.
-       end do
-
-       if (active) then
-          dom%mask_e%elts(id_e) = TOLRNZ
-       else
-          if (dom%mask_e%elts(id_e) > ADJZONE) dom%mask_e%elts(id_e) = ADJZONE
-       end if
-    end do
-  end subroutine mask_tol_trend
 
   subroutine mask_parent_nodes (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Make parent node active if any child is active, also make child active if any child neighbours are active

@@ -23,14 +23,16 @@ module test_case_mod
   character(255) :: coords, stratification
   ! Upwelling
   real(8)  :: lat_width
+  real(8), parameter :: b_max = 1.25d2  ! maximum height of bathymetry
+  real(8), parameter :: slope = 1.3d-4  ! slope parameter (larger value -> steeper slope)
+  real(8), parameter :: curve = 8      ! curvature at boundary
 contains
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
     implicit none
-    Type(Coord)        :: x_i
-    real(8)            :: c1, cs2, sn2, lon, lat, rgrc, y
-    real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
-
+    Type(Coord) :: x_i
+    real(8)     :: amp, c1, cs2, sn2, lon, lat, rgrc, y
+    
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
     cs2 = cos(lat)**2
@@ -52,12 +54,13 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
+       amp = b_max / (1.0_8 - tanh (-slope*width/curve))
        lat = lat / DEG
        if (abs(lat-lat_c) <= lat_width/2) then
-          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
-          surf_geopot = 66.505710477328847 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel
+          surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/curve)))
        else
-          surf_geopot = 66.505710477328847 - 66.526 * tanh (-1.875d-5*width)
+          surf_geopot = b_max
        end if
        surf_geopot = grav_accel * surf_geopot
     else
@@ -70,8 +73,7 @@ contains
     ! Surface geopotential
     implicit none
     real(8)            :: lon, lat
-    real(8)            :: c1, cs2, sn2, rgrc, y
-    real(8), parameter :: d_min = -14.3, b1 = 0.38, b2 = 0.7
+    real(8)            :: amp, c1, cs2, sn2, rgrc, y
 
     ! Find latitude and longitude from Cartesian coordinates
     cs2 = cos(lat)**2
@@ -94,12 +96,13 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot_latlon = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
+       amp = b_max / (1.0_8 - tanh (-slope*width/curve))
        lat = lat / DEG
        if (abs(lat-lat_c) <= lat_width/2) then
-          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius
-          surf_geopot_latlon = 66.505710477328847 - 66.526 * tanh (1.5d-4 * (f(y) - width/8))
+          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel
+          surf_geopot_latlon = amp * (1.0_8 - tanh (slope * (f(y) - width/curve)))
        else
-          surf_geopot_latlon = 66.505710477328847 - 66.526 * tanh (-1.875d-5*width)
+          surf_geopot_latlon = b_max
        end if
        surf_geopot_latlon = grav_accel * surf_geopot_latlon
     else
@@ -300,7 +303,6 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, uniform
-    read (fid,*) varname, adapt_trend
     read (fid,*) varname, level_save
     read (fid,*) varname, N
     read (fid,*) varname, press_save
@@ -322,7 +324,6 @@ contains
        write (6,'(A,i3)')     "max_level              = ", max_level
        write (6,'(A,i3)')     "zlevels                = ", zlevels
        write(6,'(A,L1)')      "uniform                = ", uniform
-       write (6,'(A,L1)')     "adapt_trend            = ", adapt_trend
        write (6,'(A,i3)')     "level_save             = ", level_save
        write (6,'(A,i5)')     "N                      = ", N
        write (6,'(A,es10.4)') "pressure_save (hPa)    = ", press_save
@@ -345,44 +346,110 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer  :: d, e, id, id_e, id_i, ii, is0, it0, jj, s, t
-    real(8)  :: dlat, lat, lat0, lon, m_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
+    integer  :: d, e, id, id_e, id_i, ii, is0, it0, jj, l, nsmth
+    real(8)  :: dlat, dx, lat, lat0, lon, m_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
     real(8)  :: n_smth_N, n_smth_S, width_N, width_S
+    type(Coord)                    :: p
+    type(Coord), dimension(1:EDGE) :: q
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
+    p = dom%node%elts(id_i)
+    l = dom%level%elts(id_i)
+
+    !!$       dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
+    dx = dx_max
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot (dom%node%elts(id_i)) / grav_accel
+      !!$       nsmth = 2 * (l - min_level)
+       nsmth = 1
+       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
 
        if (trim (test_case) == "upwelling") then
-          dlat = 0.7*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+          dlat = 0.4*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
           width_S = lat_c - (lat_width/2 + dlat) + 90_8
           width_N = lat_c - (lat_width/2 + dlat)       
           n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
           n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
 
-         ! write (6,'(4(es10.4,1x))') dx_max, width_S, width_N, npts_penal
+          nsmth = 0
 
-          penal_node(zlev)%data(d)%elts(id_i) = mask(id)
-          penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1) = max (mask(id), mask(idx(i+1, j,   offs, dims)))
-          penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1) = max (mask(id), mask(idx(i+1, j+1, offs, dims)))
-          penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1) = max (mask(id), mask(idx(i,   j+1, offs, dims)))
+          penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, nsmth)
+
+          q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
+          q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1)
+          q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
+          do e = 1, EDGE
+             id_e = EDGE*id + e
+             penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
+          end do
        end if
     end select
   contains
-    real(8) function mask (id)
-      integer :: id
+    real(8) function mask (p)
+      implicit none
+      type(Coord) :: p
+
       real(8) :: lat, lon
 
-      call cart2sph (dom%node%elts(id+1), lon, lat)
+      call cart2sph (p, lon, lat)
+
       mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
     end function mask
   end subroutine topography
+
+  real(8) function smooth (fun, p, dx, npts)
+    ! Smooth a function using radial basis functions
+    implicit none
+    integer     :: npts
+    real(8)     :: dx
+    type(Coord) :: p
+
+    integer     :: ii, jj
+    real(8)     :: dtheta, lat, lat0, lon, lon0, nrm, r, rbf, wgt
+    type(Coord) :: q
+
+    interface
+       real(8) function fun (q)
+         use geom_mod
+         type(Coord) :: q
+       end function fun
+    end interface
+
+    if (npts == 0) then
+       smooth = fun (p)
+    else
+       dtheta = dx/radius
+       call cart2sph (p, lon0, lat0)
+       nrm = 0.0_8
+       rbf = 0.0_8
+       do ii = -npts, npts
+          lat = lat0 + dtheta * ii
+          do jj = -npts, npts
+             lon = lon0 + dtheta * jj
+
+             q = project_on_sphere (sph2cart(lon, lat))
+             r = norm (vector(p, q))
+             wgt = radial_basis_fun ()
+
+             nrm = nrm + wgt
+             rbf = rbf + wgt * fun (q)
+          end do
+       end do
+       smooth = rbf /nrm
+    end if
+  contains
+    real(8) function radial_basis_fun ()
+      ! Radial basis function for smoothing topography
+      implicit none
+
+      radial_basis_fun = exp (-(r/(npts*dx/2))**2)
+    end function radial_basis_fun
+  end function smooth
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
     ! Set bathymetry
@@ -611,6 +678,12 @@ contains
     area = 4*MATH_PI*radius**2/(20*4**min_level)
     dx_max = sqrt (4/sqrt(3.0_8) * area)
   end subroutine initialize_dt_viscosity
+
+  real(8) function tau (p)
+    ! Magnitude of wind stress at node p (dummy routine)
+    implicit none
+    type(Coord) :: p
+  end function tau
 
   subroutine set_save_level
     implicit none

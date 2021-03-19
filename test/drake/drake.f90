@@ -97,9 +97,9 @@ program Drake
 
   ! Bottom friction
   if (drag) then
-     bottom_friction = 4d-4 / abs(max_depth) ! nemo value
+     r0 = 4d-4 / abs(max_depth) ! nemo value
   else
-     bottom_friction = 0.0_8
+     r0 = 0.0_8
   end if
 
   ! Internal wave friction 
@@ -248,7 +248,6 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
   use domain_mod
   use test_case_mod
-  use ops_mod
   implicit none
 
   real(8), dimension(1:EDGE)     :: physics_velo_source
@@ -301,7 +300,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   ! Bottom stress applied in lowest layer only 
   if (zlev == 1) then
-     bottom_drag = - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
+     bottom_drag = - r0 * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
   else
      bottom_drag = 0.0_8
   end if

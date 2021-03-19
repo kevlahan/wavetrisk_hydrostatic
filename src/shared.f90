@@ -232,7 +232,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
-  logical :: adapt_dt, adapt_trend, compressible, default_thresholds, fill, implicit_diff_sclr, implicit_diff_divu
+  logical :: adapt_dt, compressible, default_thresholds, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, match_time, mode_split, no_slip, penalize, perfect, rebalance, remap, uniform, vert_diffuse
 contains
   subroutine init_shared_mod
@@ -293,7 +293,6 @@ contains
     
     ! Default logical switches, most are reset in the input file
     adapt_dt            = .true.  ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
-    adapt_trend         = .false. ! adapt on trend (T) or on solution (F)
     compressible        = .true.  ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.  ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false. ! fill up grid to level j_fill if true

@@ -14,7 +14,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, Rb, Rd, Rey, Ro
-  real(8)                              :: bottom_friction, max_depth, min_depth, mixed_layer
+  real(8)                              :: r0, max_depth, min_depth, mixed_layer
   real(8)                              :: radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc
   real(8)                              :: resolution, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -76,7 +76,7 @@ contains
     implicit none
 
     delta_M = (visc_rotu/beta)**(1.0_8/(2*Laplace_order_init+1)) ! Munk layer scale
-    delta_S = bottom_friction / beta      ! Stommel layer (want delta_S = delta_M/4)
+    delta_S = r0 / beta      ! Stommel layer (want delta_S = delta_M/4)
     Rey     = u_wbc * delta_I / visc_rotu ! Reynolds number of western boundary current
     Ro      = u_wbc / (delta_M*f0)        ! Rossby number (based on boundary current)
 
@@ -111,7 +111,6 @@ contains
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
        write (6,'(a,l1)')     "log_iter                       = ", log_iter
-       write (6,'(A,L1)')     "adapt_trend                    = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(A,L1)')     "perfect                        = ", perfect
        write (6,'(A,es10.4)') "tolerance                      = ", tol
@@ -147,8 +146,8 @@ contains
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
-       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction
-       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
+       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", r0
+       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/r0 / DAY
        write (6,'(A,es11.4)') "wave drag decay           [h]  = ", 1/wave_friction / HOUR
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
@@ -373,7 +372,7 @@ contains
   end subroutine print_density_pert
 
   subroutine set_thresholds
-    ! Set thresholds dynamically (trend or sol must be known)
+    ! Set thresholds dynamically
     use lnorms_mod
     use wavelet_mod
     implicit none
@@ -384,11 +383,7 @@ contains
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
     else
-       if (adapt_trend) then
-          call cal_lnorm_trend (trend, order)
-       else
-          call cal_lnorm_sol (sol, order)
-       end if
+       call cal_lnorm_sol (sol, order)
        threshold_new = tol * lnorm
        ! Correct very small values
        do k = 1, zmax

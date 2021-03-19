@@ -76,7 +76,7 @@ program Seamount
   Rb = bv * abs(max_depth) / (MATH_PI*f0)
 
   ! Bottom friction
-  bottom_friction = 0.0_8
+  r0 = 0.0_8
 
   ! Internal wave friction 
   wave_friction = 0.0_8
@@ -115,7 +115,7 @@ program Seamount
 
      call update_diagnostics
 
-     tke = total_ke ("adaptive") / (4*MATH_PI*radius**2)
+     tke_sea = total_ke ("adaptive") / (4*MATH_PI*radius**2)
      call print_log
 
      if (aligned) then
@@ -212,7 +212,6 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
   ! Additional physics for the source term of the velocity trend
   use domain_mod
   use test_case_mod
-  use ops_mod
   implicit none
 
   real(8), dimension(1:EDGE)     :: physics_velo_source

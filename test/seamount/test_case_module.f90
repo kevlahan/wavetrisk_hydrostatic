@@ -14,8 +14,8 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bu, bv, drho, drho_dz, f0, Rb, Rd, Rey, Ro
-  real(8)                              :: bottom_friction, delta, h0, lat_c, lon_c, max_depth, min_depth, r_max, r_max_loc, width
-  real(8)                              :: radius_earth, omega_earth, scale, tke, visc
+  real(8)                              :: r0, delta, h0, lat_c, lon_c, max_depth, min_depth, r_max, r_max_loc, width
+  real(8)                              :: radius_earth, omega_earth, scale, tke_sea, visc
   real(8)                              :: tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: drag
@@ -104,7 +104,6 @@ contains
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
        write (6,'(a,l1)')     "log_iter                       = ", log_iter
-       write (6,'(A,L1)')     "adapt_trend                    = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(A,L1)')     "perfect                        = ", perfect
        write (6,'(A,es10.4)') "tolerance                      = ", tol
@@ -139,8 +138,8 @@ contains
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
-       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction
-       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction / DAY
+       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", r0
+       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/r0 / DAY
        write (6,'(A,es11.4)') "wave drag decay           [h]  = ", 1/wave_friction / HOUR
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
@@ -183,7 +182,7 @@ contains
             ' temp tol = ', threshold(S_TEMP,zlevels), &
             ' velo tol = ', threshold(S_VELO,zlevels), &
             ' maxv = ', maxv, &
-            ' tke = ', tke, &
+            ' tke = ', tke_sea, &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' min rel mass = ', min_mass, &
@@ -192,7 +191,7 @@ contains
             ' cpu = ', timing
 
        write (12,'(7(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
-            threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), maxv, tke, &
+            threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), maxv, tke_sea, &
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
@@ -409,11 +408,7 @@ contains
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
     else
-       if (adapt_trend) then
-          call cal_lnorm_trend (trend, order)
-       else
-          call cal_lnorm_sol (sol, order)
-       end if
+       call cal_lnorm_sol (sol, order)
        threshold_new = tol * lnorm
        ! Correct very small values
        do k = 1, zmax

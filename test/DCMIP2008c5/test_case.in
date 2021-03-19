@@ -8,7 +8,6 @@ remap              T             ! remap vertical grid
 remapscalar_type   0             ! remap method for scalars  (0, 1, 2PPM, 2S, 2W, 4, PPR)
 remapvelo_type     0             ! remap method for velocity (0, 1, 2PPM, 2S, 2W, 4, PPR)
 iremap             1             ! remap every iremap time steps
-adapt_trend        F             ! adapt on trend (T) or variables (F)
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
 perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)
 tol      	   1e-1          ! non-dimensional tolerance

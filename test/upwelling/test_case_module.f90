@@ -1,5 +1,5 @@
 Module test_case_mod
-  ! Module file for Drake passage test case
+  ! Module file for upwelling test case
   use shared_mod
   use comm_mpi_mod
   use utils_mod
@@ -20,6 +20,10 @@ Module test_case_mod
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
   logical                              :: rich_diff
+
+  real(8), parameter :: b_max = 1.25d2  ! maximum height of bathymetry
+  real(8), parameter :: slope = 1.3d-4 ! slope parameter (larger value -> steeper slope)
+  real(8), parameter :: shift = 8
 contains
   subroutine read_test_case_parameters
     implicit none
@@ -96,7 +100,6 @@ contains
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
        write (6,'(a,l1)')     "log_iter                       = ", log_iter
-       write (6,'(A,L1)')     "adapt_trend                    = ", adapt_trend
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(A,L1)')     "perfect                        = ", perfect
        write (6,'(A,es10.4)') "tolerance                      = ", tol
@@ -114,7 +117,7 @@ contains
 
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius                   [km]  = ", radius / KM
-       write (6,'(A,es10.4)') "omega                 [rad/s]  = ", omega
+       write (6,'(A,es11.4)') "omega                 [rad/s]  = ", omega
        write (6,'(A,es10.4)') "ref density          [kg/m^3]  = ", ref_density
        write (6,'(A,es10.4)') "grav accel            [m/s^2]  = ", grav_accel
 
@@ -353,6 +356,22 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
   end subroutine init_sol
 
+   subroutine init_tke (dom, i, j, zlev, offs, dims)
+    ! Initialize TKE
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer  :: d, id
+
+    d    = dom%id+1
+    id   = idx (i, j, offs, dims) + 1
+
+    tke(zlev)%data(d)%elts(id) = 0.0_8
+  end subroutine init_tke
+
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values
     implicit none
@@ -411,18 +430,15 @@ contains
     implicit none
     type(Coord) :: p
 
-    real(8)            :: amp, lat, lon, y
-    real(8), parameter :: b_max = 1.2d2  ! maximum height of bathymetry
-    real(8), parameter :: slope = 1.2d-4 ! slope parameter (larger value -> steeper slope)
+    real(8) :: amp, lat, lon, y
 
     call cart2sph (p, lon, lat)
 
-    amp = b_max / (1.0_8 - tanh (-slope*width/8))
-
     lat = lat / DEG
     if (abs(lat-lat_c) <= lat_width/2) then
+       amp = b_max / (1.0_8 - tanh (-slope*width/shift))
        y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel
-       surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/8)))
+       surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
     else
        surf_geopot = b_max
     end if
@@ -570,11 +586,7 @@ contains
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
     else
-       if (adapt_trend) then
-          call cal_lnorm_trend (trend, order)
-       else
-          call cal_lnorm_sol (sol, order)
-       end if
+       call cal_lnorm_sol (sol, order)
        threshold_new = tol * lnorm
        ! Correct very small values
        do k = 1, zmax
@@ -737,7 +749,7 @@ contains
     select case (itype)
     case ("bathymetry")
 !!$       nsmth = 2 * (l - min_level)
-       nsmth = 0
+       nsmth = 2
        dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = 0
@@ -825,6 +837,20 @@ contains
     end if
     tau_merid = 0.0_8
   end subroutine wind_stress
+
+  real(8) function tau (p)
+    ! Magnitude of wind stress at node p
+    implicit none
+    type(Coord) :: p
+
+    real(8) :: lat, lon, tau_zonal, tau_merid
+
+    call cart2sph (p, lon, lat)
+
+    call wind_stress (lon, lat, tau_zonal, tau_merid)
+
+    tau = sqrt (tau_zonal**2 + tau_merid**2)
+  end function tau
 
   subroutine set_save_level
     ! Save top layer
@@ -987,7 +1013,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-   upwelling_top = 0.0_8
+    upwelling_top = 0.0_8
   end function upwelling_top
 
   function upwelling_drag (dom, i, j, zlev, offs, dims)
@@ -1004,7 +1030,7 @@ contains
     real(8), dimension(0:NORTHEAST) :: full_mass
 
 
-    id   = idx (i, j, offs, dims)
+    id = idx (i, j, offs, dims)
 
     if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
        d = dom%id + 1

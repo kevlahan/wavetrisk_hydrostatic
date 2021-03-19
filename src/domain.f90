@@ -70,9 +70,10 @@ module domain_mod
   type(Domain), dimension(:), allocatable, target        :: grid
 
   type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, penal_node, penal_edge
+  type(Float_Field), dimension(:),   allocatable, target :: tke, wav_tke
   type(Float_Field), dimension(:),   allocatable, target :: Laplacian_scalar, Laplacian_vector
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_mean, sol_save, trend
-  type(Float_Field), dimension(:,:), allocatable, target :: wav_coeff, trend_wav_coeff
+  type(Float_Field), dimension(:,:), allocatable, target :: wav_coeff
 
   real(8), dimension(:), pointer :: diag, mass, mass1, h_flux, h_mflux
   real(8), dimension(:), pointer :: dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
