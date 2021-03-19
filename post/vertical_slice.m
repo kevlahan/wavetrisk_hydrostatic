@@ -122,8 +122,12 @@ if strcmp(type,'interp')
     contourf(x_unif, z_unif, data, c_scale, 'LineColor', 'none' ); hold on
 elseif strcmp(type,'raw')
     for k = 1:zlevels
+        z11 = zlat(1,k,1);
+        z12 = 0.5 * (zlat(1,k,1) + zlat(2,k,1));
+        z21 = 0.5 * (zlat(1,k,2) + zlat(2,k,2));
+        z22 = zlat(1,k,2);
         x = [xlat(1,1) xlat(1,2) xlat(1,2) xlat(1,1)];
-        y = [zlat(1,k,1) zlat(1,k,1) zlat(1,k,2) zlat(1,k,2)];
+        y = [z11 z12 z21 z22];
         patch(x,y,dat(1,k),'LineStyle','none');
         for i = 2:Nlat-1
             z11 = 0.5 * (zlat(i-1,k,1) + zlat(i,  k,1));
@@ -136,8 +140,12 @@ elseif strcmp(type,'raw')
             y = [z11 z12 z21 z22];
             patch(x,y,dat(i,k),'LineStyle','none');
         end
+        z11 = 0.5 * (zlat(Nlat-1,k,1) + zlat(Nlat,k,1));
+        z12 = zlat(Nlat,k,1);
+        z21 = zlat(Nlat,k,2);
+        z22 = 0.5 * (zlat(Nlat-1,k,2) + zlat(Nlat,k,2));
         x = [xlat(Nlat,1) xlat(Nlat,2) xlat(Nlat,2) xlat(Nlat,1)];
-        y = [zlat(Nlat,k,1) zlat(Nlat,k,1) zlat(Nlat,k,2) zlat(Nlat,k,2)];
+        y = [z11 z12 z21 z22];
         patch(x,y,dat(Nlat,k),'LineStyle','none');
     end
     hold on
