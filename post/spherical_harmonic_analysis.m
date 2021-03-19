@@ -4,14 +4,14 @@ test_case  = 'drake';
 %run_id     = '1layer_J6'; cp_id = '0015';
 %run_id     = '2layer_J6'; cp_id = '0015';
 %run_id     = '1layer_fast'; cp_id = '0015';
-%run_id     =  '2layer_fast'; cp_id = '0015';
+run_id     =  '2layer_fast'; cp_id = '0015';
 %run_id     = '2layer_equal'; cp_id = '0019';
 %run_id     = '2layer_mix'; cp_id = '0075';
-run_id     = '2layer_thin'; cp_id = '0014';
+%run_id     = '2layer_thin'; cp_id = '0014';
 %run_id     = '2layer_mix_slow'; cp_id = '0009';
-type       = 'baroclinic_2';
+%type       = 'baroclinic_1';
 %type       = 'total_2';
-%type       = 'barotropic';
+type       = 'baroclinic_2';
 local      = true;
 machine    = 'if.mcmaster.ca';
 %machine    = 'niagara.computecanada.ca';
@@ -69,15 +69,15 @@ lambda1    = c1/f0;             % internal radius of deformation
 deltaSM    = uwbc/f0;           % submesoscale
 deltaI     = sqrt(uwbc/beta);   % inertial layer
 deltaM     = (visc/beta)^(1/3); % Munk layer 
-%% Load local region data
+
 file_base   = [run_id '_' cp_id '_' type];
 remote_file = ['~/hydro/' test_case '/' file_base];
 local_file  = ['~/hydro/' test_case '/' file_base];
+%% Load local region data
 scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
 if ~strcmp(machine,'mac') 
     unix (sprintf(scp_cmd));
 end
-
 %% Plot local region
 fid = fopen(local_file);
 data = fread(fid,'single');
@@ -92,26 +92,25 @@ lon  = (-N/2:N/2) * 360/N;
 lat  = (-N/4:N/4) * 360/N;
 
 % Target area for local spectral analysis
+region = 'mid';
 if local
-%     % Vortical region at southern edge of land mass
-%     lat0   = -40;
-%     lon0   =  20;
-%     theta0 =  30;
-    
-%     % Vortical region at equator
-%     lat0   = 0;
-%     lon0   = 20;
-%     theta0 = 15;
-    
-%     % Vortical region at 45 N
-%     lat0   =  45;
-%     lon0   =  30;
-%     theta0 =  20;
-    
-    % Laminar region
-    lat0   =  0;
-    lon0   = -100;
-    theta0 =  20;
+    if strcmp(region,'southern') % Vortical region at southern edge of land mass
+        lat0   = -40;
+        lon0   =  20;
+        theta0 =  30;
+    elseif strcmp(region,'equator') % Vortical region at equator
+        lat0   = 0;
+        lon0   = 35;
+        theta0 = 20;
+    elseif strcmp(region,'mid') % Vortical region at 45 N
+        lat0   =  45;
+        lon0   =  35;
+        theta0 =  20;
+    elseif strcmp(region,'laminar') % Laminar region
+        lat0   =  0;
+        lon0   = -100;
+        theta0 =  20;
+    end
     
     lat_min = lat0 - theta0;
     lat_max = lat0 + theta0;
@@ -125,13 +124,15 @@ else
 end
 ax = [lon_min lon_max lat_min lat_max];
 
-c_scale = linspace(dmin/10, dmax/10, 100); 
+c_scale = linspace(dmin*0.8, dmax*0.8, 100); 
+%c_scale = linspace(-1e-4, 1e-4, 100);
 v_title = 'vorticity';
 smooth  = 0;
 lines   = 0;
 shift   = 0;
-plot_lon_lat_data(data, lon, lat, c_scale, v_title, smooth, shift, lines);
+plot_lon_lat_data(data(1:4:end,1:4:end), lon(1:4:end), lat(1:4:end), c_scale, v_title, smooth, shift, lines);
 axis(ax);
+%axis([10 60 -40 50])
 %% Load spectrum data
 file_base   = [run_id '_' cp_id '_' type '_spec'];
 remote_file = ['~/hydro/' test_case '/' file_base];
@@ -161,7 +162,7 @@ if strcmp(type,'barotropic')
         powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
         powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
     elseif strcmp(run_id,'2layer_fast')
-        powerlaw (scales, pspec(:,2), 700, 20, -3, 'm--')
+        powerlaw (scales, pspec(:,2), 200, 20, -3, 'm--')
         powerlaw (scales, pspec(:,2),  20,  2, -5, 'c--')
     elseif strcmp(run_id,'2layer_mix')
         powerlaw (scales, pspec(:,2), 200, 30, -2.5, 'm--')
@@ -223,7 +224,7 @@ end
 % Local power spectra
 if local
     theta0 = 20;
-    file_base   = [run_id '_' cp_id '_' type '_local_turb_spec'];
+    file_base   = [run_id '_' cp_id '_' type '_local_equatorial_spec'];
     remote_file = ['~/hydro/' test_case '/' file_base];
     local_file  = ['~/hydro/' test_case '/' file_base];
     scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
@@ -233,15 +234,16 @@ if local
     lspec = load(local_file);
     lspec(:,2) = lspec(:,2)./lspec(:,1).^2; %* (1 - cos(deg2rad(theta0)));
     lscales = 2*pi*radius/1e3./sqrt(lspec(:,1).*(lspec(:,1)+1)); % equivalent length scale (Jeans relation)
-
-    loglog(lscales,lspec(:,2),'g-','linewidth',2,'DisplayName','turbulent');hold on; grid on;
+    
+    loglog(lscales,lspec(:,2),'g-','linewidth',2,'DisplayName','equitorial');hold on; grid on;
+    powerlaw (lscales, lspec(:,2), 2000, 10, -2, 'm-.')
     if strcmp(type,'barotropic') && ~strcmp(run_id,'2layer_thin')
         powerlaw (lscales, lspec(:,2),  2500,  100, -0.8, 'r--')
     elseif strcmp(run_id,'2layer_thin')
-       powerlaw (lscales, lspec(:,2),  2500,  100, -1.3, 'r--') 
+        powerlaw (lscales, lspec(:,2),  2500,  100, -1.3, 'r--')
     end
     
-    file_base   = [run_id '_' cp_id '_' type '_local_lam_spec'];
+    file_base   = [run_id '_' cp_id '_' type '_local_mid_spec'];
     remote_file = ['~/hydro/' test_case '/' file_base];
     local_file  = ['~/hydro/' test_case '/' file_base];
     scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
@@ -250,14 +252,14 @@ if local
     end
     lspec = load(local_file);
     lspec(:,2) = lspec(:,2)./lspec(:,1).^2 * (1 - cos(deg2rad(theta0)));
-    loglog(lscales,lspec(:,2),'k-','linewidth',2,'DisplayName','laminar');
+    loglog(lscales,lspec(:,2),'k-','linewidth',2,'DisplayName','mid latitude');
     
     if strcmp(run_id,'2layer_fast')
         if strcmp(type,'barotropic')
-            powerlaw (lscales, lspec(:,2), 700, 20, -4, 'm--')
+            powerlaw (lscales, lspec(:,2), 200, 20, -3, 'm-.')
         elseif strcmp(type,'baroclinic_2')
-            powerlaw (lscales, lspec(:,2), 200, 40, -3, 'm--')
-            powerlaw (lscales, lspec(:,2), 40, 10, -5/3, 'b--')
+            powerlaw (lscales, lspec(:,2), 200, 10, -5/3, 'm--')
+            %powerlaw (lscales, lspec(:,2), 2000, 10, -2, 'b--')
         end
     elseif strcmp(run_id,'2layer_equal')
         if strcmp(type,'barotropic')
