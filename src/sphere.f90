@@ -326,7 +326,7 @@ contains
   end function proj_vel
 
   real(8) function proj_vel_eta (vel_fun, ep1, ep2, eta_z)
-    !extention of proj_vel that allows for another parameter eta_z to be passed in vel_fun
+    ! Extension of proj_vel that allows for another parameter eta_z to be passed in vel_fun
     implicit none
     external    :: vel_fun
     type(Coord) :: co, ep1, ep2
