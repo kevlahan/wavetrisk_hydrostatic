@@ -51,7 +51,7 @@ contains
     dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)  + sol(S_MASS,zlev)%data(d)%elts(idN+1)) &
          / porous_density (dom, i, j+1, zlev, offs, dims)
 
-    dz_e = interp_e (dz(0), dz(1:EDGE))
+    dz_e = 0.5 * (dz(0) + dz(1:EDGE))
   end function dz_e
 
   function dz_SW_e (dom, i, j, zlev, offs, dims)
@@ -85,7 +85,7 @@ contains
     dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idS+1)  + sol(S_MASS,zlev)%data(d)%elts(idS+1)) &
          / porous_density (dom, i, j-1, zlev, offs, dims)
 
-    dz_SW_e = interp_e (dz(0),  dz(1:EDGE))
+    dz_SW_e = 0.5 * (dz(0) + dz(1:EDGE))
   end function dz_SW_e
   
   real(8) function zl_i (dom, i, j, zlev, offs, dims, l)
@@ -225,7 +225,7 @@ contains
   end function interp
 
   function interp_e (e1, e2)
-    ! Centred average interpolation of quantities e1 and e2
+    ! Centred average interpolation of edge quantities e1 and e2
     implicit none
     real(8), dimension(1:EDGE) :: interp_e
     real(8), dimension(1:EDGE) :: e1, e2
