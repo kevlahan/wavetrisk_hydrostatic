@@ -965,10 +965,9 @@ contains
     integer                       :: d, id, id_i, idW, idSW, idS, k, outl
     real(8)                       :: full_mass, full_temp, total_depth, total_height
     real(4), dimension(N_VAR_OUT) :: outv
-    real(8), dimension(2)         :: vel_latlon
 
-    d = dom%id + 1
-    id   = idx (i,   j,   offs, dims)
+    d    = dom%id + 1
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then

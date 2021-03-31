@@ -128,8 +128,12 @@ program flat_projection_data
      ref_density    = 1027     * KG/METRE**3     
 
      max_depth   =  -150 * METRE
-     drho        =    -2.5 * KG/METRE**3               
+     min_depth   =   -25 * METRE
+     Tcline      =  - 50 * METRE
+     drho        =    -2.5 * KG/METRE**3
 
+     sigma_z        = .true.                       ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     coords         = "croco"                      ! grid type for pure sigma grid ("croco" or "uniform")
      mode_split     = .true.
      mean_split     = .true.
      compressible   = .false.                            
@@ -497,11 +501,12 @@ contains
     ! Save vertical slicse along given latitude and longitude for incompressible test cases
     use barotropic_2d_mod
     implicit none
-    integer :: d, i, j, k, l, idx_lat, idx_lon
-    real(8) :: dz, z_s
+    integer                         :: d, i, j, k, l, idx_lat, idx_lon
+    real(8)                         :: dz, eta, z_s
+    real(8), dimension(0:zlevels)   :: z
     real(8), dimension(Ny(1):Ny(2)) :: bathy_lat
     real(8), dimension(Nx(1):Nx(2)) :: bathy_lon
-    logical, parameter :: zonal = .true. ! compute zonal averages
+    logical, parameter              :: zonal = .true. ! compute zonal averages
 
     ! Find indices of latitude and longitude slices
     idx_lat = minloc (abs(lat-lat_val), DIM=1) + Ny(1) - 1
@@ -598,22 +603,36 @@ contains
     do i = Ny(1), Ny(2)
        xcoord_lat(i,1) = lat(i) - dy_export/2 / DEG
        xcoord_lat(i,2) = lat(i) + dy_export/2 / DEG
-
+       
        z_s = bathy_lat(i)
+       eta = eta_lat(i)
+       if (sigma_z) then
+          z = z_coords (eta_lat(i), z_s)
+       else
+          z = a_vert * eta + b_vert * z_s
+       end if
+    
        do k = 1, zlevels
-          zcoord_lat(i,k,1) = a_vert(k-1) * eta_lat(i) + b_vert(k-1) * z_s
-          zcoord_lat(i,k,2) = a_vert(k)   * eta_lat(i) + b_vert(k)   * z_s
+          zcoord_lat(i,k,1) = z(k-1)
+          zcoord_lat(i,k,2) = z(k)  
        end do
     end do
 
     do i = Nx(1), Nx(2)
        xcoord_lon(i,1) = lon(i) - dx_export/2 / DEG
        xcoord_lon(i,2) = lon(i) + dx_export/2 / DEG
-
+       
        z_s = bathy_lon(i)
+       eta = eta_lon(i)
+       if (sigma_z) then
+          z = z_coords (eta, z_s)
+       else
+          z = a_vert * eta + b_vert * z_s
+       end if
+       
        do k = 1, zlevels
-          zcoord_lon(i,k,1) = a_vert(k-1) * eta_lon(i) + b_vert(k-1) * z_s
-          zcoord_lon(i,k,2) = a_vert(k)   * eta_lon(i) + b_vert(k)   * z_s
+          zcoord_lon(i,k,1) = z(k-1)
+          zcoord_lon(i,k,2) = z(k)  
        end do
     end do
   end subroutine vertical_slice

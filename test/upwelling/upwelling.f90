@@ -31,7 +31,7 @@ program upwelling
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
   alpha              = 1d-6                         ! porosity used in penalization
-  npts_penal         = 4.5                           ! number of points to smooth over in penalization
+  npts_penal         = 2.5                           ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
@@ -45,11 +45,13 @@ program upwelling
   implicit_diff_sclr = .false.
   implicit_diff_divu = .false.
   vert_diffuse       = .true.                        ! include vertical diffusion
-  
-  coords             = "croco"                       ! chebyshev, croco, roms, or uniform
-  
+         
   ! Depth and layer parameters
+  sigma_z            = .false.                       ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+  coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
   max_depth          = -150 * METRE                  ! total depth
+  min_depth          =  -25 * METRE                  ! minimum depth
+  Tcline             =  -50 * METRE                  ! position of thermocline
 
   ! Land mass parameters
   width              = 80 * KM                       ! width of zonal channel
@@ -57,16 +59,13 @@ program upwelling
   lat_c              = 45                            ! centre of zonal channel (in degrees)
   
   ! Bottom friction
-  friction_upwelling = 3d-4
-
-  ! Vertical diffusion type
-  rich_diff          = .false.                       ! richardson if true, roms if false               
+  friction_upwelling = 3d-4           
 
   ! Wind stress
   tau_0              = 0.1_8
 
   ! Vertical level to save
-  save_zlev          = 3
+  save_zlev          = zlevels
 
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
@@ -102,7 +101,8 @@ program upwelling
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, &
-          bottom_friction=friction_upwelling, wind_d=upwelling_drag, source_b=upwelling_bottom, source_t=upwelling_top)
+          bottom_friction=friction_upwelling, wind_tau=tau, wind_d=upwelling_drag, &
+          source_b=upwelling_bottom, source_t=upwelling_top)
      call stop_timing
 
      call update_diagnostics
@@ -111,7 +111,7 @@ program upwelling
 
      if (aligned) then
         iwrite = iwrite + 1
-        if (remap) call remap_vertical_coordinates
+        call remap_vertical_coordinates
 
         ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then

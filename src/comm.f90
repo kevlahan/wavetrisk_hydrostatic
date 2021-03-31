@@ -978,60 +978,6 @@ contains
     end do
   end subroutine min_dt
 
-  subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
-    ! Calculates minimum mass and diffusion stability limits
-    use utils_mod
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id, id_e, id_i, k, l
-    real(8) :: col_mass, d_e, fac, full_mass, init_mass
-
-    id   = idx (i, j, offs, dims)
-    id_i = id + 1
-    d    = dom%id + 1
-
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       col_mass = 0.0_8
-       do k = 1, zlevels
-          full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-          if (full_mass < 0.0_8 .or. full_mass /= full_mass) then
-             write (6,'(A,i8,A,i2,2(A,i2),A)') "Mass negative at id = ", id_i, " with scale j = ", dom%level%elts(id_i),  &
-                  " vertical level k = ", k, " and mask = ", dom%mask_n%elts(id_i), " ... aborting"
-             call abort
-          end if
-          col_mass = col_mass + full_mass
-       end do
-       
-       ! Measure relative change in mass
-       do k = 1, zlevels
-          if (compressible) then
-             init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
-             min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
-          else
-             init_mass = porous_density (dom, i, j, k, offs, dims) * b_vert_mass(k) * dom%topo%elts(id_i) ! ignore initial free surface perturbation
-             full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-             min_mass_loc = min (min_mass_loc, full_mass/init_mass)
-          end if
-       end do
-       
-       ! Check diffusion stability
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          if (dom%mask_e%elts(id_e) >= ADJZONE) then
-             d_e = dom%len%elts(id_e) ! triangle edge length
-             fac = dt/d_e**(2*Laplace_order)
-             beta_sclr_loc = max (beta_sclr_loc, maxval(visc_sclr) * fac)
-             beta_divu_loc = max (beta_divu_loc, visc_divu * fac)
-             beta_rotu_loc = max (beta_rotu_loc, visc_rotu * fac)
-          end if
-       end do
-    end if
-  end subroutine cal_min_mass
-
   integer function domain_load (dom)
     implicit none
     type(Domain) :: dom

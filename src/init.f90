@@ -35,7 +35,7 @@ contains
     allocate (horiz_flux(scalars(1):scalars(2)), Laplacian_scalar(scalars(1):scalars(2)))
     allocate (Laplacian_vector(S_DIVU:S_ROTU))
     allocate (lnorm(1:N_VARIABLE,1:zmax))
-    if (vert_diffuse) allocate (tke(1:zlevels), wav_tke(1:zlevels))
+    if (vert_diffuse) allocate (Kt(0:zlevels), Kv(0:zlevels), tke(1:zlevels), wav_tke(1:zlevels))
 
     do k = 1, zmax
        call init_Float_Field (penal_node(k), AT_NODE)
@@ -50,7 +50,11 @@ contains
     call init_Float_Field (exner_fun(zmax+1), AT_NODE)
     
     if (vert_diffuse) then
+       call init_Float_Field (Kv(0), AT_NODE)
+       call init_Float_Field (Kt(0), AT_NODE)
        do k = 1, zlevels
+          call init_Float_Field (Kv(k),  AT_NODE)
+          call init_Float_Field (Kt(k),  AT_NODE)
           call init_Float_Field (tke(k), AT_NODE)
        end do
     end if
@@ -353,8 +357,12 @@ contains
     end do
 
     if (vert_diffuse) then
-       do k = 1, zlevels
-          do d = 1, size(grid)
+       do d = 1, size(grid)
+          call init (Kt(0)%data(d), grid(d)%node%length)
+          call init (Kv(0)%data(d), grid(d)%node%length)
+          do k = 1, zlevels
+             call init (Kt(k)%data(d),  grid(d)%node%length)
+             call init (Kv(k)%data(d),  grid(d)%node%length)
              call init (tke(k)%data(d), grid(d)%node%length)
           end do
        end do

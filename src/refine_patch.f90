@@ -178,8 +178,12 @@ contains
     call extend (exner_fun(zmax+1)%data(d), num, 0.0_8)
 
     if (vert_diffuse) then
+       call extend (Kt(0)%data(d), num, 0.0_8)
+       call extend (Kv(0)%data(d), num, 0.0_8)
        do k = 1, zlevels
-          call extend (tke(k)%data(d),     num, 0.0_8)
+          call extend (Kt(k)%data(d),      num, 0.0_8)
+          call extend (Kv(k)%data(d),      num, 0.0_8)
+          call extend (tke(k)%data(d),     num, 1d-6)
           call extend (wav_tke(k)%data(d), num, 0.0_8)
        end do
     end if

@@ -1230,39 +1230,6 @@ contains
     level_end = level_end_glo
   end function cpt_dt
 
-  real(8) function cpt_min_mass ()
-    ! Calculates minimum relative mass and checks diffusion stability limits
-    use mpi
-    implicit none
-    integer :: ierror, l
-    real(8) :: beta_sclr, beta_divu, beta_rotu
-
-    min_mass_loc = 1d16
-    beta_sclr_loc = -1d16; beta_divu_loc = -1d16; beta_rotu_loc = -1d16
-    do l = level_start, level_end
-       call apply_onescale (cal_min_mass, l, z_null, 0, 0)
-    end do
-
-    call MPI_Allreduce (min_mass_loc, cpt_min_mass, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    
-    call MPI_Allreduce (beta_sclr_loc, beta_sclr, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-    call MPI_Allreduce (beta_divu_loc, beta_divu, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-    call MPI_Allreduce (beta_rotu_loc, beta_rotu, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-
-    ! Check Klemp (2018) diffusion stability limits are satisfied
-    if (rank == 0) then
-       if (beta_sclr > (1.0_8/2)**Laplace_order_init .and. .not. implicit_diff_sclr) &
-            write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &
-            " is larger than ",  (1.0_8/2)**Laplace_order_init
-       if (beta_divu > (1.0_8/2)**Laplace_order_init .and. .not. implicit_diff_divu) &
-            write (6,'(2(a,es8.2))') "WARNING: divu diffusion coefficient = ", beta_divu, &
-            " is larger than ",  (1.0_8/2)**Laplace_order_init
-       if (beta_rotu > (1.0_8/2/4)**Laplace_order_init) &
-            write (6,'(2(a,es8.2))') "WARNING: rotu diffusion coefficient = ", beta_rotu, &
-            " is larger than ",  (1.0_8/2/4)**Laplace_order_init
-    end if
-  end function cpt_min_mass
-
   integer function sync_max_int (val)
     use mpi
     implicit none

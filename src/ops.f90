@@ -1447,6 +1447,104 @@ contains
     scalar(id_i) = ref_density * (1.0_8 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
   end subroutine cal_density
 
+  real(8) function cpt_min_mass ()
+    ! Calculates minimum relative mass and checks diffusion stability limits
+    use mpi
+    implicit none
+    integer :: ierror, l
+    real(8) :: beta_sclr, beta_divu, beta_rotu
+
+    min_mass_loc = 1d16
+    beta_sclr_loc = -1d16; beta_divu_loc = -1d16; beta_rotu_loc = -1d16
+    do l = level_start, level_end
+       call apply_onescale (cal_min_mass, l, z_null, 0, 0)
+    end do
+
+    call MPI_Allreduce (min_mass_loc, cpt_min_mass, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    
+    call MPI_Allreduce (beta_sclr_loc, beta_sclr, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (beta_divu_loc, beta_divu, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (beta_rotu_loc, beta_rotu, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+
+    ! Check Klemp (2018) diffusion stability limits are satisfied
+    if (rank == 0) then
+       if (beta_sclr > (1.0_8/2)**Laplace_order_init .and. .not. implicit_diff_sclr) &
+            write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &
+            " is larger than ",  (1.0_8/2)**Laplace_order_init
+       if (beta_divu > (1.0_8/2)**Laplace_order_init .and. .not. implicit_diff_divu) &
+            write (6,'(2(a,es8.2))') "WARNING: divu diffusion coefficient = ", beta_divu, &
+            " is larger than ",  (1.0_8/2)**Laplace_order_init
+       if (beta_rotu > (1.0_8/2/4)**Laplace_order_init) &
+            write (6,'(2(a,es8.2))') "WARNING: rotu diffusion coefficient = ", beta_rotu, &
+            " is larger than ",  (1.0_8/2/4)**Laplace_order_init
+    end if
+  end function cpt_min_mass
+
+  subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
+    ! Calculates minimum mass and diffusion stability limits
+    use utils_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                       :: d, e, id, id_e, id_i, k, l
+    real(8)                       :: col_mass, d_e, fac, full_mass, init_mass, rho, z_s
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
+
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
+    d    = dom%id + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       col_mass = 0.0_8
+       do k = 1, zlevels
+          full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+          if (full_mass < 0.0_8 .or. full_mass /= full_mass) then
+             write (6,'(A,i8,A,i2,2(A,i2),A)') "Mass negative at id = ", id_i, " with scale j = ", dom%level%elts(id_i),  &
+                  " vertical level k = ", k, " and mask = ", dom%mask_n%elts(id_i), " ... aborting"
+             call abort
+          end if
+          col_mass = col_mass + full_mass
+       end do
+
+       z_s = dom%topo%elts(id_i)
+       if (sigma_z) then
+          z = z_coords (0.0_8, z_s)
+       else
+          z = b_vert * z_s
+       end if
+       dz = z(1:zlevels) - z(0:zlevels-1)
+
+       ! Measure relative change in mass
+       do k = 1, zlevels
+          if (compressible) then
+             init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
+             min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
+          else
+             rho = porous_density (dom, i, j, k, offs, dims)
+             init_mass = rho * dz(k)
+             full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+             min_mass_loc = min (min_mass_loc, full_mass/init_mass)
+          end if
+       end do
+       
+       ! Check diffusion stability
+       do e = 1, EDGE
+          id_e = EDGE*id + e
+          if (dom%mask_e%elts(id_e) >= ADJZONE) then
+             d_e = dom%len%elts(id_e) ! triangle edge length
+             fac = dt/d_e**(2*Laplace_order)
+             beta_sclr_loc = max (beta_sclr_loc, maxval(visc_sclr) * fac)
+             beta_divu_loc = max (beta_divu_loc, visc_divu * fac)
+             beta_rotu_loc = max (beta_rotu_loc, visc_rotu * fac)
+          end if
+       end do
+    end if
+  end subroutine cal_min_mass
+
   subroutine comp_offs3 (dom, p, offs, dims)
     implicit none
     type(Domain)                 :: dom

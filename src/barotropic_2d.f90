@@ -1,5 +1,5 @@
 module barotropic_2d_mod
-  ! Files needed to solve barotropic free surface 
+  ! Files needed to solve barotropic free surface
   use ops_mod
   use multi_level_mod
   use lin_solve_mod
@@ -441,7 +441,12 @@ contains
 
     ! Integrate up to find vertical velocity, stored in trend(S_TEMP,1:zlevels)
     do l = level_end, level_start, -1
-       call apply_onescale (cal_vertical_velocity, l, z_null, 0, 1)
+       do d = 1, size(grid)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_vertical_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (velo1, velo2)
+       end do
     end do
     trend(S_TEMP,:)%bdry_uptodate = .false.
     call update_vector_bdry (trend(S_TEMP,:), NONE, 500)
@@ -450,34 +455,115 @@ contains
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)
     ! Vertical velocity
     ! (recall that we compute -div quantities)
-    use utils_mod
+    use test_case_mod
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                        :: d, id, k
+    integer                        :: d, id, id_i, k
     real(8)                        :: deta_dt, rho
-    real(8), dimension (0:zlevels) :: w_vert
+    real(8), dimension (0:zlevels) :: w 
     
-    id = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
 
-    if (dom%mask_n%elts(id) >= ADJZONE) then
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
        d = dom%id + 1
-       deta_dt = trend(S_MASS,1)%data(d)%elts(id)
-
+       deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
+       
        ! Vertical velocity at layer interfaces
-       w_vert(0) = 0.0_8; w_vert(zlevels) = 0.0_8 ! impose zero flux at bottom and top
+       w(0) = 0.0_8; w(zlevels) = 0.0_8 ! impose zero vertical velocity at bottom and top
        do k = 1, zlevels-1
-          w_vert(k) = w_vert(k-1) - (a_vert_mass(k) * deta_dt - exner_fun(k)%data(d)%elts(id)) 
+          w(k) = w(k-1) + exner_fun(k)%data(d)%elts(id_i)
        end do
 
-       ! Interpolate to nodes and normalize
-       do k = 1, zlevels
+       ! Interpolate to nodes and remove density
+       do k = zlevels, 1, -1
           rho = porous_density (dom, i, j, k, offs, dims)
-          trend(S_TEMP,k)%data(d)%elts(id) = interp (w_vert(k-1), w_vert(k)) / rho
+          w(k) = interp (w(k-1), w(k)) / rho
+       end do
+       
+       ! Compute vertical velocity relative to z coordinate
+       do k = 1, zlevels
+          trend(S_TEMP,k)%data(d)%elts(id_i) = w(k) + proj_vel_vertical ()
        end do
     end if
+  contains
+    real(8) function proj_vel_vertical ()
+      ! Computes grad_zonal(z) * u_zonal + grad_merid(z) * u_merid at hexagon centres for vertical velocity computation.
+      ! Uses Perot formula as also used for kinetic energy:
+      ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area
+      implicit none
+      integer     :: idN, idE, idNE, idS, idSW, idW
+
+      velo => sol(S_VELO,k)%data(d)%elts
+      
+      idE  = idx (i+1, j,   offs, dims)
+      idNE = idx (i+1, j+1, offs, dims)
+      idN  = idx (i,   j+1, offs, dims)
+      idW  = idx (i-1, j,   offs, dims)
+      idSW = idx (i-1, j-1, offs, dims)
+      idS  = idx (i,   j-1, offs, dims)
+    
+      proj_vel_vertical =  &
+           (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
+           (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6
+      
+      nullify (velo)
+    end function proj_vel_vertical
+
+    real(8) function vert_vel (i1, j1, i2, j2, ide)
+      implicit none
+      integer :: i1, j1, i2, j2, ide
+
+      real(8) :: dl, dz
+
+      dz =  z_i (dom, i2, j2, k, offs, dims) - z_i (dom, i1, j1, k, offs, dims)
+      dl = dom%len%elts(ide)
+
+      vert_vel = dz / sqrt (dl**2 + dz**2) * velo(ide)
+    end function vert_vel
   end subroutine cal_vertical_velocity
+  
+  subroutine cal_omega (dom, i, j, zlev, offs, dims)
+    ! Velocity flux across interfaces
+    ! (recall that we compute -div quantities)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                        :: d, id_i, k
+    real(8)                        :: deta_dt, eta, rho, z_s
+    real(8), dimension (0:zlevels) :: omega, z
+    
+    id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       d = dom%id + 1
+
+       if (sigma_z) then
+          eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+          z_s = dom%topo%elts(id_i)
+          z = z_coords (eta, z_s) ! set a_vert
+       end if
+
+       deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
+       
+       omega(0) = 0.0_8; omega(zlevels) = 0.0_8 ! impose zero flux at bottom and top
+       do k = 1, zlevels-1
+          omega(k) = omega(k-1) - ((a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i))
+       end do
+       do k = zlevels, 1, -1
+          rho = porous_density (dom, i, j, k, offs, dims)
+          omega(k) = interp (omega(k-1), omega(k)) / rho
+       end do
+       do k = 1, zlevels
+          trend(S_TEMP,k)%data(d)%elts(id_i) = omega(k)
+       end do
+    end if
+  end subroutine cal_omega
 end module barotropic_2d_mod

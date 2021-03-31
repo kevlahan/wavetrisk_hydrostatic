@@ -6,7 +6,7 @@ module test_case_mod
   use utils_mod
   implicit none
   integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev 
-  real(8)                              :: initotalmass, mass_error, npts_penal, totalmass, ref_surf_press, scale
+  real(8)                              :: initotalmass, mass_error, max_depth, npts_penal, totalmass, ref_surf_press, scale
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
   logical                              :: mean_split
@@ -16,22 +16,21 @@ module test_case_mod
   ! DCMIP2008c5
   real(8) :: d2, h_0, lat_c, lon_c
   ! Drake
-  real(8)               :: drho, halocline, max_depth, mixed_layer
+  real(8)               :: drho, halocline, mixed_layer
   real(8), dimension(2) :: density_drake, height
   ! Seamount
   real(8) :: delta, h0, lat_val, lon_val, width
   character(255) :: coords, stratification
   ! Upwelling
-  real(8)  :: lat_width
-  real(8), parameter :: b_max = 1.25d2  ! maximum height of bathymetry
-  real(8), parameter :: slope = 1.3d-4  ! slope parameter (larger value -> steeper slope)
-  real(8), parameter :: curve = 8      ! curvature at boundary
+  real(8)            :: lat_width, min_depth, Tcline
+  real(8), parameter :: slope = 1.3d-4 ! slope parameter (larger value -> steeper slope)
+  real(8), parameter :: shift = 8
 contains
   real(8) function surf_geopot (x_i)
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
-    real(8)     :: amp, c1, cs2, sn2, lon, lat, rgrc, y
+    real(8)     :: amp, b_max, c1, cs2, sn2, lon, lat, rgrc, y
     
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
@@ -54,11 +53,12 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
-       amp = b_max / (1.0_8 - tanh (-slope*width/curve))
+       b_max = abs (max_depth - min_depth)
        lat = lat / DEG
        if (abs(lat-lat_c) <= lat_width/2) then
-          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel
-          surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/curve)))
+          amp = b_max / (1.0_8 - tanh (-slope*width/shift))
+          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel                                               
+          surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
        else
           surf_geopot = b_max
        end if
@@ -73,12 +73,12 @@ contains
     ! Surface geopotential
     implicit none
     real(8)            :: lon, lat
-    real(8)            :: amp, c1, cs2, sn2, rgrc, y
+    real(8)            :: amp, b_max, c1, cs2, sn2, rgrc, y
 
     ! Find latitude and longitude from Cartesian coordinates
     cs2 = cos(lat)**2
     sn2 = sin(lat)**2
-    
+
     if (trim (test_case) == "DCMIP2012c4") then
        c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
 
@@ -96,11 +96,12 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot_latlon = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
-       amp = b_max / (1.0_8 - tanh (-slope*width/curve))
+       b_max = abs (max_depth - min_depth)
        lat = lat / DEG
        if (abs(lat-lat_c) <= lat_width/2) then
-          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel
-          surf_geopot_latlon = amp * (1.0_8 - tanh (slope * (f(y) - width/curve)))
+          amp = b_max / (1.0_8 - tanh (-slope*width/shift))
+          y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel                                               
+          surf_geopot_latlon = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
        else
           surf_geopot_latlon = b_max
        end if
@@ -220,12 +221,8 @@ contains
        b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
        
        if (trim (coords) == "uniform") then
-          do k = 1, zlevels
+          do k = 1, zlevels-1
              b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-          end do
-       elseif (trim (coords) == "chebyshev") then
-          do k = 1, zlevels
-             b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
           end do
        elseif (trim(coords) == "croco" .or. trim(coords) == "roms") then
           if (trim(coords) == "croco") then
@@ -245,6 +242,43 @@ contains
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
     end if
   end subroutine initialize_a_b_vert
+
+  function z_coords (eta_surf, z_s)
+    ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
+    ! near the free surface over strong bathymetry gradients.
+    ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
+    !
+    ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
+    implicit none
+    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8), dimension(0:zlevels) :: z_coords
+
+    integer                       :: k
+    real(8)                       :: cff, cff1, cff2, hc, z_0
+    real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
+    real(8), dimension(0:zlevels) :: Cs, sc
+    
+    hc = min (abs(min_depth), abs(Tcline))
+    
+    cff1 = 1.0_8 / sinh (theta_s)
+    cff2 = 0.5d0 / tanh (0.50 * theta_s)
+    
+    sc(0) = -1.0_8
+    Cs(0) = -1.0_8
+    cff = 1d0 / dble(zlevels)
+    do k = 1, zlevels
+       sc(k) = cff * dble (k - zlevels)
+       Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+    end do
+
+    z_coords(0) = z_s
+    do k = 1, zlevels
+       cff = hc * (sc(k) - Cs(k))
+       z_0 = cff - Cs(k) * z_s
+       a_vert(k) = 1.0_8 - z_0 / z_s
+       z_coords(k) = eta_surf * a_vert(k) + z_0
+    end do
+  end function z_coords
 
   subroutine cal_AB
     ! Computes A and B coefficients for hybrid vertical grid as in LMDZ
@@ -364,13 +398,13 @@ contains
     select case (itype)
     case ("bathymetry")
       !!$       nsmth = 2 * (l - min_level)
-       nsmth = 1
+       nsmth = 0
        dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
 
        if (trim (test_case) == "upwelling") then
-          dlat = 0.4*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+          dlat = 0.5*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
           width_S = lat_c - (lat_width/2 + dlat) + 90_8
           width_N = lat_c - (lat_width/2 + dlat)       
           n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
@@ -496,9 +530,7 @@ contains
     end do
 
     do l = level_start, level_end
-       do k = 1, zmax
-          call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
+       call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine apply_initial_conditions
 
@@ -525,52 +557,63 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: d, id, id_i
-    real (8)    :: dz, eta, z, z_s
-    type(Coord) :: x_i
+    integer                       :: d, id, id_i, k
+    real (8)                      :: eta, rho, z_s
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
+    type(Coord)                   :: x_i
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    x_i  = dom%node%elts(id_i)
+    x_i = dom%node%elts(id_i)
+    
     eta = 0.0_8
     z_s = dom%topo%elts(id_i)
-
-    if (trim (test_case) == "drake") then
-       if (zlev == zlevels+1) then
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-       else
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = ref_density * height(zlev) 
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = (density_drake(zlev) - ref_density) * height(zlev)
-       end if
-    elseif (trim (test_case) == "seamount") then
-       if (zlev == zlevels+1) then
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-       else
-          dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
-          if (mean_split) then
-             sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz
-             sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) &
-                  * buoyancy (eta, z_s, zlev)
-          else
-             sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-             sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-          end if
-       end if
-    elseif (trim (test_case) == "upwelling") then
-       if (zlev == zlevels+1) then
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-       else
-          dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-       end if
-       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+    
+    if (sigma_z) then
+       z = z_coords (eta, z_s)
+    else
+       z = a_vert * eta + b_vert * z_s
     end if
+
+    dz = z(1:zlevels) - z(0:zlevels-1)
+
+    do k = 1, zmax
+       rho = porous_density (dom, i, j, k, offs, dims) 
+       if (trim (test_case) == "drake") then
+          if (k == zlevels+1) then
+             sol_mean(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
+             sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
+          else
+             sol_mean(S_MASS,k)%data(d)%elts(id_i) = ref_density * height(k) 
+             sol_mean(S_TEMP,k)%data(d)%elts(id_i) = (density_drake(k) - ref_density) * height(k)
+          end if
+       elseif (trim (test_case) == "seamount") then
+          if (k == zlevels+1) then
+             sol_mean(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
+             sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
+          else
+             if (mean_split) then
+                sol_mean(S_MASS,k)%data(d)%elts(id_i) = rho * dz(k)
+                sol_mean(S_TEMP,k)%data(d)%elts(id_i) = rho * dz(k) * buoyancy (eta, z_s, k)
+             else
+                sol_mean(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
+                sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
+             end if
+          end if
+       elseif (trim (test_case) == "upwelling") then
+          if (k == zlevels+1) then
+             sol_mean(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
+             sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
+          else
+             sol_mean(S_MASS,k)%data(d)%elts(id_i) = rho * dz(k)
+             sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
+          end if
+          sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+       end if
+    end do
   end subroutine init_mean
   
   real(8) function buoyancy (eta, z_s, zlev)
@@ -635,7 +678,7 @@ contains
     real(8)            :: hz, strat, z0, z1
     real(8), parameter :: h0 = 150_8, hz_0 = 6.5_8, T0 = 14_8, z0_0 = -35_8, z1_0 = -75_8
 
-    if (trim(coords) == "croco") then
+    if (trim(coords) == "croco" .or. trim(coords) == "uniform") then
        strat = abs(max_depth)
        hz = hz_0 * abs(max_depth/h0)
        z0 = z0_0 * abs(max_depth/h0)

@@ -222,17 +222,17 @@ contains
     end do
   end subroutine remap_velo
 
-  subroutine remap_scalars_incompressible (dom, i, j, z_null, offs, dims)
+  subroutine remap_scalars_incompressible (dom, i, j, zlev, offs, dims)
     ! Remap full buoyancy and layer heights
     ! (full buoyancy is remapped and then mass-weighted buoyancy is formed)
     type (Domain)                   :: dom
-    integer                         :: i, j, z_null
+    integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: full_mass, full_theta
-    real(8), dimension (1:zlevels) :: theta_new, theta_old 
+    real(8)                        :: full_mass, full_theta, rho
+    real(8), dimension (1:zlevels) :: dz, theta_new, theta_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
     d    = dom%id + 1
@@ -244,7 +244,8 @@ contains
     end do
 
     call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
-
+    dz = z_new(1:zlevels) - z_new(0:zlevels-1)
+    
     ! Old buoyancy
     do k = 1, zlevels
        full_mass  = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
@@ -256,8 +257,9 @@ contains
     call interp_scalar (zlevels, theta_new, z_new, theta_old, z_old)
 
     do k = 1, zlevels
-       ! New full mass 
-       full_mass =  ref_density * phi_node (d, id_i, k) * (z_new(k) - z_new(k-1))
+       ! New full mass
+       rho = porous_density (dom, i, j, k, offs, dims)
+       full_mass =  rho * dz(k)
 
        ! New perturbation mass
        sol(S_MASS,k)%data(d)%elts(id_i) = full_mass - sol_mean(S_MASS,k)%data(d)%elts(id_i)
@@ -340,8 +342,12 @@ contains
        z_old(k) = z_old(k-1) + full_mass / (ref_density * phi_node (d, id_i, k))
     end do
     eta_surf = z_old(zlevels) ! coordinate of free surface                                                                                                                                                                                                      
-    ! New coordinates                                                               
-    z_new = a_vert * eta_surf + b_vert * z_s
+    ! New coordinates
+    if (sigma_z) then
+       z_new = z_coords (eta_surf, z_s)
+    else
+       z_new = a_vert * eta_surf + b_vert * z_s
+    end if
   end subroutine find_coordinates_incompressible
 
   subroutine remap0_scalars (dom, i, j, z_null, offs, dims)

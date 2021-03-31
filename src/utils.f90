@@ -3,6 +3,30 @@ module utils_mod
   use domain_mod
   implicit none
 contains
+  real(8) function z_i (dom, i, j, zlev, offs, dims)
+    ! Position of vertical level zlev at nodes
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, k
+    real(8) :: dz, dz_below, z_s
+
+    id = idx (i, j, offs, dims)
+
+    z_s = dom%topo%elts(id+1) 
+    
+    dz_below = dz_i (dom, i, j, 1, offs, dims)
+    z_i = z_s + dz_below / 2
+    do k = 2, zlev
+       dz = dz_i (dom, i, j, k, offs, dims)
+       z_i = z_i + interp (dz, dz_below)
+       dz_below = dz
+    end do
+  end function z_i
+
   real(8) function dz_i (dom, i, j, zlev, offs, dims)
     ! Thickness of layer zlev at nodes
     implicit none

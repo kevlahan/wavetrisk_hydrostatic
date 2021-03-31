@@ -72,7 +72,7 @@ contains
 
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
-            -----------------------------------------------------'
+            ------------------------------------------------------'
 
        call forward_wavelet_transform (sol, wav_coeff)
 
@@ -114,7 +114,7 @@ contains
        end do
        if (rank == 0) write (6,'(A,/)') &
             '------------------------------------------------- Finished adapting initial grid &
-            ------------------------------------------------'
+            -------------------------------------------------'
 
        call adapt (set_thresholds) ; dt_new = cpt_dt()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
@@ -147,14 +147,14 @@ contains
     end do
   end subroutine record_init_state
 
-  subroutine time_step (align_time, aligned, bottom_friction, wind_d, source_b, source_t)
+  subroutine time_step (align_time, aligned, bottom_friction, wind_tau, wind_d, source_b, source_t)
     use lateral_diffusion_mod
     use vert_diffusion_mod
     implicit none
     real(8)              :: align_time
     logical, intent(out) :: aligned
     real(8), optional    :: bottom_friction
-    optional             :: wind_d, source_b, source_t
+    optional             :: wind_tau, wind_d, source_b, source_t
 
     integer(8) :: idt, ialign
     real(8)    :: dx
@@ -176,6 +176,11 @@ contains
        integer, dimension(N_BDRY+1)   :: offs
        integer, dimension(2,N_BDRY+1) :: dims
      end function source_t
+     real(8) function wind_tau (p)
+         use geom_mod
+         implicit none
+         type(Coord) :: p
+       end function wind_tau
      function wind_d (dom, i, j, z_lev, offs, dims)
        use domain_mod
        implicit none
@@ -246,7 +251,7 @@ contains
 
     ! Split step routines
     if (implicit_diff_sclr .or. implicit_diff_divu) call implicit_lateral_diffusion
-    if (vert_diffuse) call implicit_vertical_diffusion (bottom_friction, wind_d, source_b, source_t)
+    if (vert_diffuse) call implicit_vertical_diffusion (bottom_friction, wind_tau, wind_d, source_b, source_t)
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
@@ -562,7 +567,11 @@ contains
        end do
        
        if (vert_diffuse) then
+          deallocate (Kt(0)%data(d)%elts)
+          deallocate (Kv(0)%data(d)%elts)
           do k = 1, zlevels
+             deallocate (Kt(k)%data(d)%elts)
+             deallocate (Kv(k)%data(d)%elts)
              deallocate (tke(k)%data(d)%elts)
              deallocate (wav_tke(k)%data(d)%elts)
           end do
@@ -595,9 +604,13 @@ contains
           deallocate (sol_save(v,k)%data)
        end do
     end do
-
+    
     if (vert_diffuse) then
+       deallocate (Kv(0)%data)
+       deallocate (Kt(0)%data)
        do k = 1, zlevels
+          deallocate (Kv(k)%data)
+          deallocate (Kt(k)%data)
           deallocate (tke(k)%data)
           deallocate (wav_tke(k)%data)
        end do
@@ -610,7 +623,7 @@ contains
     deallocate (sol, sol_mean, sol_save, trend, wav_coeff)       
     deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal_node, penal_edge)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
-    if (vert_diffuse) deallocate (tke, wav_tke)
+    if (vert_diffuse) deallocate (Kv, Kt, tke, wav_tke)
 
     nullify (mass, dscalar, h_flux, velo, dvelo, bernoulli, divu, exner, ke, qe, scalar, temp, vort, wc_s, wc_u)
   end subroutine deallocate_structures

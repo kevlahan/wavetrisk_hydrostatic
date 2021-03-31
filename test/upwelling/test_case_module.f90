@@ -13,15 +13,13 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
-  real(8)                              :: friction_upwelling, max_depth, r_max, r_max_loc
+  real(8)                              :: friction_upwelling, max_depth, min_depth, r_max, r_max_loc
   real(8)                              :: n_smth_N, n_smth_S, width_N, width_S
   real(8)                              :: npts_penal, u_wbc
-  real(8)                              :: lat_c, lat_width, tau_0, width
+  real(8)                              :: lat_c, lat_width, tau_0, Tcline, width
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
-  logical                              :: rich_diff
 
-  real(8), parameter :: b_max = 1.25d2  ! maximum height of bathymetry
   real(8), parameter :: slope = 1.3d-4 ! slope parameter (larger value -> steeper slope)
   real(8), parameter :: shift = 8
 contains
@@ -122,7 +120,9 @@ contains
        write (6,'(A,es10.4)') "grav accel            [m/s^2]  = ", grav_accel
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
+       write (6,'(A,es11.4)') "max_depth                 [m]  = ", max_depth
+       write (6,'(A,es11.4)') "min_depth                 [m]  = ", min_depth
+       write (6,'(A,es11.4)') "min_depth                 [m]  = ", Tcline
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
@@ -172,7 +172,20 @@ contains
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
+  
+  real(8) function buoyancy (z, k)
+    ! Buoyancy profile
+    ! buoyancy = (ref_density - density)/ref_density
+    implicit none
+    integer                       :: k
+    real(8), dimension(0:zlevels) :: z
 
+    real(8) :: rho
+
+    rho = interp (density (z(k-1)), density (z(k)))
+    buoyancy = (ref_density - rho) / ref_density
+  end function buoyancy
+  
   subroutine apply_initial_conditions
     implicit none
     integer :: d, k, l
@@ -185,221 +198,10 @@ contains
     end do
 
     do l = level_end, level_start, -1
-       do k = 1, zmax
-          call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          call apply_onescale (init_sol,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
+       call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine apply_initial_conditions
-
-  subroutine wlt_after_topo (l_start0)
-    use wavelet_mod
-    implicit none
-    integer, optional :: l_start0
-
-    integer :: d, l, l_start
-    type(Float_Field), dimension(1), target :: scaling
-
-    scaling(1) = sol(S_TEMP,zlevels+1)
-    scaling(1)%data = grid%topo
-
-    scaling(1)%bdry_uptodate = .false.
-    call update_bdry (scaling(1), NONE, 16)
-    
-    if (present(l_start0)) then
-       l_start = l_start0
-    else
-       l_start = level_start
-    end if
-
-    do l = l_start, level_end-1
-       do d = 1, size(grid)
-          scalar => scaling(1)%data(d)%elts
-          wc_s   => wav_coeff(S_TEMP,zlevels+1)%data(d)%elts
-          call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-          nullify (scalar, wc_s)
-       end do
-       wav_coeff(S_TEMP,zlevels+1)%bdry_uptodate = .false.
-    end do
-
-    call update_bdry1 (wav_coeff(S_TEMP,zlevels+1), level_start, level_end, 64)
-    call update_bdry1 (scaling(1),                  l_start,     level_end, 65)
-    
-    scaling%bdry_uptodate = .false.
-    
-    do l = l_start, level_end-1
-       ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
-       do d = 1, size(grid)
-          scalar => scaling(1)%data(d)%elts
-          wc_s   => wav_coeff(S_TEMP,zlevels+1)%data(d)%elts
-          call apply_interscale_d2 (prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
-          nullify (scalar, wc_s)
-       end do
-       call update_bdry (scaling(1), l+1, 66)
-
-       ! Reconstruct scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
-       do d = 1, size(grid)
-          scalar => scaling(1)%data(d)%elts
-          wc_s   => wav_coeff(S_TEMP,zlevels+1)%data(d)%elts
-          call apply_interscale_d (reconstruct_scalar, grid(d), l, z_null, 0, 0)
-          nullify (scalar, wc_s)
-       end do
-       scaling(1)%bdry_uptodate = .false.
-    end do
-    scaling(1)%bdry_uptodate = .false.
-    call update_bdry (scaling(1), NONE, 16)
-    grid%topo = scaling(1)%data
-  end subroutine wlt_after_topo
-
-  subroutine wlt_after_scalar (q, wav, l_start0)
-    use wavelet_mod
-    implicit none
-    type(Float_Field), dimension(:), target :: q, wav
-    integer, optional                       :: l_start0
-
-    integer :: d, k, l, l_start
-
-    if (present(l_start0)) then
-       l_start = l_start0
-    else
-       l_start = level_start
-    end if
-
-    q%bdry_uptodate = .false.
-    call update_vector_bdry (q, NONE, 16)
-
-    do k = 1, size(q)
-       do l = l_start, level_end-1
-          do d = 1, size(grid)
-             scalar =>   q(k)%data(d)%elts
-             wc_s   => wav(k)%data(d)%elts
-             call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-             nullify (scalar, wc_s)
-          end do
-          wav(k)%bdry_uptodate = .false.
-       end do
-    end do
-    call inverse_scalar_transform (wav, q)
-  end subroutine wlt_after_scalar
-
-  subroutine wlt_after_velo (q, wav, l_start0)
-    use wavelet_mod
-    implicit none
-    type(Float_Field), dimension(:), target :: q, wav
-    integer, optional                       :: l_start0
-
-    integer :: d, k, l, l_start
-
-    if (present(l_start0)) then
-       l_start = l_start0
-       do k = 1, size(q)
-          do d = 1, size(grid)
-             velo => q(k)%data(d)%elts
-             call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
-             nullify (velo)
-          end do
-       end do
-    else
-       l_start = level_start
-    end if
-
-    q%bdry_uptodate = .false.
-    call update_vector_bdry (q, NONE, 16)
-
-    do k = 1, size(q)
-       do l = l_start, level_end-1
-          do d = 1, size(grid)
-             velo => q(k)%data(d)%elts
-             wc_u => wav(k)%data(d)%elts
-             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
-             call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
-             nullify (velo, wc_u)
-          end do
-          wav(k)%bdry_uptodate = .false.
-       end do
-    end do
-    call inverse_velo_transform (wav, q)
-    call update_vector_bdry (q, NONE, 100)
-  end subroutine wlt_after_velo
-  
-  subroutine init_sol (dom, i, j, zlev, offs, dims)
-    ! Initial perturbation to mean 
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer  :: d, id, id_i
-    real (8) :: dz, eta, phi, z_s
-
-    d    = dom%id+1
-    id   = idx (i, j, offs, dims) 
-    id_i = id + 1
-
-    eta = init_free_surface (dom%node%elts(id_i))
-    z_s = dom%topo%elts(id_i)
-
-    if (zlev == zlevels+1) then ! 2D barotropic mode
-       phi = 1.0_8 + (alpha - 1.0_8) * penal_node(zlevels)%data(d)%elts(id_i)
-       sol(S_MASS,zlev)%data(d)%elts(id_i) = phi * eta ! free surface perturbation
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-    else ! 3D layers
-       dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
-       if (zlev == zlevels) then
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * eta
-       else
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       end if
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz * buoyancy (eta, z_s, zlev)
-    end if
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
-  end subroutine init_sol
-
-   subroutine init_tke (dom, i, j, zlev, offs, dims)
-    ! Initialize TKE
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer  :: d, id
-
-    d    = dom%id+1
-    id   = idx (i, j, offs, dims) + 1
-
-    tke(zlev)%data(d)%elts(id) = 0.0_8
-  end subroutine init_tke
-
-  subroutine init_mean (dom, i, j, zlev, offs, dims)
-    ! Initialize mean values
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer     :: d, id, id_i
-    real (8)    :: dz, eta, z_s
-
-    d    = dom%id+1
-    id   = idx (i, j, offs, dims) 
-    id_i = id + 1
-
-    eta = init_free_surface (dom%node%elts(id_i))
-    z_s = dom%topo%elts(id_i)
-
-    if (zlev == zlevels+1) then
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-    else
-       dz = a_vert_mass(zlev) * eta + b_vert_mass(zlev) * z_s
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dz
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
-    end if
-    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
-  end subroutine init_mean
 
   subroutine update
     ! Update means, bathymetry and penalization mask
@@ -415,32 +217,165 @@ contains
        end do
     end do
 
-    do k = 1, zmax
-       do d = 1, size(grid)
-          do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
+    do d = 1, size(grid)
+       do p = n_patch_old(d)+1, grid(d)%patch%length ! only update new patches
+          call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
   end subroutine update
 
+  subroutine init_sol (dom, i, j, zlev, offs, dims)
+    ! Initial perturbation to mean for an entire vertical column 
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer                       :: d, id, id_i, k 
+    real(8)                       :: eta, phi, rho, z_s
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
+
+    d    = dom%id+1
+    id   = idx (i, j, offs, dims) 
+    id_i = id + 1
+
+    eta = init_free_surface (dom%node%elts(id_i))
+    z_s = dom%topo%elts(id_i)
+    
+    if (sigma_z) then
+       z = z_coords (eta, z_s)
+    else
+       z = a_vert * eta + b_vert * z_s
+    end if
+    dz = z(1:zlevels) - z(0:zlevels-1)
+
+    do k = 1, zlevels
+       rho = porous_density (dom, i, j, k, offs, dims)
+
+       if (k == zlevels) then
+          sol(S_MASS,zlevels)%data(d)%elts(id_i) = rho * eta
+       else
+          sol(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
+       end if
+       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy (z, k)
+       sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+    end do
+
+    if (mode_split) then
+       phi = phi_node (d, id_i, zlevels)
+       sol(S_MASS,zlevels+1)%data(d)%elts(id_i) = phi * eta ! free surface perturbation
+       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0.0_8
+    end if
+  end subroutine init_sol
+
+  subroutine init_mean (dom, i, j, zlev, offs, dims)
+    ! Initialize mean values for an entire vertical column
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer                       :: d, id, id_i, k 
+    real(8)                       :: eta, phi, rho, z_s
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
+
+    d    = dom%id+1
+    id   = idx (i, j, offs, dims) 
+    id_i = id + 1
+
+    eta = 0.0_8
+    z_s = dom%topo%elts(id_i)
+    
+    if (sigma_z) then
+       z = z_coords (eta, z_s)
+    else
+       z = a_vert * eta + b_vert * z_s
+    end if
+    dz = z(1:zlevels) - z(0:zlevels-1)
+
+    do k = 1, zlevels
+       rho = porous_density (dom, i, j, k, offs, dims)
+
+       sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = rho * dz(k)
+       sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = 0.0_8
+       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+    end do
+
+    if (mode_split) then
+       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i) = 0.0_8
+       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0.0_8
+    end if
+  end subroutine init_mean
+  
+  subroutine initialize_a_b_vert
+    ! Initialize hybrid sigma-coordinate vertical grid 
+    ! (a_vert, b_vert not used if sigma_z = .true.)
+    implicit none
+    integer               :: k
+    real(8)               :: z
+    real(8), dimension(6) :: p
+    
+    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
+    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
+
+    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
+    if (trim (coords) == "uniform") then
+       do k = 2, zlevels-1
+          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
+       end do
+    elseif (trim(coords) == "croco") then
+       p = (/ -5.7831,  18.9754, -24.6521,  16.1698, -5.7092, 0.9972 /)
+       do k = 1, zlevels-1
+          z = dble(k)/dble(zlevels)
+          b_vert(k) = p(1)*z**5 + p(2)*z**4 + p(3)*z**3 + p(4)*z**2 + p(5)*z + p(6)
+       end do
+    end if
+    a_vert = 1.0_8 - b_vert
+
+    ! Vertical grid spacing
+    a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
+    b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
+  end subroutine initialize_a_b_vert
+
+  subroutine init_tke (dom, i, j, zlev, offs, dims)
+    ! Initialize TKE
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer  :: d, id
+
+    d    = dom%id+1
+    id   = idx (i, j, offs, dims) + 1
+
+    tke(zlev)%data(d)%elts(id) = 1d-6
+  end subroutine init_tke
+
   real(8) function surf_geopot (p)
-    ! Surface geopotential: postive if greater than mean seafloor
-    ! Gives minimum depth of approximately 24 m
+    ! Surface geopotential: postive if greater than mean seafloor                                                                                        
+    ! Gives minimum depth of approximately 24 m                                                                                                          
     implicit none
     type(Coord) :: p
 
-    real(8) :: amp, lat, lon, y
+    real(8) :: amp, b_max, lat, lon, y
 
     call cart2sph (p, lon, lat)
 
+    b_max = abs (max_depth - min_depth)
     lat = lat / DEG
+    
     if (abs(lat-lat_c) <= lat_width/2) then
-       amp = b_max / (1.0_8 - tanh (-slope*width/shift))
-       y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel
-       surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
-    else
-       surf_geopot = b_max
+        amp = b_max / (1.0_8 - tanh (-slope*width/shift))
+        y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel                                               
+	surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
+     else
+      surf_geopot = b_max
     end if
     surf_geopot = grav_accel * surf_geopot
   end function surf_geopot
@@ -464,21 +399,6 @@ contains
     init_free_surface = 0.0_8
   end function init_free_surface
 
-   real(8) function buoyancy (eta, z_s, zlev)
-    ! Buoyancy profile
-    ! buoyancy = (ref_density - density)/ref_density
-    implicit none
-    integer :: zlev
-    real(8) :: eta, z_s
-
-    real(8) :: rho, z, z1, z2
-
-    z1 = a_vert(zlev-1) * eta + b_vert(zlev-1) * z_s
-    z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
-    rho = 0.5 * (density (z1) + density (z2))
-    buoyancy = (ref_density - rho) / ref_density
-  end function buoyancy
-
   real(8) function density (z)
     implicit none
     real(8) :: z
@@ -497,7 +417,7 @@ contains
        density = ref_density + drho * (max_depth-z)/max_depth
     elseif (trim(stratification) == "exponential") then
        density = ref_density + drho * exp__flush (z/delta)
-       elseif (trim(stratification) == "none") then
+    elseif (trim(stratification) == "none") then
        density = ref_density 
     end if
   end function density
@@ -509,16 +429,12 @@ contains
     real(8)            :: hz, strat, z0, z1
     real(8), parameter :: h0 = 150_8, hz_0 = 6.5_8, T0 = 14_8, z0_0 = -35_8, z1_0 = -75_8
 
-    if (trim(coords) == "croco") then
-       strat = abs(max_depth)
-       hz = hz_0 * abs(max_depth/h0)
-       z0 = z0_0 * abs(max_depth/h0)
-       z1 = z1_0 * abs(max_depth/h0)
+    strat = abs(max_depth)
+    hz = hz_0 * abs(max_depth/h0)
+    z0 = z0_0 * abs(max_depth/h0)
+    z1 = z1_0 * abs(max_depth/h0)
 
-       temp_profile = T0 + 4*tanh ((z - z0) / hz) + (z - z1) / strat
-    elseif (trim(coords) == "roms") then
-       temp_profile = 3.0677d-6 * z**3 +   1.0747d-3 * z**2 + 1.4386d-1 * z + 2.1597d1
-    end if
+    temp_profile = T0 + 4*tanh ((z - z0) / hz) + (z - z1) / strat
   end function temp_profile
 
   real(8) function eqn_of_state (temperature)
@@ -528,44 +444,52 @@ contains
     real(8), parameter :: beta = 0.28, T0 = 14_8
 
     eqn_of_state = ref_density - beta * (temperature - T0)
-!!$    eqn_of_state = ref_density - 0.164 * temperature
   end function eqn_of_state
 
   subroutine print_density
     implicit none
     integer                       :: k
-    real(8)                       :: bv, c_k, c1, drho, dz, eta, rho, rho_above, z, z_s, z_above
-    type(Coord)                   :: p
-
-    p = Coord (radius, 0.0_8, 0.0_8)
+    real(8)                       :: bv, c_k, c1, drho, dz_l, eta, rho, rho_above, z_k, z_s, z_above
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
 
     eta = 0.0_8
     z_s = max_depth
+    
+    if (sigma_z) then
+       z = z_coords (eta, z_s)
+    else
+       z = a_vert * eta + b_vert * z_s
+    end if
+    dz = z(1:zlevels) - z(0:zlevels-1)
 
-    write (6,'(a)') " Layer    z           dz         rho "
+    write (6,'(a)') " Layer      z         dz         rho "
     do k = 1, zlevels
-       dz = a_vert_mass(k) * eta + b_vert_mass(k) * z_s
-       z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta + (b_vert(k)+b_vert(k-1)) * z_s)
-       write (6, '(2x, i2, 1x, 3(es11.4, 1x))') k, z, dz, ref_density * (1.0_8 - buoyancy (eta, z_s, k))
+       z_k = interp (z(k-1), z(k))
+       write (6, '(2x, i2, 4x, 2(es9.2, 1x), es11.5)') &
+            k, z_k, dz(k), ref_density * (1.0_8 - buoyancy (z, k))
     end do
     
-    write (6,'(/,a)') " Interface     a_vert      b_vert        z"
+    write (6,'(/,a)') " Interface     z"
     do k = 0, zlevels
-       write (6, '(3x, i3, 5x, 3(1x, es11.4))') k, a_vert(k), b_vert(k), a_vert(k) * eta + b_vert(k) * z_s
+       write (6, '(3x, i3, 5x, es9.2)') k, z(k)
     end do
 
-    write (6,'(/,a)') " Interface        V        c1     CFL_c1"
+    write (6,'(/,a)') " Interface      V        c1      CFL_c1"
     c1 = 0.0_8
     do k = 1, zlevels-1
-       z_above = 0.5 * ((a_vert(k+1)+a_vert(k)) * eta + (b_vert(k+1)+b_vert(k)) * z_s)
-       z       = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta + (b_vert(k)+b_vert(k-1)) * z_s)
-       dz = z_above - z
-       rho_above = ref_density * (1.0_8 - buoyancy (eta, z_s, k+1))
-       rho  = ref_density * (1.0_8 - buoyancy (eta, z_s, k))
+       z_above = interp (z(k),   z(k+1))
+       z_k     = interp (z(k-1), z(k))
+       dz_l    = z_above - z_k
+       
+       rho_above = ref_density * (1.0_8 - buoyancy (z, k+1))
+       rho  = ref_density * (1.0_8 - buoyancy (z, k))
        drho = rho_above - rho
-       bv = sqrt(- grav_accel * drho/dz/rho)
+       
+       bv = sqrt(- grav_accel * drho/dz_l/rho)
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
+       
        write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c1*dt_init/dx_min
     end do
     write (6,'(/,a,es10.4)') "Maximum internal wave speed = ", c1
@@ -606,19 +530,28 @@ contains
   subroutine initialize_thresholds
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
-    integer     :: k
-    real(8)     :: dz, eta, z_s
-    type(Coord) :: x_i
+    integer                       :: k
+    real(8)                       :: eta, z_s
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
+    type(Coord)                   :: x_i
 
     allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
     allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
 
     eta = 0.0_8
     z_s = max_depth
+
+    if (sigma_z) then
+       z = z_coords (eta, z_s)
+    else
+       z = eta * a_vert + z_s * b_vert
+    end if
+    dz = z(1:zlevels) - z(0:zlevels-1)
+    
     do k = 1, zlevels
-       dz = a_vert_mass(k) * eta + b_vert_mass(k) * z_s
-       lnorm(S_MASS,k) = ref_density * dz
-       lnorm(S_TEMP,k) = drho * dz
+       lnorm(S_MASS,k) = ref_density * dz(k)
+       lnorm(S_TEMP,k) = drho * dz(k)
        lnorm(S_VELO,k) = Udim
     end do
 
@@ -642,7 +575,7 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, 1.2*dx_min/c1)
     dt_init = dt_cfl
 
-    C = 2d-3 ! <= 1/2 if explicit
+    C = 3d-3 ! <= 1/2 if explicit
     C_rotu = C / 4**Laplace_order_init
     C_divu = 1d-2
     C_mu   = C
@@ -678,7 +611,7 @@ contains
     end if
     
     ! Penalization parameterss
-    dlat = 0.4*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+    dlat = 0.5*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
 
     width_S = lat_c - (lat_width/2 + dlat) + 90_8
     width_N = lat_c - (lat_width/2 + dlat)       
@@ -749,7 +682,7 @@ contains
     select case (itype)
     case ("bathymetry")
 !!$       nsmth = 2 * (l - min_level)
-       nsmth = 2
+       nsmth = 1
        dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = 0
@@ -863,43 +796,42 @@ contains
          " (approximate height = ", save_height, " [m])"
   end subroutine set_save_level
 
-  subroutine initialize_a_b_vert
-    ! Initialize hybrid sigma-coordinate vertical grid
+  function z_coords (eta_surf, z_s)
+    ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
+    ! near the free surface over strong bathymetry gradients.
+    ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
+    !
+    ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
     implicit none
-    integer               :: k
-    real(8)               :: z
-    real(8), dimension(6) :: p
+    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8), dimension(0:zlevels) :: z_coords
 
-    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
-    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
+    integer                       :: k
+    real(8)                       :: cff, cff1, cff2, hc, z_0
+    real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
+    real(8), dimension(0:zlevels) :: Cs, sc
     
-    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
+    hc = min (abs(min_depth), abs(Tcline))
     
-    if (trim (coords) == "uniform") then
-       do k = 2, zlevels-1
-          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-       end do
-    elseif (trim (coords) == "chebyshev") then
-       do k = 2, zlevels-1
-          b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-       end do
-    elseif (trim(coords) == "croco" .or. trim(coords) == "roms") then
-       if (trim(coords) == "croco") then
-          p = (/ -5.7831,  18.9754, -24.6521,  16.1698, -5.7092, 0.9972 /)
-       elseif (trim(coords) == "roms") then
-          p = (/ 0.0, 0.85230, -3.2106,  4.4745, -3.1587,  1.0343 /)
-       end if
-       do k = 1, zlevels-1
-          z = dble(k)/dble(zlevels)
-          b_vert(k) = p(1)*z**5 + p(2)*z**4 + p(3)*z**3 + p(4)*z**2 + p(5)*z + p(6)
-       end do
-    end if
-    a_vert = 1.0_8 - b_vert
+    cff1 = 1.0_8 / sinh (theta_s)
+    cff2 = 0.5d0 / tanh (0.50 * theta_s)
+    
+    sc(0) = -1.0_8
+    Cs(0) = -1.0_8
+    cff = 1d0 / dble(zlevels)
+    do k = 1, zlevels
+       sc(k) = cff * dble (k - zlevels)
+       Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+    end do
 
-    ! Vertical grid spacing
-    a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
-    b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
-  end subroutine initialize_a_b_vert
+    z_coords(0) = z_s
+    do k = 1, zlevels
+       cff = hc * (sc(k) - Cs(k))
+       z_0 = cff - Cs(k) * z_s
+       a_vert(k) = 1.0_8 - z_0 / z_s
+       z_coords(k) = eta_surf * a_vert(k) + z_0
+    end do
+  end function z_coords
 
   subroutine update_diagnostics
     ! Update diagnostics
@@ -1055,3 +987,5 @@ contains
     end if
   end function upwelling_drag
 end module test_case_mod
+
+!  LocalWords:  zlevels
