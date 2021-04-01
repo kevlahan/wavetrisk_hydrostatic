@@ -23,7 +23,7 @@ module test_case_mod
   character(255) :: coords, stratification
   ! Upwelling
   real(8)            :: lat_width, min_depth, Tcline
-  real(8), parameter :: slope = 1.3d-4 ! slope parameter (larger value -> steeper slope)
+  real(8), parameter :: slope = 1.75d-4 ! slope parameter (larger value -> steeper slope)
   real(8), parameter :: shift = 8
 contains
   real(8) function surf_geopot (x_i)
