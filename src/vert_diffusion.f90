@@ -15,7 +15,7 @@ module vert_diffusion_mod
   real(8) :: friction
 
   ! Parameters for analytic eddy viscosity/diffusion scheme
-  real(8), parameter :: Kv_bottom = 6d-3
+  real(8), parameter :: Kv_bottom = 2d-3
   real(8), parameter :: Kt_const  = 1d-6
 
   ! Parameters for TKE closure eddy viscosity/diffusion scheme
@@ -32,10 +32,7 @@ module vert_diffusion_mod
   real(8), parameter :: l_0      = 0.04    
   real(8), parameter :: Neps_sq  = 1d-20   
   real(8), parameter :: Ri_c     = 2 / (2 + c_eps/c_m) ! 0.22
-
-!!$  real(8), parameter :: Kv_0     = Kv_bottom   ! analytic value
-!!$  real(8), parameter :: Kt_0     = Kt_const
-  real(8), parameter :: Kv_0     = 1.2d-4  ! NEMO value
+  real(8), parameter :: Kv_0     = 1.2d-4 ! NEMO value
   real(8), parameter :: Kt_0     = 1.2d-5 ! NEMO value
 
   logical, parameter :: tke_closure = .false.
@@ -222,13 +219,6 @@ contains
        tke(zlevels)%data(d)%elts(id) = max (C_sfc * tau_mag (p)*filt / ref_density, e_sfc_0) ! at free surface
 
        call update_Kv_Kt
-
-       if (dom%topo%elts(id) < -145) then
-          do l = 1, zlevels
-!!$             write (6,'(i2,1x,3(es11.4,1x))') l, tke(l)%data(d)%elts(id), Kt_i(l), Kv_i(l)
-             write (6,'(i2,1x,3(es11.4,1x))') l, tke(l)%data(d)%elts(id), A_vT (Richardson (Nsq(l), dudzsq(l))), Kv_i(l)
-          end do
-       end if
     else ! Analytic eddy diffusivity and eddy viscosity
        Kt_i = Kt_analytic ()
 
