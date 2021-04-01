@@ -40,7 +40,8 @@ zlon = fread(fopen([directory '/' file_base '.55']),'double'); zlon = reshape(zl
 lat_slice = fread(fopen([directory '/' file_base '.56']),'double');lat_slice = reshape(lat_slice,Nlat,[],5);
 lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = reshape(lon_slice,Nlon,[],5);
 %%
-figure;plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical', 'raw')
+ax = figure;
+plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical', 'raw', ax)
 %% Plot results
 str = "Upwelling results at day "+compose("%1.0f",time/2)+" for J7 (dx = 2.26 km, dt = 1840 s)";
 %sgtitle(str);
@@ -70,33 +71,33 @@ Nlat    = size(zlat,1);
 DAY = 60^2 * 24;
 if strcmp(field,'density')
     m = 3;
-    c_scale1 = linspace(1025.5, 1028, 200);
-    c_scale2 = linspace(1025.5, 1028, 20);
+    c1 = linspace(1025.5, 1028, 200);
+    c2 = linspace(1025.5, 1028, 20);
     trans = @(rho) rho;
 elseif strcmp(field,'temperature')
     m = 3;
-    c_scale1 = linspace(9, 19, 200);
-    c_scale2 = [10 11 12 13 14 15 16 17 18 19 20]; 
+    c1 = linspace(9, 19, 200);
+    c2 = [10 11 12 13 14 15 16 17 18 19 20]; 
     trans = @(rho) 14 + (1027-rho)/0.28;
 elseif strcmp(field,'zonal')
     m = 1;
-    c_scale1 = linspace(-20, 20, 200);
-    c_scale2 = [-14 -12 -10 -8 -6 -4 -2 0]; 
+    c1 = linspace(-20, 20, 200);
+    c2 = [-14 -12 -10 -8 -6 -4 -2 0]; 
     trans = @(u) -100 * u;
 elseif strcmp(field,'meridional')
     m = 2;
-    c_scale1 = linspace(-6, 6, 200);
-    c_scale2 = [-6 -5 -4 -3 -2 -1 1 2 3 4]; 
+    c1 = linspace(-6, 6, 200);
+    c2 = [-6 -5 -4 -3 -2 -1 1 2 3 4]; 
     trans = @(u) 100 * u;
 elseif strcmp(field,'vertical')
     m = 5;
-    c_scale1 = linspace(-15, 15, 200); 
-    c_scale2 = [-10 -8 -6 -4 -2 0 2 4 6 8 10]; 
+    c1 = linspace(-15, 15, 200); 
+    c2 = [-12 -10 -8 -6 -4 -2 0 2 4 6 8 10 12]; 
     trans = @(u) DAY * u;
 end
 
 dat = trans(lat_slice(:,:,m));
-%c_scale = linspace(min(dat(:)), max(dat(:)), 100);
+%c = linspace(min(dat(:)), max(dat(:)), 100);
 
 if strcmp(type,'interp')
     % Croco grid
@@ -122,7 +123,7 @@ if strcmp(type,'interp')
     %dat = smooth2a([dat(:,1) dat dat(:,zlevels)],2,2);
     dat = [dat(:,1) dat dat(:,zlevels)];
     data = smooth2a(griddata(x_node, z_node, dat, x_unif, z_unif),2,2);
-    contourf(x_unif, z_unif, data, c_scale1, 'LineColor', 'none'); hold on
+    contourf(x_unif, z_unif, data, c1, 'LineColor', 'none'); hold on
 elseif strcmp(type,'raw')
     for k = 1:zlevels
         z11 = zlat(1,k,1);
@@ -165,17 +166,12 @@ end
 z = 0.5*(zlat(:,:,1) + zlat(:,:,2));
 x = repelem(0.5*(xlat(:,1)+xlat(:,2)),1,size(z,2));
 dat = trans(lat_slice(:,:,m));
-if min(c_scale2) < 0
-    V = linspace(min(c_scale2),0,5);
-    contour(x,z,dat,V,'k--','Linewidth',1.5);
-else
-    V = linspace(min(c_scale2),max(c_scale2),10);
-    contour(x,z,dat,V,'k-','Linewidth',1.5);
-end
+contour(x, z, dat, min(c2) : max(c2(c2<0)),   'k--', 'Linewidth', 1.5);
+contour(x, z, dat, min(c2(c2>=0))  : max(c2), 'k-',  'Linewidth', 1.5);
 
 xlabel('latitude'); ylabel('z (m)'); 
 
-caxis([min(c_scale1) max(c_scale1)]);
+caxis([min(c1) max(c1)]);
 axis([45-lat_width/2 45+lat_width/2 -150 0]);
 %axis([0 90 -150 0])
 set(gca,'fontsize',18);
