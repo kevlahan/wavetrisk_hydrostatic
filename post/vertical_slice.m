@@ -39,20 +39,18 @@ zlon = fread(fopen([directory '/' file_base '.55']),'double'); zlon = reshape(zl
 
 lat_slice = fread(fopen([directory '/' file_base '.56']),'double');lat_slice = reshape(lat_slice,Nlat,[],5);
 lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = reshape(lon_slice,Nlon,[],5);
-%% 
+%%
 figure;plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical', 'raw')
 %% Plot results
-figure
-
 str = "Upwelling results at day "+compose("%1.0f",time/2)+" for J7 (dx = 2.26 km, dt = 1840 s)";
-sgtitle(str);
+%sgtitle(str);
+type = 'raw'; %'raw' or 'interp'
 
-type = 'raw'; % 'raw' or 'interp'
-subplot(2,2,1); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'temperature', type)
-subplot(2,2,2); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'zonal',       type)
-subplot(2,2,3); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'meridional',  type)
-subplot(2,2,4); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical',    type)
-
+figure
+ax1 = subplot(2,2,1); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'temperature', type, ax1)
+ax2 = subplot(2,2,2); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'zonal',       type, ax2)
+ax3 = subplot(2,2,3); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'meridional',  type, ax3)
+ax4 = subplot(2,2,4); plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical',    type, ax4)
 %% Plot vertical grid
 skip = 1;
 plot(lat(1:skip:end),zlat(1:skip:end,:,1)','k-','linewidth',1.2); hold on;
@@ -64,7 +62,7 @@ xlabel('latitude'); ylabel('z (m)'); hold on;
 set(gca,'fontsize',18);hold off
 
 %%
-function plot_field (xlat, zlat, lat_slice, lat_width, field, type)
+function plot_field (xlat, zlat, lat_slice, lat_width, field, type, ax)
 nz = 12; % interpolate to this number of vertical levels
 skip = 1;
 zlevels = size(zlat,2);
@@ -72,23 +70,28 @@ Nlat    = size(zlat,1);
 DAY = 60^2 * 24;
 if strcmp(field,'density')
     m = 3;
-    c_scale = linspace(1025.5, 1028, 200);
+    c_scale1 = linspace(1025.5, 1028, 200);
+    c_scale2 = linspace(1025.5, 1028, 20);
     trans = @(rho) rho;
 elseif strcmp(field,'temperature')
     m = 3;
-    c_scale = linspace(8, 19, 200); 
+    c_scale1 = linspace(9, 19, 200);
+    c_scale2 = [10 11 12 13 14 15 16 17 18 19 20]; 
     trans = @(rho) 14 + (1027-rho)/0.28;
 elseif strcmp(field,'zonal')
     m = 1;
-    c_scale = linspace(-25, 25, 200); 
-    trans = @(u) 100 * u;
+    c_scale1 = linspace(-20, 20, 200);
+    c_scale2 = [-14 -12 -10 -8 -6 -4 -2 0]; 
+    trans = @(u) -100 * u;
 elseif strcmp(field,'meridional')
     m = 2;
-    c_scale = linspace(-6, 6, 200); 
+    c_scale1 = linspace(-6, 6, 200);
+    c_scale2 = [-6 -5 -4 -3 -2 -1 1 2 3 4]; 
     trans = @(u) 100 * u;
 elseif strcmp(field,'vertical')
     m = 5;
-    c_scale = linspace(-15, 15, 200); 
+    c_scale1 = linspace(-15, 15, 200); 
+    c_scale2 = [-10 -8 -6 -4 -2 0 2 4 6 8 10]; 
     trans = @(u) DAY * u;
 end
 
@@ -119,7 +122,7 @@ if strcmp(type,'interp')
     %dat = smooth2a([dat(:,1) dat dat(:,zlevels)],2,2);
     dat = [dat(:,1) dat dat(:,zlevels)];
     data = smooth2a(griddata(x_node, z_node, dat, x_unif, z_unif),2,2);
-    contourf(x_unif, z_unif, data, c_scale, 'LineColor', 'none' ); hold on
+    contourf(x_unif, z_unif, data, c_scale1, 'LineColor', 'none'); hold on
 elseif strcmp(type,'raw')
     for k = 1:zlevels
         z11 = zlat(1,k,1);
@@ -146,36 +149,34 @@ elseif strcmp(type,'raw')
         z22 = 0.5 * (zlat(Nlat-1,k,2) + zlat(Nlat,k,2));
         x = [xlat(Nlat,1) xlat(Nlat,2) xlat(Nlat,2) xlat(Nlat,1)];
         y = [z11 z12 z21 z22];
-        patch(x,y,dat(Nlat,k),'LineStyle','none');
+        %patch(x,y,dat(Nlat,k),'LineStyle','none');
+        patch(x,y,dat(Nlat,k));
     end
     hold on
+end
+
+if strcmp(field,'temperature')
+    colormap(ax, jet)
+else
+    colormap(ax, hsv)
 end
 
 % Contour lines from raw data
 z = 0.5*(zlat(:,:,1) + zlat(:,:,2));
 x = repelem(0.5*(xlat(:,1)+xlat(:,2)),1,size(z,2));
 dat = trans(lat_slice(:,:,m));
-
-if min(c_scale) < 0
-    V = linspace(min(c_scale),0,5);
-    contour(x,z,dat,V,'k--','Linewidth',1);
-    V = linspace(0,max(c_scale),5);
-    contour(x,z,dat,V,'k-','Linewidth',1);
+if min(c_scale2) < 0
+    V = linspace(min(c_scale2),0,5);
+    contour(x,z,dat,V,'k--','Linewidth',1.5);
 else
-    V = linspace(min(c_scale),max(c_scale),10);
-    contour(x,z,dat,V,'k-','Linewidth',1);
+    V = linspace(min(c_scale2),max(c_scale2),10);
+    contour(x,z,dat,V,'k-','Linewidth',1.5);
 end
 
-xlabel('latitude'); ylabel('z (m)'); colormap(flipud(jet))
-if strcmp(field,'density')
-    colormap(flipud(jet(numel(c_scale)-1)));
-elseif strcmp(field,'temperature')
-    colormap(jet(numel(c_scale)-1));
-else 
-    colormap(jet(numel(c_scale)-1));
-end
-caxis([min(c_scale) max(c_scale)]);
-axis([45-lat_width/2 45+lat_width/2 min(zlat(:)) 0]);
+xlabel('latitude'); ylabel('z (m)'); 
+
+caxis([min(c_scale1) max(c_scale1)]);
+axis([45-lat_width/2 45+lat_width/2 -150 0]);
 %axis([0 90 -150 0])
 set(gca,'fontsize',18);
 
