@@ -20,7 +20,7 @@ Module test_case_mod
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
 
-  real(8), parameter :: slope = 1.3d-4 ! slope parameter (larger value -> steeper slope)
+  real(8), parameter :: slope = 1.75d-4 ! slope parameter (larger value -> steeper slope)
   real(8), parameter :: shift = 8
 contains
   subroutine read_test_case_parameters
@@ -91,6 +91,7 @@ contains
        write (6,'(A,i5)')     "PATCH_LEVEL                    = ", PATCH_LEVEL
        write (6,'(A,i3)')     "zlevels                        = ", zlevels
        write (6,'(A,L1)')     "remap                          = ", remap
+       write (6,'(A,L1)')     "sigma_z                        = ", sigma_z
        write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
@@ -575,9 +576,9 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, 1.2*dx_min/c1)
     dt_init = dt_cfl
 
-    C = 3d-3 ! <= 1/2 if explicit
+    C = 0.0_8 ! <= 1/2 if explicit
     C_rotu = C / 4**Laplace_order_init
-    C_divu = 1d-2
+    C_divu = C
     C_mu   = C
     C_b    = C
     
@@ -603,7 +604,7 @@ contains
 
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
-            "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
+            "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_mu = ", tau_mu/HOUR, " [h]"
        write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  " C_b = ", C_mu, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
