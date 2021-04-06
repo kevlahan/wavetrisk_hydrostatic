@@ -92,18 +92,15 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) then
        d = dom%id + 1
        full_mass  = mean_m(id) + mass(id)
-       if (remap) theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
+       theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
        
        ! Correct mass perturbation
        eta = scalar(id) / phi_node (d, id, zlevels) ! free surface perturbation
        mass(id) = (eta - grid(d)%topo%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
 
        ! Correct mass-weighted buoyancy
-       if (remap) then
-          temp(id) = (mean_m(id) + mass(id)) * theta - mean_t(id)
-       else ! assume buoyancy is constant in each layer
-          temp(id) = mass(id) * mean_t(id) / mean_m(id) 
-       end if
+       temp(id) = (mean_m(id) + mass(id)) * theta - mean_t(id)
+!!$       temp(id) = mass(id) * mean_t(id) / mean_m(id) ! assume time-independent buoyancy (e.g. no remap, constant density in each layer)
     end if
   end subroutine cal_barotropic_correction
 
