@@ -380,9 +380,8 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer  :: d, e, id, id_e, id_i, ii, is0, it0, jj, l, nsmth
-    real(8)  :: dlat, dx, lat, lat0, lon, m_topo, n_lat, n_lon, r, s0, t0, sw_topo, topo_sum, wgt
-    real(8)  :: n_smth_N, n_smth_S, width_N, width_S
+    integer  :: d, e, id, id_i
+    
     type(Coord)                    :: p
     type(Coord), dimension(1:EDGE) :: q
 
@@ -390,100 +389,43 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
     p = dom%node%elts(id_i)
-    l = dom%level%elts(id_i)
-
-    !!$       dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
-    dx = dx_max
-
+   
     select case (itype)
     case ("bathymetry")
-      !!$       nsmth = 2 * (l - min_level)
-       nsmth = 0
-       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
+       dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
     case ("penalize")
-       call cart2sph (dom%node%elts(id_i), lon, lat)
-
        if (trim (test_case) == "upwelling") then
-          dlat = 0.5*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
-          width_S = lat_c - (lat_width/2 + dlat) + 90_8
-          width_N = lat_c - (lat_width/2 + dlat)       
-          n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
-          n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
-
-          nsmth = 0
-
-          penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, nsmth)
+          penal_node(zlev)%data(d)%elts(id_i) = mask (p)
 
           q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
           q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1)
           q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
           do e = 1, EDGE
              id_e = EDGE*id + e
-             penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
+             penal_edge(zlev)%data(d)%elts(id_e) = interp (mask(p), mask(q(e)))
           end do
        end if
     end select
-  contains
-    real(8) function mask (p)
-      implicit none
-      type(Coord) :: p
-
-      real(8) :: lat, lon
-
-      call cart2sph (p, lon, lat)
-
-      mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
-    end function mask
   end subroutine topography
 
-  real(8) function smooth (fun, p, dx, npts)
-    ! Smooth a function using radial basis functions
+  real(8) function mask (p)
+    ! Land mass mask for upwelling case
     implicit none
-    integer     :: npts
-    real(8)     :: dx
     type(Coord) :: p
 
-    integer     :: ii, jj
-    real(8)     :: dtheta, lat, lat0, lon, lon0, nrm, r, rbf, wgt
-    type(Coord) :: q
+    real(8) :: dlat, lat, lon
+    real(8) :: n_smth_N, n_smth_S, width_N, width_S
 
-    interface
-       real(8) function fun (q)
-         use geom_mod
-         type(Coord) :: q
-       end function fun
-    end interface
+    dlat = 0.5*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+    width_S = lat_c - (lat_width/2 + dlat) + 90_8
+    width_N = lat_c - (lat_width/2 + dlat)       
+    n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
+    n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
 
-    if (npts == 0) then
-       smooth = fun (p)
-    else
-       dtheta = dx/radius
-       call cart2sph (p, lon0, lat0)
-       nrm = 0.0_8
-       rbf = 0.0_8
-       do ii = -npts, npts
-          lat = lat0 + dtheta * ii
-          do jj = -npts, npts
-             lon = lon0 + dtheta * jj
+    call cart2sph (p, lon, lat)
 
-             q = project_on_sphere (sph2cart(lon, lat))
-             r = norm (vector(p, q))
-             wgt = radial_basis_fun ()
-
-             nrm = nrm + wgt
-             rbf = rbf + wgt * fun (q)
-          end do
-       end do
-       smooth = rbf /nrm
-    end if
-  contains
-    real(8) function radial_basis_fun ()
-      ! Radial basis function for smoothing topography
-      implicit none
-
-      radial_basis_fun = exp (-(r/(npts*dx/2))**2)
-    end function radial_basis_fun
-  end function smooth
+    mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
+  end function mask
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
     ! Set bathymetry
@@ -726,6 +668,8 @@ contains
     ! Magnitude of wind stress at node p (dummy routine)
     implicit none
     type(Coord) :: p
+
+    tau = 0.1_8
   end function tau
 
   subroutine set_save_level
