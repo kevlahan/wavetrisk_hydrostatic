@@ -1,8 +1,9 @@
-program tke
+program tke1d
   ! 1D test cases for TKE closure eddy viscosity model
   use main_mod
   use test_case_mod
   use io_mod
+  use vert_diffusion_mod
   implicit none
   integer :: it
   logical :: aligned
@@ -58,15 +59,15 @@ program tke
   lat_c              = 45                            ! centre of zonal channel (in degrees)
   
   ! Bottom friction
-  friction_upwelling = 0.0_8        
+  friction_tke = 0.0_8        
 
-  ! Wind stress
-  u_star             = 0.01 * METRE/SEC
-  tau_0              = ref_density * u_star**2
+  ! Wind stress  
+  u_0                = 0.01 * METRE/SECOND
+  tau_0              = ref_density * u_0**2
 
   ! Other parameters
   alpha_0             = 2d-4
-  N_0                 = 0.01 / SEC
+  N_0                 = 0.01 / SECOND
   T_0                 = 16.0
 
   ! Vertical level to save
@@ -105,7 +106,7 @@ program tke
   total_cpu_time = 0.0_8
   do while (time < time_end)
    
-     call implicit_vertical_diffusion (bottom_friction, wind_tau, wind_d, source_b, source_t)
+     call implicit_vertical_diffusion (r_d, tau, tke_drag, tke_bottom, tke_top)
 
      call print_log
 
@@ -132,7 +133,7 @@ program tke
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
   end if
   call finalize
-end program upwelling
+end program tke1d
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)
@@ -152,7 +153,6 @@ function physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev, type)
   logical, optional                                    :: type
 
   physics_scalar_flux = 0.0_8
-  end if
 end function physics_scalar_flux
 
 function physics_scalar_source (q, id, zlev)

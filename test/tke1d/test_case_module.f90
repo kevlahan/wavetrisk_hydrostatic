@@ -13,10 +13,10 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: alpha_0, beta, beta0, drho, f0, Rd, ref_temp
-  real(8)                              :: friction_upwelling, N_0, r_max, r_max_loc
+  real(8)                              :: friction_tke, N_0, r_max, r_max_loc
   real(8)                              :: n_smth_N, n_smth_S, width_N, width_S
   real(8)                              :: npts_penal, T_0, u_wbc
-  real(8)                              :: lat_c, lat_width, tau_0, Tcline, u_star, width
+  real(8)                              :: lat_c, lat_width, tau_0, Tcline, u_0, width
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
 
@@ -127,8 +127,8 @@ contains
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
-       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", friction_upwelling
-       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/friction_upwelling / DAY
+       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", friction_tke
+       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/friction_tke / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
@@ -404,7 +404,6 @@ contains
     implicit none
     real(8) :: z
 
-    stratification = "temp"
     density = eqn_of_state (temp_profile(z))
   end function density
 
@@ -421,9 +420,9 @@ contains
     implicit none
     real(8) :: temperature
 
-    real(8), parameter :: beta = 0.28, 
+    real(8), parameter :: beta = 0.28
 
-    eqn_of_state = ref_density - beta * (temperature - T0)
+    eqn_of_state = ref_density - beta * (temperature - T_0)
   end function eqn_of_state
 
   subroutine print_density
@@ -908,7 +907,7 @@ contains
     end if
   end subroutine cal_rmax_loc
   
-  real(8) function upwelling_bottom (dom, i, j, z_null, offs, dims)
+  real(8) function tke_bottom (dom, i, j, z_null, offs, dims)
     ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
     type(Domain)                   :: dom
@@ -916,10 +915,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    upwelling_bottom = 0.0_8
-  end function upwelling_bottom
+    tke_bottom = 0.0_8
+  end function tke_bottom
 
-  real(8) function upwelling_top (dom, i, j, z_null, offs, dims)
+  real(8) function tke_top (dom, i, j, z_null, offs, dims)
     ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
     type(Domain)                   :: dom
@@ -927,17 +926,17 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    upwelling_top = 0.0_8
-  end function upwelling_top
+    tke_top = 0.0_8
+  end function tke_top
 
-  function upwelling_drag (dom, i, j, zlev, offs, dims)
+  function tke_drag (dom, i, j, zlev, offs, dims)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: upwelling_drag
+    real(8), dimension(1:EDGE)     :: tke_drag
 
     integer                         :: d, id, idE, idN, idNE               
     real(8), dimension(1:EDGE)      :: mass_e, tau_wind
@@ -963,11 +962,11 @@ contains
        tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
        tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-       upwelling_drag = tau_wind / mass_e * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+       tke_drag = tau_wind / mass_e * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
     else
-       upwelling_drag = 0.0_8
+       tke_drag = 0.0_8
     end if
-  end function upwelling_drag
+  end function tke_drag
 end module test_case_mod
 
 !  LocalWords:  zlevels
