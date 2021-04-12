@@ -588,16 +588,20 @@ contains
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
-    do k = 1, zlevels
-       if (trim (coords) == "uniform") then 
+    if (trim (coords) == "uniform") then 
+       do k = 0, zlevels
+          a_vert(k) = dble(k)/dble(zlevels)
           b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
-       elseif (trim (coords) == "chebyshev") then
+       end do
+    elseif (trim (coords) == "chebyshev") then
+       a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
+       do k = 1, zlevels-1
+          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
           b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-       end if
-    end do
-    a_vert = 1.0_8 - b_vert
-       
+       end do
+       a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
+    end if
+
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
@@ -749,9 +753,47 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-
+    
     id = idx (i, j, offs, dims)
 
     dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine trend_velo
+
+  function z_coords (eta_surf, z_s)
+    ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
+    ! near the free surface over strong bathymetry gradients.
+    ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
+    !
+    ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
+    implicit none
+    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8), dimension(0:zlevels) :: z_coords
+
+    integer                       :: k
+    real(8)                       :: cff, cff1, cff2, hc, z_0
+    real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
+    real(8), dimension(0:zlevels) :: Cs, sc
+    
+!!$    hc = min (abs(min_depth), abs(Tcline)) ! if specify position of thermocline
+    hc = abs(min_depth)
+    
+    cff1 = 1.0_8 / sinh (theta_s)
+    cff2 = 0.5d0 / tanh (0.50 * theta_s)
+    
+    sc(0) = -1.0_8
+    Cs(0) = -1.0_8
+    cff = 1d0 / dble(zlevels)
+    do k = 1, zlevels
+       sc(k) = cff * dble (k - zlevels)
+       Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+    end do
+
+    z_coords(0) = z_s
+    do k = 1, zlevels
+       cff = hc * (sc(k) - Cs(k))
+       z_0 = cff - Cs(k) * z_s
+       a_vert(k) = 1.0_8 - z_0 / z_s
+       z_coords(k) = eta_surf * a_vert(k) + z_0
+    end do
+  end function z_coords
 end module test_case_mod
