@@ -90,7 +90,7 @@ program upwelling
 
   ! Save initial conditions
   call print_test_case_parameters
-  !call write_and_export (iwrite)
+  call write_and_export (iwrite)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
