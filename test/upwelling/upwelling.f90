@@ -47,7 +47,7 @@ program upwelling
   vert_diffuse       = .true.                        ! include vertical diffusion
          
   ! Depth and layer parameters
-  sigma_z            = .false.                       ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+  sigma_z            = .true.                        ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
   coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
   max_depth          = -150 * METRE                  ! total depth
   min_depth          =  -25 * METRE                  ! minimum depth
@@ -65,7 +65,7 @@ program upwelling
   tau_0              = 0.1_8
 
   ! Vertical level to save
-  save_zlev          = zlevels
+  save_zlev          = 8
 
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
@@ -75,7 +75,7 @@ program upwelling
 
   ! Dimensional scaling
   drho               = 2.5 * KG/METRE**3                  ! magnitude of density perturbation
-  Udim               = 0.5_8                              ! velocity scale
+  Udim               = 0.35_8                              ! velocity scale
   Ldim               = lat_width*DEG * radius             ! length scale 
   Tdim               = Ldim/Udim                          ! time scale
   Hdim               = abs (max_depth)                    ! vertical length scale
@@ -90,7 +90,7 @@ program upwelling
 
   ! Save initial conditions
   call print_test_case_parameters
-  call write_and_export (iwrite)
+  !call write_and_export (iwrite)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &

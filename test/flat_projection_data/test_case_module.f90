@@ -380,7 +380,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer  :: d, e, id, id_i
+    integer  :: d, e, id, id_e, id_i
     
     type(Coord)                    :: p
     type(Coord), dimension(1:EDGE) :: q

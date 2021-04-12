@@ -129,8 +129,11 @@ contains
     do l = level_end, level_start, -1
        call apply_onescale (turbulence_model, l, z_null, 0, 1)
     end do
-    tke%bdry_uptodate = .false.
-    call WT_after_scalar (tke, wav_tke, level_start-1)
+
+    if (tke_closure) then
+       tke%bdry_uptodate = .false.
+       call WT_after_scalar (tke, wav_tke, level_start-1)
+    end if
 
     Kv%bdry_uptodate = .false.
     Kt%bdry_uptodate = .false.
@@ -208,7 +211,7 @@ contains
 
        ! Solve tridiagonal linear system
        call dgtsv (zlevels-1, 1, diag_l, diag, diag_u, rhs, zlevels-1, info)
-       if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed with info = ", info
+       if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed in TKE computation with info = ", info
 
        ! Backwards Euler step
        ! e(0) = e_0  at bathymetry
@@ -323,7 +326,7 @@ contains
 
     ! Solve tridiagonal linear system
     call dgtsv (zlevels, 1, diag_l, diag, diag_u, rhs, zlevels, info)
-    if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed with info = ", info
+    if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed in vertical diffusion of buoyancy, info = ", info
 
     ! Backwards Euler step
     do k = 1, zlevels
@@ -336,7 +339,6 @@ contains
       implicit none
       integer :: l
       integer :: kk
-      real(8) :: Nsq, dudzsq, Ri
 
       kk = k + min(0,l)
       coeff = dt / (dz_l(kk) * dz(k)) * Kt(kk)%data(d)%elts(id)
@@ -346,6 +348,7 @@ contains
       ! Fluctuating buoyancy
       implicit none
       real(8) :: full_mass, full_theta
+      
       full_mass  = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
       full_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol(S_TEMP,k)%data(d)%elts(id)
       b = full_theta / full_mass - b_mean()
@@ -364,7 +367,6 @@ contains
 
       integer :: kk
       real(8) :: b_0, b_l, mass_0, mass_l, temp_0, temp_l
-      real(8) :: Nsq, dudzsq, Ri
 
       kk = k + min(0,l)
 
@@ -429,7 +431,7 @@ contains
     do e = 1, EDGE
        dl = diag_l(e,:); dd = diag(e,:); du = diag_u(e,:); r = rhs(e,:)
        call dgtsv (zlevels, 1, dl, dd, du, r, zlevels, info)
-       if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed with info = ", info
+       if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed in vertical diffusion of velocity, info = ", info
        do k = 1, zlevels
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = r(k)
        end do

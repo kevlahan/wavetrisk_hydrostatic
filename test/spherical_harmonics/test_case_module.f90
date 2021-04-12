@@ -3,6 +3,7 @@ module test_case_mod
   use shared_mod
   use domain_mod
   use comm_mpi_mod
+  use utils_mod
   implicit none
   integer                              :: angular_order, N, ntaper, save_zlev
   real(8)                              :: concentration, lat0, lon0, theta0
@@ -18,7 +19,7 @@ module test_case_mod
   real(8) :: d2, h_0, lat_c, lon_c
   !Drake
   integer               :: npts_penal
-  real(8)               :: drho, halocline, max_depth, mixed_layer, scale
+  real(8)               :: drho, halocline, mixed_layer, scale
   real(8), dimension(2) :: density, height
 contains
   real(8) function surf_geopot (x_i)
@@ -188,7 +189,6 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, uniform
-    read (fid,*) varname, adapt_trend
     read (fid,*) varname, level_fill
     read (fid,*) varname, N
     read (fid,*) varname, local_spec
@@ -213,7 +213,6 @@ contains
        write (6,'(A,i3)')     "max_level              = ", max_level
        write (6,'(A,i3)')     "zlevels                = ", zlevels
        write(6,'(A,L1)')      "uniform                = ", uniform
-       write (6,'(A,L1)')     "adapt_trend            = ", adapt_trend
        write (6,'(A,i3)')     "level_fill             = ", level_fill
        write (6,'(A,i5)')     "N                      = ", N
        write (6,'(a,L1)')     "local_spec             = ", local_spec
@@ -422,4 +421,14 @@ contains
     read (fid) iwrite
     read (fid) threshold
   end subroutine load
+
+  function z_coords (eta_surf, z_s)
+    ! Dummy routine
+    ! (see upwelling test case for example)
+    implicit none
+    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8), dimension(0:zlevels) :: z_coords
+
+    z_coords = 0.0_8
+  end function z_coords
 end module test_case_mod

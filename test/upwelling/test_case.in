@@ -1,15 +1,15 @@
 test_case          upwelling     ! name of test case
 run_id             upwelling     ! name of run (for saved data)
-max_level	   6             ! maximum level of resolution
+max_level	   8             ! maximum level of resolution
 zlevels           16             ! number of vertical levels
 no_slip            T  	      	 ! use no slip (T) or free slip	boundary conditions
 remap              T             ! remap vertical grid
-iremap             10            ! remap every iremap time steps
+iremap             20            ! remap every iremap time steps
 log_iter           F             ! print elliptic solver relative residual error
-tol      	   4e-3          ! non-dimensional tolerance
-cfl_num            25            ! cfl number for barotropic mode
-dt_write           5             ! save interval (days)
+tol      	   5e-3          ! non-dimensional tolerance
+cfl_num            35            ! cfl number for barotropic mode
+dt_write           2.0             ! save interval (days)
 CP_EVERY           1             ! checkpoint every CP_EVERY saves
-time_end           1000          ! final time (days)
+time_end           2.0          ! final time (days)
 resume            -1             ! restart from checkpoint (negative means fresh restart)
 

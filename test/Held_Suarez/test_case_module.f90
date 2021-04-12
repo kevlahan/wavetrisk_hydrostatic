@@ -778,4 +778,14 @@ contains
 
     dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
   end subroutine set_surf_geopot_HS
+
+  function z_coords (eta_surf, z_s)
+    ! Dummy routine
+    ! (see upwelling test case for example)
+    implicit none
+    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8), dimension(0:zlevels) :: z_coords
+    
+    z_coords = 0.0_8
+  end function z_coords
 end module test_case_mod

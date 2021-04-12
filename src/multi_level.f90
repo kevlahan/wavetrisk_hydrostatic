@@ -296,13 +296,13 @@ contains
     idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
     idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
 
-    if (minval(dom%mask_e%elts(EDGE*id_chd + RT + 1:EDGE*id_chd + UP + 1)) < ADJZONE) &
+    if (minval(dom%mask_e%elts(EDGE*id_chd+RT+1:EDGE*id_chd+UP+1)) < ADJZONE) &
          call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
 
     if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) &
          dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
 
-    if (dom%mask_e%elts(DG+EDGE*id_chd+1) >= ADJZONE) &
+    if (dom%mask_e%elts(EDGE*id_chd+DG+1) >= ADJZONE) &
          dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
 
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) &

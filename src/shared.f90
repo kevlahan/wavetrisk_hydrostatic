@@ -216,6 +216,7 @@ module shared_mod
   
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, tol_elliptic
+  real(8)                                       :: max_depth, min_depth
   real(8)                                       :: visc_divu, visc_rotu
   real(8)                                       :: alpha
   real(8), dimension(:), allocatable            :: visc_sclr
@@ -322,6 +323,8 @@ contains
     fine_iter           = 10            ! number of jacobi iterations at finer scales for elliptic solver
     level_save          = level_start
     Laplace_order_init  = 0 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
+    max_depth           = 4 * KM
+    min_depth           = max_depth
     remapscalar_type    = "PPR" 
     remapvelo_type      = "PPR"
     timeint_type        = "RK45"

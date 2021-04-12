@@ -1,16 +1,16 @@
 clear all
-% test_case = 'seamount';
-% run_id    = 'sea_drho_3_nonadapt';
+test_case = 'seamount';
+run_id    = 'sea_drho_3_nonadapt';
+% test_case = 'upwelling';
+% run_id    = 'implicit';
 
-test_case = 'upwelling';
-run_id    = 'implicit';
-time      =  4;
+time      =  0;
 radius    = 240; % radius of planet in km
 lat_w     = 80;  % width of zonal channel in km
 lat_w_deg = lat_w/radius * 180/pi;
 
-machine   = 'if.mcmaster.ca';
-%machine   = 'niagara.computecanada.ca';
+%machine   = 'if.mcmaster.ca';
+machine   = 'niagara.computecanada.ca';
 %machine   = 'cherry';
 
 % Transfer data
@@ -39,9 +39,9 @@ zlon = fread(fopen([directory '/' file_base '.55']),'double'); zlon = reshape(zl
 
 lat_slice = fread(fopen([directory '/' file_base '.56']),'double');lat_slice = reshape(lat_slice,Nlat,[],5);
 lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = reshape(lon_slice,Nlon,[],5);
-%%
-ax = figure;
-plot_field (xlat, zlat, lat_slice, lat_w_deg, 'vertical', 'raw', ax)
+%% Seamount
+ax1=figure;plot_field (xlat, zlat, lat_slice, lat_w_deg, 'density', 'raw', ax1)
+
 %% Plot results
 str = "Upwelling results at day "+compose("%1.0f",time/2)+" for J7 (dx = 2.26 km, dt = 1840 s)";
 %sgtitle(str);
@@ -69,11 +69,12 @@ skip = 1;
 zlevels = size(zlat,2);
 Nlat    = size(zlat,1);
 DAY = 60^2 * 24;
-if strcmp(field,'density')
+if strcmp(field,'density') % used for seamount
     m = 3;
-    c1 = linspace(1025.5, 1028, 200);
-    c2 = linspace(1025.5, 1028, 20);
-    trans = @(rho) rho;
+    c1 = linspace(-3, 0, 200);
+    c2 = linspace(-3, 0, 20);
+    trans = @(rho) rho - 1000;
+    zlat = zlat/1e3;
 elseif strcmp(field,'temperature')
     m = 3;
     c1 = linspace(9, 19, 200);
@@ -82,17 +83,17 @@ elseif strcmp(field,'temperature')
 elseif strcmp(field,'zonal')
     m = 1;
     c1 = linspace(-20, 20, 200);
-    c2 = [-14 -12 -10 -8 -6 -4 -2 0]; 
+    c2 = [-18 -16 -14 -12 -10 -8 -6 -4 -2 0]; 
     trans = @(u) -100 * u;
 elseif strcmp(field,'meridional')
     m = 2;
     c1 = linspace(-6, 6, 200);
-    c2 = [-6 -5 -4 -3 -2 -1 1 2 3 4]; 
+    c2 = [-6 -5 -4 -3 -2 -1  1 2 3 4]; 
     trans = @(u) 100 * u;
 elseif strcmp(field,'vertical')
     m = 5;
     c1 = linspace(-15, 15, 200); 
-    c2 = [-12 -10 -8 -6 -4 -2 0 2 4 6 8 10 12]; 
+    c2 = [-14 -12 -10 -8 -6 -4 -2  2 4 6 8 10 12 14]; 
     trans = @(u) DAY * u;
 end
 
@@ -150,14 +151,15 @@ elseif strcmp(type,'raw')
         z22 = 0.5 * (zlat(Nlat-1,k,2) + zlat(Nlat,k,2));
         x = [xlat(Nlat,1) xlat(Nlat,2) xlat(Nlat,2) xlat(Nlat,1)];
         y = [z11 z12 z21 z22];
-        %patch(x,y,dat(Nlat,k),'LineStyle','none');
         patch(x,y,dat(Nlat,k));
     end
     hold on
 end
 
-if strcmp(field,'temperature')
+if strcmp(field,'temperature') 
     colormap(ax, jet)
+elseif strcmp(field,'density') 
+    colormap(ax, autumn)
 else
     colormap(ax, hsv)
 end
@@ -172,7 +174,7 @@ contour(x, z, dat, min(c2(c2>=0))  : max(c2), 'k-',  'Linewidth', 1.5);
 xlabel('latitude'); ylabel('z (m)'); 
 
 caxis([min(c1) max(c1)]);
-axis([45-lat_width/2 45+lat_width/2 -150 0]);
+axis([45-lat_width/2 45+lat_width/2 - 0.5 -150 0]);
 %axis([0 90 -150 0])
 set(gca,'fontsize',18);
 

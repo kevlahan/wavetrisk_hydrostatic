@@ -85,13 +85,13 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: eta, full_mass, height, mean_theta, theta, z_s
+    real(8) :: eta, full_mass, mean_theta, theta
 
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
        d = dom%id + 1
-       full_mass  = mean_m(id) + mass(id)
+       full_mass = mean_m(id) + mass(id)
        theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
        
        ! Correct mass perturbation

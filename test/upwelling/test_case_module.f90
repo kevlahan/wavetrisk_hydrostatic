@@ -13,7 +13,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
-  real(8)                              :: friction_upwelling, max_depth, min_depth, r_max, r_max_loc
+  real(8)                              :: friction_upwelling, r_max, r_max_loc
   real(8)                              :: n_smth_N, n_smth_S, width_N, width_S
   real(8)                              :: npts_penal, u_wbc
   real(8)                              :: lat_c, lat_width, tau_0, Tcline, width
@@ -158,9 +158,9 @@ contains
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
-            '  mass tol = ', threshold(S_MASS,zlevels), &
-            ' temp tol = ', threshold(S_TEMP,zlevels), &
-            ' velo tol = ', threshold(S_VELO,zlevels), &
+            '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
+            ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &
+            ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' min rel mass = ', min_mass, &
@@ -508,23 +508,24 @@ contains
     real(8), dimension(1:N_VARIABLE,1:zmax) :: threshold_new
     character(3), parameter                 :: order = "inf"
 
-    if (default_thresholds) then ! Initialize once
-       threshold_new = threshold_def
+    if (default_thresholds) then ! initialize once
+       threshold = threshold_def
     else
        call cal_lnorm_sol (sol, order)
        threshold_new = tol * lnorm
+       
        ! Correct very small values
        do k = 1, zmax
           if (threshold_new(S_MASS,k) < threshold_def(S_MASS,k)/10) threshold_new(S_MASS,k) = threshold_def(S_MASS,k)
           if (threshold_new(S_TEMP,k) < threshold_def(S_TEMP,k)/10) threshold_new(S_TEMP,k) = threshold_def(S_TEMP,k)
           if (threshold_new(S_VELO,k) < threshold_def(S_VELO,k)/10) threshold_new(S_VELO,k) = threshold_def(S_VELO,k)
        end do
-    end if
-
-    if (istep >= 10) then
-       threshold = 0.01*threshold_new + 0.99*threshold
-    else
-       threshold = threshold_new
+       
+       if (istep >= 10) then
+          threshold = 0.01*threshold_new + 0.99*threshold
+       else
+          threshold = threshold_new
+       end if
     end if
   end subroutine set_thresholds
 
@@ -677,9 +678,10 @@ contains
     p = dom%node%elts(id_i)
     l = dom%level%elts(id_i)
 
-!!$       dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
+!!$    dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
     dx = dx_max
-
+!!$    dx = dx_min
+    
     select case (itype)
     case ("bathymetry")
 !!$       nsmth = 2 * (l - min_level)

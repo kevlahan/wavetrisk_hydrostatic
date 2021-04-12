@@ -14,7 +14,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, Rb, Rd, Rey, Ro
-  real(8)                              :: r0, max_depth, min_depth, mixed_layer
+  real(8)                              :: r0, mixed_layer
   real(8)                              :: radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc
   real(8)                              :: resolution, tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -736,9 +736,19 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-
+    
     id = idx (i, j, offs, dims)
 
     dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
   end subroutine trend_velo
+
+  function z_coords (eta_surf, z_s)
+    ! Dummy routine
+    ! (see upwelling test case for example)
+    implicit none
+    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8), dimension(0:zlevels) :: z_coords
+
+    z_coords = 0.0_8
+  end function z_coords
 end module test_case_mod
