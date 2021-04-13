@@ -51,20 +51,17 @@ program tke1d
   alpha_0             = 2d-4
   N_0                 = 0.01 / SECOND
   T_0                 = 16.0
+  beta_eos            = 0.28_8
 
   ! Vertical level to save
   save_zlev          = 8
 
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
-  f0                 = 2*omega*sin(45*DEG)               ! representative Coriolis parameter
-  beta               = 2*omega*cos(45*DEG) / radius      ! beta parameter at 30 degrees latitude
-  Rd                 = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
 
   ! Dimensional scaling
-  drho               = 2.5 * KG/METRE**3                  ! magnitude of density perturbation
   Udim               = 0.35_8                              ! velocity scale
-  Ldim               = lat_width*DEG * radius             ! length scale 
+  Ldim               = radius             ! length scale 
   Tdim               = Ldim/Udim                          ! time scale
   Hdim               = abs (max_depth)                    ! vertical length scale
   

@@ -14,7 +14,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bu, bv, drho, drho_dz, f0, Rb, Rd, Rey, Ro
-  real(8)                              :: r0, delta, h0, lat_c, lon_c, max_depth, min_depth, r_max, r_max_loc, width
+  real(8)                              :: r0, delta, h0, lat_c, lon_c, r_max, r_max_loc, width
   real(8)                              :: radius_earth, omega_earth, scale, tke_sea, visc
   real(8)                              :: tau_0, wave_friction
   real(4), allocatable, dimension(:,:) :: topo_data

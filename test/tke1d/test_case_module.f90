@@ -6,18 +6,14 @@ Module test_case_mod
   implicit none
 
   ! Standard variables
-  integer                              :: bathy_per_deg, CP_EVERY, resume_init, save_zlev
+  integer                              :: CP_EVERY, resume_init, save_zlev
   real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  real(8)                              :: alpha_0, beta, beta0, drho, f0, Rd, ref_temp
-  real(8)                              :: friction_tke, N_0, r_max, r_max_loc
-  real(8)                              :: n_smth_N, n_smth_S, width_N, width_S
-  real(8)                              :: npts_penal, T_0, u_wbc
-  real(8)                              :: lat_c, lat_width, tau_0, u_0, width
-  real(4), allocatable, dimension(:,:) :: topo_data
+  real(8)                              :: alpha_0, beta_eos, drho
+  real(8)                              :: friction_tke, N_0, r_max, r_max_loc, tau_0, T_0, u_0
   character(255)                       :: coords
 
 contains
@@ -157,6 +153,40 @@ contains
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
+  
+  subroutine avg_temp (T_avg)
+    ! Average temperature over the sphere (assumes non-adaptive grid)
+    implicit none
+    real(8), dimension(1:zlevels) :: T_avg
+    integer :: k
+
+    do k = 1, zlevels
+       T_avg(k) = T_avg(k) + integrate_hex (temp_fun, level_start, k)
+    end do
+
+    T_avg = Tavg / (4*MATH_PI * radius**2)
+  end subroutine avg_temp
+
+   real(8) function temp_fun (dom, i, j, zlev, offs, dims)
+    ! Defines mass for total mass integration
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id_i
+    real(8) :: density, full_mass, full_theta
+
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i) 
+    full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
+
+    density = ref_density * (1 - full_theta/full_mass)
+    temp_fun = temperature (density)
+  end function temp_fun
   
   real(8) function buoyancy (z, k)
     ! Buoyancy profile
@@ -359,29 +389,28 @@ contains
   end function init_free_surface
 
   real(8) function density (z)
+    ! Returns density as a function of z from temperature
+    ! using a linear equation of state
     implicit none
     real(8) :: z
 
-    density = eqn_of_state (temp_profile(z))
+    density = ref_density - beta_eos * (temp_profile (z) - T_0)
   end function density
 
   real(8) function temp_profile (z)
     implicit none
     real(8) :: z
 
-    real(8), parameter :: T_0 = 16_8
-
     temp_profile = T_0 - N_0**2/(alpha_0*grav_accel) * abs (z)
   end function temp_profile
 
-  real(8) function eqn_of_state (temperature)
+  real(8) function temperature (density)
+    ! Returns temperature from density using a linear equation of state
     implicit none
-    real(8) :: temperature
+    real(8) :: density
 
-    real(8), parameter :: beta = 0.28
-
-    eqn_of_state = ref_density - beta * (temperature - T_0)
-  end function eqn_of_state
+    temperature = (ref_density - density)/beta_eos + T_0
+  end function temperature
 
   subroutine print_density
     implicit none
@@ -580,8 +609,7 @@ contains
   end subroutine set_penal
 
   subroutine topography (dom, i, j, zlev, offs, dims, itype)
-    ! Returns penalization mask for land penal and bathymetry coordinate topo 
-    ! uses radial basis function for smoothing (if specified)
+    ! Not used
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -589,42 +617,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer                        :: d, e, id, id_e, id_i
-    type(Coord)                    :: p
-    type(Coord), dimension(1:EDGE) :: q
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-    d = dom%id + 1
-    
-    p = dom%node%elts(id_i)
-
-    select case (itype)
-    case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot(p) / grav_accel
-    case ("penalize") ! analytic land mass with smoothing
-       penal_node(zlev)%data(d)%elts(id_i) = mask (p)
-      
-       q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
-       q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1)
-       q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          penal_edge(zlev)%data(d)%elts(id_e) = interp (mask(p), mask(q(e)))
-       end do
-    end select
   end subroutine topography
-
-  real(8) function mask (p)
-    implicit none
-    type(Coord) :: p
-
-    real(8) :: lat, lon
-
-    call cart2sph (p, lon, lat)
-
-    mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
-  end function mask
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     implicit none
