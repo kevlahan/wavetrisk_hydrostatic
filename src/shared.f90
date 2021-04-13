@@ -235,7 +235,7 @@ module shared_mod
   
   logical :: adapt_dt, compressible, default_thresholds, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, match_time, mode_split, no_slip, penalize, perfect, rebalance, remap, uniform, vert_diffuse
-  logical :: sigma_z
+  logical :: sigma_z, tke_closure
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -309,6 +309,7 @@ contains
     rebalance           = .true.  ! rebalance computational load at each checkpoint if T
     sigma_z             = .false. ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
     remap               = .true.  ! remap Lagrangian coordinates (T) or no remapping (F)
+    tke_closure         = .false. ! use TKE closure for eddy viscosity (T) or analytic form (F)
     uniform             = .true.  ! uniform vertical grid in pressure (T) or hybrid (F)
     vert_diffuse        = .false. ! include vertical diffusion
 

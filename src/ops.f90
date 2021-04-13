@@ -1,6 +1,7 @@
 module ops_mod
   use test_case_mod
   implicit none
+  real(8) :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, min_mass_loc
 contains
   subroutine init_ops_mod
     implicit none
@@ -1510,27 +1511,28 @@ contains
           col_mass = col_mass + full_mass
        end do
 
-       z_s = dom%topo%elts(id_i)
-       if (sigma_z) then
-          z = z_coords (0.0_8, z_s)
-       else
-          z = b_vert * z_s
-       end if
-       dz = z(1:zlevels) - z(0:zlevels-1)
-
        ! Measure relative change in mass
-       do k = 1, zlevels
-          if (compressible) then
+       if (compressible) then
+          do k = 1, zlevels
              init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
              min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
+          end do
+       else
+          z_s = dom%topo%elts(id_i)
+          if (sigma_z) then
+             z = z_coords (0.0_8, z_s)
           else
+             z = b_vert * z_s
+          end if
+          dz = z(1:zlevels) - z(0:zlevels-1)
+          do k = 1, zlevels
              rho = porous_density (dom, i, j, k, offs, dims)
              init_mass = rho * dz(k)
              full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
              min_mass_loc = min (min_mass_loc, full_mass/init_mass)
-          end if
-       end do
-       
+          end do
+       end if
+
        ! Check diffusion stability
        do e = 1, EDGE
           id_e = EDGE*id + e

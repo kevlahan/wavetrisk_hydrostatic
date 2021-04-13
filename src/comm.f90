@@ -4,7 +4,7 @@ module comm_mod
   implicit none
   integer, dimension(4,4)            :: shift_arr
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes
-  real(8)                            :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, dt_loc, min_mass_loc, sync_val
+  real(8)                            :: dt_loc, sync_val
 contains
   subroutine init_comm_mod
     implicit none

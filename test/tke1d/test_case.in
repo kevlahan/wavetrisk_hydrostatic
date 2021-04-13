@@ -2,12 +2,10 @@ test_case          tke1d     ! name of test case
 run_id             tke1d     ! name of run (for saved data)
 max_level	   4             ! maximum level of resolution
 zlevels           100             ! number of vertical levels
-no_slip            T  	      	 ! use no slip (T) or free slip	boundary conditions
 remap              T             ! remap vertical grid
 iremap             20            ! remap every iremap time steps
-log_iter           F             ! print elliptic solver relative residual error
 tol      	   5e-3          ! non-dimensional tolerance
-cfl_num            35            ! cfl number for barotropic mode
+dt_init            2            ! time step [s]
 dt_write           5.0             ! save interval (hour)
 CP_EVERY           1             ! checkpoint every CP_EVERY saves
 time_end           30          ! final time (hours)

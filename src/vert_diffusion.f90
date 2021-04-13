@@ -34,8 +34,6 @@ module vert_diffusion_mod
   real(8), parameter :: Ri_c     = 2 / (2 + c_eps/c_m) ! 0.22
   real(8), parameter :: Kv_0     = 1.2d-4 ! NEMO value
   real(8), parameter :: Kt_0     = 1.2d-5 ! NEMO value
-
-  logical, parameter :: tke_closure = .false.
   
   abstract interface
      real(8) function fun1 (eta, ri, z)

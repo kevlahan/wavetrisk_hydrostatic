@@ -5,10 +5,10 @@ program tke1d
   use io_mod
   use vert_diffusion_mod
   implicit none
-  integer :: it
-  logical :: aligned
-  real(8) :: radius_earth
-
+  integer              :: ialign, idt, it
+  real(8)              :: align_time
+  logical              :: aligned
+  
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -25,41 +25,23 @@ program tke1d
   ref_density        = 1024    * KG/METRE**3         ! reference density at depth (seawater)
 
   ! Numerical method parameters
-  default_thresholds = .true.                        ! use default threshold
-  adapt_dt           = .true.                        ! adapt time step
-  match_time         = .true.                        ! avoid very small time steps when saving (if false) 
-  mode_split         = .true.                        ! split barotropic mode if true
-  penalize           = .false.                        ! penalize land regions
-  alpha              = 1d-6                         ! porosity used in penalization
-  npts_penal         = 2.5                           ! number of points to smooth over in penalization
-  coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
-  fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
-  tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
-  timeint_type       = "RK4"                         ! always use RK4
   compressible       = .false.                       ! always run with incompressible equations
+  adapt_dt           = .false.                        ! adapt time step
+  match_time         = .true.                        ! avoid very small time steps when saving (if false) 
+  penalize           = .false.                        ! penalize land regions
   remapscalar_type   = "PPR"                         ! optimal remapping scheme
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
-  
-  Laplace_order_init = 1                              
-  Laplace_order = Laplace_order_init
-  implicit_diff_sclr = .false.
-  implicit_diff_divu = .false.
   vert_diffuse       = .true.                        ! include vertical diffusion
-         
+  tke_closure       = .true.                        ! use TKE closure to determine eddy viscosity and eddy diffusion
+  
   ! Depth and layer parameters
   sigma_z            = .true.                        ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
   coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
   max_depth          = -50 * METRE                  ! total depth
   min_depth          = -50 * METRE                  ! minimum depth
-  Tcline             = -50 * METRE                  ! position of thermocline
 
-  ! Land mass parameters
-  width              = 80 * KM                       ! width of zonal channel
-  lat_width          = (width/radius)/DEG            ! width of zonal channel (in degrees)
-  lat_c              = 45                            ! centre of zonal channel (in degrees)
-  
   ! Bottom friction
-  friction_tke = 0.0_8        
+  friction_tke       = 0.0_8        
 
   ! Wind stress  
   u_0                = 0.01 * METRE/SECOND
@@ -105,8 +87,36 @@ program tke1d
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
-   
+     istep       = istep+1
+     istep_cumul = istep_cumul+1
+     dt = dt_new
+     n_patch_old = grid%patch%length
+     n_node_old  = grid%node%length
+     idt    = nint (dt, 8)
+     ialign = nint (align_time, 8)
+     if (ialign > 0 .and. istep > 20) then
+        aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
+     else
+        aligned = .false.
+     end if
+
+     ! Modify time step
+     if (aligned .and. match_time) then
+        idt = ialign - modulo (itime,ialign)
+        dt = idt
+     end if
+
      call implicit_vertical_diffusion (r_d, tau, tke_drag, tke_bottom, tke_top)
+
+     min_mass = cpt_min_mass ()
+     call sum_total_mass (.false.)
+     itime = itime + idt
+     if (match_time) then
+        time  = itime
+     else
+        time = time + dt
+     end if
+     dt_new = cpt_dt ()
 
      call print_log
 
