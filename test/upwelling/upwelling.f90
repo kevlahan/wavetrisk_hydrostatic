@@ -101,8 +101,8 @@ program upwelling
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned, &
-          bottom_friction=friction_upwelling, wind_tau=tau, wind_d=upwelling_drag, &
-          source_b=upwelling_bottom, source_t=upwelling_top)
+          bottom_friction=friction_upwelling, wind_tau=tau, wind_f=upwelling_wind_flux, &
+          flux_b=upwelling_bottom, flux_t=upwelling_top)
      call stop_timing
 
      call update_diagnostics

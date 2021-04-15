@@ -951,19 +951,18 @@ contains
     upwelling_top = 0.0_8
   end function upwelling_top
 
-  function upwelling_drag (dom, i, j, zlev, offs, dims)
+  function upwelling_wind_flux (dom, i, j, zlev, offs, dims)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: upwelling_drag
+    real(8), dimension(1:EDGE)     :: upwelling_wind_flux
 
-    integer                         :: d, id, idE, idN, idNE               
-    real(8), dimension(1:EDGE)      :: mass_e, tau_wind
-    real(8), dimension(0:NORTHEAST) :: full_mass
-
+    integer                    :: d, id, idE, idN, idNE
+    real(8)                    :: rho
+    real(8), dimension(1:EDGE) :: tau_wind
 
     id = idx (i, j, offs, dims)
 
@@ -973,22 +972,17 @@ contains
        idN  = idx (i,   j+1, offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
 
-       full_mass(0:NORTHEAST) = sol_mean(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1) &
-            + sol(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1)
-
-       mass_e(RT+1) = 0.5 * (full_mass(0) + full_mass(EAST))
-       mass_e(DG+1) = 0.5 * (full_mass(0) + full_mass(NORTHEAST))
-       mass_e(UP+1) = 0.5 * (full_mass(0) + full_mass(NORTH))
-
        tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
        tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
        tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-       upwelling_drag = tau_wind / mass_e * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+       rho = porous_density (dom, i, j, zlevels, offs, dims)
+
+       upwelling_wind_flux = tau_wind / rho  * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
     else
-       upwelling_drag = 0.0_8
+       upwelling_wind_flux = 0.0_8
     end if
-  end function upwelling_drag
+  end function upwelling_wind_flux
 end module test_case_mod
 
 !  LocalWords:  zlevels

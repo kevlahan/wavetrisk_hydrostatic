@@ -12,9 +12,19 @@ Module test_case_mod
   real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
-  real(8)                              :: alpha_0, beta_eos, drho
+  real(8)                              :: drho
   real(8)                              :: friction_tke, N_0, r_max, r_max_loc, tau_0, T_0, u_0
   character(255)                       :: coords
+
+  ! Equation of state parameters for linear NEMO model
+  real(8), parameter :: a0 = 1.6550d-1  ! linear coefficient of thermal expansion
+  real(8), parameter :: b0 = 7.6554d-1  ! linear haline expansion coefficient
+  real(8), parameter :: Sal = 35        ! salinity in psu
+
+  real(8), parameter :: alpha_0             = 2d-4
+  real(8), parameter :: beta_eos            = 0.2048_8
+  real(8), dimension(2), parameter :: mu = (/ 1.4970d-4, 1.1090d-5 /) ! thermobaric coefficient in T and S
+!!$  real(8), dimension(2), parameter :: mu = (/ 0.0, 0.0 /) ! thermobaric coefficient in T and S
 
 contains
   subroutine read_test_case_parameters
@@ -128,14 +138,12 @@ contains
     implicit none
 
     integer :: min_load, max_load
-    real(8) :: avg_load, rel_imbalance, timing
-
-    timing = get_timing(); total_cpu_time = total_cpu_time + timing
+    real(8) :: avg_load, rel_imbalance
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
     if (rank == 0) then
-       write (6,'(a,es13.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
+       write (6,'(a,es13.6,4(a,es8.2),a,i2,a,i12,3(a,es9.2,1x))') &
             'time [h] = ', time/HOUR, &
             ' dt [s] = ', dt, &
             '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
@@ -145,29 +153,61 @@ contains
             ' dof = ', sum (n_active), &
             ' min rel mass = ', min_mass, &
             ' mass error = ', mass_error, &
-            ' balance = ', rel_imbalance, &
-            ' cpu = ', timing
+            ' balance = ', rel_imbalance
 
-       write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
+       write (12,'(5(es15.9,1x),i2,1x,i12,1x,3(es15.9,1x))')  time/DAY, dt, &
             threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
-            level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
+            level_end, sum (n_active), min_mass, mass_error, rel_imbalance
     end if
   end subroutine print_log
   
-  subroutine avg_temp (T_avg)
-    ! Average temperature over the sphere (assumes non-adaptive grid)
+  subroutine avg_temp (iwrt)
+    ! Saves  temperature averaged over the sphere
+    ! (assumes non-adaptive grid)
+    use utils_mod
     implicit none
-    real(8), dimension(1:zlevels) :: T_avg
-    integer :: k
+    integer :: iwrt
+    
+    integer                       :: k
+    real(8)                       :: eta, z_k, z_s
+    real(8), dimension(1:zlevels) :: Kt_avg, Kv_avg, T_avg
+    real(8), dimension(0:zlevels) :: z
+    character(4)                  :: s_time
 
     do k = 1, zlevels
-       T_avg(k) = T_avg(k) + integrate_hex (temp_fun, level_start, k)
+       Kt_avg(k) = integrate_hex (Kt_fun,   level_start, k)
+       Kv_avg(k) = integrate_hex (Kv_fun,   level_start, k)
+       T_avg(k)  = integrate_hex (temp_fun, level_start, k)
     end do
+    Kt_avg = Kt_avg / (4*MATH_PI * radius**2)
+    Kv_avg = Kv_avg / (4*MATH_PI * radius**2)
+    T_avg  = T_avg  / (4*MATH_PI * radius**2)
 
-    T_avg = Tavg / (4*MATH_PI * radius**2)
+    if (rank == 0) then
+       eta = 0.0_8
+       z_s = max_depth
+       if (sigma_z) then
+          z = z_coords (eta, z_s)
+       else
+          z = a_vert * eta + b_vert * z_s
+       end if
+
+       write (s_time, '(i4.4)') iwrt
+       open (unit=20, file=trim(run_id)//'.6.'//s_time, form="FORMATTED", action='WRITE', status='REPLACE')
+
+       write (6,'(a, f4.1, a)') "Temperature profile at time ", time/HOUR, " h"
+       write (6,'(a)') "Level    z        Kt(z)      Kt(z)        T(z)        rho(z)"
+       do k = 1, zlevels
+          z_k = interp(z(k-1), z(k))
+          write (6,'(i3, 3x, f7.2, 1x, 4(es11.4, 1x))' ) k, z_k,  Kt_avg(k), Kv_avg(k), T_avg(k), density (T_avg(k), z_k)
+          write (20,'(i3, 1x, 4(es13.6,1x))') k, interp(z(k-1), z(k)), Kt_avg(k), Kv_avg(k), T_avg(k)
+       end do
+       write (6,'(a, es9.2)') " "
+       close (20)
+    end if
   end subroutine avg_temp
 
-   real(8) function temp_fun (dom, i, j, zlev, offs, dims)
+  real(8) function temp_fun (dom, i, j, zlev, offs, dims)
     ! Defines mass for total mass integration
     implicit none
     type(Domain)                   :: dom
@@ -176,7 +216,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id_i
-    real(8) :: density, full_mass, full_theta
+    real(8) :: density, full_mass, full_theta, z
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
@@ -184,22 +224,42 @@ contains
     full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i) 
     full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
 
+    z = z_i (dom, i, j, zlev, offs, dims)
     density = ref_density * (1 - full_theta/full_mass)
-    temp_fun = temperature (density)
+    temp_fun = temperature (density, z)
   end function temp_fun
   
-  real(8) function buoyancy (z, k)
-    ! Buoyancy profile
-    ! buoyancy = (ref_density - density)/ref_density
+  real(8) function Kt_fun (dom, i, j, zlev, offs, dims)
+    ! Defines mass for total mass integration
     implicit none
-    integer                       :: k
-    real(8), dimension(0:zlevels) :: z
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    real(8) :: rho
+    integer :: d, id_i
 
-    rho = interp (density (z(k-1)), density (z(k)))
-    buoyancy = (ref_density - rho) / ref_density
-  end function buoyancy
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+   
+    Kt_fun = Kt(zlev)%data(d)%elts(id_i)
+  end function Kt_fun
+
+  real(8) function Kv_fun (dom, i, j, zlev, offs, dims)
+    ! Defines mass for total mass integration
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id_i
+
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+   
+    Kv_fun = Kv(zlev)%data(d)%elts(id_i)
+  end function Kv_fun
   
   subroutine apply_initial_conditions
     implicit none
@@ -274,7 +334,7 @@ contains
        else
           sol(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
        end if
-       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy (z, k)
+       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy (interp (z(k-1), z(k)))
        sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end do
 
@@ -366,10 +426,10 @@ contains
 
     integer  :: d, id
 
-    d    = dom%id+1
-    id   = idx (i, j, offs, dims) + 1
+    d  = dom%id+1
+    id = idx (i, j, offs, dims) + 1
 
-    tke(zlev)%data(d)%elts(id) = 1d-6
+    tke(zlev)%data(d)%elts(id) = 1d-16
   end subroutine init_tke
 
   real(8) function surf_geopot (p)
@@ -388,29 +448,42 @@ contains
     init_free_surface = 0.0_8
   end function init_free_surface
 
-  real(8) function density (z)
-    ! Returns density as a function of z from temperature
-    ! using a linear equation of state
+  real(8) function buoyancy (z)
+    ! Initial buoyancy at depth z
+    ! buoyancy = (ref_density - density)/ref_density
     implicit none
     real(8) :: z
 
-    density = ref_density - beta_eos * (temp_profile (z) - T_0)
+    real(8) :: rho
+
+    rho = density (temp_profile (z), z)
+    buoyancy = (ref_density - rho) / ref_density
+  end function buoyancy
+
+  real(8) function density (temperature, z)
+    ! Equation of state: returns density as a function of temperature and depth z
+    implicit none
+    real(8) :: temperature, z
+
+    density = ref_density * (1 - alpha_0 * (temperature - T_0))
+!!$    density = ref_density - a0 * (1 + mu(1)*z) * (temperature - 10) + b0 * (1 - mu(2)*z) * (Sal - 35) ! NEMO
   end function density
 
-  real(8) function temp_profile (z)
+   real(8) function temperature (density, z)
+     ! Equation of state: returns temperature from density and depth z
+    implicit none
+    real(8) :: density, z
+
+    temperature = (1 - density/ref_density) / alpha_0 + T_0 ! simplified
+!!$    temperature = (ref_density - density + b0 * (1 - mu(2)*z) * (Sal - 35)) / (a0 * (1 + mu(1)*z)) + 10  ! NEMO
+  end function temperature
+
+   real(8) function temp_profile (z)
     implicit none
     real(8) :: z
 
     temp_profile = T_0 - N_0**2/(alpha_0*grav_accel) * abs (z)
   end function temp_profile
-
-  real(8) function temperature (density)
-    ! Returns temperature from density using a linear equation of state
-    implicit none
-    real(8) :: density
-
-    temperature = (ref_density - density)/beta_eos + T_0
-  end function temperature
 
   subroutine print_density
     implicit none
@@ -433,7 +506,7 @@ contains
     do k = 1, zlevels
        z_k = interp (z(k-1), z(k))
        write (6, '(2x, i4, 4x, 2(es9.2, 1x), es11.5)') &
-            k, z_k, dz(k), ref_density * (1.0_8 - buoyancy (z, k))
+            k, z_k, dz(k), ref_density * (1.0_8 - buoyancy (z_k))
     end do
     
     write (6,'(/,a)') " Interface     z"
@@ -448,8 +521,8 @@ contains
        z_k     = interp (z(k-1), z(k))
        dz_l    = z_above - z_k
        
-       rho_above = ref_density * (1.0_8 - buoyancy (z, k+1))
-       rho  = ref_density * (1.0_8 - buoyancy (z, k))
+       rho_above = ref_density * (1.0_8 - buoyancy (z_above))
+       rho  = ref_density * (1.0_8 - buoyancy (z_k))
        drho = rho_above - rho
        
        bv = sqrt(- grav_accel * drho/dz_l/rho)
@@ -598,7 +671,7 @@ contains
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
-    id_i = id + 1
+    id_i = id + 1 
 
     if (penalize) then
        call topography (dom, i, j, zlev, offs, dims, "penalize")
@@ -617,6 +690,17 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
+    integer :: d, id, id_i
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    id_i = id + 1 
+
+    select case (itype)
+    case ("bathymetry")
+       dom%topo%elts(id_i) = max_depth + surf_geopot (dom%node%elts(id_i)) / grav_accel
+    case ("penalize") ! not used
+    end select
   end subroutine topography
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
@@ -689,23 +773,6 @@ contains
     end do
   end function z_coords
 
-  subroutine update_diagnostics
-    ! Update diagnostics
-    implicit none
-    
-  end subroutine update_diagnostics
-
-  subroutine init_diagnostics
-    ! Initialize diagnostics
-    implicit none 
-   
-  end subroutine init_diagnostics
-
-  subroutine deallocate_diagnostics
-    implicit none
-    
-  end subroutine deallocate_diagnostics
-  
   subroutine dump (fid)
     implicit none
     integer :: fid
@@ -782,64 +849,54 @@ contains
     end if
   end subroutine cal_rmax_loc
   
-  real(8) function tke_bottom (dom, i, j, z_null, offs, dims)
-    ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
+  real(8) function flux_bottom (dom, i, j, z_null, offs, dims)
+    ! Bottom boundary flux for vertical diffusion of buoyancy 
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, z_null
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    tke_bottom = 0.0_8
-  end function tke_bottom
+    flux_bottom = N_0**2 / grav_accel
+  end function flux_bottom
 
-  real(8) function tke_top (dom, i, j, z_null, offs, dims)
-    ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
+  real(8) function flux_top (dom, i, j, z_null, offs, dims)
+    ! Top boundary flux for vertical diffusion of buoyancy 
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, z_null
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    tke_top = 0.0_8
-  end function tke_top
+    flux_top = 0.0_8
+  end function flux_top
 
-  function tke_drag (dom, i, j, zlev, offs, dims)
+  function wind_flux_tke (dom, i, j, zlev, offs, dims)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: tke_drag
+    real(8), dimension(1:EDGE)     :: wind_flux_tke
 
-    integer                         :: d, id, idE, idN, idNE               
-    real(8), dimension(1:EDGE)      :: mass_e, tau_wind
-    real(8), dimension(0:NORTHEAST) :: full_mass
-
+    integer                     :: d, id, idE, idN, idNE
+    real(8)                     :: rho
+    real(8), dimension(1:EDGE)  :: tau_wind
 
     id = idx (i, j, offs, dims)
 
-    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
-       d = dom%id + 1
-       idE  = idx (i+1, j,   offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
+    d = dom%id + 1
+    idE  = idx (i+1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
-       full_mass(0:NORTHEAST) = sol_mean(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1) &
-            + sol(S_MASS,zlevels)%data(d)%elts((/id,idN,idE,id,id,idNE/)+1)
+    tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
+    tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
+    tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-       mass_e(RT+1) = 0.5 * (full_mass(0) + full_mass(EAST))
-       mass_e(DG+1) = 0.5 * (full_mass(0) + full_mass(NORTHEAST))
-       mass_e(UP+1) = 0.5 * (full_mass(0) + full_mass(NORTH))
+    rho = porous_density (dom, i, j, zlevels, offs, dims)
 
-       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
-       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
-       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
-
-       tke_drag = tau_wind / mass_e * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
-    else
-       tke_drag = 0.0_8
-    end if
-  end function tke_drag
+    wind_flux_tke = tau_wind / rho
+  end function wind_flux_tke
 end module test_case_mod

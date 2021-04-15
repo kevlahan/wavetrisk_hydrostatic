@@ -6,25 +6,26 @@ module vert_diffusion_mod
   ! using a TKE closure model (tke_closure=.true.).
   !
   ! User must supply the following functions in test_case_mod.f90:
-  !        source_b, source_t   (bottom and top buoyancy sources)
-  !        wind_tau, wind_drag  (magnitude of wind stress tau and wind drag)
-  !        r                    (bottom friction)
+  !        flux_b, flux_t   (bottom and top buoyancy sources)
+  !        wind_tau, wind_f (magnitude of wind stress tau and wind drag)
+  !        r                (bottom friction)
   use utils_mod
   use test_case_mod
   implicit none
-  real(8) :: friction
 
+  logical, parameter :: implicit = .true.  ! use backwards Euler (T) or forward Euler (F)
+  
   ! Parameters for analytic eddy viscosity/diffusion scheme
   real(8), parameter :: Kv_bottom = 2d-3
   real(8), parameter :: Kt_const  = 1d-6
 
   ! Parameters for TKE closure eddy viscosity/diffusion scheme
   real(8), parameter :: c_e      = 1.0d0
-  real(8), parameter :: c_eps    = 1/sqrt(2.0_8)
+  real(8), parameter :: c_eps    = 0.7
   real(8), parameter :: C_l      = 2d5
   real(8), parameter :: c_m      = 0.1d0
   real(8), parameter :: C_sfc    = 67.83d0
-  real(8), parameter :: e_min    = 1d-6 
+  real(8), parameter :: e_min    = 1d-8
   real(8), parameter :: e_0      = 1d-6/sqrt(2.0d0) 
   real(8), parameter :: e_sfc_0  = 1d-4    
   real(8), parameter :: eps_s    = 1d-20   
@@ -32,9 +33,10 @@ module vert_diffusion_mod
   real(8), parameter :: l_0      = 0.04    
   real(8), parameter :: Neps_sq  = 1d-20   
   real(8), parameter :: Ri_c     = 2 / (2 + c_eps/c_m) ! 0.22
-  real(8), parameter :: Kv_0     = 1.2d-4 ! NEMO value
   real(8), parameter :: Kt_0     = 1.2d-5 ! NEMO value
-  
+  real(8), parameter :: Kv_0     = 1.2d-4 ! NEMO value
+
+  real(8) :: friction
   abstract interface
      real(8) function fun1 (eta, ri, z)
        implicit none
@@ -69,55 +71,56 @@ module vert_diffusion_mod
        type(Coord) :: p
      end function fun5
   end interface
-  procedure (fun3), pointer :: bottom_temp_source => null ()
-  procedure (fun3), pointer :: top_temp_source    => null ()
-  procedure (fun4), pointer :: wind_drag          => null ()
-  procedure (fun5), pointer :: tau_mag            => null ()
+  procedure (fun3), pointer :: bottom_temp_flux => null ()
+  procedure (fun3), pointer :: top_temp_flux    => null ()
+  procedure (fun4), pointer :: wind_flux        => null ()
+  procedure (fun5), pointer :: tau_mag          => null ()
 contains
-  subroutine implicit_vertical_diffusion (r, wind_tau, wind_d, source_b, source_t)
+  subroutine vertical_diffusion (r, wind_tau, wind_f, flux_b, flux_t)
     ! Backwards euler step for vertical diffusion
     use adapt_mod
+    use time_integr_mod
     implicit none
     integer :: l
     real(8) :: r
 
     interface
-       real(8) function source_b (dom, i, j, z_lev, offs, dims)
+       real(8) function flux_b (dom, i, j, z_lev, offs, dims)
          use domain_mod
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, z_lev
          integer, dimension(N_BDRY+1)   :: offs
          integer, dimension(2,N_BDRY+1) :: dims
-       end function source_b
-       real(8) function source_t (dom, i, j, z_lev, offs, dims)
+       end function flux_b
+       real(8) function flux_t (dom, i, j, z_lev, offs, dims)
          use domain_mod
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, z_lev
          integer, dimension(N_BDRY+1)   :: offs
          integer, dimension(2,N_BDRY+1) :: dims
-       end function source_t
+       end function flux_t
        real(8) function wind_tau (p)
          use geom_mod
          implicit none
          type(Coord) :: p
        end function wind_tau
-       function wind_d (dom, i, j, z_lev, offs, dims)
+       function wind_f (dom, i, j, z_lev, offs, dims)
          use domain_mod
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, z_lev
          integer, dimension(N_BDRY+1)   :: offs
          integer, dimension(2,N_BDRY+1) :: dims
-         real(8), dimension(1:EDGE)     :: wind_d
-       end function wind_d
+         real(8), dimension(1:EDGE)     :: wind_f
+       end function wind_f
     end interface
 
-    bottom_temp_source => source_b
-    top_temp_source    => source_t
-    wind_drag          => wind_d
-    tau_mag            => wind_tau
+    bottom_temp_flux => flux_b
+    top_temp_flux    => flux_t
+    wind_flux        => wind_f
+    tau_mag          => wind_tau
 
     friction = r
     
@@ -138,14 +141,19 @@ contains
     call update_vector_bdry (Kv, NONE, 28)
     call update_vector_bdry (Kt, NONE, 29)
     
-    ! Apply vertical diffusion to each vertical column using a backwards Euler step
-    do l = level_end, level_start, -1
-       call apply_onescale (backwards_euler_temp, l, z_null, 0, 1)
-       call apply_onescale (backwards_euler_velo, l, z_null, 0, 0)
-    end do
+    ! Apply vertical diffusion to each vertical column
+    if (implicit) then ! backwards Euler step 
+       do l = level_end, level_start, -1
+          call apply_onescale (backwards_euler_temp, l, z_null, 0, 1)
+          call apply_onescale (backwards_euler_velo, l, z_null, 0, 0)
+       end do
+    else ! forwards Euler step 
+       call Euler (sol, wav_coeff, trend_vertical_diffusion, dt)
+    end if
+    
     sol%bdry_uptodate = .false.
     call WT_after_step (sol, wav_coeff, level_start-1)
-  end subroutine implicit_vertical_diffusion
+  end subroutine vertical_diffusion
 
   subroutine turbulence_model (dom, i, j, z_null, offs, dims)
     ! Backwards Euler step for TKE closure equation (or analytic)
@@ -181,44 +189,52 @@ contains
        ! RHS terms
        do l = 1, zlevels-1
           S1(l) = Kv_i(l) * dudzsq(l) - Kt_i(l) * Nsq(l)
-          if (S1(l) < 0.0_8) then ! Patankar "trick"
-             S1(l) = Kv_i(l) * dudz_2
-             S2(l) = 1 + dt * (c_eps/l_eps(l) * sqrt (e(l)) + Kt_i(l) * Nsq(l) / e(l))
-          else
-             S2(l) = 1 + dt * c_eps/l_eps(l) * sqrt (e(l))
-          end if
+!!$          if (S1(l) < 0.0_8) then ! Patankar "trick"
+!!$             S1(l) = Kv_i(l) * dudz_2
+!!$             S2(l) = 1 + dt * (c_eps/l_eps(l) * sqrt (e(l)) + Kt_i(l) * Nsq(l) / e(l))
+!!$          else
+!!$             S2(l) = 1 + dt * c_eps/l_eps(l) * sqrt (e(l))
+!!$          end if
+          S2(l) = - c_eps/l_eps(l) * sqrt (e(l))
        end do
 
        ! Tridiagonal matrix and rhs entries for linear system
        l = 1
        diag_u(l) = - coeff (dz(l+1), interp(Kv_i(l), Kv_i(l+1))) ! super-diagonal
-       diag(l)   = 1 - diag_u(l) 
-       rhs(l)    = (e(l) + dt * S1(l)) / S2(l)
+!!$       diag(l)   = 1 - diag_u(l) 
+!!$       rhs(l)    = (e(l) + dt * S1(l)) / S2(l)
+       diag(l)   = 1 - diag_u(l) - dt * S2(l)
+       rhs(l)    = e(l) + dt * S1(l)
 
        do l = 2, zlevels-2
           diag_u(l)   = - coeff (dz(l+1), interp(Kv_i(l), Kv_i(l+1))) ! super-diagonal
           diag_l(l-1) = - coeff (dz(l),   interp(Kv_i(l), Kv_i(l-1))) ! sub-diagonal
-          diag(l)     = 1 - (diag_u(l) + diag_l(l-1))
-          rhs(l)      = (e(l) + dt * S1(l)) / S2(l)
+!!$          diag(l)     = 1 - (diag_u(l) + diag_l(l-1))
+!!$          rhs(l)      = (e(l) + dt * S1(l)) / S2(l)
+          diag(l) = 1 - (diag_u(l) + diag_l(l-1)) - dt * S2(l)
+          rhs(l)  = e(l) + dt * S1(l)
        end do
 
        l = zlevels-1
        diag_l(l-1) = - coeff (dz(l), interp(Kv_i(l), Kv_i(l-1))) ! sub-diagonal
-       diag(l)     = 1 - diag_l(l-1)
-       rhs(l)      = (e(l) + dt * S1(l)) / S2(l)
+!!$       diag(l)     = 1 - diag_l(l-1)
+!!$       rhs(l)      = (e(l) + dt * S1(l)) / S2(l)
+       diag(l) = 1 - diag_l(l-1) - dt * S2(l)
+       rhs(l)  = e(l) + dt * S1(l)
 
        ! Solve tridiagonal linear system
        call dgtsv (zlevels-1, 1, diag_l, diag, diag_u, rhs, zlevels-1, info)
        if (info /= 0 .and. rank == 0) write (6,'(a,i2)') "Warning: dgtsv failed in TKE computation with info = ", info
 
        ! Backwards Euler step
-       ! e(0) = e_0  at bathymetry
+       ! e(0) = e_0 at bathymetry
        do l = 1, zlevels-1
           tke(l)%data(d)%elts(id) = max (rhs(l), e_min)
        end do
        filt = 1 - penal_node(zlevels)%data(d)%elts(id)
-       tke(zlevels)%data(d)%elts(id) = max (C_sfc * tau_mag (p)*filt / ref_density, e_sfc_0) ! at free surface
-
+!!$       tke(zlevels)%data(d)%elts(id) = max (C_sfc * tau_mag (p)*filt / ref_density, e_sfc_0) ! at free surface
+       tke(zlevels)%data(d)%elts(id) = e_sfc_0 ! at free surface
+       
        call update_Kv_Kt
     else ! Analytic eddy diffusivity and eddy viscosity
        Kt_i = Kt_analytic ()
@@ -273,7 +289,8 @@ contains
       implicit none
       real(8) :: dz, Kv
       
-      coeff = dt * c_e * Kv / (dz_l(l) * dz) / S2(l)
+!!$      coeff = dt * c_e * Kv / (dz_l(l) * dz) / S2(l)
+      coeff = dt * c_e * Kv / (dz_l(l) * dz)
     end function coeff
   end subroutine turbulence_model
 
@@ -307,20 +324,20 @@ contains
     k = 1
     diag_u(k) = - coeff(1) ! super-diagonal
     diag(k)   = 1 - diag_u(k)
-    rhs(k)    = b() + dt * flux_mean(1)/dz(k) + dt * bottom_temp_source (dom, i, j, z_null, offs, dims)
-    
+    rhs(k)    = b() + dt * (flux_mean(1) - Kt(k)%data(d)%elts(id) * bottom_temp_flux (dom, i, j, z_null, offs, dims)) / dz(k)
+
     do k = 2, zlevels-1
        diag_u(k)   = - coeff( 1) ! super-diagonal
        diag_l(k-1) = - coeff(-1) ! sub-diagonal
-       diag(k)     = 1  - (diag_u(k) + diag_l(k-1))
-       rhs(k)      = b() + dt * (flux_mean(1) - flux_mean(-1))/dz(k)
+       diag(k)     = 1 - (diag_u(k) + diag_l(k-1))
+       rhs(k)      = b() + dt * (flux_mean(1) - flux_mean(-1)) / dz(k)
     end do
 
     ! Top layer
     k = zlevels
     diag_l(k-1) = - coeff(-1) ! sub-diagonal
     diag(k)     = 1 - diag_u(k-1)
-    rhs(k)      = b() - dt * flux_mean(-1)/dz(k) + dt * top_temp_source (dom, i, j, z_null, offs, dims)
+    rhs(k)      = b() + dt * (- flux_mean(-1) + Kt(k)%data(d)%elts(id) * top_temp_flux (dom, i, j, z_null, offs, dims)) / dz(k)
 
     ! Solve tridiagonal linear system
     call dgtsv (zlevels, 1, diag_l, diag, diag_u, rhs, zlevels, info)
@@ -423,7 +440,7 @@ contains
     k = zlevels
     diag_l(:,k-1) = - coeff(-1) ! sub-diagonal
     diag(:,k)     = 1 - diag_l(:,k-1)
-    rhs(:,k)      = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + dt * wind_drag (dom, i, j, z_null, offs, dims)
+    rhs(:,k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + dt * wind_flux (dom, i, j, z_null, offs, dims) / dz(:,k)
 
     ! Solve tridiagonal linear system
     do e = 1, EDGE
@@ -453,7 +470,7 @@ contains
       Kv_e(DG+1) = interp (Kv(kk)%data(d)%elts(id+1), Kv(kk)%data(d)%elts(idNE))
       Kv_e(UP+1) = interp (Kv(kk)%data(d)%elts(id+1), Kv(kk)%data(d)%elts(idN))
             
-      coeff = dt / (dz_l(:,kk) * dz(:,k)) * Kv_e
+      coeff = dt  * Kv_e / (dz_l(:,kk) * dz(:,k))
     end function coeff
   end subroutine backwards_euler_velo
 
@@ -607,17 +624,122 @@ contains
     Kv_analytic = Kv_bottom * (1.0_8 + 4 * exp ((z - eta) / abs(max_depth) ))
   end function Kv_analytic
 
-  real(8) function A_vT (Ri)
+  subroutine trend_vertical_diffusion (q, dq)
+    ! Trend for eddy diffusivity and eddy viscosity for forward Euler time step
     implicit none
-    real(8) :: Ri
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
 
-    A_vT = 1d-4 / (1 + 5*Ri)**2 + Kt_0
-  end function A_vT
+    integer :: d, k, p
 
-  real(8) function A_vm (Ri)
+    call update_array_bdry (q, NONE, 27)
+
+    ! Scalars
+    do d = 1, size(grid)
+       do k = 1, zlevels
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          mass   =>  q(S_MASS,k)%data(d)%elts
+          temp   =>  q(S_TEMP,k)%data(d)%elts
+          velo   =>  q(S_VELO,k)%data(d)%elts
+          dmass  => dq(S_MASS,k)%data(d)%elts
+          dtemp  => dq(S_TEMP,k)%data(d)%elts
+          dvelo  => dq(S_VELO,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
+          end do
+          nullify (dmass, dtemp, dvelo, mass, mean_m, mean_t, temp, velo)
+       end do
+    end do
+    dq%bdry_uptodate = .false.
+  end subroutine trend_vertical_diffusion
+
+  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
+    ! Vertical eddy diffusivity of buoyancy
+    ! (layer height is not diffused)
     implicit none
-    real(8) :: Ri
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    A_vm = A_vT (Ri) / (1 + 5*Ri) + Kv_0
-  end function A_vm
+    integer :: d, id_i
+    real(8) :: dz_k
+
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+      
+    dmass(id_i) = 0.0_8
+
+    dz_k = dz_i (dom, i, j, zlev, offs, dims)
+    
+    if (zlev > 1 .and. zlev < zlevels) then
+       dtemp(id_i) = scalar_flux(1) - scalar_flux(-1)
+    elseif (zlev == 1) then
+       dtemp(id_i) = scalar_flux(1) - Kt(1)%data(d)%elts(id_i) * bottom_temp_flux (dom, i, j, z_null, offs, dims)
+    elseif (zlev == zlevels) then
+       dtemp(id_i) = Kt(zlevels)%data(d)%elts(id_i) * top_temp_flux (dom, i, j, z_null, offs, dims) - scalar_flux(-1)
+    end if
+    dtemp(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dtemp(id_i)
+  contains
+    real(8) function scalar_flux (l)
+      ! Computes flux at interface below (l=-1) or above (l=1) vertical level zlev
+      implicit none
+      integer :: l
+
+      real(8) :: b_0, b_l, dz_l, mass_0, mass_l, temp_0, temp_l, visc
+
+      visc = Kt(zlev+min(0,l))%data(d)%elts(id_i)
+
+      mass_0 = mean_m(id_i) + mass(id_i)
+      temp_0 = mean_t(id_i) + temp(id_i)
+      b_0 = temp_0 / mass_0
+
+      mass_l = sol_mean(S_MASS,zlev+l)%data(d)%elts(id_i) + sol(S_MASS,zlev+l)%data(d)%elts(id_i)
+      temp_l = sol_mean(S_TEMP,zlev+l)%data(d)%elts(id_i) + sol(S_TEMP,zlev+l)%data(d)%elts(id_i)
+      b_l = temp_l / mass_l
+
+      dz_l = interp (dz_k,  dz_i(dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
+
+      scalar_flux = l * visc * (b_l - b_0) / dz_l
+    end function scalar_flux
+  end subroutine trend_scalars
+
+  subroutine trend_velo (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                    :: d, id
+    real(8), dimension(1:EDGE) :: dz_k
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    
+    dz_k = dz_e (dom, i, j, zlev, offs, dims)
+
+    if (zlev > 1 .and. zlev < zlevels) then
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (velo_flux(1) - velo_flux(-1)) / dz_k
+    elseif  (zlev == 1) then
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (velo_flux(1) - friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_k
+    elseif (zlev == zlevels) then
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (wind_flux (dom, i, j, z_null, offs, dims) - velo_flux(-1)) / dz_k 
+    end if
+  contains
+    function velo_flux (l)
+      ! Flux at upper interface (l=1) or lower interface (l=-1)
+      implicit none
+      integer               :: l
+      real(8), dimension(3) :: velo_flux
+
+      real(8), dimension(3) :: dz_l, visc
+
+      visc = Kv(zlev+min(0,l))%data(d)%elts(id+1)
+      dz_l = 0.5 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
+
+      velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_l
+    end function velo_flux
+  end subroutine trend_velo
 end module vert_diffusion_mod

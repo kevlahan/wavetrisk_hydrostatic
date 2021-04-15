@@ -147,49 +147,49 @@ contains
     end do
   end subroutine record_init_state
 
-  subroutine time_step (align_time, aligned, bottom_friction, wind_tau, wind_d, source_b, source_t)
+  subroutine time_step (align_time, aligned, bottom_friction, wind_tau, wind_f, flux_b, flux_t)
     use lateral_diffusion_mod
     use vert_diffusion_mod
     implicit none
     real(8)              :: align_time
     logical, intent(out) :: aligned
     real(8), optional    :: bottom_friction
-    optional             :: wind_tau, wind_d, source_b, source_t
+    optional             :: wind_tau, wind_f, flux_b, flux_t
 
     integer(8) :: idt, ialign
     real(8)    :: dx
 
     interface
-     real(8) function source_b (dom, i, j, z_lev, offs, dims)
+     real(8) function flux_b (dom, i, j, z_lev, offs, dims)
        use domain_mod
        implicit none
        type(Domain)                   :: dom
        integer                        :: i, j, z_lev
        integer, dimension(N_BDRY+1)   :: offs
        integer, dimension(2,N_BDRY+1) :: dims
-     end function source_b
-     real(8) function source_t (dom, i, j, z_lev, offs, dims)
+     end function flux_b
+     real(8) function flux_t (dom, i, j, z_lev, offs, dims)
        use domain_mod
        implicit none
        type(Domain)                   :: dom
        integer                        :: i, j, z_lev
        integer, dimension(N_BDRY+1)   :: offs
        integer, dimension(2,N_BDRY+1) :: dims
-     end function source_t
+     end function flux_t
      real(8) function wind_tau (p)
          use geom_mod
          implicit none
          type(Coord) :: p
        end function wind_tau
-     function wind_d (dom, i, j, z_lev, offs, dims)
+     function wind_f (dom, i, j, z_lev, offs, dims)
        use domain_mod
        implicit none
        type(Domain)                   :: dom
        integer                        :: i, j, z_lev
        integer, dimension(N_BDRY+1)   :: offs
        integer, dimension(2,N_BDRY+1) :: dims
-       real(8), dimension(1:EDGE)     :: wind_d
-     end function wind_d
+       real(8), dimension(1:EDGE)     :: wind_f
+     end function wind_f
   end interface
     
     istep       = istep+1
@@ -251,7 +251,7 @@ contains
 
     ! Split step routines
     if (implicit_diff_sclr .or. implicit_diff_divu) call implicit_lateral_diffusion
-    if (vert_diffuse) call implicit_vertical_diffusion (bottom_friction, wind_tau, wind_d, source_b, source_t)
+    if (vert_diffuse) call vertical_diffusion (bottom_friction, wind_tau, wind_f, flux_b, flux_t)
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
@@ -278,7 +278,7 @@ contains
     itime = itime + idt
     
     if (match_time) then
-       time  = itime/time_mult
+       time = itime/time_mult
     else
        time = time + dt
     end if
