@@ -222,7 +222,7 @@ contains
   real(8) function free_surface (dom, i, j, zlev, offs, dims)
     ! Computes free surface perturbations
     implicit none
-     type(Domain)                   :: dom
+    type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
@@ -257,6 +257,33 @@ contains
 
     interp_e = 0.5 * (e1 + e2)
   end function interp_e
+  
+  real(8) function u_mag (dom, i, j, zlev, offs, dims)
+    ! Velocity magnitude
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                      :: d, id, idS, idSW, idW
+    real(8), dimension(1:2*EDGE) :: prim_dual, u
+    
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+
+    prim_dual(1:EDGE) = dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    prim_dual(EDGE+1) = dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+    prim_dual(EDGE+2) = dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+    prim_dual(EDGE+3) = dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+
+    u(1:EDGE) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    u(EDGE+1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*idW+RT+1)  
+    u(EDGE+2) = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) 
+    u(EDGE+3) = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS+UP+1)
+
+    u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv/4)
+  end function u_mag
 
   real(8) function integrate_hex (fun, l, zlev)
     ! Integrate function defined by fun over hexagons

@@ -17,15 +17,11 @@ Module test_case_mod
   character(255)                       :: coords
 
   ! Equation of state parameters for linear NEMO model
-  real(8), parameter :: a0 = 1.6550d-1  ! linear coefficient of thermal expansion
-  real(8), parameter :: b0 = 7.6554d-1  ! linear haline expansion coefficient
-  real(8), parameter :: Sal = 35        ! salinity in psu
-
-  real(8), parameter :: alpha_0             = 2d-4
-  real(8), parameter :: beta_eos            = 0.2048_8
+  real(8), parameter ::               a0 = 1.6550d-1  ! linear coefficient of thermal expansion
+  real(8), parameter ::               b0 = 7.6554d-1  ! linear haline expansion coefficient
+  real(8), parameter ::               Sal = 35        ! salinity in psu
+  real(8), parameter ::               alpha_0  = 2d-4
   real(8), dimension(2), parameter :: mu = (/ 1.4970d-4, 1.1090d-5 /) ! thermobaric coefficient in T and S
-!!$  real(8), dimension(2), parameter :: mu = (/ 0.0, 0.0 /) ! thermobaric coefficient in T and S
-
 contains
   subroutine read_test_case_parameters
     implicit none
@@ -169,19 +165,20 @@ contains
     integer :: iwrt
     
     integer                       :: k
-    real(8)                       :: eta, z_k, z_s
+    real(8)                       :: area, eta, z_k, z_s
     real(8), dimension(1:zlevels) :: Kt_avg, Kv_avg, T_avg
     real(8), dimension(0:zlevels) :: z
     character(4)                  :: s_time
 
+    area = integrate_hex (area_fun, level_start, k)
     do k = 1, zlevels
        Kt_avg(k) = integrate_hex (Kt_fun,   level_start, k)
        Kv_avg(k) = integrate_hex (Kv_fun,   level_start, k)
        T_avg(k)  = integrate_hex (temp_fun, level_start, k)
     end do
-    Kt_avg = Kt_avg / (4*MATH_PI * radius**2)
-    Kv_avg = Kv_avg / (4*MATH_PI * radius**2)
-    T_avg  = T_avg  / (4*MATH_PI * radius**2)
+    Kt_avg = Kt_avg / area
+    Kv_avg = Kv_avg / area
+    T_avg  = T_avg  / area
 
     if (rank == 0) then
        eta = 0.0_8
@@ -196,7 +193,7 @@ contains
        open (unit=20, file=trim(run_id)//'.6.'//s_time, form="FORMATTED", action='WRITE', status='REPLACE')
 
        write (6,'(a, f4.1, a)') "Temperature profile at time ", time/HOUR, " h"
-       write (6,'(a)') "Level    z        Kt(z)      Kt(z)        T(z)        rho(z)"
+       write (6,'(a)') "Level    z        Kt(z)      Kv(z)        T(z)        rho(z)"
        do k = 1, zlevels
           z_k = interp(z(k-1), z(k))
           write (6,'(i3, 3x, f7.2, 1x, 4(es11.4, 1x))' ) k, z_k,  Kt_avg(k), Kv_avg(k), T_avg(k), density (T_avg(k), z_k)
@@ -216,17 +213,23 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id_i
-    real(8) :: density, full_mass, full_theta, z
+    real(8) :: density, full_mass, full_theta, lat, lon, z
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i) 
-    full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
+    call cart2sph (dom%node%elts(id_i), lon, lat)
 
-    z = z_i (dom, i, j, zlev, offs, dims)
-    density = ref_density * (1 - full_theta/full_mass)
-    temp_fun = temperature (density, z)
+    if (abs(lat/DEG) <= 10) then
+       full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i) 
+       full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
+
+       z = z_i (dom, i, j, zlev, offs, dims)
+       density = ref_density * (1 - full_theta/full_mass)
+       temp_fun = temperature (density, z)
+    else
+       temp_fun = 0.0_8
+    end if
   end function temp_fun
   
   real(8) function Kt_fun (dom, i, j, zlev, offs, dims)
@@ -238,11 +241,18 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id_i
+    real(8) :: lat, lon
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
-   
-    Kt_fun = Kt(zlev)%data(d)%elts(id_i)
+
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+
+    if (abs(lat/DEG) <= 10) then
+       Kt_fun = Kt(zlev)%data(d)%elts(id_i)
+    else
+       Kt_fun = 0.0_8
+    end if
   end function Kt_fun
 
   real(8) function Kv_fun (dom, i, j, zlev, offs, dims)
@@ -254,21 +264,60 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id_i
+    real(8) :: lat, lon
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
-   
-    Kv_fun = Kv(zlev)%data(d)%elts(id_i)
+
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+
+    if (abs(lat/DEG) <= 10) then
+       Kv_fun = Kv(zlev)%data(d)%elts(id_i)
+    else
+       Kv_fun = 0.0_8
+    end if
   end function Kv_fun
+
+  real(8) function area_fun (dom, i, j, zlev, offs, dims)
+    ! Defines mass for total mass integration
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+    real(8) :: lat, lon
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+
+    if (abs(lat/DEG) <= 10) then
+       area_fun = 1.0_8
+    else
+       area_fun = 0.0_8
+    end if
+  end function area_fun
   
   subroutine apply_initial_conditions
     implicit none
     integer :: d, k, l
 
+    e_min = 1d-20
+
     do l = level_end, level_start, -1
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        do k = 1, zmax
           call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
+
+       do k = 0, zlevels
+          call apply_onescale (init_eddy, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
+       
+       do k = 1, zlevels
+          call apply_onescale (init_tke, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
 
@@ -416,6 +465,23 @@ contains
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
   end subroutine initialize_a_b_vert
 
+  subroutine init_eddy (dom, i, j, zlev, offs, dims)
+    ! Initialize eddy diffusivity and eddy viscosity
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer  :: d, id
+
+    d  = dom%id+1
+    id = idx (i, j, offs, dims) + 1
+
+    Kt(zlev)%data(d)%elts(id)  = Kt_0
+    Kv(zlev)%data(d)%elts(id)  = Kv_0
+  end subroutine init_eddy
+
   subroutine init_tke (dom, i, j, zlev, offs, dims)
     ! Initialize TKE
     implicit none
@@ -429,7 +495,7 @@ contains
     d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
 
-    tke(zlev)%data(d)%elts(id) = 1d-16
+    tke(zlev)%data(d)%elts(id) = e_min
   end subroutine init_tke
 
   real(8) function surf_geopot (p)

@@ -217,12 +217,12 @@ module shared_mod
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, tol_elliptic
   real(8)                                       :: max_depth, min_depth
-  real(8)                                       :: visc_divu, visc_rotu
+  real(8)                                       :: e_min, Kt_0, Kv_0, visc_divu, visc_rotu
   real(8)                                       :: alpha
   real(8), dimension(:), allocatable            :: visc_sclr
   real(8)                                       :: c1, c_p, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
-  real(8)                                       :: min_mass, min_allowed_mass
+  real(8)                                       :: min_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
   real(8), dimension(:,:),       allocatable    :: lnorm, threshold
@@ -314,28 +314,30 @@ contains
     vert_diffuse        = .false. ! include vertical diffusion
 
     ! Default run values
-    ! these parameters are typically reset in the test case file, but are needed for compilation
-    alpha               = 1d-2          ! porosity
-    cfl_num             = 1.0_8
-    C_visc              = 1d-2
-    c1                  = 1d-16         ! default value for internal wave speed (used for incompressible cases)
-    tol_elliptic        = 1d-4          ! default tolerance for elliptic solver
-    coarse_iter         = 10            ! number of bicgstab iterations at coarsest scale for elliptic solver
-    fine_iter           = 10            ! number of jacobi iterations at finer scales for elliptic solver
-    level_save          = level_start
-    Laplace_order_init  = 0 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
-    max_depth           = 4 * KM
-    min_depth           = max_depth
-    remapscalar_type    = "PPR" 
-    remapvelo_type      = "PPR"
-    timeint_type        = "RK45"
-    iremap              = 1
-    min_allowed_mass    = 1.0_8
-    n_diffuse           = 1
-    optimize_grid       = HR_GRID
-    save_levels         = 1
-    tol                 = 0.0_8
-    zlevels             = 20
+    ! these parameters may be reset in the test case file, but are needed for compilation
+    alpha               = 1d-2                          ! porosity
+    cfl_num             = 1.0_8                         ! barotropic CFL number
+    C_visc              = 1d-2                          ! constant for determining horizontal viscosity
+    c1                  = 1d-16                         ! value for internal wave speed (used for incompressible cases)
+    coarse_iter         = 10                            ! number of bicgstab iterations at coarsest scale for elliptic solver
+    e_min               = 1d-6   * METRE**2 / SECOND**2 ! minimum TKE for vertical diffusion
+    fine_iter           = 10                            ! number of jacobi iterations at finer scales for elliptic solver
+    iremap              = 10                            ! remap every iremap steps
+    Kt_0                = 1.2d-5 * METRE**2 / SECOND    ! NEMO value for minimum/initial eddy diffusion
+    Kv_0                = 1.2d-4 * METRE**2 / SECOND    ! NEMO value for minimum/initial eddy viscosity
+    level_save          = level_start                   ! level to save
+    Laplace_order_init  = 0                             ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
+    max_depth           = 4 * KM                        ! maximum depth (ocean models)
+    min_depth           = max_depth                     ! minimum depth (ocean models)
+    n_diffuse           = 1                             ! include diffusion every n_diffuse steps
+    optimize_grid       = HR_GRID                       ! type of optimization of coarse grid
+    remapscalar_type    = "PPR"                         ! remapping scheme for scalars
+    remapvelo_type      = "PPR"                         ! remapping scheme for velocity
+    save_levels         = 1                             ! vertical level to save
+    timeint_type        = "RK45"                        ! time integration scheme
+    tol                 = 0.0_8                         ! relative tolerance for adaptivity
+    tol_elliptic        = 1d-4                          ! tolerance for elliptic solver
+    zlevels             = 20                            ! number of vertical levels
     
     ! Default physical parameters
     ! these parameters are typically reset in test case file, but are needed for compilation
