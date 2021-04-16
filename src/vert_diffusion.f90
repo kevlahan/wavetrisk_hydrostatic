@@ -514,7 +514,7 @@ contains
        du(EDGE+3) = sol(S_VELO,l+1)%data(d)%elts(EDGE*idS+UP+1)  - sol(S_VELO,l)%data(d)%elts(EDGE*idS+UP+1)
 
        ! Energy term (using TRiSK form of kinetic energy)
-       dudz_sq = sum ((du/dz)**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv/4
+       dudz_sq = sum ((du/dz)**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv/2
     elseif (l == 0) then
        dudz_sq = - friction * u_mag (dom, i, j, 1, offs, dims)
     elseif (l == zlevels) then

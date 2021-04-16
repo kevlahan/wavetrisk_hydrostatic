@@ -282,7 +282,7 @@ contains
     u(EDGE+2) = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) 
     u(EDGE+3) = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS+UP+1)
 
-    u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv/4)
+    u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv/2)  
   end function u_mag
 
   real(8) function integrate_hex (fun, l, zlev)
