@@ -93,10 +93,10 @@ contains
 
     d = dom%id + 1
 
-    id   = idx (i, j,   offs, dims)
+    id   = idx (i,   j,   offs, dims)
     idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i,   j-1, offs, dims)
-    idS  = idx (i-1, j-1, offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
    
     dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + sol(S_MASS,zlev)%data(d)%elts(id+1)) &
          / porous_density (dom, i, j, zlev, offs, dims)
@@ -259,30 +259,23 @@ contains
   end function interp_e
   
   real(8) function u_mag (dom, i, j, zlev, offs, dims)
-    ! Velocity magnitude
+    ! Velocity magnitude using data from a single element
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                      :: d, id, idS, idSW, idW
-    real(8), dimension(1:2*EDGE) :: prim_dual, u
-    
-    d = dom%id + 1
+    integer                    :: id
+    real(8), dimension(1:EDGE) :: prim_dual, u
+
     id = idx (i, j, offs, dims)
 
-    prim_dual(1:EDGE) = dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-    prim_dual(EDGE+1) = dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
-    prim_dual(EDGE+2) = dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-    prim_dual(EDGE+3) = dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
-
-    u(1:EDGE) = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-    u(EDGE+1) = sol(S_VELO,zlev)%data(d)%elts(EDGE*idW+RT+1)  
-    u(EDGE+2) = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) 
-    u(EDGE+3) = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS+UP+1)
-
-    u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv/2)  
+    prim_dual = dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+   
+    u = sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+   
+    u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv)
   end function u_mag
 
   real(8) function integrate_hex (fun, l, zlev)

@@ -163,17 +163,20 @@ contains
     use utils_mod
     implicit none
     integer :: iwrt
-    
-    integer                       :: k
-    real(8)                       :: area, eta, z_k, z_s
-    real(8), dimension(1:zlevels) :: Kt_avg, Kv_avg, T_avg
-    real(8), dimension(0:zlevels) :: z
-    character(4)                  :: s_time
 
+    integer                       :: k
+    real(8)                       :: area, eta, Nsq, z_k, z_s
+    real(8), parameter            :: lat_band = 30
+    real(8), dimension(1:zlevels) :: dz, T_avg
+    real(8), dimension(0:zlevels) :: Kt_avg, Kv_avg, z
+    character(4)                  :: s_time
+    
     area = integrate_hex (area_fun, level_start, k)
+    do k = 0, zlevels
+       Kt_avg(k) = integrate_hex (Kt_fun, level_start, k)
+       Kv_avg(k) = integrate_hex (Kv_fun, level_start, k)
+    end do
     do k = 1, zlevels
-       Kt_avg(k) = integrate_hex (Kt_fun,   level_start, k)
-       Kv_avg(k) = integrate_hex (Kv_fun,   level_start, k)
        T_avg(k)  = integrate_hex (temp_fun, level_start, k)
     end do
     Kt_avg = Kt_avg / area
@@ -188,123 +191,137 @@ contains
        else
           z = a_vert * eta + b_vert * z_s
        end if
+       dz = z(1:zlevels) - z(0:zlevels-1)
 
        write (s_time, '(i4.4)') iwrt
        open (unit=20, file=trim(run_id)//'.6.'//s_time, form="FORMATTED", action='WRITE', status='REPLACE')
 
        write (6,'(a, f4.1, a)') "Temperature profile at time ", time/HOUR, " h"
-       write (6,'(a)') "Level    z        Kt(z)      Kv(z)        T(z)        rho(z)"
+       write (6,'(a)') "Level    z_l    Kt(z_l)      Kv(z_l)     z_k   T(z_k)          rho(k)"
+       
+       z_k = interp (z(0), z(1))
+       write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
+            0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1), density (T_avg(1), z_k)
+       write (20,'(i3, 1x, 5(es13.6,1x))')    0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1)
+       
        do k = 1, zlevels
-          z_k = interp(z(k-1), z(k))
-          write (6,'(i3, 3x, f7.2, 1x, 4(es11.4, 1x))' ) k, z_k,  Kt_avg(k), Kv_avg(k), T_avg(k), density (T_avg(k), z_k)
-          write (20,'(i3, 1x, 4(es13.6,1x))') k, interp(z(k-1), z(k)), Kt_avg(k), Kv_avg(k), T_avg(k)
+          z_k = interp (z(k-1), z(k))
+          write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
+               k, z(k), Kt_avg(k), Kv_avg(k), z_k, T_avg(k), density (T_avg(k), z_k)
+          write (20,'(i3, 1x, 5(es13.6,1x))') k, z(k), Kt_avg(k), Kv_avg(k), z_k, T_avg(k)
+       end do
+
+       write (6,'(a, es9.2)') " "
+        write (6,'(a)') "Level    z_l    Nsq    N"
+       do k = 1, zlevels-1
+          Nsq = - grav_accel * (density (T_avg(k+1), interp (z(k), z(k+1))) - density (T_avg(k), interp (z(k-1), z(k)))) &
+               / ref_density
+          write (6, '(i3, 3x, f7.2, 2(es11.4,1x))') k, z(k), Nsq, sqrt (Nsq)
        end do
        write (6,'(a, es9.2)') " "
        close (20)
     end if
+  contains
+    real(8) function temp_fun (dom, i, j, zlev, offs, dims)
+      ! Defines mass for total mass integration
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id_i
+      real(8) :: density, full_mass, full_theta, lat, lon, z
+
+      d = dom%id + 1
+      id_i = idx (i, j, offs, dims) + 1
+
+      call cart2sph (dom%node%elts(id_i), lon, lat)
+
+      if (abs(lat/DEG) <= lat_band) then
+         full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i) 
+         full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
+
+         z = z_i (dom, i, j, zlev, offs, dims)
+         density = ref_density * (1 - full_theta/full_mass)
+         temp_fun = temperature (density, z)
+      else
+         temp_fun = 0.0_8
+      end if
+    end function temp_fun
+
+    real(8) function Kt_fun (dom, i, j, zlev, offs, dims)
+      ! Defines mass for total mass integration
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id_i
+      real(8) :: lat, lon
+
+      d = dom%id + 1
+      id_i = idx (i, j, offs, dims) + 1
+
+      call cart2sph (dom%node%elts(id_i), lon, lat)
+
+      if (abs(lat/DEG) <= lat_band) then
+         Kt_fun = Kt(zlev)%data(d)%elts(id_i)
+      else
+         Kt_fun = 0.0_8
+      end if
+    end function Kt_fun
+
+    real(8) function Kv_fun (dom, i, j, zlev, offs, dims)
+      ! Defines mass for total mass integration
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id_i
+      real(8) :: lat, lon
+
+      d = dom%id + 1
+      id_i = idx (i, j, offs, dims) + 1
+
+      call cart2sph (dom%node%elts(id_i), lon, lat)
+
+      if (abs(lat/DEG) <= lat_band) then
+         Kv_fun = Kv(zlev)%data(d)%elts(id_i)
+      else
+         Kv_fun = 0.0_8
+      end if
+    end function Kv_fun
+
+    real(8) function area_fun (dom, i, j, zlev, offs, dims)
+      ! Defines mass for total mass integration
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: id_i
+      real(8) :: lat, lon
+
+      id_i = idx (i, j, offs, dims) + 1
+
+      call cart2sph (dom%node%elts(id_i), lon, lat)
+
+      if (abs(lat/DEG) <= lat_band) then
+         area_fun = 1.0_8
+      else
+         area_fun = 0.0_8
+      end if
+    end function area_fun
   end subroutine avg_temp
-
-  real(8) function temp_fun (dom, i, j, zlev, offs, dims)
-    ! Defines mass for total mass integration
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id_i
-    real(8) :: density, full_mass, full_theta, lat, lon, z
-
-    d = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
-
-    call cart2sph (dom%node%elts(id_i), lon, lat)
-
-    if (abs(lat/DEG) <= 10) then
-       full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i) 
-       full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
-
-       z = z_i (dom, i, j, zlev, offs, dims)
-       density = ref_density * (1 - full_theta/full_mass)
-       temp_fun = temperature (density, z)
-    else
-       temp_fun = 0.0_8
-    end if
-  end function temp_fun
-  
-  real(8) function Kt_fun (dom, i, j, zlev, offs, dims)
-    ! Defines mass for total mass integration
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id_i
-    real(8) :: lat, lon
-
-    d = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
-
-    call cart2sph (dom%node%elts(id_i), lon, lat)
-
-    if (abs(lat/DEG) <= 10) then
-       Kt_fun = Kt(zlev)%data(d)%elts(id_i)
-    else
-       Kt_fun = 0.0_8
-    end if
-  end function Kt_fun
-
-  real(8) function Kv_fun (dom, i, j, zlev, offs, dims)
-    ! Defines mass for total mass integration
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id_i
-    real(8) :: lat, lon
-
-    d = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
-
-    call cart2sph (dom%node%elts(id_i), lon, lat)
-
-    if (abs(lat/DEG) <= 10) then
-       Kv_fun = Kv(zlev)%data(d)%elts(id_i)
-    else
-       Kv_fun = 0.0_8
-    end if
-  end function Kv_fun
-
-  real(8) function area_fun (dom, i, j, zlev, offs, dims)
-    ! Defines mass for total mass integration
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-    real(8) :: lat, lon
-
-    id_i = idx (i, j, offs, dims) + 1
-
-    call cart2sph (dom%node%elts(id_i), lon, lat)
-
-    if (abs(lat/DEG) <= 10) then
-       area_fun = 1.0_8
-    else
-       area_fun = 0.0_8
-    end if
-  end function area_fun
   
   subroutine apply_initial_conditions
     implicit none
     integer :: d, k, l
-
-    e_min = 1d-20
 
     do l = level_end, level_start, -1
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -478,8 +495,8 @@ contains
     d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
 
-    Kt(zlev)%data(d)%elts(id)  = Kt_0
-    Kv(zlev)%data(d)%elts(id)  = Kv_0
+    Kt(zlev)%data(d)%elts(id) = Kt_0
+    Kv(zlev)%data(d)%elts(id) = Kv_0
   end subroutine init_eddy
 
   subroutine init_tke (dom, i, j, zlev, offs, dims)

@@ -1,5 +1,6 @@
 program tke1d
-  ! 1D test cases for TKE closure eddy viscosity model
+  ! Kato and Phillips (1969) boundary layer thickening test case
+  ! (tests TKE closure model for vertical diffusion)
   use main_mod
   use test_case_mod
   use io_mod
@@ -50,7 +51,7 @@ program tke1d
   T_0                 = 16.0
 
   ! Vertical level to save
-  save_zlev          = 8
+  save_zlev          = 90
 
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 

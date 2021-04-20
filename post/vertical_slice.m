@@ -61,33 +61,7 @@ plot([lat(1:skip:end) lat(1:skip:end)], ylim, 'k-','linewidth',1.2);
 %axis([0 90 -150 0])
 xlabel('latitude'); ylabel('z (m)'); hold on;
 set(gca,'fontsize',18);hold off
-%% TKE profile
-time = 3;
-remote_file = ['~/hydro/tke/tke1d.6.' sprintf( '%04d', time)];
-local_file  = remote_file;
-scp_cmd     = ['scp if.mcmaster.ca:' remote_file ' ' local_file];
-unix (sprintf(scp_cmd));
-T = load(local_file);
 
-% Theoretical value of mixing depth
-u_s = 0.01; N_0 = 0.01; t = 30;
-Dm = - 1.05 * u_s * sqrt(t*60^2/N_0);
-
-figure; sgtitle("\Delta t = 1200 s N = 10 levels",'fontsize', 24);
-
-subplot(1,3,1);plot(T(:,5),T(:,2),'b-','linewidth',2);hold on;
-plot(T(:,5),ones(size(T(:,5)))*Dm,'r--','linewidth',2);
-xlabel('Temperature [\circC]');ylabel('Depth [m]'); set(gca,'fontsize',16); grid
-axis([13.5 15.5 -50 0]);
-pbaspect([0.6 1 1]);
-
-subplot(1,3,2);plot(T(:,3),T(:,2),'b-','linewidth',2);
-xlabel('Kt [m^2/s]');ylabel('Depth [m]'); set(gca,'fontsize',16); grid
-pbaspect([0.6 1 1]);
-
-subplot(1,3,3);plot(T(:,4),T(:,2),'b-','linewidth',2);
-xlabel('Kv [m^2/s]');ylabel('Depth [m]'); set(gca,'fontsize',16); grid
-pbaspect([0.6 1 1]);
 %%
 function plot_field (xlat, zlat, lat_slice, lat_width, field, type, ax)
 nz = 12; % interpolate to this number of vertical levels
