@@ -16,27 +16,31 @@ module vert_diffusion_mod
   use test_case_mod
   implicit none
 
-  logical, parameter :: implicit  = .true. ! use backwards Euler (T) or forward Euler (F)
-  logical, parameter :: surf_wave = .true. ! use surface wave parameterization (T) or default (F)
+  logical, parameter :: implicit     = .true. ! use backwards Euler (T) or forward Euler (F)
+  logical, parameter :: surf_wave    = .true. ! use surface wave parameterization (T) or default (F)
+  logical, parameter :: enhance_diff = .true. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
   
   ! Parameters for analytic eddy viscosity/diffusion scheme (e_min, Kt_0, Kv_0 defaults set in shared.f90)
   real(8), parameter :: Kv_bottom = 2d-3
   real(8), parameter :: Kt_const  = 1d-6
 
   ! Parameters for TKE closure eddy viscosity/diffusion scheme
-  real(8), parameter :: c_e      = 1.0d0               
-  real(8), parameter :: c_eps    = 0.7                 ! factor in Ekman depth equation
+  real(8), parameter :: c_e      = 1d0               
+  real(8), parameter :: c_eps    = 7d-1                ! factor in Ekman depth equation
   real(8), parameter :: C_l      = 2d5                 ! Charnock constant
-  real(8), parameter :: c_m      = 0.1d0               ! coefficient for eddy viscosity
+  real(8), parameter :: c_m      = 1d-1                ! coefficient for eddy viscosity
   real(8), parameter :: C_sfc    = 67.83d0
   real(8), parameter :: e_0      = 1d-6/sqrt(2.0d0)    ! botom boundary condition for TKE
   real(8), parameter :: e_sfc_0  = 1d-4                ! minimum TKE at free surface
   real(8), parameter :: eps_s    = 1d-20               
-  real(8), parameter :: kappa_VK = 0.4                 ! von Karman constant
-  real(8), parameter :: l_0      = 0.04                ! default turbulent length scale
-  real(8), parameter :: Neps_sq  = 1d-20               ! background shear   
+  real(8), parameter :: kappa_VK = 4d-1                ! von Karman constant
+  real(8), parameter :: Kt_enh   = 1d2                 ! enhanced vertical diffusion
+  real(8), parameter :: Kv_enh   = 1d2                 ! enhanced vertical diffusion
+  real(8), parameter :: l_0      = 4d-2                ! default turbulent length scale
+  real(8), parameter :: Neps_sq  = 1d-20               ! background shear
+  real(8), parameter :: Nsq_min  = 1d-12               ! threshold for enhanced diffusion
   real(8), parameter :: Ri_c     = 2 / (2 + c_eps/c_m) ! 0.22
-  real(8), parameter :: z_0      = 0.1_8               ! roughness parameter of free surface
+  real(8), parameter :: z_0      = 1d-1                ! roughness parameter of free surface
 
   real(8) :: friction
 
@@ -74,8 +78,8 @@ module vert_diffusion_mod
        type(Coord) :: p
      end function fun5
   end interface
-  procedure (fun3), pointer :: bottom_temp_flux => null ()
-  procedure (fun3), pointer :: top_temp_flux    => null ()
+  procedure (fun3), pointer :: bottom_buoy_flux => null ()
+  procedure (fun3), pointer :: top_buoy_flux    => null ()
   procedure (fun4), pointer :: wind_flux        => null ()
   procedure (fun5), pointer :: tau_mag          => null ()
 contains
@@ -120,8 +124,8 @@ contains
        end function wind_f
     end interface
 
-    bottom_temp_flux => flux_b
-    top_temp_flux    => flux_t
+    bottom_buoy_flux => flux_b
+    top_buoy_flux    => flux_t
     wind_flux        => wind_f
     tau_mag          => wind_tau
 
@@ -282,8 +286,8 @@ contains
       ! Eddy viscosity and eddy diffusivity at interfaces
       do l = 0, zlevels
          Ri = Richardson (Nsq(l), dudzsq(l))
-         Kv(l)%data(d)%elts(id) = Kv_tke (l_m(l), e(l))
-         Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Ri)
+         Kv(l)%data(d)%elts(id) = Kv_tke (l_m(l), e(l), Nsq(l))
+         Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Ri, Nsq(l))
       end do
 
       ! Assign tke
@@ -331,7 +335,7 @@ contains
     k = 1
     diag_u(k) = - coeff (1) ! super-diagonal
     diag(k)   = 1 - diag_u(k)
-    rhs(k)    = b() - dt * Kt(k)%data(d)%elts(id) * bottom_temp_flux (dom, i, j, z_null, offs, dims) / dz(k)
+    rhs(k)    = b() - dt * Kt(k)%data(d)%elts(id) * bottom_buoy_flux (dom, i, j, z_null, offs, dims) / dz(k)
 
     do k = 2, zlevels-1
        diag_u(k)   = - coeff ( 1) ! super-diagonal
@@ -344,7 +348,7 @@ contains
     k = zlevels
     diag_l(k-1) = - coeff (-1) ! sub-diagonal
     diag(k)     = 1 - diag_u(k-1)
-    rhs(k)      = b() + dt * Kt(k)%data(d)%elts(id) * top_temp_flux (dom, i, j, z_null, offs, dims) / dz(k)
+    rhs(k)      = b() + dt * Kt(k)%data(d)%elts(id) * top_buoy_flux (dom, i, j, z_null, offs, dims) / dz(k)
 
     ! Solve tridiagonal linear system
     call dgtsv (zlevels, 1, diag_l, diag, diag_u, rhs, zlevels, info)
@@ -454,7 +458,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8), dimension(1:zlevels)  :: dz
 
-    integer :: d, id
+    integer :: d, id, ll
     real(8) :: mass0, mass1, temp0, temp1
 
     d = dom%id + 1
@@ -469,9 +473,23 @@ contains
 
        N_sq = grav_accel * (temp1/mass1 - temp0/mass0) / interp (dz(l), dz(l+1)) ! -g drho/dz / rho0
     elseif (l == 0) then
-       N_sq = grav_accel * bottom_temp_flux (dom, i, j, z_null, offs, dims) 
+       ll = 1
+       mass0 = sol_mean(S_MASS,ll)%data(d)%elts(id) + sol(S_MASS,ll)%data(d)%elts(id)
+       temp0 = sol(S_TEMP,ll)%data(d)%elts(id)
+
+       mass1 = sol_mean(S_MASS,ll+1)%data(d)%elts(id) + sol(S_MASS,ll+1)%data(d)%elts(id)
+       temp1 = sol(S_TEMP,ll+1)%data(d)%elts(id)
+!!$       N_sq = grav_accel * bottom_buoy_flux (dom, i, j, z_null, offs, dims) 
     elseif (l == zlevels) then
-       N_sq = grav_accel * top_temp_flux (dom, i, j, z_null, offs, dims)
+       ll = zlevels - 1
+       mass0 = sol_mean(S_MASS,ll)%data(d)%elts(id) + sol(S_MASS,ll)%data(d)%elts(id)
+       temp0 = sol(S_TEMP,ll)%data(d)%elts(id)
+
+       mass1 = sol_mean(S_MASS,ll+1)%data(d)%elts(id) + sol(S_MASS,ll+1)%data(d)%elts(id)
+       temp1 = sol(S_TEMP,ll+1)%data(d)%elts(id)
+
+       N_sq = grav_accel * (temp1/mass1 - temp0/mass0) / interp (dz(ll), dz(ll+1)) ! -g drho/dz / rho0
+!!$       N_sq = grav_accel * top_buoy_flux (dom, i, j, z_null, offs, dims)
     end if
   end function N_sq
 
@@ -521,8 +539,6 @@ contains
     implicit none
     real(8) :: Ri
 
-!!$    Prandtl = max (0.1d0, Ri_c / max (Ri_c, Ri))
-
     ! NEMO
     if (Ri < 0.2_8) then
        Prandtl = 1.0_8
@@ -531,6 +547,8 @@ contains
     else
        Prandtl = 10.0_8
     end if
+
+    !!$    Prandtl = max (0.1d0, Ri_c / max (Ri_c, Ri)) ! CROCO
   end function prandtl
 
   subroutine l_scales (dz, Nsq, tau, tke, l_eps, l_m)
@@ -566,20 +584,24 @@ contains
     l_m(zlevels) = 0.0_8
   end subroutine l_scales
     
-  real(8) function Kt_tke (Kv, Ri)
+  real(8) function Kt_tke (Kv, Ri, Nsq)
     ! TKE closure eddy diffusivity
     implicit none
-    real(8) :: Kv, Ri
+    real(8) :: Kv, Nsq, Ri
 
     Kt_tke = max (Kv/Prandtl(Ri), Kt_0)
+    
+    if (Nsq <= Nsq_min) Kt_tke = Kt_enh ! enhanced vertical diffusion
   end function Kt_tke
 
-  real(8) function Kv_tke (l_m, tke)
+  real(8) function Kv_tke (l_m, tke, Nsq)
     ! TKE closure eddy viscosity
     implicit none
-    real(8) :: l_m, tke
+    real(8) :: l_m, Nsq, tke
 
     Kv_tke = max (c_m * l_m * sqrt(tke), Kv_0)
+    
+    if (Nsq <= Nsq_min) Kv_tke = Kv_enh ! enhanced vertical diffusion
   end function Kv_tke
 
   real(8) function Kt_analytic ()
@@ -648,9 +670,9 @@ contains
     if (zlev > 1 .and. zlev < zlevels) then
        dtemp(id_i) = scalar_flux(1) - scalar_flux(-1)
     elseif (zlev == 1) then
-       dtemp(id_i) = scalar_flux(1) - Kt(1)%data(d)%elts(id_i) * bottom_temp_flux (dom, i, j, z_null, offs, dims)
+       dtemp(id_i) = scalar_flux(1) - Kt(1)%data(d)%elts(id_i) * bottom_buoy_flux (dom, i, j, z_null, offs, dims)
     elseif (zlev == zlevels) then
-       dtemp(id_i) = Kt(zlevels)%data(d)%elts(id_i) * top_temp_flux (dom, i, j, z_null, offs, dims) - scalar_flux(-1)
+       dtemp(id_i) = Kt(zlevels)%data(d)%elts(id_i) * top_buoy_flux (dom, i, j, z_null, offs, dims) - scalar_flux(-1)
     end if
     dtemp(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dtemp(id_i)
   contains
