@@ -203,7 +203,9 @@ module shared_mod
 
   ! Heat and energy
   real(8), parameter :: KELVIN  = 1
-  real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2 
+  real(8), parameter :: CELSIUS = KELVIN
+  real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2
+  real(8), parameter :: WATT    = JOULE / SECOND
   
   ! Simulation variables
   integer                                       :: coarse_iter, cp_idx, err_restart, fine_iter, ibin, iremap, istep, istep_cumul

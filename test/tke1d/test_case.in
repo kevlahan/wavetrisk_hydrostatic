@@ -1,13 +1,11 @@
 test_case          tke1d     ! name of test case
 run_id             tke1d     ! name of run (for saved data)
-max_level	   4             ! maximum level of resolution
-zlevels           100             ! number of vertical levels
-remap              T             ! remap vertical grid
-iremap             20            ! remap every iremap time steps
-tol      	   5e-3          ! non-dimensional tolerance
-dt_init            2            ! time step [s]
-dt_write           5.0             ! save interval (hour)
-CP_EVERY           1             ! checkpoint every CP_EVERY saves
-time_end           30          ! final time (hours)
-resume            -1             ! restart from checkpoint (negative means fresh restart)
+kato               T         ! T = boundary layer thickening, F = free convection
+max_level	   4         ! maximum level of resolution
+zlevels            100       ! number of vertical levels
+dt_init            30        ! time step [s]
+dt_write           30         ! save interval [h]
+CP_EVERY           1         ! checkpoint every CP_EVERY saves
+time_end           30        ! final time [h]
+resume            -1         ! restart from checkpoint (negative means fresh restart)
 

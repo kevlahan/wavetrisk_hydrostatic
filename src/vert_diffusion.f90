@@ -181,7 +181,7 @@ contains
     id = idx (i, j, offs, dims) + 1
     d = dom%id + 1
     p = dom%node%elts(id)
-       
+
     if (tke_closure) then
        call init_diffuse
        
@@ -253,6 +253,7 @@ contains
       ! Initializations
       implicit none
       integer :: k, l
+      real(8) :: Ri
 
       do k = 1, zlevels
          dz(k) = dz_i (dom, i, j, k, offs, dims)
@@ -273,6 +274,15 @@ contains
       end do
 
       call l_scales (dz, Nsq, tau_mag (p), e, l_eps, l_m)
+
+      ! Recompute eddy viscosity and eddy diffusivity after restart
+      if (istep == 1) then
+         do l = 0, zlevels
+            Ri = Richardson (Nsq(l), dudzsq(l))
+            Kv(l)%data(d)%elts(id) = Kv_tke (l_m(l), e(l), Nsq(l))
+            Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Ri, Nsq(l))
+         end do
+      end if
     end subroutine init_diffuse
 
     subroutine update_Kv_Kt
@@ -335,7 +345,7 @@ contains
     k = 1
     diag_u(k) = - coeff (1) ! super-diagonal
     diag(k)   = 1 - diag_u(k)
-    rhs(k)    = b() - dt * Kt(k)%data(d)%elts(id) * bottom_buoy_flux (dom, i, j, z_null, offs, dims) / dz(k)
+    rhs(k)    = b() - dt * bottom_buoy_flux (dom, i, j, z_null, offs, dims) / dz(k)
 
     do k = 2, zlevels-1
        diag_u(k)   = - coeff ( 1) ! super-diagonal
@@ -348,7 +358,7 @@ contains
     k = zlevels
     diag_l(k-1) = - coeff (-1) ! sub-diagonal
     diag(k)     = 1 - diag_u(k-1)
-    rhs(k)      = b() + dt * Kt(k)%data(d)%elts(id) * top_buoy_flux (dom, i, j, z_null, offs, dims) / dz(k)
+    rhs(k)      = b() + dt * top_buoy_flux (dom, i, j, z_null, offs, dims) / dz(k)
 
     ! Solve tridiagonal linear system
     call dgtsv (zlevels, 1, diag_l, diag, diag_u, rhs, zlevels, info)
@@ -450,7 +460,7 @@ contains
   end subroutine backwards_euler_velo
 
   real(8) function N_sq  (dom, i, j, l, offs, dims, dz)
-    ! Brunt-Vaisala number N^2 at interface 0 <= l <= zlevels
+    ! Brunt-Vaisala number N^2 = -g drho/dz / rho0 at interface 0 <= l <= zlevels
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, l
@@ -458,39 +468,31 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8), dimension(1:zlevels)  :: dz
 
-    integer :: d, id, ll
-    real(8) :: mass0, mass1, temp0, temp1
-
-    d = dom%id + 1
-    id = idx (i, j, offs, dims) + 1
-
     if (l < zlevels .and. l > 0) then
-       mass0 = sol_mean(S_MASS,l)%data(d)%elts(id) + sol(S_MASS,l)%data(d)%elts(id)
-       temp0 = sol(S_TEMP,l)%data(d)%elts(id)
-
-       mass1 = sol_mean(S_MASS,l+1)%data(d)%elts(id) + sol(S_MASS,l+1)%data(d)%elts(id)
-       temp1 = sol(S_TEMP,l+1)%data(d)%elts(id)
-
-       N_sq = grav_accel * (temp1/mass1 - temp0/mass0) / interp (dz(l), dz(l+1)) ! -g drho/dz / rho0
+       N_sq = eval (l)
     elseif (l == 0) then
-       ll = 1
-       mass0 = sol_mean(S_MASS,ll)%data(d)%elts(id) + sol(S_MASS,ll)%data(d)%elts(id)
-       temp0 = sol(S_TEMP,ll)%data(d)%elts(id)
-
-       mass1 = sol_mean(S_MASS,ll+1)%data(d)%elts(id) + sol(S_MASS,ll+1)%data(d)%elts(id)
-       temp1 = sol(S_TEMP,ll+1)%data(d)%elts(id)
-!!$       N_sq = grav_accel * bottom_buoy_flux (dom, i, j, z_null, offs, dims) 
+       N_sq = eval (1)
     elseif (l == zlevels) then
-       ll = zlevels - 1
-       mass0 = sol_mean(S_MASS,ll)%data(d)%elts(id) + sol(S_MASS,ll)%data(d)%elts(id)
-       temp0 = sol(S_TEMP,ll)%data(d)%elts(id)
-
-       mass1 = sol_mean(S_MASS,ll+1)%data(d)%elts(id) + sol(S_MASS,ll+1)%data(d)%elts(id)
-       temp1 = sol(S_TEMP,ll+1)%data(d)%elts(id)
-
-       N_sq = grav_accel * (temp1/mass1 - temp0/mass0) / interp (dz(ll), dz(ll+1)) ! -g drho/dz / rho0
-!!$       N_sq = grav_accel * top_buoy_flux (dom, i, j, z_null, offs, dims)
+       N_sq = eval(zlevels-1)
     end if
+  contains
+    real(8) function eval (l)
+      implicit none
+      integer :: l
+
+      integer :: d, id
+      real(8) :: dz_l
+      real(8) :: b_above, b_below ! buoyancy above and below interface l
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      b_below = sol(S_TEMP,l)%data(d)%elts(id) / (sol_mean(S_MASS,l)%data(d)%elts(id) + sol(S_MASS,l)%data(d)%elts(id))
+      b_above = sol(S_TEMP,l+1)%data(d)%elts(id) / (sol_mean(S_MASS,l+1)%data(d)%elts(id) + sol(S_MASS,l+1)%data(d)%elts(id))
+      dz_l = interp (dz(l), dz(l+1))
+
+      eval = grav_accel * (b_above - b_below) / dz_l ! -g drho/dz / rho0
+    end function eval
   end function N_sq
 
   real(8) function dudz_sq  (dom, i, j, l, offs, dims)
@@ -502,28 +504,31 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: d, id
-    real(8), dimension(1:EDGE) :: dudz, prim_dual
-
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
-    
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       if (l < zlevels .and. l > 0) then
-          prim_dual = dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-
-          dudz = (sol(S_VELO,l+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)) &
-               / interp_e (dz_e (dom, i, j, l, offs, dims), dz_e (dom, i, j, l+1, offs, dims))
-
-          dudz_sq = sum (dudz**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv
-       elseif (l == 0) then
-          dudz_sq = (friction * u_mag (dom, i, j, 1, offs, dims) * dz_i (dom, i, j, 1, offs, dims) / Kv(l)%data(d)%elts(id+1))**2
-       elseif (l == zlevels) then
-          dudz_sq = (tau_mag (dom%node%elts(id+1)) / ref_density / Kv(l)%data(d)%elts(id+1))**2
-       end if
-    else
-       dudz_sq = 0.0_8
+    if (l < zlevels .and. l > 0) then
+       dudz_sq = eval (l)
+    elseif (l == 0) then
+       dudz_sq = eval (1)
+    elseif (l == zlevels) then
+       dudz_sq = eval (zlevels-1)
     end if
+  contains
+    real(8) function eval (l)
+      implicit none
+      integer :: l
+
+      integer :: d, id
+      real(8), dimension(1:EDGE) :: dudz, prim_dual
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims)
+
+      prim_dual = dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+
+      dudz = (sol(S_VELO,l+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)) &
+           / interp_e (dz_e (dom, i, j, l, offs, dims), dz_e (dom, i, j, l+1, offs, dims))
+
+      eval = sum (dudz**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv
+    end function eval
   end function dudz_sq 
 
   real(8) function Richardson (Nsq, dudzsq)
@@ -547,8 +552,7 @@ contains
     else
        Prandtl = 10.0_8
     end if
-
-    !!$    Prandtl = max (0.1d0, Ri_c / max (Ri_c, Ri)) ! CROCO
+!!$    Prandtl = max (0.1d0, Ri_c / max (Ri_c, Ri)) ! CROCO
   end function prandtl
 
   subroutine l_scales (dz, Nsq, tau, tke, l_eps, l_m)
@@ -564,9 +568,9 @@ contains
     integer :: l
 
     do l = 0, zlevels
-       l_up(l) = sqrt (2 * tke(l) / max (Nsq(l), Neps_sq))
+       l_dwn(l) = sqrt (2 * tke(l) / max (Nsq(l), Neps_sq))
     end do
-    l_dwn = l_up
+    l_up = l_dwn
 
     l_dwn(0) = l_0
     do l = 1, zlevels
@@ -581,7 +585,6 @@ contains
     ! Returned length scales
     l_eps = sqrt (l_up * l_dwn)
     l_m   = min (l_up, l_dwn)
-    l_m(zlevels) = 0.0_8
   end subroutine l_scales
     
   real(8) function Kt_tke (Kv, Ri, Nsq)
@@ -590,7 +593,7 @@ contains
     real(8) :: Kv, Nsq, Ri
 
     Kt_tke = max (Kv/Prandtl(Ri), Kt_0)
-    
+
     if (Nsq <= Nsq_min) Kt_tke = Kt_enh ! enhanced vertical diffusion
   end function Kt_tke
 
@@ -639,8 +642,8 @@ contains
           dtemp  => dq(S_TEMP,k)%data(d)%elts
           dvelo  => dq(S_VELO,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_velo,    grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (trend_scalars_vert_diffuse, grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (trend_velo_vert_diffuse,    grid(d), p-1, k, 0, 0)
           end do
           nullify (dmass, dtemp, dvelo, mass, mean_m, mean_t, temp, velo)
        end do
@@ -648,7 +651,7 @@ contains
     dq%bdry_uptodate = .false.
   end subroutine trend_vertical_diffusion
 
-  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
+  subroutine trend_scalars_vert_diffuse (dom, i, j, zlev, offs, dims)
     ! Vertical eddy diffusivity of buoyancy
     ! (layer height is not diffused)
     implicit none
@@ -697,9 +700,9 @@ contains
 
       scalar_flux = l * visc * (b_l - b_0) / dz_l
     end function scalar_flux
-  end subroutine trend_scalars
+  end subroutine trend_scalars_vert_diffuse
 
-  subroutine trend_velo (dom, i, j, zlev, offs, dims)
+  subroutine trend_velo_vert_diffuse (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -735,5 +738,5 @@ contains
 
       velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_l
     end function velo_flux
-  end subroutine trend_velo
+  end subroutine trend_velo_vert_diffuse
 end module vert_diffusion_mod

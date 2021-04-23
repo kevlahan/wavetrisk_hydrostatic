@@ -13,14 +13,14 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: drho
-  real(8)                              :: friction_tke, N_0, r_max, r_max_loc, tau_0, T_0, u_0
+  real(8)                              :: alpha_0, friction_tke, N_0, Q_0, r_max, r_max_loc, tau_0, T_0, u_0
   character(255)                       :: coords
+  logical                              :: kato
 
   ! Equation of state parameters for linear NEMO model
   real(8), parameter ::               a0 = 1.6550d-1  ! linear coefficient of thermal expansion
   real(8), parameter ::               b0 = 7.6554d-1  ! linear haline expansion coefficient
   real(8), parameter ::               Sal = 35        ! salinity in psu
-  real(8), parameter ::               alpha_0  = 2d-4
   real(8), dimension(2), parameter :: mu = (/ 1.4970d-4, 1.1090d-5 /) ! thermobaric coefficient in T and S
 contains
   subroutine read_test_case_parameters
@@ -41,11 +41,9 @@ contains
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
+    read (fid,*) varname, kato
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
-    read (fid,*) varname, remap
-    read (fid,*) varname, iremap
-    read (fid,*) varname, tol
     read (fid,*) varname, dt_init
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
@@ -75,6 +73,7 @@ contains
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case                      = ", trim (test_case)
        write (6,'(A,A)')      "run_id                         = ", trim (run_id)
+       write (6,'(A,L1)')     "kato                           = ", kato
        write (6,'(A,L1)')     "compressible                   = ", compressible
        write (6,'(A,L1)')     "penalize                       = ", penalize
        write (6,'(A,i3)')     "min_level                      = ", min_level
@@ -197,7 +196,7 @@ contains
        open (unit=20, file=trim(run_id)//'.6.'//s_time, form="FORMATTED", action='WRITE', status='REPLACE')
 
        write (6,'(a, f4.1, a)') "Temperature profile at time ", time/HOUR, " h"
-       write (6,'(a)') "Level    z_l    Kt(z_l)      Kv(z_l)     z_k   T(z_k)          rho(k)"
+       write (6,'(a)') "Level    z_l     Kt(z_l)     Kv(z_l)     z_k    T(z_k)        rho(k)"
        
        z_k = interp (z(0), z(1))
        write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
@@ -212,7 +211,7 @@ contains
        end do
 
        write (6,'(a, es9.2)') " "
-        write (6,'(a)') "Level    z_l    Nsq    N"
+        write (6,'(a)') "Level    z_l      Nsq          N"
        do k = 1, zlevels-1
           Nsq = - grav_accel * (density (T_avg(k+1), interp (z(k), z(k+1))) - density (T_avg(k), interp (z(k-1), z(k)))) &
                / ref_density
@@ -374,7 +373,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, phi, rho, z_s
+    real(8)                       :: eta, phi, rho, z_k, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
 
@@ -394,13 +393,14 @@ contains
 
     do k = 1, zlevels
        rho = porous_density (dom, i, j, k, offs, dims)
+       z_k = interp (z(k-1), z(k))
 
        if (k == zlevels) then
           sol(S_MASS,zlevels)%data(d)%elts(id_i) = rho * eta
        else
           sol(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
        end if
-       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy (interp (z(k-1), z(k)))
+       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (z_k)
        sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end do
 
@@ -531,7 +531,7 @@ contains
     init_free_surface = 0.0_8
   end function init_free_surface
 
-  real(8) function buoyancy (z)
+  real(8) function buoyancy_init (z)
     ! Initial buoyancy at depth z
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
@@ -539,10 +539,17 @@ contains
 
     real(8) :: rho
 
-    rho = density (temp_profile (z), z)
-    buoyancy = (ref_density - rho) / ref_density
-  end function buoyancy
+    rho = density (temp_init (z), z)
+    buoyancy_init = (ref_density - rho) / ref_density
+  end function buoyancy_init
 
+  real(8) function buoyancy (temperature, z)
+    implicit none
+    real(8) :: temperature, z
+
+    buoyancy = (ref_density - density (temperature, z)) / ref_density
+  end function buoyancy
+  
   real(8) function density (temperature, z)
     ! Equation of state: returns density as a function of temperature and depth z
     implicit none
@@ -552,21 +559,23 @@ contains
 !!$    density = ref_density - a0 * (1 + mu(1)*z) * (temperature - 10) + b0 * (1 - mu(2)*z) * (Sal - 35) ! NEMO
   end function density
 
-   real(8) function temperature (density, z)
-     ! Equation of state: returns temperature from density and depth z
+  real(8) function temperature (density, z)
+    ! Equation of state: returns temperature from density and depth z
     implicit none
-    real(8) :: density, z
+    real(8) :: b, density, z
 
-    temperature = (1 - density/ref_density) / alpha_0 + T_0 ! simplified
+    b = 1 - density/ref_density
+    temperature =  b / alpha_0 + T_0 ! simplified eos
+    
 !!$    temperature = (ref_density - density + b0 * (1 - mu(2)*z) * (Sal - 35)) / (a0 * (1 + mu(1)*z)) + 10  ! NEMO
   end function temperature
 
-   real(8) function temp_profile (z)
+  real(8) function temp_init (z)
     implicit none
     real(8) :: z
 
-    temp_profile = T_0 - N_0**2/(alpha_0*grav_accel) * abs (z)
-  end function temp_profile
+    temp_init = T_0 - N_0**2/(alpha_0*grav_accel) * abs (z)
+  end function temp_init
 
   subroutine print_density
     implicit none
@@ -585,11 +594,11 @@ contains
     end if
     dz = z(1:zlevels) - z(0:zlevels-1)
 
-    write (6,'(a)') " Layer      z         dz         rho "
+    write (6,'(a)') " Layer        z         dz         T          rho "
     do k = 1, zlevels
        z_k = interp (z(k-1), z(k))
-       write (6, '(2x, i4, 4x, 2(es9.2, 1x), es11.5)') &
-            k, z_k, dz(k), ref_density * (1.0_8 - buoyancy (z_k))
+       rho = ref_density * (1.0_8 - buoyancy_init (z_k))
+       write (6, '(2x, i4, 4x, 2(es9.2, 1x), es10.4, 1x, es13.7)') k, z_k, dz(k), temp_init (z_k), rho
     end do
     
     write (6,'(/,a)') " Interface     z"
@@ -604,8 +613,8 @@ contains
        z_k     = interp (z(k-1), z(k))
        dz_l    = z_above - z_k
        
-       rho_above = ref_density * (1.0_8 - buoyancy (z_above))
-       rho  = ref_density * (1.0_8 - buoyancy (z_k))
+       rho_above = ref_density * (1.0_8 - buoyancy_init (z_above))
+       rho  = ref_density * (1.0_8 - buoyancy_init (z_k))
        drho = rho_above - rho
        
        bv = sqrt(- grav_accel * drho/dz_l/rho)
@@ -940,18 +949,32 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    flux_bottom = N_0**2 / grav_accel
+    integer :: d, id_i
+
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+    
+    flux_bottom =  Kt(0)%data(d)%elts(id_i) * N_0**2 / grav_accel
   end function flux_bottom
 
   real(8) function flux_top (dom, i, j, z_null, offs, dims)
-    ! Top boundary flux for vertical diffusion of buoyancy 
+    ! Top boundary flux for vertical diffusion of buoyancy
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, z_null
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    flux_top = 0.0_8
+    integer :: d, id_i
+
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    if (kato) then
+       flux_top = 0.0_8
+    else
+       flux_top = - Kt(zlevels)%data(d)%elts(id_i) * Q_0 / (ref_density*c_p)  * alpha_0 
+    end if
   end function flux_top
 
   function wind_flux_tke (dom, i, j, zlev, offs, dims)
@@ -982,4 +1005,67 @@ contains
 
     wind_flux_tke = tau_wind / rho
   end function wind_flux_tke
+
+  subroutine trend_cooling (q, dq)
+    ! Trend for Held-Suarez cooling
+    implicit none
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+
+    integer :: d, k, p
+
+    call update_array_bdry (sol, NONE, 27)
+
+    do k = 1, zlevels
+       do d = 1, size(grid)
+          mass   =>  q(S_MASS,k)%data(d)%elts
+          temp   =>  q(S_TEMP,k)%data(d)%elts
+          velo   =>  q(S_VELO,k)%data(d)%elts
+          dmass  => dq(S_MASS,k)%data(d)%elts
+          dtemp  => dq(S_TEMP,k)%data(d)%elts
+          dvelo  => dq(S_VELO,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (trend_scalars_cooling, grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (trend_velo_cooling,    grid(d), p-1, k, 0, 0)
+          end do
+          nullify (dmass, dtemp, dvelo, mass, temp, velo)
+       end do
+    end do
+    dq%bdry_uptodate = .false.
+  end subroutine trend_cooling
+
+  subroutine trend_scalars_cooling (dom, i, j, zlev, offs, dims)
+    ! Trend for cooling step (relaxation to equilibrium temperature)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+    real(8) :: dz, z
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    z = z_i (dom, i, j, zlevels, offs, dims)
+    dz = dz_i (dom, i, j, zlevels, offs, dims)
+
+    dmass(id_i) = 0.0_8
+    dtemp(id_i) = buoyancy (Q_0, z)
+  end subroutine trend_scalars_cooling
+
+  subroutine trend_velo_cooling (dom, i, j, zlev, offs, dims)
+    ! Velocity trend for cooling step (Rayleigh friction)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_i
+
+    id = idx (i, j, offs, dims)
+    id_i = id+1
+
+    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+  end subroutine trend_velo_cooling
 end module test_case_mod
