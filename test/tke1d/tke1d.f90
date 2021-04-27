@@ -48,9 +48,6 @@ program tke1d
   ! Bottom friction
   friction_tke       = 0.0_8
 
-  ! Surface heat flux
-  Q_0                = - 100 * WATT / METRE**2
-
   ! Thermal expansion coefficient
   alpha_0            = 2d-4 / CELSIUS
 
@@ -60,9 +57,10 @@ program tke1d
      N_0             = 0.01 / SECOND
      T_0             = 16 * CELSIUS
   else
-     tau_0           = 0.0_8
-     N_0             = sqrt (alpha_0 * grav_accel/10)
-     T_0             = 22 * CELSIUS
+     tau_0           =   0.0_8
+     N_0             =   sqrt (alpha_0 * grav_accel/10)
+     Q_0             = - 100 * WATT / METRE**2 ! Surface heat flux
+     T_0             =   22 * CELSIUS
   end if
 
   ! Vertical level to save
@@ -95,7 +93,6 @@ program tke1d
   do while (time < time_end)
      istep = istep + 1
      call vertical_diffusion (friction_tke, tau, wind_flux_tke, flux_bottom, flux_top)
-!!$     if (.not. kato) call euler (sol, wav_coeff, trend_cooling, dt)
      time = time + dt
      min_mass = cpt_min_mass ()
      call sum_total_mass (.false.)

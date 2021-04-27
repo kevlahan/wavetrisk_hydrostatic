@@ -18,7 +18,7 @@ module vert_diffusion_mod
 
   logical, parameter :: implicit     = .true. ! use backwards Euler (T) or forward Euler (F)
   logical, parameter :: surf_wave    = .true. ! use surface wave parameterization (T) or default (F)
-  logical, parameter :: enhance_diff = .true. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
+  logical, parameter :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
   
   ! Parameters for analytic eddy viscosity/diffusion scheme (e_min, Kt_0, Kv_0 defaults set in shared.f90)
   real(8), parameter :: Kv_bottom = 2d-3
@@ -487,11 +487,11 @@ contains
       d = dom%id + 1
       id = idx (i, j, offs, dims) + 1
 
-      b_below = sol(S_TEMP,l)%data(d)%elts(id) / (sol_mean(S_MASS,l)%data(d)%elts(id) + sol(S_MASS,l)%data(d)%elts(id))
+      b_below = sol(S_TEMP,l)%data(d)%elts(id)   / (sol_mean(S_MASS,l)%data(d)%elts(id)   + sol(S_MASS,l)%data(d)%elts(id))
       b_above = sol(S_TEMP,l+1)%data(d)%elts(id) / (sol_mean(S_MASS,l+1)%data(d)%elts(id) + sol(S_MASS,l+1)%data(d)%elts(id))
       dz_l = interp (dz(l), dz(l+1))
 
-      eval = grav_accel * (b_above - b_below) / dz_l ! -g drho/dz / rho0
+      eval = grav_accel * (b_above - b_below) / dz_l ! - g drho/dz / rho0
     end function eval
   end function N_sq
 
@@ -594,7 +594,7 @@ contains
 
     Kt_tke = max (Kv/Prandtl(Ri), Kt_0)
 
-    if (Nsq <= Nsq_min) Kt_tke = Kt_enh ! enhanced vertical diffusion
+    if (enhance_diff .and. Nsq <= Nsq_min) Kt_tke = Kt_enh ! enhanced vertical diffusion
   end function Kt_tke
 
   real(8) function Kv_tke (l_m, tke, Nsq)
@@ -604,7 +604,7 @@ contains
 
     Kv_tke = max (c_m * l_m * sqrt(tke), Kv_0)
     
-    if (Nsq <= Nsq_min) Kv_tke = Kv_enh ! enhanced vertical diffusion
+    if (enhance_diff .and. Nsq <= Nsq_min) Kv_tke = Kv_enh ! enhanced vertical diffusion
   end function Kv_tke
 
   real(8) function Kt_analytic ()

@@ -20,7 +20,13 @@ else
 end
 
 %figure; 
-figure; sgtitle("\Delta t = 1200s N = 100 levels",'fontsize', 24);
+figure; 
+
+if kato
+    sgtitle("Upwelling: \Delta t = 1200s N = 100 levels",'fontsize', 24);
+else
+    sgtitle("Free convection: \Delta t = 30s N = 50 levels",'fontsize', 24);
+end
 
 % Use Florian's dimensions
 
@@ -31,7 +37,6 @@ if kato
     axis([13.25 15.4 -52.4 2.4]); % Kato and Phillips (1969)
 else
     axis([19.5 21.0 -25 0]); % Willis and Deardorff (1974)
-    %axis([16 20.0 -50 0]); % Willis and Deardorff (1974)
 end
 pbaspect([0.64 1 1]);
 
@@ -40,7 +45,7 @@ xlabel('Kt [m^2/s]');ylabel('Depth [m]'); set(gca,'fontsize',16); grid on;
 if kato
     axis([-1e-3 2.25e-2 -52.4 2.4]); % Kato and Phillips (1969)
 else
-    axis([-1e-3 2.5e-2 -25 0]); % Willis and Deardorff (1974)
+    axis([-1.5e-3 2.75e-2 -25 0]); % Willis and Deardorff (1974)
 end
 pbaspect([0.64 1 1]);
 

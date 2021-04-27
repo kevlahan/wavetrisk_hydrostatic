@@ -164,7 +164,7 @@ contains
     integer :: iwrt
 
     integer                       :: k
-    real(8)                       :: area, eta, Nsq, z_k, z_s
+    real(8)                       :: area, dz_l, eta, Nsq, z_k, z_s
     real(8), parameter            :: lat_band = 30
     real(8), dimension(1:zlevels) :: dz, T_avg
     real(8), dimension(0:zlevels) :: Kt_avg, Kv_avg, z
@@ -211,11 +211,12 @@ contains
        end do
 
        write (6,'(a, es9.2)') " "
-        write (6,'(a)') "Level    z_l      Nsq          N"
+       write (6,'(a)') "Level    z_l      Nsq"
        do k = 1, zlevels-1
-          Nsq = - grav_accel * (density (T_avg(k+1), interp (z(k), z(k+1))) - density (T_avg(k), interp (z(k-1), z(k)))) &
-               / ref_density
-          write (6, '(i3, 3x, f7.2, 2(es11.4,1x))') k, z(k), Nsq, sqrt (Nsq)
+          drho = density (T_avg(k+1), interp (z(k), z(k+1))) - density (T_avg(k), interp (z(k-1), z(k)))
+          dz_l = interp (dz(k), dz(k+1))
+          Nsq = - grav_accel * drho/dz_l / ref_density 
+          write (6, '(i3, 3x, f7.2, 1x, es11.4, 1x)') k, z(k), Nsq
        end do
        write (6,'(a, es9.2)') " "
        close (20)
@@ -965,15 +966,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id_i
-
-    d = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
-
     if (kato) then
        flux_top = 0.0_8
     else
-       flux_top = - Kt(zlevels)%data(d)%elts(id_i) * Q_0 / (ref_density*c_p)  * alpha_0 
+       flux_top = Q_0 / (ref_density*c_p)  * alpha_0 
     end if
   end function flux_top
 
@@ -1005,67 +1001,4 @@ contains
 
     wind_flux_tke = tau_wind / rho
   end function wind_flux_tke
-
-  subroutine trend_cooling (q, dq)
-    ! Trend for Held-Suarez cooling
-    implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-
-    integer :: d, k, p
-
-    call update_array_bdry (sol, NONE, 27)
-
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          mass   =>  q(S_MASS,k)%data(d)%elts
-          temp   =>  q(S_TEMP,k)%data(d)%elts
-          velo   =>  q(S_VELO,k)%data(d)%elts
-          dmass  => dq(S_MASS,k)%data(d)%elts
-          dtemp  => dq(S_TEMP,k)%data(d)%elts
-          dvelo  => dq(S_VELO,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (trend_scalars_cooling, grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_velo_cooling,    grid(d), p-1, k, 0, 0)
-          end do
-          nullify (dmass, dtemp, dvelo, mass, temp, velo)
-       end do
-    end do
-    dq%bdry_uptodate = .false.
-  end subroutine trend_cooling
-
-  subroutine trend_scalars_cooling (dom, i, j, zlev, offs, dims)
-    ! Trend for cooling step (relaxation to equilibrium temperature)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-    real(8) :: dz, z
-
-    id_i = idx (i, j, offs, dims) + 1
-
-    z = z_i (dom, i, j, zlevels, offs, dims)
-    dz = dz_i (dom, i, j, zlevels, offs, dims)
-
-    dmass(id_i) = 0.0_8
-    dtemp(id_i) = buoyancy (Q_0, z)
-  end subroutine trend_scalars_cooling
-
-  subroutine trend_velo_cooling (dom, i, j, zlev, offs, dims)
-    ! Velocity trend for cooling step (Rayleigh friction)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id, id_i
-
-    id = idx (i, j, offs, dims)
-    id_i = id+1
-
-    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
-  end subroutine trend_velo_cooling
 end module test_case_mod
