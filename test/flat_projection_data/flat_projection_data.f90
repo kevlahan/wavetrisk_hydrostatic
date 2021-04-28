@@ -140,6 +140,12 @@ program flat_projection_data
      penalize       = .true.
      vert_diffuse   = .true.
 
+     a_0            = 0.28 / CELSIUS
+     b_0            = 0.0_8
+     mu_1           = 0.0_8
+     mu_2           = 0.0_8
+     T_ref          = 14   * CELSIUS
+
      alpha          = 1d-2    ! porosity
      npts_penal     = 2.5
 

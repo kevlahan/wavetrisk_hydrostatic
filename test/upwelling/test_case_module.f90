@@ -3,6 +3,7 @@ Module test_case_mod
   use shared_mod
   use comm_mpi_mod
   use utils_mod
+  use equation_of_state_mod
   implicit none
 
   ! Standard variables
@@ -174,19 +175,6 @@ contains
     end if
   end subroutine print_log
   
-  real(8) function buoyancy (z, k)
-    ! Buoyancy profile
-    ! buoyancy = (ref_density - density)/ref_density
-    implicit none
-    integer                       :: k
-    real(8), dimension(0:zlevels) :: z
-
-    real(8) :: rho
-
-    rho = interp (density (z(k-1)), density (z(k)))
-    buoyancy = (ref_density - rho) / ref_density
-  end function buoyancy
-  
   subroutine apply_initial_conditions
     implicit none
     integer :: d, k, l
@@ -234,7 +222,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, phi, rho, z_s
+    real(8)                       :: eta, phi, rho, z_k, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
 
@@ -254,13 +242,14 @@ contains
 
     do k = 1, zlevels
        rho = porous_density (dom, i, j, k, offs, dims)
+       z_k = interp (z(k-1), z(k))
 
        if (k == zlevels) then
           sol(S_MASS,zlevels)%data(d)%elts(id_i) = rho * eta
        else
           sol(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
        end if
-       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy (z, k)
+       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (z_k)
        sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end do
 
@@ -399,31 +388,20 @@ contains
 
     init_free_surface = 0.0_8
   end function init_free_surface
-
-  real(8) function density (z)
+  
+  real(8) function buoyancy_init (z)
+    ! Initial buoyancy at depth z
+    ! buoyancy = (ref_density - density)/ref_density
     implicit none
     real(8) :: z
 
-    real(8)            :: delta
-    real(8), parameter :: drho = -2.5d0
-    character(255)     :: stratification
+    real(8) :: rho
 
-    delta = abs(max_depth)/3
+    rho = density (S_ref, temp_init (z), z)
+    buoyancy_init = (ref_density - rho) / ref_density
+  end function buoyancy_init
 
-    stratification = "temp"
-
-    if (trim(stratification) == "temp") then
-       density = eqn_of_state (temp_profile(z))
-    elseif (trim(stratification) == "linear") then 
-       density = ref_density + drho * (max_depth-z)/max_depth
-    elseif (trim(stratification) == "exponential") then
-       density = ref_density + drho * exp__flush (z/delta)
-    elseif (trim(stratification) == "none") then
-       density = ref_density 
-    end if
-  end function density
-
-  real(8) function temp_profile (z)
+  real(8) function temp_init (z)
     implicit none
     real(8) :: z
 
@@ -435,17 +413,8 @@ contains
     z0 = z0_0 * abs(max_depth/h0)
     z1 = z1_0 * abs(max_depth/h0)
 
-    temp_profile = T0 + 4*tanh ((z - z0) / hz) + (z - z1) / strat
-  end function temp_profile
-
-  real(8) function eqn_of_state (temperature)
-    implicit none
-    real(8) :: temperature
-
-    real(8), parameter :: beta = 0.28, T0 = 14_8
-
-    eqn_of_state = ref_density - beta * (temperature - T0)
-  end function eqn_of_state
+    temp_init = T_ref + 4*tanh ((z - z0) / hz) + (z - z1) / strat
+  end function temp_init
 
   subroutine print_density
     implicit none
@@ -468,7 +437,7 @@ contains
     do k = 1, zlevels
        z_k = interp (z(k-1), z(k))
        write (6, '(2x, i2, 4x, 2(es9.2, 1x), es11.5)') &
-            k, z_k, dz(k), ref_density * (1.0_8 - buoyancy (z, k))
+            k, z_k, dz(k), ref_density * (1.0_8 - buoyancy_init (z_k))
     end do
     
     write (6,'(/,a)') " Interface     z"
@@ -483,8 +452,8 @@ contains
        z_k     = interp (z(k-1), z(k))
        dz_l    = z_above - z_k
        
-       rho_above = ref_density * (1.0_8 - buoyancy (z, k+1))
-       rho  = ref_density * (1.0_8 - buoyancy (z, k))
+       rho_above = ref_density * (1.0_8 - buoyancy_init (z_above))
+       rho  = ref_density * (1.0_8 - buoyancy_init (z_k))
        drho = rho_above - rho
        
        bv = sqrt(- grav_accel * drho/dz_l/rho)

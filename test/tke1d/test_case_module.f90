@@ -3,6 +3,7 @@ Module test_case_mod
   use shared_mod
   use comm_mpi_mod
   use utils_mod
+  use equation_of_state_mod
   implicit none
 
   ! Standard variables
@@ -13,15 +14,9 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: drho
-  real(8)                              :: alpha_0, friction_tke, N_0, Q_0, r_max, r_max_loc, tau_0, T_0, u_0
+  real(8)                              :: friction_tke, N_0, Q_0, r_max, r_max_loc, tau_0, u_0
   character(255)                       :: coords
   logical                              :: kato
-
-  ! Equation of state parameters for linear NEMO model
-  real(8), parameter ::               a0 = 1.6550d-1  ! linear coefficient of thermal expansion
-  real(8), parameter ::               b0 = 7.6554d-1  ! linear haline expansion coefficient
-  real(8), parameter ::               Sal = 35        ! salinity in psu
-  real(8), dimension(2), parameter :: mu = (/ 1.4970d-4, 1.1090d-5 /) ! thermobaric coefficient in T and S
 contains
   subroutine read_test_case_parameters
     implicit none
@@ -200,20 +195,20 @@ contains
        
        z_k = interp (z(0), z(1))
        write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
-            0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1), density (T_avg(1), z_k)
+            0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1), density (S_ref, T_avg(1),  z_k)
        write (20,'(i3, 1x, 5(es13.6,1x))')    0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1)
        
        do k = 1, zlevels
           z_k = interp (z(k-1), z(k))
           write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
-               k, z(k), Kt_avg(k), Kv_avg(k), z_k, T_avg(k), density (T_avg(k), z_k)
+               k, z(k), Kt_avg(k), Kv_avg(k), z_k, T_avg(k), density (S_ref, T_avg(k), z_k)
           write (20,'(i3, 1x, 5(es13.6,1x))') k, z(k), Kt_avg(k), Kv_avg(k), z_k, T_avg(k)
        end do
 
        write (6,'(a, es9.2)') " "
        write (6,'(a)') "Level    z_l      Nsq"
        do k = 1, zlevels-1
-          drho = density (T_avg(k+1), interp (z(k), z(k+1))) - density (T_avg(k), interp (z(k-1), z(k)))
+          drho = density (S_ref, T_avg(k+1), interp (z(k), z(k+1))) - density (S_ref, T_avg(k), interp (z(k-1), z(k)))
           dz_l = interp (dz(k), dz(k+1))
           Nsq = - grav_accel * drho/dz_l / ref_density 
           write (6, '(i3, 3x, f7.2, 1x, es11.4, 1x)') k, z(k), Nsq
@@ -244,7 +239,7 @@ contains
 
          z = z_i (dom, i, j, zlev, offs, dims)
          density = ref_density * (1 - full_theta/full_mass)
-         temp_fun = temperature (density, z)
+         temp_fun = temperature (density, S_ref, z)
       else
          temp_fun = 0.0_8
       end if
@@ -540,42 +535,15 @@ contains
 
     real(8) :: rho
 
-    rho = density (temp_init (z), z)
+    rho = density (S_ref, temp_init (z), z)
     buoyancy_init = (ref_density - rho) / ref_density
   end function buoyancy_init
-
-  real(8) function buoyancy (temperature, z)
-    implicit none
-    real(8) :: temperature, z
-
-    buoyancy = (ref_density - density (temperature, z)) / ref_density
-  end function buoyancy
-  
-  real(8) function density (temperature, z)
-    ! Equation of state: returns density as a function of temperature and depth z
-    implicit none
-    real(8) :: temperature, z
-
-    density = ref_density * (1 - alpha_0 * (temperature - T_0))
-!!$    density = ref_density - a0 * (1 + mu(1)*z) * (temperature - 10) + b0 * (1 - mu(2)*z) * (Sal - 35) ! NEMO
-  end function density
-
-  real(8) function temperature (density, z)
-    ! Equation of state: returns temperature from density and depth z
-    implicit none
-    real(8) :: b, density, z
-
-    b = 1 - density/ref_density
-    temperature =  b / alpha_0 + T_0 ! simplified eos
-    
-!!$    temperature = (ref_density - density + b0 * (1 - mu(2)*z) * (Sal - 35)) / (a0 * (1 + mu(1)*z)) + 10  ! NEMO
-  end function temperature
 
   real(8) function temp_init (z)
     implicit none
     real(8) :: z
 
-    temp_init = T_0 - N_0**2/(alpha_0*grav_accel) * abs (z)
+    temp_init = T_ref - N_0**2 * ref_density / (a_0 * grav_accel) * abs (z)
   end function temp_init
 
   subroutine print_density
@@ -969,7 +937,7 @@ contains
     if (kato) then
        flux_top = 0.0_8
     else
-       flux_top = Q_0 / (ref_density*c_p)  * alpha_0 
+       flux_top = Q_0 / (ref_density*c_p)  * a_0/ref_density 
     end if
   end function flux_top
 

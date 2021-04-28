@@ -48,19 +48,22 @@ program tke1d
   ! Bottom friction
   friction_tke       = 0.0_8
 
-  ! Thermal expansion coefficient
-  alpha_0            = 2d-4 / CELSIUS
+  ! Equation of state parameters
+  a_0                = 2d-4 / CELSIUS * ref_density
+  b_0                = 0.0_8
+  mu_1               = 0.0_8
+  mu_2               = 0.0_8
 
   if (kato) then
      u_0             = 0.01 * METRE/SECOND
      tau_0           = ref_density * u_0**2
      N_0             = 0.01 / SECOND
-     T_0             = 16 * CELSIUS
+     T_ref           = 16 * CELSIUS
   else
      tau_0           =   0.0_8
-     N_0             =   sqrt (alpha_0 * grav_accel/10)
+     N_0             =   sqrt (a_0/ref_density * grav_accel/10)
      Q_0             = - 100 * WATT / METRE**2 ! Surface heat flux
-     T_0             =   22 * CELSIUS
+     T_ref           =   22 * CELSIUS
   end if
 
   ! Vertical level to save

@@ -215,7 +215,8 @@ module shared_mod
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
   integer, dimension(:), allocatable            :: n_node_old, n_patch_old
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
-  
+
+  real(8)                                       :: a_0, b_0, mu_1, mu_2, T_ref, S_ref
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, ref_density, tol_elliptic
   real(8)                                       :: max_depth, min_depth
@@ -317,6 +318,15 @@ contains
 
     ! Default run values
     ! these parameters may be reset in the test case file, but are needed for compilation
+
+   
+    a_0                 = 1.6550d-1                     ! linear coefficient of thermal expansion for seawater 
+    b_0                 = 7.6554d-1                     ! linear haline expansion coefficient for seawater 
+    mu_1                = 1.4970d-4                     ! thermobaric coefficient in temperature
+    mu_2                = 1.1090d-5                     ! thermobaric coefficient in salinity
+    T_ref               = 10          * CELSIUS         ! reference temperature
+    S_ref               = 35                            ! reference salinity
+    
     alpha               = 1d-2                          ! porosity
     cfl_num             = 1.0_8                         ! barotropic CFL number
     C_visc              = 1d-2                          ! constant for determining horizontal viscosity

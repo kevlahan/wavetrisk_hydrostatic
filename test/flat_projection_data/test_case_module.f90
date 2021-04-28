@@ -4,9 +4,10 @@ module test_case_mod
   use domain_mod
   use comm_mpi_mod
   use utils_mod
+  use equation_of_state_mod
   implicit none
   integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev 
-  real(8)                              :: initotalmass, mass_error, max_depth, npts_penal, totalmass, ref_surf_press, scale
+  real(8)                              :: initotalmass, mass_error, npts_penal, totalmass, ref_surf_press, scale
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), allocatable, dimension(:,:) :: threshold_def
   logical                              :: mean_split
@@ -22,7 +23,7 @@ module test_case_mod
   real(8) :: delta, h0, lat_val, lon_val, width
   character(255) :: coords, stratification
   ! Upwelling
-  real(8)            :: lat_width, min_depth, Tcline
+  real(8)            :: lat_width, Tcline, T_0
   real(8), parameter :: slope = 1.75d-4 ! slope parameter (larger value -> steeper slope)
   real(8), parameter :: shift = 8
 contains
@@ -539,7 +540,7 @@ contains
           else
              if (mean_split) then
                 sol_mean(S_MASS,k)%data(d)%elts(id_i) = rho * dz(k)
-                sol_mean(S_TEMP,k)%data(d)%elts(id_i) = rho * dz(k) * buoyancy (eta, z_s, k)
+                sol_mean(S_TEMP,k)%data(d)%elts(id_i) = rho * dz(k) * buoy_flat (eta, z_s, k)
              else
                 sol_mean(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
                 sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
@@ -558,7 +559,7 @@ contains
     end do
   end subroutine init_mean
   
-  real(8) function buoyancy (eta, z_s, zlev)
+  real(8) function buoy_flat (eta, z_s, zlev)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
@@ -571,75 +572,62 @@ contains
     if (trim (test_case) == "drake") then
        z = a_vert(zlev) * eta + b_vert(zlev) * z_s
        if (zlevels /= 1 .and. z >= halocline) then
-          buoyancy = - (1.0_8 - z/halocline) * drho/ref_density
+          buoy_flat = - (1.0_8 - z/halocline) * drho/ref_density
        else
-          buoyancy = 0.0_8
+          buoy_flat = 0.0_8
        end if
     elseif (trim (test_case) == "seamount") then
        z1 = a_vert(zlev-1) * eta + b_vert(zlev-1) * z_s
        z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
 
-       rho = 0.5 * (density (z1) + density (z2))
+       rho = 0.5 * (density_flat (z1) + density_flat (z2))
 
-       buoyancy = (ref_density - rho) / ref_density 
+       buoy_flat = (ref_density - rho) / ref_density 
     elseif (trim (test_case) == "upwelling") then
        z1 = a_vert(zlev-1) * eta + b_vert(zlev-1) * z_s
        z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
 !!$       z = 0.5 * (z1 + z2)
-!!$       rho = density (z)
-       rho = 0.5 * (density (z1) + density (z2))
-       buoyancy = (ref_density - rho) / ref_density
+!!$       rho = density_flat (z)
+       rho = 0.5 * (density_flat (z1) + density_flat (z2))
+       buoy_flat = (ref_density - rho) / ref_density
     else
        if (rank == 0) write(6,'(A)') "Test case not supported"
        stop
     end if
-  end function buoyancy
+  end function buoy_flat
 
-  real(8) function density (z)
+  real(8) function density_flat (z)
     implicit none
     real(8) :: z
 
     if (trim (test_case) == "seamount") then
        if (trim(stratification) == "linear") then 
-          density = ref_density + drho * (max_depth-z)/max_depth
+          density_flat = ref_density + drho * (max_depth-z)/max_depth
        elseif (trim(stratification) == "exponential") then
-          density = ref_density + drho * exp__flush (z/delta)
+          density_flat = ref_density + drho * exp__flush (z/delta)
        end if
     elseif (trim (test_case) == "upwelling") then
-       density = eqn_of_state (temp_profile(z))
+       density_flat = density (S_ref, temp_init (z),  z)
     else
        if (rank == 0) write(6,'(A)') "Test case not supported"
        stop
     end if
-  end function density
+  end function density_flat
 
-  real(8) function temp_profile (z)
+  real(8) function temp_init (z)
     implicit none
     real(8) :: z
 
     real(8)            :: hz, strat, z0, z1
-    real(8), parameter :: h0 = 150_8, hz_0 = 6.5_8, T0 = 14_8, z0_0 = -35_8, z1_0 = -75_8
+    real(8), parameter :: h0 = 150_8, hz_0 = 6.5_8, z0_0 = -35_8, z1_0 = -75_8
 
-    if (trim(coords) == "croco" .or. trim(coords) == "uniform") then
-       strat = abs(max_depth)
-       hz = hz_0 * abs(max_depth/h0)
-       z0 = z0_0 * abs(max_depth/h0)
-       z1 = z1_0 * abs(max_depth/h0)
+    strat = abs(max_depth)
+    hz = hz_0 * abs(max_depth/h0)
+    z0 = z0_0 * abs(max_depth/h0)
+    z1 = z1_0 * abs(max_depth/h0)
 
-       temp_profile = T0 + 4*tanh ((z - z0) / hz) + (z - z1) / strat
-    elseif (trim(coords) == "roms") then
-       temp_profile = 3.0677d-6 * z**3 +   1.0747d-3 * z**2 + 1.4386d-1 * z + 2.1597d1
-    end if
-  end function temp_profile
-
-  real(8) function eqn_of_state (temperature)
-    implicit none
-    real(8) :: temperature
-
-    real(8), parameter :: beta = 0.28, T0 = 14_8
-
-    eqn_of_state = ref_density - beta * (temperature - T0)
-  end function eqn_of_state
+    temp_init = T_ref + 4*tanh ((z - z0) / hz) + (z - z1) / strat
+  end function temp_init
 
   subroutine set_thresholds
     ! Dummy routine

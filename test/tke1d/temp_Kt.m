@@ -1,7 +1,7 @@
 %% TKE profile
 clear all
 
-kato = 0;
+kato = 1;
 time = 1;
 
 remote_file = ['~/hydro/tke/tke1d.6.' sprintf( '%04d', time)];

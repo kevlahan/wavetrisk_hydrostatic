@@ -64,6 +64,13 @@ program upwelling
   ! Wind stress
   tau_0              = 0.1_8
 
+  ! Equation of state variables
+  a_0                = 0.28 / CELSIUS
+  b_0                = 0.0_8
+  mu_1               = 0.0_8
+  mu_2               = 0.0_8
+  T_ref              = 14   * CELSIUS
+  
   ! Vertical level to save
   save_zlev          = 8
 
