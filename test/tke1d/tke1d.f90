@@ -51,6 +51,8 @@ program tke1d
   ! Equation of state parameters
   a_0                = 2d-4 / CELSIUS * ref_density
   b_0                = 0.0_8
+  lambda_1           = 0.0_8
+  lambda_2           = 0.0_8
   mu_1               = 0.0_8
   mu_2               = 0.0_8
 

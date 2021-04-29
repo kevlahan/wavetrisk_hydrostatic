@@ -1,7 +1,7 @@
 module equation_of_state_mod
-  ! Equation of state for seawater based on simplified NEMO/TEOS10 simplified linear model (nemo_eos = .true.)
-  ! (provides a simple linear representation of both cabbeling and thermobaricity effects)
-  ! or a basic linear model (nemo_eos = .false.)
+  ! Equation of state for seawater based on simplified NEMO/TEOS10 simplified linear model
+  ! (provides a simple linear representation of thermobaricity effects and cabbeling)
+  ! (set lambda_1 = lambda_2 = 0 to remove cabbeling, set mu_1 = mu_2 = 0 to remove thermobaric effects)
   use shared_mod
   implicit none
 contains
@@ -14,17 +14,46 @@ contains
 
   real(8) function density (salinity, temperature,  z)
     ! Equation of state: returns density as a function of temperature, salinity and depth z
+    ! (includes cabbeling)
     implicit none
     real(8) :: salinity, temperature, z
+    
+    real(8) :: S_a, T_a
 
-    density = ref_density - a_0 * (temperature - T_ref) * (1 + mu_1*z) + b_0 * (salinity - S_ref) * (1 - mu_2*z)       
+    S_a = salinity - S_ref
+    T_a = temperature - T_ref
+
+    density = ref_density - a_0 * (1 + 0.5*lambda_1*T_a + mu_1*z) * T_a + b_0 * (1 - 0.5*lambda_2*S_a - mu_2*z) * S_a &
+         - nu_0 * S_a * T_a
   end function density
 
   real(8) function temperature (density, salinity, z)
-    ! Equation of state: returns temperature from density, salinity Sal and depth z
+    ! Inverse equation of state: returns temperature from density, salinity Sal and depth z
+    !!!! does not include (nonlinear) cabbeling effects: use only for visualization !!!!
     implicit none
     real(8) :: density, salinity, z
 
-    temperature = T_ref + ((ref_density - density) - b_0 * (1 - mu_2*z) * (salinity - S_ref)) / (a_0 * (1 + mu_1*z))       
+    real(8) :: rho_a, S_a
+
+    rho_a = ref_density - density
+    S_a   = salinity - S_ref
+
+    temperature = T_ref + (rho_a + b_0 * (1 - mu_2*z) * S_a) / (a_0 * (1 + mu_1*z))       
   end function temperature
+
+  real(8) function dk_buoyancy (salinity, temperature, dk_salinity, dk_temperature, z)
+    ! Vertical difference of buoyancy given salinity and temperature and vertical differences in salinity and temperature
+    ! neglects any change in z
+    ! (used in flux computations)
+    implicit none
+    real(8) :: dk_salinity, dk_temperature, temperature, salinity, z
+
+    real(8) :: S_a, T_a
+
+    S_a = salinity - S_ref
+    T_a = temperature - T_ref
+
+    dk_buoyancy = (a_0 * (1 + 0.5*lambda_1*T_a + mu_1*z) * dk_temperature - b_0 * (1 - 0.5*lambda_2*S_a - mu_2*z) * dk_salinity &
+         + nu_0 * (S_a * dk_temperature + T_a * dk_salinity + dk_salinity * dk_temperature)) / ref_density
+  end function dk_buoyancy
 end module equation_of_state_mod

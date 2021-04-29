@@ -69,6 +69,8 @@ program upwelling
   b_0                = 0.0_8
   mu_1               = 0.0_8
   mu_2               = 0.0_8
+  mu_1               = 0.0_8
+  mu_2               = 0.0_8
   T_ref              = 14   * CELSIUS
   
   ! Vertical level to save

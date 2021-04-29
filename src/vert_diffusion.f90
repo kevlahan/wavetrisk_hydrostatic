@@ -325,16 +325,25 @@ contains
 
     integer                         :: d, id, info, k, l
     real(8)                         :: eta, full_mass, theta
-    
+
+    real(8), dimension(0:zlevels)   :: z
     real(8), dimension(1:zlevels)   :: diag, dz, rhs
     real(8), dimension(1:zlevels-1) :: diag_l, diag_u, dz_l
 
     id = idx (i, j, offs, dims) + 1
     d = dom%id + 1
 
-    ! Layer thicknesses
+    if (mode_split) then
+       eta = sol(S_MASS,zlevels+1)%data(d)%elts(id)
+    else
+       eta = free_surface (dom, i, j, z_null, offs, dims)
+    end if
+
+    ! Layer thicknesses and interface positions
+    z(0) = dom%topo%elts(id)
     do k = 1, zlevels
        dz(k) = dz_i (dom, i, j, k, offs, dims)
+       z(k) = z(k-1) + dz(k)
     end do
     
     do l = 1, zlevels-1
@@ -345,20 +354,20 @@ contains
     k = 1
     diag_u(k) = - coeff (1) ! super-diagonal
     diag(k)   = 1 - diag_u(k)
-    rhs(k)    = b() - dt * bottom_buoy_flux (dom, i, j, z_null, offs, dims) / dz(k)
+    rhs(k)    = b() + dt * ( - bottom_buoy_flux (dom, i, j, z_null, offs, dims) + solar_flux ()) / dz(k)
 
     do k = 2, zlevels-1
        diag_u(k)   = - coeff ( 1) ! super-diagonal
        diag_l(k-1) = - coeff (-1) ! sub-diagonal
        diag(k)     = 1 - (diag_u(k) + diag_l(k-1))
-       rhs(k)      = b() 
+       rhs(k)      = b() + dt * solar_flux () / dz(k)
     end do
 
     ! Top layer
     k = zlevels
     diag_l(k-1) = - coeff (-1) ! sub-diagonal
     diag(k)     = 1 - diag_u(k-1)
-    rhs(k)      = b() + dt * top_buoy_flux (dom, i, j, z_null, offs, dims) / dz(k)
+    rhs(k)      = b() + dt * (top_buoy_flux (dom, i, j, z_null, offs, dims) + Q_sr/(ref_density*c_p)) / dz(k)
 
     ! Solve tridiagonal linear system
     call dgtsv (zlevels, 1, diag_l, diag, diag_u, rhs, zlevels, info)
@@ -388,6 +397,13 @@ contains
       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
       b = sol(S_TEMP,k)%data(d)%elts(id) / full_mass
     end function b
+
+    real(8) function solar_flux ()
+      ! Net solar flux in layer 1 <= k < zlevels
+      implicit none
+
+      solar_flux = Q_sr * (irradiance (eta-z(k)) - irradiance (eta-z(k-1))) / (ref_density * c_p)
+    end function solar_flux
   end subroutine backwards_euler_temp
 
   subroutine backwards_euler_velo (dom, i, j, z_null, offs, dims)
@@ -454,10 +470,22 @@ contains
       integer :: kk
 
       kk = k + min (0, l)
-            
+
       coeff = dt  * Kv(kk)%data(d)%elts(id+1) / (dz_l(:,kk) * dz(:,k))
     end function coeff
   end subroutine backwards_euler_velo
+
+  real(8) function irradiance (depth)
+    ! Downward irradiance
+    implicit none
+    real(8) :: depth ! depth below free surface
+    
+    real(8), parameter :: R = 0.58d0
+    real(8), parameter :: xi_0 = 0.35 * METRE
+    real(8), parameter :: xi_1 =   23 * METRE
+
+    irradiance = Q_sr * (R * exp (-depth/xi_0) + (1 - R) * exp (-depth/xi_1))
+  end function irradiance
 
   real(8) function N_sq  (dom, i, j, l, offs, dims, dz)
     ! Brunt-Vaisala number N^2 = -g drho/dz / rho0 at interface 0 <= l <= zlevels
