@@ -223,7 +223,7 @@ module shared_mod
   real(8)                                       :: e_min, Kt_0, Kv_0, visc_divu, visc_rotu
   real(8)                                       :: alpha
   real(8), dimension(:), allocatable            :: visc_sclr
-  real(8)                                       :: c1, c_p, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
+  real(8)                                       :: c1, c_p, c_s, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8)                                       :: min_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
@@ -355,6 +355,7 @@ contains
     a_0                 = 1.6550d-1 * KG / METRE**3 / CELSIUS     ! linear coefficient of thermal expansion for seawater 
     b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
+    c_s                 = 1500      * METRE / SECOND              ! sound speed for seawater
     coarse_iter         = 10                                      ! number of bicgstab iterations at coarsest scale for elliptic solver
     e_min               = 1d-6      * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
     fine_iter           = 10                                      ! number of jacobi iterations at finer scales for elliptic solver

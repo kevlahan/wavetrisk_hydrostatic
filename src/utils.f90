@@ -220,7 +220,7 @@ contains
   end function phi_edge
 
   real(8) function potential_density (dom, i, j, zlev, offs, dims)
-    ! Potential density at nodes
+    ! Potential density at nodes (neglect free surface perturbation)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -228,15 +228,14 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id_i
-    real(8) :: c_sq, z
+    real(8) :: z
     
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    c_sq = grav_accel * abs (dom%topo%elts(id_i))
     z = z_i (dom, i, j, zlev, offs, dims)
 
-    potential_density = density (dom, i, j, zlev, offs, dims) + ref_density * grav_accel * z / c_sq
+    potential_density = density (dom, i, j, zlev, offs, dims) - ref_density * grav_accel * z / c_s**2
   end function potential_density
 
   real(8) function buoyancy (dom, i, j, zlev, offs, dims)
