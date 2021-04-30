@@ -216,8 +216,59 @@ contains
     implicit none
     integer :: d, id_e, zlev
 
-    phi_edge = 1.0_8 + (alpha - 1.0_8) * penal_edge(zlev)%data(d)%elts(id_e)
+    phi_edge = 1 + (alpha - 1) * penal_edge(zlev)%data(d)%elts(id_e)
   end function phi_edge
+
+  real(8) function potential_density (dom, i, j, zlev, offs, dims)
+    ! Potential density at nodes
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id_i
+    real(8) :: c_sq, z
+    
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    c_sq = grav_accel * abs (dom%topo%elts(id_i))
+    z = z_i (dom, i, j, zlev, offs, dims)
+
+    potential_density = density (dom, i, j, zlev, offs, dims) + ref_density * grav_accel * z / c_sq
+  end function potential_density
+
+  real(8) function buoyancy (dom, i, j, zlev, offs, dims)
+    ! at nodes
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id_i
+    real(8) :: full_mass, full_theta
+    
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i)
+    full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
+
+    buoyancy = full_theta / full_mass
+  end function buoyancy
+
+  real(8) function density (dom, i, j, zlev, offs, dims)
+    ! Density at nodes
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    density = ref_density * (1 - buoyancy (dom, i, j, zlev, offs, dims))
+  end function density
 
   real(8) function free_surface (dom, i, j, zlev, offs, dims)
     ! Computes free surface perturbations

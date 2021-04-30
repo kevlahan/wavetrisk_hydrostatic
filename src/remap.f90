@@ -2,6 +2,7 @@
 module remap_mod
   use time_integr_mod
   use wavelet_mod
+  use utils_mod
   implicit none
   abstract interface
      subroutine interpolation (N, var_new, z_new, var_old, z_old)
@@ -245,12 +246,10 @@ contains
 
     call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
     dz = z_new(1:zlevels) - z_new(0:zlevels-1)
-    
+
     ! Old buoyancy
     do k = 1, zlevels
-       full_mass  = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
-       full_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
-       theta_old(k) = full_theta / full_mass
+       theta_old(k) = buoyancy (dom, i, j, k, offs, dims)
     end do
 
     ! Remap density

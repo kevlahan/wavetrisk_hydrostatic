@@ -397,7 +397,7 @@ contains
 
     real(8) :: rho
 
-    rho = density (S_ref, temp_init (z), z)
+    rho = density_eos (S_ref, temp_init (z), z)
     buoyancy_init = (ref_density - rho) / ref_density
   end function buoyancy_init
 

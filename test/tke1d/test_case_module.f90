@@ -195,20 +195,20 @@ contains
        
        z_k = interp (z(0), z(1))
        write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
-            0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1), density (S_ref, T_avg(1),  z_k)
+            0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1), density_eos (S_ref, T_avg(1),  z_k)
        write (20,'(i3, 1x, 5(es13.6,1x))')    0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1)
        
        do k = 1, zlevels
           z_k = interp (z(k-1), z(k))
           write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
-               k, z(k), Kt_avg(k), Kv_avg(k), z_k, T_avg(k), density (S_ref, T_avg(k), z_k)
+               k, z(k), Kt_avg(k), Kv_avg(k), z_k, T_avg(k), density_eos (S_ref, T_avg(k), z_k)
           write (20,'(i3, 1x, 5(es13.6,1x))') k, z(k), Kt_avg(k), Kv_avg(k), z_k, T_avg(k)
        end do
 
        write (6,'(a, es9.2)') " "
        write (6,'(a)') "Level    z_l      Nsq"
        do k = 1, zlevels-1
-          drho = density (S_ref, T_avg(k+1), interp (z(k), z(k+1))) - density (S_ref, T_avg(k), interp (z(k-1), z(k)))
+          drho = density_eos (S_ref, T_avg(k+1), interp (z(k), z(k+1))) - density_eos (S_ref, T_avg(k), interp (z(k-1), z(k)))
           dz_l = interp (dz(k), dz(k+1))
           Nsq = - grav_accel * drho/dz_l / ref_density 
           write (6, '(i3, 3x, f7.2, 1x, es11.4, 1x)') k, z(k), Nsq
@@ -239,7 +239,7 @@ contains
 
          z = z_i (dom, i, j, zlev, offs, dims)
          density = ref_density * (1 - full_theta/full_mass)
-         temp_fun = temperature (density, S_ref, z)
+         temp_fun = temperature_eos (density, S_ref, z)
       else
          temp_fun = 0.0_8
       end if
@@ -535,7 +535,7 @@ contains
 
     real(8) :: rho
 
-    rho = density (S_ref, temp_init (z), z)
+    rho = density_eos (S_ref, temp_init (z), z)
     buoyancy_init = (ref_density - rho) / ref_density
   end function buoyancy_init
 
