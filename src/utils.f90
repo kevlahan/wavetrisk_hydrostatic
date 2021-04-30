@@ -235,8 +235,27 @@ contains
 
     z = z_i (dom, i, j, zlev, offs, dims)
 
-    potential_density = density (dom, i, j, zlev, offs, dims) - ref_density * grav_accel * z / c_s**2
+    potential_density = density (dom, i, j, zlev, offs, dims) - ref_density * z / H_rho
   end function potential_density
+
+   real(8) function potential_buoyancy (dom, i, j, zlev, offs, dims)
+    ! Potential buoyancy at nodes (neglect free surface perturbation)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id_i
+    real(8) :: z
+    
+    d = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    z = z_i (dom, i, j, zlev, offs, dims)
+
+    potential_buoyancy = buoyancy (dom, i, j, zlev, offs, dims) + z / H_rho
+  end function potential_buoyancy
 
   real(8) function buoyancy (dom, i, j, zlev, offs, dims)
     ! at nodes

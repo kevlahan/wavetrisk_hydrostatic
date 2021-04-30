@@ -223,7 +223,7 @@ module shared_mod
   real(8)                                       :: e_min, Kt_0, Kv_0, visc_divu, visc_rotu
   real(8)                                       :: alpha
   real(8), dimension(:), allocatable            :: visc_sclr
-  real(8)                                       :: c1, c_p, c_s, c_v, gamma, kappa, p_0, p_top, R_d, wave_speed
+  real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8)                                       :: min_mass
   real(8), dimension(:),         allocatable    :: pressure_save, bounds
@@ -371,6 +371,8 @@ contains
     Q_sr                = 0          * WATT / METRE**2            ! penetrative part of solar short wave radiation
     T_ref               = 10         * CELSIUS                    ! reference temperature
     S_ref               = 35         * GRAM / KG                  ! reference salinity
+
+    H_rho               = c_s**2 / grav_accel                     ! density scale height 
   end subroutine init_shared_mod
 
   real(8) function eps ()
