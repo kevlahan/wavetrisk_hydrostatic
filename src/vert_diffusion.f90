@@ -12,8 +12,8 @@ module vert_diffusion_mod
   !        flux_b, flux_t   (bottom and top buoyancy sources)
   !        wind_tau, wind_f (magnitude of wind stress tau and wind drag)
   !        r                (bottom friction)
+  use init_mod
   use utils_mod
-  use test_case_mod
   implicit none
 
   logical, parameter :: implicit     = .true. ! use backwards Euler (T) or forward Euler (F)
@@ -41,95 +41,13 @@ module vert_diffusion_mod
   real(8), parameter :: Nsq_min  = 1d-12               ! threshold for enhanced diffusion
   real(8), parameter :: Ri_c     = 2 / (2 + c_eps/c_m) ! 0.22
   real(8), parameter :: z_0      = 1d-1                ! roughness parameter of free surface
-
-  real(8) :: friction
-
-  abstract interface
-     real(8) function fun1 (eta, ri, z)
-       implicit none
-       real(8) :: eta, ri, z
-     end function fun1
-     function fun2 (eta, ri, z)
-       use shared_mod
-       implicit none
-       real(8), dimension(1:EDGE) :: fun2, eta, z
-       real(8)                    :: ri
-     end function fun2
-     real(8) function fun3 (dom, i, j, z_lev, offs, dims)
-       use domain_mod
-       implicit none
-       type(Domain)                   :: dom
-       integer                        :: i, j, z_lev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
-     end function fun3
-     function fun4 (dom, i, j, z_lev, offs, dims)
-       use domain_mod
-       implicit none
-       type(Domain)                   :: dom
-       integer                        :: i, j, z_lev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
-       real(8), dimension(1:EDGE)     :: fun4
-     end function fun4
-     real(8) function fun5 (p)
-       use geom_mod
-       implicit none
-       type(Coord) :: p
-     end function fun5
-  end interface
-  procedure (fun3), pointer :: bottom_buoy_flux => null ()
-  procedure (fun3), pointer :: top_buoy_flux    => null ()
-  procedure (fun4), pointer :: wind_flux        => null ()
-  procedure (fun5), pointer :: tau_mag          => null ()
 contains
-  subroutine vertical_diffusion (r, wind_tau, wind_f, flux_b, flux_t)
+  subroutine vertical_diffusion
     ! Backwards euler step for vertical diffusion
     use adapt_mod
     use time_integr_mod
     implicit none
     integer :: l
-    real(8) :: r
-
-    interface
-       real(8) function flux_b (dom, i, j, z_lev, offs, dims)
-         use domain_mod
-         implicit none
-         type(Domain)                   :: dom
-         integer                        :: i, j, z_lev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
-       end function flux_b
-       real(8) function flux_t (dom, i, j, z_lev, offs, dims)
-         use domain_mod
-         implicit none
-         type(Domain)                   :: dom
-         integer                        :: i, j, z_lev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
-       end function flux_t
-       real(8) function wind_tau (p)
-         use geom_mod
-         implicit none
-         type(Coord) :: p
-       end function wind_tau
-       function wind_f (dom, i, j, z_lev, offs, dims)
-         use domain_mod
-         implicit none
-         type(Domain)                   :: dom
-         integer                        :: i, j, z_lev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
-         real(8), dimension(1:EDGE)     :: wind_f
-       end function wind_f
-    end interface
-
-    bottom_buoy_flux => flux_b
-    top_buoy_flux    => flux_t
-    wind_flux        => wind_f
-    tau_mag          => wind_tau
-
-    friction = r
     
     call update_array_bdry (sol, NONE, 27)
     
@@ -435,7 +353,7 @@ contains
     ! Bottom layer
     k = 1
     diag_u(:,k) = - coeff (1) ! super-diagonal
-    diag(:,k)   = 1 - diag_u(:,k) + dt * friction / dz(:,k)
+    diag(:,k)   = 1 - diag_u(:,k) + dt * bottom_friction / dz(:,k)
     rhs(:,k)    = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) 
 
     do k = 2, zlevels-1
@@ -748,7 +666,7 @@ contains
     if (zlev > 1 .and. zlev < zlevels) then
        dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (velo_flux(1) - velo_flux(-1)) / dz_k
     elseif  (zlev == 1) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (velo_flux(1) - friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_k
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (velo_flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_k
     elseif (zlev == zlevels) then
        dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (wind_flux (dom, i, j, z_null, offs, dims) - velo_flux(-1)) / dz_k 
     end if

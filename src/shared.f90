@@ -209,26 +209,23 @@ module shared_mod
   
   ! Simulation variables
   integer                                       :: coarse_iter, cp_idx, err_restart, fine_iter, ibin, iremap, istep, istep_cumul
-  integer                                       :: iwrite, n_diffuse, nbins
+  integer                                       :: iwrite, n_diffuse, nbins, save_zlev
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
   integer, dimension(:), allocatable            :: n_node_old, n_patch_old
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
 
-  real(8)                                       :: a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
+  real(8)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, Q_sr, ref_density, tol_elliptic
-  real(8)                                       :: max_depth, min_depth
+  real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
   real(8)                                       :: e_min, Kt_0, Kv_0, visc_divu, visc_rotu
-  real(8)                                       :: alpha
-  real(8), dimension(:), allocatable            :: visc_sclr
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
-  real(8)                                       :: min_mass
-  real(8), dimension(:),         allocatable    :: pressure_save, bounds
+  real(8), dimension(:),         allocatable    :: bounds, pressure_save, visc_sclr
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
-  real(8), dimension(:,:),       allocatable    :: lnorm, threshold
+  real(8), dimension(:,:),       allocatable    :: lnorm, threshold, threshold_def
   real(8), dimension(:,:,:),     allocatable    :: zonal_avg, zonal_avg_glo
   real(8), dimension(3)                         :: L_diffusion
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
@@ -350,7 +347,7 @@ contains
     visc_rotu           = 0         * METRE**2 / SECOND     ! kinematic viscosity of vorticity 
 
     kappa               = R_d/c_p                           ! heat capacity ratio
-    
+
     ! Parameters for ocean (incompressible) model
     a_0                 = 1.6550d-1 * KG / METRE**3 / CELSIUS     ! linear coefficient of thermal expansion for seawater 
     b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater

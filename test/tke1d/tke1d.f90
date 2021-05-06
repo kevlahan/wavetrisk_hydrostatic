@@ -10,8 +10,9 @@ program tke1d
   implicit none
   integer :: ialign, idt, it
   logical :: aligned
-    
+
   ! Initialize mpi, shared variables and domains
+  write(6,*) 'hi1'
   call init_arch_mod 
   call init_comm_mpi_mod
 
@@ -46,7 +47,7 @@ program tke1d
   min_depth          = -50 * METRE                    ! minimum depth
 
   ! Bottom friction
-  friction_tke       = 0.0_8
+  bottom_friction_case = 0 / SECOND
 
   ! Equation of state parameters
   a_0                = 2d-4 / CELSIUS * ref_density
@@ -82,6 +83,10 @@ program tke1d
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   time_mult = 1.0_8
+  
+  ! Initialize functions
+  call assign_functions
+
   ! Initialize variables
   call initialize (run_id)
 
@@ -97,7 +102,7 @@ program tke1d
   total_cpu_time = 0.0_8
   do while (time < time_end)
      istep = istep + 1
-     call vertical_diffusion (friction_tke, tau, wind_flux_tke, flux_bottom, flux_top)
+     call vertical_diffusion
      time = time + dt
      min_mass = cpt_min_mass ()
      call sum_total_mass (.false.)

@@ -1,5 +1,6 @@
 module ops_mod
-  use test_case_mod
+  use init_mod
+  use utils_mod
   implicit none
   real(8) :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, min_mass_loc
 contains

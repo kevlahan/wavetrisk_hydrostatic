@@ -1,29 +1,54 @@
 Module test_case_mod
   ! Module file for upwelling test case
-  use shared_mod
   use comm_mpi_mod
   use utils_mod
+  use init_mod
   use equation_of_state_mod
   implicit none
 
   ! Standard variables
-  integer                              :: bathy_per_deg, CP_EVERY, resume_init, save_zlev
-  real(8)                              :: dt_cfl, initotalmass, mass_error, tau_diffusion, totalmass, total_cpu_time
+  integer                              :: bathy_per_deg, CP_EVERY, resume_init
+  real(8)                              :: dt_cfl, tau_diffusion, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
-  real(8), allocatable, dimension(:,:) :: threshold_def
 
   ! Local variables
   real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
-  real(8)                              :: friction_upwelling, r_max, r_max_loc
+  real(8)                              :: r_max, r_max_loc
   real(8)                              :: n_smth_N, n_smth_S, width_N, width_S
   real(8)                              :: npts_penal, u_wbc
   real(8)                              :: lat_c, lat_width, tau_0, Tcline, width
+  real(8), target                      :: bottom_friction_case
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
 
   real(8), parameter :: slope = 1.75d-4 ! slope parameter (larger value -> steeper slope)
   real(8), parameter :: shift = 8
 contains
+  subroutine assign_functions
+    ! Assigns generic pointer functions to functions defined in test cases
+    implicit none
+
+    ! Standard functions
+    apply_initial_conditions => apply_initial_conditions_case
+    dump                     => dump_case
+    load                     => load_case
+    initialize_a_b_vert      => initialize_a_b_vert_case
+    initialize_dt_viscosity  => initialize_dt_viscosity_case
+    initialize_thresholds    => initialize_thresholds_case
+    set_save_level           => set_save_level_case
+    set_thresholds           => set_thresholds_case
+    surf_geopot              => surf_geopot_case
+    update                   => update_case
+    z_coords                 => z_coords_case
+
+    ! Needed for vertical diffusion
+    bottom_friction  => bottom_friction_case
+    bottom_buoy_flux => bottom_buoy_flux_case
+    top_buoy_flux    => top_buoy_flux_case
+    wind_flux        => wind_flux_case
+    tau_mag          => tau_mag_case
+  end subroutine assign_functions
+  
   subroutine read_test_case_parameters
     implicit none
     integer            :: ilat, ilon, k
@@ -128,8 +153,8 @@ contains
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
-       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", friction_upwelling
-       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/friction_upwelling / DAY
+       write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
+       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
@@ -175,7 +200,7 @@ contains
     end if
   end subroutine print_log
   
-  subroutine apply_initial_conditions
+  subroutine apply_initial_conditions_case
     implicit none
     integer :: d, k, l
 
@@ -190,9 +215,9 @@ contains
        call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
-  end subroutine apply_initial_conditions
+  end subroutine apply_initial_conditions_case
 
-  subroutine update
+  subroutine update_case
     ! Update means, bathymetry and penalization mask
     implicit none
     integer :: d, k, l, p
@@ -211,7 +236,7 @@ contains
           call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
-  end subroutine update
+  end subroutine update_case
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Initial perturbation to mean for an entire vertical column 
@@ -234,7 +259,7 @@ contains
     z_s = dom%topo%elts(id_i)
     
     if (sigma_z) then
-       z = z_coords (eta, z_s)
+       z = z_coords_case (eta, z_s)
     else
        z = a_vert * eta + b_vert * z_s
     end if
@@ -281,7 +306,7 @@ contains
     z_s = dom%topo%elts(id_i)
     
     if (sigma_z) then
-       z = z_coords (eta, z_s)
+       z = z_coords_case (eta, z_s)
     else
        z = a_vert * eta + b_vert * z_s
     end if
@@ -301,7 +326,7 @@ contains
     end if
   end subroutine init_mean
   
-  subroutine initialize_a_b_vert
+  subroutine initialize_a_b_vert_case
     ! Initialize hybrid sigma-coordinate vertical grid 
     ! (a_vert, b_vert not used if sigma_z = .true.)
     implicit none
@@ -329,7 +354,7 @@ contains
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
-  end subroutine initialize_a_b_vert
+  end subroutine initialize_a_b_vert_case
 
   subroutine init_tke (dom, i, j, zlev, offs, dims)
     ! Initialize TKE
@@ -347,7 +372,7 @@ contains
     tke(zlev)%data(d)%elts(id) = 1d-6
   end subroutine init_tke
 
-  real(8) function surf_geopot (p)
+  real(8) function surf_geopot_case (p)
     ! Surface geopotential: postive if greater than mean seafloor                                                                                        
     ! Gives minimum depth of approximately 24 m                                                                                                          
     implicit none
@@ -363,12 +388,12 @@ contains
     if (abs(lat-lat_c) <= lat_width/2) then
         amp = b_max / (1.0_8 - tanh (-slope*width/shift))
         y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel                                               
-	surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
+	surf_geopot_case = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
      else
-      surf_geopot = b_max
+      surf_geopot_case = b_max
     end if
-    surf_geopot = grav_accel * surf_geopot
-  end function surf_geopot
+    surf_geopot_case = grav_accel * surf_geopot_case
+  end function surf_geopot_case
 
   real(8) function f (y)
     implicit none
@@ -427,7 +452,7 @@ contains
     z_s = max_depth
     
     if (sigma_z) then
-       z = z_coords (eta, z_s)
+       z = z_coords_case (eta, z_s)
     else
        z = a_vert * eta + b_vert * z_s
     end if
@@ -468,7 +493,7 @@ contains
          ************************************************************'
   end subroutine print_density
 
-  subroutine set_thresholds
+  subroutine set_thresholds_case
     ! Set thresholds dynamically (trend or sol must be known)
     use lnorms_mod
     use wavelet_mod
@@ -496,9 +521,9 @@ contains
           threshold = threshold_new
        end if
     end if
-  end subroutine set_thresholds
+  end subroutine set_thresholds_case
 
-  subroutine initialize_thresholds
+  subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer                       :: k
@@ -514,7 +539,7 @@ contains
     z_s = max_depth
 
     if (sigma_z) then
-       z = z_coords (eta, z_s)
+       z = z_coords_case (eta, z_s)
     else
        z = eta * a_vert + z_s * b_vert
     end if
@@ -529,9 +554,9 @@ contains
     if (mode_split) lnorm(:,zlevels+1) = lnorm(:,zlevels) ! not used
 
     threshold_def = tol * lnorm  
-  end subroutine initialize_thresholds
+  end subroutine initialize_thresholds_case
 
-  subroutine initialize_dt_viscosity 
+  subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
     real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, C_visc, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
@@ -590,7 +615,7 @@ contains
     ! Smoothing exponent for land mass
     n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
     n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
-  end subroutine initialize_dt_viscosity
+  end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
     ! Set bathymetry
@@ -655,7 +680,7 @@ contains
     case ("bathymetry")
 !!$       nsmth = 2 * (l - min_level)
        nsmth = 1
-       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
+       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot_case, p, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = 0
        
@@ -743,7 +768,7 @@ contains
     tau_merid = 0.0_8
   end subroutine wind_stress
 
-  real(8) function tau (p)
+  real(8) function tau_mag_case (p)
     ! Magnitude of wind stress at node p
     implicit none
     type(Coord) :: p
@@ -754,10 +779,10 @@ contains
 
     call wind_stress (lon, lat, tau_zonal, tau_merid)
 
-    tau = sqrt (tau_zonal**2 + tau_merid**2)
-  end function tau
+    tau_mag_case = sqrt (tau_zonal**2 + tau_merid**2)
+  end function tau_mag_case
 
-  subroutine set_save_level
+  subroutine set_save_level_case
     ! Save top layer
     implicit none
     real(8) :: save_height
@@ -766,9 +791,9 @@ contains
 
     if (rank==0) write (6,'(/,A,i2,A,es11.4,A,/)') "Saving vertical level ", save_zlev, &
          " (approximate height = ", save_height, " [m])"
-  end subroutine set_save_level
+  end subroutine set_save_level_case
 
-  function z_coords (eta_surf, z_s)
+  function z_coords_case (eta_surf, z_s)
     ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
     ! near the free surface over strong bathymetry gradients.
     ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
@@ -776,7 +801,7 @@ contains
     ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
     implicit none
     real(8)                       :: eta_surf, z_s ! free surface and bathymetry
-    real(8), dimension(0:zlevels) :: z_coords
+    real(8), dimension(0:zlevels) :: z_coords_case
 
     integer                       :: k
     real(8)                       :: cff, cff1, cff2, hc, z_0
@@ -796,14 +821,14 @@ contains
        Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
     end do
 
-    z_coords(0) = z_s
+    z_coords_case(0) = z_s
     do k = 1, zlevels
        cff = hc * (sc(k) - Cs(k))
        z_0 = cff - Cs(k) * z_s
        a_vert(k) = 1.0_8 - z_0 / z_s
-       z_coords(k) = eta_surf * a_vert(k) + z_0
+       z_coords_case(k) = eta_surf * a_vert(k) + z_0
     end do
-  end function z_coords
+  end function z_coords_case
 
   subroutine update_diagnostics
     ! Update diagnostics
@@ -822,23 +847,23 @@ contains
     
   end subroutine deallocate_diagnostics
   
-  subroutine dump (fid)
+  subroutine dump_case (fid)
     implicit none
     integer :: fid
 
     write (fid) itime
     write (fid) iwrite
     write (fid) threshold
-  end subroutine dump
+  end subroutine dump_case
 
-  subroutine load (fid)
+  subroutine load_case (fid)
     implicit none
     integer :: fid
 
     read (fid) itime
     read (fid) iwrite
     read (fid) threshold
-  end subroutine load
+  end subroutine load_case
 
   subroutine cal_r_max
     ! Calculates minimum relative mass and checks diffusion stability limits
@@ -898,7 +923,7 @@ contains
     end if
   end subroutine cal_rmax_loc
   
-  real(8) function upwelling_bottom (dom, i, j, z_null, offs, dims)
+  real(8) function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims)
     ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
     type(Domain)                   :: dom
@@ -906,10 +931,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    upwelling_bottom = 0.0_8
-  end function upwelling_bottom
+    bottom_buoy_flux_case= 0.0_8
+  end function bottom_buoy_flux_case
 
-  real(8) function upwelling_top (dom, i, j, z_null, offs, dims)
+  real(8) function top_buoy_flux_case (dom, i, j, z_null, offs, dims)
     ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
     type(Domain)                   :: dom
@@ -917,17 +942,17 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    upwelling_top = 0.0_8
-  end function upwelling_top
+    top_buoy_flux_case = 0.0_8
+  end function top_buoy_flux_case
 
-  function upwelling_wind_flux (dom, i, j, zlev, offs, dims)
+  function wind_flux_case (dom, i, j, zlev, offs, dims)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: upwelling_wind_flux
+    real(8), dimension(1:EDGE)     :: wind_flux_case
 
     integer                    :: d, id, idE, idN, idNE
     real(8)                    :: rho
@@ -947,11 +972,10 @@ contains
 
        rho = porous_density (dom, i, j, zlevels, offs, dims)
 
-       upwelling_wind_flux = tau_wind / rho  * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+       wind_flux_case = tau_wind / rho  * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
     else
-       upwelling_wind_flux = 0.0_8
+       wind_flux_case = 0.0_8
     end if
-  end function upwelling_wind_flux
+  end function wind_flux_case
 end module test_case_mod
 
-!  LocalWords:  zlevels

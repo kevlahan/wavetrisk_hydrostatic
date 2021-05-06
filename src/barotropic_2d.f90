@@ -452,7 +452,6 @@ contains
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)
     ! Vertical velocity
     ! (recall that we compute -div quantities)
-    use test_case_mod
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev

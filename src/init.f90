@@ -4,6 +4,73 @@ module init_mod
   use arch_mod
   implicit none
   real(8), parameter :: YANGLE = 0.0_8
+  real(8), pointer   :: bottom_friction
+  
+  abstract interface
+     real(8) function fun1 (eta, ri, z)
+       implicit none
+       real(8) :: eta, ri, z
+     end function fun1
+     function fun2 (eta, ri, z)
+       use shared_mod
+       implicit none
+       real(8), dimension(1:EDGE) :: fun2, eta, z
+       real(8)                    :: ri
+     end function fun2
+     real(8) function fun3 (dom, i, j, z_lev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, z_lev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end function fun3
+     function fun4 (dom, i, j, z_lev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, z_lev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+       real(8), dimension(1:EDGE)     :: fun4
+     end function fun4
+     real(8) function coord_fun (p)
+       use geom_mod
+       implicit none
+       type(Coord) :: p
+     end function coord_fun
+     subroutine io_fun (fid)
+       implicit none
+       integer :: fid
+     end subroutine io_fun
+     subroutine noarg_fun
+       implicit none
+       integer :: fid
+     end subroutine noarg_fun
+      function zcoords_fun (eta_surf, z_s)
+       use shared_mod
+       implicit none
+       real(8)                       :: eta_surf, z_s 
+       real(8), dimension(0:zlevels) :: zcoords_fun
+     end function zcoords_fun
+  end interface
+
+  ! Pointers to procedures defined in test cases
+  procedure (noarg_fun),   pointer :: apply_initial_conditions => null ()
+  procedure (fun3),        pointer :: bottom_buoy_flux         => null ()
+  procedure (io_fun),      pointer :: dump                     => null ()
+  procedure (io_fun),      pointer :: load                     => null ()
+  procedure (noarg_fun),   pointer :: initialize_a_b_vert      => null ()
+  procedure (noarg_fun),   pointer :: initialize_dt_viscosity  => null ()
+  procedure (noarg_fun),   pointer :: initialize_thresholds    => null ()
+  procedure (noarg_fun),   pointer :: set_save_level           => null ()
+  procedure (noarg_fun),   pointer :: set_thresholds           => null ()
+  procedure (coord_fun),   pointer :: surf_geopot              => null ()
+  procedure (coord_fun),   pointer :: tau_mag                  => null ()
+  procedure (fun3),        pointer :: top_buoy_flux            => null ()
+  procedure (noarg_fun),   pointer :: update                   => null ()
+  procedure (fun4),        pointer :: wind_flux                => null ()
+  procedure (zcoords_fun), pointer :: z_coords                 => null ()
 contains
   subroutine init_init_mod
     implicit none

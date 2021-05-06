@@ -45,6 +45,7 @@ program upwelling
   implicit_diff_sclr = .false.
   implicit_diff_divu = .false.
   vert_diffuse       = .true.                        ! include vertical diffusion
+  tke_closure        = .false.                       ! use analytic scheme for eddy viscosity and eddy diffusion
          
   ! Depth and layer parameters
   sigma_z            = .true.                        ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
@@ -59,7 +60,7 @@ program upwelling
   lat_c              = 45                            ! centre of zonal channel (in degrees)
   
   ! Bottom friction
-  friction_upwelling = 3d-4           
+  bottom_friction_case = 3d-4 / SECOND          
 
   ! Wind stress
   tau_0              = 0.1_8
@@ -91,6 +92,9 @@ program upwelling
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  ! Initialize functions
+  call assign_functions
+  
   ! Initialize variables
   call initialize (run_id)
 
@@ -109,9 +113,7 @@ program upwelling
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned, &
-          bottom_friction=friction_upwelling, wind_tau=tau, wind_f=upwelling_wind_flux, &
-          flux_b=upwelling_bottom, flux_t=upwelling_top)
+     call time_step (dt_write, aligned)
      call stop_timing
 
      call update_diagnostics

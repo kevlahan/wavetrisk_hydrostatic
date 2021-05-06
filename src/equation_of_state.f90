@@ -1,5 +1,6 @@
 module equation_of_state_mod
-  ! Equation of state for seawater based on simplified NEMO/TEOS10 simplified model that gives density in terms of potential temperature and salinity
+  ! Equation of state for seawater based on simplified NEMO/TEOS10 simplified model that gives density in terms of temperature and salinity
+  ! WAVETRISK-OCEAN uses density and temperature, and not potential density and potential temperature
   ! (provides a simple linear representation of thermal expansion and thermobaricity effects and nonlinear representation of cabbeling)
   ! (set lambda_1 = lambda_2 = 0 to remove cabbeling, set mu_1 = mu_2 = 0 to remove thermobaric effects)
   use shared_mod
