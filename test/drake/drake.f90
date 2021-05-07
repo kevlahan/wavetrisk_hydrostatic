@@ -97,9 +97,9 @@ program Drake
 
   ! Bottom friction
   if (drag) then
-     r0 = 4d-4 / abs(max_depth) ! nemo value
+     bottom_friction_case = 4d-4 / abs(max_depth) ! nemo value
   else
-     r0 = 0.0_8
+     bottom_friction_case = 0 / SECOND
   end if
 
   ! Internal wave friction 
@@ -126,8 +126,11 @@ program Drake
   Ldim           = delta_I                            ! length scale 
   Tdim           = Ldim/Udim                          ! time scale
   Hdim           = abs (max_depth)                    ! vertical length scale
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  ! Initialize functions
+  call assign_functions
+  
   ! Initialize variables
   call initialize (run_id)
 
@@ -138,7 +141,7 @@ program Drake
   call print_test_case_parameters
   call write_and_export (iwrite)
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
@@ -300,7 +303,7 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   ! Bottom stress applied in lowest layer only 
   if (zlev == 1) then
-     bottom_drag = - r0 * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
+     bottom_drag = - bottom_friction_case * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
   else
      bottom_drag = 0.0_8
   end if

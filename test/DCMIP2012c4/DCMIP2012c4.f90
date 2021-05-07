@@ -37,7 +37,6 @@ program DCMIP2012c4
 
   sigma_0        = 0.252_8                         ! value of sigma at reference level (level of the jet)
   sigma_t        = 0.2_8                           ! value of sigma at the tropopause
-
   
   ! Dimensions for scaling tendencies
   Tempdim        = T_0                             ! temperature scale (both theta and T from DYNAMICO)
@@ -57,6 +56,9 @@ program DCMIP2012c4
 
   ! Read test case parameters
   call read_test_case_parameters
+
+  ! Initialize functions
+  call assign_functions
  
   ! Initialize variables
   call initialize (run_id)

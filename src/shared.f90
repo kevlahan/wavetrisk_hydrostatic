@@ -312,7 +312,7 @@ contains
     remap               = .true.                            ! remap Lagrangian coordinates (T) or no remapping (F)
     tke_closure         = .false.                           ! use TKE closure for eddy viscosity (T) or analytic form (F)
     uniform             = .true.                            ! uniform vertical grid in pressure (T) or hybrid (F)
-    vert_diffuse        = .true.                            ! include vertical diffusion in ocean models (T)
+    vert_diffuse        = .false.                           ! include vertical diffusion in ocean models (T)
 
     ! Default numerical method values
     alpha               = 1d-2                              ! porosity

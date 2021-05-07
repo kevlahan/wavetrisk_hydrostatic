@@ -43,6 +43,7 @@ program Seamount
   delta          =   500 * METRE                             ! vertical decay of density
   visc           =    50 * METRE**2/SECOND                   ! viscosity for rotu
   drag           = .false.                                   ! no bottom friction
+  vert_diffuse   = .false.
   
   ! Numerical method parameters
   match_time         = .false.                               ! avoid very small time steps when saving 
@@ -76,13 +77,7 @@ program Seamount
   Rb = bv * abs(max_depth) / (MATH_PI*f0)
 
   ! Bottom friction
-  r0 = 0.0_8
-
-  ! Internal wave friction 
-  wave_friction = 0.0_8
-  
-  ! Relaxation of buoyancy to mean profile 
-  k_T           = 0.0_8
+  bottom_friction_case = 0 / SECOND
 
   ! Dimensional scaling
   Udim           = 1.0_8                              ! velocity scale (arbitrary)
@@ -90,7 +85,10 @@ program Seamount
   Tdim           = Ldim/Udim                          ! time scale
   Hdim           = abs (max_depth)                    ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+  
+  ! Initialize functions
+  call assign_functions
+  
   ! Initialize variables
   call initialize (run_id)
 
@@ -110,7 +108,6 @@ program Seamount
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned)
-     if (k_T /= 0.0_8) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
 
      call update_diagnostics

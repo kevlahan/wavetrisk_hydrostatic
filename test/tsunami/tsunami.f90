@@ -5,7 +5,6 @@ program Tsunami
   use main_mod
   use test_case_mod
   use io_mod
-  use lin_solve_mod
   implicit none
   integer                                :: N
   integer, dimension(2)                  :: Nx, Ny
@@ -56,6 +55,9 @@ program Tsunami
 
   ! Read test case parameters
   call read_test_case_parameters
+
+  ! Initialize functions
+  call assign_functions
 
   ! Initialize variables
   call initialize (run_id)

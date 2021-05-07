@@ -70,6 +70,9 @@ program Held_Suarez
   ! Read test case parameters
   call read_test_case_parameters
 
+  ! Initialize functions
+  call assign_functions
+
   ! Initialize variables
   call initialize (run_id)
 

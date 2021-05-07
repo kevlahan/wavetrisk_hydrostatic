@@ -1,15 +1,13 @@
 module test_case_mod
   ! Module file for flat_projection_data
-  use shared_mod
-  use domain_mod
   use comm_mpi_mod
   use utils_mod
+  use init_mod
   use equation_of_state_mod
   implicit none
-  integer                              :: mean_beg, mean_end, cp_2d, N, save_zlev 
-  real(8)                              :: initotalmass, mass_error, npts_penal, totalmass, ref_surf_press, scale
+  integer                              :: mean_beg, mean_end, cp_2d, N
+  real(8)                              :: npts_penal, ref_surf_press, scale
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
-  real(8), allocatable, dimension(:,:) :: threshold_def
   logical                              :: mean_split
   
   ! DCMIP2012c4
@@ -27,7 +25,25 @@ module test_case_mod
   real(8), parameter :: slope = 1.75d-4 ! slope parameter (larger value -> steeper slope)
   real(8), parameter :: shift = 8
 contains
-  real(8) function surf_geopot (x_i)
+  subroutine assign_functions
+    ! Assigns generic pointer functions to functions defined in test cases
+    implicit none
+
+    ! Standard functions
+    apply_initial_conditions => apply_initial_conditions_case
+    dump                     => dump_case
+    load                     => load_case
+    initialize_a_b_vert      => initialize_a_b_vert_case
+    initialize_dt_viscosity  => initialize_dt_viscosity_case
+    initialize_thresholds    => initialize_thresholds_case
+    set_save_level           => set_save_level_case
+    set_thresholds           => set_thresholds_case
+    surf_geopot              => surf_geopot_case
+    update                   => update_case
+    z_coords                 => z_coords_case
+  end subroutine assign_functions
+  
+  real(8) function surf_geopot_case (x_i)
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
@@ -41,34 +57,35 @@ contains
     if (trim (test_case) == "DCMIP2012c4") then
        c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
 
-       surf_geopot = c1 * (c1 * (-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + &
+       surf_geopot_case = c1 * (c1 * (-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + &
             radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
     elseif (trim (test_case) == "DCMIP2008c5") then
        rgrc = radius*acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
-       surf_geopot = grav_accel*h_0*exp__flush (-rgrc**2/d2)
+       surf_geopot_case = grav_accel*h_0*exp__flush (-rgrc**2/d2)
     elseif (trim (test_case) == "Held_Suarez") then
        c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
-       surf_geopot = c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8)  + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
+       surf_geopot_case = c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8) &
+            + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
     elseif (trim (test_case) == "seamount") then
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
-       surf_geopot = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
+       surf_geopot_case = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
     elseif (trim (test_case) == "upwelling") then
        b_max = abs (max_depth - min_depth)
        lat = lat / DEG
        if (abs(lat-lat_c) <= lat_width/2) then
           amp = b_max / (1.0_8 - tanh (-slope*width/shift))
           y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel                                               
-          surf_geopot = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
+          surf_geopot_case = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
        else
-          surf_geopot = b_max
+          surf_geopot_case = b_max
        end if
-       surf_geopot = grav_accel * surf_geopot
+       surf_geopot_case = grav_accel * surf_geopot_case
     else
        if (rank == 0) write(6,'(A)') "Test case not supported"
        stop
     end if
-  end function surf_geopot
+  end function surf_geopot_case
 
   real(8) function surf_geopot_latlon (lat, lon)
     ! Surface geopotential
@@ -124,7 +141,7 @@ contains
     end if
   end function f
 
-  subroutine initialize_a_b_vert
+  subroutine initialize_a_b_vert_case
     implicit none
     integer :: k
     real(8) :: z
@@ -242,9 +259,9 @@ contains
        a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
     end if
-  end subroutine initialize_a_b_vert
+  end subroutine initialize_a_b_vert_case
 
-  function z_coords (eta_surf, z_s)
+  function z_coords_case (eta_surf, z_s)
     ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
     ! near the free surface over strong bathymetry gradients.
     ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
@@ -252,7 +269,7 @@ contains
     ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
     implicit none
     real(8)                       :: eta_surf, z_s ! free surface and bathymetry
-    real(8), dimension(0:zlevels) :: z_coords
+    real(8), dimension(0:zlevels) :: z_coords_case
 
     integer                       :: k
     real(8)                       :: cff, cff1, cff2, hc, z_0
@@ -272,14 +289,14 @@ contains
        Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
     end do
 
-    z_coords(0) = z_s
+    z_coords_case(0) = z_s
     do k = 1, zlevels
        cff = hc * (sc(k) - Cs(k))
        z_0 = cff - Cs(k) * z_s
        a_vert(k) = 1.0_8 - z_0 / z_s
-       z_coords(k) = eta_surf * a_vert(k) + z_0
+       z_coords_case(k) = eta_surf * a_vert(k) + z_0
     end do
-  end function z_coords
+  end function z_coords_case
 
   subroutine cal_AB
     ! Computes A and B coefficients for hybrid vertical grid as in LMDZ
@@ -461,7 +478,7 @@ contains
     end if
   end subroutine set_penal
   
-  subroutine apply_initial_conditions
+  subroutine apply_initial_conditions_case
     implicit none
     integer :: d, k, l
 
@@ -475,12 +492,12 @@ contains
     do l = level_start, level_end
        call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
-  end subroutine apply_initial_conditions
+  end subroutine apply_initial_conditions_case
 
-  subroutine update
+  subroutine update_case
     ! dummy routine
 
-  end subroutine update
+  end subroutine update_case
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Dummy routine
@@ -516,7 +533,7 @@ contains
     z_s = dom%topo%elts(id_i)
     
     if (sigma_z) then
-       z = z_coords (eta, z_s)
+       z = z_coords_case (eta, z_s)
     else
        z = a_vert * eta + b_vert * z_s
     end if
@@ -607,7 +624,7 @@ contains
           density_flat = ref_density + drho * exp__flush (z/delta)
        end if
     elseif (trim (test_case) == "upwelling") then
-       density_flat = density (S_ref, temp_init (z),  z)
+       density_flat = density_eos (S_ref, temp_init (z),  z)
     else
        if (rank == 0) write(6,'(A)') "Test case not supported"
        stop
@@ -629,19 +646,19 @@ contains
     temp_init = T_ref + 4*tanh ((z - z0) / hz) + (z - z1) / strat
   end function temp_init
 
-  subroutine set_thresholds
+  subroutine set_thresholds_case
     ! Dummy routine
-  end subroutine set_thresholds
+  end subroutine set_thresholds_case
 
-  subroutine initialize_thresholds
+  subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
 
     allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
     allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
-  end subroutine initialize_thresholds
+  end subroutine initialize_thresholds_case
 
-  subroutine initialize_dt_viscosity 
+  subroutine initialize_dt_viscosity_case 
     implicit none
     real(8) :: area
 
@@ -650,7 +667,7 @@ contains
 
     area = 4*MATH_PI*radius**2/(20*4**min_level)
     dx_max = sqrt (4/sqrt(3.0_8) * area)
-  end subroutine initialize_dt_viscosity
+  end subroutine initialize_dt_viscosity_case
 
   real(8) function tau (p)
     ! Magnitude of wind stress at node p (dummy routine)
@@ -660,26 +677,26 @@ contains
     tau = 0.1_8
   end function tau
 
-  subroutine set_save_level
+  subroutine set_save_level_case
     implicit none
     save_zlev = zlevels
-  end subroutine set_save_level
+  end subroutine set_save_level_case
 
-  subroutine dump (fid)
+  subroutine dump_case (fid)
     implicit none
     integer :: fid
 
     write (fid) itime
     write (fid) iwrite
     write (fid) threshold
-  end subroutine dump
+  end subroutine dump_case
 
-  subroutine load (fid)
+  subroutine load_case (fid)
     implicit none
     integer :: fid
 
     read (fid) itime
     read (fid) iwrite
     read (fid) threshold
-  end subroutine load
+  end subroutine load_case
 end module test_case_mod

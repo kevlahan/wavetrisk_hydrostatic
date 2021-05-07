@@ -158,7 +158,10 @@ program flat_projection_data
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   resume = mean_beg
-  
+
+  ! Initialize functions
+  call assign_functions
+
   ! Initialize variables
   call initialize (run_id)
 

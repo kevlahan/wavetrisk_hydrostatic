@@ -4,7 +4,6 @@ module init_mod
   use arch_mod
   implicit none
   real(8), parameter :: YANGLE = 0.0_8
-  real(8), pointer   :: bottom_friction
   
   abstract interface
      real(8) function fun1 (eta, ri, z)
@@ -55,7 +54,8 @@ module init_mod
      end function zcoords_fun
   end interface
 
-  ! Pointers to procedures defined in test cases
+  ! Pointers to variables and procedures that may be defined in test cases
+  real(8),                 pointer :: bottom_friction
   procedure (noarg_fun),   pointer :: apply_initial_conditions => null ()
   procedure (fun3),        pointer :: bottom_buoy_flux         => null ()
   procedure (io_fun),      pointer :: dump                     => null ()

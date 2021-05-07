@@ -83,7 +83,7 @@ program spherical_harmonics
      halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
      drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     density     = (/ ref_density, ref_density + drho/2 /)    ! densities in each layer
+     density_drake = (/ ref_density, ref_density + drho/2 /)    ! densities in each layer
      height      = (/ abs(max_depth - halocline), abs(halocline) /) ! depths of each layer
      npts_penal  = 4
 
@@ -97,6 +97,9 @@ program spherical_harmonics
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   resume = cp_idx
+  
+  ! Initialize functions
+  call assign_functions
 
   ! Initialize variables
   call initialize (run_id)
