@@ -335,16 +335,16 @@ contains
     real(8)               :: lon, lat, u, v
     real(8), dimension(3) :: e_lat, e_lon, vel
 
-    co = mid_pt(ep1, ep2)
+    co = mid_pt (ep1, ep2)
 
-    call cart2sph(co, lon, lat)
+    call cart2sph (co, lon, lat)
 
     e_lat = (/-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)/)
     e_lon = (/-sin(lon), cos(lon), 0.0_8/)
 
-    call vel_fun(lon, lat, u, v, eta_z)
+    call vel_fun (lon, lat, u, v, eta_z)
 
     vel = e_lat*v + e_lon*u
-    proj_vel_eta = inner(direction(ep1, ep2), Coord(vel(1), vel(2), vel(3)))
+    proj_vel_eta = inner (direction (ep1, ep2), Coord(vel(1), vel(2), vel(3)))
   end function proj_vel_eta
 end module geom_mod

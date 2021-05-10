@@ -39,7 +39,7 @@ module vert_diffusion_mod
   real(8), parameter :: l_0      = 4d-2                ! default turbulent length scale
   real(8), parameter :: Neps_sq  = 1d-20               ! background shear
   real(8), parameter :: Nsq_min  = 1d-12               ! threshold for enhanced diffusion
-  real(8), parameter :: Ri_c     = 2 / (2 + c_eps/c_m) ! 0.22
+  real(8), parameter :: Ri_c     = 2d0 / (2d0 + c_eps/c_m) ! 0.22
   real(8), parameter :: z_0      = 1d-1                ! roughness parameter of free surface
 contains
   subroutine vertical_diffusion
@@ -123,19 +123,19 @@ contains
        ! Tridiagonal matrix and rhs entries for linear system
        l = 1
        diag_u(l) = - coeff (dz(l+1), interp (Kv(l)%data(d)%elts(id), Kv(l+1)%data(d)%elts(id))) ! super-diagonal
-       diag(l)   = 1 - diag_u(l) - dt * S2(l)
+       diag(l)   = 1d0 - diag_u(l) - dt * S2(l)
        rhs(l)    = e(l) + dt * S1(l)
 
        do l = 2, zlevels-2
           diag_u(l)   = - coeff (dz(l+1), interp (Kv(l)%data(d)%elts(id), Kv(l+1)%data(d)%elts(id))) ! super-diagonal
           diag_l(l-1) = - coeff (dz(l),   interp (Kv(l)%data(d)%elts(id), Kv(l-1)%data(d)%elts(id))) ! sub-diagonal
-          diag(l)     = 1 - (diag_u(l) + diag_l(l-1)) - dt * S2(l)
+          diag(l)     = 1d0 - (diag_u(l) + diag_l(l-1)) - dt * S2(l)
           rhs(l)      = e(l) + dt * S1(l)
        end do
 
        l = zlevels-1
        diag_l(l-1) = - coeff (dz(l), interp (Kv(l)%data(d)%elts(id), Kv(l-1)%data(d)%elts(id)))  ! sub-diagonal
-       diag(l)     = 1 - diag_l(l-1) - dt * S2(l)
+       diag(l)     = 1d0 - diag_l(l-1) - dt * S2(l)
        rhs(l)      = e(l) + dt * S1(l)
 
        ! Solve tridiagonal linear system
@@ -271,20 +271,20 @@ contains
     ! Bottom layer
     k = 1
     diag_u(k) = - coeff (1) ! super-diagonal
-    diag(k)   = 1 - diag_u(k)
+    diag(k)   = 1d0 - diag_u(k)
     rhs(k)    = b() + dt * ( - bottom_buoy_flux (dom, i, j, z_null, offs, dims) + solar_flux ()) / dz(k)
 
     do k = 2, zlevels-1
        diag_u(k)   = - coeff ( 1) ! super-diagonal
        diag_l(k-1) = - coeff (-1) ! sub-diagonal
-       diag(k)     = 1 - (diag_u(k) + diag_l(k-1))
+       diag(k)     = 1d0 - (diag_u(k) + diag_l(k-1))
        rhs(k)      = b() + dt * solar_flux () / dz(k)
     end do
 
     ! Top layer
     k = zlevels
     diag_l(k-1) = - coeff (-1) ! sub-diagonal
-    diag(k)     = 1 - diag_u(k-1)
+    diag(k)     = 1d0 - diag_u(k-1)
     rhs(k)      = b() + dt * (top_buoy_flux (dom, i, j, z_null, offs, dims) + Q_sr/(ref_density*c_p)) / dz(k)
 
     ! Solve tridiagonal linear system
@@ -353,20 +353,20 @@ contains
     ! Bottom layer
     k = 1
     diag_u(:,k) = - coeff (1) ! super-diagonal
-    diag(:,k)   = 1 - diag_u(:,k) + dt * bottom_friction / dz(:,k)
+    diag(:,k)   = 1d0 - diag_u(:,k) + dt * bottom_friction / dz(:,k)
     rhs(:,k)    = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) 
 
     do k = 2, zlevels-1
        diag_u(:,k)   = - coeff ( 1) ! super-diagonal
        diag_l(:,k-1) = - coeff (-1) ! sub-diagonal
-       diag(:,k)     = 1 - (diag_u(:,k) + diag_l(:,k-1))
+       diag(:,k)     = 1d0 - (diag_u(:,k) + diag_l(:,k-1))
        rhs(:,k)      = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
     end do
     
     ! Top layer
     k = zlevels
     diag_l(:,k-1) = - coeff (-1) ! sub-diagonal
-    diag(:,k)     = 1 - diag_l(:,k-1)
+    diag(:,k)     = 1d0 - diag_l(:,k-1)
     rhs(:,k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + dt * wind_flux (dom, i, j, z_null, offs, dims) / dz(:,k)
 
     ! Solve tridiagonal linear system
@@ -399,10 +399,10 @@ contains
     real(8) :: depth ! depth below free surface
     
     real(8), parameter :: R = 0.58d0
-    real(8), parameter :: xi_0 = 0.35 * METRE
-    real(8), parameter :: xi_1 =   23 * METRE
+    real(8), parameter :: xi_0 = 0.35d0 * METRE
+    real(8), parameter :: xi_1 =   23d0 * METRE
 
-    irradiance = Q_sr * (R * exp (-depth/xi_0) + (1 - R) * exp (-depth/xi_1))
+    irradiance = Q_sr * (R * exp (-depth/xi_0) + (1d0 - R) * exp (-depth/xi_1))
   end function irradiance
 
   real(8) function N_sq  (dom, i, j, l, offs, dims, dz)
@@ -680,7 +680,7 @@ contains
       real(8), dimension(3) :: dz_l, visc
 
       visc = Kv(zlev+min(0,l))%data(d)%elts(id+1)
-      dz_l = 0.5 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
+      dz_l = 0.5d0 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
 
       velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_l
     end function velo_flux

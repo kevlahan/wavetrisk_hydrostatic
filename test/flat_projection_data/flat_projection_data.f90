@@ -278,7 +278,7 @@ contains
           velo1 => grid(d)%u_zonal%elts
           velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(level_save)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
           nullify (velo, velo1, velo2)
        end do
@@ -352,7 +352,7 @@ contains
           velo1 => grid(d)%u_zonal%elts
           velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(level_save)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
           nullify (velo, velo1, velo2)
        end do
@@ -401,7 +401,7 @@ contains
        do d = 1, size(grid)
           velo => sol(S_VELO,k)%data(d)%elts
           do j = 1, grid(d)%lev(level_save)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
+             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
           nullify (velo)
        end do
@@ -469,8 +469,8 @@ contains
           velo2 => grid(d)%v_merid%elts
           vort  => grid(d)%vort%elts
           do j = 1, grid(d)%lev(level_save)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (cal_vort,         grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
           nullify (velo, velo1, velo2, vort)
@@ -548,7 +548,7 @@ contains
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (cal_density,    grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
              call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
@@ -732,7 +732,7 @@ contains
           velo1 => grid(d)%u_zonal%elts
           velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
           nullify (velo, velo1, velo2)
        end do
@@ -776,7 +776,7 @@ contains
              velo1 => trend(S_VELO,1)%data(d)%elts
              velo2 => trend(S_VELO,2)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (velo, velo1, velo2)
           end do
@@ -892,7 +892,7 @@ contains
        velo1 => grid(d)%u_zonal%elts
        velo2 => grid(d)%v_merid%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
        nullify (velo, velo1, velo2)
     end do
@@ -939,7 +939,7 @@ contains
           velo1 => grid(d)%u_zonal%elts
           velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
           nullify (velo, velo1, velo2)
        end do
@@ -1018,7 +1018,7 @@ contains
        velo1 => grid(d)%u_zonal%elts
        velo2 => grid(d)%v_merid%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
        nullify (velo, velo1, velo2)
     end do

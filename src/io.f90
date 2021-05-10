@@ -608,9 +608,9 @@ contains
           velo1 => grid(d)%u_zonal%elts
           velo2 => grid(d)%v_merid%elts
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (interp_vel_hex, grid(d), p-1, k, 0, 0)
-             call apply_onescale_to_patch (cal_pressure,   grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (cal_zonal_avg,  grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (interp_edge_node, grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (cal_pressure,     grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (cal_zonal_avg,    grid(d), p-1, k, 0, 0)
           end do
           nullify (mass, mean_m, temp, velo, velo1, velo2)
        end do
@@ -1535,7 +1535,7 @@ contains
              velo1 => grid(d)%u_zonal%elts
              velo2 => grid(d)%v_merid%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (velo, velo1, velo2)
           end do
@@ -1573,7 +1573,7 @@ contains
              velo1 => grid(d)%u_zonal%elts
              velo2 => grid(d)%v_merid%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (velo, velo1, velo2)
           end do
@@ -1613,7 +1613,7 @@ contains
              velo1 => trend(S_VELO,1)%data(d)%elts
              velo2 => trend(S_VELO,2)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (interp_vel_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (velo, velo1, velo2)
           end do

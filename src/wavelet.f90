@@ -1208,9 +1208,9 @@ contains
     idE_chd  = idx (i_chd+1, j_chd,     offs_chd, dims_chd)
     idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
 
-    if (dom%mask_e%elts(EDGE*id_chd+RT+1) > 0) velo(EDGE*id_par+RT+1) = 0.5*(velo(EDGE*id_chd+RT+1)   + velo(EDGE*idE_chd+RT+1))
-    if (dom%mask_e%elts(EDGE*id_chd+DG+1) > 0) velo(EDGE*id_par+DG+1) = 0.5*(velo(EDGE*idNE_chd+DG+1) + velo(EDGE*id_chd+DG+1))
-    if (dom%mask_e%elts(EDGE*id_chd+UP+1) > 0) velo(EDGE*id_par+UP+1) = 0.5*(velo(EDGE*id_chd+UP+1)   + velo(EDGE*idN_chd+UP+1))
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) > 0) velo(EDGE*id_par+RT+1) = 0.5d0*(velo(EDGE*id_chd+RT+1)   + velo(EDGE*idE_chd+RT+1))
+    if (dom%mask_e%elts(EDGE*id_chd+DG+1) > 0) velo(EDGE*id_par+DG+1) = 0.5d0*(velo(EDGE*idNE_chd+DG+1) + velo(EDGE*id_chd+DG+1))
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) > 0) velo(EDGE*id_par+UP+1) = 0.5d0*(velo(EDGE*id_chd+UP+1)   + velo(EDGE*idN_chd+UP+1))
   end subroutine restrict_velo
 
   subroutine check_m (dom, i_par, j_par, i_chd, j_chd, offs_par, dims_par,  offs_chd, dims_chd)
@@ -1312,7 +1312,7 @@ contains
        weights(-2*k+7)      = weights(-2*k+7) - b(6)
     end do
 
-    outer_velo_weights = Iu_Wgt(0.5*weights - Iu_Base_Wgt)
+    outer_velo_weights = Iu_Wgt(0.5d0 * weights - Iu_Base_Wgt)
   contains
     function coords_to_row (i00, j00, n_offs1, n_offs2, e00)
       real(8), dimension(6) :: coords_to_row

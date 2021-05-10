@@ -76,7 +76,7 @@ contains
     dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)  + sol(S_MASS,zlev)%data(d)%elts(idN+1)) &
          / porous_density (dom, i, j+1, zlev, offs, dims)
 
-    dz_e = 0.5 * (dz(0) + dz(1:EDGE))
+    dz_e = 0.5d0 * (dz(0) + dz(1:EDGE))
   end function dz_e
 
   function dz_SW_e (dom, i, j, zlev, offs, dims)
@@ -110,7 +110,7 @@ contains
     dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idS+1)  + sol(S_MASS,zlev)%data(d)%elts(idS+1)) &
          / porous_density (dom, i, j-1, zlev, offs, dims)
 
-    dz_SW_e = 0.5 * (dz(0) + dz(1:EDGE))
+    dz_SW_e = 0.5d0 * (dz(0) + dz(1:EDGE))
   end function dz_SW_e
   
   real(8) function zl_i (dom, i, j, zlev, offs, dims, l)
@@ -200,7 +200,7 @@ contains
     d = dom%id + 1
     id = idx (i, j, offs, dims)
     
-    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id+1))
+    porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id+1))
   end function porous_density
 
   real(8) function phi_node (d, id_i, zlev)
@@ -208,7 +208,7 @@ contains
     implicit none
     integer :: d, id_i, zlev
 
-    phi_node = 1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i)
+    phi_node = 1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i)
   end function phi_node
 
   real(8) function phi_edge (d, id_e, zlev)
@@ -216,7 +216,7 @@ contains
     implicit none
     integer :: d, id_e, zlev
 
-    phi_edge = 1 + (alpha - 1) * penal_edge(zlev)%data(d)%elts(id_e)
+    phi_edge = 1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(id_e)
   end function phi_edge
 
   real(8) function potential_density (dom, i, j, zlev, offs, dims)
@@ -285,7 +285,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    density = ref_density * (1 - buoyancy (dom, i, j, zlev, offs, dims))
+    density = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims))
   end function density
 
   real(8) function free_surface (dom, i, j, zlev, offs, dims)
@@ -315,7 +315,7 @@ contains
     implicit none
     real(8) :: e1, e2
 
-    interp = 0.5 * (e1 + e2)
+    interp = 0.5d0 * (e1 + e2)
   end function interp
 
   function interp_e (e1, e2)
@@ -324,7 +324,7 @@ contains
     real(8), dimension(1:EDGE) :: interp_e
     real(8), dimension(1:EDGE) :: e1, e2
 
-    interp_e = 0.5 * (e1 + e2)
+    interp_e = 0.5d0 * (e1 + e2)
   end function interp_e
   
   real(8) function u_mag (dom, i, j, zlev, offs, dims)
@@ -346,6 +346,130 @@ contains
    
     u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv)
   end function u_mag
+
+  subroutine interp_node_edge (dom, i, j, zlev, offs, dims, uvw)
+    ! Interpolate from zonal, meridional velocity components at nodes to U, V, W velocity components at edges
+    ! (assumes that dom%u_zonal and dom%v_merid have been set over all grid points)
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+    real(8), dimension (1:EDGE)     :: uvw
+
+    integer     :: id, idE, idN, idNE
+    real(8)     :: u_zonal, v_merid
+    type(Coord) :: x_e, x_i
+
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    
+    x_i = dom%node%elts(id+1)
+
+    x_e = dom%node%elts(idE+1)
+    u_zonal = interp (dom%u_zonal%elts(id+1), dom%u_zonal%elts(idE+1))
+    v_merid = interp (dom%v_merid%elts(id+1), dom%v_merid%elts(idE+1))
+    uvw(RT+1) = proj_edge ()
+
+    x_e = dom%node%elts(idNE+1)
+    u_zonal = interp (dom%u_zonal%elts(id+1), dom%u_zonal%elts(idNE+1))
+    v_merid = interp (dom%v_merid%elts(id+1), dom%v_merid%elts(idNE+1))
+    uvw(DG+1) = - proj_edge ()
+
+    x_e = dom%node%elts(idN+1)
+    u_zonal = interp (dom%u_zonal%elts(id+1), dom%u_zonal%elts(idN+1))
+    v_merid = interp (dom%v_merid%elts(id+1), dom%v_merid%elts(idN+1))
+    uvw(UP+1) = proj_edge ()
+  contains
+    real(8) function proj_edge ()
+      implicit none
+      real(8)     :: lon, lat
+      type(Coord) :: co, e_merid, e_zonal, uvw_dir, vel
+
+      ! Find longitude and latitude coordinates
+      co = mid_pt (x_i, x_e)
+      call cart2sph (co, lon, lat)
+      e_zonal = Coord (-sin(lon),           cos(lon),             0.0_8) ! Zonal direction
+      e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+
+      ! Velocity vector in Cartesian coordinates
+      vel = vec_plus (vec_scale (u_zonal, e_zonal), vec_scale (v_merid, e_merid))
+
+      ! Project velocity vector on direction given by points ep1, ep2
+      uvw_dir = direction (x_i, x_e)
+      proj_edge = inner (uvw_dir, vel)
+    end function proj_edge
+  end subroutine interp_node_edge
+
+  subroutine interp_edge_node (dom, i, j, zlev, offs, dims)
+    ! Interpolate velocity from U, V, W velocity components at edges to zonal, meridional velocity components at nodes
+    ! (uses Perot formula as also used for kinetic energy: 
+    ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Coord) :: vel, x_e, x_i
+    type(Coord) :: e_zonal, e_merid
+    integer     :: id, idN, idE, idNE, idS, idSW, idW
+    real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
+
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    ! Fluxes normal to hexagon edges
+    u_dual_RT    =  velo(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
+    u_dual_DG    = -velo(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_UP    =  velo(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
+
+    u_dual_RT_W  = -velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+    u_dual_DG_SW =  velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+    u_dual_UP_S  = -velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+
+    ! Coordinate of hexagon centre (circumcentre)
+    x_i = dom%node%elts(id+1)
+
+    ! Sum over 6 hexagon edges
+    vel = Coord (0.0_8, 0.0_8, 0.0_8)
+
+    x_e = dom%midpt%elts(EDGE*id+RT+1)
+    vel = vec_plus (vel, vec_scale (u_dual_RT,    vec_minus(x_e, x_i)))
+
+    x_e = dom%midpt%elts(EDGE*idW+RT+1)
+    vel = vec_plus (vel, vec_scale (u_dual_RT_W,  vec_minus(x_e, x_i)))
+
+    x_e = dom%midpt%elts(EDGE*id+DG+1)
+    vel = vec_plus (vel, vec_scale (u_dual_DG,    vec_minus(x_e, x_i)))
+
+    x_e = dom%midpt%elts(EDGE*idSW+DG+1)
+    vel = vec_plus (vel, vec_scale (u_dual_DG_SW, vec_minus(x_e, x_i)))
+
+    x_e = dom%midpt%elts(EDGE*id+UP+1)
+    vel = vec_plus (vel, vec_scale (u_dual_UP,    vec_minus(x_e, x_i)))
+
+    x_e = dom%midpt%elts(EDGE*idS+UP+1)
+    vel = vec_plus (vel, vec_scale (u_dual_UP_S,  vec_minus(x_e, x_i)))
+
+    vel = vec_scale (dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
+
+    ! Project velocity onto zonal and meridional directions
+    call cart2sph (x_i, lon, lat)
+
+    e_zonal = Coord (-sin(lon),           cos(lon),             0.0_8) ! Zonal direction
+    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+
+    velo1(id+1) = inner (vel, e_zonal)
+    velo2(id+1) = inner (vel, e_merid)
+  end subroutine interp_edge_node
 
   real(8) function integrate_hex (fun, l, zlev)
     ! Integrate function defined by fun over hexagons

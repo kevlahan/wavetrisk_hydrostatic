@@ -561,11 +561,11 @@ contains
     implicit none
     real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, C_visc, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
-    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
+    area = 4d0*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = 0.891 * sqrt (4/sqrt(3.0_8) * area) ! edge length of average triangle
 
-    area = 4*MATH_PI*radius**2/(20*4**min_level)
-    dx_max = sqrt (4/sqrt(3.0_8) * area)
+    area = 4d0*MATH_PI*radius**2/(20*4**min_level)
+    dx_max = sqrt (4d0/sqrt(3.0_8) * area)
 
     ! Initial CFL limit for time step
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, 1.2*dx_min/c1)
@@ -607,14 +607,14 @@ contains
     end if
     
     ! Penalization parameterss
-    dlat = 0.5*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
 
-    width_S = lat_c - (lat_width/2 + dlat) + 90_8
-    width_N = lat_c - (lat_width/2 + dlat)       
+    width_S = 90d0 + (lat_c - (lat_width/2 + dlat))
+    width_N = 90d0 - (lat_c + (lat_width/2 + dlat))
 
     ! Smoothing exponent for land mass
-    n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
-    n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
+    n_smth_S = 4d0*radius * width_S*DEG / (dx_max * npts_penal)
+    n_smth_N = 4d0*radius * width_N*DEG / (dx_max * npts_penal)
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)

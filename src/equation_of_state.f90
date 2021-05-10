@@ -24,7 +24,7 @@ contains
     S_a = salinity - S_ref
     T_a = temperature - T_ref
 
-    density_eos = ref_density - a_0 * (1 + 0.5*lambda_1*T_a + mu_1*z) * T_a + b_0 * (1 - 0.5*lambda_2*S_a - mu_2*z) * S_a &
+    density_eos = ref_density - a_0 * (1d0 + 0.5d0*lambda_1*T_a + mu_1*z) * T_a + b_0 * (1d0 - 0.5d0*lambda_2*S_a - mu_2*z) * S_a &
          - nu_0 * S_a * T_a
   end function density_eos
 
@@ -39,7 +39,7 @@ contains
     rho_a = ref_density - density
     S_a   = salinity - S_ref
 
-    temperature_eos = T_ref + (rho_a + b_0 * (1 - mu_2*z) * S_a) / (a_0 * (1 + mu_1*z))       
+    temperature_eos = T_ref + (rho_a + b_0 * (1d0 - mu_2*z) * S_a) / (a_0 * (1d0 + mu_1*z))       
   end function temperature_eos
 
   real(8) function dk_buoyancy_eos (salinity, temperature, dk_salinity, dk_temperature, z)
@@ -54,8 +54,8 @@ contains
     S_a = salinity - S_ref
     T_a = temperature - T_ref
 
-    dk_buoyancy_eos = (a_0 * (1 + 0.5*lambda_1*T_a + mu_1*z) * dk_temperature &
-         - b_0 * (1 - 0.5*lambda_2*S_a - mu_2*z) * dk_salinity &
+    dk_buoyancy_eos = (a_0 * (1d0 + 0.5d0*lambda_1*T_a + mu_1*z) * dk_temperature &
+         - b_0 * (1d0 - 0.5d0*lambda_2*S_a - mu_2*z) * dk_salinity &
          + nu_0 * (S_a * dk_temperature + T_a * dk_salinity + dk_salinity * dk_temperature)) / ref_density
   end function dk_buoyancy_eos
 end module equation_of_state_mod

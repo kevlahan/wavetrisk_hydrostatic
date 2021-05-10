@@ -208,8 +208,8 @@ contains
     
     do e = 1, EDGE
        call find_coordinates (p_edge_new, p_edge_old, d, id_r(e), column_mass)
-       p_edge_new = 0.5 * (p_new + p_edge_new)
-       p_edge_old = 0.5 * (p_old + p_edge_old)
+       p_edge_new = 0.5d0 * (p_new + p_edge_new)
+       p_edge_old = 0.5d0 * (p_old + p_edge_old)
        
        do k = 1, zlevels
           flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
@@ -292,8 +292,8 @@ contains
 
     do e = 1, EDGE
        call find_coordinates_incompressible (z_edge_new, z_edge_old, dom%topo%elts(id_i), d, id_r(e))
-       z_edge_new = 0.5 * (z_new + z_edge_new)
-       z_edge_old = 0.5 * (z_old + z_edge_old)
+       z_edge_new = 0.5d0 * (z_new + z_edge_new)
+       z_edge_old = 0.5d0 * (z_old + z_edge_old)
  
        do k = 1, zlevels
           flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
@@ -1148,7 +1148,7 @@ contains
           cffL  =  dL(k)
        end if
        alpha = dz / alpha
-       FC(k) = dz * (r(k) + Half*dz*d(k) + alpha**2*(cff - cffR*(0.5_8-0.25*alpha) + cffL*(1.0_8-alpha*(1.25_8-0.5*alpha))))
+       FC(k) = dz * (r(k) + Half*dz*d(k) + alpha**2*(cff - cffR*(0.5_8-0.25d0*alpha) + cffL*(1.0_8-alpha*(1.25_8-0.5d0*alpha))))
     end do
     FC(0) = 0.0_8
     FC(N) = 0.0_8

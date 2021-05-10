@@ -398,13 +398,14 @@ contains
        iend = q(S_VELO,1)%data(d)%length
        if (no_slip) then
           do k = 1, zlevels
-             q(S_VELO,k)%data(d)%elts(ibeg:iend) = (1 - penal_edge(k)%data(d)%elts(ibeg:iend)) * q(S_VELO,k)%data(d)%elts(ibeg:iend)
+             q(S_VELO,k)%data(d)%elts(ibeg:iend) = (1d0 - penal_edge(k)%data(d)%elts(ibeg:iend)) &
+                  * q(S_VELO,k)%data(d)%elts(ibeg:iend)
           end do
        else ! free slip: damp velocity away from boundary
           do k = 1, zlevels
              do ii = ibeg, iend
                 eta = penal_edge(k)%data(d)%elts(ii)
-                if (eta > 0.9_8) q(S_VELO,k)%data(d)%elts(ii) = (1 - eta) * q(S_VELO,k)%data(d)%elts(ii)
+                if (eta > 0.9_8) q(S_VELO,k)%data(d)%elts(ii) = (1d0 - eta) * q(S_VELO,k)%data(d)%elts(ii)
              end do
           end do
        end if

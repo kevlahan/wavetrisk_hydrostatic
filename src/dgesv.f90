@@ -742,7 +742,7 @@
       RND = ONE
 !
       IF( ONE.EQ.RND ) THEN
-         EPS = EPSILON(ZERO) * 0.5
+         EPS = EPSILON(ZERO) * 0.5d0
       ELSE
          EPS = EPSILON(ZERO)
       END IF
