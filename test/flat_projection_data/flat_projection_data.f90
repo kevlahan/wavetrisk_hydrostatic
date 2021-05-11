@@ -152,8 +152,42 @@ program flat_projection_data
      width          = 80 * KM                           ! width of channel in km
      lat_width      = (width/radius)/DEG
      lat_c          = 45                                ! centre of zonal channel (in degrees)
+  case ("jet")
+     lat_c              = 30d0                            ! centre of zonal channel (in degrees)
+     f0                 = 1d-4    / SECOND                ! Coriolis parameter
+     beta               = 1.6d-11 / (METRE * SECOND)      ! beta parameter
+     width              = 2000d0    * KM                  ! meridional width of zonal channel
 
-     coords         = "croco"
+     radius             = f0 / (beta * tan (lat_c * DEG)) ! planet radius
+     omega              = f0 / (2*sin(lat_c * DEG))       ! planet rotation
+     grav_accel         = 9.80616 * METRE/SECOND**2     ! gravitational acceleration 
+     ref_density        = 1027d0  * KG/METRE**3         ! reference density at depth (maximum density)
+
+     sigma_z            = .true.                        ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
+     max_depth          = -4000d0 * METRE               ! total depth
+     min_depth          = -4000d0 * METRE               ! minimum depth
+     Tcline             =  -100d0 * METRE               ! position of thermocline
+
+     lat_width          = (width/radius)/DEG              ! width of zonal channel (in degrees)
+
+     mode_split     = .true.
+     mean_split     = .true.
+     compressible   = .false.                            
+     penalize       = .true.
+     vert_diffuse   = .true.
+
+     a_0            = 0.28 / CELSIUS
+     b_0            = 0.0_8
+     mu_1           = 0.0_8
+     mu_2           = 0.0_8
+     T_ref          = 14   * CELSIUS
+
+     alpha          = 1d-2    ! porosity
+     npts_penal     = 2.5
+  case default
+     if (rank == 0) write (6,'(a)') "Case not supported ... aborting"
+     call abort
   end select
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -168,7 +202,7 @@ program flat_projection_data
   ! Initialize statistics
   if (trim (test_case) == "drake") then
      call initialize_stat_drake
-  elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling") then
+  elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
      call initialize_stat_vertical
   else
      call initialize_stat
@@ -204,7 +238,7 @@ program flat_projection_data
            drake_enstrophy(Nt,2) = pot_enstrophy_1layer ('adaptive')
            if (cp_idx == cp_2d) call latlon_1layer
         end if
-     elseif  (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling") then
+     elseif  (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
         call vertical_slice
         if (rank == 0) call write_slice
      else
@@ -225,7 +259,7 @@ program flat_projection_data
            call write_out_1layer
         end if
      end if
-  elseif (.not. (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling")) then
+  elseif (.not. (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet")) then
      if (.not. welford) then
         zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
         zonal_av(:,:,3:5) = zonal_av(:,:,3:5) / Ncumul
@@ -547,9 +581,9 @@ contains
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_density,    grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
+             call apply_onescale_to_patch (cal_density,      grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
              call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (cal_vort,       grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (cal_vort,         grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
           nullify (mass, mean_m, mean_t, scalar, temp, velo, divu, velo1, velo2, vort)

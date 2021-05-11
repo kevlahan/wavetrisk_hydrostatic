@@ -203,6 +203,23 @@ contains
     porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id+1))
   end function porous_density
 
+  function porous_density_edge (dom, i, j, zlev, offs, dims)
+    ! Porous density at edges
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: porous_density_edge
+
+    integer :: d, id
+    
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    
+    porous_density_edge = ref_density * (1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+  end function porous_density_edge
+
   real(8) function phi_node (d, id_i, zlev)
     ! Returns porosity at node given by (d, id_i, zlev)
     implicit none
@@ -470,6 +487,35 @@ contains
     velo1(id+1) = inner (vel, e_zonal)
     velo2(id+1) = inner (vel, e_merid)
   end subroutine interp_edge_node
+  
+  function f_coriolis_edge (dom, i, j, zlev, offs, dims)
+    ! Coriolis parameter at edges
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: f_coriolis_edge
+
+    integer :: id
+
+    id = idx (i, j, offs, dims)
+    
+    f_coriolis_edge = dom%midpt%elts(EDGE*id+RT+1:EDGE*id+UP+1)%z / radius * 2d0*omega
+  end function f_coriolis_edge
+
+  real(8) function f_coriolis_node (dom, i, j, zlev, offs, dims)
+    ! Coriolis parameter at nodes
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims)
+
+    f_coriolis_node = dom%node%elts(id+1)%z / radius * 2d0*omega
+  end function f_coriolis_node
 
   real(8) function integrate_hex (fun, l, zlev)
     ! Integrate function defined by fun over hexagons

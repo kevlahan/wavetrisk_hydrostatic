@@ -5,10 +5,10 @@ module test_case_mod
   use init_mod
   use equation_of_state_mod
   implicit none
-  integer                              :: mean_beg, mean_end, cp_2d, N
-  real(8)                              :: npts_penal, ref_surf_press, scale
-  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
-  logical                              :: mean_split
+  integer :: mean_beg, mean_end, cp_2d, N
+  real(8) :: npts_penal, ref_surf_press, scale
+  real(8) :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  logical :: mean_split
   
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
@@ -24,6 +24,8 @@ module test_case_mod
   real(8)            :: lat_width, Tcline, T_0
   real(8), parameter :: slope = 1.75d-4 ! slope parameter (larger value -> steeper slope)
   real(8), parameter :: shift = 8
+  ! Jet
+  real(8) :: beta, f0
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -82,8 +84,7 @@ contains
        end if
        surf_geopot_case = grav_accel * surf_geopot_case
     else
-       if (rank == 0) write(6,'(A)') "Test case not supported"
-       stop
+      surf_geopot_case = grav_accel * 0d0
     end if
   end function surf_geopot_case
 
@@ -125,8 +126,7 @@ contains
        end if
        surf_geopot_latlon = grav_accel * surf_geopot_latlon
     else
-       write(6,'(A)') "Test case not supported"
-       stop
+      surf_geopot_latlon = grav_accel * 0d0
     end if
   end function surf_geopot_latlon
   
@@ -148,7 +148,8 @@ contains
     real(8), dimension(6) :: p
 
     ! Allocate vertical grid parameters
-    if (trim(test_case) == "drake" .or. trim(test_case) == "seamount" .or. trim(test_case) == "upwelling") then
+    if (trim(test_case) == "drake" .or. trim(test_case) == "seamount" .or. trim(test_case) == "upwelling" &
+         .or. trim(test_case) == "jet") then
        allocate (a_vert(0:zlevels), b_vert(0:zlevels))
        allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
     else
@@ -235,7 +236,7 @@ contains
        ! Vertical grid spacing
        a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
-    elseif (trim (test_case) == "upwelling") then
+    elseif (trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
        b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
        
        if (trim (coords) == "uniform") then
@@ -412,7 +413,7 @@ contains
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
     case ("penalize")
-       if (trim (test_case) == "upwelling") then
+       if (trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
           penal_node(zlev)%data(d)%elts(id_i) = mask (p)
 
           q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
@@ -427,22 +428,22 @@ contains
   end subroutine topography
 
   real(8) function mask (p)
-    ! Land mass mask for upwelling case
+    ! Land mass mask
     implicit none
     type(Coord) :: p
 
     real(8) :: dlat, lat, lon
     real(8) :: n_smth_N, n_smth_S, width_N, width_S
 
-    dlat = 0.5*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
-    width_S = lat_c - (lat_width/2 + dlat) + 90_8
-    width_N = lat_c - (lat_width/2 + dlat)       
-    n_smth_S = 4*radius * width_S*DEG / (dx_max * npts_penal)
-    n_smth_N = 4*radius * width_N*DEG / (dx_max * npts_penal)
+    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+    width_S = 90d0 + (lat_c - (lat_width/2 + dlat))
+    width_N = 90d0 - (lat_c - (lat_width/2 + dlat))   
+    n_smth_S = 4d0*radius * width_S*DEG / (dx_max * npts_penal)
+    n_smth_N = 4d0*radius * width_N*DEG / (dx_max * npts_penal)
 
     call cart2sph (p, lon, lat)
 
-    mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
+    mask = exp__flush (- abs((lat/DEG+90d0)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90d0)/width_N)**n_smth_N)
   end function mask
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -563,7 +564,7 @@ contains
                 sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
              end if
           end if
-       elseif (trim (test_case) == "upwelling") then
+       elseif (trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
           if (k == zlevels+1) then
              sol_mean(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
              sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
@@ -600,16 +601,8 @@ contains
        rho = 0.5 * (density_flat (z1) + density_flat (z2))
 
        buoy_flat = (ref_density - rho) / ref_density 
-    elseif (trim (test_case) == "upwelling") then
-       z1 = a_vert(zlev-1) * eta + b_vert(zlev-1) * z_s
-       z2 = a_vert(zlev)   * eta + b_vert(zlev)   * z_s
-!!$       z = 0.5 * (z1 + z2)
-!!$       rho = density_flat (z)
-       rho = 0.5 * (density_flat (z1) + density_flat (z2))
-       buoy_flat = (ref_density - rho) / ref_density
     else
-       if (rank == 0) write(6,'(A)') "Test case not supported"
-       stop
+      buoy_flat = 0.0_8 ! no mean component
     end if
   end function buoy_flat
 
