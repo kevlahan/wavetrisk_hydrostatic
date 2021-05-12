@@ -1,0 +1,15 @@
+test_case          jet     ! name of test case
+run_id             jet     ! name of run (for saved data)
+max_level	   7             ! maximum level of resolution
+zlevels           16             ! number of vertical levels
+no_slip            T  	      	 ! use no slip (T) or free slip	boundary conditions
+remap              T             ! remap vertical grid
+iremap             20            ! remap every iremap time steps
+log_iter           F             ! print elliptic solver relative residual error
+tol      	   5e-3          ! non-dimensional tolerance
+cfl_num            35            ! cfl number for barotropic mode
+dt_write           2.0             ! save interval (days)
+CP_EVERY           1             ! checkpoint every CP_EVERY saves
+time_end           2.0          ! final time (days)
+resume            -1             ! restart from checkpoint (negative means fresh restart)
+
