@@ -683,17 +683,53 @@ contains
          type(Float_Field), target :: Lu, u
        end function Lu
     end interface
-
-    dxsq = 16*MATH_PI*radius**2 / (sqrt(3.0_8) * 20 * 4**l)
-    inv_diag = - 1 / ((2*wave_speed*dt)**2/dxsq + 1)
     
     do i = 1, max_iter
        iter = iter + 1
-       call lc (u, inv_diag, residual (f, u, Lu, l), u, l)
+       call lc_jacobi (u, residual (f, u, Lu, l), l)
        err = l2 (residual (f, u, Lu, l), l) / nrm
        if (err < tol) exit
     end do
   end subroutine jacobi
+
+  subroutine lc_jacobi (s1, s2, l)
+    ! Calculates Jacobi iteration
+    implicit none
+    integer                   :: l
+    type(Float_Field), target :: s1, s2
+
+    integer :: d, j
+
+    do d = 1, size(grid)
+       scalar  => s1%data(d)%elts
+       scalar2 => s2%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar, scalar2)
+    end do
+  end subroutine lc_jacobi
+
+  subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
+    ! Jacobi iteration using local approximation of diagonal
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_i
+    real(8) :: c_sq, dx
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+    
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       dx = dom%len%elts(EDGE*id+RT+1) 
+       c_sq = grav_accel * abs (dom%topo%elts(id_i))
+       scalar(id_i) = scalar(id_i) - scalar2(id_i) / ((2d0*dt/dx)**2 * c_sq + 1d0)
+    end if
+  end subroutine cal_jacobi
 
   subroutine bicgstab (u, f, Lu, l, max_iter, nrm, iter, tol)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
