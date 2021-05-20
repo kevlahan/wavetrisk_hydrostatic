@@ -673,7 +673,7 @@ contains
     type(Float_Field), target :: f, u
 
     integer :: i
-    real(8) :: dxsq, err, inv_diag
+    real(8) :: err
     
     interface
        function Lu (u, l)
@@ -683,7 +683,7 @@ contains
          type(Float_Field), target :: Lu, u
        end function Lu
     end interface
-    
+
     do i = 1, max_iter
        iter = iter + 1
        call lc_jacobi (u, residual (f, u, Lu, l), l)
@@ -706,7 +706,7 @@ contains
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (scalar, scalar2)
+       nullify (scalar, scalar2, scalar3)
     end do
   end subroutine lc_jacobi
 
@@ -719,15 +719,15 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, id_i
-    real(8) :: c_sq, dx
+    real(8) :: c_sq, dxsq
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       dx = dom%len%elts(EDGE*id+RT+1) 
+       dxsq = 2d0 / (sqrt(3d0) *dom%areas%elts(id_i)%hex_inv)
        c_sq = grav_accel * abs (dom%topo%elts(id_i))
-       scalar(id_i) = scalar(id_i) - scalar2(id_i) / ((2d0*dt/dx)**2 * c_sq + 1d0)
+       scalar(id_i) = scalar(id_i) - scalar2(id_i) / ((2d0*dt)**2*c_sq/dxsq + 1d0)
     end if
   end subroutine cal_jacobi
 
