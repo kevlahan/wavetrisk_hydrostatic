@@ -42,7 +42,7 @@ contains
           ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
           iend = q(S_VELO,k)%data(d)%length
           q(S_VELO,k)%data(d)%elts(ibeg:iend) = sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
-               + dt * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) - horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
+               + dt * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) + horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
        end do
     end do
   end subroutine u_star
@@ -127,7 +127,7 @@ contains
           ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
           iend = sol(S_VELO,k)%data(d)%length
           sol(S_VELO,k)%data(d)%elts(ibeg:iend) = (sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
-               + dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
+               - dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
        end do
     end do
   end subroutine u_update

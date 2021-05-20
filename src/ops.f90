@@ -220,9 +220,9 @@ contains
          h_flux(EDGE*id+UP+1) = grav_accel * abs(interp (dom%topo%elts(id_i)*phi(0), dom%topo%elts(idN_i)*phi(3))) * &
               (scalar(idN_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
       elseif (itype == 3) then ! external pressure gradient
-         h_flux(EDGE*id+RT+1) = -grav_accel * (scalar(idE_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+RT+1) 
-         h_flux(EDGE*id+DG+1) = -grav_accel * (scalar(id_i)/phi(0)  - scalar(idNE_i)/phi(2)) / dom%len%elts(EDGE*id+DG+1) 
-         h_flux(EDGE*id+UP+1) = -grav_accel * (scalar(idN_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+UP+1)
+         h_flux(EDGE*id+RT+1) = grav_accel * (scalar(idE_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+RT+1) 
+         h_flux(EDGE*id+DG+1) = grav_accel * (scalar(id_i)/phi(0)  - scalar(idNE_i)/phi(2)) / dom%len%elts(EDGE*id+DG+1) 
+         h_flux(EDGE*id+UP+1) = grav_accel * (scalar(idN_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+UP+1)
       elseif (itype == 4) then ! sum vertical flux
          h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
          do k = 1, zlevels
@@ -384,9 +384,9 @@ contains
          h_flux(EDGE*idS+UP+1) = - grav_accel * abs(interp (dom%topo%elts(id_i)*phi(0), dom%topo%elts(idS_i)*phi(3))) * &
               (scalar(idS_i)/phi(3) - scalar(id_i)/phi(0))/dom%len%elts(EDGE*idS+UP+1) * dom%pedlen%elts(EDGE*idS+UP+1)
       elseif (itype == 3) then ! external pressure gradient
-         h_flux(EDGE*idW+RT+1)  = grav_accel * (scalar(idW_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idW+RT+1) 
-         h_flux(EDGE*idSW+DG+1) = grav_accel * (scalar(id_i)/phi(0)  - scalar(idSW_i)/phi(2)) / dom%len%elts(EDGE*idSW+DG+1) 
-         h_flux(EDGE*idS+UP+1)  = grav_accel * (scalar(idS_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idS+UP+1)
+         h_flux(EDGE*idW+RT+1)  = - grav_accel * (scalar(idW_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idW+RT+1) 
+         h_flux(EDGE*idSW+DG+1) = - grav_accel * (scalar(id_i)/phi(0)  - scalar(idSW_i)/phi(2)) / dom%len%elts(EDGE*idSW+DG+1) 
+         h_flux(EDGE*idS+UP+1)  = - grav_accel * (scalar(idS_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idS+UP+1)
       elseif (itype == 4) then ! sum vertical flux
          h_flux(EDGE*idW+RT+1)  = 0.0_8
          h_flux(EDGE*idSW+DG+1) = 0.0_8
