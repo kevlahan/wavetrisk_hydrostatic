@@ -220,7 +220,7 @@ module shared_mod
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, Q_sr, ref_density, tol_elliptic
   real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
-  real(8)                                       :: e_min, Kt_0, Kv_0, visc_divu, visc_rotu
+  real(8)                                       :: e_min, Kt_0, Kv_0, theta1, theta2, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8), dimension(:),         allocatable    :: bounds, pressure_save, visc_sclr
@@ -316,7 +316,15 @@ contains
 
     ! Default numerical method values
     alpha               = 1d-2                              ! porosity
-    cfl_num             = 1.0_8                             ! barotropic CFL number
+    cfl_num             = 1d0                               ! barotropic CFL number
+    
+    ! Theta parameters for barotropic-baroclinic mode splitting
+    ! theta1 + theta2 < 1 unstable
+    ! theta1 >= 0.5 and theta2 >= 0.5 stable
+    ! theta1 + theta2 >= stable if cfl_num^2 (theta1 - 0.5) (theta2 - 0.5) + 1 >= 0
+    theta1              = 0.7d0                               ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+    theta2              = 0.7d0                               ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+
     C_visc              = 1d-2                              ! constant for determining horizontal viscosity
     iremap              = 10                                ! remap every iremap steps
     level_save          = level_start                       ! level to save

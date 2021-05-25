@@ -25,7 +25,8 @@ module test_case_mod
   real(8), parameter :: slope = 1.75d-4 ! slope parameter (larger value -> steeper slope)
   real(8), parameter :: shift = 8
   ! Jet
-  real(8) :: beta, f0
+  real(8) :: beta, f0, L_jet
+  logical :: soufflet
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -435,12 +436,14 @@ contains
     real(8) :: dlat, lat, lon
     real(8) :: n_smth_N, n_smth_S, width_N, width_S
 
-    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
-    width_S = 90d0 + (lat_c - (lat_width/2 + dlat))
-    width_N = 90d0 - (lat_c - (lat_width/2 + dlat))   
+!!$    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+    dlat = 0d0
+    width_S = 90d0 + (lat_c - (lat_width/2d0 + dlat))
+    width_N = 90d0 - (lat_c + (lat_width/2d0 + dlat))
+    
     n_smth_S = 4d0*radius * width_S*DEG / (dx_max * npts_penal)
     n_smth_N = 4d0*radius * width_N*DEG / (dx_max * npts_penal)
-
+    
     call cart2sph (p, lon, lat)
 
     mask = exp__flush (- abs((lat/DEG+90d0)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90d0)/width_N)**n_smth_N)
@@ -655,11 +658,11 @@ contains
     implicit none
     real(8) :: area
 
-    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
+    area = 4d0*MATH_PI*radius**2/(20d0*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
 
-    area = 4*MATH_PI*radius**2/(20*4**min_level)
-    dx_max = sqrt (4/sqrt(3.0_8) * area)
+    area = 4d0*MATH_PI*radius**2/(20d0*4**min_level)
+    dx_max = sqrt (4d0/sqrt(3d0) * area)
   end subroutine initialize_dt_viscosity_case
 
   real(8) function tau (p)

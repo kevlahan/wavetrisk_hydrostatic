@@ -1379,8 +1379,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    scalar(id_i) = ref_density * (1.0_8 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
-    if (scalar(id_i) < 0d0) write (6,'(3(es11.4,1x))') scalar(id_i), temp(id_i), mean_m(id_i)
+    scalar(id_i) = ref_density * (1d0 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
   end subroutine cal_density
 
   real(8) function cpt_min_mass ()

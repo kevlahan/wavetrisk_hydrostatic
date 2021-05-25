@@ -618,7 +618,7 @@ contains
   end subroutine multiscale
 
   subroutine elliptic_solver (u, f, Lu, var_type_elliptic)
-    ! Solves linear equation L(u) = f using a simple multiscale algorithm with jacobi as the smoother
+    ! Solves linear equation L(u) = f using a simple multiscale algorithm with bicgstab as the fine scale solver
     ! for implicit lateral diffusion
     implicit none
     character(4)              :: var_type_elliptic
@@ -653,7 +653,7 @@ contains
     call bicgstab (u, f, Lu, level_start, coarse_iter, nrm_f, iter(level_start), tol_elliptic)
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call bicgstab (u, f, Lu, l, 2, nrm_f, iter(l), tol_elliptic)
+       call jacobi (u, f, Lu, l, 2, nrm_f, iter(l), tol_elliptic)
     end do    
 
     if (log_iter) then
@@ -711,7 +711,8 @@ contains
   end subroutine lc_jacobi
 
   subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
-    ! Jacobi iteration using local approximation of diagonal
+    ! Jacobi iteration using local approximation of diagonal of elliptic operator
+    ! ( n.b. dx^2 = 2 / (sqrt(3) * dom%areas%elts(id_i)%hex_inv) )
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -719,15 +720,15 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, id_i
-    real(8) :: c_sq, dxsq
+    real(8) :: c_sq, Laplace_diag
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       dxsq = 2d0 / (sqrt(3d0) *dom%areas%elts(id_i)%hex_inv)
        c_sq = grav_accel * abs (dom%topo%elts(id_i))
-       scalar(id_i) = scalar(id_i) - scalar2(id_i) / ((2d0*dt)**2*c_sq/dxsq + 1d0)
+       Laplace_diag = 2d0*sqrt(3d0) * dt**2 * c_sq * dom%areas%elts(id_i)%hex_inv
+       scalar(id_i) = scalar(id_i) - scalar2(id_i) / (theta1*theta2 * Laplace_diag + 1d0)
     end if
   end subroutine cal_jacobi
 

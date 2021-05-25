@@ -4,9 +4,7 @@ program jet
   use test_case_mod
   use io_mod
   implicit none
-  integer :: it
   logical :: aligned
-  real(8) :: radius_earth
   
   ! Initialize mpi, shared variables and domainss
   call init_arch_mod 
@@ -16,25 +14,33 @@ program jet
   call read_test_case_parameters
 
   ! Parameters defining domain (based on beta-plane values)
+  soufflet           = .true.                          ! set radius to exactly match Soufflet domain
   lat_c              = 30d0                            ! centre of zonal channel (in degrees)
   f0                 = 1d-4    / SECOND                ! Coriolis parameter
-  beta               = 1.6d-11 / (METRE * SECOND)      ! beta parameter
-  width              = 2000d0    * KM                  ! meridional width of zonal channel
-  
-  ! Standard parameters
-  radius             = f0 / (beta * tan (lat_c * DEG)) ! planet radius
   omega              = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
-  grav_accel         = 9.80616d0 * METRE/SECOND**2     ! gravitational acceleration 
-  ref_density        = 1027d0    * KG/METRE**3         ! reference density at depth (maximum density)
+  
+  if (soufflet) then
+     width           = 2000d0 * KM
+     beta            = 1.6d-11 / (METRE * SECOND)      ! beta parameter
+     radius          = f0 / (beta * tan (lat_c * DEG)) ! planet radius to exactly match Soufflet beta plane
+  else
+     width           = 250d0   * KM                    ! meridional width of zonal channel
+     radius          = width
+     beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
+  end if
+  
+  L_jet              = 0.8d0 * width                   ! width of jet transition region
+
+  grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
+  ref_density        = 1027.75d0    * KG/METRE**3      ! reference density at depth (maximum density)
 
   ! Numerical method parameters
   default_thresholds = .true.                        ! use default threshold
-  adapt_dt           = .true.                        ! adapt time step
+  
   match_time         = .true.                        ! avoid very small time steps when saving (if false) 
-  mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-6                          ! porosity used in penalization
-  npts_penal         = 2.5d0                         ! number of points to smooth over in penalization
+  alpha              = 1d-2                          ! porosity used in penalization
+  npts_penal         = 4.5d0                         ! number of points to smooth over in penalization
   coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
@@ -42,24 +48,36 @@ program jet
   compressible       = .false.                       ! always run with incompressible equations
   remapscalar_type   = "PPR"                         ! optimal remapping scheme
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
+
+  ! Time stepping parameters
+  adapt_dt           = .true.                        ! adapt time step
+  mode_split         = .true.                       ! split barotropic mode if true
+  theta1             = 0.6d0 ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson)
+  theta2             = 0.6d0 ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson)
   
-  Laplace_order_init = 1                              
-  Laplace_order = Laplace_order_init
-  vert_diffuse       = .true.                        ! include vertical diffusion
+  ! Horizontal diffusion
+  Laplace_order_init = 0                              
+  Laplace_order      = Laplace_order_init
+
+  ! Vertical diffusion
+  vert_diffuse       = .true.                       
   tke_closure        = .true.
          
   ! Depth and layer parameters
-  sigma_z            = .true.                        ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+  sigma_z            = .true.                       ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
   coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
   max_depth          = -4000d0 * METRE               ! total depth
   min_depth          = max_depth                     ! minimum depth
-  Tcline             = -100d0 * METRE                 ! thermocline
+  Tcline             =  -100d0 * METRE               ! thermocline
 
   ! Land mass parameter
   lat_width          = (width/radius)/DEG            ! width of zonal channel (in degrees)
   
   ! Bottom friction
   bottom_friction_case = 5d-3 / SECOND
+
+  ! Relaxation to initial zonal flow
+  tau_relax          = 0d0 * DAY
 
   ! Wind stress
   tau_0              = 0d0
@@ -74,16 +92,19 @@ program jet
   T_ref              = 14d0   * CELSIUS
   
   ! Vertical level to save
-  save_zlev          = 30
+  save_zlev          = zlevels
 
   ! Characteristic scales
-  wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
-  
+  wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed
+  drho_dz            = -4d0/1d3                          ! approximate density gradient
+  bv                 = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
+  c1                 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
+  Rb                 = bv * abs(max_depth) / (MATH_PI*f0) ! first baroclinic Rossby radius of deformation
   Rd                 = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
 
   ! Dimensional scaling
   drho               = 3.5d0 * KG/METRE**3               ! magnitude of density perturbation
-  Udim               = 20d0                              ! velocity scale
+  Udim               = 0.25d0                            ! velocity scale
   Ldim               = L_jet                             ! length scale 
   Tdim               = Ldim/Udim                         ! time scale
   Hdim               = abs (max_depth)                   ! vertical length scale
@@ -112,6 +133,7 @@ program jet
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned)
+     if (tau_relax /= 0d0) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
 
      call update_diagnostics

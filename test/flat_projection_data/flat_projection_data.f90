@@ -153,15 +153,25 @@ program flat_projection_data
      lat_width      = (width/radius)/DEG
      lat_c          = 45                                ! centre of zonal channel (in degrees)
   case ("jet")
+     soufflet           = .true.                          ! set radius to exactly match Soufflet domain
      lat_c              = 30d0                            ! centre of zonal channel (in degrees)
      f0                 = 1d-4    / SECOND                ! Coriolis parameter
-     beta               = 1.6d-11 / (METRE * SECOND)      ! beta parameter
-     width              = 2000d0    * KM                  ! meridional width of zonal channel
+     omega              = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
 
-     radius             = f0 / (beta * tan (lat_c * DEG)) ! planet radius
-     omega              = f0 / (2*sin(lat_c * DEG))       ! planet rotation
-     grav_accel         = 9.80616 * METRE/SECOND**2     ! gravitational acceleration 
-     ref_density        = 1027d0  * KG/METRE**3         ! reference density at depth (maximum density)
+     if (soufflet) then
+        width           = 2000d0 * KM
+        beta            = 1.6d-11 / (METRE * SECOND)      ! beta parameter
+        radius          = f0 / (beta * tan (lat_c * DEG)) ! planet radius to exactly match Soufflet beta plane
+     else
+        width           = 250 * KM
+        radius          = width
+        beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
+     end if
+
+     L_jet              = 0.8 * width                     ! width of jet transition region
+
+     grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
+     ref_density        = 1027.75d0    * KG/METRE**3      ! reference density at depth (maximum density)
 
      sigma_z            = .true.                        ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
@@ -184,7 +194,7 @@ program flat_projection_data
      T_ref          = 14   * CELSIUS
 
      alpha          = 1d-2    ! porosity
-     npts_penal     = 2.5
+     npts_penal     = 4.5d0
   case default
      if (rank == 0) write (6,'(a)') "Case not supported ... aborting"
      call abort

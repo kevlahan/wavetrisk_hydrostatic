@@ -13,23 +13,22 @@ Module test_case_mod
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
 
   ! Local variables
-  real(8)                              :: beta, drho, f0, Rd, Tcline
+  real(8)                              :: beta, bv, drho, drho_dz, f0, L_jet, Rb, Rd, tau_relax, Tcline
   real(8)                              :: r_max, r_max_loc
   real(8)                              :: n_smth_N, n_smth_S, width_N, width, width_S
-  real(8)                              :: npts_penal, u_wbc
+  real(8)                              :: npts_penal, R_b, u_wbc
   real(8)                              :: lat_c, lat_width, tau_0
   real(8), target                      :: bottom_friction_case
   real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
+  logical                              :: soufflet
 
   ! Parameters for initial density profile (North, South)
+  real(8),               parameter :: S_b       =             9.8d-6 * KG/METRE**4
+  real(8),               parameter :: z_surf    =            -300d0  * METRE
   real(8), dimension(2), parameter :: drho_surf = (/  0d0,  1.5d0 /) * KG/METRE**3
-  real(8), dimension(2), parameter :: dz        = (/  3d2,  7d2   /) * METRE
+  real(8), dimension(2), parameter :: dz_b      = (/  3d2,  7d2   /) * METRE
   real(8), dimension(2), parameter :: z_int     = (/ -4d2, -1d3   /) * METRE
-
-  real(8), parameter :: L_jet     =   1600d0  * KM 
-  real(8), parameter :: S_b       =    9.8d-6 * KG/METRE**4
-  real(8), parameter :: z_surf    =   -300d0  * METRE
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -111,7 +110,6 @@ contains
        write (6,'(A,A)')      "test_case                      = ", trim (test_case)
        write (6,'(A,A)')      "run_id                         = ", trim (run_id)
        write (6,'(A,L1)')     "compressible                   = ", compressible
-       write (6,'(A,L1)')     "mode_split                     = ", mode_split
        write (6,'(A,L1)')     "penalize                       = ", penalize
        write (6,'(A,L1)')     "no_slip                        = ", no_slip
        write (6,'(A,es10.4)') "npts_penal                     = ", npts_penal
@@ -141,11 +139,18 @@ contains
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
        write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
+       write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
+       write (6,'(A,L1)')     "tke_closure                    = ", tke_closure
        write (6,'(A,es10.4)') "dt_write [d]                   = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY                       = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance                      = ", rebalance
        write (6,'(A,es10.4)') "time_end [d]                   = ", time_end/DAY
        write (6,'(A,i6)')     "resume                         = ", resume_init
+
+       write (6,'(/,A)')      "TIME INTEGRATION PARAMETERS"
+       write (6,'(A,L1)')   "mode_split                      = ", mode_split
+       write (6,'(A,F4.2)') "theta1                          = ", theta1
+       write (6,'(A,F4.2)') "theta2                          = ", theta2
 
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius                   [km]  = ", radius / KM
@@ -157,16 +162,19 @@ contains
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", max_depth
        write (6,'(A,es11.4)') "min_depth                 [m]  = ", min_depth
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
+       write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
-       write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
-       write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
+       write (6,'(A,es11.4)') "f0                    [rad/s]  = ", f0
+       write (6,'(A,es11.4,/)') "beta                 [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
        write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
        write (6,'(A,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM
+       write (6,'(A,es11.4)') "baroclinic Rossby radius [km]  = ", Rb / KM
        write (6,'(a,es11.4)') "r_max                          = ", r_max
+       write (6,'(a,es11.4)') "tau_relax                [d]   = ", tau_relax / DAY
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
@@ -205,7 +213,7 @@ contains
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
-  
+
   subroutine apply_initial_conditions_case
     use ops_mod
     implicit none
@@ -225,23 +233,7 @@ contains
     
     ! Initial velocity is given by thermal wind geostrophic balance with density
     do k = 1, zlevels
-        do d = 1, size (grid)
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (thermal_wind, grid(d), p-1, k, 0, 0)
-          end do
-       end do
-       call update_vector_bdry (trend(S_VELO,1:zlevels), NONE, 10)
-       
-       do d = 1, size (grid)
-          velo  => trend(S_VELO,k)%data(d)%elts
-          velo1 => grid(d)%u_zonal%elts
-          velo2 => grid(d)%v_merid%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (interp_edge_node,    grid(d), p-1, z_null, 0, 1)
-             call apply_onescale_to_patch (geostrophic_balance, grid(d), p-1, z_null, 0, 1)
-          end do
-          nullify (velo, velo1, velo2)
-       end do
+       call thermal_wind (k)
        
        do l = level_end, level_start, -1
           call apply_onescale (init_velo, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -249,9 +241,8 @@ contains
     end do
   end subroutine apply_initial_conditions_case
 
-  subroutine thermal_wind (dom, i, j, zlev, offs, dims)
+  subroutine thermal_wind_integration (dom, i, j, zlev, offs, dims)
     ! Integrates thermal wind geostrophic equations upwards with zero velocity boundary condition
-    ! res
     use ops_mod
     implicit none
     type(Domain)                   :: dom
@@ -267,32 +258,34 @@ contains
     idE  = idx (i+1, j,   offs, dims)
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
-
+    
     f = f_coriolis_edge (dom, i, j, zlev, offs, dims)
 
     if (zlev > 1) then
-       trend(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = trend(S_VELO,zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
-            + 0.5d0 * (increment(zlev) + increment(zlev-1))
+       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = &
+            sol_mean(S_VELO,zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + 0.5d0 * (increment(zlev) + increment(zlev-1)) 
     else
-       trend(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.5d0 * increment(zlev)
+       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.5d0 * increment(zlev)
     end if
+    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
+         * (1d0 - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   contains
     function increment (k)
       implicit none
-      integer :: k
+      integer                    :: k
       real(8), dimension(1:EDGE) :: increment
 
       real(8), dimension(1:EDGE) :: drho, dz, rho_0
       real(8), dimension(0:EDGE) :: rho
-      
+
       dz = dz_e (dom, i, j, k, offs, dims)
 
       rho_0 = porous_density_edge (dom, i, j, k, offs, dims)
-
-      rho(0) = density (dom, i,   j,   k, offs, dims)
-      rho(1) = density (dom, i+1, j,   k, offs, dims)
-      rho(2) = density (dom, i+1, j+1, k, offs, dims)
-      rho(3) = density (dom, i,   j+1, k, offs, dims)
+      
+      rho(0)    = rho_i (i,   j,   k)
+      rho(RT+1) = rho_i (i+1, j,   k)
+      rho(DG+1) = rho_i (i+1, j+1, k)
+      rho(UP+1) = rho_i (i,   j+1, k)
 
       drho(RT+1) = (rho(1) - rho(0)) / dom%len%elts(EDGE*id+RT+1)
       drho(DG+1) = (rho(0) - rho(2)) / dom%len%elts(EDGE*id+DG+1)
@@ -300,13 +293,59 @@ contains
 
       increment = drho * grav_accel / (rho_0 * f) * dz
     end function increment
+
+    real(8) function rho_i (i, j, k)
+      ! Initial density at node corresponding to coordinates (i,j)
+      implicit none
+      integer :: i, j, k
+
+      integer :: id
+      real(8) :: lat, lon, z
+
+      id = idx (i, j, offs, dims)
+
+      call cart2sph (dom%node%elts(id+1), lon, lat)
+      z = z_i (dom, i, j, k, offs, dims)
+
+      rho_i = density_init (lat/DEG, z)
+    end function rho_i
+  end subroutine thermal_wind_integration
+
+  subroutine thermal_wind (k)
+    ! Computes thermal wind geostrophic balance based on initial density at vertical level k
+    ! by upwards integration assuming zero velocity at bathymetry
+    ! results are stored in u_zonal, v_merid
+    implicit none
+    integer :: k
+    
+    integer :: d, j, l
+
+    do l = level_end, level_start, -1
+       do d = 1, size (grid)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (thermal_wind_integration, grid(d), grid(d)%lev(l)%elts(j), k, 0, 0)
+          end do
+       end do
+       call update_bdry (sol_mean(S_VELO,k), l, 10)
+
+       do d = 1, size (grid)
+          velo  => sol_mean(S_VELO,k)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (interp_edge_node,    grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (geostrophic_balance, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (velo, velo1, velo2)
+       end do
+    end do
   end subroutine thermal_wind
 
   subroutine geostrophic_balance (dom, i, j, zlev, offs, dims)
     ! Geostrophic balance from thermal wind relation
     ! d_z u = g/(rho_0 f) (d_y rho, -d_x rho)
     ! (rhs provided in dom%u_zonal, dom%v_merid)
-    
+
     use ops_mod
     implicit none
     type(Domain)                   :: dom
@@ -321,7 +360,7 @@ contains
 
     u_z = dom%u_zonal%elts(id+1)
     v_m = dom%v_merid%elts(id+1)
-    
+
     dom%u_zonal%elts(id+1) =   v_m
     dom%v_merid%elts(id+1) = - u_z
   end subroutine geostrophic_balance
@@ -356,7 +395,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, lat, lon, phi, rho, z_k, z_s
+    real(8)                       :: density, eta, lat, lon, phi, rho, z_k, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
     type(Coord)                   :: p 
@@ -383,7 +422,7 @@ contains
        z_k = interp (z(k-1), z(k))
 
        if (k == zlevels) then
-          sol(S_MASS,zlevels)%data(d)%elts(id_i) = rho * eta
+          sol(S_MASS,k)%data(d)%elts(id_i) = rho * eta
        else
           sol(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
        end if
@@ -414,7 +453,7 @@ contains
     call interp_node_edge (dom, i, j, z_null, offs, dims, sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   end subroutine init_velo
 
-  subroutine init_mean (dom, i, j, zlev, offs, dims)
+   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values for an entire vertical column
     implicit none
     type (Domain)                   :: dom
@@ -452,6 +491,7 @@ contains
     if (mode_split) then
        sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i) = 0.0_8
        sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0.0_8
+       sol_mean(S_VELO,zlevels+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
     end if
   end subroutine init_mean
   
@@ -522,7 +562,7 @@ contains
   end function init_free_surface
   
   real(8) function buoyancy_init (lat, z)
-    ! Initial buoyancy at depth z
+    ! Initial buoyancy at depth z at latitude lat (in degrees)
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
     real(8) :: lat, z
@@ -539,14 +579,14 @@ contains
     drho_N = drho_NS (1)
     drho_S = drho_NS (2)
 
-    density_init = 1027.75d0 - S_b * (z - max_depth)  + smoothing () * drho_S + drho_N
+    density_init = 1027.75d0 - S_b * (z - max_depth) + smoothing () * drho_S + drho_N
   contains
     real(8) function drho_NS (hemi)
       implicit none
       integer :: hemi
 
-      drho_NS = - 0.5 * drho_int (hemi) * (1d0 + tanh ((d_NS (hemi) - z_int(hemi))/dz(hemi))) &
-           - drho_surf (hemi) / (2*tanh(1d0)) * (1d0 + tanh ((z_surf - z) / z_surf))
+      drho_NS = - 0.5d0 * drho_int (hemi) * (1d0 + tanh ((d_NS (hemi) - z_int(hemi))/dz_b(hemi))) &
+           - drho_surf (hemi) / (2d0*tanh(1d0)) * (1d0 + tanh ((z_surf - z) / z_surf))
     end function drho_NS
 
     real(8) function drho_int (hemi)
@@ -564,8 +604,8 @@ contains
       implicit none
       integer :: hemi
 
-      d_NS = z_int (hemi) &
-           + (z - z_int (hemi)) * sqrt (1d0 + 0.5d0 * ((z - z_int (hemi) + abs (z - z_int (hemi))) / (1.3d0*dz(hemi)))**2)
+      d_NS = z_int (hemi) + (z - z_int (hemi)) &
+           * sqrt (1d0 + 0.5d0 * ((z - z_int (hemi) + abs (z - z_int (hemi))) / (1.3d0*dz_b(hemi)))**2)
     end function d_NS
 
     real(8) function smoothing ()
@@ -573,7 +613,7 @@ contains
 
       real(8) :: y
 
-      y = MATH_PI * (width/L_jet * (lat - (lat_c - lat_width/2d0)) / lat_width + 0.5d0 * (1 - width/L_jet))
+      y = MATH_PI * (width/L_jet * (lat - (lat_c - lat_width/2d0)) / lat_width + 0.5d0 * (1d0 - width/L_jet))
 
       if (y < 0.0_8) then
          smoothing = 1d0
@@ -708,7 +748,7 @@ contains
     real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, C_visc, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
     area = 4d0*MATH_PI*radius**2/(20d0*4**max_level) ! average area of a triangle
-    dx_min = 0.891d0 * sqrt (4d0/sqrt(3d0) * area) ! edge length of average triangle
+    dx_min = 0.891d0 * sqrt (4d0/sqrt(3d0) * area)   ! edge length of average triangle
 
     area = 4d0*MATH_PI*radius**2/(20d0*4**min_level)
     dx_max = sqrt (4d0/sqrt(3d0) * area)
@@ -753,15 +793,16 @@ contains
     end if
     
     ! Penalization parameterss
-    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+!!$    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
     dlat = 0d0
 
-    width_S = 90d0 + (lat_c - (lat_width/2 + dlat))
-    width_N = 90d0 - (lat_c + (lat_width/2 + dlat))
+    width_S = 90d0 + (lat_c - (lat_width/2d0 + dlat))
+    width_N = 90d0 - (lat_c + (lat_width/2d0 + dlat))
 
     ! Smoothing exponent for land mass
     n_smth_S = 4d0*radius * width_S*DEG / (dx_max * npts_penal)
     n_smth_N = 4d0*radius * width_N*DEG / (dx_max * npts_penal)
+    if (rank==0) write (6,'(4(es10.4,1x))') width_S, width_N, n_smth_S, n_smth_N
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -1124,5 +1165,86 @@ contains
        wind_flux_case = 0.0_8
     end if
   end function wind_flux_case
-end module test_case_mod
 
+  subroutine trend_relax (q, dq)
+    ! Trend relaxation to mean buoyancy
+    implicit none
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+
+    integer :: d, k, p
+
+    call update_array_bdry (q, NONE, 27)
+    
+    do k = 1, zlevels
+       call thermal_wind (k)
+       
+       ! Scalars
+       do d = 1, size(grid)
+          mass   =>  q(S_MASS,k)%data(d)%elts
+          temp   =>  q(S_TEMP,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          dmass  => dq(S_MASS,k)%data(d)%elts
+          dtemp  => dq(S_TEMP,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (dmass, dscalar, mass, temp, mean_m, mean_t)
+       end do
+       
+       ! Velocity
+       do d = 1, size(grid)
+           velo =>  q(S_VELO,k)%data(d)%elts
+          dvelo => dq(S_VELO,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (trend_velo, grid(d), p-1, k, 0, 0)
+          end do
+          nullify (dvelo, velo)
+       end do
+    end do
+    dq%bdry_uptodate = .false.
+  end subroutine trend_relax
+
+  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
+    ! Relax buoyancy to mean
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+    real(8) :: b, lat, lon, full_temp, z
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+
+    z = z_i (dom, i, j, zlev, offs, dims)
+    full_temp = mean_t(id_i) + temp(id_i)
+    
+    dmass(id_i) = 0.0_8
+    dtemp(id_i) = -1d0/tau_relax * (full_temp - mean_m(id_i)*buoyancy_init (lat/DEG, z)) 
+  end subroutine trend_scalars
+
+  subroutine trend_velo (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                    :: d, e, id, id_e
+    real(8), dimension(1:EDGE) :: uvw
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+
+    call interp_node_edge (dom, i, j, zlev, offs, dims, uvw)
+
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+       dvelo(id_e) = -1d0/tau_relax * (velo(id_e) - uvw(e)) * (1d0 - penal_edge(zlev)%data(d)%elts(id_e))
+    end do
+  end subroutine trend_velo
+end module test_case_mod

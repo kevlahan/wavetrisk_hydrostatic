@@ -330,6 +330,9 @@ contains
     
     call manage_q1_mem
 
+    ! Compute flux divergence of vertically integrated velocity at previous time step
+    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+
     call trend_ml (sol, trend)
     call RK_split (dt/4, q1)
     call WT_after_step (q1(:,1:zlevels), wav_coeff)
