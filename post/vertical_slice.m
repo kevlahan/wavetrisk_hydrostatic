@@ -1,13 +1,14 @@
-function vertical_slice
+function [dat] = vertical_slice
 clear all
 % test_case = 'seamount';
 % run_id    = 'sea_drho_3_nonadapt';
-%test_case = 'upwelling';
+test_case = 'upwelling';
 %run_id    = 'upwelling_test';
 test_case = 'jet';
 run_id = 'jet';
 
 time        = 0;
+field       = 'density';
 figure_type = 1;
 
 if strcmp (test_case, 'upwelling')
@@ -17,11 +18,15 @@ if strcmp (test_case, 'upwelling')
     lat_w     = 80;  % width of zonal channel in km
     max_depth = -150;
 elseif strcmp (test_case, 'jet')
-    ref_density = 27.75;
-    radius    = 1.0825e4; % radius of planet in km
+    ref_density = 1027.75;
+    
+%     radius    = 1.0825e4; % radius of planet in km
+%     lat_w     =  2000;
+    radius    = 250;
+    lat_w     = radius;
+    
     lat_c     = 30;
-    lat_w     = 2000;
-    max_depth = -4000; % jet
+    max_depth = -4000; 
 end
 lat_w_deg = lat_w/radius * 180/pi;
 
@@ -58,7 +63,7 @@ lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = r
 
 % Plot results
 if figure_type == 1
-    ax1=figure;plot_field (xlat, zlat, lat_slice, 'zonal', 'raw', ax1)
+    ax1=figure;plot_field (xlat, zlat, lat_slice, field, 'raw', ax1)
 elseif figure_type == 2
     str = "Upwelling results at day "+compose("%1.0f",time/2)+" for J7 (dx = 2.26 km, dt = 1840 s)";
     %sgtitle(str);
@@ -115,7 +120,7 @@ end
             end
         elseif strcmp(field,'meridional')
             m = 2;
-            c1 = linspace(-6e-8, 6e-8, 200);
+            c1 = linspace(-6, 6, 200);
             c2 = [-6 -5 -4 -3 -2 -1  1 2 3 4];
             trans = @(u) 100 * u;
         elseif strcmp(field,'vertical')

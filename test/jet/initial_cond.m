@@ -27,7 +27,7 @@ for i = 1:nlat+1
         rho(k,i) = density_ic (lat(i), z(k));
     end
 end
-c1 = [28 27.5 27 26.5 26 25.5 25 24.5 24 23.5 23];
+c1 = [28 27.5 27 26.5 26 25.5 25 24.5 24];
 caxis([min(c1) max(c1)]);
 contourf(lat,z,rho,c1);colormap(autumn);colorbar;
 
@@ -35,7 +35,9 @@ contourf(lat,z,rho,c1);colormap(autumn);colorbar;
         drho_N = rho_NS (1, depth);
         drho_S = rho_NS (2, depth);
         
-        rho = rho_0 - S_b * (depth - H) + smoothing(phi) * drho_S + drho_N;
+        %rho = rho_0 - S_b * (depth - H) + smoothing(phi) * drho_S + drho_N;
+        rho = rho_0 - S_b * (depth - H) + smoothing(phi) * drho_S + (1-smoothing(phi))*drho_N;
+        %rho = rho_0 - S_b * (depth - H) + drho_N;
     end
 
     function rho = rho_NS (hemi, depth)

@@ -14,18 +14,20 @@ program jet
   call read_test_case_parameters
 
   ! Parameters defining domain (based on beta-plane values)
-  soufflet           = .true.                          ! set radius to exactly match Soufflet domain
+  soufflet           = .false.                          ! set radius to exactly match Soufflet domain
   lat_c              = 30d0                            ! centre of zonal channel (in degrees)
-  f0                 = 1d-4    / SECOND                ! Coriolis parameter
-  omega              = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
   
   if (soufflet) then
      width           = 2000d0 * KM
      beta            = 1.6d-11 / (METRE * SECOND)      ! beta parameter
+     f0              = 1d-4    / SECOND                ! Coriolis parameter
+     omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
      radius          = f0 / (beta * tan (lat_c * DEG)) ! planet radius to exactly match Soufflet beta plane
   else
      width           = 250d0   * KM                    ! meridional width of zonal channel
      radius          = width
+     f0              = 1d-4 * 2000d0 * KM / width       
+     omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
      beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
   end if
   
@@ -104,7 +106,7 @@ program jet
 
   ! Dimensional scaling
   drho               = 3.5d0 * KG/METRE**3               ! magnitude of density perturbation
-  Udim               = 0.25d0                            ! velocity scale
+  Udim               = 0.2d0                             ! velocity scale
   Ldim               = L_jet                             ! length scale 
   Tdim               = Ldim/Udim                         ! time scale
   Hdim               = abs (max_depth)                   ! vertical length scale

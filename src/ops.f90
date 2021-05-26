@@ -1379,7 +1379,12 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    scalar(id_i) = ref_density * (1d0 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       scalar(id_i) = ref_density * (1d0 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
+       if (scalar(id_i) < 1d3) write (6,*) scalar(id_i)
+    else
+       scalar(id_i) = ref_density
+    end if
   end subroutine cal_density
 
   real(8) function cpt_min_mass ()

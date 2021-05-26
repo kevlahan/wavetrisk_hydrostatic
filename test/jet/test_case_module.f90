@@ -574,12 +574,13 @@ contains
     implicit none
     real(8) :: lat, z
 
-    real(8) :: drho_N, drho_S
+    real(8) :: drho_N, drho_S, sm
 
     drho_N = drho_NS (1)
     drho_S = drho_NS (2)
 
-    density_init = 1027.75d0 - S_b * (z - max_depth) + smoothing () * drho_S + drho_N
+    sm = smoothing ()
+    density_init = 1027.75d0 - S_b * (z - max_depth) +  sm * drho_S + (1d0 - sm) * drho_N
   contains
     real(8) function drho_NS (hemi)
       implicit none
@@ -802,7 +803,6 @@ contains
     ! Smoothing exponent for land mass
     n_smth_S = 4d0*radius * width_S*DEG / (dx_max * npts_penal)
     n_smth_N = 4d0*radius * width_N*DEG / (dx_max * npts_penal)
-    if (rank==0) write (6,'(4(es10.4,1x))') width_S, width_N, n_smth_S, n_smth_N
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)

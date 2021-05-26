@@ -153,22 +153,24 @@ program flat_projection_data
      lat_width      = (width/radius)/DEG
      lat_c          = 45                                ! centre of zonal channel (in degrees)
   case ("jet")
-     soufflet           = .true.                          ! set radius to exactly match Soufflet domain
+     soufflet           = .false.                          ! set radius to exactly match Soufflet domain
      lat_c              = 30d0                            ! centre of zonal channel (in degrees)
-     f0                 = 1d-4    / SECOND                ! Coriolis parameter
-     omega              = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
-
+     
      if (soufflet) then
         width           = 2000d0 * KM
         beta            = 1.6d-11 / (METRE * SECOND)      ! beta parameter
+        f0              = 1d-4    / SECOND                ! Coriolis parameter
+        omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
         radius          = f0 / (beta * tan (lat_c * DEG)) ! planet radius to exactly match Soufflet beta plane
      else
-        width           = 250 * KM
+        width           = 250d0   * KM                    ! meridional width of zonal channel
         radius          = width
+        f0              = 1d-4 * 2000d0 * KM / width       
+        omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
         beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
      end if
-
-     L_jet              = 0.8 * width                     ! width of jet transition region
+  
+     L_jet              = 0.8d0 * width                   ! width of jet transition region
 
      grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
      ref_density        = 1027.75d0    * KG/METRE**3      ! reference density at depth (maximum density)
@@ -180,7 +182,7 @@ program flat_projection_data
      Tcline             =  -100d0 * METRE               ! position of thermocline
 
      lat_width          = (width/radius)/DEG              ! width of zonal channel (in degrees)
-
+     
      mode_split     = .true.
      mean_split     = .true.
      compressible   = .false.                            
@@ -591,7 +593,7 @@ contains
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_density,      grid(d), grid(d)%lev(l)%elts(j), k,      -2, 3)
+             call apply_onescale_to_patch (cal_density,      grid(d), grid(d)%lev(l)%elts(j), k,       0, 1)
              call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
              call apply_onescale_to_patch (cal_vort,         grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
           end do
