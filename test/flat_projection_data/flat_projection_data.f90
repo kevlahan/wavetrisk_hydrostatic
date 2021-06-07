@@ -145,7 +145,7 @@ program flat_projection_data
      mu_2           = 0.0_8
      T_ref          = 14   * CELSIUS
 
-     alpha          = 1d-2    ! porosity
+     alpha          = 1d-6    ! porosity
      npts_penal     = 2.5
 
      width          = 80 * KM                           ! width of channel in km

@@ -436,8 +436,7 @@ contains
     real(8) :: dlat, lat, lon
     real(8) :: n_smth_N, n_smth_S, width_N, width_S
 
-!!$    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
-    dlat = 0d0
+    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
     width_S = 90d0 + (lat_c - (lat_width/2d0 + dlat))
     width_N = 90d0 - (lat_c + (lat_width/2d0 + dlat))
     
