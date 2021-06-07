@@ -8,11 +8,9 @@ program flat_projection_data
   
   integer                                :: k, l, nt, Ncumul
   integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
-  
   real(8)                                :: area1, area2
-  real(8), dimension(2)                  :: lon_lat_range
-  real(8), dimension(:),     allocatable :: eta_lat, eta_lon, lat, lon
-  real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy, xcoord_lat, xcoord_lon
+  real(8), dimension(:),     allocatable :: eta_lat, eta_lon
+  real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy
   real(8), dimension(:,:,:), allocatable :: field2d_save, lat_slice, lon_slice, zonal_av, zcoord_lat, zcoord_lon
   
   character(2)                           :: var_file
@@ -212,6 +210,7 @@ program flat_projection_data
   call initialize (run_id)
 
   ! Initialize statistics
+  call initialize_projection (N)
   if (trim (test_case) == "drake") then
      call initialize_stat_drake
   elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
@@ -1346,42 +1345,14 @@ contains
 
   subroutine initialize_stat
     implicit none
-    integer :: i
 
-    Nx = (/-N/2, N/2/)
-    Ny = (/-N/4, N/4/)
-
-    lon_lat_range = (/2*MATH_PI, MATH_PI/)
-    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1d0/dx_export; ky_export = 1d0/dy_export
-
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
     allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
-    allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
     zonal_av = 0d0
-
-    do i = Nx(1), Nx(2)
-       lon(i) = -180d0 + dx_export * (i-Nx(1))/MATH_PI*180d0
-    end do
-
-    do i = Ny(1), Ny(2)
-       lat(i) = -90d0 + dy_export * (i-Ny(1))/MATH_PI*180d0
-    end do
   end subroutine initialize_stat
 
   subroutine initialize_stat_drake
     implicit none
-    integer :: i
-
-    Nx = (/-N/2, N/2/)
-    Ny = (/-N/4, N/4/)
-
-    lon_lat_range = (/2*MATH_PI, MATH_PI/)
-    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1d0/dx_export; ky_export = 1d0/dy_export
-
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
 
     if (zlevels == 2) then
        allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),1:nvar_drake))
@@ -1396,44 +1367,15 @@ contains
        allocate (drake_ke(1:mean_end-mean_beg+1,1:2))
        allocate (drake_enstrophy(1:mean_end-mean_beg+1,1:2))
     end if
-    
-    allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
-
-    do i = Nx(1), Nx(2)
-       lon(i) = -180d0 + dx_export * (i-Nx(1))/MATH_PI*180d0
-    end do
-
-    do i = Ny(1), Ny(2)
-       lat(i) = -90d0 + dy_export * (i-Ny(1))/MATH_PI*180d0
-    end do
   end subroutine initialize_stat_drake
 
   subroutine initialize_stat_vertical
     implicit none
-    integer :: i
 
-    Nx = (/-N/2, N/2/)
-    Ny = (/-N/4, N/4/)
-
-    lon_lat_range = (/2*MATH_PI, MATH_PI/)
-    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
-
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
     allocate (lon_slice(Nx(1):Nx(2),1:zlevels,1:5))
     allocate (lat_slice(Ny(1):Ny(2),1:zlevels,1:5))
-    allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
-    allocate (xcoord_lat(Ny(1):Ny(2),1:2), xcoord_lon(Nx(1):Nx(2),1:2))
     allocate (zcoord_lat(Ny(1):Ny(2),1:zlevels,2), zcoord_lon(Nx(1):Nx(2),1:zlevels,2))
     allocate (eta_lat(Ny(1):Ny(2)), eta_lon(Nx(1):Nx(2)))
-
-    do i = Nx(1), Nx(2)
-       lon(i) = -180d0 + dx_export * (i-Nx(1))/MATH_PI*180d0
-    end do
-
-    do i = Ny(1), Ny(2)
-       lat(i) = -90d0 + dy_export * (i-Ny(1))/MATH_PI*180d0
-    end do
   end subroutine initialize_stat_vertical
 
   subroutine interp_save (dom, i, j, zlev, offs, dims)
@@ -1527,7 +1469,3 @@ function physics_velo_source (dom, i, j, zlev, offs, dims)
 
   physics_velo_source = 0.0_8
 end function physics_velo_source
-
-
-
-
