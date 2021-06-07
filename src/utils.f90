@@ -487,6 +487,32 @@ contains
     velo1(id+1) = inner (vel, e_zonal)
     velo2(id+1) = inner (vel, e_merid)
   end subroutine interp_edge_node
+
+  subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
+    ! Approximate vorticity at hexagon points
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, idW, idSW, idS, d
+
+    d = dom%id + 1
+    id   = idx (i,   j,   offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    vort(id+1) = ( &
+         dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1)   + &
+         dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1)   + &
+         dom%areas%elts(id+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1)  + &
+         dom%areas%elts(id+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
+         dom%areas%elts(id+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
+         dom%areas%elts(id+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)    &
+         ) * dom%areas%elts(id+1)%hex_inv
+  end subroutine vort_triag_to_hex
   
   function f_coriolis_edge (dom, i, j, zlev, offs, dims)
     ! Coriolis parameter at edges

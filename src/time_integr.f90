@@ -29,15 +29,15 @@ contains
     call manage_q1_mem
 
     call trend_fun (q, trend) 
-    call RK_sub_step (q, trend, dt/4, q1)
+    call RK_sub_step (q, trend, dt/4d0, q1)
     call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
-    call RK_sub_step (q, trend, dt/3, q1)
+    call RK_sub_step (q, trend, dt/3d0, q1)
     call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
-    call RK_sub_step (q, trend, dt/2, q1)
+    call RK_sub_step (q, trend, dt/2d0, q1)
     call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
@@ -61,11 +61,11 @@ contains
     call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
-    call RK_sub_step2 (q, q1, trend, (/ 0.75_8, 0.25_8 /), dt/4, q2)
+    call RK_sub_step2 (q, q1, trend, (/ 0.75d0, 0.25d0 /), dt/4d0, q2)
     call WT_after_step (q2, wav)
 
     call trend_fun (q2, trend)
-    call RK_sub_step2 (q, q2, trend, (/ 1.0_8/3, 2.0_8/3 /), dt*2/3, q)
+    call RK_sub_step2 (q, q2, trend, (/ 1d0/3d0, 2d0/3d0 /), dt*2d0/3d0, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK33_opt
 
@@ -81,19 +81,19 @@ contains
     call manage_RK_mem
 
     call trend_fun (q, trend) 
-    call RK_sub_step (q, trend, dt/2, q1)
+    call RK_sub_step (q, trend, dt/2d0, q1)
     call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
-    call RK_sub_step (q1, trend, dt/2, q2)
+    call RK_sub_step (q1, trend, dt/2d0, q2)
     call WT_after_step (q2, wav)
 
     call trend_fun (q2, trend)
-    call RK_sub_step2 (q, q2, trend, (/ 2.0_8/3, 1.0_8/3 /), dt/6, q3)
+    call RK_sub_step2 (q, q2, trend, (/ 2d0/3d0, 1d0/3d0 /), dt/6d0, q3)
     call WT_after_step (q3, wav)
 
     call trend_fun (q3, trend) 
-    call RK_sub_step (q3, trend, dt/2, q)
+    call RK_sub_step (q3, trend, dt/2d0, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK34_opt
 
@@ -334,15 +334,15 @@ contains
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
     call trend_ml (sol, trend)
-    call RK_split (dt/4, q1)
+    call RK_split (dt/4d0, q1)
     call WT_after_step (q1(:,1:zlevels), wav_coeff)
 
     call trend_ml (q1, trend)
-    call RK_split (dt/3, q1)
+    call RK_split (dt/3d0, q1)
     call WT_after_step (q1(:,1:zlevels), wav_coeff)
 
     call trend_ml (q1, trend)
-    call RK_split (dt/2, q1)
+    call RK_split (dt/2d0, q1)
     call WT_after_step (q1(:,1:zlevels), wav_coeff)
 
     call trend_ml (q1, trend)
@@ -358,11 +358,11 @@ contains
     implicit none
     real(8)                           :: dt
     type(Float_Field), dimension(:,:) :: dest
-   
+
     ! Explicit Euler step for scalars
     call scalar_star (dt, dest)
 
-     ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
+    ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
     call u_star (dt, dest)
 
     ! Make layer heights and buoyancy consistent with free surface

@@ -2,15 +2,14 @@ program flat_projection_data
   ! Post-processing of checkpoint data to calculate flat projection
   use main_mod
   use test_case_mod
-  use io_mod  
+  use io_mod
+  use projection_mod
   implicit none
   
   integer                                :: k, l, nt, Ncumul
   integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
-  integer, dimension(2)                  :: Nx, Ny
   
-  real(4), dimension(:,:),   allocatable :: field2d
-  real(8)                                :: dx_export, dy_export, kx_export, ky_export, area1, area2
+  real(8)                                :: area1, area2
   real(8), dimension(2)                  :: lon_lat_range
   real(8), dimension(:),     allocatable :: eta_lat, eta_lon, lat, lon
   real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy, xcoord_lat, xcoord_lon
@@ -162,15 +161,16 @@ program flat_projection_data
         f0              = 1d-4    / SECOND                ! Coriolis parameter
         omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
         radius          = f0 / (beta * tan (lat_c * DEG)) ! planet radius to exactly match Soufflet beta plane
+        L_jet              = 0.8d0 * width                   ! width of jet transition region
      else
-        width           = 250d0   * KM                    ! meridional width of zonal channel
-        radius          = width
-        f0              = 1d-4 * 2000d0 * KM / width       
-        omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
+        lat_c           = 30d0                            ! centre of zonal channel (in degrees)
+        radius          = 1000d0 * KM                      ! meridional width of zonal channel
+        width           = 0.4d0 * radius
+        f0              = 1d-4     
+        omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
         beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
+        L_jet           = 0.25d0*width                   ! width of jet transition region
      end if
-  
-     L_jet              = 0.8d0 * width                   ! width of jet transition region
 
      grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
      ref_density        = 1027.75d0    * KG/METRE**3      ! reference density at depth (maximum density)
@@ -186,7 +186,7 @@ program flat_projection_data
      mode_split     = .true.
      mean_split     = .true.
      compressible   = .false.                            
-     penalize       = .true.
+     penalize       = .false.
      vert_diffuse   = .true.
 
      a_0            = 0.28 / CELSIUS
@@ -315,7 +315,7 @@ contains
     ! Zonal averages
     do k = 1, zlevels
        ! Temperature
-       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
+       call project_field_onto_plane (exner_fun(k), level_save, 1d0)
        Tproj = field2d
 
        ! Zonal and meridional velocities
@@ -328,9 +328,9 @@ contains
           end do
           nullify (velo, velo1, velo2)
        end do
-       call project_uzonal_onto_plane (level_save, 0.0_8)
+       call project_array_onto_plane ("u_zonal", level_save, 0d0)
        Uproj = field2d
-       call project_vmerid_onto_plane (level_save, 0.0_8)
+       call project_array_onto_plane ("v_merid", level_save, 0d0)
        Vproj = field2d
 
        ! Update means and covariances
@@ -389,7 +389,7 @@ contains
     ! Zonal averages
     do k = 1, zlevels
        ! Temperature
-       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
+       call project_field_onto_plane (exner_fun(k), level_save, 1.0_8)
        Tproj = field2d
 
        ! Zonal and meridional velocities
@@ -402,9 +402,9 @@ contains
           end do
           nullify (velo, velo1, velo2)
        end do
-       call project_uzonal_onto_plane (level_save, 0.0_8)
+       call project_array_onto_plane ("u_zonal", level_save, 0d0)
        Uproj = field2d
-       call project_vmerid_onto_plane (level_save, 0.0_8)
+       call project_array_onto_plane ("v_merid", level_save, 0d0)
        Vproj = field2d
 
        ! Update means
@@ -440,7 +440,7 @@ contains
     ! Zonal averages
     do k = 1, zlevels
        ! Temperature
-       call project_onto_plane (exner_fun(k), level_save, 1.0_8)
+       call project_field_onto_plane (exner_fun(k), level_save, 1.0_8)
        Tproj = field2d
 
        ! Zonal and meridional velocities
@@ -451,9 +451,9 @@ contains
           end do
           nullify (velo)
        end do
-       call project_uzonal_onto_plane (level_save, 0.0_8)
+       call project_array_onto_plane ("u_zonal", level_save, 0d0)
        Uproj = field2d
-       call project_vmerid_onto_plane (level_save, 0.0_8)
+       call project_array_onto_plane ("v_merid", level_save, 0d0)
        Vproj = field2d
 
        ! Update covariances
@@ -505,7 +505,7 @@ contains
     ! Latitude-longitude projections
     do k = 1, save_levels
        ! Temperature
-       call project_onto_plane (trend(1,k), level_save, 0.0_8)
+       call project_field_onto_plane (trend(1,k), level_save, 0.0_8)
        field2d_save(:,:,1+k-1) = field2d
 
        ! Calculate zonal and meridional velocities and vorticity
@@ -523,16 +523,16 @@ contains
        end do
 
        ! Zonal velocity
-       call project_uzonal_onto_plane (level_save, 0.0_8)
+       call project_array_onto_plane ("u_zonal", level_save, 0d0)
        field2d_save(:,:,2+k-1) = field2d
        
        ! Meridional velocity
-       call project_vmerid_onto_plane (level_save, 0.0_8)
+       call project_array_onto_plane ("v_merid", level_save, 0d0)
        field2d_save(:,:,3+k-1) = field2d
 
        ! Geopotential
        call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
-       call project_geopot_onto_plane (level_save, 1.0_8)
+       call project_array_onto_plane ("geopot", level_save, 1d0)
        field2d_save(:,:,4+k-1) = field2d
 
        ! Vorticity
@@ -543,11 +543,11 @@ contains
           end do
           nullify (vort)
        end do
-       call project_vorticity_onto_plane (level_save, 1.0_8)
+       call project_array_onto_plane ("press_lower", level_save, 1d0)
        field2d_save(:,:,5+k-1) = field2d
 
        ! Surface pressure
-       call project_surf_press_onto_plane (level_save, 1.0_8)
+       call project_array_onto_plane ("surf_press", level_save, 1d0)
        field2d_save(:,:,6+k-1) = field2d
     end do
   end subroutine latlon
@@ -600,23 +600,26 @@ contains
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
           nullify (mass, mean_m, mean_t, scalar, temp, velo, divu, velo1, velo2, vort)
        end do
-       call project_uzonal_onto_plane (l, 0.0_8)
-        if (zonal) then
+
+       ! Velocities
+       call project_array_onto_plane ("u_zonal", l, 0d0)
+       if (zonal) then
           lat_slice(:,k,1) = sum(field2d, 1) / size(field2d,1) 
        else
           lat_slice(:,k,1) = field2d(idx_lon,:)
        end if
        lon_slice(:,k,1) = field2d(:,idx_lat)
-       
-       call project_vmerid_onto_plane (l, 0.0_8)
-        if (zonal) then
+
+       call project_array_onto_plane ("v_merid", l, 0d0)
+       if (zonal) then
           lat_slice(:,k,2) = sum(field2d, 1) / size(field2d,1) 
        else
           lat_slice(:,k,2) = field2d(idx_lon,:)
        end if
        lon_slice(:,k,2) = field2d(:,idx_lat)
-       
-       call project_onto_plane (sol(S_TEMP,zlevels+1), l, 0.0_8)
+
+       ! Temperature
+       call project_field_onto_plane (sol(S_TEMP,zlevels+1), l, 0d0)
         if (zonal) then
           lat_slice(:,k,3) = sum(field2d, 1) / size(field2d,1) 
        else
@@ -624,7 +627,8 @@ contains
        end if
        lon_slice(:,k,3) = field2d(:,idx_lat)
 
-       call project_vorticity_onto_plane (l, 1.0_8)
+       ! Vorticity
+       call project_array_onto_plane ("press_lower", l, 1d0)
        if (zonal) then
           lat_slice(:,k,4) = sum(field2d, 1) / size(field2d,1) 
        else
@@ -636,7 +640,7 @@ contains
     ! Compute and project vertical velocity
     call vertical_velocity 
     do k = 1, zlevels
-       call project_w_onto_plane (k, l, 0.0_8)
+       call project_field_onto_plane (trend(S_TEMP,k), l, 0.0_8)
        if (zonal) then
           lat_slice(:,k,5) = sum(field2d, 1) / size(field2d,1) 
        else
@@ -646,12 +650,12 @@ contains
     end do
     
     ! Set free surface
-    call project_onto_plane (sol(S_MASS,zlevels+1), l, 0.0_8)
+    call project_field_onto_plane (sol(S_MASS,zlevels+1), l, 0.0_8)
     eta_lat = field2d(idx_lon,:)
     eta_lon = field2d(:,idx_lat)
 
     ! Set bathymetry
-    call project_topo_onto_plane (l, 0.0_8)
+    call project_array_onto_plane ("topo", l, 0d0)
     bathy_lat = field2d(idx_lon,:)
     bathy_lon = field2d(:,idx_lat)
     
@@ -962,12 +966,13 @@ contains
     end do
 
     ! Project barotropic velocity onto plane
-    call project_uzonal_onto_plane (l, 0.0_8)
+    call project_array_onto_plane ("u_zonal", l, 0d0)
     field2d_save(:,:,1) = field2d
-    call project_vmerid_onto_plane (l, 0.0_8)
+    call project_array_onto_plane ("v_merid", l, 0d0)
     field2d_save(:,:,2) = field2d
+    
     ! Project barotropic vorticity onto plane
-    call project_vorticity_onto_plane (l, 1.0_8)
+    call project_array_onto_plane ("press_lower", l, 1d0)
     field2d_save(:,:,3) = field2d
 
     ! Baroclinic velocity and baroclinic vorticity in each layer at hexagon points
@@ -1007,23 +1012,24 @@ contains
           end do
           nullify (vort)
        end do
-
+       
        ! Project layer k baroclinic velocity onto plane
-       call project_uzonal_onto_plane (l, 0.0_8)
+       call project_array_onto_plane ("u_zonal", l, 0d0)
        field2d_save(:,:,3*k+1) = field2d
-       call project_vmerid_onto_plane (l, 0.0_8)
+       call project_array_onto_plane ("v_merid", l, 0d0)
        field2d_save(:,:,3*k+2) = field2d
+       
        ! Project layer k barotropic vorticity onto plane
-       call project_vorticity_onto_plane (l, 1.0_8)
+       call project_array_onto_plane ("press_lower", l, 1d0)
        field2d_save(:,:,3*k+3) = field2d
     end do
 
     ! Free surface
-    call project_freesurface_onto_plane (l, 1.0_8)
+    call project_field_onto_plane (sol(S_MASS,zlevels+1), l, 1d0)
     field2d_save(:,:,10) = field2d
 
     ! Internal free surface
-    call project_internal_freesurface_onto_plane (l, 1.0_8)
+    call project_field_onto_plane (sol(S_MASS,1), l, 1d0)
     field2d_save(:,:,11) = field2d
 
     ! Penalization
@@ -1034,7 +1040,7 @@ contains
           end do
        end do
     end do
-    call project_penal_onto_plane (l, 1.0_8)
+    call project_field_onto_plane (penal_node(1), l, 1d0)
     field2d_save(:,:,12) = field2d
   end subroutine latlon_drake
 
@@ -1088,16 +1094,17 @@ contains
     end do
 
     ! Project velocity onto plane
-    call project_uzonal_onto_plane (l, 0.0_8)
+    call project_array_onto_plane ("u_zonal", l, 0d0)
     field2d_save(:,:,1) = field2d
-    call project_vmerid_onto_plane (l, 0.0_8)
+    call project_array_onto_plane ("v_merid", l, 0d0)
     field2d_save(:,:,2) = field2d
+
     ! Project vorticity onto plane
-    call project_vorticity_onto_plane (l, 1.0_8)
+    call project_array_onto_plane ("press_lower", l, 1d0)
     field2d_save(:,:,3) = field2d
 
     ! Free surface
-    call project_freesurface_onto_plane (l, 1.0_8)
+    call project_field_onto_plane (sol(S_MASS,zlevels+1), l, 1d0)
     field2d_save(:,:,4) = field2d
 
     ! Penalization
@@ -1108,7 +1115,7 @@ contains
           end do
        end do
     end do
-    call project_penal_onto_plane (l, 1.0_8)
+    call project_field_onto_plane (penal_node(1), l, 1d0)
     field2d_save(:,:,5) = field2d
   end subroutine latlon_1layer
 
@@ -1346,20 +1353,20 @@ contains
 
     lon_lat_range = (/2*MATH_PI, MATH_PI/)
     dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
+    kx_export = 1d0/dx_export; ky_export = 1d0/dy_export
 
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
     allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
-    zonal_av = 0.0_8
+    zonal_av = 0d0
 
     do i = Nx(1), Nx(2)
-       lon(i) = -180+dx_export*(i-Nx(1))/MATH_PI*180
+       lon(i) = -180d0 + dx_export * (i-Nx(1))/MATH_PI*180d0
     end do
 
     do i = Ny(1), Ny(2)
-       lat(i) = -90+dy_export*(i-Ny(1))/MATH_PI*180
+       lat(i) = -90d0 + dy_export * (i-Ny(1))/MATH_PI*180d0
     end do
   end subroutine initialize_stat
 
@@ -1372,7 +1379,7 @@ contains
 
     lon_lat_range = (/2*MATH_PI, MATH_PI/)
     dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
+    kx_export = 1d0/dx_export; ky_export = 1d0/dy_export
 
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
 
@@ -1393,11 +1400,11 @@ contains
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
 
     do i = Nx(1), Nx(2)
-       lon(i) = -180+dx_export*(i-Nx(1))/MATH_PI*180
+       lon(i) = -180d0 + dx_export * (i-Nx(1))/MATH_PI*180d0
     end do
 
     do i = Ny(1), Ny(2)
-       lat(i) = -90+dy_export*(i-Ny(1))/MATH_PI*180
+       lat(i) = -90d0 + dy_export * (i-Ny(1))/MATH_PI*180d0
     end do
   end subroutine initialize_stat_drake
 
@@ -1421,858 +1428,13 @@ contains
     allocate (eta_lat(Ny(1):Ny(2)), eta_lon(Nx(1):Nx(2)))
 
     do i = Nx(1), Nx(2)
-       lon(i) = -180+dx_export*(i-Nx(1))/MATH_PI*180
+       lon(i) = -180d0 + dx_export * (i-Nx(1))/MATH_PI*180d0
     end do
 
     do i = Ny(1), Ny(2)
-       lat(i) = -90+dy_export*(i-Ny(1))/MATH_PI*180
+       lat(i) = -90d0 + dy_export * (i-Ny(1))/MATH_PI*180d0
     end do
   end subroutine initialize_stat_vertical
-
-  subroutine project_onto_plane (field, l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-    Type(Float_field)     :: field
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = field%data(d)%elts(id+1)
-                valN  = field%data(d)%elts(idN+1)
-                valE  = field%data(d)%elts(idE+1)
-                valNE = field%data(d)%elts(idNE+1)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_onto_plane
-
-  subroutine project_geopot_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = grid(d)%geopot_lower%elts(id+1)
-                valN  = grid(d)%geopot_lower%elts(idN+1)
-                valE  = grid(d)%geopot_lower%elts(idE+1)
-                valNE = grid(d)%geopot_lower%elts(idNE+1)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_geopot_onto_plane
-
-  subroutine project_surf_press_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = grid(d)%surf_press%elts(id+1)/100
-                valN  = grid(d)%surf_press%elts(idN+1)/100
-                valE  = grid(d)%surf_press%elts(idE+1)/100
-                valNE = grid(d)%surf_press%elts(idNE+1)/100
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_surf_press_onto_plane
-
-  subroutine project_vorticity_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = grid(d)%press_lower%elts(id+1)
-                valN  = grid(d)%press_lower%elts(idN+1)
-                valE  = grid(d)%press_lower%elts(idE+1)
-                valNE = grid(d)%press_lower%elts(idNE+1)
-
-                if (abs(cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs(cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_vorticity_onto_plane
-
-  subroutine project_baroclinic_vorticity_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = grid(d)%geopot_lower%elts(id+1)
-                valN  = grid(d)%geopot_lower%elts(idN+1)
-                valE  = grid(d)%geopot_lower%elts(idE+1)
-                valNE = grid(d)%geopot_lower%elts(idNE+1)
-
-                if (abs(cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs(cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_baroclinic_vorticity_onto_plane
-
-  subroutine project_w_onto_plane (k, l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: k, l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = trend(S_TEMP,k)%data(d)%elts(id+1)
-                valN  = trend(S_TEMP,k)%data(d)%elts(idN+1)
-                valE  = trend(S_TEMP,k)%data(d)%elts(idE+1)
-                valNE = trend(S_TEMP,k)%data(d)%elts(idNE+1)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_w_onto_plane
-
-  subroutine project_uzonal_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = grid(d)%u_zonal%elts(id+1)
-                valN  = grid(d)%u_zonal%elts(idN+1)
-                valE  = grid(d)%u_zonal%elts(idE+1)
-                valNE = grid(d)%u_zonal%elts(idNE+1)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_uzonal_onto_plane
-
-  subroutine project_baroclinic_uzonal_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = trend(S_VELO,1)%data(d)%elts(id+1)
-                valN  = trend(S_VELO,1)%data(d)%elts(idN+1)
-                valE  = trend(S_VELO,1)%data(d)%elts(idE+1)
-                valNE = trend(S_VELO,1)%data(d)%elts(idNE+1)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_baroclinic_uzonal_onto_plane
-
-   subroutine project_baroclinic_vmerid_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = trend(S_VELO,2)%data(d)%elts(id+1)
-                valN  = trend(S_VELO,2)%data(d)%elts(idN+1)
-                valE  = trend(S_VELO,2)%data(d)%elts(idE+1)
-                valNE = trend(S_VELO,2)%data(d)%elts(idNE+1)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_baroclinic_vmerid_onto_plane
-
-  subroutine project_vmerid_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = grid(d)%v_merid%elts(id+1)
-                valN  = grid(d)%v_merid%elts(idN+1)
-                valE  = grid(d)%v_merid%elts(idE+1)
-                valNE = grid(d)%v_merid%elts(idNE+1)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_vmerid_onto_plane
-
-  subroutine project_topo_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = grid(d)%topo%elts(id+1)
-                valN  = grid(d)%topo%elts(idN+1)
-                valE  = grid(d)%topo%elts(idE+1)
-                valNE = grid(d)%topo%elts(idNE+1)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_topo_onto_plane
-
-   subroutine project_freesurface_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use ops_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = sol(S_MASS,zlevels+1)%data(d)%elts(id+1)   / phi_node (d, id+1,   zlevels)
-                valN  = sol(S_MASS,zlevels+1)%data(d)%elts(idN+1)  / phi_node (d, idN+1,  zlevels)
-                valE  = sol(S_MASS,zlevels+1)%data(d)%elts(idE+1)  / phi_node (d, idE+1,  zlevels)
-                valNE = sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1) / phi_node (d, idNE+1, zlevels)
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_freesurface_onto_plane
-
-  subroutine project_internal_freesurface_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use ops_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = sol(S_MASS,1)%data(d)%elts(id+1)   / (ref_density * phi_node (d, id+1,   1))
-                valN  = sol(S_MASS,1)%data(d)%elts(idN+1)  / (ref_density * phi_node (d, idN+1,  1))
-                valE  = sol(S_MASS,1)%data(d)%elts(idE+1)  / (ref_density * phi_node (d, idE+1,  1))
-                valNE = sol(S_MASS,1)%data(d)%elts(idNE+1) / (ref_density * phi_node (d, idNE+1, 1))
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_internal_freesurface_onto_plane
-
-  subroutine project_penal_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use ops_mod
-    use comm_mpi_mod
-    integer               :: l, itype
-    real(8)               :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = penal_node(1)%data(d)%elts(id+1)   
-                valN  = penal_node(1)%data(d)%elts(idN+1)  
-                valE  = penal_node(1)%data(d)%elts(idE+1)  
-                valNE = penal_node(1)%data(d)%elts(idNE+1) 
-
-                if (abs (cN(2) - MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs (cE(2) + MATH_PI/2) < sqrt(1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_penal_onto_plane
-
-  subroutine interp_tri_to_2d (a, b, c, val)
-    real(8), dimension(2) :: a, b, c
-    real(8), dimension(3) :: val
-
-    integer               :: id_x, id_y
-    real(8)               :: ival, minx, maxx, miny, maxy
-    real(8), dimension(2) :: ll
-    real(8), dimension(3) :: bac
-    logical               :: inside
-
-    minx = min (min (a(1), b(1)), c(1))
-    maxx = max (max (a(1), b(1)), c(1))
-    miny = min (min (a(2), b(2)), c(2))
-    maxy = max (max (a(2), b(2)), c(2))
-    if (maxx-minx > MATH_PI/2) then
-       write (0,'(A,i4,A)') 'ERROR (rank = ', rank, '): io-333 "export"'
-       return
-    end if
-
-    do id_x = floor (kx_export*minx), ceiling (kx_export*maxx)
-       if (id_x < lbound (field2d,1) .or. id_x > ubound (field2d,1)) cycle
-       do id_y = floor (ky_export*miny), ceiling (ky_export*maxy)
-          if (id_y < lbound (field2d,2) .or. id_y > ubound (field2d,2)) cycle
-          ll = (/dx_export*id_x, dy_export*id_y/)
-          call interp_tria (ll, a, b, c, val, ival, inside)
-          if (inside) field2d(id_x,id_y) = ival
-       end do
-    end do
-  end subroutine interp_tri_to_2d
-
-  subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val)
-    implicit none
-    real(8), dimension(2) :: a0, b0, c0
-    real(8), dimension(3) :: val
-
-    integer               :: i
-    integer, dimension(3) :: fixed
-    real(8), dimension(2) :: a, b, c
-
-    a = a0
-    b = b0
-    c = c0
-    call fix_boundary (a(1), b(1), c(1), fixed(1))
-    call fix_boundary (b(1), c(1), a(1), fixed(2))
-    call fix_boundary (c(1), a(1), b(1), fixed(3))
-    call interp_tri_to_2d (a, b, c, val)
-
-    if (sum(abs(fixed)) > 1) write (0,'(A)') 'ALARM'
-
-    if (sum(fixed) /= 0) then
-       a(1) = a(1) - sum(fixed) * 2*MATH_PI
-       b(1) = b(1) - sum(fixed) * 2*MATH_PI
-       c(1) = c(1) - sum(fixed) * 2*MATH_PI
-       call interp_tri_to_2d (a, b, c, val)
-    end if
-  end subroutine interp_tri_to_2d_and_fix_bdry
 
   subroutine interp_save (dom, i, j, zlev, offs, dims)
     ! Linear interpolation to save levels
@@ -2290,7 +1452,7 @@ contains
     d = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    p_s = 0.0_8
+    p_s = 0d0
     do k = 1, zlevels
        p_s = p_s + sol(S_MASS,k)%data(d)%elts(id+1)
     end do
@@ -2299,12 +1461,12 @@ contains
     do kk = 1, save_levels
        ! Find pressure at current levels (not interfaces)
        pressure_lower = p_s
-       pressure_upper = 0.5*(a_vert(1)+a_vert(2) + (b_vert(1)+b_vert(2))*p_s)
+       pressure_upper = 0.5d0 * (a_vert(1)+a_vert(2) + (b_vert(1)+b_vert(2))*p_s)
        k = 1
        do while (pressure_upper > pressure_save(kk))
           k = k+1
           pressure_lower = pressure_upper
-          pressure_upper = 0.5*(a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_s)
+          pressure_upper = 0.5d0 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_s)
        end do
        if (k==1) return ! Skip incorrect values for pentagons
        dpressure =  (pressure_save(kk)-pressure_upper)/(pressure_lower-pressure_upper)

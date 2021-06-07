@@ -1,15 +1,19 @@
-function [dat] = vertical_slice
-clear all
-% test_case = 'seamount';
-% run_id    = 'sea_drho_3_nonadapt';
-test_case = 'upwelling';
-%run_id    = 'upwelling_test';
-test_case = 'jet';
-run_id = 'jet';
-
-time        = 0;
-field       = 'density';
-figure_type = 1;
+function vertical_slice (test_case, run_id, machine, directory, time, figure_type, field)
+%
+% Plots vertical slice data
+%
+% Usage: vertical_slice('upwelling','implicit','niagara.computecanada.ca','~/proj/upwelling/J6J8_nodiff', 4, 1,'temperature')
+%
+% Input variables:
+% test_case =   test case of data to plot (e.g. 'upwelling')
+% run_id      = run id of data to plot (e.g. 'upwelling_test')
+% machine     = remote machine where data is stored (e.g. 'if.mcmaster.ca',
+%               'niagara.computecanada.ca')
+% directory   = dirctory where data is stored on remote machine
+% time        = time index of data to plot
+% figure_type = 1 (single field), 2 (all fields)
+% field       = single field to plot ('density', 'meridional', 'zonal',
+%               'temperature', 'vertical')
 
 if strcmp (test_case, 'upwelling')
     ref_density = 1027;
@@ -19,47 +23,39 @@ if strcmp (test_case, 'upwelling')
     max_depth = -150;
 elseif strcmp (test_case, 'jet')
     ref_density = 1027.75;
-    
-%     radius    = 1.0825e4; % radius of planet in km
-%     lat_w     =  2000;
-    radius    = 250;
-    lat_w     = radius;
+    radius    = 1000;
+    lat_w     = radius/4;
     
     lat_c     = 30;
     max_depth = -4000; 
 end
 lat_w_deg = lat_w/radius * 180/pi;
 
-machine   = 'if.mcmaster.ca';
-%machine   = 'niagara.computecanada.ca';
-%machine   = 'cherry';
-
 % Transfer data
-directory   = ['~/hydro/' test_case];
-file_base   = [run_id '.5'];
+file_name   = [run_id '.5' '.' sprintf( '%04d', time)];
+remote_file = [directory '/' file_name  '.tgz'];
+local_dir   = ['~/hydro/' test_case];
 
-if ~strcmp(machine,'cherry')
-    remote_file = [directory '/' file_base '.' sprintf( '%04d', time) '.tgz'];
-    local_file  = remote_file;
-    scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
-    unix (sprintf(scp_cmd));
-    file_tar = ['tar ' 'xf ' local_file ' -C ' directory];
-    disp(['Uncompressing file ' local_file]);
-    system(file_tar);
-end
+scp_cmd     = ['scp ' machine ':' remote_file ' ' local_dir '/' file_name '.tgz'];
+unix (sprintf(scp_cmd));
+
+file_tar = ['tar ' 'xf ' local_dir '/' file_name '.tgz' ' -C ' local_dir '/' ];
+disp(['Uncompressing file ' file_name '.tgz']);
+system(file_tar);
+disp(scp_cmd)
 
 % Load coordinates
-lon = fread(fopen([directory '/' file_base '.50']),'double'); Nlon = numel(lon);
-lat = fread(fopen([directory '/' file_base '.51']),'double'); Nlat = numel(lat);
+lon = fread(fopen([local_dir '/' run_id '.5.50']),'double'); Nlon = numel(lon);
+lat = fread(fopen([local_dir '/' run_id '.5.51']),'double'); Nlat = numel(lat);
 
-xlat = fread(fopen([directory '/' file_base '.52']),[Nlat,2],'double'); %xlat = [xlat ; -xlat(1,:)];
-xlon = fread(fopen([directory '/' file_base '.53']),[Nlon,2],'double');
+xlat = fread(fopen([local_dir '/' run_id '.5.52']),[Nlat,2],'double'); %xlat = [xlat ; -xlat(1,:)];
+xlon = fread(fopen([local_dir '/' run_id '.5.53']),[Nlon,2],'double');
 
-zlat = fread(fopen([directory '/' file_base '.54']),'double'); zlat = reshape(zlat,Nlat,[],2);
-zlon = fread(fopen([directory '/' file_base '.55']),'double'); zlon = reshape(zlon,Nlon,[],2);
+zlat = fread(fopen([local_dir '/' run_id '.5.54']),'double'); zlat = reshape(zlat,Nlat,[],2);
+zlon = fread(fopen([local_dir '/' run_id '.5.55']),'double'); zlon = reshape(zlon,Nlon,[],2);
 
-lat_slice = fread(fopen([directory '/' file_base '.56']),'double');lat_slice = reshape(lat_slice,Nlat,[],5);
-lon_slice = fread(fopen([directory '/' file_base '.57']),'double');lon_slice = reshape(lon_slice,Nlon,[],5);
+lat_slice = fread(fopen([local_dir '/' run_id '.5.56']),'double'); lat_slice = reshape(lat_slice,Nlat,[],5);
+lon_slice = fread(fopen([local_dir '/' run_id '.5.57']),'double'); lon_slice = reshape(lon_slice,Nlon,[],5);
 
 % Plot results
 if figure_type == 1
@@ -96,7 +92,7 @@ end
             if strcmp (test_case, 'upwelling')
                 c1 = linspace(-3, 0, 200);
                 c2 = linspace(-3, 0, 20);
-                trans = @(rho) rho - 1000;
+                trans = @(rho) rho - 1027;
             elseif strcmp (test_case, 'jet')
                 c1 = linspace(24, 28, 200);
                 c2 = 24:0.5:28;
@@ -114,8 +110,8 @@ end
                 c2 = [-18 -16 -14 -12 -10 -8 -6 -4 -2 0];
                 trans = @(u) -100 * u;
             elseif strcmp (test_case, 'jet')
-                c1 = linspace(-20, 20, 200);
-                c2 = [2.5 5 7.5 10 12.5 15 17.5];
+                c1 = linspace(-240, 240, 200);
+                c2 = -[2.5 5 7.5 10 12.5 15 17.5]*10;
                 trans = @(u) 100 * u;
             end
         elseif strcmp(field,'meridional')

@@ -464,64 +464,6 @@ contains
     only_coriolis = (dom%coriolis%elts(TRIAG*id+t+1)/dom%triarea%elts(TRIAG*id+t+1))**2
   end function only_coriolis
 
-  subroutine interp_tria (ll, coord1, coord2, coord3, values, ival, inside)
-    implicit none
-    real(8), dimension(2) :: coord1, coord2, coord3
-    real(8), dimension(3) :: values
-    real(8)               :: ival
-    logical               :: inside
-
-    real(8), dimension(2) :: ll
-    real(8), dimension(3) :: bc
-
-    bc = bary_coord(ll, coord1, coord2, coord3)
-    inside = (0.0_8 < bc(1) .and. bc(1) < 1.0_8 .and. 0.0_8 < bc(2) .and. bc(2) < 1.0_8 .and. 0.0_8 < bc(3) .and. bc(3) < 1.0_8)
-    if (inside) ival = sum (values*bc)
-  end subroutine interp_tria
-
-  function bary_coord (ll, a, b, c)
-    implicit none
-    real(8), dimension(3) :: bary_coord
-    real(8), dimension(2) :: a, b, c, ll
-
-    real(8)               :: det
-    real(8), dimension(3) :: bac
-    real(8), dimension(2) :: ca, cb, cll
-
-    cb = b - c
-    ca = a - c
-    cll = ll - c
-    det = cb(2)*ca(1) - cb(1)*ca(2)
-    bac(1) = ( cb(2)*cll(1) - cb(1)*cll(2))/det
-    bac(2) = (-ca(2)*cll(1) + ca(1)*cll(2))/det
-    bac(3) = 1 - bac(1) - bac(2)
-    bary_coord = bac
-  end function bary_coord
-
-  subroutine fix_boundary (a, b, c, fixed)
-    implicit none
-    real(8), intent(inout) :: a
-    real(8), intent(in)    :: b, c
-    integer, intent(out)   :: fixed
-
-    fixed = 0
-    if (a < -MATH_PI/2.0_8 .and. (b > MATH_PI/2.0_8 .and. c > MATH_PI/2.0_8)) then
-       a = a + MATH_PI*2.0_8
-       fixed = 1
-    elseif (a > MATH_PI/2.0_8 .and. (b < -MATH_PI/2.0_8 .and. c < -MATH_PI/2.0_8)) then
-       a = a - MATH_PI*2.0_8
-       fixed = -1
-    end if
-  end subroutine fix_boundary
-
-  subroutine cart2sph2 (cin, cout)
-    implicit none
-    type(Coord)                        :: cin
-    real(8), dimension(2), intent(out) :: cout
-
-    call cart2sph (cin, cout(1), cout(2))
-  end subroutine cart2sph2
-
   subroutine cal_temp (dom, i, j, zlev, offs, dims)
     ! Compute temperature in compressible case
     implicit none
@@ -733,32 +675,6 @@ contains
     command = 'gtar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
     call system (command)
   end subroutine write_out_stats
-
-  subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
-    ! Approximate vorticity at hexagon points
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id, idW, idSW, idS, d
-
-    d = dom%id + 1
-    id   = idx (i,   j,   offs, dims)
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-
-    vort(id+1) = ( &
-         dom%areas%elts(id+1)%part(1)*dom%vort%elts(TRIAG*id+LORT+1)   + &
-         dom%areas%elts(id+1)%part(2)*dom%vort%elts(TRIAG*id+UPLT+1)   + &
-         dom%areas%elts(id+1)%part(3)*dom%vort%elts(TRIAG*idW+LORT+1)  + &
-         dom%areas%elts(id+1)%part(4)*dom%vort%elts(TRIAG*idSW+UPLT+1) + &
-         dom%areas%elts(id+1)%part(5)*dom%vort%elts(TRIAG*idSW+LORT+1) + &
-         dom%areas%elts(id+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)    &
-         ) * dom%areas%elts(id+1)%hex_inv
-  end subroutine vort_triag_to_hex
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, funit)
     ! Write primal grid for vertical level zlev
@@ -1491,14 +1407,15 @@ contains
     if (dom%mask_n%elts(id_chd+1) >= ADJZONE) active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
   end subroutine restrict_level
 
-  subroutine write_and_export (iwrite)
+  subroutine write_and_export (isave)
+    use utils_mod
     implicit none
-    integer :: iwrite
+    integer :: isave
 
     integer      :: d, i, j, k, l, p, u
     character(7) :: var_file
 
-    if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', iwrite
+    if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', isave
 
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE, 26)
@@ -1510,7 +1427,7 @@ contains
 
     do l = level_start, level_end
        minv = 1.0d63; maxv = -1.0d63
-       u = 1000000+100*iwrite
+       u = 1000000+100*isave
 
        if (compressible .or. zlevels /= 2 .or. .not. mode_split) then
           if (compressible) then ! pressure, exner and geopotential at vertical level save_zlev and scale l
@@ -1658,13 +1575,13 @@ contains
           end if
           close(50)
        end if
-       u = 2000000+100*iwrite
+       u = 2000000+100*isave
        call write_level_mpi (write_dual, u+l, l, save_zlev, .False., run_id)
     end do
 
     call post_levelout
     call barrier
-    if (rank == 0) call compress_files (iwrite, run_id)
+    if (rank == 0) call compress_files (isave, run_id)
     call barrier
   end subroutine write_and_export
 
@@ -1720,15 +1637,15 @@ contains
     end do
   end subroutine baroclinic_velocity
 
-  subroutine compress_files (iwrite, run_id)
+  subroutine compress_files (isave, run_id)
     implicit none
-    integer      :: iwrite
+    integer      :: isave
     character(*) :: run_id
 
     character(4)   :: s_time
     character(130) :: command
 
-    write (s_time, '(i4.4)') iwrite
+    write (s_time, '(i4.4)') isave
 
     command = 'ls -1 '//trim(run_id)//'.1'//s_time//'?? > tmp1'
 

@@ -7,7 +7,7 @@ module barotropic_2d_mod
   implicit none
 contains
    subroutine scalar_star (dt, q)
-    ! Explicit Euler step for density
+    ! Explicit Euler step for scalars
     implicit none
     real(8)                                   :: dt
     type(Float_Field), dimension(:,:), target :: q
@@ -155,47 +155,6 @@ contains
     end do
   end subroutine rhs_elliptic
 
-  subroutine flux_divergence (q, div_flux)
-    ! Returns flux divergence of vertical integrated velocity in divF using solution q
-    implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
-    type(Float_Field),                                 target :: div_flux
-
-    integer :: d, j, l
-
-    do l = level_end, level_start, -1
-       ! Calculate vertically integrated velocity flux
-       do d = 1, size(grid)
-          h_flux =>  horiz_flux(S_MASS)%data(d)%elts
-          scalar => sol(S_MASS,zlevels+1)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call step1 (q=q, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
-          end do
-          nullify (scalar)
-          if (l < level_end) then
-             dscalar => div_flux%data(d)%elts
-             call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
-             nullify (dscalar)
-          end if
-          nullify (h_flux)
-       end do
-       horiz_flux(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (horiz_flux(S_MASS), l, 211)
-
-       ! Calculate divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
-       do d = 1, size(grid)
-          dscalar => div_flux%data(d)%elts
-          h_flux  => horiz_flux(S_MASS)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (dscalar, h_flux)
-       end do
-       div_flux%bdry_uptodate = .false.
-       call update_bdry (div_flux, l, 212)
-    end do
-  end subroutine flux_divergence
-
   subroutine cal_rhs_elliptic (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
@@ -208,9 +167,9 @@ contains
     id = idx (i, j, offs, dims) + 1
         
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       mass1(id) = - (mass(id) + dt * (theta2 * dscalar(id) + (1d0 - theta2) * dmass(id)) / ref_density)
+       mass1(id) = - (mass(id) + dt * (theta2 * dscalar(id) + (1d0 - theta2) * dmass(id)) / ref_density) 
     else
-       mass1(id) = 0.0_8
+       mass1(id) = 0d0
     end if
   end subroutine cal_rhs_elliptic
 
@@ -227,10 +186,11 @@ contains
     do d = 1, size(grid)
        h_flux => horiz_flux(S_MASS)%data(d)%elts
        scalar => q%data(d)%elts
+       mass   => sol(S_MASS,zlevels+1)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=2)
        end do
-       nullify (h_flux, scalar)
+       nullify (h_flux, mass, scalar)
     end do
     horiz_flux(S_MASS)%bdry_uptodate = .false.
     call update_bdry (horiz_flux(S_MASS), l, 213)
@@ -271,11 +231,52 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = - (theta1*theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) + mass(id))
+       dscalar(id) = - (theta1*theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) + mass(id)) 
     else
        dscalar(id) = 0d0
     end if
   end subroutine complete_elliptic_lo
+
+  subroutine flux_divergence (q, div_flux)
+    ! Returns flux divergence of vertical integrated velocity in divF using solution q
+    implicit none
+    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+    type(Float_Field),                                 target :: div_flux
+
+    integer :: d, j, l
+
+    do l = level_end, level_start, -1
+       ! Calculate vertically integrated velocity flux
+       do d = 1, size(grid)
+          h_flux =>  horiz_flux(S_MASS)%data(d)%elts
+          scalar => sol(S_MASS,zlevels+1)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call step1 (q=q, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
+          end do
+          nullify (scalar)
+          if (l < level_end) then
+             dscalar => div_flux%data(d)%elts
+             call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
+             nullify (dscalar)
+          end if
+          nullify (h_flux)
+       end do
+       horiz_flux(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (horiz_flux(S_MASS), l, 211)
+
+       ! Calculate divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
+       do d = 1, size(grid)
+          dscalar => div_flux%data(d)%elts
+          h_flux  => horiz_flux(S_MASS)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (dscalar, h_flux)
+       end do
+       div_flux%bdry_uptodate = .false.
+       call update_bdry (div_flux, l, 212)
+    end do
+  end subroutine flux_divergence
 
   subroutine total_height (q, q_2d)
     ! Vertical sum of flux of q, returned in q_2d
@@ -519,7 +520,7 @@ contains
       idS  = idx (i,   j-1, offs, dims)
     
       proj_vel_vertical =  &
-           (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
+           (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id  +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
            (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6
       
       nullify (velo)
