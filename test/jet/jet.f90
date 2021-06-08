@@ -3,6 +3,7 @@ program jet
   use main_mod
   use test_case_mod
   use io_mod
+  use projection_mod
   implicit none
   logical :: aligned
   
@@ -15,24 +16,26 @@ program jet
 
   ! Parameters defining domain (based on beta-plane values)
   soufflet           = .false.                          ! set radius to exactly match Soufflet domain
-  lat_c              = 30d0                            ! centre of zonal channel (in degrees)
   
   if (soufflet) then
+     lat_c           = 30d0                            ! centre of zonal channel (in degrees)
      width           = 2000d0 * KM
      beta            = 1.6d-11 / (METRE * SECOND)      ! beta parameter
      f0              = 1d-4    / SECOND                ! Coriolis parameter
-     omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
-     radius          = f0 / (beta * tan (lat_c * DEG)) ! planet radius to exactly match Soufflet beta plane
+     omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
+     radius          = f0 / (beta * tan (lat_c*DEG))   ! planet radius to exactly match Soufflet beta plane
+     L_jet           = 0.8d0 * width                   ! width of jet transition region
   else
-     width           = 250d0   * KM                    ! meridional width of zonal channel
-     radius          = width
-     f0              = 1d-4 * 2000d0 * KM / width       
-     omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
+     lat_c           = 30d0                            ! centre of zonal channel (in degrees)
+     radius          = 500d0 * KM                      ! meridional width of zonal channel
+     width           = 0.4d0 * radius
+     f0              = 1d-4    
+     omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
      beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
+!!$     L_jet           = 0.25d0*width                   ! width of jet transition region
+     L_jet           = 0.8d0*width                   ! width of jet transition region
   end if
   
-  L_jet              = 0.8d0 * width                   ! width of jet transition region
-
   grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
   ref_density        = 1027.75d0    * KG/METRE**3      ! reference density at depth (maximum density)
 
@@ -53,12 +56,12 @@ program jet
 
   ! Time stepping parameters
   adapt_dt           = .true.                        ! adapt time step
-  mode_split         = .true.                       ! split barotropic mode if true
-  theta1             = 0.6d0 ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson)
-  theta2             = 0.6d0 ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson)
+  mode_split         = .true.                        ! split barotropic mode if true
+  theta1             = 0.5d0                         ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson)
+  theta2             = 0.5d0                         ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson)
   
   ! Horizontal diffusion
-  Laplace_order_init = 0                              
+  Laplace_order_init = 1                           
   Laplace_order      = Laplace_order_init
 
   ! Vertical diffusion
@@ -79,7 +82,7 @@ program jet
   bottom_friction_case = 5d-3 / SECOND
 
   ! Relaxation to initial zonal flow
-  tau_relax          = 0d0 * DAY
+  tau_relax          = 1d0 * DAY
 
   ! Wind stress
   tau_0              = 0d0
@@ -103,13 +106,20 @@ program jet
   c1                 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   Rb                 = bv * abs(max_depth) / (MATH_PI*f0) ! first baroclinic Rossby radius of deformation
   Rd                 = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
-
+  
   ! Dimensional scaling
-  drho               = 3.5d0 * KG/METRE**3               ! magnitude of density perturbation
-  Udim               = 0.2d0                             ! velocity scale
+  if (soufflet) then ! velocity scale
+     Udim = 0.2d0 * METRE/SECOND              
+  else
+     Udim = 1d0 * METRE/SECOND
+  end if
+  drho               = 3d0 * KG/METRE**3               ! magnitude of density perturbation
   Ldim               = L_jet                             ! length scale 
   Tdim               = Ldim/Udim                         ! time scale
   Hdim               = abs (max_depth)                   ! vertical length scale
+
+  ! 2D projection grid size (based on coarsest level resolution)
+  N_proj             = sqrt (40d0 * 4**(min_level-1))
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -121,6 +131,12 @@ program jet
 
   ! Initialize diagnostic variables
   call init_diagnostics
+
+  ! Initialize 2D projection
+  call initialize_projection (N_proj)
+  allocate (lat_slice(Ny(1):Ny(2),1:zlevels,1:3))
+  call zonal_mean
+  if (rank==0) call write_zonal_avg
 
   ! Save initial conditions
   call print_test_case_parameters

@@ -5,6 +5,7 @@ Module test_case_mod
   use utils_mod
   use init_mod
   use equation_of_state_mod
+  use projection_mod
   implicit none
 
   ! Standard variables
@@ -29,6 +30,10 @@ Module test_case_mod
   real(8), dimension(2), parameter :: drho_surf = (/  0d0,  1.5d0 /) * KG/METRE**3
   real(8), dimension(2), parameter :: dz_b      = (/  3d2,  7d2   /) * METRE
   real(8), dimension(2), parameter :: z_int     = (/ -4d2, -1d3   /) * METRE
+
+  ! 2D projection
+  integer                                :: N_proj
+  real(8), dimension(:,:,:), allocatable :: lat_slice
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -87,7 +92,7 @@ contains
     read (fid,*) varname, resume_init
     close(fid)
 
-    press_save = 0.0_8
+    press_save = 0d0
     allocate (pressure_save(1))
     pressure_save(1) = press_save
     dt_write = dt_write * DAY
@@ -166,7 +171,7 @@ contains
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
-       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
+       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1d0/bottom_friction_case / DAY
        write (6,'(A,es11.4)') "f0                    [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta                 [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
@@ -175,6 +180,7 @@ contains
        write (6,'(A,es11.4)') "baroclinic Rossby radius [km]  = ", Rb / KM
        write (6,'(a,es11.4)') "r_max                          = ", r_max
        write (6,'(a,es11.4)') "tau_relax                [d]   = ", tau_relax / DAY
+       write (6,'(A,i4)')     "N_proj                         = ", N_proj
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
@@ -424,7 +430,7 @@ contains
        if (k == zlevels) then
           sol(S_MASS,k)%data(d)%elts(id_i) = rho * eta
        else
-          sol(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
+          sol(S_MASS,k)%data(d)%elts(id_i) = 0d0
        end if
        sol(S_TEMP,k)%data(d)%elts(id_i) = rho * dz(k) * buoyancy_init (lat/DEG, z_k)
     end do
@@ -432,7 +438,7 @@ contains
     if (mode_split) then
        phi = phi_node (d, id_i, zlevels)
        sol(S_MASS,zlevels+1)%data(d)%elts(id_i) = phi * eta ! free surface perturbation
-       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0.0_8
+       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0d0
     end if
   end subroutine init_scalars
   
@@ -470,7 +476,7 @@ contains
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    eta = 0.0_8
+    eta = 0d0
     z_s = dom%topo%elts(id_i)
     
     if (sigma_z) then
@@ -484,14 +490,14 @@ contains
        rho = porous_density (dom, i, j, k, offs, dims)
 
        sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = rho * dz(k)
-       sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = 0.0_8
-       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+       sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = 0d0
+       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
 
     if (mode_split) then
-       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i) = 0.0_8
-       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0.0_8
-       sol_mean(S_VELO,zlevels+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i) = 0d0
+       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0d0
+       sol_mean(S_VELO,zlevels+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end if
   end subroutine init_mean
   
@@ -506,7 +512,7 @@ contains
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
+    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0d0
     if (trim (coords) == "uniform") then
        do k = 2, zlevels-1
           b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
@@ -558,7 +564,7 @@ contains
     implicit none
     type(Coord) :: x_i
 
-    init_free_surface = 0.0_8
+    init_free_surface = 0d0
   end function init_free_surface
   
   real(8) function buoyancy_init (lat, z)
@@ -616,7 +622,7 @@ contains
 
       y = MATH_PI * (width/L_jet * (lat - (lat_c - lat_width/2d0)) / lat_width + 0.5d0 * (1d0 - width/L_jet))
 
-      if (y < 0.0_8) then
+      if (y < 0d0) then
          smoothing = 1d0
       elseif (y > MATH_PI) then
          smoothing = 0d0
@@ -635,7 +641,7 @@ contains
 
     lat = lat_c ! latitude to evaluate buoyancy
     
-    eta = 0.0_8
+    eta = 0d0
     z_s = max_depth
     
     if (sigma_z) then
@@ -658,7 +664,7 @@ contains
     end do
 
     write (6,'(/,a)') " Interface      V        c1      CFL_c1"
-    c1 = 0.0_8
+    c1 = 0d0
     do k = 1, zlevels-1
        z_above = interp (z(k),   z(k+1))
        z_k     = interp (z(k-1), z(k))
@@ -719,10 +725,10 @@ contains
     real(8), dimension(0:zlevels) :: z
     type(Coord)                   :: x_i
 
-    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
+    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
 
-    eta = 0.0_8
+    eta = 0d0
     z_s = max_depth
 
     if (sigma_z) then
@@ -758,7 +764,7 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, 1.2d0*dx_min/c1)
     dt_init = dt_cfl
 
-    C = 1d-4 ! <= 1/2 if explicit
+    C = 1d-3 ! <= 1/2 if explicit
     C_rotu = C / 4**Laplace_order_init
     C_divu = C
     C_mu   = C
@@ -771,9 +777,9 @@ contains
     tau_rotu = dt_cfl / C_rotu
 
     if (Laplace_order_init == 0) then
-       visc_sclr = 0.0_8
-       visc_divu = 0.0_8
-       visc_rotu = 0.0_8
+       visc_sclr = 0d0
+       visc_divu = 0d0
+       visc_rotu = 0d0
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_mu
        visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_b
@@ -794,8 +800,7 @@ contains
     end if
     
     ! Penalization parameterss
-!!$    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
-    dlat = 0d0
+    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
 
     width_S = 90d0 + (lat_c - (lat_width/2d0 + dlat))
     width_N = 90d0 - (lat_c + (lat_width/2d0 + dlat))
@@ -833,8 +838,8 @@ contains
     if (penalize) then
        call topography (dom, i, j, zlev, offs, dims, "penalize")
     else
-       penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
-       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
+       penal_node(zlev)%data(d)%elts(id_i)                      = 0d0
+       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0       
     end if
   end subroutine set_penal
 
@@ -907,8 +912,8 @@ contains
     else
        dtheta = dx/radius
        call cart2sph (p, lon0, lat0)
-       nrm = 0.0_8
-       rbf = 0.0_8
+       nrm = 0d0
+       rbf = 0d0
        do ii = -npts, npts
           lat = lat0 + dtheta * ii
           do jj = -npts, npts
@@ -953,7 +958,7 @@ contains
     else
        tau_zonal = tau_0
     end if
-    tau_merid = 0.0_8
+    tau_merid = 0d0
   end subroutine wind_stress
 
   real(8) function tau_mag_case (p)
@@ -1119,7 +1124,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    bottom_buoy_flux_case = 0.0_8
+    bottom_buoy_flux_case = 0d0
   end function bottom_buoy_flux_case
 
   real(8) function top_buoy_flux_case (dom, i, j, z_null, offs, dims)
@@ -1130,7 +1135,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    top_buoy_flux_case = 0.0_8
+    top_buoy_flux_case = 0d0
   end function top_buoy_flux_case
 
   function wind_flux_case (dom, i, j, zlev, offs, dims)
@@ -1160,11 +1165,96 @@ contains
 
        rho = porous_density (dom, i, j, zlevels, offs, dims)
 
-       wind_flux_case = tau_wind / rho  * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+       wind_flux_case = tau_wind / rho  * (1d0 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
     else
-       wind_flux_case = 0.0_8
+       wind_flux_case = 0d0
     end if
   end function wind_flux_case
+
+  subroutine zonal_mean
+    ! Computes zonal means of all prognostic variables
+    ! (projects coarsest resolution onto lat-lon plane)
+    implicit none
+    integer :: d, j, k, l
+
+    l = min_level ! coarsest level
+    
+    do k = 1, zlevels
+       ! Zonal and meridional velocities
+       do d = 1, size(grid)
+          velo   => sol(S_VELO,k)%data(d)%elts
+          velo1  => grid(d)%u_zonal%elts
+          velo2  => grid(d)%v_merid%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+          end do
+          nullify (velo, velo1, velo2)
+       end do
+       call project_array_onto_plane ("u_zonal", l, 0d0)
+       lat_slice(:,k,1) = sum (field2d, 1) / size (field2d, 1)
+       call project_array_onto_plane ("v_merid", l, 0d0)
+       lat_slice(:,k,2) = sum (field2d, 1) / size (field2d, 1)
+
+       ! Mass-weighted buoyancy
+       call project_field_onto_plane (sol(S_TEMP,k), l, 0d0)
+       lat_slice(:,k,3) = sum (field2d, 1) / size (field2d, 1)
+    end do
+  end subroutine zonal_mean
+
+  subroutine write_zonal_avg
+    ! Tests cubic spline interpolation of zonally averaged values
+    use spline_mod
+    implicit none
+    integer                            :: i, ivar, N_interp, zlev
+    real(8)                            :: lat_interp, var_interp
+    real(8), dimension (Ny(2)-Ny(1)+1) :: y2
+
+    zlev = zlevels ! vertical level to output
+    ivar = 1       ! variable to output (1 = zonal velocity, 2 = meridional velocity, 3 = mass-weighted density)
+
+    ! Compute cubic spline interpolant with natural end conditions
+    call spline (lat, lat_slice(:,zlev,ivar), Ny(2)-Ny(1)+1, 1d35, 1d35, y2)
+
+    open (unit=10, file='zonal', status='REPLACE')
+    do i = Ny(1), Ny(2)
+       write (10,'(2(es11.4,1x))') lat(i), lat_slice(i,zlev,ivar)
+    end do
+    close (10)
+
+    open (unit=10, file='interp', status='REPLACE')
+    N_interp = N_proj*5
+    do i = -N_interp/2, N_interp/2
+       lat_interp = -90d0 + lon_lat_range(2) / (N_interp + 1) * (i + N_interp/2)/MATH_PI * 180d0
+       call splint (lat, lat_slice(:,zlev,ivar), y2, Ny(2)-Ny(1)+1, lat_interp, var_interp)
+       write (10,'(2(es11.4,1x))') lat_interp, var_interp
+    end do
+    close (10)
+  end subroutine write_zonal_avg
+
+  real(8) function linear_interp (lat_val, interp_var)
+    ! Linear interpolation of zonally averaged data interp_var to latitude lat_val
+    implicit none
+    real(8)                         :: lat_val
+    real(8), dimension(Ny(1):Ny(2)) :: interp_var
+
+    integer :: idx
+    real(8) :: m_idx
+    
+    idx = minloc (abs(lat-lat_val), DIM=1) + Ny(1) - 1
+
+    if (lat_val > lat(Ny(1)) .and. lat_val < lat(Ny(2))) then
+       if (lat_val < lat(idx)) then
+          m_idx = (interp_var(idx) - interp_var(idx-1)) / (lat(idx) - lat(idx-1))
+          linear_interp = interp_var(idx-1) + m_idx * (lat_val - lat(idx-1))
+       else
+          m_idx = (interp_var(idx+1) - interp_var(idx)) / (lat(idx+1) - lat(idx))
+          linear_interp = interp_var(idx) + m_idx * (lat_val - lat(idx))
+       end if
+    else
+       if (lat_val <= lat(Ny(1))) linear_interp = interp_var(Ny(2))
+       if (lat_val >= lat(Ny(2))) linear_interp = interp_var(Ny(1))
+    end if
+  end function linear_interp
 
   subroutine trend_relax (q, dq)
     ! Trend relaxation to mean buoyancy
@@ -1223,8 +1313,8 @@ contains
     z = z_i (dom, i, j, zlev, offs, dims)
     full_temp = mean_t(id_i) + temp(id_i)
     
-    dmass(id_i) = 0.0_8
-    dtemp(id_i) = -1d0/tau_relax * (full_temp - mean_m(id_i)*buoyancy_init (lat/DEG, z)) 
+    dmass(id_i) = - mass(id_i) / tau_relax
+    dtemp(id_i) = - (full_temp - mean_m(id_i)*buoyancy_init (lat/DEG, z)) / tau_relax
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
@@ -1244,7 +1334,7 @@ contains
 
     do e = 1, EDGE
        id_e = EDGE*id + e
-       dvelo(id_e) = -1d0/tau_relax * (velo(id_e) - uvw(e)) * (1d0 - penal_edge(zlev)%data(d)%elts(id_e))
+       dvelo(id_e) = - (velo(id_e) - uvw(e)) / tau_relax
     end do
   end subroutine trend_velo
 end module test_case_mod
