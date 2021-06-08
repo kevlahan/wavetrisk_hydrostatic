@@ -322,8 +322,8 @@ contains
     ! theta1 + theta2 < 1 unstable
     ! theta1 >= 0.5 and theta2 >= 0.5 stable
     ! theta1 + theta2 >= stable if cfl_num^2 (theta1 - 0.5) (theta2 - 0.5) + 1 >= 0
-    theta1              = 0.7d0                               ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
-    theta2              = 0.7d0                               ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+    theta1              = 1d0                               ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+    theta2              = 1d0                               ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
 
     C_visc              = 1d-2                              ! constant for determining horizontal viscosity
     iremap              = 10                                ! remap every iremap steps
