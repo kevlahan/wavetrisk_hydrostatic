@@ -659,9 +659,6 @@ contains
     bathy_lon = field2d(:,idx_lat)
     
     do i = Ny(1), Ny(2)
-       xcoord_lat(i,1) = lat(i) - dy_export/2 / DEG
-       xcoord_lat(i,2) = lat(i) + dy_export/2 / DEG
-       
        z_s = bathy_lat(i)
        eta = eta_lat(i)
        if (sigma_z) then
@@ -677,9 +674,6 @@ contains
     end do
 
     do i = Nx(1), Nx(2)
-       xcoord_lon(i,1) = lon(i) - dx_export/2 / DEG
-       xcoord_lon(i,2) = lon(i) + dx_export/2 / DEG
-       
        z_s = bathy_lon(i)
        eta = eta_lon(i)
        if (sigma_z) then

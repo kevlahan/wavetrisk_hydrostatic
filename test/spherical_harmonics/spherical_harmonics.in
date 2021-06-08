@@ -5,7 +5,6 @@ cp_2d	        33          ! checkpoint for 2d projection
 max_level	10          ! maximum level of resolution
 zlevels         1           ! number of vertical levels
 uniform         F           ! uniform (T) or hybrid (F) vertical grid
-adapt_trend     F           ! adapt on trend (T) or variables (F)
 level_save      9           ! resolution level to interpolate to
 N               3200        ! resolution of interpolated grid (N/2 latitude x N longitude)
 local_spec      T           ! compute local power spectrum

@@ -5,18 +5,13 @@ program spherical_harmonics
   ! Wieczorek, M. A. and F. J. Simons, Minimum-variance multitaper spectral estimation on the sphere, J. Fourier Anal. Appl., 13, doi:10.1007/s00041-006-6904-1, 665-692, 2007.
   use main_mod
   use test_case_mod
-  use io_mod  
+  use io_mod
+  use projection_mod
   implicit none
   
   integer                                :: idata_loc, k, l, nmax
-  integer, dimension(2)                  :: Nx, Ny
   integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
-  
-  real(8), dimension(:),   allocatable   :: data, data_loc, lat, lat_loc, lon, lon_loc
-  real(8), dimension(2)                  :: lon_lat_range
-  real(4), dimension(:,:), allocatable   :: field2d
-  real(8)                                :: dx_export, dy_export, kx_export, ky_export
-  
+  real(8), dimension(:),   allocatable   :: data, data_loc, lat_loc, lon_loc
   character(2)                           :: var_file
   character(8)                           :: itype
   character(130)                         :: command
@@ -126,7 +121,7 @@ contains
 
     if (rank == 0) write (6,'(A,i6)') "Energy spectrum of checkpoint file = ", cp_idx
 
-    call initialize_lonlat
+    call initialize_projection (N)
 
     ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
     l = level_fill
@@ -149,7 +144,11 @@ contains
        end do
        nullify (vort)
     end do
-    call project_vorticity_onto_plane (l, 1.0_8)
+
+    ! Project vorticity (stored in field2d)
+    field2d = 0d0
+    call project_array_onto_plane ("press_lower", l, 1d0)
+
     if (rank == 0) call spectrum_lon_lat ("barotropic")
     deallocate (field2d)
   end subroutine spec_latlon_1layer
@@ -165,7 +164,7 @@ contains
 
     if (rank == 0) write (6,'(A,i6)') "Energy spectrum of checkpoint file = ", cp_idx
 
-    call initialize_lonlat_2layer
+    call initialize_projection (N)
 
     ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
     l = level_fill
@@ -195,8 +194,10 @@ contains
           end do
           nullify (vort)
        end do
-       field2d = 0.0_8
-       call project_vorticity_onto_plane (l, 1.0_8)
+       ! Project vorticity (stored in field2d)
+       field2d = 0d0
+       call project_array_onto_plane ("press_lower", l, 1d0)
+       
        if (rank == 0) then
           write (data_type, '(a6,i1)') "total_", k
           call spectrum_lon_lat (data_type)
@@ -245,8 +246,9 @@ contains
        end do
        nullify (vort)
     end do
+    ! Project vorticity (stored in field2d)
     field2d = 0.0_8
-    call project_vorticity_onto_plane (l, 1.0_8)
+    call project_array_onto_plane ("press_lower", l, 1d0)
     if (rank == 0) call spectrum_lon_lat ("barotropic")
     
     ! Baroclinic velocity and vorticity in each layer
@@ -278,7 +280,7 @@ contains
        end do
        
        field2d = 0.0_8
-       call project_vorticity_onto_plane (l, 1.0_8)
+       call project_array_onto_plane ("press_lower", l, 1d0)
        if (rank == 0) then
           write (data_type, '(a11,i1)') "baroclinic_", k
           call spectrum_lon_lat (data_type)
@@ -583,143 +585,6 @@ contains
     data_loc(idata_loc) = dom%press_lower%elts(id)
     call cart2sph (dom%node%elts(id), lon_loc(idata_loc), lat_loc(idata_loc))
   end subroutine define_data_hex
-
-  subroutine initialize_lonlat
-    implicit none
-
-    Nx = (/-N/2, N/2/)
-    Ny = (/-N/4, N/4/)
-
-    lon_lat_range = (/2*MATH_PI, MATH_PI/)
-    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
-  end subroutine initialize_lonlat
-
-   subroutine initialize_lonlat_2layer
-    implicit none
-
-    Nx = (/-N/2, N/2/)
-    Ny = (/-N/4, N/4/)
-
-    lon_lat_range = (/2*MATH_PI, MATH_PI/)
-    dx_export = lon_lat_range(1)/(Nx(2)-Nx(1)+1); dy_export = lon_lat_range(2)/(Ny(2)-Ny(1)+1)
-    kx_export = 1.0_8/dx_export; ky_export = 1.0_8/dy_export
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
-  end subroutine initialize_lonlat_2layer
-
-  subroutine project_vorticity_onto_plane (l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
-    use domain_mod
-    use comm_mpi_mod
-    integer :: l, itype
-    real(8) :: default_val
-
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    field2d = default_val
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          call get_offs_Domain (grid(d), grid(d)%lev(l)%elts(jj), offs, dims)
-          do j = 0, PATCH_SIZE-1
-             do i = 0, PATCH_SIZE-1
-                id   = idx(i,   j,   offs, dims)
-                idN  = idx(i,   j+1, offs, dims)
-                idE  = idx(i+1, j,   offs, dims)
-                idNE = idx(i+1, j+1, offs, dims)
-
-                call cart2sph2 (grid(d)%node%elts(id+1),   cC)
-                call cart2sph2 (grid(d)%node%elts(idN+1),  cN)
-                call cart2sph2 (grid(d)%node%elts(idE+1),  cE)
-                call cart2sph2 (grid(d)%node%elts(idNE+1), cNE)
-
-                val   = grid(d)%press_lower%elts(id+1)
-                valN  = grid(d)%press_lower%elts(idN+1)
-                valE  = grid(d)%press_lower%elts(idE+1)
-                valNE = grid(d)%press_lower%elts(idNE+1)
-
-                if (abs(cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
-                end if
-                if (abs(cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
-                else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
-                end if
-             end do
-          end do
-       end do
-    end do
-    ! Synchronize array over all processors
-    sync_val = default_val
-    call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
-  end subroutine project_vorticity_onto_plane
-
-  subroutine interp_tri_to_2d (a, b, c, val)
-    real(8), dimension(2) :: a, b, c
-    real(8), dimension(3) :: val
-
-    integer               :: id_x, id_y
-    real(8)               :: ival, minx, maxx, miny, maxy
-    real(8), dimension(2) :: ll
-    real(8), dimension(3) :: bac
-    logical               :: inside
-
-    minx = min (min (a(1), b(1)), c(1))
-    maxx = max (max (a(1), b(1)), c(1))
-    miny = min (min (a(2), b(2)), c(2))
-    maxy = max (max (a(2), b(2)), c(2))
-    if (maxx-minx > MATH_PI/2) then
-       write (0,'(A,i4,A)') 'ERROR (rank = ', rank, '): io-333 "export"'
-       return
-    end if
-
-    do id_x = floor (kx_export*minx), ceiling (kx_export*maxx)
-       if (id_x < lbound (field2d,1) .or. id_x > ubound (field2d,1)) cycle
-       do id_y = floor (ky_export*miny), ceiling (ky_export*maxy)
-          if (id_y < lbound (field2d,2) .or. id_y > ubound (field2d,2)) cycle
-          ll = (/dx_export*id_x, dy_export*id_y/)
-          call interp_tria (ll, a, b, c, val, ival, inside)
-          if (inside) field2d(id_x,id_y) = ival
-       end do
-    end do
-  end subroutine interp_tri_to_2d
-
-  subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val)
-    implicit none
-    real(8), dimension(2) :: a0, b0, c0
-    real(8), dimension(3) :: val
-
-    integer               :: i
-    integer, dimension(3) :: fixed
-    real(8), dimension(2) :: a, b, c
-
-    a = a0
-    b = b0
-    c = c0
-    call fix_boundary (a(1), b(1), c(1), fixed(1))
-    call fix_boundary (b(1), c(1), a(1), fixed(2))
-    call fix_boundary (c(1), a(1), b(1), fixed(3))
-    call interp_tri_to_2d (a, b, c, val)
-
-    if (sum(abs(fixed)) > 1) write (0,'(A)') 'ALARM'
-
-    if (sum(fixed) /= 0) then
-       a(1) = a(1) - sum(fixed) * 2*MATH_PI
-       b(1) = b(1) - sum(fixed) * 2*MATH_PI
-       c(1) = c(1) - sum(fixed) * 2*MATH_PI
-       call interp_tri_to_2d (a, b, c, val)
-    end if
-  end subroutine interp_tri_to_2d_and_fix_bdry
 end program spherical_harmonics
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Physics routines for this test case (including diffusion)

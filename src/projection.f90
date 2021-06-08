@@ -1,5 +1,6 @@
 module projection_mod
   ! Routines to implement projection onto 2D lon-lat grid
+  ! call initialize_projection first
   use comm_mpi_mod
   implicit none
   integer, dimension(2)                :: Nx, Ny
@@ -27,21 +28,25 @@ contains
     kx_export = 1d0 / dx_export
     ky_export = 1d0 / dy_export
 
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2)))
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2))) ; field2d = 0d0
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
     allocate (xcoord_lat(Ny(1):Ny(2),1:2), xcoord_lon(Nx(1):Nx(2),1:2))
 
     do i = Nx(1), Nx(2)
        lon(i) = -180d0 + dx_export * (i - Nx(1))/MATH_PI * 180d0
+       xcoord_lon(i,1) = lon(i) - dx_export/2d0 / DEG
+       xcoord_lon(i,2) = lon(i) + dx_export/2d0 / DEG
     end do
 
     do i = Ny(1), Ny(2)
        lat(i) = -90d0 + dy_export * (i - Ny(1))/MATH_PI * 180d0
+       xcoord_lat(i,1) = lat(i) - dy_export/2d0 / DEG
+       xcoord_lat(i,2) = lat(i) + dy_export/2d0 / DEG
     end do
   end subroutine initialize_projection
   
   subroutine project_field_onto_plane (field, l, default_val)
-    ! Projects field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    ! Projects float field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
     integer           :: l, itype
     real(8)           :: default_val
@@ -97,7 +102,7 @@ contains
   end subroutine project_field_onto_plane
 
   subroutine project_array_onto_plane (array, l, default_val)
-    ! Projects array from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
+    ! Projects float array from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
     integer      :: l, itype
     real(8)      :: default_val
