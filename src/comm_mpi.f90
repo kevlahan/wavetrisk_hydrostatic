@@ -1292,28 +1292,32 @@ contains
     get_timing = times(2) - times(1)
   end function get_timing
 
+  subroutine sync_array (arr, N)
+    ! Synchronizes arr, with subsections computed on different ranks
+    ! the complete array is broadcast to all ranks
+    ! (see project_field_onto_plane for example of use)
+    use mpi
+    implicit none
+    real(8), dimension(N) :: arr
+    integer               :: N
+    
+    integer               :: myop
+    real(8), dimension(N) :: garr
+
+    call MPI_Op_create (sync, .true., myop, ierror)  
+    call MPI_Reduce (arr, garr, N, MPI_DOUBLE_PRECISION, myop, 0, MPI_COMM_WORLD, ierror)
+    if (rank == 0) arr(1:N) = garr(1:N)
+    call MPI_Bcast (arr, N, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror) 
+  end subroutine sync_array
+
   subroutine sync (in, inout, len, type)
     use mpi
     implicit none
-    real, dimension(len) :: in, inout
-    integer              :: len, type
-
+    real(8), dimension(len) :: in, inout
+    integer                 :: len, type
+  
     where (in /= sync_val) inout = in
   end subroutine sync
-
-  subroutine sync_array (arr, N)
-    use mpi
-    implicit none
-    real, dimension(N) :: arr
-    integer            :: N
-    
-    integer            :: myop
-    real, dimension(N) :: garr
-
-    call MPI_Op_create (sync, .true., myop, ierror)  
-    call MPI_Reduce (arr, garr, N, MPI_REAL, myop, 0, MPI_COMM_WORLD, ierror)
-    if (rank == 0) arr(1:N) = garr(1:N)
-  end subroutine sync_array
 
   subroutine stop_and_record_timings (id)
     ! Use like:

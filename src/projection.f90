@@ -4,11 +4,10 @@ module projection_mod
   use comm_mpi_mod
   implicit none
   integer, dimension(2)                :: Nx, Ny
+  real(8)                              :: dx_export, dy_export, kx_export, ky_export
   real(8), dimension(2)                :: lon_lat_range
   real(8), dimension(:),   allocatable :: lat, lon
-  real(8), dimension(:,:), allocatable :: xcoord_lat, xcoord_lon
-  real(8)                              :: dx_export, dy_export, kx_export, ky_export
-  real(4), dimension(:,:), allocatable :: field2d
+  real(8), dimension(:,:), allocatable :: field2d, xcoord_lat, xcoord_lon
   real(8), dimension(:),   pointer     :: proj_sclr
 contains
   subroutine initialize_projection (m)
