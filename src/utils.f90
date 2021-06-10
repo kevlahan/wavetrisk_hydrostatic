@@ -294,6 +294,25 @@ contains
     buoyancy = full_theta / full_mass
   end function buoyancy
 
+  subroutine cal_buoyancy (dom, i, j, zlev, offs, dims)
+    ! at nodes
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+    real(8) :: full_mass, full_theta
+    
+    id_i = idx (i, j, offs, dims) + 1
+
+    full_mass  = mean_m(id_i) + mass(id_i)
+    full_theta = mean_t(id_i) + temp(id_i)
+
+    scalar(id_i) = full_theta / full_mass
+  end subroutine cal_buoyancy
+
   real(8) function density (dom, i, j, zlev, offs, dims)
     ! Density at nodes
     implicit none
