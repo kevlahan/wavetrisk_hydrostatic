@@ -37,6 +37,15 @@ Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suare
 **********************************************************************************************************************************
 COMPILING and RUNNING
 
+If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  With option mpi-lb the
+computational load is re-balanced each time a checkpoint is saved.
+ 
+The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10*4**DOMAIN_LEVEL.
+Since DOMAIN_LEVEL = Jmin - (PATCH_LEVEL+1) larger Jmin or smaller PATCH_LEVEL allows more cores to be used.  For inhomogeneous
+problems (i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin while for homogeneous (i.e. well-balanced)
+problems it is more efficient to choose a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores
+may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used.
+
 TO COMPILE (using the test case Held_Suarez as an example): mkdir build make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
 
 Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean
@@ -71,8 +80,8 @@ POST-PROCESS CHECKPOINTS FOR MATLAB PLOTTING OF 2-D PROJECTIONS ON LONGITUDE-LAT
 The m-file plot_2d.m provides various options for plotting 2-D projections of the data, zonal statistics and time history
 statistics.  The zonal statistics can be plotted from in-line calculations (e.g. Held_Suarez_J4L18.3.tgz file saved during the
 run) or from data post-processed from saved checkpoints (e.g. Held_Suarez_J4L18.4.tgz) using test/flat_projection_data.  plot_2d.m
-plots time history data from the log file saved during the run (e.g. Held_Suarez_log).  Additional post-processing m-files are
-provided for specific test cases and applications.
+plots time history data from the log file saved during the run (e.g. Held_Suarez_log).  (See also 2D PROJECTION below.)
+Additional post-processing m-files are provided for specific test cases and applications.
 
 
 SPHERICAL HARMONICS GLOBAL AND LOCAL SPECTRAL ANALYSIS
@@ -109,10 +118,12 @@ incompressible case (i.e. buoyancy = grav_accel * (1 - theta)).
 
 S_VELO contains the three velocity components U, V, W at edges RT, DG and UP respectively (see below).
 
+
 HORIZONTAL COORDINATES
 
 Cartesian (x,y,z) coordinates are used with spherical geometry for lengths and areas on the sphere.  Since the equations are
 written in vector invariant form, there are no explicit metric terms.
+
 
 VERTICAL COORDINATES
 
@@ -133,6 +144,7 @@ Geosci Model Dev 8).  The permeability parameter is fixed equal to dt and the po
 (e.g. alpha = 0.01). The permeability friction term -1/eta u in the velocity equation is applied as a separate split step after the
 main time step, as in Rassmussen, Cottet & Walther (J Comput Phys 230, 2011).
 
+
 BAROTROPIC - BARCOCLINIC MODE SPLITTING
 
 Incompressible (i.e. ocean) simulations can be run with 2D barotropic - 3D baroclinic mode splitting to avoid the stability
@@ -140,7 +152,9 @@ constraint of the fast external mode with speed c = sqrt(g H). Setting mode_spli
 the barotropic component implicitly in time on the slow geostrophic time scale. The computation is stable with
 CFL_barotropic = sqrt(g H) dt/dx < = 30, and often at larger values.  Recommended tolerance for the (coarse scale)
 elliptic solver = 1e-8 to ensure mass conservation and sufficient accuracy.  The method is similar to the "implicit free surface"
-option in MITgcm.
+option in MITgcm.  The splitting usese a semi-implicit theta-method for the barotropic mode, with parameters theta1 (for the
+external pressure gradient) and theta2 for the barotropic flow divergence.  Theta1 = theta2 = 1 gives a backwards Euler (fully
+implicit scheme), and theta1 > 0.5, theta2 > 0.5 is necessary for stability.  The recommended value is 0.75.
 
 The associated elliptic equation is solved using a simple multigrid scheme on the adaptive grid. The baroclinic and barotropic
 modes are coupled at each time step. The barotropic part computes an implicit free surface. The barotropic estimate of the location of
@@ -154,6 +168,15 @@ values.
 
 The parameter level_fill can be set > min_level to make active all levels <= level_fill. This sometimes improves the efficiency of the
 multigrid solver by reducing the size of of the coarsest grid where the elliptic equation is solved exactly.
+
+
+VERTICAL MIXING AND SURFACE FLUXES IN OCEAN MODEL (INCOMPRESSIBLE CASE)
+
+Eddy diffusion of buoyancy and eddy viscosity for velocity is implemented using a flux-based implicit time integration scheme in the module
+vert_diffusion_mod (option vert_diffuse = .true.).  Wind stress, bottom friction and buoyancy fluxes are included via flux (Neumann) boundary conditions.  A solar radiation model (as in NEMO) is activated by setting a non-zero value for the solar radiation flux Q_sr .  Two options are available:
+tke_diffuse = .true. uses a turbulent kinetic energy (TKE) closure scheme, similar to that in NEMO. Tke_diffuse = .false. uses a simple depth-based
+eddy-viscosity.
+
 
 GRID STRUCTURE
 
@@ -172,16 +195,13 @@ The size of patches is 2**PATCH_LEVEL (e.g. if PATCH_LEVEL = 2 then the patches 
 structure must be traversed before reaching a uniform grid (which will in general contain inactive nodes).  Each computation patch
 element is made up of one node for scalars and three edges for vectors U, V,W (see also GRID ELEMENTS below).
 
-PARALLEL EXECUTION
 
-If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  With option mpi-lb the
-computational load is re-balanced each time a checkpoint is saved.
- 
-The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10*4**DOMAIN_LEVEL.
-Since DOMAIN_LEVEL = Jmin - (PATCH_LEVEL+1) larger Jmin or smaller PATCH_LEVEL allows more cores to be used.  For inhomogeneous
-problems (i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin while for homogeneous (i.e. well-balanced)
-problems it is more efficient to choose a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores
-may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used.
+2D PROJECTION ONTO A LONGITUDE-LATITUDE GRID
+
+The module projection_mod includes routines for projecting data from the sphere to a uniform longitude-latitude grid.  These can be used to
+save projections for post-processing, spherical harmonics, or for zonal averaging.  Note that these routines require a "full" (i.e. non-adaptive grid)
+which can be either min_lev, or computed using call fill_up_grid_and_IWT (level_save).
+
 
 BASIC GRID DATA TYPES
 
