@@ -36,14 +36,23 @@ contains
     character(255) :: command
     integer        :: k, d, v
 
-    ! Check validity of various parameter choices
-    if (compressible .and. mode_split) then
-       write (6,'(a)') "Cannot use mode splitting with compressible dynamics ... aborting"
+     if (max_level < min_level) then
+       if (rank == 0) then
+          write (6,'(//,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(a)')   "!!                                                                                 !!"
+          write (6,'(2(a,i2),a)') "!!                max_level < max_level: ", max_level, " < ", min_level, &
+               " ... aborting                      !!"
+          write (6,'(a)')   "!!                                                                                 !!"
+          write (6,'(a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(a,//)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+       end if
        call abort
     end if
 
-    if (max_level < min_level) then
-       if (rank == 0) write (6,'(a)') "Max_level not >= min_level ... aborting"
+    ! Check validity of various parameter choices
+    if (compressible .and. mode_split) then
+       write (6,'(a)') "Cannot use mode splitting with compressible dynamics ... aborting"
        call abort
     end if
 
