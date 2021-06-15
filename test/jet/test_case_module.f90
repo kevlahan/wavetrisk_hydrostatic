@@ -6,6 +6,7 @@ Module test_case_mod
   use init_mod
   use equation_of_state_mod
   use projection_mod
+  use spline_mod
   implicit none
 
   ! Standard variables
@@ -14,13 +15,12 @@ Module test_case_mod
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
 
   ! Local variables
-  real(8)                              :: beta, bv, drho, drho_dz, f0, L_jet, Rb, Rd, tau_relax, Tcline
+  real(8)                              :: beta, bv, drho, drho_dz, f0, L_jet, Rb, Rd, tau_nudge, Tcline
   real(8)                              :: r_max, r_max_loc
   real(8)                              :: n_smth_N, n_smth_S, width_N, width, width_S
   real(8)                              :: npts_penal, R_b, u_wbc
   real(8)                              :: lat_c, lat_width, tau_0
   real(8), target                      :: bottom_friction_case
-  real(4), allocatable, dimension(:,:) :: topo_data
   character(255)                       :: coords
   logical                              :: soufflet
 
@@ -32,8 +32,8 @@ Module test_case_mod
   real(8), dimension(2), parameter :: z_int     = (/ -4d2, -1d3   /) * METRE
 
   ! 2D projection
-  integer                                :: N_proj
-  real(8), dimension(:,:,:), allocatable :: lat_slice
+  integer                                :: Nproj
+  real(8), dimension(:,:,:), allocatable :: y2, y2_0, zonal, zonal_0
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -166,6 +166,9 @@ contains
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", max_depth
        write (6,'(A,es11.4)') "min_depth                 [m]  = ", min_depth
+       write (6,'(A,es11.4)') "centre of channel       [deg]  = ", lat_c
+       write (6,'(A,es11.4)') "zonal channel width      [km]  = ", width / KM
+       write (6,'(A,es11.4)') "jet width                [km]  = ", L_jet / KM
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
@@ -179,8 +182,8 @@ contains
        write (6,'(A,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM
        write (6,'(A,es11.4)') "baroclinic Rossby radius [km]  = ", Rb / KM
        write (6,'(a,es11.4)') "r_max                          = ", r_max
-       write (6,'(a,es11.4)') "tau_relax                [d]   = ", tau_relax / DAY
-       write (6,'(A,i4)')     "N_proj                         = ", N_proj
+       write (6,'(a,es11.4)') "tau_nudge                [d]   = ", tau_nudge / DAY
+       write (6,'(A,i4)')     "Nproj                          = ", Nproj
        write (6,'(A)') &
             '*********************************************************************&
             ************************************************************'
@@ -678,9 +681,10 @@ contains
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
        
-       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c1*dt_init/dx_min
+       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c_k*dt_init/dx_min
     end do
-    write (6,'(/,a,es10.4)') "Maximum internal wave speed = ", c1
+    write (6,'(/,a,es8.2)') "Maximum internal wave speed [m/s] = ", c1
+    write (6,'(a,es8.2)')   "Maximum baroclinic CFL number     = ", c1*dt_init/dx_min
     write (6,'(A)') &
          '*********************************************************************&
          ************************************************************'
@@ -764,8 +768,8 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, 1.2d0*dx_min/c1)
     dt_init = dt_cfl
 
-    C = 1d-3 ! <= 1/2 if explicit
-    C_rotu = C / 4**Laplace_order_init
+    C = 2d-3 ! <= 1/2 if explicit
+    C_rotu = C / 4**Laplace_order_init  ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     C_divu = C
     C_mu   = C
     C_b    = C
@@ -1170,16 +1174,39 @@ contains
        wind_flux_case = 0d0
     end if
   end function wind_flux_case
-
-  subroutine zonal_mean
-    ! Computes zonal means of all prognostic variables
+  
+  subroutine zonal_mean (avg, y2_avg)
+    ! Computes zonal means of all prognostic variables and cubic spline interpolant
     ! (projects coarsest resolution onto lat-lon plane)
     implicit none
-    integer :: d, j, k, l
-
-    l = min_level ! coarsest level
+    real(8), dimension(Ny(1):Ny(2),1:zlevels,1:4) :: avg, y2_avg
     
+    integer :: d, j, k, l
+    
+    l = min_level ! coarsest level
+
     do k = 1, zlevels
+       ! Mass perturbation
+       call project_field_onto_plane (sol(S_MASS,k), l, 0d0) 
+       avg(:,k,1) = sum (field2d, 1) / size (field2d, 1)
+       call spline (lat, avg(:,k,1), Nproj/2, 1d35, 1d35, y2_avg(:,k,1))
+
+       ! Buoyancy
+       do d = 1, size(grid)
+          scalar =>    trend(S_TEMP,k)%data(d)%elts
+          mass   =>      sol(S_MASS,k)%data(d)%elts
+          temp   =>      sol(S_TEMP,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_buoyancy, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+          end do
+          nullify (mass, mean_m, temp, mean_t, scalar)
+       end do
+       call project_field_onto_plane (trend(S_TEMP,k), l, 0d0)
+       avg(:,k,2) = sum (field2d, 1) / size (field2d, 1)
+       call spline (lat, avg(:,k,2), Nproj/2, 1d35, 1d35, y2_avg(:,k,2))
+
        ! Zonal and meridional velocities
        do d = 1, size(grid)
           velo   => sol(S_VELO,k)%data(d)%elts
@@ -1191,72 +1218,41 @@ contains
           nullify (velo, velo1, velo2)
        end do
        call project_array_onto_plane ("u_zonal", l, 0d0)
-       lat_slice(:,k,1) = sum (field2d, 1) / size (field2d, 1)
+       avg(:,k,3) = sum (field2d, 1) / size (field2d, 1)
+       call spline (lat, avg(:,k,3), Nproj/2, 1d35, 1d35, y2_avg(:,k,3))
+       
        call project_array_onto_plane ("v_merid", l, 0d0)
-       lat_slice(:,k,2) = sum (field2d, 1) / size (field2d, 1)
-
-       ! Mass-weighted buoyancy
-       call project_field_onto_plane (sol(S_TEMP,k), l, 0d0)
-       lat_slice(:,k,3) = sum (field2d, 1) / size (field2d, 1)
+       avg(:,k,4) = sum (field2d, 1) / size (field2d, 1)
+       call spline (lat, avg(:,k,4), Nproj/2, 1d35, 1d35, y2_avg(:,k,4))
     end do
   end subroutine zonal_mean
 
-  subroutine write_zonal_avg
+  subroutine write_zonal_avg (var, y2, filename)
     ! Tests cubic spline interpolation of zonally averaged values
-    use spline_mod
     implicit none
-    integer                            :: i, ivar, N_interp, zlev
-    real(8)                            :: lat_interp, var_interp
-    real(8), dimension (Ny(2)-Ny(1)+1) :: y2
+    real(8), dimension(Ny(1):Ny(2)) :: var, y2
+    character(*)                    :: filename
+    
+    integer :: i, N_interp 
+    real(8) :: lat_interp, var_interp
 
-    zlev = zlevels ! vertical level to output
-    ivar = 1       ! variable to output (1 = zonal velocity, 2 = meridional velocity, 3 = mass-weighted density)
-
-    ! Compute cubic spline interpolant with natural end conditions
-    call spline (lat, lat_slice(:,zlev,ivar), Ny(2)-Ny(1)+1, 1d35, 1d35, y2)
-
-    open (unit=10, file='zonal', status='REPLACE')
+    open (unit=10, file='zonal_'//trim(filename), status='REPLACE')
     do i = Ny(1), Ny(2)
-       write (10,'(2(es11.4,1x))') lat(i), lat_slice(i,zlev,ivar)
+       write (10,'(2(es11.4,1x))') lat(i), var(i)
     end do
     close (10)
 
-    open (unit=10, file='interp', status='REPLACE')
-    N_interp = N_proj*5
+    open (unit=10, file='interp_'//trim(filename), status='REPLACE')
+    N_interp = Nproj*5
     do i = -N_interp/2, N_interp/2
        lat_interp = -90d0 + lon_lat_range(2) / (N_interp + 1) * (i + N_interp/2)/MATH_PI * 180d0
-       call splint (lat, lat_slice(:,zlev,ivar), y2, Ny(2)-Ny(1)+1, lat_interp, var_interp)
+       call splint (lat, var, y2, Nproj/2, lat_interp, var_interp)
        write (10,'(2(es11.4,1x))') lat_interp, var_interp
     end do
     close (10)
   end subroutine write_zonal_avg
 
-  real(8) function linear_interp (lat_val, interp_var)
-    ! Linear interpolation of zonally averaged data interp_var to latitude lat_val
-    implicit none
-    real(8)                         :: lat_val
-    real(8), dimension(Ny(1):Ny(2)) :: interp_var
-
-    integer :: idx
-    real(8) :: m_idx
-    
-    idx = minloc (abs(lat-lat_val), DIM=1) + Ny(1) - 1
-
-    if (lat_val > lat(Ny(1)) .and. lat_val < lat(Ny(2))) then
-       if (lat_val < lat(idx)) then
-          m_idx = (interp_var(idx) - interp_var(idx-1)) / (lat(idx) - lat(idx-1))
-          linear_interp = interp_var(idx-1) + m_idx * (lat_val - lat(idx-1))
-       else
-          m_idx = (interp_var(idx+1) - interp_var(idx)) / (lat(idx+1) - lat(idx))
-          linear_interp = interp_var(idx) + m_idx * (lat_val - lat(idx))
-       end if
-    else
-       if (lat_val <= lat(Ny(1))) linear_interp = interp_var(Ny(2))
-       if (lat_val >= lat(Ny(2))) linear_interp = interp_var(Ny(1))
-    end if
-  end function linear_interp
-
-  subroutine trend_relax (q, dq)
+  subroutine trend_nudge (q, dq)
     ! Trend relaxation to mean buoyancy
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
@@ -1270,32 +1266,22 @@ contains
        
        ! Scalars
        do d = 1, size(grid)
-          mass   =>  q(S_MASS,k)%data(d)%elts
-          temp   =>  q(S_TEMP,k)%data(d)%elts
+          mass => q(S_MASS,k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-          dmass  => dq(S_MASS,k)%data(d)%elts
-          dtemp  => dq(S_TEMP,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
-          end do
-          nullify (dmass, dscalar, mass, temp, mean_m, mean_t)
-       end do
-       
-       ! Velocity
-       do d = 1, size(grid)
-           velo =>  q(S_VELO,k)%data(d)%elts
+          dmass => dq(S_MASS,k)%data(d)%elts
+          dtemp => dq(S_TEMP,k)%data(d)%elts
           dvelo => dq(S_VELO,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (trend_velo, grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (nudging_scalars, grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (nudging_velo,    grid(d), p-1, k, 0, 0)
           end do
-          nullify (dvelo, velo)
+          nullify (dmass, dscalar, dvelo, mass, mean_m)
        end do
     end do
     dq%bdry_uptodate = .false.
-  end subroutine trend_relax
+  end subroutine trend_nudge
 
-  subroutine trend_scalars (dom, i, j, zlev, offs, dims)
+  subroutine nudging_scalars (dom, i, j, zlev, offs, dims)
     ! Relax buoyancy to mean
     implicit none
     type(Domain)                   :: dom
@@ -1304,37 +1290,82 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: b, lat, lon, full_temp, z
+    real(8) :: lat_i, lon_i, b_zonal, b_zonal_0
 
     id_i = idx (i, j, offs, dims) + 1
 
-    call cart2sph (dom%node%elts(id_i), lon, lat)
+    call cart2sph (dom%node%elts(id_i), lon_i, lat_i)
 
-    z = z_i (dom, i, j, zlev, offs, dims)
-    full_temp = mean_t(id_i) + temp(id_i)
-    
-    dmass(id_i) = - mass(id_i) / tau_relax
-    dtemp(id_i) = - (full_temp - mean_m(id_i)*buoyancy_init (lat/DEG, z)) / tau_relax
-  end subroutine trend_scalars
+    call splint (lat, zonal_0(:,zlev,2), y2_0(:,zlev,2), Nproj/2, lat_i/DEG, b_zonal_0)
+    call splint (lat, zonal  (:,zlev,2), y2  (:,zlev,2), Nproj/2, lat_i/DEG, b_zonal  )
 
-  subroutine trend_velo (dom, i, j, zlev, offs, dims)
+    dmass(id_i) = 0d0
+    dtemp(id_i) = (mean_m(id_i) + mass(id_i)) * (b_zonal_0 - b_zonal) / tau_nudge
+  end subroutine nudging_scalars
+
+  subroutine nudging_velo (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: d, e, id, id_e
-    real(8), dimension(1:EDGE) :: uvw
+    integer :: id, idE, idN, idNE
 
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
 
-    call interp_node_edge (dom, i, j, zlev, offs, dims, uvw)
+    dvelo(EDGE*id+RT+1) = proj_nudge (vel_nudge, zlev, dom%node%elts(id+1),  dom%node%elts(idE+1))
+    dvelo(EDGE*id+DG+1) = proj_nudge (vel_nudge, zlev, dom%node%elts(idN+1), dom%node%elts(id+1))
+    dvelo(EDGE*id+UP+1) = proj_nudge (vel_nudge, zlev, dom%node%elts(id+1),  dom%node%elts(idNE+1))
+  end subroutine nudging_velo
 
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-       dvelo(id_e) = - (velo(id_e) - uvw(e)) / tau_relax
-    end do
-  end subroutine trend_velo
+  subroutine vel_nudge (lon_i, lat_i, k, u, v)
+    ! Zonal and meridional components of velocity trend for nudging 
+    implicit none
+    integer :: k
+    real(8) :: lon_i, lat_i, u, v
+
+    real(8) :: uzonal, uzonal_0, vmerid, vmerid_0
+
+    call splint (lat, zonal_0(:,k,3), y2_0(:,k,3), Nproj/2, lat_i/DEG, uzonal_0) 
+    call splint (lat, zonal  (:,k,3), y2  (:,k,3), Nproj/2, lat_i/DEG, uzonal  )
+
+    call splint (lat, zonal_0(:,k,4), y2_0(:,k,4), Nproj/2, lat_i/DEG, vmerid_0) 
+    call splint (lat, zonal  (:,k,4), y2  (:,k,4), Nproj/2, lat_i/DEG, vmerid  )
+
+    u = (uzonal_0 - uzonal) / tau_nudge
+    v = (vmerid_0 - vmerid) / tau_nudge
+  end subroutine vel_nudge
+
+  real(8) function proj_nudge (vel_fun, k, ep1, ep2)
+    ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
+    ! given a function for zonal u and meridional v velocities as a function of longitude and latitude
+    implicit none
+    integer     :: k
+    type(Coord) :: ep1, ep2
+    external    :: vel_fun
+    
+    type(Coord) :: co, e_zonal, e_merid, vel
+    real(8)     :: lon, lat, u_zonal, v_merid
+
+    co = mid_pt (ep1, ep2)
+
+    ! Find longitude and latitude coordinates of point co
+    call cart2sph (co, lon, lat)
+
+    e_zonal = Coord (-sin(lon),           cos(lon),             0.0_8) ! Zonal direction
+    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+
+    ! Function returning zonal and meridional velocities given longitude and latitude
+    call vel_fun (lon, lat, k, u_zonal, v_merid)
+
+    ! Velocity vector in Cartesian coordinates
+    vel = vec_plus (vec_scale(u_zonal,e_zonal), vec_scale(v_merid,e_merid))
+
+    ! Project velocity vector on direction given by points ep1, ep2
+    proj_nudge = inner (direction(ep1, ep2), vel)
+  end function proj_nudge
 end module test_case_mod

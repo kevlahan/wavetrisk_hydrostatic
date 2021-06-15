@@ -3,7 +3,6 @@ program jet
   use main_mod
   use test_case_mod
   use io_mod
-  use projection_mod
   implicit none
   logical :: aligned
   
@@ -15,53 +14,51 @@ program jet
   call read_test_case_parameters
 
   ! Parameters defining domain (based on beta-plane values)
-  soufflet           = .false.                          ! set radius to exactly match Soufflet domain
-  
+  soufflet           = .false.                         ! set radius to exactly match Soufflet domain
   if (soufflet) then
      lat_c           = 30d0                            ! centre of zonal channel (in degrees)
-     width           = 2000d0 * KM
+     width           = 2000d0 * KM                     ! zonal channel width
+     L_jet           = 0.8d0 * width                   ! width of jet transition region
      beta            = 1.6d-11 / (METRE * SECOND)      ! beta parameter
      f0              = 1d-4    / SECOND                ! Coriolis parameter
      omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
      radius          = f0 / (beta * tan (lat_c*DEG))   ! planet radius to exactly match Soufflet beta plane
-     L_jet           = 0.8d0 * width                   ! width of jet transition region
   else
      lat_c           = 30d0                            ! centre of zonal channel (in degrees)
-     radius          = 500d0 * KM                      ! meridional width of zonal channel
-     width           = 0.4d0 * radius
-     f0              = 1d-4    
+     radius          = 1000d0 * KM                      ! meridional width of zonal channel
+     width           = 0.3d0 * radius                  ! zonal channel width
+     L_jet           = 0.8d0 * width                   ! width of jet transition region
+     f0              = 1d-4  / SECOND                  ! Coriolis parameter
      omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
      beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
-!!$     L_jet           = 0.25d0*width                   ! width of jet transition region
-     L_jet           = 0.8d0*width                   ! width of jet transition region
   end if
   
   grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
   ref_density        = 1027.75d0    * KG/METRE**3      ! reference density at depth (maximum density)
 
   ! Numerical method parameters
-  default_thresholds = .true.                        ! use default threshold
+  default_thresholds = .true.                          ! use default threshold
   
-  match_time         = .true.                        ! avoid very small time steps when saving (if false) 
-  penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-2                          ! porosity used in penalization
-  npts_penal         = 4.5d0                         ! number of points to smooth over in penalization
-  coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
-  fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
-  tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
-  timeint_type       = "RK4"                         ! always use RK4
-  compressible       = .false.                       ! always run with incompressible equations
-  remapscalar_type   = "PPR"                         ! optimal remapping scheme
-  remapvelo_type     = "PPR"                         ! optimal remapping scheme
+  match_time         = .true.                          ! avoid very small time steps when saving (if false) 
+  penalize           = .true.                          ! penalize land regions
+  alpha              = 1d-2                            ! porosity used in penalization
+  npts_penal         = 4.5d0                           ! number of points to smooth over in penalization
+  coarse_iter        = 20                              ! number of coarse scale iterations of elliptic solver
+  fine_iter          = 20                              ! number of fine scale iterations of elliptic solver
+  tol_elliptic       = 1d-8                            ! coarse scale tolerance of elliptic solver
+  timeint_type       = "RK4"                           ! always use RK4
+  compressible       = .false.                         ! always run with incompressible equations
+  remapscalar_type   = "PPR"                           ! optimal remapping scheme
+  remapvelo_type     = "PPR"                           ! optimal remapping scheme
 
   ! Time stepping parameters
-  adapt_dt           = .true.                        ! adapt time step
-  mode_split         = .true.                        ! split barotropic mode if true
-  theta1             = 0.5d0                         ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson)
-  theta2             = 0.5d0                         ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson)
+  adapt_dt           = .true.                          ! adapt time step
+  mode_split         = .true.                          ! split barotropic mode if true
+  theta1             = 1d0                             ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson)
+  theta2             = 1d0                             ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson)
   
   ! Horizontal diffusion
-  Laplace_order_init = 1                           
+  Laplace_order_init = 2                           
   Laplace_order      = Laplace_order_init
 
   ! Vertical diffusion
@@ -69,35 +66,35 @@ program jet
   tke_closure        = .true.
          
   ! Depth and layer parameters
-  sigma_z            = .true.                       ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-  coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
-  max_depth          = -4000d0 * METRE               ! total depth
-  min_depth          = max_depth                     ! minimum depth
-  Tcline             =  -100d0 * METRE               ! thermocline
+  sigma_z            = .true.                         ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+  coords             = "croco"                        ! grid type for pure sigma grid ("croco" or "uniform")
+  max_depth          = -4000d0 * METRE                ! total depth
+  min_depth          = max_depth                      ! minimum depth
+  Tcline             =  -100d0 * METRE                ! thermocline
 
   ! Land mass parameter
-  lat_width          = (width/radius)/DEG            ! width of zonal channel (in degrees)
+  lat_width          = (width/radius)/DEG             ! width of zonal channel (in degrees)
   
   ! Bottom friction
   bottom_friction_case = 5d-3 / SECOND
 
-  ! Relaxation to initial zonal flow
-  tau_relax          = 1d0 * DAY
+  ! Relaxation to initial zonal flow (nudging)
+  tau_nudge           = 50d0 * DAY
 
   ! Wind stress
-  tau_0              = 0d0
+  tau_0               = 0d0
 
   ! Equation of state variables
-  a_0                = 0.28d0 / CELSIUS
-  b_0                = 0d0
-  mu_1               = 0d0
-  mu_2               = 0d0
-  mu_1               = 0d0
-  mu_2               = 0d0
-  T_ref              = 14d0   * CELSIUS
+  a_0                 = 0.28d0 / CELSIUS
+  b_0                 = 0d0
+  mu_1                = 0d0
+  mu_2                = 0d0
+  mu_1                = 0d0
+  mu_2                = 0d0
+  T_ref               = 14d0   * CELSIUS
   
   ! Vertical level to save
-  save_zlev          = zlevels
+  save_zlev           = zlevels-5
 
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed
@@ -117,10 +114,6 @@ program jet
   Ldim               = L_jet                             ! length scale 
   Tdim               = Ldim/Udim                         ! time scale
   Hdim               = abs (max_depth)                   ! vertical length scale
-
-  ! 2D projection grid size (based on coarsest level resolution)
-  N_proj             = sqrt (40d0 * 4**(min_level-1))
-  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize functions
@@ -129,14 +122,15 @@ program jet
   ! Initialize variables
   call initialize (run_id)
 
+  ! Initialize 2D projections and zonal averages
+  Nproj = sqrt (20d0 * 4**min_level) ! size of 2D projection: Nproj x Nproj/2
+  call initialize_projection (Nproj)
+  allocate (y2(Ny(1):Ny(2),1:zlevels,1:4),       y2_0(Ny(1):Ny(2),1:zlevels,1:4))
+  allocate (zonal(Ny(1):Ny(2),1:zlevels,1:4), zonal_0(Ny(1):Ny(2),1:zlevels,1:4))
+  call zonal_mean (zonal_0, y2_0) ; zonal = zonal_0 ; y2 = y2_0
+
   ! Initialize diagnostic variables
   call init_diagnostics
-
-  ! Initialize 2D projection
-  call initialize_projection (N_proj)
-  allocate (lat_slice(Ny(1):Ny(2),1:zlevels,1:3))
-  call zonal_mean
-  if (rank==0) call write_zonal_avg
 
   ! Save initial conditions
   call print_test_case_parameters
@@ -147,11 +141,17 @@ program jet
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  total_cpu_time = 0.0_8
+  total_cpu_time = 0d0
   do while (time < time_end)
      call start_timing
+     
      call time_step (dt_write, aligned)
-     if (tau_relax /= 0d0) call euler (sol, wav_coeff, trend_relax, dt)
+
+     if (tau_nudge /= 0d0) then
+        if (modulo (istep, 10) == 0) call zonal_mean (zonal, y2)
+        call euler (sol, wav_coeff, trend_nudge, dt)
+     end if
+
      call stop_timing
 
      call update_diagnostics
