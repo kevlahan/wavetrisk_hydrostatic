@@ -292,7 +292,7 @@ contains
     max_level           = min_level
     level_start         = min_level
     level_end           = level_start
-    level_fill          = 0
+    level_fill          = min_level
     
     ! Default logical switches, most are reset in the input file
     adapt_dt            = .true.                            ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
