@@ -34,14 +34,14 @@ ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
   # Need module load intel; module load intelmpi
   F90    = ifort	
   MPIF90 = mpif90
-  OPTIM  = -Ofast
+  OPTIM  = -O2
   #FLAGS  =  $(OPTIM) -g -trace -profile=vtmc -module $(BUILD_DIR) -Isrc/ppr -cpp -diag-disable 8291	
   FLAGS  =  $(OPTIM) -traceback -module $(BUILD_DIR) -Isrc/ppr -cpp -diag-disable 8291
   LIBS   = 
 else # gfortran as default
   F90    = gfortran
   MPIF90 = mpif90
-  OPTIM  = -Ofast
+  OPTIM  = -O2
   FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
   LIBS   = 
 endif

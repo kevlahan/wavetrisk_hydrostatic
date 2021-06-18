@@ -1,5 +1,5 @@
 **********************************************************************************************************************************
-A brief user's guide for WAVETRISK 2.1 2020-12-03
+A brief user's guide for WAVETRISK 2.1 2021-06-18
 N Kevlahan
 Department of Mathematics and Statistics
 McMaster University
@@ -16,7 +16,9 @@ allows for separation of mean and fluctuating scalars, realistic topography and 
 Significant changes compared to WAVETRISK 2.01
 
 1. Addition of spherical harmonics test case and associated matlab m-file.
-2. Modifications to drake two layer test case.
+2. Additional ocean modelling test cases.
+3. Addition of vertical diffusion for ocean modelling using a TKE closure similar to that used in NEMO.
+4. Option of implicit time step for horizontal diffusion.
 
 Changes compared to WAVETRISK 1.x
 
