@@ -25,7 +25,7 @@ program jet
      radius          = f0 / (beta * tan (lat_c*DEG))   ! planet radius to exactly match Soufflet beta plane
   else
      lat_c           = 30d0                            ! centre of zonal channel (in degrees)
-     radius          = 1000d0 * KM                      ! meridional width of zonal channel
+     radius          = 1000d0 * KM                     ! meridional width of zonal channel
      width           = 0.3d0 * radius                  ! zonal channel width
      L_jet           = 0.8d0 * width                   ! width of jet transition region
      f0              = 1d-4  / SECOND                  ! Coriolis parameter
@@ -97,12 +97,19 @@ program jet
   save_zlev           = zlevels-5
 
   ! Characteristic scales
-  wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed
-  drho_dz            = -4d0/1d3                          ! approximate density gradient
+  L_pyc              = dz_b(2)                                      ! pycnocline
+  drho               = drho_surf(2)                                 ! magnitude of density perturbation
+  grav_reduced       = grav_accel * drho/ref_density                ! reduced gravity
+  wave_speed         = sqrt (grav_accel*abs(max_depth))             ! inertia-gravity wave speed
+  drho_dz            = drho / abs (L_pyc)                           ! approximate density gradient
   bv                 = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
-  c1                 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
-  Rb                 = bv * abs(max_depth) / (MATH_PI*f0) ! first baroclinic Rossby radius of deformation
-  Rd                 = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
+  
+!!$  c1                 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
+!!$  Rb                 = bv * abs(max_depth) / (MATH_PI*f0) ! first baroclinic Rossby radius of deformation
+  c1                 = sqrt (grav_reduced *  L_pyc)                 ! first baroclinic mode speed for linear stratification
+  Rb                 = c1 / f0                                      ! alternate definition of first baroclinic Rossby radius of deformation
+  
+  Rd                 = wave_speed / f0                              ! barotropic Rossby radius of deformation                    
   
   ! Dimensional scaling
   if (soufflet) then ! velocity scale
@@ -110,7 +117,6 @@ program jet
   else
      Udim = 1d0 * METRE/SECOND
   end if
-  drho               = 3d0 * KG/METRE**3               ! magnitude of density perturbation
   Ldim               = L_jet                             ! length scale 
   Tdim               = Ldim/Udim                         ! time scale
   Hdim               = abs (max_depth)                   ! vertical length scale

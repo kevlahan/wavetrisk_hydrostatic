@@ -15,7 +15,7 @@ Module test_case_mod
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
 
   ! Local variables
-  real(8)                              :: beta, bv, drho, drho_dz, f0, L_jet, Rb, Rd, tau_nudge, Tcline
+  real(8)                              :: beta, bv, drho, drho_dz, f0, grav_reduced, L_jet, L_pyc, Rb, Rd, tau_nudge, Tcline
   real(8)                              :: r_max, r_max_loc
   real(8)                              :: n_smth_N, n_smth_S, width_N, width, width_S
   real(8)                              :: npts_penal, R_b, u_wbc

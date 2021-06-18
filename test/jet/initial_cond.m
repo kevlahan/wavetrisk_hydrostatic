@@ -30,6 +30,7 @@ end
 c1 = [28 27.5 27 26.5 26 25.5 25 24.5 24];
 caxis([min(c1) max(c1)]);
 contourf(lat,z,rho,c1);colormap(autumn);colorbar;
+figure;plot(rho(:,1000),z,'linewidth',2);grid on;ylabel('z');xlabel('rho');
 
     function [rho] = density_ic(phi, depth)
         drho_N = rho_NS (1, depth);
