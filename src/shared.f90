@@ -320,8 +320,7 @@ contains
     
     ! Theta parameters for barotropic-baroclinic mode splitting
     ! theta1 + theta2 < 1 unstable
-    ! theta1 >= 0.5 and theta2 >= 0.5 stable
-    ! theta1 + theta2 >= stable if cfl_num^2 (theta1 - 0.5) (theta2 - 0.5) + 1 >= 0
+    ! theta1 >= 0.75 and theta2 >= 0.75 stable for all wavenumbers (otherwise unstable over a small interval of small wavenumbers)
     theta1              = 1d0                               ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
     theta2              = 1d0                               ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
 

@@ -320,8 +320,9 @@ contains
   end subroutine Euler_split
 
   subroutine RK4_split (dt)
-    ! Low storage four stage second order accurate Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
-    ! Fourth order accurate for linear equations, stable for CFL <= 2*sqrt(2) ~ 2.83.
+    ! Low storage four stage Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
+    ! Fourth order accurate for linear equations, second order accurate for nonlinear equations.
+    ! Stable for CFL <= 2*sqrt(2) ~ 2.83.
     ! Does not require extra solution variables.
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
@@ -352,6 +353,37 @@ contains
     call free_surface_update 
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK4_split
+  
+  subroutine RK3_split (dt)
+    ! Low storage three stage Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
+    ! Third order accurate for linear equations, second order accurate for nonlinear equations.
+    ! Stable for CFL <= 1.7321.
+    ! Does not require extra solution variables.
+    !
+    ! This version implements the explicit-implicit free surface method used in the MITgcm.
+    implicit none
+    real(8)  :: dt
+    
+    call manage_q1_mem
+
+    ! Compute flux divergence of vertically integrated velocity at previous time step
+    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+
+    call trend_ml (sol, trend)
+    call RK_split (dt/3d0, q1)
+    call WT_after_step (q1(:,1:zlevels), wav_coeff)
+
+    call trend_ml (q1, trend)
+    call RK_split (dt/2d0, q1)
+    call WT_after_step (q1(:,1:zlevels), wav_coeff)
+
+    call trend_ml (q1, trend)
+    call RK_split (dt, sol)
+    call WT_after_step (sol(:,1:zlevels), wav_coeff)
+
+    call free_surface_update 
+    call WT_after_step (sol, wav_coeff, level_start-1)
+  end subroutine RK3_split
 
   subroutine RK_split (dt, dest)
     ! Explicit Euler integration of velocity and scalars used in RK4_split

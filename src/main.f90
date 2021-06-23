@@ -190,7 +190,7 @@ contains
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
-       if (istep <= 5) then  ! small time steps to start
+       if (istep <= -5) then  ! small time steps to start
           dx = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end)) 
           dt = 0.1*dx/wave_speed
        end if
@@ -200,9 +200,11 @@ contains
           call Euler_split (dt)
        case ("RK4")
           call RK4_split (dt)
+       case ("RK3")
+          call RK3_split (dt)
        case default
           if (rank == 0) &
-               write (6,'(a)') "Invalid timestepping choice ... only Euler and RK4 supported for free surface ... aborting"
+               write (6,'(a)') "Invalid timestepping choice ... only Euler, RK3 and RK4 supported for free surface ... aborting"
           call abort
        end select
     else
