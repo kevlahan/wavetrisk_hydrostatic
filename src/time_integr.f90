@@ -355,9 +355,9 @@ contains
   end subroutine RK4_split
   
   subroutine RK3_split (dt)
-    ! Low storage three stage Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
+    ! Low storage three stage Runge-Kutta from Kinnmark and Gray (Math Computers Simul 26 1984, 181-188)
     ! Third order accurate for linear equations, second order accurate for nonlinear equations.
-    ! Stable for CFL <= 1.7321.
+    ! Stable for CFL <= sqrt(3) ~ 1.7321.
     ! Does not require extra solution variables.
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
