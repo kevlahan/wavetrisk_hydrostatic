@@ -385,6 +385,33 @@ contains
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK3_split
 
+  subroutine RK2_split (dt)
+    ! Low storage two stage Runge-Kutta from Kinnmark and Gray (Math Computers Simul 26 1984, 181-188)
+    ! Second order accurate.
+    ! Stable for CFL <= sqrt(3) ~ 1.7321.
+    ! Does not require extra solution variables.
+    !
+    ! This version implements the explicit-implicit free surface method used in the MITgcm.
+    implicit none
+    real(8)  :: dt
+    
+    call manage_q1_mem
+
+    ! Compute flux divergence of vertically integrated velocity at previous time step
+    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+
+    call trend_ml (sol, trend)
+    call RK_split (dt/2d0, q1)
+    call WT_after_step (q1(:,1:zlevels), wav_coeff)
+
+    call trend_ml (q1, trend)
+    call RK_split (dt, sol)
+    call WT_after_step (sol(:,1:zlevels), wav_coeff)
+
+    call free_surface_update 
+    call WT_after_step (sol, wav_coeff, level_start-1)
+  end subroutine RK2_split
+
   subroutine RK_split (dt, dest)
     ! Explicit Euler integration of velocity and scalars used in RK4_split
     implicit none

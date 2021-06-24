@@ -48,6 +48,9 @@ contains
        interp_scalar => remap4
     case ("PPR")
        interp_scalar => remapPPR
+    case default
+       if (rank == 0) write (6,'(a)') "Invalid remapping choice ... aborting"
+       call abort
     end select
 
     select case (remapvelo_type)
@@ -1166,22 +1169,43 @@ contains
     real(8), dimension(1:N) :: var_new, var_old
     real(8), dimension(0:N) :: z_new, z_old
 
-    ! ppr variables
-    integer, parameter               :: nvar = 1  ! number of variables to remap
-    integer, parameter               :: ndof = 1  ! number of finite volume degrees of freedom per cell (1 for finite volume)
+    ! PPR and limiter type
+    integer,      parameter          :: order   = 2
+    character(*), parameter          :: limiter = "weno"
+    
+    integer, parameter               :: nvar = 1 ! number of variables to remap
+    integer, parameter               :: ndof = 1 ! number of finite volume degrees of freedom per cell (1 for finite volume)
     real(8), dimension(ndof,nvar,N)  :: f_old, f_new, init
     type(rmap_work)                  :: work
     type(rmap_opts)                  :: opts
     type(rcon_ends), dimension(nvar) :: bc_l, bc_r
 
     ! Order of edge interpolation: p1e (linear), p3e (cubic), p5e (quintic)
-    opts%edge_meth = p3e_method 
-
-    ! PPM method in cells: pcm (piecewise constant), plm (piecewise linear), ppm (piecewise parabolic), pqm (slope-limited piecewise quartic)
-    opts%cell_meth = ppm_method
+    ! PPR method in cells: pcm (piecewise constant), plm (piecewise linear), ppm (piecewise parabolic), pqm (slope-limited piecewise quartic)
+    select case (order)
+    case (0)
+       opts%edge_meth = p1e_method
+       opts%cell_meth = pcm_method
+    case (1)
+       opts%edge_meth = p1e_method
+       opts%cell_meth = plm_method
+    case (2)
+       opts%edge_meth = p3e_method
+       opts%cell_meth = ppm_method
+    case (4)
+       opts%edge_meth = p5e_method
+       opts%cell_meth = pqm_method
+    end select
 
     ! Slope limiter (null, mono, weno)
-    opts%cell_lims = mono_limit 
+    select case (limiter)
+    case ("null")
+       opts%cell_lims = null_limit
+    case ("mono")
+       opts%cell_lims = mono_limit
+    case ("weno")
+       opts%cell_lims = weno_limit
+    end select
 
     ! Set boundary conditions at endpoints: loose (extrapolate), value (Dirichlet), slope (Neumann)
     bc_l%bcopt = bcon_loose

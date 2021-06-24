@@ -202,9 +202,10 @@ contains
           call RK4_split (dt)
        case ("RK3")
           call RK3_split (dt)
+       case ("RK2")
+          call RK2_split (dt)
        case default
-          if (rank == 0) &
-               write (6,'(a)') "Invalid timestepping choice ... only Euler, RK3 and RK4 supported for free surface ... aborting"
+          if (rank == 0) write (6,'(a)') "Invalid timestepping choice ... aborting"
           call abort
        end select
     else
