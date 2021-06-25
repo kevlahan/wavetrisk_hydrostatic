@@ -735,8 +735,8 @@ contains
              outv(6) = dom%surf_press%elts(id_i)
           else ! free surface perturbation
              if (mode_split) then 
-!!$                outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
-                outv(6) = -dom%topo%elts(id_i) ! bathymetry
+                outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
+!!$                outv(6) = -dom%topo%elts(id_i) ! bathymetry
              else
                 outv(6) = free_surface (dom, i, j, zlev, offs, dims)
              end if
