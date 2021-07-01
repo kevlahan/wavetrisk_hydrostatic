@@ -192,20 +192,19 @@ contains
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
        if (istep <= nstep_init) then  ! small time steps to start
           dx = sqrt (4d0/sqrt(3d0) * 4*MATH_PI*radius**2/(20d0*4**level_end)) 
-          dt_0 = 0.1d0*dx/wave_speed
-
+          dt_0 = 0.8d0*dx/wave_speed
           dt = dt_0 + (dt - dt_0) * sin (MATH_PI/4d0 * dble(istep-1)/dble(nstep_init-1))
        end if
-       
+
        select case (timeint_type)
-       case ("Euler")
-          call Euler_split (dt)
        case ("RK4")
           call RK4_split (dt)
        case ("RK3")
           call RK3_split (dt)
        case ("RK2")
           call RK2_split (dt)
+       case ("Euler")
+          call Euler_split (dt)
        case default
           if (rank == 0) write (6,'(a)') "Invalid timestepping choice ... aborting"
           call abort
