@@ -1448,8 +1448,9 @@ contains
        do k = 1, zlevels
           full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
           if (full_mass < 0.0_8 .or. full_mass /= full_mass) then
-             write (6,'(A,i8,A,i2,2(A,i2),A)') "Mass negative at id = ", id_i, " with scale j = ", dom%level%elts(id_i),  &
-                  " vertical level k = ", k, " and mask = ", dom%mask_n%elts(id_i), " ... aborting"
+             write (6,'(A,i8,A,3(es9.2,1x),A,i2,A)') "Mass negative at id = ", id_i, &
+                  " with position ", dom%node%elts(id_i)%x,  dom%node%elts(id_i)%y, dom%node%elts(id_i)%z, &
+                  " vertical level k = ", k, " ... aborting"
              call abort
           end if
           col_mass = col_mass + full_mass

@@ -163,8 +163,8 @@ contains
     real(8)              :: align_time
     logical, intent(out) :: aligned
 
-    integer(8) :: idt, ialign
-    real(8)    :: dx
+    integer(8)         :: idt, ialign
+    real(8)            :: dx, dt_0
     
     istep       = istep+1
     istep_cumul = istep_cumul+1
@@ -190,9 +190,11 @@ contains
 
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
-       if (istep <= -5) then  ! small time steps to start
-          dx = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end)) 
-          dt = 0.1*dx/wave_speed
+       if (istep <= nstep_init) then  ! small time steps to start
+          dx = sqrt (4d0/sqrt(3d0) * 4*MATH_PI*radius**2/(20d0*4**level_end)) 
+          dt_0 = 0.1d0*dx/wave_speed
+
+          dt = dt_0 + (dt - dt_0) * sin (MATH_PI/4d0 * dble(istep-1)/dble(nstep_init-1))
        end if
        
        select case (timeint_type)

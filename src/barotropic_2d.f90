@@ -238,7 +238,7 @@ contains
   end subroutine complete_elliptic_lo
 
   subroutine flux_divergence (q, div_flux)
-    ! Returns flux divergence of vertical integrated velocity in divF using solution q
+    ! Returns flux divergence of vertical integrated velocity in divF using solution q, stored in div_flux
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
     type(Float_Field),                                 target :: div_flux
@@ -264,7 +264,7 @@ contains
        horiz_flux(S_MASS)%bdry_uptodate = .false.
        call update_bdry (horiz_flux(S_MASS), l, 211)
 
-       ! Calculate divergence of vertically integrated velocity flux, stored in trend(S_MASS,zlevels+1)
+       ! Calculate divergence of vertically integrated velocity flux
        do d = 1, size(grid)
           dscalar => div_flux%data(d)%elts
           h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -277,6 +277,44 @@ contains
        call update_bdry (div_flux, l, 212)
     end do
   end subroutine flux_divergence
+
+  subroutine diffusion_eta
+    ! Computes Laplacian diffusion of free surface, stored in Laplacian_scalar(S_TEMP)
+    implicit none
+    integer :: d, j, l
+
+    do l = level_end, level_start, -1
+       ! Calculate vertically integrated velocity flux
+       do d = 1, size(grid)
+          h_flux =>    horiz_flux(S_MASS)%data(d)%elts
+          scalar => sol(S_MASS,zlevels+1)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=1)
+          end do
+          nullify (scalar)
+          if (l < level_end) then
+             dscalar => Laplacian_scalar(S_TEMP)%data(d)%elts
+             call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
+             nullify (dscalar)
+          end if
+          nullify (h_flux)
+       end do
+       horiz_flux(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (horiz_flux(S_MASS), l, 211)
+
+       ! Calculate divergence of vertically integrated velocity flux
+       do d = 1, size(grid)
+          dscalar => Laplacian_scalar(S_TEMP)%data(d)%elts
+          h_flux  => horiz_flux(S_MASS)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (dscalar, h_flux)
+       end do
+       Laplacian_scalar(S_TEMP)%bdry_uptodate = .false.
+       call update_bdry (Laplacian_scalar(S_TEMP), l, 212)
+    end do
+  end subroutine diffusion_eta
 
   subroutine total_height (q, q_2d)
     ! Vertical sum of flux of q, returned in q_2d

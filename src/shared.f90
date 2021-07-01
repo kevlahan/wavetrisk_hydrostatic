@@ -209,7 +209,7 @@ module shared_mod
   
   ! Simulation variables
   integer                                       :: coarse_iter, cp_idx, err_restart, fine_iter, ibin, iremap, istep, istep_cumul
-  integer                                       :: iwrite, n_diffuse, nbins, save_zlev
+  integer                                       :: iwrite, n_diffuse, nbins, nstep_init, save_zlev
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
@@ -293,6 +293,7 @@ contains
     level_start         = min_level
     level_end           = level_start
     level_fill          = min_level
+    nstep_init          = -1                                ! nstep_init gradually increasing small time steps after restart
     
     ! Default logical switches, most are reset in the input file
     adapt_dt            = .true.                            ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
@@ -317,13 +318,6 @@ contains
     ! Default numerical method values
     alpha               = 1d-2                              ! porosity
     cfl_num             = 1d0                               ! barotropic CFL number
-    
-    ! Theta parameters for barotropic-baroclinic mode splitting
-    ! theta1 + theta2 < 1 unstable
-    ! theta1 >= 0.75 and theta2 >= 0.75 stable for all wavenumbers (otherwise unstable over a small interval of small wavenumbers)
-    theta1              = 1d0                               ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
-    theta2              = 1d0                               ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
-
     C_visc              = 1d-2                              ! constant for determining horizontal viscosity
     iremap              = 10                                ! remap every iremap steps
     level_save          = level_start                       ! level to save
@@ -360,9 +354,9 @@ contains
     b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
     c_s                 = 1500      * METRE / SECOND              ! sound speed for seawater
-    coarse_iter         = 10                                      ! number of bicgstab iterations at coarsest scale for elliptic solver
+    coarse_iter         = 20                                      ! number of bicgstab iterations at coarsest scale for elliptic solver
     e_min               = 1d-6      * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
-    fine_iter           = 10                                      ! number of jacobi iterations at finer scales for elliptic solver
+    fine_iter           = 40                                      ! number of jacobi iterations at finer scales for elliptic solver
     Kt_0                = 1.2d-5    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy diffusion
     Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
     lambda_1            = 5.9520d-2                               ! cabbeling coefficient in T^2
@@ -376,7 +370,12 @@ contains
     T_ref               = 10         * CELSIUS                    ! reference temperature
     S_ref               = 35         * GRAM / KG                  ! reference salinity
 
-    H_rho               = c_s**2 / grav_accel                     ! density scale height 
+    H_rho               = c_s**2 / grav_accel                     ! density scale height
+
+    ! Theta parameters for barotropic-baroclinic mode splitting
+    ! theta1 > 0.75 and theta2 > 0.75 stable for all wavenumbers (otherwise unstable over a small interval of small wavenumbers)
+    theta1              = 0.8d0                                   ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+    theta2              = 0.8d0                                   ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
   end subroutine init_shared_mod
 
   real(8) function eps ()

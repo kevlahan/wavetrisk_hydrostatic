@@ -566,7 +566,7 @@ contains
 
     integer                                       :: l
     integer, dimension(level_start:level_end)     :: iter
-    real(8), parameter                            :: tol_jacobi = 1d-2
+    real(8), parameter                            :: tol_jacobi = 1d-8
     real(8)                                       :: nrm_f, nrm_u
     real(8), dimension(1:2,level_start:level_end) :: r_error
     
