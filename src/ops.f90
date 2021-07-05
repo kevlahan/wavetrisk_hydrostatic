@@ -1345,10 +1345,28 @@ contains
     idS  = idx (i,   j-1, offs, dims)
     idW  = idx (i-1, j,   offs, dims)
     idSW = idx (i-1, j-1, offs, dims)
-
+    
     div = (hflux(EDGE*id+RT+1)-hflux(EDGE*idW+RT+1) + hflux(EDGE*idSW+DG+1)-hflux(EDGE*id+DG+1) &
          + hflux(EDGE*id+UP+1)-hflux(EDGE*idS+UP+1)) * dom%areas%elts(id+1)%hex_inv
   end function div
+
+  subroutine cal_div (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       dscalar(id_i) = div (h_flux, dom, i, j, offs, dims)
+    else
+       dscalar(id_i) = 0d0
+    end if
+  end subroutine cal_div
 
   subroutine cal_divu (dom, i, j, zlev, offs, dims)
     implicit none

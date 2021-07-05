@@ -6,13 +6,13 @@ module barotropic_2d_mod
   use utils_mod
   implicit none
 contains
-   subroutine scalar_star (dt, q)
+  subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
     implicit none
     real(8)                                   :: dt
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, ibeg, iend, j, k, l, v
+    integer :: d, ibeg, iend, k, v
 
     do k = 1, zlevels
        do d = 1, size(grid)
@@ -32,7 +32,7 @@ contains
     real(8)                                   :: dt
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, ibeg, iend, k, l
+    integer :: d, ibeg, iend, k
 
     ! External pressure gradient
     call grad_eta
@@ -105,13 +105,34 @@ contains
   end subroutine cal_barotropic_correction
 
   subroutine eta_update
-    ! Backwards Euler step for eta update
+    ! Theta step for free surface update
     use lin_solve_mod
     implicit none
-  
+
+    ! Solve elliptic equation
     call rhs_elliptic
     call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
+
+    ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
+    call diffuse_eta 
   end subroutine eta_update
+
+  subroutine diffuse_eta
+    ! Explicit Laplacian diffusion step for free surface with diffusion constant C
+    implicit none
+
+    integer            :: d, ibeg, iend
+    real(8), parameter :: C = 1d-4
+
+    call Laplacian_eta
+
+    do d = 1, size(grid)
+       ibeg = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend = sol(S_MASS,zlevels+1)%data(d)%length
+       sol(S_MASS,zlevels+1)%data(d)%elts(ibeg:iend) = sol(S_MASS,zlevels+1)%data(d)%elts(ibeg:iend) &
+            + C * dx_min**2 * Laplacian_scalar(S_MASS)%data(d)%elts(ibeg:iend)
+    end do
+  end subroutine diffuse_eta
 
   subroutine u_update
     ! Explicit Euler velocity update with new external pressure gradient
@@ -167,7 +188,7 @@ contains
     id = idx (i, j, offs, dims) + 1
         
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       mass1(id) = - (mass(id) + dt * (theta2 * dscalar(id) + (1d0 - theta2) * dmass(id)) / ref_density) 
+       mass1(id) = - mass(id) + dt * (theta2 * dscalar(id) + (1d0 - theta2) * dmass(id)) / ref_density
     else
        mass1(id) = 0d0
     end if
@@ -200,7 +221,7 @@ contains
        dscalar => Laplacian_scalar(S_MASS)%data(d)%elts
        h_flux  => horiz_flux(S_MASS)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
        nullify (dscalar, h_flux)
     end do
@@ -231,7 +252,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = - (theta1*theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) + mass(id)) 
+       dscalar(id) = theta1*theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
     else
        dscalar(id) = 0d0
     end if
@@ -269,7 +290,7 @@ contains
           dscalar => div_flux%data(d)%elts
           h_flux  => horiz_flux(S_MASS)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
           nullify (dscalar, h_flux)
        end do
@@ -278,22 +299,22 @@ contains
     end do
   end subroutine flux_divergence
 
-  subroutine diffusion_eta
+  subroutine Laplacian_eta
     ! Computes Laplacian diffusion of free surface, stored in Laplacian_scalar(S_TEMP)
     implicit none
+    
     integer :: d, j, l
 
     do l = level_end, level_start, -1
-       ! Calculate vertically integrated velocity flux
        do d = 1, size(grid)
-          h_flux =>    horiz_flux(S_MASS)%data(d)%elts
+          h_flux => horiz_flux(S_MASS)%data(d)%elts
           scalar => sol(S_MASS,zlevels+1)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
              call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=1)
           end do
           nullify (scalar)
           if (l < level_end) then
-             dscalar => Laplacian_scalar(S_TEMP)%data(d)%elts
+             dscalar => Laplacian_scalar(S_MASS)%data(d)%elts
              call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
              nullify (dscalar)
           end if
@@ -304,17 +325,17 @@ contains
 
        ! Calculate divergence of vertically integrated velocity flux
        do d = 1, size(grid)
-          dscalar => Laplacian_scalar(S_TEMP)%data(d)%elts
+          dscalar => Laplacian_scalar(S_MASS)%data(d)%elts
           h_flux  => horiz_flux(S_MASS)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
           nullify (dscalar, h_flux)
        end do
-       Laplacian_scalar(S_TEMP)%bdry_uptodate = .false.
-       call update_bdry (Laplacian_scalar(S_TEMP), l, 212)
+       Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (Laplacian_scalar(S_MASS), l, 212)
     end do
-  end subroutine diffusion_eta
+  end subroutine Laplacian_eta
 
   subroutine total_height (q, q_2d)
     ! Vertical sum of flux of q, returned in q_2d
@@ -448,7 +469,7 @@ contains
           dscalar =>    trend(S_MASS,1)%data(d)%elts
           h_flux  => horiz_flux(S_MASS)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
           nullify (dscalar, h_flux)
        end do
@@ -481,7 +502,7 @@ contains
              dscalar => exner_fun(k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (scalar_trend, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (dscalar, h_flux)
           end do
@@ -526,7 +547,7 @@ contains
        ! Vertical velocity at layer interfaces
        w(0) = 0.0_8; w(zlevels) = 0.0_8 ! impose zero vertical velocity at bottom and top
        do k = 1, zlevels-1
-          w(k) = w(k-1) + exner_fun(k)%data(d)%elts(id_i)
+          w(k) = w(k-1) - exner_fun(k)%data(d)%elts(id_i)
        end do
 
        ! Interpolate to nodes and remove density
@@ -605,7 +626,7 @@ contains
        
        omega(0) = 0.0_8; omega(zlevels) = 0.0_8 ! impose zero flux at bottom and top
        do k = 1, zlevels-1
-          omega(k) = omega(k-1) - ((a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i))
+          omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
        end do
        do k = zlevels, 1, -1
           rho = porous_density (dom, i, j, k, offs, dims)
