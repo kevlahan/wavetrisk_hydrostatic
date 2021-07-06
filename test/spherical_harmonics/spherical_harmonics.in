@@ -4,6 +4,7 @@ run_id         "1layer_J6"  ! run
 cp_2d	        33          ! checkpoint for 2d projection	
 max_level	10          ! maximum level of resolution
 zlevels         1           ! number of vertical levels
+save_zlev       55          ! vertical level at which to compute energy spectra
 uniform         F           ! uniform (T) or hybrid (F) vertical grid
 level_save      9           ! resolution level to interpolate to
 N               3200        ! resolution of interpolated grid (N/2 latitude x N longitude)

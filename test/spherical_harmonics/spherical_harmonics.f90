@@ -140,7 +140,7 @@ contains
     
     ! Vorticity at hexagon points
     do d = 1, size(grid)
-       velo  => sol(S_VELO,1)%data(d)%elts
+       velo  => sol(S_VELO,save_zlev)%data(d)%elts
        vort  => grid(d)%vort%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)

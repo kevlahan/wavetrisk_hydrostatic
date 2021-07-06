@@ -206,6 +206,7 @@ contains
     read (fid,*) varname, cp_idx
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
+    read (fid,*) varname, save_zlev
     read (fid,*) varname, uniform
     read (fid,*) varname, level_fill
     read (fid,*) varname, N
@@ -230,6 +231,7 @@ contains
        write (6,'(A,i3)')     "min_level              = ", min_level
        write (6,'(A,i3)')     "max_level              = ", max_level
        write (6,'(A,i3)')     "zlevels                = ", zlevels
+       write (6,'(A,i3)')     "save_zlev              = ", save_zlev
        write(6,'(A,L1)')      "uniform                = ", uniform
        write (6,'(A,i3)')     "level_fill             = ", level_fill
        write (6,'(A,i5)')     "N                      = ", N
@@ -419,7 +421,6 @@ contains
 
   subroutine set_save_level_case
     implicit none
-    save_zlev = zlevels
   end subroutine set_save_level_case
 
   subroutine dump_case (fid)
