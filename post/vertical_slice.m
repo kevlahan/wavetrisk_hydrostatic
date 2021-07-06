@@ -110,8 +110,8 @@ end
                 c2 = [-18 -16 -14 -12 -10 -8 -6 -4 -2 0];
                 trans = @(u) -100 * u;
             elseif strcmp (test_case, 'jet')
-                c1 = linspace(-240, 240, 200);
-                c2 = -[2.5 5 7.5 10 12.5 15 17.5]*10;
+                c1 = linspace(-70, 70, 200);
+                c2 = [5 15 25 35 45 55];
                 trans = @(u) 100 * u;
             end
         elseif strcmp(field,'meridional')

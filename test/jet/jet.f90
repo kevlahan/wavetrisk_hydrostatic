@@ -26,8 +26,8 @@ program jet
   else
      lat_c           = 30d0                            ! centre of zonal channel (in degrees)
      radius          = 1000d0 * KM                     ! meridional width of zonal channel
-     width           = 0.3d0 * radius                  ! zonal channel width
-     L_jet           = 0.8d0 * width                   ! width of jet transition region
+     width           = radius                          ! zonal channel width
+     L_jet           = 0.4d0 * width                   ! width of jet transition region
      f0              = 1d-4  / SECOND                  ! Coriolis parameter
      omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
      beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
@@ -44,9 +44,9 @@ program jet
   alpha              = 1d-2                            ! porosity used in penalization
   npts_penal         = 4.5d0                           ! number of points to smooth over in penalization
   coarse_iter        = 20                              ! number of coarse scale iterations of elliptic solver
-  fine_iter          = 20                              ! number of fine scale iterations of elliptic solver
+  fine_iter          = 40                              ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                            ! coarse scale tolerance of elliptic solver
-  timeint_type       = "RK4"                           ! always use RK4
+  timeint_type       = "RK3"                           ! always use RK4
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
   remapvelo_type     = "PPR"                           ! optimal remapping scheme
@@ -54,11 +54,11 @@ program jet
   ! Time stepping parameters
   adapt_dt           = .true.                          ! adapt time step
   mode_split         = .true.                          ! split barotropic mode if true
-  theta1             = 1d0                             ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson)
-  theta2             = 1d0                             ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson)
+  theta1             = 0.8d0                           ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75
+  theta2             = 0.8d0                           ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75
   
   ! Horizontal diffusion
-  Laplace_order_init = 2                           
+  Laplace_order_init = 2                         
   Laplace_order      = Laplace_order_init
 
   ! Vertical diffusion

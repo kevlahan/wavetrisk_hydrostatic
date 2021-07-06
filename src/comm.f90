@@ -959,7 +959,6 @@ contains
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1 
        if (adapt_dt) then
-          
           dx = minval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))
           do k = 1, zlevels
              v_mag = maxval (abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)))

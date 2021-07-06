@@ -7,7 +7,7 @@ remap              T             ! remap vertical grid
 iremap             5             ! remap every iremap time steps
 log_iter           F             ! print elliptic solver relative residual error
 tol      	   5e-2          ! non-dimensional tolerance
-cfl_num            35            ! cfl number for barotropic mode
+cfl_num            20            ! cfl number for barotropic mode
 dt_write           2.0           ! save interval (days)
 CP_EVERY           1             ! checkpoint every CP_EVERY saves
 time_end           100           ! final time (days)

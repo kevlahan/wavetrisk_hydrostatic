@@ -12,6 +12,13 @@ run_id     =  '2layer_fast'; cp_id = '0015';
 %type       = 'baroclinic_1';
 %type       = 'total_2';
 type       = 'baroclinic_2';
+
+test_case = 'jet';
+run_id    = 'jet';
+%cp_id     = '0118';
+cp_id     = '0000';
+type      = 'barotropic';
+
 local      = true;
 machine    = 'if.mcmaster.ca';
 %machine    = 'niagara.computecanada.ca';
@@ -46,6 +53,9 @@ elseif strcmp(run_id,'2layer_equal')
 elseif strcmp(run_id,'2layer_thin')
     scale_omega =  1;
     uwbc        =  2.0;
+elseif strcmp(run_id,'jet')
+    scale_omega =  6.371;
+    uwbc        =  1.0;
 end
 
 theta       =  45; % latitude at which to calculate f0 and beta
@@ -74,14 +84,15 @@ file_base   = [run_id '_' cp_id '_' type];
 remote_file = ['~/hydro/' test_case '/' file_base];
 local_file  = ['~/hydro/' test_case '/' file_base];
 %% Load local region data
-scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
 if ~strcmp(machine,'mac') 
+    scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
     unix (sprintf(scp_cmd));
 end
 %% Plot local region
 fid = fopen(local_file);
-data = fread(fid,'single');
+data = fread(fid,'double'); 
 N = round(-3/2 + sqrt(2*(numel(data)+1)));
+%data = reshape (data, N+1, N/2+1)';
 data = reshape (data, N+1, N/2+1)';
 dmin = min(min(data));
 dmax = max(max(data));

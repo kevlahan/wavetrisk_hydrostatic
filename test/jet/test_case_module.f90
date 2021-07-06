@@ -768,7 +768,7 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, 1.2d0*dx_min/c1)
     dt_init = dt_cfl
 
-    C = 2d-3 ! <= 1/2 if explicit
+    C = 5d-3 ! <= 0.5 if explicit for Laplacian diffusion, <= 0.1 for hyperdiffusion
     C_rotu = C / 4**Laplace_order_init  ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     C_divu = C
     C_mu   = C

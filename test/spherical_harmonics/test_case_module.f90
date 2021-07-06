@@ -14,10 +14,12 @@ module test_case_mod
   real(8) :: eta_0, u_0 
   ! DCMIP2008c5
   real(8) :: d2, h_0, lat_c, lon_c
-  !Drake
+  ! Drake
   integer               :: npts_penal
   real(8)               :: drho, halocline, mixed_layer, scale
   real(8), dimension(2) :: density_drake, height
+  ! Jet
+  real(8) :: beta, f0
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases

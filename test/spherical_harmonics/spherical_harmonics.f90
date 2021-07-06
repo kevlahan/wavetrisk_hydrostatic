@@ -85,6 +85,17 @@ program spherical_harmonics
      mode_split     = .true.                             ! split barotropic mode if true
      compressible   = .false.                            ! always run with incompressible equations
      penalize       = .true.                             ! penalize land regions
+  elseif (trim (test_case) == "jet") then
+     radius          = 1000d0 * KM                     ! meridional width of zonal channel
+     f0              = 1d-4  / SECOND                  ! Coriolis parameter
+     omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
+     beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
+
+     mode_split     = .true.                             ! split barotropic mode if true
+     compressible   = .false.                            ! always run with incompressible equations
+     penalize       = .true.                             ! penalize land regions
+     vert_diffuse       = .true.                       
+     tke_closure        = .true.
   else
      write (6,'(A)') "Test case not supported"
      stop
@@ -119,7 +130,7 @@ contains
     implicit none
     integer :: d, i, j, l
 
-    if (rank == 0) write (6,'(A,i6)') "Energy spectrum of checkpoint file = ", cp_idx
+    if (rank == 0) write (6,'(A,i6,A,f10.2,A)') "Energy spectrum of checkpoint file = ", cp_idx, " at ", time/DAY, " days"
 
     call initialize_projection (N)
 

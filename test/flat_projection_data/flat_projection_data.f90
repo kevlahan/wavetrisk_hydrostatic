@@ -162,12 +162,11 @@ program flat_projection_data
         L_jet              = 0.8d0 * width                   ! width of jet transition region
      else
         lat_c           = 30d0                            ! centre of zonal channel (in degrees)
-        radius          = 1000d0 * KM                      ! meridional width of zonal channel
-        width           = 0.4d0 * radius
-        f0              = 1d-4     
+        radius          = 1000d0 * KM                     ! meridional width of zonal channel
+        width           = radius                          ! zonal channel width
+        L_jet           = 0.4d0 * width                   ! width of jet transition region
+        f0              = 1d-4  / SECOND                  ! Coriolis parameter
         omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
-        beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
-        L_jet           = 0.25d0*width                   ! width of jet transition region
      end if
 
      grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
