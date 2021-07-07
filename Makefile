@@ -46,11 +46,13 @@ else # gfortran as default
   LIBS   = 
 endif
 
-ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (must use gfortran)
+ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
   F90    = gfortran
   MPIF90 = mpif90
   OPTIM  = -O2
   ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
+    # need to do:
+    # module load gcc openmpi fftw mkl
     SHTOOLSLIBPATH = /home/k/kevlahan/kevlahan/SHTOOLS-4.7.1/lib
     SHTOOLSMODPATH = /home/k/kevlahan/kevlahan/SHTOOLS-4.7.1/include
     BLAS   =-L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_gf_ilp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl -lmkl_blas95_lp64
