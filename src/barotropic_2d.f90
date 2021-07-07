@@ -122,7 +122,7 @@ contains
     implicit none
 
     integer            :: d, ibeg, iend
-    real(8), parameter :: C = 5d-4
+    real(8), parameter :: C = 1d-3
 
     call Laplacian_eta
 

@@ -220,6 +220,8 @@ contains
           call RK34_opt (sol, wav_coeff, trend_ml, dt)
        case ("RK45")
           call RK45_opt (sol, wav_coeff, trend_ml, dt)
+       case ("RK3")
+          call RK3 (sol, wav_coeff, trend_ml, dt)
        case ("RK4")
           call RK4 (sol, wav_coeff, trend_ml, dt)
        case default

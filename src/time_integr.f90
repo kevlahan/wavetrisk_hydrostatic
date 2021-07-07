@@ -17,6 +17,30 @@ contains
     call WT_after_step (q, wav, level_start-1)
   end subroutine Euler
 
+  subroutine RK3 (q, wav, trend_fun, dt)
+    ! Optimal third order, three stage strong stability preserving Runge-Kutta method
+    ! Stable for hyperbolic equations for CFL<2
+    ! Does not require extra solution variables.
+    implicit none
+    real(8)                           :: dt
+    type(Float_Field), dimension(:,:) :: q, wav
+    external                          :: trend_fun
+
+    call manage_q1_mem
+
+    call trend_fun (q, trend) 
+    call RK_sub_step (q, trend, dt/3d0, q1)
+    call WT_after_step (q1, wav)
+
+    call trend_fun (q1, trend) 
+    call RK_sub_step (q, trend, dt/2d0, q1)
+    call WT_after_step (q1, wav)
+
+    call trend_fun (q1, trend) 
+    call RK_sub_step (q, trend, dt, q)
+    call WT_after_step (q, wav, level_start-1)
+  end subroutine RK3
+  
   subroutine RK4 (q, wav, trend_fun, dt)
     ! Low storage four stage second order accurate Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
     ! Fourth order accurate for linear equations, stable for CFL <= 2*sqrt(2) ~ 2.83.
@@ -440,9 +464,6 @@ contains
 
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
     call u_update
-
-    ! Make layer heights and buoyancy consistent with free surface
-    call barotropic_correction (sol)
   end subroutine free_surface_update
 
   subroutine apply_penal (q)
