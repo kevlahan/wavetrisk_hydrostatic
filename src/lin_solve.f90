@@ -565,8 +565,6 @@ contains
     type(Float_Field), target :: f, u
 
     integer                                       :: l
-    integer, dimension(level_start:level_end)     :: iter
-    real(8), parameter                            :: tol_jacobi = 1d-8
     real(8)                                       :: nrm_f, nrm_u
     real(8), dimension(1:2,level_start:level_end) :: r_error
     
@@ -592,18 +590,16 @@ contains
           end do
        end if
     
-       iter = 0
-       call bicgstab (u, f, Lu, level_start, coarse_iter, nrm_f, iter(level_start), tol_elliptic)
+       call bicgstab (u, f, Lu, level_start, coarse_iter)
        do l = level_start+1, level_end
           call prolongation (u, l)
-          call jacobi (u, f, Lu, l, fine_iter, nrm_f, iter(l), tol_jacobi)
+          call jacobi (u, f, Lu, l, fine_iter)
        end do
        
        if (log_iter) then
           do l = level_start, level_end
              r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
-             if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
-                  l, r_error(:,l), iter(l)
+             if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x))') l, r_error(:,l)
           end do
        end if
     else ! solution is zero
@@ -625,7 +621,6 @@ contains
     type(Float_Field), target :: f, u
 
     integer                                       :: l
-    integer, dimension(level_start:level_end)     :: iter
     real(8)                                       :: nrm_f
     real(8), dimension(1:2,level_start:level_end) :: r_error
 
@@ -649,31 +644,27 @@ contains
        end do
     end if
 
-    iter = 0
-    call bicgstab (u, f, Lu, level_start, coarse_iter, nrm_f, iter(level_start), tol_elliptic)
+    call bicgstab (u, f, Lu, level_start, coarse_iter)
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call jacobi (u, f, Lu, l, 2, nrm_f, iter(l), tol_elliptic)
+       call jacobi (u, f, Lu, l, 2)
     end do    
 
     if (log_iter) then
        do l = level_start, level_end
           r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
-          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
-               l, r_error(:,l), iter(l)
+          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x))') l, r_error(:,l)
        end do
     end if
   end subroutine elliptic_solver
 
-  subroutine jacobi (u, f, Lu, l, max_iter, nrm, iter, tol)
+  subroutine jacobi (u, f, Lu, l, max_iter)
     ! Jacobi iterations for smoothing multigrid iterations
     implicit none
-    integer                   :: iter, l, max_iter
-    real(8)                   :: nrm, tol
+    integer                   :: l, max_iter
     type(Float_Field), target :: f, u
 
     integer :: i
-    real(8) :: err
     
     interface
        function Lu (u, l)
@@ -685,10 +676,7 @@ contains
     end interface
 
     do i = 1, max_iter
-       iter = iter + 1
        call lc_jacobi (u, residual (f, u, Lu, l), l)
-       err = l2 (residual (f, u, Lu, l), l) / nrm
-       if (err < tol) exit
     end do
   end subroutine jacobi
 
@@ -732,12 +720,11 @@ contains
     end if
   end subroutine cal_jacobi
 
-  subroutine bicgstab (u, f, Lu, l, max_iter, nrm, iter, tol)
+  subroutine bicgstab (u, f, Lu, l, max_iter)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
-    integer                   :: iter, l, max_iter
-    real(8)                   :: nrm, tol
+    integer                   :: l, max_iter
     type(Float_Field), target :: f, u
 
     integer                   :: i
@@ -783,6 +770,5 @@ contains
        omga = dp (t, s, l) / dp (t, t, l)
        call lc2 (u, alph, p, omga, s, l)
     end do
-    iter = max_iter
   end subroutine bicgstab
 end module lin_solve_mod

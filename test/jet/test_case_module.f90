@@ -243,12 +243,41 @@ contains
     ! Initial velocity is given by thermal wind geostrophic balance with density
     do k = 1, zlevels
        call thermal_wind (k)
-       
        do l = level_end, level_start, -1
           call apply_onescale (init_velo, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
   end subroutine apply_initial_conditions_case
+
+  subroutine thermal_wind (k)
+    ! Computes thermal wind geostrophic balance based on initial density at vertical level k
+    ! by upwards integration assuming zero velocity at bathymetry
+    ! results are stored in u_zonal, v_merid
+    implicit none
+    integer :: k
+    
+    integer :: d, j, l
+
+    do l = level_end, level_start, -1
+       do d = 1, size (grid)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (thermal_wind_integration, grid(d), grid(d)%lev(l)%elts(j), k, 0, 0)
+          end do
+       end do
+       call update_bdry (exner_fun(k), l, 10)
+
+       do d = 1, size (grid)
+          velo  => exner_fun(k)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (interp_edge_node,    grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (geostrophic_balance, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (velo, velo1, velo2)
+       end do
+    end do
+  end subroutine thermal_wind
 
   subroutine thermal_wind_integration (dom, i, j, zlev, offs, dims)
     ! Integrates thermal wind geostrophic equations upwards with zero velocity boundary condition
@@ -271,12 +300,12 @@ contains
     f = f_coriolis_edge (dom, i, j, zlev, offs, dims)
 
     if (zlev > 1) then
-       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = &
-            sol_mean(S_VELO,zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + 0.5d0 * (increment(zlev) + increment(zlev-1)) 
+       exner_fun(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = &
+            exner_fun(zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + 0.5d0 * (increment(zlev) + increment(zlev-1)) 
     else
-       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.5d0 * increment(zlev)
+       exner_fun(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.5d0 * increment(zlev)
     end if
-    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
+    exner_fun(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = exner_fun(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
          * (1d0 - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   contains
     function increment (k)
@@ -289,7 +318,7 @@ contains
 
       dz = dz_e (dom, i, j, k, offs, dims)
 
-      rho_0 = porous_density_edge (dom, i, j, k, offs, dims)
+      rho_0 = porous_density_edge (d, id+1, k)
       
       rho(0)    = rho_i (i,   j,   k)
       rho(RT+1) = rho_i (i+1, j,   k)
@@ -319,36 +348,6 @@ contains
       rho_i = density_init (lat/DEG, z)
     end function rho_i
   end subroutine thermal_wind_integration
-
-  subroutine thermal_wind (k)
-    ! Computes thermal wind geostrophic balance based on initial density at vertical level k
-    ! by upwards integration assuming zero velocity at bathymetry
-    ! results are stored in u_zonal, v_merid
-    implicit none
-    integer :: k
-    
-    integer :: d, j, l
-
-    do l = level_end, level_start, -1
-       do d = 1, size (grid)
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (thermal_wind_integration, grid(d), grid(d)%lev(l)%elts(j), k, 0, 0)
-          end do
-       end do
-       call update_bdry (sol_mean(S_VELO,k), l, 10)
-
-       do d = 1, size (grid)
-          velo  => sol_mean(S_VELO,k)%data(d)%elts
-          velo1 => grid(d)%u_zonal%elts
-          velo2 => grid(d)%v_merid%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_edge_node,    grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-             call apply_onescale_to_patch (geostrophic_balance, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (velo, velo1, velo2)
-       end do
-    end do
-  end subroutine thermal_wind
 
   subroutine geostrophic_balance (dom, i, j, zlev, offs, dims)
     ! Geostrophic balance from thermal wind relation
@@ -427,7 +426,7 @@ contains
     dz = z(1:zlevels) - z(0:zlevels-1)
 
     do k = 1, zlevels
-       rho = porous_density (dom, i, j, k, offs, dims)
+       rho = porous_density (d, id_i, k)
        z_k = interp (z(k-1), z(k))
 
        if (k == zlevels) then
@@ -447,6 +446,7 @@ contains
   
   subroutine init_velo (dom, i, j, zlev, offs, dims, vel_fun)
     ! Sets the velocities on the computational grid from zonal and meridional velocities dom%u_zonal and dom%v_merid
+    ! (also sets sol_mean to be used in nudging)
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
@@ -459,7 +459,8 @@ contains
     d  = dom%id+1
     id = idx (i, j,offs, dims)
 
-    call interp_node_edge (dom, i, j, z_null, offs, dims, sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+    call interp_node_edge (dom, i, j, z_null, offs, dims,      sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+    call interp_node_edge (dom, i, j, z_null, offs, dims, sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   end subroutine init_velo
 
    subroutine init_mean (dom, i, j, zlev, offs, dims)
@@ -490,7 +491,7 @@ contains
     dz = z(1:zlevels) - z(0:zlevels-1)
 
     do k = 1, zlevels
-       rho = porous_density (dom, i, j, k, offs, dims)
+       rho = porous_density (d, id_i, k)
 
        sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = rho * dz(k)
        sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = 0d0
@@ -980,14 +981,20 @@ contains
   end function tau_mag_case
 
   subroutine set_save_level_case
-    ! Save top layer
+    ! Compute depth of saved layer
     implicit none
-    real(8) :: save_height
+    real(8) :: eta, z_s
+    real(8), dimension(0:zlevels) :: z
 
-    save_height = 0.5 * (b_vert(save_zlev)+b_vert(save_zlev-1)) * max_depth
+    eta = 0d0; z_s = max_depth
+    if (sigma_z) then
+       z = z_coords_case (eta, z_s)
+    else
+       z = a_vert * eta + b_vert * z_s
+    end if
 
     if (rank==0) write (6,'(/,A,i2,A,es11.4,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate height = ", save_height, " [m])"
+         " (approximate height = ", z(save_zlev), " [m])"
   end subroutine set_save_level_case
 
   function z_coords_case (eta_surf, z_s)
@@ -1103,19 +1110,19 @@ contains
     
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        dz0  = (sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)) &
-            / porous_density (dom, i, j, zlev, offs, dims)
+            / porous_density (d, id+1, zlev)
        
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)) &
-            / porous_density (dom, i+1, j, zlev, offs, dims)
+            / porous_density (d, idE+1, zlev)
        r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
        r_max_loc = max (r_max_loc, r_loc)
 
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idNE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1)) &
-            / porous_density (dom, i+1, j+1, zlev, offs, dims)
+            / porous_density (d, idNE+1, zlev)
        r_max_loc = max (r_max_loc, r_loc)
 
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idN+1)  + sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)) &
-            / porous_density(dom, i, j+1, zlev, offs, dims)
+            / porous_density(d, idN+1, zlev)
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
@@ -1167,7 +1174,7 @@ contains
        tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
        tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-       rho = porous_density (dom, i, j, zlevels, offs, dims)
+       rho = porous_density (d, id+1, zlevels)
 
        wind_flux_case = tau_wind / rho  * (1d0 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
     else
@@ -1259,12 +1266,7 @@ contains
 
     integer :: d, k, p
 
-    call update_array_bdry (q, NONE, 27)
-    
     do k = 1, zlevels
-       call thermal_wind (k)
-       
-       ! Scalars
        do d = 1, size(grid)
           mass => q(S_MASS,k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts

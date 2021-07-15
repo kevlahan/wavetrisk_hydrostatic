@@ -46,7 +46,7 @@ program jet
   coarse_iter        = 20                              ! number of coarse scale iterations of elliptic solver
   fine_iter          = 40                              ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                            ! coarse scale tolerance of elliptic solver
-  timeint_type       = "RK3"                           ! always use RK4
+  timeint_type       = "RK4"                           ! always use RK4
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
   remapvelo_type     = "PPR"                           ! optimal remapping scheme

@@ -1489,7 +1489,7 @@ contains
           end if
           dz = z(1:zlevels) - z(0:zlevels-1)
           do k = 1, zlevels
-             rho = porous_density (dom, i, j, k, offs, dims)
+             rho = porous_density (d, id_i, k)
              init_mass = rho * dz(k)
              full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
              min_mass_loc = min (min_mass_loc, full_mass/init_mass)

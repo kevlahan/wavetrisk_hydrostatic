@@ -49,8 +49,6 @@ contains
     implicit none
     integer :: l
     
-    call update_array_bdry (sol, NONE, 27)
-    
     ! Compute eddy diffusivity and eddy viscosity at nodes and layer interfaces at all grid points
     do l = level_end, level_start, -1
        call apply_onescale (turbulence_model, l, z_null, 0, 1)
@@ -61,11 +59,6 @@ contains
        call WT_after_scalar (tke, wav_tke, level_start-1)
     end if
 
-    Kv%bdry_uptodate = .false.
-    Kt%bdry_uptodate = .false.
-    call update_vector_bdry (Kv, NONE, 28)
-    call update_vector_bdry (Kt, NONE, 29)
-    
     ! Apply vertical diffusion to each vertical column
     if (implicit) then ! backwards Euler step 
        do l = level_end, level_start, -1
@@ -574,8 +567,6 @@ contains
 
     integer :: d, k, p
 
-    call update_array_bdry (q, NONE, 27)
-
     ! Scalars
     do d = 1, size(grid)
        do k = 1, zlevels
@@ -623,7 +614,7 @@ contains
     elseif (zlev == zlevels) then
        dtemp(id_i) = Kt(zlevels)%data(d)%elts(id_i) * top_buoy_flux (dom, i, j, z_null, offs, dims) - scalar_flux(-1)
     end if
-    dtemp(id_i) = porous_density (dom, i, j, zlev, offs, dims) * dtemp(id_i)
+    dtemp(id_i) = porous_density (d, id_i, zlev) * dtemp(id_i)
   contains
     real(8) function scalar_flux (l)
       ! Computes flux at interface below (l=-1) or above (l=1) vertical level zlev

@@ -266,7 +266,7 @@ contains
     dz = z(1:zlevels) - z(0:zlevels-1)
 
     do k = 1, zlevels
-       rho = porous_density (dom, i, j, k, offs, dims)
+       rho = porous_density (d, id_i, k)
        z_k = interp (z(k-1), z(k))
 
        if (k == zlevels) then
@@ -313,7 +313,7 @@ contains
     dz = z(1:zlevels) - z(0:zlevels-1)
 
     do k = 1, zlevels
-       rho = porous_density (dom, i, j, k, offs, dims)
+       rho = porous_density (d, id_i, k)
 
        sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = rho * dz(k)
        sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = 0.0_8
@@ -906,19 +906,19 @@ contains
     
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        dz0  = (sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)) &
-            / porous_density (dom, i, j, zlev, offs, dims)
+            / porous_density (d, id+1, zlev)
        
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)) &
-            / porous_density (dom, i+1, j, zlev, offs, dims)
+            / porous_density (d, idE+1, zlev)
        r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
        r_max_loc = max (r_max_loc, r_loc)
 
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idNE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1)) &
-            / porous_density (dom, i+1, j+1, zlev, offs, dims)
+            / porous_density (d, idNE+1, zlev)
        r_max_loc = max (r_max_loc, r_loc)
 
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idN+1)  + sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)) &
-            / porous_density(dom, i, j+1, zlev, offs, dims)
+            / porous_density(d, idN+1, zlev)
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
@@ -970,7 +970,7 @@ contains
        tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
        tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-       rho = porous_density (dom, i, j, zlevels, offs, dims)
+       rho = porous_density (d, id+1, zlevels)
 
        wind_flux_case = tau_wind / rho  * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
     else

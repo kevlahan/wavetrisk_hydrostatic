@@ -39,10 +39,9 @@ contains
     integer :: d, id
 
     d = dom%id + 1
-    id = idx (i, j, offs, dims)
+    id = idx (i, j, offs, dims) + 1
 
-    dz_i = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol(S_MASS,zlev)%data(d)%elts(id+1)) &
-         / porous_density (dom, i, j, zlev, offs, dims)
+    dz_i = (sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id)) / porous_density (d, id, zlev)
   end function dz_i
   
   function dz_e (dom, i, j, zlev, offs, dims)
@@ -65,16 +64,16 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
    
     dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + sol(S_MASS,zlev)%data(d)%elts(id+1)) &
-         / porous_density (dom, i, j, zlev, offs, dims)
+         / porous_density (d, id+1, zlev)
     
     dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)  + sol(S_MASS,zlev)%data(d)%elts(idE+1)) &
-         / porous_density (dom, i+1, j, zlev, offs, dims)
+         / porous_density (d, idE+1, zlev)
     
     dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) + sol(S_MASS,zlev)%data(d)%elts(idNE+1)) &
-         / porous_density (dom, i+1, j+1, zlev, offs, dims)
+         / porous_density (d, idNE+1, zlev)
     
     dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)  + sol(S_MASS,zlev)%data(d)%elts(idN+1)) &
-         / porous_density (dom, i, j+1, zlev, offs, dims)
+         / porous_density (d, idN+1, zlev)
 
     dz_e = 0.5d0 * (dz(0) + dz(1:EDGE))
   end function dz_e
@@ -99,16 +98,16 @@ contains
     idS  = idx (i,   j-1, offs, dims)
    
     dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + sol(S_MASS,zlev)%data(d)%elts(id+1)) &
-         / porous_density (dom, i, j, zlev, offs, dims)
+         / porous_density (d, id+1, zlev)
     
     dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idW+1)  + sol(S_MASS,zlev)%data(d)%elts(idW+1)) &
-         / porous_density (dom, i-1, j, zlev, offs, dims)
+         / porous_density (d, idW+1, zlev)
     
     dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idSW+1) + sol(S_MASS,zlev)%data(d)%elts(idSW+1)) &
-         / porous_density (dom, i-1, j-1, zlev, offs, dims)
+         / porous_density (d, idSW+1, zlev)
     
     dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idS+1)  + sol(S_MASS,zlev)%data(d)%elts(idS+1)) &
-         / porous_density (dom, i, j-1, zlev, offs, dims)
+         / porous_density (d, idS+1, zlev)
 
     dz_SW_e = 0.5d0 * (dz(0) + dz(1:EDGE))
   end function dz_SW_e
@@ -187,35 +186,19 @@ contains
     end if
   end function eta_e
 
-  real(8) function porous_density (dom, i, j, zlev, offs, dims)
+  real(8) function porous_density (d, id_i, zlev)
     ! Porous density at nodes
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id
+    integer :: d, id_i, zlev
     
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
-    
-    porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id+1))
+    porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
   end function porous_density
 
-  function porous_density_edge (dom, i, j, zlev, offs, dims)
+  function porous_density_edge (d, id, zlev)
     ! Porous density at edges
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    integer                        :: d, id, zlev
     real(8), dimension(1:EDGE)     :: porous_density_edge
-
-    integer :: d, id
-    
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
     
     porous_density_edge = ref_density * (1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   end function porous_density_edge
@@ -341,7 +324,7 @@ contains
     total_depth = 0.0_8
     do k = 1, zlevels
        full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-       total_depth = total_depth + full_mass /  porous_density (dom, i, j, k, offs, dims)
+       total_depth = total_depth + full_mass /  porous_density (d, id_i, k)
     end do
     free_surface = total_depth + dom%topo%elts(id_i)
   end function free_surface

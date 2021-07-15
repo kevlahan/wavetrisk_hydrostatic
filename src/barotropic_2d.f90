@@ -114,23 +114,24 @@ contains
     call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
-    call diffuse_eta 
+    if (Laplace_order /= 0) call diffuse_eta 
   end subroutine eta_update
 
   subroutine diffuse_eta
-    ! Explicit Laplacian diffusion step for free surface with diffusion constant C
+    ! Explicit Laplacian diffusion split step for free surface
     implicit none
 
-    integer            :: d, ibeg, iend
-    real(8), parameter :: C = 1d-3
+    integer :: d, ibeg, iend
+    real(8) :: dt_nu
 
     call Laplacian_eta
 
+    dt_nu = dt * visc_sclr(S_MASS) / dx_min**(2*(Laplace_order-1))
     do d = 1, size(grid)
        ibeg = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
        iend = sol(S_MASS,zlevels+1)%data(d)%length
        sol(S_MASS,zlevels+1)%data(d)%elts(ibeg:iend) = sol(S_MASS,zlevels+1)%data(d)%elts(ibeg:iend) &
-            + C * dx_min**2 * Laplacian_scalar(S_MASS)%data(d)%elts(ibeg:iend)
+            + dt_nu * Laplacian_scalar(S_MASS)%data(d)%elts(ibeg:iend)
     end do
   end subroutine diffuse_eta
 
@@ -369,13 +370,14 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer :: d, id
     real(8) :: dz
     
+    d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
     
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dz =  (mean_m(id) + mass(id)) / porous_density (dom, i, j, zlev, offs, dims)
+       dz =  (mean_m(id) + mass(id)) / porous_density (d, id, zlev)
        scalar_2d(id) = scalar_2d(id) + dz
     end if
   end subroutine cal_height
@@ -552,7 +554,7 @@ contains
 
        ! Interpolate to nodes and remove density
        do k = zlevels, 1, -1
-          rho = porous_density (dom, i, j, k, offs, dims)
+          rho = porous_density (d, id_i, k)
           w(k) = interp (w(k-1), w(k)) / rho
        end do
        
@@ -629,7 +631,7 @@ contains
           omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
        end do
        do k = zlevels, 1, -1
-          rho = porous_density (dom, i, j, k, offs, dims)
+          rho = porous_density (d, id_i, k)
           omega(k) = interp (omega(k-1), omega(k)) / rho
        end do
        do k = 1, zlevels

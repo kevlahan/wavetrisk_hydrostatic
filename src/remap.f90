@@ -260,7 +260,7 @@ contains
 
     do k = 1, zlevels
        ! New full mass
-       rho = porous_density (dom, i, j, k, offs, dims)
+       rho = porous_density (d, id_i, k)
        full_mass =  rho * dz(k)
 
        ! New perturbation mass
