@@ -457,6 +457,8 @@ contains
     ! (free surface correction step of RK4_split)
     implicit none
 
+    call update_array_bdry (sol(:,1:zlevels), NONE, 333)
+
     ! Backwards Euler step for new free surface, updates sol(S_MASS,zlevels+1)
     call eta_update
 
