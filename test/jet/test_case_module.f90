@@ -264,10 +264,10 @@ contains
              call apply_onescale_to_patch (thermal_wind_integration, grid(d), grid(d)%lev(l)%elts(j), k, 0, 0)
           end do
        end do
-       call update_bdry (exner_fun(k), l, 10)
+       call update_bdry (sol_mean(S_VELO,k), l, 10)
 
        do d = 1, size (grid)
-          velo  => exner_fun(k)%data(d)%elts
+          velo  => sol_mean(S_VELO,k)%data(d)%elts
           velo1 => grid(d)%u_zonal%elts
           velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(l)%length
@@ -298,14 +298,13 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     
     f = f_coriolis_edge (dom, i, j, zlev, offs, dims)
-
     if (zlev > 1) then
-       exner_fun(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = &
-            exner_fun(zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + 0.5d0 * (increment(zlev) + increment(zlev-1)) 
+       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = &
+            sol_mean(S_VELO,zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + 0.5d0 * (increment(zlev) + increment(zlev-1)) 
     else
-       exner_fun(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.5d0 * increment(zlev)
+       sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.5d0 * increment(zlev)
     end if
-    exner_fun(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = exner_fun(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
+    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) &
          * (1d0 - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   contains
     function increment (k)
@@ -459,8 +458,7 @@ contains
     d  = dom%id+1
     id = idx (i, j,offs, dims)
 
-    call interp_node_edge (dom, i, j, z_null, offs, dims,      sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
-    call interp_node_edge (dom, i, j, z_null, offs, dims, sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+    call interp_node_edge (dom, i, j, z_null, offs, dims, sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   end subroutine init_velo
 
    subroutine init_mean (dom, i, j, zlev, offs, dims)
