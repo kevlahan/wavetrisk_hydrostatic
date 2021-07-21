@@ -148,6 +148,44 @@ contains
     wav%bdry_uptodate = .false.
   end subroutine compress_wavelets
 
+  subroutine compress_wavelets_scalar (wav)
+    ! Sets scalar wavelets associated with inactive grid points to zero
+    implicit none
+    type(Float_Field), dimension(:), target :: wav
+
+    integer :: d, k, l
+
+    do k = 1, size(wav)
+       do d = 1, size (grid)
+          do l = level_start+1, level_end
+             wc_s => wav(k)%data(d)%elts
+             call apply_onescale_d (compress_scalar, grid(d), l, z_null, 0, 1)
+             nullify (wc_s)
+          end do
+       end do
+    end do
+    wav%bdry_uptodate = .false.
+  end subroutine compress_wavelets_scalar
+
+  subroutine compress_wavelets_velo (wav)
+    ! Sets wavelets associated with inactive grid points to zero
+    implicit none
+    type(Float_Field), dimension(:), target :: wav
+
+    integer :: d, k, l
+    
+    do k = 1, size(wav)
+       do d = 1, size (grid)
+          do l = level_start+1, level_end
+             wc_u => wav(k)%data(d)%elts
+             call apply_onescale_d (compress_vector, grid(d), l, z_null, 0, 0)
+             nullify (wc_u)
+          end do
+       end do
+    end do
+    wav%bdry_uptodate = .false.
+  end subroutine compress_wavelets_velo
+
   subroutine compress_maxlevel_scalar (dom, i, j, zlev, offs, dims)
     ! Dealiase by setting wavelet coefficients to zero at maximum level
     implicit none
@@ -263,7 +301,7 @@ contains
   end subroutine WT_after_step
 
   subroutine WT_after_scalar (scaling, wavelet, l_start0)
-    !  Everything needed in terms of forward and backward wavelet transform
+    !  Everything needed in terms of forward and backward scalar wavelet transform
     !  after one time step for a vector of scalars
     !    A) compute wavelets and perform backwards transform to conserve mass
     !    B) interpolate values onto adapted grid for next step
@@ -293,21 +331,52 @@ contains
           wavelet(k)%bdry_uptodate = .false.
        end do
     end do
-    
-    ! Compress wavelets
-    do k = 1, size(scaling)
-       do d = 1, size (grid)
-          do l = level_start+1, level_end
-             wc_s => wavelet(k)%data(d)%elts
-             call apply_onescale_d (compress_scalar, grid(d), l, z_null, 0, 1)
-             nullify (wc_s)
-          end do
-       end do
-    end do
-    wavelet%bdry_uptodate = .false.
-    
+    call compress_wavelets_scalar (wavelet)
     call inverse_scalar_transform (wavelet, scaling)
   end subroutine WT_after_scalar
+
+  subroutine WT_after_velo (scaling, wavelet, l_start0)
+    !  Everything needed in terms of forward and backward velocity wavelet transform
+    !  after one time step (e.g. RK sub-step)
+    !    A) compute wavelets and perform backwards transform to conserve mass
+    !    B) interpolate values onto adapted grid for next step
+    implicit none
+    type(Float_Field), dimension(:), target :: scaling, wavelet
+    integer, optional                       :: l_start0
+    
+    integer :: d, j, k, l, l_start
+
+    if (present(l_start0)) then
+       l_start = l_start0
+       do k = 1, size(scaling)
+          do d = 1, size(grid)
+             velo => scaling(k)%data(d)%elts
+             call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
+             nullify (velo)
+          end do
+       end do
+    else
+       l_start = level_start
+    end if
+
+    scaling%bdry_uptodate = .false.
+    call update_vector_bdry (scaling, NONE, 16)
+
+    do k = 1, size(scaling)
+       do l = l_start, level_end-1
+          do d = 1, size(grid)
+             velo => scaling(k)%data(d)%elts
+             wc_u => wavelet(k)%data(d)%elts
+             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
+             nullify (velo, wc_u)
+          end do
+          wavelet(k)%bdry_uptodate = .false.
+       end do
+    end do
+    call compress_wavelets_velo (wavelet)
+    call inverse_velo_transform (wavelet, scaling)
+  end subroutine WT_after_velo
   
   logical function refine ()
     ! Determines where new patches are needed
