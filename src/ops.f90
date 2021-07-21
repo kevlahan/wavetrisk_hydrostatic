@@ -181,7 +181,7 @@ contains
       integer                    :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i, k
       real(8)                    :: circ_LORT, circ_UPLT, Phi_k, dz, dz0
       real(8)                    :: u_prim_UP_E, u_prim_RT_N
-      real(8), dimension(0:EDGE) :: height, phi
+      real(8), dimension(0:EDGE) :: csq, phi
 
       d = dom%id + 1
 
@@ -211,18 +211,19 @@ contains
          h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) / dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
          h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
       elseif (itype == 2) then ! flux for depth integrated external pressure gradient in elliptic operator
-         height(0) = abs (dom%topo%elts(id_i))   * phi(0) 
-         height(1) = abs (dom%topo%elts(idE_i))  * phi(1) 
-         height(2) = abs (dom%topo%elts(idNE_i)) * phi(2) 
-         height(3) = abs (dom%topo%elts(idN_i))  * phi(3) 
+         csq(0) = abs (dom%topo%elts(id_i))   * phi(0) 
+         csq(1) = abs (dom%topo%elts(idE_i))  * phi(1) 
+         csq(2) = abs (dom%topo%elts(idNE_i)) * phi(2) 
+         csq(3) = abs (dom%topo%elts(idN_i))  * phi(3)
+         csq = grav_accel * csq
          
-         h_flux(EDGE*id+RT+1) = grav_accel * interp (height(0), height(1)) * &
+         h_flux(EDGE*id+RT+1) = interp (csq(0), csq(1)) * &
               (scalar(idE_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) 
 
-         h_flux(EDGE*id+DG+1) = grav_accel * interp (height(0), height(2)) * &
+         h_flux(EDGE*id+DG+1) = interp (csq(0), csq(2)) * &
               (scalar(id_i)/phi(0)  - scalar(idNE_i)/phi(2)) / dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1) 
 
-         h_flux(EDGE*id+UP+1) = grav_accel * interp (height(0), height(3)) * &
+         h_flux(EDGE*id+UP+1) = interp (csq(0), csq(3)) * &
               (scalar(idN_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
       elseif (itype == 3) then ! external pressure gradient
          h_flux(EDGE*id+RT+1) = grav_accel * (scalar(idE_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+RT+1) 
@@ -352,7 +353,7 @@ contains
       integer                    :: d, idS, idSW, idW
       integer                    :: id_i, idS_i, idSW_i, idW_i, k
       real(8)                    :: circ_SW_LORT, circ_SW_UPLT, u_prim_RT_SW, u_prim_UP_SW, dz, dz0
-      real(8), dimension(0:EDGE) :: height, phi
+      real(8), dimension(0:EDGE) :: csq, phi
 
       d = dom%id + 1
 
@@ -379,19 +380,20 @@ contains
               * dom%pedlen%elts(EDGE*idSW+DG+1)
          h_flux(EDGE*idS+UP+1)  = -(scalar(idS_i) - scalar(id_i))   / dom%len%elts(EDGE*idS+UP+1)  &
               * dom%pedlen%elts(EDGE*idS+UP+1)
-      elseif (itype == 2) then ! external pressure gradient flux, g*height * grad(eta) * edge_length, in elliptic operator
-         height(0) = abs (dom%topo%elts(id_i))   * phi(0) 
-         height(1) = abs (dom%topo%elts(idW_i))  * phi(1) 
-         height(2) = abs (dom%topo%elts(idSW_i)) * phi(2) 
-         height(3) = abs (dom%topo%elts(idS_i))  * phi(3) 
+      elseif (itype == 2) then ! external pressure gradient flux, csq * grad(eta) * edge_length, in elliptic operator
+         csq(0) = abs (dom%topo%elts(id_i))   * phi(0) 
+         csq(1) = abs (dom%topo%elts(idW_i))  * phi(1) 
+         csq(2) = abs (dom%topo%elts(idSW_i)) * phi(2) 
+         csq(3) = abs (dom%topo%elts(idS_i))  * phi(3)
+         csq = grav_accel * csq
 
-         h_flux(EDGE*idW+RT+1)  = - grav_accel * interp (height(0), height(1)) * &
+         h_flux(EDGE*idW+RT+1)  = - interp (csq(0), csq(1)) * &
               (scalar(idW_i)/phi(1) - scalar(id_i)/phi(0))/dom%len%elts(EDGE*idW+RT+1) * dom%pedlen%elts(EDGE*idW+RT+1)
          
-         h_flux(EDGE*idSW+DG+1) = - grav_accel * interp (height(0), height(2)) * &
+         h_flux(EDGE*idSW+DG+1) = - interp (csq(0), csq(2)) * &
               (scalar(id_i)/phi(0)  - scalar(idSW_i)/phi(2))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) 
 
-         h_flux(EDGE*idS+UP+1)  = - grav_accel * interp (height(0), height(3)) * &
+         h_flux(EDGE*idS+UP+1)  = - interp (csq(0), csq(3)) * &
               (scalar(idS_i)/phi(3) - scalar(id_i)/phi(0))/dom%len%elts(EDGE*idS+UP+1) * dom%pedlen%elts(EDGE*idS+UP+1)
       elseif (itype == 3) then ! external pressure gradient
          h_flux(EDGE*idW+RT+1)  = - grav_accel * (scalar(idW_i)/phi(1) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idW+RT+1) 

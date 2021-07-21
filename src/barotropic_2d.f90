@@ -109,8 +109,10 @@ contains
     use lin_solve_mod
     implicit none
 
-    ! Solve elliptic equation
+    ! RHS of elliptic equation
     call rhs_elliptic
+
+    ! Solve elliptic equation 
     call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
@@ -339,8 +341,7 @@ contains
   end subroutine Laplacian_eta
 
   subroutine total_height (q, q_2d)
-    ! Vertical sum of flux of q, returned in q_2d
-    ! Assumes linearized free surface (i.e. remove free surface perturbation from sum)
+    ! Total height q_2d computed from pseudo-densities q
     implicit none
     type(Float_Field),               target :: q_2d
     type(Float_Field), dimension(:), target :: q
