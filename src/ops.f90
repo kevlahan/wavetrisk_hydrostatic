@@ -235,15 +235,12 @@ contains
             dz0 = q(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
 
             dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idE_i) + sol_mean(S_MASS,k)%data(d)%elts(idE_i))
-            if (k == zlevels .and. mode_split) dz = dz - interp (scalar(id_i), scalar(idE_i)) * ref_density
             h_flux(EDGE*id+RT+1) = h_flux(EDGE*id+RT+1) + q(S_VELO,k)%data(d)%elts(EDGE*id+RT+1) * dz
 
             dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idNE_i) + sol_mean(S_MASS,k)%data(d)%elts(idNE_i))
-            if (k == zlevels .and. mode_split) dz = dz - interp (scalar(id_i), scalar(idNE_i)) * ref_density
             h_flux(EDGE*id+DG+1) = h_flux(EDGE*id+DG+1) + q(S_VELO,k)%data(d)%elts(EDGE*id+DG+1) * dz
 
             dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idN_i) + sol_mean(S_MASS,k)%data(d)%elts(idN_i))
-            if (k == zlevels .and. mode_split) dz = dz - interp (scalar(id_i), scalar(idN_i)) * ref_density
             h_flux(EDGE*id+UP+1) = h_flux(EDGE*id+UP+1) + q(S_VELO,k)%data(d)%elts(EDGE*id+UP+1) * dz
          end do
          h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = h_flux(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1) 
@@ -407,15 +404,12 @@ contains
             dz0 = q(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
             
             dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idW_i) + sol_mean(S_MASS,k)%data(d)%elts(idW_i))
-            if (k == zlevels .and. mode_split) dz = dz - interp (scalar(id_i), scalar(idW_i)) * ref_density
             h_flux(EDGE*idW+RT+1) = h_flux(EDGE*idW+RT+1) + q(S_VELO,k)%data(d)%elts(EDGE*idW+RT+1) * dz
 
             dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idSW_i) + sol_mean(S_MASS,k)%data(d)%elts(idSW_i))
-            if (k == zlevels .and. mode_split) dz = dz - interp (scalar(id_i), scalar(idSW_i)) * ref_density
             h_flux(EDGE*idSW+DG+1) = h_flux(EDGE*idSW+DG+1) + q(S_VELO,k)%data(d)%elts(EDGE*idSW+DG+1) * dz
 
             dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idS_i) + sol_mean(S_MASS,k)%data(d)%elts(idS_i))
-            if (k == zlevels .and. mode_split) dz = dz - interp (scalar(id_i), scalar(idS_i)) * ref_density
             h_flux(EDGE*idS+UP+1) = h_flux(EDGE*idS+UP+1) + q(S_VELO,k)%data(d)%elts(EDGE*idS+UP+1) * dz
          end do
          h_flux(EDGE*idW+RT+1)  = h_flux(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1) 
