@@ -210,11 +210,10 @@ contains
     do d = 1, size(grid)
        h_flux => horiz_flux(S_MASS)%data(d)%elts
        scalar => q%data(d)%elts
-       mass   => sol(S_MASS,zlevels+1)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=2)
        end do
-       nullify (h_flux, mass, scalar)
+       nullify (h_flux, scalar)
     end do
     horiz_flux(S_MASS)%bdry_uptodate = .false.
     call update_bdry (horiz_flux(S_MASS), l, 213)
@@ -272,8 +271,7 @@ contains
     do l = level_end, level_start, -1
        ! Calculate vertically integrated velocity flux
        do d = 1, size(grid)
-          h_flux =>  horiz_flux(S_MASS)%data(d)%elts
-          scalar => sol(S_MASS,zlevels+1)%data(d)%elts
+          h_flux => horiz_flux(S_MASS)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
              call step1 (q=q, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
           end do
