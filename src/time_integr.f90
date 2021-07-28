@@ -175,10 +175,10 @@ contains
 
   subroutine RK_sub_step (sols, trends, dt, dest)
     implicit none
-    real(8)                                                             :: dt
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sols
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+    real(8)                                          :: dt
+    type(Float_Field), dimension(:,:)                :: sols
+    type(Float_Field), dimension(:,:)                :: trends
+    type(Float_Field), dimension(:,:), intent(inout) :: dest
 
     integer :: d, ibeg, iend, k, v
     
@@ -196,10 +196,10 @@ contains
 
   subroutine RK_sub_step1 (sols, trends, alpha, dt, dest)
     implicit none
-    real(8)                                                             :: alpha, dt
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sols
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+    real(8)                                          :: alpha, dt
+    type(Float_Field), dimension(:,:)                :: sols
+    type(Float_Field), dimension(:,:)                :: trends
+    type(Float_Field), dimension(:,:), intent(inout) :: dest
 
     integer :: k, v, d, ibeg, iend
 
@@ -218,11 +218,11 @@ contains
 
   subroutine RK_sub_step2 (sol1, sol2, trends, alpha, dt, dest)
     implicit none
-    real(8)                                                              :: dt
-    real(8), dimension(2)                                                :: alpha
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sol1, sol2
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+    real(8)                                          :: dt
+    real(8), dimension(2)                            :: alpha
+    type(Float_Field), dimension(:,:)                :: sol1, sol2
+    type(Float_Field), dimension(:,:)                :: trends
+    type(Float_Field), dimension(:,:), intent(inout) :: dest
 
     integer :: k, v, d, ibeg, iend
 
@@ -241,11 +241,11 @@ contains
 
   subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
     implicit none
-    real(8), dimension(2)                                               :: dt
-    real(8), dimension(4)                                               :: alpha
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trend1, trend2
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+    real(8), dimension(2)                            :: dt
+    real(8), dimension(4)                            :: alpha
+    type(Float_Field), dimension(:,:)                :: sol1, sol2, sol3, sol4
+    type(Float_Field), dimension(:,:)                :: trend1, trend2
+    type(Float_Field), dimension(:,:), intent(inout) :: dest
 
     integer :: k, v, d, ibeg, iend
 
@@ -268,10 +268,10 @@ contains
     implicit none
     integer :: d, k, v
 
-    allocate (q1(1:N_VARIABLE,1:zmax), q2(1:N_VARIABLE,1:zmax), q3(1:N_VARIABLE,1:zmax), &
-         q4(1:N_VARIABLE,1:zmax), dq1(1:N_VARIABLE,1:zmax))
+    allocate (q1(1:N_VARIABLE,1:zlevels), q2(1:N_VARIABLE,1:zlevels), q3(1:N_VARIABLE,1:zlevels), &
+         q4(1:N_VARIABLE,1:zlevels), dq1(1:N_VARIABLE,1:zlevels))
 
-    do k = 1, zmax
+    do k = 1, zlevels
        do v = 1, N_VARIABLE
           call init_Float_Field (q1(v,k),  POSIT(v))
           call init_Float_Field (q2(v,k),  POSIT(v))
@@ -296,7 +296,7 @@ contains
     implicit none
     integer :: d, k, v, n_new
 
-    do k = 1, zmax
+    do k = 1, zlevels
        do d = 1, size(grid)
           do v = 1, N_VARIABLE
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
@@ -310,7 +310,7 @@ contains
     implicit none
     integer :: d, k, v, n_new
 
-    do k = 1, zmax
+    do k = 1, zlevels
        do d = 1, size(grid)
           do v = 1, N_VARIABLE
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
@@ -474,7 +474,7 @@ end subroutine free_surface_update
     use domain_mod
     use adapt_mod
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+    type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, ibeg, iend, ii, k
     real(8) :: eta

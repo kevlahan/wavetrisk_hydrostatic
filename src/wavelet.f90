@@ -106,10 +106,10 @@ contains
 
     integer :: l, d, k, l_start, v
 
-    if (present(l_start0)) then
-       l_start = l_start0
-    else
+    if (.not. present(l_start0)) then
        l_start = level_start
+    else
+       l_start = l_start0
     end if
 
     call update_array_bdry1 (wavelet, level_start, level_end, 4)
@@ -230,10 +230,10 @@ contains
 
     integer :: l, d, k, l_start
 
-    if (present(l_start0)) then
-       l_start = l_start0
-    else
+    if (.not. present(l_start0)) then
        l_start = level_start
+    else
+       l_start = l_start0
     end if
 
     call update_vector_bdry1 (wavelet, level_start, level_end, 4)

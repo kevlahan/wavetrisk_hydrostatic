@@ -770,8 +770,8 @@ contains
     C = 5d-3 ! <= 0.5 if explicit for Laplacian diffusion, <= 0.1 for hyperdiffusion
     C_rotu = C / 4**Laplace_order_init  ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     C_divu = C
-    C_mu   = C
-    C_b    = C
+    C_mu   = 0d0
+    C_b    = 0d0
     
     ! Diffusion time scales
     tau_mu   = dt_cfl / C_mu
@@ -796,7 +796,7 @@ contains
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
             "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_mu = ", tau_mu/HOUR, " [h]"
-       write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  " C_b = ", C_mu, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
+       write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  " C_b = ", C_b, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse

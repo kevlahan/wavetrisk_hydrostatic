@@ -533,10 +533,10 @@ contains
 
     if (field%bdry_uptodate) return
 
-    if (field%pos == AT_NODE) then
-       multipl = 1
-    else
+    if (field%pos == AT_EDGE) then
        multipl = EDGE
+    else
+       multipl = 1
     end if
 
     send_buf%length = 0 ! reset
@@ -627,10 +627,10 @@ contains
              ! Loop over each element of field array
              do i1 = 1, size(field)
                 pos = field(i1)%pos
-                if (pos == AT_NODE) then
-                   multipl = 1
-                else
+                if (pos == AT_EDGE) then
                    multipl = EDGE
+                else
+                   multipl = 1
                 end if
                 do i = 1, grid(d_src)%pack(pos,dest)%length
                    id = grid(d_src)%pack(pos,dest)%elts(i)
@@ -653,10 +653,10 @@ contains
              ! Loop over each element of field array
              do i1 = 1, size(field)
                 pos = field(i1)%pos
-                if (pos == AT_NODE) then
-                   multipl = 1
-                else
+                if (pos == AT_EDGE) then
                    multipl = EDGE
+                else
+                   multipl = 1
                 end if
                 do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                    id = abs(grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i))
@@ -725,10 +725,10 @@ contains
              do i2 = 1, size(field,2)
                 do i1 = 1, size(field,1)
                    pos = field(i1,i2)%pos
-                   if (pos == AT_NODE) then
-                      multipl = 1
-                   else
+                   if (pos == AT_EDGE) then
                       multipl = EDGE
+                   else
+                      multipl = 1
                    end if
                    do i = 1, grid(d_src)%pack(pos,dest)%length
                       id = grid(d_src)%pack(pos,dest)%elts(i)
@@ -753,10 +753,10 @@ contains
              do i2 = 1, size(field,2)
                 do i1 = 1, size(field,1)
                    pos = field(i1,i2)%pos
-                   if (field(i1,i2)%pos == AT_NODE) then
-                      multipl = 1
-                   else
+                   if (field(i1,i2)%pos == AT_EDGE) then
                       multipl = EDGE
+                   else
+                      multipl = 1
                    end if
                    do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                       id = abs(grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i))
@@ -843,10 +843,10 @@ contains
 
     if (field%bdry_uptodate) return
 
-    if (field%pos == AT_NODE) then
-       multipl = 1
-    else
+    if (field%pos == AT_EDGE) then
        multipl = EDGE
+    else
+       multipl = 1
     end if
 
     call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE, ierror)
@@ -899,10 +899,10 @@ contains
           do d_dest = 1, n_domain(rank+1)
              do i1 = 1, size(field)
                 pos = field(i1)%pos 
-                if (pos == AT_NODE) then
-                   multipl = 1
-                else
+                if (pos == AT_EDGE) then
                    multipl = EDGE
+                else
+                   multipl = 1
                 end if
                 do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                    id = grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i)
@@ -952,10 +952,10 @@ contains
              do i2 = 1, size(field,2)
                 do i1 = 1, size(field,1)
                    pos = field(i1,i2)%pos
-                   if (pos == AT_NODE) then
-                      multipl = 1
-                   else
+                   if (pos == AT_EDGE) then
                       multipl = EDGE
+                   else
+                      multipl = 1
                    end if
                    do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                       id = grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i)

@@ -6,7 +6,7 @@ contains
   subroutine trend_ml (q, dq)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+    type(Float_Field), dimension(:,:), target :: q, dq
 
     integer :: k, l
 
@@ -37,12 +37,12 @@ contains
   subroutine basic_operators (q, dq, k, l)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+    type(Float_Field), dimension(:,:), target :: q, dq
     integer :: k, l
 
     integer :: d, j, v
 
-    if (Laplace_order == 2) call second_order_Laplacian_scalar (q, k, l)
+    if (Laplace_order == 2 .and. maxval (visc_sclr) /= 0d0) call second_order_Laplacian_scalar (q, k, l)
     
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
@@ -86,7 +86,7 @@ contains
   subroutine cal_scalar_trend (q, dq, k, l)
     ! Evaluate scalar trends at level l
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+    type(Float_Field), dimension(:,:), target :: q, dq
     integer                                                   :: k, l
 
     integer :: d, j, v
@@ -107,8 +107,8 @@ contains
   subroutine velocity_trend_source (q, dq, k, l)
     ! Evaluate source part of velocity trends at level l
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
-    integer :: k, l
+    type(Float_Field), dimension(:,:), target :: q, dq
+    integer                                   :: k, l
 
     integer :: d, j
 
@@ -126,13 +126,13 @@ contains
        elseif (Laplace_order == 2) then
           divu => Laplacian_vector(S_DIVU)%data(d)%elts
        end if
-       
-       if (l == level_end) then
+
+       if (l < level_end) then
+          call cpt_or_restr_du_source (grid(d), k, l)
+       else
           do j = 1, grid(d)%lev(level_end)%length
              call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
           end do
-       else
-          call cpt_or_restr_du_source (grid(d), k, l)
        end if
        nullify (mass, velo, mean_m, dvelo, h_mflux, divu, ke, qe, vort)
     end do
@@ -142,8 +142,8 @@ contains
   subroutine velocity_trend_grad (q, dq, k)
     ! Evaluate complete velocity trend by adding gradient terms to previously calculated source terms on entire grid
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
-    integer                                                   :: k
+    type(Float_Field), dimension(:,:), target :: q, dq
+    integer                                   :: k
 
     integer :: d, j, p
     
@@ -165,8 +165,8 @@ contains
   subroutine second_order_Laplacian_scalar (q, k, l)
     ! Computes Laplacian(mass) and Laplacian(temp) needed for second order scalar Laplacian
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
-    integer                                                   :: k, l
+    type(Float_Field), dimension(:,:), target :: q
+    integer                                   :: k, l
 
     integer :: d, j, v
 
@@ -187,8 +187,8 @@ contains
   subroutine second_order_Laplacian_vector (q, k, l)
     ! Computes rot(rot(vort)) needed for second order vector Laplacian
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
-    integer                                                   :: k, l
+    type(Float_Field), dimension(:,:), target :: q
+    integer                                   :: k, l
 
     integer :: d, j
 
@@ -254,8 +254,8 @@ contains
 
     integer :: id_par, id_chd
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx (i_par, j_par, offs_par, dims_par)
 
     if (dom%mask_n%elts(id_par+1) >= RESTRCT) then
        bernoulli(id_par+1) = bernoulli(id_chd+1)
@@ -289,12 +289,12 @@ contains
 
     integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
 
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_par = idx (i_par, j_par, offs_par, dims_par)
 
-    id_chd   = idx(i_chd,   j_chd,   offs_chd, dims_chd)
-    idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
+    id_chd   = idx (i_chd,   j_chd,   offs_chd, dims_chd)
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
 
     if (minval(dom%mask_e%elts(EDGE*id_chd+RT+1:EDGE*id_chd+UP+1)) < ADJZONE) &
          call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
@@ -303,7 +303,7 @@ contains
          dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
 
     if (dom%mask_e%elts(EDGE*id_chd+DG+1) >= ADJZONE) &
-         dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*idNE_chd+DG+1) + dvelo(EDGE*id_chd+DG+1)
+         dvelo(EDGE*id_par+DG+1) = dvelo(EDGE*id_chd+DG+1) + dvelo(EDGE*idNE_chd+DG+1)
 
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) &
          dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
@@ -338,11 +338,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer               :: id_par, id_chd
+    integer               :: id_chd
     real(8), dimension(4) :: sm_flux_m, sm_flux_t
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+    
 
     if (i_chd >= PATCH_SIZE .or. j_chd >= PATCH_SIZE) return
 
@@ -352,7 +352,10 @@ contains
       implicit none
       real(8), dimension(:), pointer :: dscalar, h_flux
 
+      integer               :: id_par
       real(8), dimension(4) :: sm_flux
+      
+      id_par = idx (i_par, j_par, offs_par, dims_par)
 
       if (maxval(dom%mask_e%elts(EDGE*id_par+RT+1:EDGE*id_par+UP+1)) >= RESTRCT) &
            sm_flux = interp_flux (h_flux, dom, i_chd, j_chd, offs_chd, dims_chd)

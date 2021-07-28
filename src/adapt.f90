@@ -311,10 +311,10 @@ contains
     
     integer :: d, j, k, l, l_start
 
-    if (present(l_start0)) then
-       l_start = l_start0
-    else
+    if (.not. present(l_start0)) then
        l_start = level_start
+    else
+       l_start = l_start0
     end if
 
     scaling%bdry_uptodate = .false.
@@ -346,7 +346,9 @@ contains
     
     integer :: d, j, k, l, l_start
 
-    if (present(l_start0)) then
+    if (.not. present(l_start0)) then
+       l_start = level_start
+    else
        l_start = l_start0
        do k = 1, size(scaling)
           do d = 1, size(grid)
@@ -355,8 +357,6 @@ contains
              nullify (velo)
           end do
        end do
-    else
-       l_start = level_start
     end if
 
     scaling%bdry_uptodate = .false.
