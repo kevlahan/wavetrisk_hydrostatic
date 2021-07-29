@@ -13,12 +13,12 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, ibeg, iend, k, v
-
+    
     do k = 1, zlevels
        do d = 1, size(grid)
+          ibeg = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = sol(S_MASS,k)%data(d)%length
           do v = scalars(1), scalars(2)
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = q(v,k)%data(d)%length
              q(v,k)%data(d)%elts(ibeg:iend) = sol(v,k)%data(d)%elts(ibeg:iend) + dt * trend(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do

@@ -417,7 +417,7 @@ contains
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
     implicit none
-    real(8)  :: dt
+    real(8) :: dt
     
     call manage_q1_mem
 
