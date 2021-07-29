@@ -5,6 +5,9 @@ module barotropic_2d_mod
   use lin_solve_mod
   use utils_mod
   implicit none
+  ! Add Laplacian diffusion to free surface perturbation eta
+  real(8), parameter :: C_eta = 5d-3
+  logical, parameter :: diff_eta = .true.
 contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
@@ -116,7 +119,7 @@ contains
     call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
-    if (Laplace_order /= 0) call diffuse_eta 
+    if (diff_eta) call diffuse_eta 
   end subroutine eta_update
 
   subroutine diffuse_eta
@@ -128,7 +131,7 @@ contains
 
     call Laplacian_eta
 
-    dt_nu = dt * visc_sclr(S_MASS) / dx_min**(2*(Laplace_order-1))
+    dt_nu = C_eta * dx_min**2
     do d = 1, size(grid)
        ibeg = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
        iend = sol(S_MASS,zlevels+1)%data(d)%length
