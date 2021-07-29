@@ -15,16 +15,14 @@ allows for separation of mean and fluctuating scalars, realistic topography and 
 **********************************************************************************************************************************
 Significant changes compared to WAVETRISK 2.01
 
-1. Addition of spherical harmonics test case and associated matlab m-file.
+1. Addition of spherical harmonics test case and associated matlab m-file for computing energy spectra.
 2. Additional ocean modelling test cases.
 3. Addition of vertical diffusion for ocean modelling using a TKE closure similar to that used in NEMO.
 4. Option of implicit time step for horizontal diffusion.
 
-Changes compared to WAVETRISK 1.x
+Significant changes compared to WAVETRISK 1.x
 
-1. Implicit free surface 2D barotropic - 3D baroclinic mode splitting capability.
-2. Separation of mean and fluctuating scalars (used with volume penalization).
-3. Additional test cases tsunami
+1. Implicit free surface 2D barotropic - 3D baroclinic mode splitting capability for incompressible ocean modelling.
 
 
 **********************************************************************************************************************************
@@ -41,6 +39,8 @@ COMPILING and RUNNING
 
 If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  With option mpi-lb the
 computational load is re-balanced each time a checkpoint is saved.
+
+We have found that the code often runs significantly faster with mpirun than with srun when using the slurm scheduler.
  
 The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10*4**DOMAIN_LEVEL.
 Since DOMAIN_LEVEL = Jmin - (PATCH_LEVEL+1) larger Jmin or smaller PATCH_LEVEL allows more cores to be used.  For inhomogeneous
@@ -172,11 +172,11 @@ The parameter level_fill can be set > min_level to make active all levels <= lev
 multigrid solver by reducing the size of of the coarsest grid where the elliptic equation is solved exactly.
 
 
-VERTICAL MIXING AND SURFACE FLUXES IN OCEAN MODEL (INCOMPRESSIBLE CASE)
+VERTICAL DIFFUSION AND SURFACE FLUXES IN OCEAN MODEL (INCOMPRESSIBLE CASE)
 
 Eddy diffusion of buoyancy and eddy viscosity for velocity is implemented using a flux-based implicit time integration scheme in the module
 vert_diffusion_mod (option vert_diffuse = .true.).  Wind stress, bottom friction and buoyancy fluxes are included via flux (Neumann) boundary conditions.  A solar radiation model (as in NEMO) is activated by setting a non-zero value for the solar radiation flux Q_sr .  Two options are available:
-tke_diffuse = .true. uses a turbulent kinetic energy (TKE) closure scheme, similar to that in NEMO. Tke_diffuse = .false. uses a simple depth-based
+tke_diffuse = .true. uses a turbulent kinetic energy (TKE) closure scheme, similar to that in NEMO, tke_diffuse = .false. uses a simple depth-based
 eddy-viscosity.
 
 
@@ -201,8 +201,8 @@ element is made up of one node for scalars and three edges for vectors U, V,W (s
 2D PROJECTION ONTO A LONGITUDE-LATITUDE GRID
 
 The module projection_mod includes routines for projecting data from the sphere to a uniform longitude-latitude grid.  These can be used to
-save projections for post-processing, spherical harmonics, or for zonal averaging.  Note that these routines require a "full" (i.e. non-adaptive grid)
-which can be either min_lev, or computed using call fill_up_grid_and_IWT (level_save).
+save projections for post-processing, spherical harmonics, or for zonal averaging.  Note that these routines require a "full" (i.e. non-adaptive
+grid) which can be either min_lev, or computed using call fill_up_grid_and_IWT (level_save).
 
 
 BASIC GRID DATA TYPES
@@ -285,8 +285,6 @@ Note that within a patch similar notation is used for shifts in i and j (e.g. sh
                   \              \             \            \
                    \              \             \            \
                      -------------   ------------ ------------ 
-
-
 
 
 INDEXING OF GRID ELEMENTS AND NEIGHBOURS
