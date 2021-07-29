@@ -22,6 +22,7 @@ View -> Color Map Editor. Click on rainbow with black e (upper right) to edit co
 NUMBER FORMAT
 Paraview uses printf formats: e.g. %6.3f (standard) or %2.0e (scientific notation)
 %#f always prints decimal point (usually don't want that!).
+Use "Interpret values as categories" for simple display of grid resolution levels.
 
 TRANSFORM DATA
 Filter -> Alphabetical -> Cell Data to Point Data
