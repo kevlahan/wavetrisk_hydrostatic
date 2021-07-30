@@ -16,11 +16,11 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, ibeg, iend, k, v
-    
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          ibeg = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = sol(S_MASS,k)%data(d)%length
+
+    do d = 1, size(grid)
+       ibeg = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend = sol(S_MASS,1)%data(d)%length
+       do k = 1, zlevels
           do v = scalars(1), scalars(2)
              q(v,k)%data(d)%elts(ibeg:iend) = sol(v,k)%data(d)%elts(ibeg:iend) + dt * trend(v,k)%data(d)%elts(ibeg:iend)
           end do
@@ -40,10 +40,10 @@ contains
     ! External pressure gradient
     call grad_eta
 
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = q(S_VELO,k)%data(d)%length
+    do d = 1, size(grid)
+       ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend = q(S_VELO,1)%data(d)%length
+       do k = 1, zlevels
           q(S_VELO,k)%data(d)%elts(ibeg:iend) = sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
                + dt * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) + theta1 * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
        end do
@@ -149,10 +149,10 @@ contains
     ! External pressure gradient
     call grad_eta
     
-    do k = 1, zlevels
-       do d = 1, size(grid)
-          ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = sol(S_VELO,k)%data(d)%length
+    do d = 1, size(grid)
+       ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend = sol(S_VELO,1)%data(d)%length
+       do k = 1, zlevels
           sol(S_VELO,k)%data(d)%elts(ibeg:iend) = (sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
                - theta1 * dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
        end do

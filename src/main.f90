@@ -252,7 +252,7 @@ contains
     call update
 
     ! Apply velocity penalization (no slip boundary condition)
-    if (penalize) call apply_penal 
+    if (penalize) call apply_penal
     
     call sum_total_mass (.false.)
 
@@ -329,10 +329,10 @@ contains
 
     ! Apply velocity penalization
     if (penalize) call apply_penal
-    
+
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
-    
+
     ! Set penalization and depth
     call update
 
@@ -343,7 +343,6 @@ contains
     dt_new = cpt_dt ()
     itime = nint (time*time_mult, 8)
     istep = 0
-
 
     if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
@@ -440,7 +439,7 @@ contains
     integer :: d, i, k, l, v, r
 
     ! Deallocate init_RK_mem allocations
-    do k = 1, zlevels
+    do k = 1, zmax
        do d = 1, n_domain(rank+1)
           do v = 1, N_VARIABLE
              deallocate (q1(v,k)%data(d)%elts)

@@ -3,6 +3,13 @@ module time_integr_mod
   use barotropic_2d_mod
   implicit none
   type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
+  interface
+     subroutine trend_fun (q, dq)
+       use domain_mod
+       implicit none
+       type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+     end subroutine trend_fun
+  end interface
 contains
   subroutine Euler (q, wav, trend_fun, dt)
     ! Euler time step
@@ -10,7 +17,6 @@ contains
     implicit none
     real(8)                           :: dt
     type(Float_Field), dimension(:,:) :: q, wav
-    external                          :: trend_fun
 
     call trend_fun (q, trend)
     call RK_sub_step (q, trend, dt, q)
@@ -24,7 +30,6 @@ contains
     implicit none
     real(8)                           :: dt
     type(Float_Field), dimension(:,:) :: q, wav
-    external                          :: trend_fun
 
     call manage_q1_mem
 
@@ -48,7 +53,6 @@ contains
     implicit none
     real(8)                           :: dt
     type(Float_Field), dimension(:,:) :: q, wav
-    external                          :: trend_fun
 
     call manage_q1_mem
 
@@ -76,7 +80,6 @@ contains
     implicit none
     real(8)                           :: dt
     type(Float_Field), dimension(:,:) :: q, wav
-    external                          :: trend_fun
 
     call manage_RK_mem
 
@@ -100,7 +103,6 @@ contains
     implicit none
     real(8)                           :: dt
     type(Float_Field), dimension(:,:) :: q, wav
-    external                          :: trend_fun
 
     call manage_RK_mem
 
@@ -127,7 +129,6 @@ contains
     implicit none
     real(8)                           :: dt
     type(Float_Field), dimension(:,:) :: q, wav
-    external                          :: trend_fun
 
     real(8), dimension(5,5) :: alpha, beta
 
@@ -175,18 +176,18 @@ contains
 
   subroutine RK_sub_step (sols, trends, dt, dest)
     implicit none
-    real(8)                                          :: dt
-    type(Float_Field), dimension(:,:)                :: sols
-    type(Float_Field), dimension(:,:)                :: trends
-    type(Float_Field), dimension(:,:), intent(inout) :: dest
-
-    integer :: d, ibeg, iend, k, v
+    real(8)                                                             :: dt
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sols
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
     
-    do k = 1, zlevels
-       do v = 1, N_VARIABLE
-          do d = 1, size(grid)
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = dest(v,1)%data(d)%length
+    integer :: d, ibeg, iend, k, v
+
+    do v = 1, N_VARIABLE
+       do d = 1, size(grid)
+          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = dest(v,1)%data(d)%length
+          do k = 1, zlevels
              dest(v,k)%data(d)%elts(ibeg:iend) = sols(v,k)%data(d)%elts(ibeg:iend) + dt * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
@@ -196,18 +197,18 @@ contains
 
   subroutine RK_sub_step1 (sols, trends, alpha, dt, dest)
     implicit none
-    real(8)                                          :: alpha, dt
-    type(Float_Field), dimension(:,:)                :: sols
-    type(Float_Field), dimension(:,:)                :: trends
-    type(Float_Field), dimension(:,:), intent(inout) :: dest
+    real(8)                                                             :: alpha, dt
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sols
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
 
     integer :: k, v, d, ibeg, iend
 
-    do k = 1, zlevels
-       do v = 1, N_VARIABLE
-          do d = 1, size(grid)
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = sols(v,1)%data(d)%length
+    do v = 1, N_VARIABLE
+       do d = 1, size(grid)
+       ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend = sols(v,1)%data(d)%length
+       do k = 1, zlevels
              dest(v,k)%data(d)%elts(ibeg:iend) = alpha * sols(v,k)%data(d)%elts(ibeg:iend) &
                   + dt * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
@@ -218,19 +219,19 @@ contains
 
   subroutine RK_sub_step2 (sol1, sol2, trends, alpha, dt, dest)
     implicit none
-    real(8)                                          :: dt
-    real(8), dimension(2)                            :: alpha
-    type(Float_Field), dimension(:,:)                :: sol1, sol2
-    type(Float_Field), dimension(:,:)                :: trends
-    type(Float_Field), dimension(:,:), intent(inout) :: dest
-
+    real(8)                                                              :: dt
+    real(8), dimension(2)                                                :: alpha
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sol1, sol2
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+    
     integer :: k, v, d, ibeg, iend
 
-    do k = 1, zlevels
-       do v = 1, N_VARIABLE
-          do d = 1, size(grid)
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = dest(v,1)%data(d)%length
+    do v = 1, N_VARIABLE
+       do d = 1, size(grid)
+          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = dest(v,1)%data(d)%length
+          do k = 1, zlevels
              dest(v,k)%data(d)%elts(ibeg:iend) = alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) &
                   + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) + dt*trends(v,k)%data(d)%elts(ibeg:iend)
           end do
@@ -241,23 +242,23 @@ contains
 
   subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, dt, dest)
     implicit none
-    real(8), dimension(2)                            :: dt
-    real(8), dimension(4)                            :: alpha
-    type(Float_Field), dimension(:,:)                :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(:,:)                :: trend1, trend2
-    type(Float_Field), dimension(:,:), intent(inout) :: dest
+    real(8), dimension(2)                                               :: dt
+    real(8), dimension(4)                                               :: alpha
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sol1, sol2, sol3, sol4
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trend1, trend2
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
 
     integer :: k, v, d, ibeg, iend
-
-    do k = 1, zlevels
-       do v = 1, N_VARIABLE
-          do d = 1, size(grid)
-             ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-             iend = dest(v,1)%data(d)%length
+    
+    do v = 1, N_VARIABLE
+       do d = 1, size(grid)
+          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = dest(v,1)%data(d)%length
+          do k = 1, zlevels
              dest(v,k)%data(d)%elts(ibeg:iend) = &
                   alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) &
-                + alpha(3)*sol3(v,k)%data(d)%elts(ibeg:iend) + alpha(4)*sol4(v,k)%data(d)%elts(ibeg:iend) &
-                 + dt(1)*trend1(v,k)%data(d)%elts(ibeg:iend) + dt(2)*trend2(v,k)%data(d)%elts(ibeg:iend)
+                  + alpha(3)*sol3(v,k)%data(d)%elts(ibeg:iend) + alpha(4)*sol4(v,k)%data(d)%elts(ibeg:iend) &
+                  + dt(1)*trend1(v,k)%data(d)%elts(ibeg:iend) + dt(2)*trend2(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
        dest(:,k)%bdry_uptodate = .False.
@@ -268,10 +269,10 @@ contains
     implicit none
     integer :: d, k, v
 
-    allocate (q1(1:N_VARIABLE,1:zlevels), q2(1:N_VARIABLE,1:zlevels), q3(1:N_VARIABLE,1:zlevels), &
-         q4(1:N_VARIABLE,1:zlevels), dq1(1:N_VARIABLE,1:zlevels))
+    allocate (q1(1:N_VARIABLE,1:zmax), q2(1:N_VARIABLE,1:zmax), q3(1:N_VARIABLE,1:zmax), &
+         q4(1:N_VARIABLE,1:zmax), dq1(1:N_VARIABLE,1:zmax))
 
-    do k = 1, zlevels
+    do k = 1, zmax
        do v = 1, N_VARIABLE
           call init_Float_Field (q1(v,k),  POSIT(v))
           call init_Float_Field (q2(v,k),  POSIT(v))
@@ -296,7 +297,7 @@ contains
     implicit none
     integer :: d, k, v, n_new
 
-    do k = 1, zlevels
+    do k = 1, zmax
        do d = 1, size(grid)
           do v = 1, N_VARIABLE
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
@@ -310,7 +311,7 @@ contains
     implicit none
     integer :: d, k, v, n_new
 
-    do k = 1, zlevels
+    do k = 1, zmax
        do d = 1, size(grid)
           do v = 1, N_VARIABLE
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
@@ -417,7 +418,7 @@ contains
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
     implicit none
-    real(8) :: dt
+    real(8)  :: dt
     
     call manage_q1_mem
 
@@ -467,16 +468,16 @@ contains
   
     ! Make layer heights and buoyancy consistent with free surface
     call barotropic_correction (sol)
-  end subroutine free_surface_update
+end subroutine free_surface_update
 
-  subroutine apply_penal
-    ! Apply permeability friction term to velocity as split step                                                                                 
+  subroutine apply_penal 
+    ! Apply permeability friction term to velocity as split step
     use domain_mod
     use adapt_mod
     implicit none
     integer :: d, ibeg, iend, ii, k
     real(8) :: eta
-
+    
     do d = 1, size(grid)
        ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
        iend = sol(S_VELO,1)%data(d)%length
@@ -485,7 +486,7 @@ contains
              sol(S_VELO,k)%data(d)%elts(ibeg:iend) = (1d0 - penal_edge(k)%data(d)%elts(ibeg:iend)) &
                   * sol(S_VELO,k)%data(d)%elts(ibeg:iend)
           end do
-       else ! free slip: damp velocity away from boundary                                                                                        
+       else ! free slip: damp velocity away from boundary
           do k = 1, zlevels
              do ii = ibeg, iend
                 eta = penal_edge(k)%data(d)%elts(ii)
