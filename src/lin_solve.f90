@@ -199,8 +199,6 @@ contains
        end select
        nullify (scalar, scalar2, scalar3, mu1)
     end do
-    lcf%bdry_uptodate = .false.
-    call update_bdry (lcf, l, 100)
   end function lcf
 
   subroutine cal_lc (dom, i, j, zlev, offs, dims)
