@@ -213,7 +213,7 @@ contains
                   + dt * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
-       dest(:,k)%bdry_uptodate = .False.
+       dest%bdry_uptodate = .False.
     end do
   end subroutine RK_sub_step1
 
@@ -236,7 +236,7 @@ contains
                   + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) + dt*trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
-       dest(:,k)%bdry_uptodate = .false.
+       dest%bdry_uptodate = .false.
     end do
   end subroutine RK_sub_step2
 
@@ -261,7 +261,7 @@ contains
                   + dt(1)*trend1(v,k)%data(d)%elts(ibeg:iend) + dt(2)*trend2(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
-       dest(:,k)%bdry_uptodate = .False.
+       dest%bdry_uptodate = .False.
     end do
   end subroutine RK_sub_step4
 
