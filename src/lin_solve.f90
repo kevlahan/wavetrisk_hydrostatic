@@ -199,6 +199,7 @@ contains
        end select
        nullify (scalar, scalar2, scalar3, mu1)
     end do
+    lcf%bdry_uptodate = .false.
   end function lcf
 
   subroutine cal_lc (dom, i, j, zlev, offs, dims)
@@ -257,6 +258,7 @@ contains
        end select
        nullify (scalar, scalar2, scalar3, mu1, mu2)
     end do
+    u%bdry_uptodate = .false.
   end subroutine lc2
 
   subroutine cal_lc2 (dom, i, j, zlev, offs, dims)
@@ -322,6 +324,7 @@ contains
        end select
        nullify (scalar, scalar2)
     end do
+    residual%bdry_uptodate = .false.
   end function residual
 
   subroutine cal_res (dom, i, j, zlev, offs, dims)
@@ -375,6 +378,7 @@ contains
        end select
        nullify (scalar)
     end do
+    s%bdry_uptodate = .false.
   end subroutine set_zero
 
   subroutine cal_set_zero (dom, i, j, zlev, offs, dims)
@@ -425,8 +429,6 @@ contains
           call apply_interscale_d2 (subsample, grid(d), coarse, z_null, 0, 1)
           nullify (scalar)
        end do
-       scaling%bdry_uptodate = .false.
-       call update_bdry (scaling, fine, 66)
 
        ! Reconstruct scalar at finer nodes not existing at coarser grid by interpolation
        do d = 1, size(grid)
@@ -593,6 +595,7 @@ contains
           call prolongation (u, l)
           call jacobi (u, f, Lu, l, fine_iter)
        end do
+       u%bdry_uptodate = .false.
        
        if (log_iter) then
           do l = level_start, level_end
@@ -646,7 +649,8 @@ contains
     do l = level_start+1, level_end
        call prolongation (u, l)
        call jacobi (u, f, Lu, l, 2)
-    end do    
+    end do
+    u%bdry_uptodate = .false.
 
     if (log_iter) then
        do l = level_start, level_end

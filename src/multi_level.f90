@@ -203,11 +203,13 @@ contains
        vort      => grid(d)%vort%elts
        Laplacian => Laplacian_vector(S_ROTU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
        end do
        nullify (vort, Laplacian)
     end do
-   
+    Laplacian_vector%bdry_uptodate = .false.
+    call update_vector_bdry (Laplacian_vector, l, 92)
+    
     ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
     !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
     do d = 1, size(grid)
@@ -254,8 +256,8 @@ contains
 
     integer :: id_par, id_chd
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx (i_par, j_par, offs_par, dims_par)
 
     if (dom%mask_n%elts(id_par+1) >= RESTRCT) then
        bernoulli(id_par+1) = bernoulli(id_chd+1)

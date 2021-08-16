@@ -7,7 +7,7 @@ module barotropic_2d_mod
   implicit none
   ! Add Laplacian diffusion to free surface perturbation eta
   real(8), parameter :: C_eta = 5d-3
-  logical, parameter :: diff_eta = .true.
+  logical, parameter :: diff_eta = .false.
 contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
@@ -26,6 +26,7 @@ contains
           end do
        end do
     end do
+    q(scalars(1):scalars(2),1:zlevels)%bdry_uptodate = .false.
   end subroutine scalar_star
 
   subroutine u_star (dt, q)
@@ -48,6 +49,7 @@ contains
                + dt * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) + theta1 * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
        end do
     end do
+    q(S_VELO,1:zlevels)%bdry_uptodate = .false.
   end subroutine u_star
 
   subroutine barotropic_correction (q)
@@ -77,6 +79,7 @@ contains
        end do
        nullify (scalar, scalar_2d)
     end do
+    q(scalars(1):scalars(2),1:zlevels)%bdry_uptodate = .false.
   end subroutine barotropic_correction
 
   subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
@@ -119,7 +122,10 @@ contains
     call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
-    if (diff_eta) call diffuse_eta 
+    if (diff_eta) then
+       call update_bdry (sol(S_MASS,zlevels+1), NONE, 600)
+       call diffuse_eta
+    end if
   end subroutine eta_update
 
   subroutine diffuse_eta
@@ -138,6 +144,7 @@ contains
        sol(S_MASS,zlevels+1)%data(d)%elts(ibeg:iend) = sol(S_MASS,zlevels+1)%data(d)%elts(ibeg:iend) &
             + dt_nu * Laplacian_scalar(S_MASS)%data(d)%elts(ibeg:iend)
     end do
+    sol(S_MASS,zlevels+1)%bdry_uptodate = .false.
   end subroutine diffuse_eta
 
   subroutine u_update
@@ -157,6 +164,7 @@ contains
                - theta1 * dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
        end do
     end do
+    sol(S_VELO,1:zlevels)%bdry_uptodate = .false.
   end subroutine u_update
 
   subroutine rhs_elliptic 
@@ -180,6 +188,7 @@ contains
           nullify (dmass, dscalar, mass, mass1)
        end do
     end do
+    sol(S_TEMP,zlevels+1)%bdry_uptodate = .false.
   end subroutine rhs_elliptic
 
   subroutine cal_rhs_elliptic (dom, i, j, zlev, offs, dims)
@@ -243,6 +252,7 @@ contains
        end do
        nullify (dscalar, mass, h_flux)
     end do
+    elliptic_lo%bdry_uptodate = .false.
   end function elliptic_lo
 
   subroutine complete_elliptic_lo (dom, i, j, zlev, offs, dims)
@@ -428,6 +438,8 @@ contains
     implicit none
     integer :: d, j, k, l
 
+    call update_bdry (sol(S_MASS,zlevels+1), NONE, 601)
+    
     ! Calculate external pressure gradient
     sol(S_TEMP,zlevels+1) = sol(S_MASS,zlevels+1) ! copy eta to avoid modification by restriction
     do l = level_end, level_start, -1 

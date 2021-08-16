@@ -33,20 +33,20 @@ program jet
      beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
   end if
   
-  grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
-  ref_density        = 1027.75d0    * KG/METRE**3      ! reference density at depth (maximum density)
+  grav_accel         = 9.80616d0 * METRE/SECOND**2     ! gravitational acceleration 
+  ref_density        = 1027.75d0 * KG/METRE**3         ! reference density at depth (maximum density)
 
   ! Numerical method parameters
   default_thresholds = .true.                          ! use default threshold
   
   match_time         = .true.                          ! avoid very small time steps when saving (if false) 
   penalize           = .true.                          ! penalize land regions
-  alpha              = 1d-2                            ! porosity used in penalization
+  alpha              = 1d-2                            ! porosity used in penalizatio
   npts_penal         = 4.5d0                           ! number of points to smooth over in penalization
   coarse_iter        = 20                              ! number of coarse scale iterations of elliptic solver
-  fine_iter          = 40                              ! number of fine scale iterations of elliptic solver
+  fine_iter          = 20                              ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                            ! coarse scale tolerance of elliptic solver
-  timeint_type       = "RK4"                           ! always use RK4
+  timeint_type       = "RK3"                           ! time integration scheme
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
   remapvelo_type     = "PPR"                           ! optimal remapping scheme
@@ -58,7 +58,7 @@ program jet
   theta2             = 0.8d0                           ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75
   
   ! Horizontal diffusion
-  Laplace_order_init = 2                         
+  Laplace_order_init = 0                         
   Laplace_order      = Laplace_order_init
 
   ! Vertical diffusion
@@ -66,35 +66,36 @@ program jet
   tke_closure        = .true.
          
   ! Depth and layer parameters
-  sigma_z            = .true.                         ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-  coords             = "croco"                        ! grid type for pure sigma grid ("croco" or "uniform")
-  max_depth          = -4000d0 * METRE                ! total depth
-  min_depth          = max_depth                      ! minimum depth
-  Tcline             =  -100d0 * METRE                ! thermocline
+  sigma_z            = .true.                          ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+  coords             = "croco"                         ! grid type for pure sigma grid ("croco" or "uniform")
+  max_depth          = -4000d0 * METRE                 ! total depth
+  min_depth          = max_depth                       ! minimum depth
+  Tcline             =  -100d0 * METRE                 ! thermocline
 
   ! Land mass parameter
-  lat_width          = (width/radius)/DEG             ! width of zonal channel (in degrees)
+  lat_width          = (width/radius)/DEG              ! width of zonal channel (in degrees)
   
   ! Bottom friction
   bottom_friction_case = 5d-3 / SECOND
 
   ! Relaxation to initial zonal flow (nudging)
-  tau_nudge           = 50d0 * DAY
+  tau_nudge          = 50d0 * DAY
 
   ! Wind stress
-  tau_0               = 0d0
+  tau_0              = 0d0
 
   ! Equation of state variables
-  a_0                 = 0.28d0 / CELSIUS
-  b_0                 = 0d0
-  mu_1                = 0d0
-  mu_2                = 0d0
-  mu_1                = 0d0
-  mu_2                = 0d0
-  T_ref               = 14d0   * CELSIUS
+  a_0                = 0.28d0 / CELSIUS
+  b_0                = 0d0
+  mu_1               = 0d0
+  mu_2               = 0d0
+  mu_1               = 0d0
+  mu_2               = 0d0
+  T_ref              = 14d0   * CELSIUS
   
   ! Vertical level to save
-  save_zlev           = zlevels-5
+  save_zlev          = zlevels
+!!$  save_zlev          = zlevels-5
 
   ! Characteristic scales
   L_pyc              = dz_b(2)                                      ! pycnocline
@@ -215,7 +216,7 @@ function physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev, type)
      local_type = .false.
   end if
 
-  if (implicit_diff_sclr .or. Laplace_order == 0 .or. maxval (visc_sclr) == 0.0_8) then
+  if (implicit_diff_sclr .or. Laplace_order == 0 .or. maxval (visc_sclr) == 0d0) then
      physics_scalar_flux = 0.0_8
   else
      id_i = id + 1
@@ -263,7 +264,7 @@ function physics_scalar_source (q, id, zlev)
   integer                                              :: id, zlev
   type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
 
-  physics_scalar_source = 0.0_8
+  physics_scalar_source = 0d0
 end function physics_scalar_source
 
 function physics_velo_source (dom, i, j, zlev, offs, dims)

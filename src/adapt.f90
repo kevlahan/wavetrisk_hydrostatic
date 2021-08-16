@@ -117,9 +117,7 @@ contains
     end do
     
     ! Set insignificant wavelet coefficients to zero
-    if (local_type) then
-       call compress_wavelets (wav_coeff)
-    end if
+    if (local_type) call compress_wavelets (wav_coeff)
   end subroutine adapt
 
   subroutine compress_wavelets (wav)
@@ -275,7 +273,6 @@ contains
        l_start = level_start
     end if
 
-    scaling%bdry_uptodate = .false.
     call update_array_bdry (scaling, NONE, 16)
 
     do k = 1, size(scaling,2)
@@ -317,7 +314,6 @@ contains
        l_start = l_start0
     end if
 
-    scaling%bdry_uptodate = .false.
     call update_vector_bdry (scaling, NONE, 16)
 
     do k = 1, size (scaling)
@@ -359,7 +355,6 @@ contains
        end do
     end if
 
-    scaling%bdry_uptodate = .false.
     call update_vector_bdry (scaling, NONE, 16)
 
     do k = 1, size(scaling)
