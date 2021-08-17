@@ -53,6 +53,7 @@ contains
     do l = level_end, level_start, -1
        call apply_onescale (turbulence_model, l, z_null, 0, 1)
     end do
+    tke%bdry_uptodate = .false.
 
     ! Apply vertical diffusion to each vertical column
     if (implicit) then ! backwards Euler step 
@@ -63,6 +64,7 @@ contains
     else ! forwards Euler step 
        call Euler (sol, wav_coeff, trend_vertical_diffusion, dt)
     end if
+    sol%bdry_uptodate = .false.
   end subroutine vertical_diffusion
 
   subroutine turbulence_model (dom, i, j, z_null, offs, dims)
