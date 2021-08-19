@@ -160,6 +160,7 @@ contains
        end do
        nullify (mass, temp, mean_m, mean_t, dvelo, exner, bernoulli)
     end do
+    dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_grad
      
   subroutine second_order_Laplacian_scalar (q, k, l)
