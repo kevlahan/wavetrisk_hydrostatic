@@ -7,7 +7,7 @@ module barotropic_2d_mod
   implicit none
   ! Add Laplacian diffusion to free surface perturbation eta
   real(8), parameter :: C_eta = 5d-3
-  logical, parameter :: diff_eta = .false.
+  logical, parameter :: diff_eta = .true.
 contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars

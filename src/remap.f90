@@ -144,9 +144,6 @@ contains
     nullify (interp_scalar, interp_velo)
     sol(:,1:zlevels)%bdry_uptodate       = .false.
     wav_coeff(:,1:zlevels)%bdry_uptodate = .false.
-
-    ! Wavelet transform and interpolate back onto adapted grid
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
   end subroutine remap_vertical_coordinates
 
   subroutine remap_scalars (dom, i, j, z_null, offs, dims)
