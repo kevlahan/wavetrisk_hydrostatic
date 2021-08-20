@@ -218,9 +218,9 @@ module shared_mod
 
   real(8)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
-  real(8)                                       :: omega, radius, grav_accel, cfl_num, kmax, Q_sr, ref_density, tol_elliptic
+  real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
   real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
-  real(8)                                       :: e_min, Kt_0, Kv_0, theta1, theta2, visc_divu, visc_rotu
+  real(8)                                       :: e_min, Kt_0, Kv_0, theta1, theta2, tol_elliptic, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8), dimension(:),         allocatable    :: bounds, pressure_save, visc_sclr
@@ -317,7 +317,9 @@ contains
 
     ! Default numerical method values
     alpha               = 1d-2                              ! porosity
-    cfl_num             = 1d0                               ! barotropic CFL number
+    cfl_adv             = 1.4d0                             ! advective CFL number in mode split case
+    cfl_bar             = 1.0d0                             ! baroclinic CFL number in mode split case
+    cfl_num             = 1d0                               ! CFL number (barotropic CFL in mode split case)
     C_visc              = 1d-2                              ! constant for determining horizontal viscosity
     iremap              = 10                                ! remap every iremap steps
     level_save          = level_start                       ! level to save

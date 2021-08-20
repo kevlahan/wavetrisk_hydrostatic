@@ -26,8 +26,8 @@ PROPERLY DISPLAYING DIFFERENT LEVELS OF RESOLUTION
 	     trisk2vtk jet.1 primal 266 266 9 9 jet_J9
   2. Load vtk files for all levels and make them visible.
   
-  3. In View -> Properties, scale so the spheres are scaled very slightly by level, with the finest scale having scale = 1.  For example, 1, 0.9999,
-  0.9998, 0.9997, 0.9996. This way the finest levels block the coarser levels at any given position.
+  3. In View -> Properties, scale so the spheres are scaled very slightly by level, with the finest scale having scale = 1.  For example, 1, 0.999,
+  0.998, 0.997, 0.996. This way the finest levels block the coarser levels at any given position.
 
   (If you just do trisk2vtk jet.1 primal 266 266 5 9 jet, then paraview will arbitrarily plot some levels in front of others, producing a fuzzier
   image. You cannot specify layer depths in paraview.)
