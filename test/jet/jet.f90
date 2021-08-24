@@ -58,7 +58,7 @@ program jet
   theta2             = 0.8d0                           ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75
   
   ! Horizontal diffusion
-  Laplace_order_init = 0                         
+  Laplace_order_init = 2                         
   Laplace_order      = Laplace_order_init
 
   ! Vertical diffusion
@@ -121,6 +121,8 @@ program jet
   Ldim               = L_jet                             ! length scale 
   Tdim               = Ldim/Udim                         ! time scale
   Hdim               = abs (max_depth)                   ! vertical length scale
+
+  iadapt             =  dt_init                           ! adapt horizontal grid every iadapt time steps
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize functions
@@ -128,6 +130,9 @@ program jet
   
   ! Initialize variables
   call initialize (run_id)
+
+  ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
+  iadapt = CFL_adv * nint ((dx_min/Udim) / dt_init)
 
   ! Initialize 2D projections and zonal averages
   Nproj = sqrt (20d0 * 4**min_level) ! size of 2D projection: Nproj x Nproj/2

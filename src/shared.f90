@@ -208,8 +208,8 @@ module shared_mod
   real(8), parameter :: WATT    = JOULE / SECOND
   
   ! Simulation variables
-  integer                                       :: coarse_iter, cp_idx, err_restart, fine_iter, ibin, iremap, istep, istep_cumul
-  integer                                       :: iwrite, n_diffuse, nbins, nstep_init, save_zlev
+  integer                                       :: coarse_iter, cp_idx, err_restart, fine_iter, iadapt, ibin, iremap, istep
+  integer                                       :: istep_cumul, iwrite, n_diffuse, nbins, nstep_init, save_zlev
   integer                                       :: resume, Laplace_order, Laplace_order_init
   integer(8)                                    :: itime
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
@@ -321,7 +321,8 @@ contains
     cfl_bar             = 1.0d0                             ! baroclinic CFL number in mode split case
     cfl_num             = 1d0                               ! CFL number (barotropic CFL in mode split case)
     C_visc              = 1d-2                              ! constant for determining horizontal viscosity
-    iremap              = 10                                ! remap every iremap steps
+    iadapt              = 1                                 ! adapt horizontal grid every iadapt time step
+    iremap              = 10                                ! remap every iremap time steps
     level_save          = level_start                       ! level to save
     Laplace_order_init  = 0                                 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     n_diffuse           = 1                                 ! include diffusion every n_diffuse steps

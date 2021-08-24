@@ -245,11 +245,11 @@ contains
     else
        Laplace_order = 0
     end if
-    
+
     ! Adapt grid
-    if (min_level /= max_level) then
-       if (implicit_diff_sclr .or. implicit_diff_divu .or. vert_diffuse .or. remap .and. modulo (istep, iremap) == 0) &
-            call WT_after_step (sol, wav_coeff, level_start-1)
+    if (min_level /= max_level .and. modulo (istep, iadapt) == 0) then
+       if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
+            call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
        call adapt_grid (set_thresholds)
     end if
 
