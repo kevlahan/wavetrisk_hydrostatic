@@ -20,7 +20,7 @@ contains
 
     call trend_fun (q, trend)
     call RK_sub_step (q, trend, dt, q)
-    call WT_after_step (q, wav, level_start-1)
+    if (min_level /= max_level) call WT_after_step (q, wav, level_start-1)
   end subroutine Euler
 
   subroutine RK3 (q, wav, trend_fun, dt)
@@ -35,15 +35,15 @@ contains
 
     call trend_fun (q, trend) 
     call RK_sub_step (q, trend, dt/3d0, q1)
-    call WT_after_step (q1, wav)
+    if (min_level /= max_level) call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
     call RK_sub_step (q, trend, dt/2d0, q1)
-    call WT_after_step (q1, wav)
+    if (min_level /= max_level) call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
     call RK_sub_step (q, trend, dt, q)
-    call WT_after_step (q, wav, level_start-1)
+    if (min_level /= max_level) call WT_after_step (q, wav, level_start-1)
   end subroutine RK3
   
   subroutine RK4 (q, wav, trend_fun, dt)
@@ -58,19 +58,19 @@ contains
 
     call trend_fun (q, trend) 
     call RK_sub_step (q, trend, dt/4d0, q1)
-    call WT_after_step (q1, wav)
+    if (min_level /= max_level) call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
     call RK_sub_step (q, trend, dt/3d0, q1)
-    call WT_after_step (q1, wav)
+    if (min_level /= max_level) call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
     call RK_sub_step (q, trend, dt/2d0, q1)
-    call WT_after_step (q1, wav)
+    if (min_level /= max_level) call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
     call RK_sub_step (q, trend, dt, q)
-    call WT_after_step (q, wav, level_start-1)
+    if (min_level /= max_level) call WT_after_step (q, wav, level_start-1)
   end subroutine RK4
 
   subroutine RK33_opt (q, wav, trend_fun, dt)
@@ -85,15 +85,15 @@ contains
 
     call trend_fun (q, trend) 
     call RK_sub_step (q, trend, dt, q1)
-    call WT_after_step (q1, wav)
+    if (min_level /= max_level) call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
     call RK_sub_step2 (q, q1, trend, (/ 0.75d0, 0.25d0 /), dt/4d0, q2)
-    call WT_after_step (q2, wav)
+    if (min_level /= max_level) call WT_after_step (q2, wav)
 
     call trend_fun (q2, trend)
     call RK_sub_step2 (q, q2, trend, (/ 1d0/3d0, 2d0/3d0 /), dt*2d0/3d0, q)
-    call WT_after_step (q, wav, level_start-1)
+    if (min_level /= max_level) call WT_after_step (q, wav, level_start-1)
   end subroutine RK33_opt
 
   subroutine RK34_opt (q, wav, trend_fun, dt)
@@ -108,19 +108,19 @@ contains
 
     call trend_fun (q, trend) 
     call RK_sub_step (q, trend, dt/2d0, q1)
-    call WT_after_step (q1, wav)
+    if (min_level /= max_level) call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend) 
     call RK_sub_step (q1, trend, dt/2d0, q2)
-    call WT_after_step (q2, wav)
+    if (min_level /= max_level) call WT_after_step (q2, wav)
 
     call trend_fun (q2, trend)
     call RK_sub_step2 (q, q2, trend, (/ 2d0/3d0, 1d0/3d0 /), dt/6d0, q3)
-    call WT_after_step (q3, wav)
+    if (min_level /= max_level) call WT_after_step (q3, wav)
 
     call trend_fun (q3, trend) 
     call RK_sub_step (q3, trend, dt/2d0, q)
-    call WT_after_step (q, wav, level_start-1)
+    if (min_level /= max_level) call WT_after_step (q, wav, level_start-1)
   end subroutine RK34_opt
 
   subroutine RK45_opt (q, wav, trend_fun, dt)
@@ -144,23 +144,23 @@ contains
 
     call trend_fun (q, trend) 
     call RK_sub_step1 (q, trend, alpha(1,1), dt*beta(1,1), q1)
-    call WT_after_step (q1, wav)
+    if (min_level /= max_level) call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend)
     call RK_sub_step2 (q, q1, trend, alpha(1:2,2), dt*beta(2,2), q2)
-    call WT_after_step (q2, wav)
+    if (min_level /= max_level) call WT_after_step (q2, wav)
 
     call trend_fun (q2, trend)
     call RK_sub_step2 (q, q2, trend, (/alpha(1,3), alpha(3,3)/), dt*beta(3,3), q3)
-    call WT_after_step (q3, wav)
+    if (min_level /= max_level) call WT_after_step (q3, wav)
 
     call trend_fun (q3, trend)
     call RK_sub_step2 (q, q3, trend, (/alpha(1,4), alpha(4,4)/), dt*beta(4,4), q4)
-    call WT_after_step (q4, wav)
+    if (min_level /= max_level) call WT_after_step (q4, wav)
 
     call trend_fun (q4, dq1)
     call RK_sub_step4 (q, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), dt*beta(4:5,5), q)
-    call WT_after_step (q, wav, level_start-1)
+    if (min_level /= max_level) call WT_after_step (q, wav, level_start-1)
   end subroutine RK45_opt
 
   subroutine init_time_integr_mod
@@ -338,10 +338,10 @@ contains
     call u_star (dt, sol)
     call scalar_star (dt, sol)
     call barotropic_correction (sol)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call free_surface_update
-    call WT_after_step (sol, wav_coeff, level_start-1)
+    if (min_level /= max_level) call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine Euler_split
 
   subroutine RK4_split (dt)
@@ -361,22 +361,22 @@ contains
 
     call trend_ml (sol, trend)
     call RK_split (dt/4d0, q1)
-    if (min_level /= max_level)  call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt/3d0, q1)
-    if (min_level /= max_level)  call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt/2d0, q1)
-    if (min_level /= max_level)  call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt, sol)
-    if (min_level /= max_level)  call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call free_surface_update 
-    if (min_level /= max_level)  call WT_after_step (sol, wav_coeff, level_start-1)
+    if (min_level /= max_level) call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK4_split
   
   subroutine RK3_split (dt)
@@ -400,14 +400,14 @@ contains
 
     call trend_ml (q1, trend)
     call RK_split (dt/2d0, q1)
-    if (min_level /= max_level)  call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt, sol)
-    if (min_level /= max_level)  call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call free_surface_update 
-    if (min_level /= max_level)  call WT_after_step (sol, wav_coeff, level_start-1)
+    if (min_level /= max_level) call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK3_split
 
   subroutine RK2_split (dt)
