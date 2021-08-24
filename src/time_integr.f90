@@ -361,22 +361,22 @@ contains
 
     call trend_ml (sol, trend)
     call RK_split (dt/4d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level)  call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt/3d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level)  call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt/2d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level)  call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt, sol)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level)  call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call free_surface_update 
-    call WT_after_step (sol, wav_coeff, level_start-1)
+    if (min_level /= max_level)  call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK4_split
   
   subroutine RK3_split (dt)
@@ -396,18 +396,18 @@ contains
 
     call trend_ml (sol, trend)
     call RK_split (dt/3d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt/2d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level)  call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt, sol)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level)  call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call free_surface_update 
-    call WT_after_step (sol, wav_coeff, level_start-1)
+    if (min_level /= max_level)  call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK3_split
 
   subroutine RK2_split (dt)
@@ -427,14 +427,14 @@ contains
 
     call trend_ml (sol, trend)
     call RK_split (dt/2d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call trend_ml (q1, trend)
     call RK_split (dt, sol)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
+    if (min_level /= max_level) call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
 
     call free_surface_update 
-    call WT_after_step (sol, wav_coeff, level_start-1)
+    if (min_level /= max_level) call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK2_split
 
   subroutine RK_split (dt, dest)

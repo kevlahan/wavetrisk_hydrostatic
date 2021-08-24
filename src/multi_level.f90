@@ -10,7 +10,7 @@ contains
 
     integer :: k, l
 
-    call update_array_bdry (q, NONE, 9)
+    call update_array_bdry (q(:,1:zlevels), NONE, 9)
 
     ! Compute surface pressure on all grids
     call cal_surf_press (q)
@@ -38,7 +38,7 @@ contains
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
-    integer :: k, l
+    integer                                                   :: k, l
 
     integer :: d, j, v
 
