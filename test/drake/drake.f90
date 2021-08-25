@@ -35,13 +35,14 @@ program Drake
   nstep_init         =  5                             ! take some small time steps on restart
   match_time         = .false.                        ! avoid very small time steps when saving 
   mode_split         = .true.                         ! split barotropic mode if true
+  timeint_type       = "RK3"                          
+
   penalize           = .true.                         ! penalize land regions
-  timeint_type       = "RK4"                          ! always use RK4
   compressible       = .false.                        ! always run with incompressible equations
   remapscalar_type   = "PPR"                          ! optimal remapping scheme
   remapvelo_type     = "PPR"                          ! optimal remapping scheme
   Laplace_order_init = 1                              
-  Laplace_order = Laplace_order_init
+  Laplace_order      = Laplace_order_init
 
   ! Depth and layer parameters
   etopo_res      = 4                                  ! resolution of etopo data in arcminutes (if used) 
@@ -134,6 +135,9 @@ program Drake
   
   ! Initialize variables
   call initialize (run_id)
+
+  ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
+  iadapt = CFL_adv * nint ((dx_min/Udim) / dt_init)
 
   ! Initialize diagnostic variables
   call init_diagnostics
