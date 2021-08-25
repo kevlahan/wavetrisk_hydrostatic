@@ -32,6 +32,7 @@ program Drake
   omega          = omega_earth/scale_omega                   ! angular velocity (scaled for small planet to keep beta constant)
 
   ! Numerical method parameters
+  nstep_init         =  5                             ! take some small time steps on restart
   match_time         = .false.                        ! avoid very small time steps when saving 
   mode_split         = .true.                         ! split barotropic mode if true
   penalize           = .true.                         ! penalize land regions
