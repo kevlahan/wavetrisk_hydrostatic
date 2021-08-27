@@ -122,7 +122,6 @@ program jet
   Tdim               = Ldim/Udim                         ! time scale
   Hdim               = abs (max_depth)                   ! vertical length scale
 
-  iadapt             =  dt_init                           ! adapt horizontal grid every iadapt time steps
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize functions
