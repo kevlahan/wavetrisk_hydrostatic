@@ -46,12 +46,12 @@ program jet
   coarse_iter        = 20                              ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                              ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                            ! coarse scale tolerance of elliptic solver
-  timeint_type       = "RK3"                           ! time integration scheme
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
   remapvelo_type     = "PPR"                           ! optimal remapping scheme
 
   ! Time stepping parameters
+  timeint_type       = "RK3"                           ! time integration scheme
   adapt_dt           = .true.                          ! adapt time step
   mode_split         = .true.                          ! split barotropic mode if true
   theta1             = 0.8d0                           ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75

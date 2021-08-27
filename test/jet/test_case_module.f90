@@ -138,7 +138,7 @@ contains
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(A,L1)')     "perfect                        = ", perfect
        write (6,'(A,es10.4)') "tolerance                      = ", tol
-       write (6,'(a,i3)')     "iadapt                         = ", iadapt
+       write (6,'(a,i5)')     "iadapt                         = ", iadapt
        write (6,'(A,i1)')     "optimize_grid                  = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
@@ -765,7 +765,7 @@ contains
     dx_max = sqrt (4d0/sqrt(3d0) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, 1.2d0*dx_min/c1)
+    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/Udim, 1.2d0*dx_min/c1)
     dt_init = dt_cfl
 
     C = 5d-3 ! <= 0.5 if explicit for Laplacian diffusion, <= 0.1 for hyperdiffusion
