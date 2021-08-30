@@ -571,9 +571,9 @@ contains
     real(8),               parameter :: jet_width = 10d0                                              ! width of density jet transition regions (in degrees)
     real(8), dimension(8), parameter :: lat0 = (/ 10d0, 20d0, 30d0, 40d0, 50d0, 60d0,  70d0,  80d0 /) ! latitudes of density jets
 
-    ! Amplitudes of density jet density perturbations to give a maximum velocity Udim in thermal wind balance
-    amp0 = 3.2d-2 * Udim
-    amp  = 1.7d+0 * Udim
+    ! Amplitudes of density jet density perturbations to give a maximum velocity Udim in thermal wind balance (assume drho = -2 kg/m^3)
+    amp0 = 2.30d-2 * Udim
+    amp  = 1.25d+0 * Udim
 
     ! Penetration depth of density perturbations
     jet_depth = max_depth / 4d0  
@@ -582,10 +582,10 @@ contains
     do i = 1, size (lat0)
        density_pert = density_pert + density_jet (lat0(i)) + density_jet (-lat0(i))
     end do
-    density_init = ref_density + drho * (max_depth - z) / max_depth + density_pert
+    density_init = ref_density + density_pert
   contains
     real(8) function density_jet (lat0)
-      ! Gaussian dnesity profile in latitude and depth
+      ! Gaussian density profile in latitude and depth
       implicit none
       real(8) :: lat0
 

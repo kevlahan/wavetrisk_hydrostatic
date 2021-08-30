@@ -77,17 +77,16 @@ program turb
   save_zlev          = zlevels
 
   ! Characteristic scales
-  drho               = -3d0 * KG/METRE**3                                ! magnitude of density perturbation
-  grav_reduced       = grav_accel * abs(drho)/ref_density                ! reduced gravity
-  wave_speed         = sqrt (grav_accel*abs(max_depth))                  ! inertia-gravity wave speed
-  drho_dz            = abs (drho / max_depth)                            ! approximate density gradient
-  bv                 = sqrt (grav_accel * abs(drho_dz)/ref_density)      ! Brunt-Vaisala frequency
-!!$  c1                 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
-  c1                 = sqrt (grav_reduced *  abs(max_depth))             ! first baroclinic mode speed for linear stratification
+  drho               = -3d0 * KG/METRE**3                                         ! magnitude of density perturbation (linear stratification)
+  grav_reduced       = grav_accel * abs(drho)/ref_density                         ! reduced gravity
+  wave_speed         = sqrt (grav_accel*abs(max_depth))                           ! inertia-gravity wave speed
+  drho_dz            = abs (drho / max_depth)                                     ! density gradient
+  bv                 = sqrt (grav_accel * abs(drho_dz)/ref_density)               ! Brunt-Vaisala frequency
+  c1                 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   
   ! Dimensional scaling
-  Udim               = 1d0 * METRE/SECOND
-  Ldim               = 10d0 * DEG * radius               ! length scale 
+  Udim               = 0.5d0 * METRE/SECOND              ! velocity scale (initial maximum initial zonal jet velocity)
+  Ldim               = 10d0 * DEG * radius               ! length scale (initial width of zonal jets)
   Tdim               = Ldim/Udim                         ! time scale
   Hdim               = abs (max_depth)                   ! vertical length scale
 
