@@ -1,0 +1,15 @@
+test_case          turb          ! name of test case
+run_id             turb          ! name of run (for saved data)
+max_level	   7             ! maximum level of resolution
+zlevels           20             ! number of vertical levels
+no_slip            T  	      	 ! use no slip (T) or free slip	boundary conditions
+remap              T             ! remap vertical grid
+iremap             5             ! remap every iremap time steps
+log_iter           T             ! print elliptic solver relative residual error
+tol      	   5e-2          ! non-dimensional tolerance
+cfl_num            20            ! cfl number for barotropic mode
+dt_write           1.0           ! save interval (days)
+CP_EVERY           1             ! checkpoint every CP_EVERY saves
+time_end           100           ! final time (days)
+resume            -1             ! restart from checkpoint (negative means fresh restart)
+
