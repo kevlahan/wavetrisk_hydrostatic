@@ -1,5 +1,5 @@
 module param_mod
-  ! Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1
-  integer, parameter :: DOMAIN_LEVEL = 1
-  integer, parameter :: PATCH_LEVEL = 3 - DOMAIN_LEVEL
+  ! Maximum number of cores = 10 * 2^(2*DOMAIN_LEVEL)
+  integer, parameter :: DOMAIN_LEVEL = 1 ! <= 1 (MIN_LEVEL - PATCH_LEVEL - 1 with PATCH_LEVEL >= 2)
+  integer, parameter :: MIN_LEVEL    = 4 ! sets coarsest grid
 end module param_mod

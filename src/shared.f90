@@ -38,11 +38,12 @@ module shared_mod
   integer, parameter :: N_CHDRN = 4 
 
   ! domain parameters
-  integer, parameter :: N_ICOSAH_LOZENGE = 10               ! number of lozenges (coarse regular domains) in icosahedron
-  integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL ! number of subdomains per lozenge in each direction
-  integer, parameter :: N_SUB_DOM = N_SUB_DOM_PER_DIM**2    ! total number of sub-domains per lozenge
-  integer, parameter :: N_BDRY = 8                          ! number of boundary patches associated to each patch
-  integer, dimension(:), allocatable :: n_domain            ! number of subdomains on each processor
+  integer, parameter :: N_BDRY            = 8                            ! number of boundary patches associated to each patch
+  integer, parameter :: N_ICOSAH_LOZENGE  = 10                           ! number of lozenges (coarse regular domains) in icosahedron
+  integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL              ! number of subdomains per lozenge in each direction
+  integer, parameter :: N_SUB_DOM         = N_SUB_DOM_PER_DIM**2         ! total number of sub-domains per lozenge
+  integer, parameter :: PATCH_LEVEL       = MIN_LEVEL - DOMAIN_LEVEL - 1 ! patch level: MIN_LEVEL = DOMAIN_LEVEL + PATCH_LEVEL + 1
+  integer, dimension(:), allocatable :: n_domain                         ! number of subdomains on each processor
 
   ! thickness of boundary overlaps between lozenges (ghost points or halo)
   integer, parameter :: BDRY_THICKNESS = 2
@@ -157,7 +158,7 @@ module shared_mod
 
   ! Basic grid parameters
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
-  integer :: min_level, max_level   ! minimum and maximum grid refinement levels in pseudo-horizontal directions
+  integer :: max_level              ! maximum grid refinement levels in pseudo-horizontal directions
   integer :: level_fill             ! make all grid points active for scales l <= level_fill
   integer :: zlevels                ! number of levels in vertical direction
   integer :: zmax                   ! zmax=zlevels+1 for a separate free surface layer, zmax=zlevels otherwise
@@ -288,11 +289,10 @@ contains
     istep_cumul         = 0
     iwrite              = 0
     time                = 0.0_8
-    min_level           = DOMAIN_LEVEL+PATCH_LEVEL+1
-    max_level           = min_level
-    level_start         = min_level
+    max_level           = MIN_LEVEL
+    level_start         = MIN_LEVEL
     level_end           = level_start
-    level_fill          = min_level
+    level_fill          = MIN_LEVEL
     nstep_init          = -1                                ! nstep_init gradually increasing small time steps after restart
     
     ! Default logical switches, most are reset in the input file
