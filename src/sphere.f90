@@ -12,8 +12,7 @@ module geom_mod
      real(8)               :: hex_inv
   end type Areas
 
-  type(Coord), parameter :: ORIGIN = Coord(0.0_8, 0.0_8, 0.0_8)
-  integer,    parameter  :: N_GLO_DOMAIN = N_ICOSAH_LOZENGE*N_SUB_DOM
+  type(Coord), parameter :: ORIGIN = Coord (0d0, 0d0, 0d0)
 contains
   subroutine init_sphere_mod
     ! if needed in future
