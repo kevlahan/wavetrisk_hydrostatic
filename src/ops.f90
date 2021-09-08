@@ -210,11 +210,11 @@ contains
          h_flux(EDGE*id+RT+1) = (scalar(idE_i) - scalar(id_i))   / dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
          h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) / dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
          h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-      elseif (itype == 2) then ! flux for depth integrated external pressure gradient in elliptic operator
-         csq(0) = abs (dom%topo%elts(id_i))   * phi(0) 
-         csq(1) = abs (dom%topo%elts(idE_i))  * phi(1) 
-         csq(2) = abs (dom%topo%elts(idNE_i)) * phi(2) 
-         csq(3) = abs (dom%topo%elts(idN_i))  * phi(3)
+      elseif (itype == 2) then ! external pressure gradient flux, (H + eta^n) grad(eta^(n+1)) * edge_length, in elliptic operator
+         csq(0) = abs (dom%topo%elts(id_i))   * phi(0) + mass(id_i)
+         csq(1) = abs (dom%topo%elts(idE_i))  * phi(1) + mass(idE_i)
+         csq(2) = abs (dom%topo%elts(idNE_i)) * phi(2) + mass(idNE_i)
+         csq(3) = abs (dom%topo%elts(idN_i))  * phi(3) + mass(idN_i)
          csq = grav_accel * csq
          
          h_flux(EDGE*id+RT+1) = interp (csq(0), csq(1)) * &
@@ -377,11 +377,11 @@ contains
               * dom%pedlen%elts(EDGE*idSW+DG+1)
          h_flux(EDGE*idS+UP+1)  = -(scalar(idS_i) - scalar(id_i))   / dom%len%elts(EDGE*idS+UP+1)  &
               * dom%pedlen%elts(EDGE*idS+UP+1)
-      elseif (itype == 2) then ! external pressure gradient flux, csq * grad(eta) * edge_length, in elliptic operator
-         csq(0) = abs (dom%topo%elts(id_i))   * phi(0) 
-         csq(1) = abs (dom%topo%elts(idW_i))  * phi(1) 
-         csq(2) = abs (dom%topo%elts(idSW_i)) * phi(2) 
-         csq(3) = abs (dom%topo%elts(idS_i))  * phi(3)
+      elseif (itype == 2) then ! external pressure gradient flux, (H + eta^n) grad(eta^(n+1)) * edge_length, in elliptic operator
+         csq(0) = abs (dom%topo%elts(id_i))   * phi(0) + mass(id_i)
+         csq(1) = abs (dom%topo%elts(idW_i))  * phi(1) + mass(idW_i)
+         csq(2) = abs (dom%topo%elts(idSW_i)) * phi(2) + mass(idSW_i)
+         csq(3) = abs (dom%topo%elts(idS_i))  * phi(3) + mass(idS_i)
          csq = grav_accel * csq
 
          h_flux(EDGE*idW+RT+1)  = - interp (csq(0), csq(1)) * &

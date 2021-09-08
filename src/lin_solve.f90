@@ -709,14 +709,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_i
-    real(8) :: c_sq, Laplace_diag
+    integer :: d, id, id_i
+    real(8) :: c_sq, depth, Laplace_diag
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
     
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       c_sq = grav_accel * abs (dom%topo%elts(id_i))
+       d = dom%id + 1
+       depth = abs (dom%topo%elts(id_i)) + sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
+       c_sq = grav_accel * depth
        Laplace_diag = 2d0*sqrt(3d0) * dt**2 * c_sq * dom%areas%elts(id_i)%hex_inv
        scalar(id_i) = scalar(id_i) - scalar2(id_i) / (theta1*theta2 * Laplace_diag + 1d0)
     end if

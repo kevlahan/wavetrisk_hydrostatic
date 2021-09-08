@@ -222,10 +222,11 @@ contains
     do d = 1, size(grid)
        h_flux => horiz_flux(S_MASS)%data(d)%elts
        scalar => q%data(d)%elts
+       mass => sol(S_MASS,zlevels+1)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=2)
        end do
-       nullify (h_flux, scalar)
+       nullify (h_flux, mass, scalar)
     end do
     horiz_flux(S_MASS)%bdry_uptodate = .false.
     call update_bdry (horiz_flux(S_MASS), l, 213)
@@ -288,7 +289,6 @@ contains
           do j = 1, grid(d)%lev(l)%length
              call step1 (q=q, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
           end do
-          nullify (scalar)
           if (l < level_end) then
              dscalar => div_flux%data(d)%elts
              call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
@@ -467,11 +467,9 @@ contains
     do l = level_end, level_start, -1
        do d = 1, size(grid)
           h_flux => horiz_flux(S_MASS)%data(d)%elts
-          if (mode_split) scalar => sol(S_MASS,zlevels+1)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
              call step1 (q=sol, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
           end do
-          if (mode_split) nullify (scalar)
           if (l < level_end) then
              dscalar => trend(S_MASS,1)%data(d)%elts
              call cpt_or_restr_flux (grid(d), l)
