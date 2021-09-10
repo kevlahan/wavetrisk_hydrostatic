@@ -152,7 +152,7 @@ contains
   end subroutine cal_dotproduct_velo
 
   subroutine lc (s1, a, s2, s3, l)
-    ! Calculates linear combination of scalars s3 = (s1 + b*s2) at scale l
+    ! Calculates linear combination of scalars s3 = (s1 + a*s2) at scale l
     implicit none
     integer                   :: l
     real(8), target           :: a
@@ -170,6 +170,7 @@ contains
        end do
        nullify (scalar, scalar2, scalar3, mu1)
     end do
+    s1%bdry_uptodate = .false.
   end subroutine lc
 
   function lcf (s1, a, s2, l)
@@ -215,7 +216,7 @@ contains
     if (dom%mask_n%elts(id_i) >= ADJZONE) scalar3(id_i) = scalar(id_i) + mu1 * scalar2(id_i)
   end subroutine cal_lc
 
-   subroutine cal_lc_velo (dom, i, j, zlev, offs, dims)
+  subroutine cal_lc_velo (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -567,6 +568,8 @@ contains
     integer                                       :: l
     real(8)                                       :: nrm_f, nrm_u
     real(8), dimension(1:2,level_start:level_end) :: r_error
+
+    integer, dimension(level_start:level_end) :: iter
     
     interface
        function Lu (u, l)
@@ -580,35 +583,35 @@ contains
 
     var_type = "sclr"
 
+    call update_bdry (f, NONE, 55)
+
     nrm_f = l2 (f, level_start)
     nrm_u = l2 (u, level_start)
 
     if (nrm_f > tol * nrm_u) then
        if (log_iter) then
           do l = level_start, level_end
-             r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
+             r_error(1,l) = l2 (residual (f, u, Lu, l), l)
           end do
        end if
-    
-       call bicgstab (u, f, Lu, level_start, coarse_iter)
+
+       call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, r_error(2, level_start), iter(level_start))
        do l = level_start+1, level_end
           call prolongation (u, l)
-          call jacobi (u, f, Lu, l, fine_iter)
+          call jacobi (u, f, nrm_f, Lu, l, fine_iter, r_error(2, l), iter(l))
        end do
        u%bdry_uptodate = .false.
        
        if (log_iter) then
           do l = level_start, level_end
-             r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
-             if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x))') l, r_error(:,l)
+             if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
+                  l, r_error(:,l), iter(l)
           end do
        end if
     else ! solution is zero
        if (log_iter) then
           do l = level_start, level_end
-             call set_zero (u, l)
-             r_error(1,l) = l2 (residual (f, u, Lu, l), l)
-             if (rank == 0) write (6, '("residual at scale ", i2, " = ", es10.4,1x)') l, r_error(1,l)
+             if (rank == 0) write (6, '("residual at scale ", i2, " = ", es10.4,1x)') l, r_error(1,l) 
           end do
        end if
     end if
@@ -625,6 +628,8 @@ contains
     real(8)                                       :: nrm_f
     real(8), dimension(1:2,level_start:level_end) :: r_error
 
+    integer, dimension(level_start:level_end) :: iter
+
     interface
        function Lu (u, l)
          ! Returns result of linear operator applied to u at scale l
@@ -639,34 +644,36 @@ contains
 
     nrm_f = l2 (f, level_start)
 
+    r_error = 0d0
     if (log_iter) then
        do l = level_start, level_end
-          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
+          r_error(1,l) = l2 (residual (f, u, Lu, l), l)
        end do
     end if
 
-    call bicgstab (u, f, Lu, level_start, coarse_iter)
+    call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, r_error(2, level_start), iter(level_start))
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call jacobi (u, f, Lu, l, 2)
+       call jacobi (u, f, nrm_f, Lu, l, 2, r_error(2, l), iter(l))
     end do
     u%bdry_uptodate = .false.
 
     if (log_iter) then
        do l = level_start, level_end
-          r_error(2,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
           if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x))') l, r_error(:,l)
        end do
     end if
   end subroutine elliptic_solver
 
-  subroutine jacobi (u, f, Lu, l, max_iter)
-    ! Jacobi iterations for smoothing multigrid iterations
+  subroutine jacobi (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
+    ! Max_iter Jacobi iterations for smoothing multigrid iterations
     implicit none
-    integer                   :: l, max_iter
+    integer                   :: iter, l, max_iter
+    real(8)                   :: nrm_f, nrm_res
     type(Float_Field), target :: f, u
 
-    integer :: i
+    integer                   :: i
+    type(Float_Field), target :: res
     
     interface
        function Lu (u, l)
@@ -677,9 +684,16 @@ contains
        end function Lu
     end interface
 
-    do i = 1, max_iter
-       call lc_jacobi (u, residual (f, u, Lu, l), l)
+    do iter = 1, max_iter
+       res = residual (f, u, Lu, l)
+       call lc_jacobi (u, res, l)
     end do
+    iter = max_iter
+
+    if (log_iter) then
+       res = residual (f, u, Lu, l)
+       nrm_res = l2 (res, l)  /nrm_f
+    end if
   end subroutine jacobi
 
   subroutine lc_jacobi (s1, s2, l)
@@ -698,6 +712,7 @@ contains
        end do
        nullify (scalar, scalar2, scalar3)
     end do
+    s1%bdry_uptodate = .false.
   end subroutine lc_jacobi
 
   subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
@@ -724,16 +739,17 @@ contains
     end if
   end subroutine cal_jacobi
 
-  subroutine bicgstab (u, f, Lu, l, max_iter)
+  subroutine bicgstab (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
-    integer                   :: l, max_iter
+    integer                   :: iter, l, max_iter
+    real(8)                   :: nrm_f, nrm_res
     type(Float_Field), target :: f, u
-
+    
     integer                   :: i
-    real(8)                   :: alph, b, err, omga, rho, rho_old
-    type(Float_Field), target :: res, res0, p, s, t, v, y, z
+    real(8)                   :: alph, b, nrm_res0, nrm_s, nrm_true, omga, rho, rho_old
+    type(Float_Field), target :: res, res0, p, s, Ap, As
 
     interface
        function Lu (u, l)
@@ -746,33 +762,35 @@ contains
 
     ! Initialize
     res  = residual (f, u, Lu, l)
+    nrm_res0 = l2 (res, l)
+    
     res0 = res
-    rho  = 1.0_8
-    alph = 1.0_8
-    omga = 1.0_8
+    rho = dp (res0, res, l)
+    p = res0
+    
+    iter = 1 
+    do while (iter < max_iter)
+       Ap = Lu (p, l)
+       
+       alph = rho / dp (Ap, res0, l)
 
-    p = f
-    call set_zero (p, l)
-    v = p
+       s = lcf (res, -alph, Ap, l)
+       As = Lu (s, l)
 
-    do i = 1, max_iter
-       if (i > 1) res = lcf (s, -omga, t, l)
+       omga = dp (As, s, l) / dp (As, As, l)
+       
+       call lc2 (u, alph, p, omga, s, l)
+       
+       res = lcf (s, -omga, As, l)
+       nrm_res = l2 (res, l) / nrm_f
+       if (nrm_res <= tol_elliptic) exit
        
        rho_old = rho
        rho = dp (res0, res, l)
-
-       b = rho/rho_old * alph/omga
-
-       p = lcf (res, b, lcf (p, -omga, v, l), l)
-
-       v = Lu (p, l)
-       alph = rho / dp (res0, v, l)
-
-       s = lcf (res, -alph, v, l)
-       t = Lu (s, l)
-
-       omga = dp (t, s, l) / dp (t, t, l)
-       call lc2 (u, alph, p, omga, s, l)
+       
+       b = (alph/omga) * (rho/rho_old)
+       p = lcf (res, b, lcf (p, -omga, Ap, l), l)
+       iter = iter + 1
     end do
   end subroutine bicgstab
 end module lin_solve_mod
