@@ -26,9 +26,9 @@ program turb
   match_time         = .true.                          ! avoid very small time steps when saving (if false) 
   penalize           = .false.                          ! penalize land regions
   alpha              = 1d-2                            ! porosity used in penalizatio
-  coarse_iter        = 20                              ! number of coarse scale iterations of elliptic solver
+  coarse_iter        = 50                              ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                              ! number of fine scale iterations of elliptic solver
-  tol_elliptic       = 1d-8                            ! coarse scale tolerance of elliptic solver
+  tol_elliptic       = 1d-6                            ! coarse scale tolerance of elliptic solver
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
   remapvelo_type     = "PPR"                           ! optimal remapping scheme

@@ -202,11 +202,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
         
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       mass1(id) = - mass(id) + dt * (theta2 * dscalar(id) + (1d0 - theta2) * dmass(id)) / ref_density
-    else
-       mass1(id) = 0d0
-    end if
+    mass1(id) = - mass(id) + dt * (theta2 * dscalar(id) + (1d0 - theta2) * dmass(id)) / ref_density
   end subroutine cal_rhs_elliptic
 
   function elliptic_lo (q, l)
@@ -216,6 +212,8 @@ contains
     type(Float_Field), target :: elliptic_lo, q
 
     integer :: d, j
+
+    call update_bdry (q, l, 33)
 
     elliptic_lo = q
     ! Calculate external pressure gradient flux
@@ -267,11 +265,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       dscalar(id) = theta1*theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
-    else
-       dscalar(id) = 0d0
-    end if
+    dscalar(id) = theta1*theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(dom%id+1)%elts(id) - mass(id)
   end subroutine complete_elliptic_lo
 
   subroutine flux_divergence (q, div_flux)
@@ -281,6 +275,9 @@ contains
     type(Float_Field),                                 target :: div_flux
 
     integer :: d, j, l
+
+    call update_vector_bdry (q(S_MASS,1:zlevels), NONE, 50)
+    call update_vector_bdry (q(S_VELO,1:zlevels), NONE, 50)
 
     do l = level_end, level_start, -1
        ! Calculate vertically integrated velocity flux

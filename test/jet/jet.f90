@@ -43,8 +43,8 @@ program jet
   penalize           = .true.                          ! penalize land regions
   alpha              = 1d-2                            ! porosity used in penalizatio
   npts_penal         = 4.5d0                           ! number of points to smooth over in penalization
-  coarse_iter        = 20                              ! number of coarse scale iterations of elliptic solver
-  fine_iter          = 20                              ! number of fine scale iterations of elliptic solver
+  coarse_iter        = 50                              ! number of coarse scale iterations of elliptic solver
+  fine_iter          = 50                              ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-8                            ! coarse scale tolerance of elliptic solver
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme

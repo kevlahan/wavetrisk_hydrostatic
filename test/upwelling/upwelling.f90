@@ -32,9 +32,9 @@ program upwelling
   penalize           = .true.                        ! penalize land regions
   alpha              = 1d-6                         ! porosity used in penalization
   npts_penal         = 2.5                           ! number of points to smooth over in penalization
-  coarse_iter        = 20                            ! number of coarse scale iterations of elliptic solver
+  coarse_iter        = 50                            ! number of coarse scale iterations of elliptic solver
   fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
-  tol_elliptic       = 1d-8                          ! coarse scale tolerance of elliptic solver
+  tol_elliptic       = 1d-6                          ! coarse scale tolerance of elliptic solver
   timeint_type       = "RK4"                         ! always use RK4
   compressible       = .false.                       ! always run with incompressible equations
   remapscalar_type   = "PPR"                         ! optimal remapping scheme
