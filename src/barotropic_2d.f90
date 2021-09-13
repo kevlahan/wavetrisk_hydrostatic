@@ -118,7 +118,8 @@ contains
     ! RHS of elliptic equation
     call rhs_elliptic
 
-    ! Solve elliptic equation 
+    ! Solve elliptic equation
+    Laplacian_scalar(S_TEMP) = sol(S_MASS,zlevels+1) ! save old free surface height for elliptic operator
     call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
@@ -220,7 +221,7 @@ contains
     do d = 1, size(grid)
        h_flux => horiz_flux(S_MASS)%data(d)%elts
        scalar => q%data(d)%elts
-       mass => sol(S_MASS,zlevels+1)%data(d)%elts
+       mass => Laplacian_scalar(S_TEMP)%data(d)%elts ! old free surface perturbation
        do j = 1, grid(d)%lev(l)%length
           call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=2)
        end do
@@ -311,7 +312,7 @@ contains
   end subroutine flux_divergence
 
   subroutine Laplacian_eta
-    ! Computes Laplacian diffusion of free surface, stored in Laplacian_scalar(S_TEMP)
+    ! Computes Laplacian diffusion of free surface, stored in Laplacian_scalar(S_MASS)
     implicit none
     
     integer :: d, j, l

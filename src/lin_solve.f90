@@ -570,6 +570,7 @@ contains
     real(8), dimension(1:2,level_start:level_end) :: r_error
 
     integer, dimension(level_start:level_end) :: iter
+    type(Float_Field), target                 :: v
     
     interface
        function Lu (u, l)
@@ -588,32 +589,24 @@ contains
     nrm_f = l2 (f, level_start)
     nrm_u = l2 (u, level_start)
 
-    if (nrm_f > tol * nrm_u) then
-       if (log_iter) then
-          do l = level_start, level_end
-             r_error(1,l) = l2 (residual (f, u, Lu, l), l)
-          end do
-       end if
-
-       call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, r_error(2, level_start), iter(level_start))
-       do l = level_start+1, level_end
-          call prolongation (u, l)
-          call jacobi (u, f, nrm_f, Lu, l, fine_iter, r_error(2, l), iter(l))
+    if (log_iter) then
+       do l = level_start, level_end
+          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
        end do
-       u%bdry_uptodate = .false.
-       
-       if (log_iter) then
-          do l = level_start, level_end
-             if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
-                  l, r_error(:,l), iter(l)
-          end do
-       end if
-    else ! solution is zero
-       if (log_iter) then
-          do l = level_start, level_end
-             if (rank == 0) write (6, '("residual at scale ", i2, " = ", es10.4,1x)') l, r_error(1,l) 
-          end do
-       end if
+    end if
+
+    call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, r_error(2,level_start), iter(level_start))
+    do l = level_start+1, level_end
+       call prolongation (u, l)
+       call jacobi (u, f, nrm_f, Lu, l, fine_iter, r_error(2,l)) ; iter(l) = fine_iter
+    end do
+    u%bdry_uptodate = .false.
+
+    if (log_iter) then
+       do l = level_start, level_end
+          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
+               l, r_error(:,l), iter(l)
+       end do
     end if
   end subroutine multiscale
 
@@ -647,14 +640,14 @@ contains
     r_error = 0d0
     if (log_iter) then
        do l = level_start, level_end
-          r_error(1,l) = l2 (residual (f, u, Lu, l), l)
+          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
        end do
     end if
 
     call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, r_error(2, level_start), iter(level_start))
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call jacobi (u, f, nrm_f, Lu, l, 2, r_error(2, l), iter(l))
+       call jacobi (u, f, nrm_f, Lu, l, 2, r_error(2, l))
     end do
     u%bdry_uptodate = .false.
 
@@ -665,7 +658,7 @@ contains
     end if
   end subroutine elliptic_solver
 
-  subroutine jacobi (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
+  subroutine jacobi (u, f, nrm_f, Lu, l, max_iter, nrm_res)
     ! Max_iter Jacobi iterations for smoothing multigrid iterations
     implicit none
     integer                   :: iter, l, max_iter
@@ -683,21 +676,20 @@ contains
          type(Float_Field), target :: Lu, u
        end function Lu
     end interface
-
-    do iter = 1, max_iter
+    
+    do i = 1, max_iter
        res = residual (f, u, Lu, l)
        call lc_jacobi (u, res, l)
     end do
-    iter = max_iter
-
+    
     if (log_iter) then
        res = residual (f, u, Lu, l)
-       nrm_res = l2 (res, l)  /nrm_f
+       nrm_res = l2 (res, l) / nrm_f
     end if
   end subroutine jacobi
 
   subroutine lc_jacobi (s1, s2, l)
-    ! Calculates Jacobi iteration
+    ! Jacobi iteration
     implicit none
     integer                   :: l
     type(Float_Field), target :: s1, s2
@@ -717,24 +709,24 @@ contains
 
   subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
     ! Jacobi iteration using local approximation of diagonal of elliptic operator
-    ! ( n.b. dx^2 = 2 / (sqrt(3) * dom%areas%elts(id_i)%hex_inv) )
+    ! (dx^2 = 2 / (sqrt(3) * dom%areas%elts(id_i)%hex_inv) and Laplacian_scalar(S_TEMP) is the old free surface perturbation)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, id_i
+    integer :: d, id_i
     real(8) :: c_sq, depth, Laplace_diag
 
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
+    id_i = idx (i, j, offs, dims) + 1
     
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        d = dom%id + 1
-       depth = abs (dom%topo%elts(id_i)) + sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
+       depth = abs (dom%topo%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
        c_sq = grav_accel * depth
        Laplace_diag = 2d0*sqrt(3d0) * dt**2 * c_sq * dom%areas%elts(id_i)%hex_inv
+       
        scalar(id_i) = scalar(id_i) - scalar2(id_i) / (theta1*theta2 * Laplace_diag + 1d0)
     end if
   end subroutine cal_jacobi
@@ -748,8 +740,8 @@ contains
     type(Float_Field), target :: f, u
     
     integer                   :: i
-    real(8)                   :: alph, b, nrm_res0, nrm_s, nrm_true, omga, rho, rho_old
-    type(Float_Field), target :: res, res0, p, s, Ap, As
+    real(8)                   :: alph, b, nrm_res0, omga, rho, rho_old
+    type(Float_Field), target :: Ap, As, res, res0, p, s
 
     interface
        function Lu (u, l)
@@ -762,16 +754,14 @@ contains
 
     ! Initialize
     res  = residual (f, u, Lu, l)
-    nrm_res0 = l2 (res, l)
-    
     res0 = res
-    rho = dp (res0, res, l)
-    p = res0
+    rho  = dp (res0, res, l)
+    
+    p    = res0
+    Ap   = Lu (p, l)
     
     iter = 1 
     do while (iter < max_iter)
-       Ap = Lu (p, l)
-       
        alph = rho / dp (Ap, res0, l)
 
        s = lcf (res, -alph, Ap, l)
@@ -790,6 +780,8 @@ contains
        
        b = (alph/omga) * (rho/rho_old)
        p = lcf (res, b, lcf (p, -omga, Ap, l), l)
+       Ap = Lu (p, l)
+       
        iter = iter + 1
     end do
   end subroutine bicgstab
