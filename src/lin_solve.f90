@@ -1,8 +1,11 @@
 module lin_solve_mod
   use ops_mod
   implicit none
+  integer                        :: ii
+  integer, parameter             :: m = 10
   real(8)                        :: dp_loc, linf_loc, l2_loc
   real(8), pointer               :: mu1, mu2
+  real(8), dimension(1:m)        :: w
   real(8), dimension(:), pointer :: scalar2, scalar3
   character(4)                   :: var_type
 contains
@@ -665,8 +668,8 @@ contains
     real(8)                   :: nrm_f, nrm_res
     type(Float_Field), target :: f, u
 
-    integer                   :: i
-    type(Float_Field), target :: res
+    integer                            :: i
+    type(Float_Field), target          :: res
     
     interface
        function Lu (u, l)
@@ -676,12 +679,24 @@ contains
          type(Float_Field), target :: Lu, u
        end function Lu
     end interface
+
+    ! P=2, M=10 (about 130 iterations to reduce residual error by six orders of magnitude)
+    w(1) = 20d0; w(2:m) = 0.95d0
     
+!!$    ! P=2, M=2 (about 10% slower per iteration)
+!!$    w(1) = 2.8d0
+!!$    w(2) = 0.5d0 * (1d0 + 1d0/(2d0*w(1)-1d0)) ! 0.6087
+!!$    ! P=1 (about 30% slower per iteration)
+!!$    w = 1d0
+    
+    ii = 0
     do i = 1, max_iter
+       ii = ii + 1
+       if (ii > m) ii = 1
        res = residual (f, u, Lu, l)
        call lc_jacobi (u, res, l)
     end do
-    
+
     if (log_iter) then
        res = residual (f, u, Lu, l)
        nrm_res = l2 (res, l) / nrm_f
@@ -689,47 +704,47 @@ contains
   end subroutine jacobi
 
   subroutine lc_jacobi (s1, s2, l)
-    ! Jacobi iteration
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: s1, s2
+      ! Jacobi iteration
+      implicit none
+      integer                   :: l
+      type(Float_Field), target :: s1, s2
 
-    integer :: d, j
+      integer :: d, j
 
-    do d = 1, size(grid)
-       scalar  => s1%data(d)%elts
-       scalar2 => s2%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (scalar, scalar2, scalar3)
-    end do
-    s1%bdry_uptodate = .false.
-  end subroutine lc_jacobi
+      do d = 1, size(grid)
+         scalar  => s1%data(d)%elts
+         scalar2 => s2%data(d)%elts
+         do j = 1, grid(d)%lev(l)%length
+            call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+         end do
+         nullify (scalar, scalar2, scalar3)
+      end do
+      s1%bdry_uptodate = .false.
+    end subroutine lc_jacobi
 
-  subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
-    ! Jacobi iteration using local approximation of diagonal of elliptic operator
-    ! (dx^2 = 2 / (sqrt(3) * dom%areas%elts(id_i)%hex_inv) and Laplacian_scalar(S_TEMP) is the old free surface perturbation)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
+      ! Jacobi iteration using local approximation of diagonal of elliptic operator
+      ! (dx^2 = 2 / (sqrt(3) * dom%areas%elts(id_i)%hex_inv) and Laplacian_scalar(S_TEMP) is the old free surface perturbation)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id_i
-    real(8) :: c_sq, depth, Laplace_diag
+      integer :: d, id_i
+      real(8) :: c_sq, depth, Laplace_diag
 
-    id_i = idx (i, j, offs, dims) + 1
-    
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       d = dom%id + 1
-       depth = abs (dom%topo%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
-       c_sq = grav_accel * depth
-       Laplace_diag = 2d0*sqrt(3d0) * dt**2 * c_sq * dom%areas%elts(id_i)%hex_inv
-       
-       scalar(id_i) = scalar(id_i) - scalar2(id_i) / (theta1*theta2 * Laplace_diag + 1d0)
-    end if
-  end subroutine cal_jacobi
+      id_i = idx (i, j, offs, dims) + 1
+
+      if (dom%mask_n%elts(id_i) >= ADJZONE) then
+         d = dom%id + 1
+         depth = abs (dom%topo%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
+         c_sq = grav_accel * depth
+         Laplace_diag = - 2d0*sqrt(3d0) * dt**2 * c_sq * dom%areas%elts(id_i)%hex_inv
+
+         scalar(id_i) = scalar(id_i) + w(ii) * scalar2(id_i) / (theta1*theta2 * Laplace_diag - 1d0)
+      end if
+    end subroutine cal_jacobi
 
   subroutine bicgstab (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
