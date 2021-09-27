@@ -132,6 +132,7 @@ contains
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
        write (6,'(A,es10.4)') "tol_elliptic                   = ", tol_elliptic
+       write (6,'(A,es10.4)') "tol_jacobi                     = ", tol_jacobi
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
        write (6,'(a,l1)')     "log_iter                       = ", log_iter

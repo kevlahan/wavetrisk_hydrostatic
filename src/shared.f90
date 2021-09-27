@@ -222,7 +222,7 @@ module shared_mod
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
   real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
-  real(8)                                       :: e_min, Kt_0, Kv_0, theta1, theta2, tol_elliptic, visc_divu, visc_rotu
+  real(8)                                       :: e_min, Kt_0, Kv_0, theta1, theta2, tol_elliptic, tol_jacobi, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8), dimension(:),         allocatable    :: bounds, pressure_save, visc_sclr
@@ -333,7 +333,8 @@ contains
     save_levels         = 1                                 ! vertical level to save
     timeint_type        = "RK45"                            ! time integration scheme (uses RK4 for incompressible case)
     tol                 = 5d-3                              ! relative tolerance for adaptivity
-    tol_elliptic        = 1d-4                              ! tolerance for elliptic solver
+    tol_elliptic        = 1d-9                              ! tolerance for coarse scale bicgstab elliptic solver
+    tol_jacobi          = 1d-2                              ! tolerance for fine scale jacobi iterations
     zlevels             = 20                                ! number of vertical levels
     
     ! Default physical parameters
@@ -358,9 +359,9 @@ contains
     b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
     c_s                 = 1500      * METRE / SECOND              ! sound speed for seawater
-    coarse_iter         = 20                                      ! number of bicgstab iterations at coarsest scale for elliptic solver
+    coarse_iter         = 20                                      ! maximum number of coarse scale bicgstab iterations for elliptic solver
     e_min               = 1d-6      * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
-    fine_iter           = 40                                      ! number of jacobi iterations at finer scales for elliptic solver
+    fine_iter           = 60                                      ! maximum number of fine scale jacobi iterations for elliptic solver
     Kt_0                = 1.2d-5    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy diffusion
     Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
     lambda_1            = 5.9520d-2                               ! cabbeling coefficient in T^2
