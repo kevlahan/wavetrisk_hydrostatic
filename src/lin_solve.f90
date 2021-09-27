@@ -1,12 +1,10 @@
 module lin_solve_mod
   use ops_mod
   implicit none
-  integer                            :: ii, m
-  real(8)                            :: dp_loc, linf_loc, l2_loc
-  real(8), pointer                   :: mu1, mu2
-  real(8), dimension(:), pointer     :: scalar2, scalar3
-  real(8), dimension(:), allocatable :: w
-  character(4)                       :: var_type
+  real(8)                        :: dp_loc, linf_loc, l2_loc
+  real(8), pointer               :: mu1, mu2
+  real(8), dimension(:), pointer :: scalar2, scalar3
+  character(4)                   :: var_type
 contains
   real(8) function linf (s, l)
     ! Returns l_inf norm of scalar s at scale l
@@ -502,9 +500,9 @@ contains
     id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
 
     ! Interpolate scalars and add wavelets to reconstruct values at fine scale
-    scalar(idE_chd+1)  = Interp_node (dom,  idE_chd,    id_chd, id2E_chd, id2NE_chd,  id2S_chd)
-    scalar(idNE_chd+1) = Interp_node (dom, idNE_chd, id2NE_chd,   id_chd,  id2E_chd,  id2N_chd) 
-    scalar(idN_chd+1)  = Interp_node (dom,  idN_chd,    id_chd, id2N_chd,  id2W_chd, id2NE_chd)  
+    scalar(idNE_chd+1) = Interp_node (dom, idNE_chd, id2NE_chd, id_chd, id2E_chd, id2N_chd) 
+    scalar(idN_chd+1)  = Interp_node (dom, idN_chd, id_chd, id2N_chd, id2W_chd, id2NE_chd)  
+    scalar(idE_chd+1)  = Interp_node (dom, idE_chd, id_chd, id2E_chd, id2NE_chd, id2S_chd)  
   end subroutine interpolate
 
    subroutine interpolate_outer_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -528,7 +526,7 @@ contains
        u = Interp_outer_velo (dom, i_par, j_par, e-1, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
 
        velo(EDGE*id2+e) = u 
-       velo(EDGE*id1+e) = 2d0 * velo(EDGE*id_par+e) - u 
+       velo(EDGE*id1+e) = 2*velo(EDGE*id_par+e) - u 
     end do
   end subroutine interpolate_outer_velo
 
@@ -563,17 +561,17 @@ contains
   end subroutine interpolate_velo_inner
 
   subroutine multiscale (u, f, Lu)
-    ! Solves linear equation L(u) = f using a simple multiscale algorithm with Scheduled Rexation Jacobi iterations as the smoother
+    ! Solves linear equation L(u) = f using a simple multiscale algorithm with jacobi as the smoother
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                                       :: l, n
-    real(8)                                       :: k_max, k_min
-    real(8), dimension(level_start:level_end)     :: nrm_f
+    integer                                       :: l
+    real(8)                                       :: nrm_f, nrm_u
     real(8), dimension(1:2,level_start:level_end) :: r_error
 
     integer, dimension(level_start:level_end) :: iter
-
+    type(Float_Field), target                 :: v
+    
     interface
        function Lu (u, l)
          ! Returns result of linear operator applied to u at scale l
@@ -584,46 +582,32 @@ contains
        end function Lu
     end interface
 
-    ! Optimal Scheduled Relaxation Jacobi parameters (Adsuara, et al J Comput Phys v 332, 2016)
-    ! (k_min and k_max are determined empirically to give optimal convergence on fine non uniform grids)
-    if (tol_jacobi < 1d-3) then ! small tolerance
-       k_min = 2d-2; k_max = 1.7d0
-    else ! large tolerance
-       k_min = 5d-1; k_max = 5d0
-    end if
-    m = 20; allocate (w(1:m))
-    do n = 1, m
-       w(n) = 2d0 / (k_min + k_max - (k_max - k_min) * cos (MATH_PI * (2d0*dble(n) - 1d0)/(2d0*dble(m))))
-    end do
-
-    if (fine_iter < m) w = 1d0
-
     var_type = "sclr"
 
     call update_bdry (f, NONE, 55)
 
+    nrm_f = l2 (f, level_start)
+    nrm_u = l2 (u, level_start)
+
     if (log_iter) then
        do l = level_start, level_end
-          nrm_f(l) = l2 (f, l)
-          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
+          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
        end do
     end if
 
-    l = level_start
-    call bicgstab (u, f, nrm_f(l), Lu, l, coarse_iter, r_error(2,l), iter(l))
+    call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, r_error(2,level_start), iter(level_start))
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call jacobi (u, f, nrm_f(l), Lu, l, fine_iter, r_error(2,l), iter(l))
+       call jacobi (u, f, nrm_f, Lu, l, fine_iter, r_error(2,l)) ; iter(l) = fine_iter
     end do
+    u%bdry_uptodate = .false.
 
     if (log_iter) then
        do l = level_start, level_end
-          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i6, " iterations")') &
+          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i4, " iterations")') &
                l, r_error(:,l), iter(l)
        end do
     end if
-
-    deallocate (w)
   end subroutine multiscale
 
   subroutine elliptic_solver (u, f, Lu, var_type_elliptic)
@@ -663,7 +647,7 @@ contains
     call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, r_error(2, level_start), iter(level_start))
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call bicgstab (u, f, nrm_f, Lu, l, coarse_iter, r_error(2, level_start), iter(l))
+       call jacobi (u, f, nrm_f, Lu, l, 2, r_error(2, l))
     end do
     u%bdry_uptodate = .false.
 
@@ -674,9 +658,8 @@ contains
     end if
   end subroutine elliptic_solver
 
-  subroutine jacobi (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
+  subroutine jacobi (u, f, nrm_f, Lu, l, max_iter, nrm_res)
     ! Max_iter Jacobi iterations for smoothing multigrid iterations
-    ! uses Scheduled Relaxation Jacobi (SJR) iterations (Yang and Mittal JCP 274, 2014)
     implicit none
     integer                   :: iter, l, max_iter
     real(8)                   :: nrm_f, nrm_res
@@ -693,23 +676,16 @@ contains
          type(Float_Field), target :: Lu, u
        end function Lu
     end interface
-
-    ii = 1
-    iter = 1
-    do while (iter < max_iter)
-       if (ii > m) ii = 1
-       
+    
+    do i = 1, max_iter
+       res = residual (f, u, Lu, l)
+       call lc_jacobi (u, res, l)
+    end do
+    
+    if (log_iter) then
        res = residual (f, u, Lu, l)
        nrm_res = l2 (res, l) / nrm_f
-
-       if (nrm_res <= tol_jacobi) exit
-       
-       call lc_jacobi (u, res, l)
-       
-       ii = ii + 1
-       iter = iter + 1
-    end do
-    u%bdry_uptodate = .false.
+    end if
   end subroutine jacobi
 
   subroutine lc_jacobi (s1, s2, l)
@@ -733,56 +709,25 @@ contains
 
   subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
     ! Jacobi iteration using local approximation of diagonal of elliptic operator
-    ! (Laplacian_scalar(S_TEMP) is the old free surface perturbation)
-    ! ** using exact value of diagonal of Laplacian typically does NOT improve results **
+    ! (dx^2 = 2 / (sqrt(3) * dom%areas%elts(id_i)%hex_inv) and Laplacian_scalar(S_TEMP) is the old free surface perturbation)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer            :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
-    real(8)            :: depth, depth_e, Laplace_diag, wgt
-    logical, parameter :: exact = .false.
+    integer :: d, id_i
+    real(8) :: c_sq, depth, Laplace_diag
 
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
+    id_i = idx (i, j, offs, dims) + 1
+    
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        d = dom%id + 1
        depth = abs (dom%topo%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
-
-       if (.not. exact) then ! average value 
-          wgt = 2d0 * sqrt (3d0) * depth
-       else ! true local value
-          idE  = idx (i+1, j,   offs, dims) 
-          idNE = idx (i+1, j+1, offs, dims) 
-          idN  = idx (i,   j+1, offs, dims) 
-          idW  = idx (i-1, j,   offs, dims) 
-          idSW = idx (i-1, j-1, offs, dims) 
-          idS  = idx (i,   j-1, offs, dims)
+       c_sq = grav_accel * depth
+       Laplace_diag = 2d0*sqrt(3d0) * dt**2 * c_sq * dom%areas%elts(id_i)%hex_inv
        
-          depth_e = abs (dom%topo%elts(idE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idE+1) / phi_node (d, idE+1, zlevels)
-          wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idNE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idNE+1) / phi_node (d, idNE+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idN+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idN+1) / phi_node (d, idN+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idW+1) / phi_node (d, idW+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idSW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idSW+1) / phi_node (d, idSW+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idS+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idS+1) / phi_node (d, idS+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
-       end if
-       Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
-
-       scalar(id_i) = scalar(id_i) + w(ii) * scalar2(id_i) / (theta1*theta2 * Laplace_diag - 1d0)
+       scalar(id_i) = scalar(id_i) - scalar2(id_i) / (theta1*theta2 * Laplace_diag + 1d0)
     end if
   end subroutine cal_jacobi
 
@@ -813,7 +758,7 @@ contains
     rho  = dp (res0, res, l)
     
     p    = res0
-    Ap   = Lu (p, l) 
+    Ap   = Lu (p, l)
     
     iter = 1 
     do while (iter < max_iter)
@@ -834,11 +779,10 @@ contains
        rho = dp (res0, res, l)
        
        b = (alph/omga) * (rho/rho_old)
-       p = lcf (res, b, lcf (p, -omga, Ap, l), l) 
+       p = lcf (res, b, lcf (p, -omga, Ap, l), l)
        Ap = Lu (p, l)
        
        iter = iter + 1
     end do
-    u%bdry_uptodate = .false.
   end subroutine bicgstab
 end module lin_solve_mod
