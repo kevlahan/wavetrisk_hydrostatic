@@ -46,7 +46,7 @@ program jet
   coarse_iter        = 100                              ! number of coarse scale iterations of elliptic solver
   fine_iter          = 200                              ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-9                            ! coarse scale tolerance of bicgstab elliptic solver
-  tol_jacobi         = 1d-3                            ! fine scale tolerance for jacobi iterations
+  tol_jacobi         = 1d-6                            ! fine scale tolerance for jacobi iterations
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
   remapvelo_type     = "PPR"                           ! optimal remapping scheme

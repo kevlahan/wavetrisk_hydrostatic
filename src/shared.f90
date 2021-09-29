@@ -331,10 +331,10 @@ contains
     remapscalar_type    = "PPR"                             ! remapping scheme for scalars
     remapvelo_type      = "PPR"                             ! remapping scheme for velocity
     save_levels         = 1                                 ! vertical level to save
-    timeint_type        = "RK45"                            ! time integration scheme (uses RK4 for incompressible case)
+    timeint_type        = "RK45"                            ! time integration scheme (RK3 is default for incompressible case)
     tol                 = 5d-3                              ! relative tolerance for adaptivity
     tol_elliptic        = 1d-9                              ! tolerance for coarse scale bicgstab elliptic solver
-    tol_jacobi          = 1d-2                              ! tolerance for fine scale jacobi iterations
+    tol_jacobi          = 1d-6                              ! tolerance for fine scale jacobi iterations
     zlevels             = 20                                ! number of vertical levels
     
     ! Default physical parameters

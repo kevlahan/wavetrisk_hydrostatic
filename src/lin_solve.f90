@@ -583,20 +583,24 @@ contains
          type(Float_Field), target :: Lu, u
        end function Lu
     end interface
-
+    
     ! Optimal Scheduled Relaxation Jacobi parameters (Adsuara, et al J Comput Phys v 332, 2016)
     ! (k_min and k_max are determined empirically to give optimal convergence on fine non uniform grids)
-    if (tol_jacobi < 1d-3) then ! small tolerance
-       k_min = 2d-2; k_max = 1.7d0
-    else ! large tolerance
-       k_min = 5d-1; k_max = 5d0
+    k_max = 1.8d0
+
+    ! Values for k_min optimized for J5J9
+    if (tol_jacobi <= 1d-5) then
+       k_min = 1d-2
+    else
+       k_min = 3d-2
     end if
+   
     m = 20; allocate (w(1:m))
+    fine_iter = m * (fine_iter / m)
     do n = 1, m
        w(n) = 2d0 / (k_min + k_max - (k_max - k_min) * cos (MATH_PI * (2d0*dble(n) - 1d0)/(2d0*dble(m))))
     end do
-
-    if (fine_iter < m) w = 1d0
+    if (fine_iter < m) w = 1d0 
 
     var_type = "sclr"
 
@@ -694,20 +698,28 @@ contains
        end function Lu
     end interface
 
-    ii = 1
-    iter = 1
-    do while (iter < max_iter)
-       if (ii > m) ii = 1
-       
-       res = residual (f, u, Lu, l)
-       nrm_res = l2 (res, l) / nrm_f
+    ii = 0
+    iter = 0
+    res = residual (f, u, Lu, l)
+    nrm_res = l2 (res, l) / nrm_f
 
+    do while (iter < max_iter)
+       if (rank==0) write (6,'(i2,1x,i4,1x,i2,1x,es10.4)') l, iter, ii, nrm_res
+       
        if (nrm_res <= tol_jacobi) exit
        
-       call lc_jacobi (u, res, l)
-       
        ii = ii + 1
+       if (ii > m) then
+          if (nrm_res < 2d0 * tol_jacobi) then ! avoid starting a new SRJ cycle if error is small enough
+             exit
+          else
+             ii = 1
+          end if
+       end if
        iter = iter + 1
+       call lc_jacobi (u, res, l)
+       res = residual (f, u, Lu, l)
+       nrm_res = l2 (res, l) / nrm_f
     end do
     u%bdry_uptodate = .false.
   end subroutine jacobi

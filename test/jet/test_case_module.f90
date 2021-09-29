@@ -131,19 +131,11 @@ contains
        write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
-       write (6,'(A,es10.4)') "tol_elliptic                   = ", tol_elliptic
-       write (6,'(A,es10.4)') "tol_jacobi                     = ", tol_jacobi
-       write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
-       write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
-       write (6,'(a,l1)')     "log_iter                       = ", log_iter
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(A,L1)')     "perfect                        = ", perfect
        write (6,'(A,es10.4)') "tolerance                      = ", tol
        write (6,'(a,i5)')     "iadapt                         = ", iadapt
        write (6,'(A,i1)')     "optimize_grid                  = ", optimize_grid
-       write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
-       write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
-       write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
        write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
@@ -155,9 +147,17 @@ contains
        write (6,'(A,i6)')     "resume                         = ", resume_init
 
        write (6,'(/,A)')      "TIME INTEGRATION PARAMETERS"
+       write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
+       write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
+       write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
        write (6,'(A,L1)')   "mode_split                      = ", mode_split
        write (6,'(A,F4.2)') "theta1                          = ", theta1
        write (6,'(A,F4.2)') "theta2                          = ", theta2
+       write (6,'(A,es10.4)') "tol_elliptic                   = ", tol_elliptic
+       write (6,'(A,es10.4)') "tol_jacobi                     = ", tol_jacobi
+       write (6,'(a,i6)')     "coarse_iter                    = ", coarse_iter
+       write (6,'(a,i6)')     "fine_iter                      = ", fine_iter
+       write (6,'(a,l1)')     "log_iter                       = ", log_iter
 
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius                   [km]  = ", radius / KM

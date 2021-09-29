@@ -207,8 +207,7 @@ contains
        case ("Euler")
           call Euler_split (dt)
        case default
-          if (rank == 0) write (6,'(a)') "Invalid timestepping choice ... aborting"
-          call abort
+          call RK3_split (dt)
        end select
     else
        select case (timeint_type)
