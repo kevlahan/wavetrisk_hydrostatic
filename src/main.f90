@@ -163,8 +163,8 @@ contains
     real(8)              :: align_time
     logical, intent(out) :: aligned
 
-    integer(8)         :: idt, ialign
-    real(8)            :: dx, dt_0
+    integer(8) :: idt, ialign
+    real(8)    :: dx, dt_0
     
     istep       = istep+1
     istep_cumul = istep_cumul+1
@@ -235,7 +235,8 @@ contains
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
-    
+
+    ! Compute change in vertical layer depths
     if (log_mass) min_mass = cpt_min_mass ()
     
     ! Add diffusion
@@ -257,7 +258,7 @@ contains
     ! Apply velocity penalization (no slip boundary condition)
     if (penalize) call apply_penal
     
-    call sum_total_mass (.false.)
+    if (log_mass) call sum_total_mass (.false.)
 
     itime = itime + idt
     
@@ -267,8 +268,8 @@ contains
        time = time + dt
     end if
     
-    ! Set new time step, find change in vertical levels and count active nodes
-    dt_new = cpt_dt ()
+    ! Set new time step and count active nodes
+    if (modulo (istep, iadapt) == 0) dt_new = cpt_dt ()
   end subroutine time_step
 
   subroutine restart (run_id)
@@ -340,7 +341,7 @@ contains
     call update
 
     ! Initialize total mass value
-    call sum_total_mass (.true.)
+    if (log_mass) call sum_total_mass (.true.)
     
     ! Initialize time step and counters
     dt_new = cpt_dt ()

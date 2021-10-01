@@ -224,7 +224,7 @@ contains
                threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
                level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
        else
-          write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,3(a,es9.2,1x))') &
+          write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
                'time [d] = ', time/DAY, &
                ' dt [s] = ', dt, &
                '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
@@ -232,13 +232,12 @@ contains
                ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
                ' Jmax = ', level_end, &
                ' dof = ', sum (n_active), &
-               ' mass error = ', mass_error, &
                ' balance = ', rel_imbalance, &
                ' cpu = ', timing
 
-          write (12,'(5(es15.9,1x),i2,1x,i12,1x,3(es15.9,1x))')  time/DAY, dt, &
+          write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  time/DAY, dt, &
                threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
-               level_end, sum (n_active), mass_error, rel_imbalance, timing
+               level_end, sum (n_active), rel_imbalance, timing
        end if
     end if
   end subroutine print_log

@@ -304,7 +304,7 @@ contains
     implicit_diff_sclr  = .false.                           ! use implicit lateral diffusion of scalars (T)
     implicit_diff_divu  = .false.                           ! use implicit lateral diffusion of scalars (T)
     log_iter            = .false.                           ! print residual error in elliptic solver (T)
-    log_mass            = .true.                            ! compute minimum mass, relatively expensive (T)
+    log_mass            = .true.                            ! compute minimum mass and mass conservation, relatively expensive (T)
     match_time          = .false.                           ! match time exactly for data saving (T)
     mode_split          = .false.                           ! calculate barotropic free surface mode separately (T)
     no_slip             = .true.                            ! impose no-slip boundary conditions if (T) or free slip (F)
