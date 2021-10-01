@@ -1275,8 +1275,6 @@ contains
          dom%overl_areas%elts(idSE+1)%a(4))*dom%areas%elts(id_par+1)%hex_inv
   end subroutine check_m
 
-  
-
   type(Iu_Wgt) function outer_velo_weights (dom, p, i0, j0, e0, offs, dims)
     type(Domain)                   :: dom
     integer                        :: p, i0, j0, e0

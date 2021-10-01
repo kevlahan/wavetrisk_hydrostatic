@@ -236,7 +236,7 @@ contains
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
     
-    min_mass = cpt_min_mass ()
+    if (log_mass) min_mass = cpt_min_mass ()
     
     ! Add diffusion
     if (modulo (istep_cumul, n_diffuse) == 0 .and. Laplace_order_init /= 0) then

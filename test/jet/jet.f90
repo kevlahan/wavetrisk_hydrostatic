@@ -38,7 +38,8 @@ program jet
 
   ! Numerical method parameters
   default_thresholds = .true.                          ! use default threshold
-  
+
+  log_mass           = .false.                         ! do not compute minimum mass
   match_time         = .false.                          ! avoid very small time steps when saving (if false) 
   penalize           = .true.                          ! penalize land regions
   alpha              = 1d-2                            ! porosity used in penalization

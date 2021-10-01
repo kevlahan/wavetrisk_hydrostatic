@@ -256,7 +256,7 @@ contains
     n_active_edges = 0
 
     do l = level_start, level_end
-       call apply_onescale (min_dt, l, z_null, 0, 0)
+       call apply_onescale (cal_min_dt, l, z_null, 0, 0)
     end do
     n_active = (/ sum(n_active_nodes), sum(n_active_edges) /)
     cpt_dt = dt_loc
@@ -331,7 +331,7 @@ contains
   subroutine sync_array (arr, N)
     implicit none
     integer            :: N
-    real, dimension(N) :: arr
+    real(8), dimension(N) :: arr
   end subroutine sync_array
   
   subroutine combine_stats

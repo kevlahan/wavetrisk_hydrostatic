@@ -236,7 +236,7 @@ module shared_mod
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
   logical :: adapt_dt, compressible, default_thresholds, fill, implicit_diff_sclr, implicit_diff_divu
-  logical :: log_iter, match_time, mode_split, no_slip, penalize, perfect, rebalance, remap, uniform, vert_diffuse
+  logical :: log_iter, log_mass, match_time, mode_split, no_slip, penalize, perfect, rebalance, remap, uniform, vert_diffuse
   logical :: sigma_z, tke_closure
 contains
   subroutine init_shared_mod
@@ -304,6 +304,7 @@ contains
     implicit_diff_sclr  = .false.                           ! use implicit lateral diffusion of scalars (T)
     implicit_diff_divu  = .false.                           ! use implicit lateral diffusion of scalars (T)
     log_iter            = .false.                           ! print residual error in elliptic solver (T)
+    log_mass            = .true.                            ! compute minimum mass, relatively expensive (T)
     match_time          = .false.                           ! match time exactly for data saving (T)
     mode_split          = .false.                           ! calculate barotropic free surface mode separately (T)
     no_slip             = .true.                            ! impose no-slip boundary conditions if (T) or free slip (F)

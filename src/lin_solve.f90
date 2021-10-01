@@ -1,5 +1,6 @@
 module lin_solve_mod
   use ops_mod
+  use comm_mpi_mod
   implicit none
   integer                            :: ii, m
   real(8)                            :: dp_loc, linf_loc, l2_loc
@@ -605,13 +606,11 @@ contains
     var_type = "sclr"
 
     call update_bdry (f, NONE, 55)
-
-    if (log_iter) then
-       do l = level_start, level_end
-          nrm_f(l) = l2 (f, l)
-          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
-       end do
-    end if
+    
+    do l = level_start, level_end
+       nrm_f(l) = l2 (f, l)
+       if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
+    end do
 
     l = level_start
     call bicgstab (u, f, nrm_f(l), Lu, l, coarse_iter, r_error(2,l), iter(l))
@@ -638,7 +637,7 @@ contains
     type(Float_Field), target :: f, u
 
     integer                                       :: l
-    real(8)                                       :: nrm_f
+    real(8), dimension(level_start:level_end)     :: nrm_f
     real(8), dimension(1:2,level_start:level_end) :: r_error
 
     integer, dimension(level_start:level_end) :: iter
@@ -655,19 +654,16 @@ contains
 
     var_type = var_type_elliptic
 
-    nrm_f = l2 (f, level_start)
+    do l = level_start, level_end
+       nrm_f(l) = l2 (f, l)
+       if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
+    end do
 
-    r_error = 0d0
-    if (log_iter) then
-       do l = level_start, level_end
-          r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f
-       end do
-    end if
-
-    call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, r_error(2, level_start), iter(level_start))
+    l = level_start
+    call bicgstab (u, f, nrm_f(l), Lu, l, coarse_iter, r_error(2, l), iter(l))
     do l = level_start+1, level_end
        call prolongation (u, l)
-       call bicgstab (u, f, nrm_f, Lu, l, coarse_iter, r_error(2, level_start), iter(l))
+       call bicgstab (u, f, nrm_f(l), Lu, l, coarse_iter, r_error(2, l), iter(l))
     end do
     u%bdry_uptodate = .false.
 
@@ -704,8 +700,6 @@ contains
     nrm_res = l2 (res, l) / nrm_f
 
     do while (iter < max_iter)
-       if (rank==0) write (6,'(i2,1x,i4,1x,i2,1x,es10.4)') l, iter, ii, nrm_res
-       
        if (nrm_res <= tol_jacobi) exit
        
        ii = ii + 1

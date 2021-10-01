@@ -180,7 +180,7 @@ contains
   subroutine avg_temp (iwrt)
     ! Saves  temperature averaged over the sphere
     ! (assumes non-adaptive grid)
-    use utils_mod
+    use io_mod
     implicit none
     integer :: iwrt
 
