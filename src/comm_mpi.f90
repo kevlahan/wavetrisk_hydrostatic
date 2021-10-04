@@ -249,7 +249,7 @@ contains
           if (r_dest == rank+1) cycle ! TODO communicate inside domain
           do d_dest = 1, n_domain(r_dest)
              src = d_src
-             dest = glo_id(r_dest,d_dest)+1
+             dest = glo_id(r_dest,d_dest) + 1
              call append (send_buf_i, grid(src)%send_conn(dest)%length)
              do i = 1, grid(src)%send_conn(dest)%length
                 call append (send_buf_i, grid(src)%send_conn(dest)%elts(i))
@@ -546,11 +546,11 @@ contains
        do d_src = 1, n_domain(rank+1)
           if (r_dest == rank+1) cycle ! TODO communicate inside domain
           do d_dest = 1, n_domain(r_dest)
-             dest = glo_id(r_dest,d_dest)+1
+             dest = glo_id(r_dest,d_dest) + 1
              do i = 1, grid(d_src)%pack(field%pos,dest)%length
                 id = grid(d_src)%pack(field%pos,dest)%elts(i)
                 lev = grid(d_src)%level%elts(id/multipl+1)
-                if (l_start <= lev .and. lev <= l_end) call append (send_buf, field%data(d_src)%elts(id+1))
+                if (lev >= l_start .and. lev <= l_end) call append (send_buf, field%data(d_src)%elts(id+1))
              end do
           end do
        end do
@@ -567,7 +567,7 @@ contains
              do i = 1, grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%length
                 id = abs (grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%elts(i))
                 lev = grid(d_dest)%level%elts(id/multipl+1)
-                if (l_start <= lev .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
+                if (lev >= l_start .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
              end do
           end do
        end do
@@ -623,7 +623,7 @@ contains
        do d_src = 1, n_domain(rank+1)
           if (r_dest == rank+1) cycle ! TODO communicate inside domain
           do d_dest = 1, n_domain(r_dest)
-             dest = glo_id(r_dest,d_dest)+1
+             dest = glo_id(r_dest,d_dest) + 1
              ! Loop over each element of field array
              do i1 = 1, size(field)
                 pos = field(i1)%pos
@@ -635,7 +635,7 @@ contains
                 do i = 1, grid(d_src)%pack(pos,dest)%length
                    id = grid(d_src)%pack(pos,dest)%elts(i)
                    lev = grid(d_src)%level%elts(id/multipl+1)
-                   if (l_start <= lev .and. lev <= l_end) call append (send_buf, field(i1)%data(d_src)%elts(id+1))
+                   if (lev >= l_start .and. lev <= l_end) call append (send_buf, field(i1)%data(d_src)%elts(id+1))
                 end do
              end do
           end do
@@ -661,7 +661,7 @@ contains
                 do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                    id = abs(grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i))
                    lev = grid(d_dest)%level%elts(id/multipl+1)
-                   if (l_start <= lev .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
+                   if (lev >= l_start .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
                 end do
              end do
           end do
@@ -708,7 +708,7 @@ contains
     ret = .true.
     do i2 = 1, size(field,2)
        do i1 = 1, size(field,1)
-          if (.not. field(i1,i2)%bdry_uptodate) ret=.false.
+          if (.not. field(i1,i2)%bdry_uptodate) ret = .false.
        end do
     end do
     if (ret) return
@@ -720,7 +720,7 @@ contains
        do d_src = 1, n_domain(rank+1)
           if (r_dest == rank+1) cycle ! TODO communicate inside domain
           do d_dest = 1, n_domain(r_dest)
-             dest = glo_id(r_dest,d_dest)+1
+             dest = glo_id(r_dest,d_dest) + 1
              ! Loop over each element of field array
              do i2 = 1, size(field,2)
                 do i1 = 1, size(field,1)
@@ -733,7 +733,7 @@ contains
                    do i = 1, grid(d_src)%pack(pos,dest)%length
                       id = grid(d_src)%pack(pos,dest)%elts(i)
                       lev = grid(d_src)%level%elts(id/multipl+1)
-                      if (l_start <= lev .and. lev <= l_end) call append (send_buf, field(i1,i2)%data(d_src)%elts(id+1))
+                      if (lev >= l_start .and. lev <= l_end) call append (send_buf, field(i1,i2)%data(d_src)%elts(id+1))
                    end do
                 end do
              end do
@@ -761,7 +761,7 @@ contains
                    do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                       id = abs(grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i))
                       lev = grid(d_dest)%level%elts(id/multipl+1)
-                      if (l_start <= lev .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
+                      if (lev >= l_start .and. lev <= l_end) recv_buf%length = recv_buf%length + 1
                    end do
                 end do
              end do
@@ -859,7 +859,7 @@ contains
              do i = 1, grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%length
                 id = grid(d_dest)%unpk(field%pos,glo_id(r_src,d_src)+1)%elts(i)
                 lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
-                if (l_start <= lev .and. lev <= l_end) then
+                if (lev >= l_start .and. lev <= l_end) then
                    k = k + 1
                    field%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
                    if (id < 0 .and. field%pos == AT_EDGE) field%data(d_dest)%elts(abs(id)+1) = -field%data(d_dest)%elts(abs(id)+1)
@@ -907,7 +907,7 @@ contains
                 do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                    id = grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i)
                    lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
-                   if (l_start <= lev .and. lev <= l_end) then
+                   if (lev >= l_start .and. lev <= l_end) then
                       k = k + 1
                       field(i1)%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
                       if (id < 0 .and. pos == AT_EDGE) &
@@ -960,7 +960,7 @@ contains
                    do i = 1, grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%length
                       id = grid(d_dest)%unpk(pos,glo_id(r_src,d_src)+1)%elts(i)
                       lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
-                      if (l_start <= lev .and. lev <= l_end) then
+                      if (lev >= l_start .and. lev <= l_end) then
                          k = k + 1
                          field(i1,i2)%data(d_dest)%elts(abs(id)+1) = recv_buf%elts(k)
                          if (id < 0 .and. pos == AT_EDGE) &
