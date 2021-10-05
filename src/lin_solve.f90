@@ -609,6 +609,7 @@ contains
     
     do l = level_start, level_end
        nrm_f(l) = l2 (f, l)
+       if (nrm_f(l) < tol_elliptic) nrm_f(l) = 1d0
        if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
     end do
 
@@ -656,6 +657,7 @@ contains
 
     do l = level_start, level_end
        nrm_f(l) = l2 (f, l)
+       if (nrm_f(l) < tol_elliptic) nrm_f(l) = 1d0
        if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
     end do
 

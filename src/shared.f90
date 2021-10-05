@@ -335,7 +335,7 @@ contains
     timeint_type        = "RK45"                            ! time integration scheme (RK3 is default for incompressible case)
     tol                 = 5d-3                              ! relative tolerance for adaptivity
     tol_elliptic        = 1d-9                              ! tolerance for coarse scale bicgstab elliptic solver
-    tol_jacobi          = 1d-6                              ! tolerance for fine scale jacobi iterations
+    tol_jacobi          = 1d-3                              ! tolerance for fine scale jacobi iterations
     zlevels             = 20                                ! number of vertical levels
     
     ! Default physical parameters
@@ -360,9 +360,9 @@ contains
     b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
     c_s                 = 1500      * METRE / SECOND              ! sound speed for seawater
-    coarse_iter         = 20                                      ! maximum number of coarse scale bicgstab iterations for elliptic solver
+    coarse_iter         = 100                                      ! maximum number of coarse scale bicgstab iterations for elliptic solver
     e_min               = 1d-6      * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
-    fine_iter           = 60                                      ! maximum number of fine scale jacobi iterations for elliptic solver
+    fine_iter           = 200                                      ! maximum number of fine scale jacobi iterations for elliptic solver
     Kt_0                = 1.2d-5    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy diffusion
     Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
     lambda_1            = 5.9520d-2                               ! cabbeling coefficient in T^2
