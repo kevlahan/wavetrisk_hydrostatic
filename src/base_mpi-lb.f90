@@ -8,63 +8,68 @@ module arch_mod
   integer, dimension(:,:), allocatable :: glo_id
 contains
   subroutine distribute_grid (cp_idx, run_id)
-    ! Allocates each domain to a processor
-    ! Attempts to balance the total load using load data from checkpoint
+    ! Uses simple next-fit algorithm to allocate each domain to a processor (does not use adjacency information)
+    ! Attempts to balance the total load using load data for each domain from checkpoint
     implicit none
     integer        :: cp_idx
     character(255) :: run_id
 
-    integer                          :: i, d, r, d_ngb, n_domain_floor, total_wgt
-    integer, dimension(N_GLO_DOMAIN) :: adj_line, vwgt
-    integer, parameter               :: fid = 599
-    character(255)                   :: filename
-    real(8)                          :: wgt_per_rank, wgt_cur_rank, accepted_imbalance
+    integer                                       :: d, r, n_domain_floor
+    integer, dimension(N_GLO_DOMAIN)              :: wgt_d
+    integer, dimension(N_GLO_DOMAIN,N_GLO_DOMAIN) :: adj_line
     
-    if (rank == 0) write (6,'(/,A,/)') 'Distributing each domain to a processor'
-    write (filename, '(A,A,I4.4)')  trim (run_id), "_conn.", cp_idx
+    integer, parameter                            :: fid = 599
+    
+    real(8)                                       :: balanced_wgt, imbalance_goal
+    real(8), dimension(n_process)                 :: wgt_cur_rank
+    
+    real(8), parameter                            :: init_goal = 0.05d0 ! starting goal for maximum imbalance (0.1)
+    real(8), parameter                            :: incr_goal = 1.20d0 ! factor to increase goal by each iteration until domains fit (2)
+
+    character(255)                                :: filename
+    
+    write (filename, '(a,a,i4.4)') trim (run_id), "_conn.", cp_idx
     
     if (cp_idx >= 0 .and. n_process > 1) then
-       if (rank == 0) write (6,'(A)') 'Rebalancing processor load'
        open (unit=fid, file=trim(filename), status='OLD')
        do d = 1, N_GLO_DOMAIN
-          read (fid,*) vwgt(d), adj_line
+          read (fid,*) wgt_d(d), adj_line(d,:)
        end do
        close (fid)
-
-       total_wgt = sum (vwgt)
-       wgt_per_rank = dble(total_wgt)/dble(n_process)
-       d = 0
-
-       ! Goals:
+       balanced_wgt = dble(sum(wgt_d)) / dble(n_process) ! average load per rank (perfect balance)
+       
+       ! Goals: use a variant of next-fit algorithm to maximize balance with the constraints that
        !  - every rank has at least one domain
        !  - every domain is assigned to a rank
-
-       accepted_imbalance = 0.1_8
-
-       do while (d < N_GLO_DOMAIN) ! increase accepted_imbalance until all domains fit
+       d = 0
+       imbalance_goal = init_goal ! initial imbalance goal is 1 + imbalance_goal
+       do while (d < N_GLO_DOMAIN)
           d = 0
+          wgt_cur_rank = 0
           do r = 1, n_process
-             wgt_cur_rank = 0
-             do while (wgt_cur_rank < wgt_per_rank .and. n_process - r < N_GLO_DOMAIN - d)
-                owner(d+1) = r-1
-                wgt_cur_rank = wgt_cur_rank + vwgt(d+1)
+             do while (wgt_cur_rank(r) < balanced_wgt .and. N_GLO_DOMAIN - d > n_process - r)
+                owner(d+1) = r - 1
+                wgt_cur_rank(r) = wgt_cur_rank(r) + wgt_d(d+1)
                 d = d + 1
              end do
-             ! If load too much, keep last item for next rank
-             if (wgt_cur_rank > dble(wgt_per_rank)*(1.0_8 + accepted_imbalance)) d = d - 1
+             if (wgt_cur_rank(r) > balanced_wgt * (1d0 + imbalance_goal)) then ! last domain unbalanced current rank -> put it on next rank
+                wgt_cur_rank(r) = wgt_cur_rank(r) - wgt_d(d)
+                d = d - 1 
+             end if
           end do
-          ! Did not find enough room for all domains > accepted_imbalance was too tight
-          accepted_imbalance = accepted_imbalance*2.0_8
+          ! Not enough room for all domains -> increase imbalance_goal and try again
+          imbalance_goal = imbalance_goal * incr_goal
        end do
-       if (rank == 0) write (6,'(A,es8.2,/)') 'Accepted load imbalance = ', accepted_imbalance/2.0_8
-    else
-       n_domain_floor = N_GLO_DOMAIN/n_process
+       
+       if (rank == 0) write (6,'(a,es8.2,/)') 'New maximum load imbalance = ', maxval (wgt_cur_rank) / balanced_wgt
+    else ! distribute domains equally 
+       n_domain_floor = N_GLO_DOMAIN / n_process
        d = 0
        do r = 1, n_process
-          owner(d+1:d+n_domain_floor) = r-1
+          owner(d+1:d+n_domain_floor) = r - 1
           d = d + n_domain_floor
-          if (r <= N_GLO_DOMAIN - n_process*n_domain_floor) then
-             owner(d+1) = r-1
+          if (r <= N_GLO_DOMAIN - n_process * n_domain_floor) then
+             owner(d+1) = r - 1
              d = d + 1
           end if
        end do

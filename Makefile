@@ -66,10 +66,14 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
   endif
 endif
 
+LIBMETIS = -lmetis
 ifeq ($(ARCH),ser)
   COMPILER = $(F90)
 else
   COMPILER = $(MPIF90)
+  ifeq ($(ARCH),mpi-metis)
+    LIBS += $(LIBMETIS)
+  endif
 endif
 LINKER = $(COMPILER)
 
