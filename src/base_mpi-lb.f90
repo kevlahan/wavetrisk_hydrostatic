@@ -23,8 +23,8 @@ contains
     real(8)                                       :: balanced_wgt, imbalance_goal
     real(8), dimension(n_process)                 :: wgt_cur_rank
     
-    real(8), parameter                            :: init_goal = 0.05d0 ! starting goal for maximum imbalance (0.1)
-    real(8), parameter                            :: incr_goal = 1.20d0 ! factor to increase goal by each iteration until domains fit (2)
+    real(8), parameter                            :: init_goal = 0.05d0 ! starting goal for maximum imbalance 
+    real(8), parameter                            :: incr_goal = 1.20d0 ! factor to increase goal by each iteration until domains fit
 
     character(255)                                :: filename
     
