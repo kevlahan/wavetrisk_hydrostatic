@@ -176,7 +176,7 @@ contains
 
     idt    = nint (dt*time_mult, 8)
     ialign = nint (align_time*time_mult, 8)
-    if (ialign > 0 .and. istep > 20) then
+    if (ialign > 0 .and. istep > 5) then
        aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
     else
        aligned = .false.

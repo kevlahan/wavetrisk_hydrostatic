@@ -1,29 +1,24 @@
 **********************************************************************************************************************************
-A brief user's guide for WAVETRISK 2.1 2021-06-18
+A brief user's guide for WAVETRISK 2.1 2021-10-28
 N Kevlahan
 Department of Mathematics and Statistics
 McMaster University
 Hamilton, Canada
 kevlahan@mcmaster.ca
 
-A dynamically adaptive wavelet experimental climate model that solves the multi-layer hydrostatic shallow water equations in
-Boussinesq form.  Both compressible (atmosphere) and incompressible (ocean) options are available. The incompressible option
-allows for separation of mean and fluctuating scalars, realistic topography and for penalization of coastlines
-(see drake and tsunami test cases) as well as 2D barotropic/ 3D baroclinic mode splitting.
-
+A dynamically adaptive wavelet-based experimental global climate model that solves the multi-layer hydrostatic rotating shallow  
+water equations in Boussinesq form using a mimetic method.  Both compressible (atmosphere) and incompressible (ocean) options are
+available. 
 
 **********************************************************************************************************************************
-Significant changes compared to WAVETRISK 2.01
+Major changes compared to WAVETRISK 1.x
 
 1. Addition of spherical harmonics test case and associated matlab m-file for computing energy spectra.
 2. Additional ocean modelling test cases.
 3. Addition of vertical diffusion for ocean modelling using a TKE closure similar to that used in NEMO.
 4. Option of implicit time step for horizontal diffusion.
-
-Significant changes compared to WAVETRISK 1.x
-
-1. Implicit free surface 2D barotropic - 3D baroclinic mode splitting capability for incompressible ocean modelling.
-
+5. Option of semi-implicit barotropic-baroclinic time integration.
+6. Adaptive multigrid solver, using scheduled relaxation Jacobi (SRJ) iterations.
 
 **********************************************************************************************************************************
 TEST CASES
@@ -155,7 +150,7 @@ the barotropic component implicitly in time on the slow geostrophic time scale. 
 CFL_barotropic = sqrt(g H) dt/dx < = 30, and often at larger values. The method is similar to the "implicit free surface"
 option in MITgcm.  The splitting usese a semi-implicit theta-method for the barotropic mode, with parameters theta1 (for the
 external pressure gradient) and theta2 for the barotropic flow divergence.  Theta1 = theta2 = 1 gives a backwards Euler (fully
-implicit scheme), and theta1 > 0.5, theta2 > 0.5 is necessary for stability.  The recommended value is thata1 = theta2 = 0.75.
+implicit scheme), and theta1 > 0.5, theta2 > 0.5 is necessary for stability.  The recommended value is thata1 = theta2 = 0.8.
 
 The elliptic equation for the free surface is solved using a simple adaptive multigrid solver. The coarsest scale is solved using bicgstab,
 and this solution is then prolonged to the finer scales, which are solved using scheduled relaxation Jacobi iterations (Adsuara et al
@@ -168,9 +163,9 @@ the free surface is reconciled with the baroclinic estimate using layer dilation
 Layer dilation means that mass is not exactly conserved in each vertical layer, although it is conserved over all vertical layers.
 Mode splitting is suitable when the user is not interested in the evolution of the free surface, since it diffuses free
 surface motion. When the option remap = .false. it is assumed that the density remains constant in each vertical layer, equal to the
-initial density distribution.  Otherwise, horizontal density gradients are included with Ripa dynamics (e.g. Ripa 1996, J Geophys Res,
-101, 1233-1245, Ripa 1995 JFM 303, 169-201).  The drake test case also includes an option that relaxes the layer densities to their initial
-values.
+initial density distribution.  Otherwise, horizontal density gradients are included with Ripa dynamics (e.g. Ripa 1993, Geophys Astrophys Fluid, 70).
+The drake test case also includes an option that relaxes the layer densities to their initial values. This model is also called IL0 (Beron-Vera 2021,
+Rev Mex Fis 67), or a "thermal rotating shallow-water model".
 
 The parameter level_fill can be set > min_level to make active all levels <= level_fill. This sometimes improves the efficiency of the
 multigrid solver by reducing the size of of the coarsest grid where the elliptic equation is solved exactly.
@@ -179,7 +174,8 @@ multigrid solver by reducing the size of of the coarsest grid where the elliptic
 VERTICAL DIFFUSION AND SURFACE FLUXES IN OCEAN MODEL (INCOMPRESSIBLE CASE)
 
 Eddy diffusion of buoyancy and eddy viscosity for velocity is implemented using a flux-based implicit time integration scheme in the module
-vert_diffusion_mod (option vert_diffuse = .true.).  Wind stress, bottom friction and buoyancy fluxes are included via flux (Neumann) boundary conditions.  A solar radiation model (as in NEMO) is activated by setting a non-zero value for the solar radiation flux Q_sr .  Two options are available:
+vert_diffusion_mod (option vert_diffuse = .true.).  Wind stress, bottom friction and buoyancy fluxes are included via flux (Neumann) boundary conditions.
+A solar radiation model (as in NEMO) is activated by setting a non-zero value for the solar radiation flux Q_sr .  Two options are available:
 tke_diffuse = .true. uses a turbulent kinetic energy (TKE) closure scheme, similar to that in NEMO, tke_diffuse = .false. uses a simple depth-based
 eddy-viscosity.
 

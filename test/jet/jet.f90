@@ -38,13 +38,13 @@ program jet
 
   ! Numerical method parameters
   default_thresholds = .true.                          ! use default threshold
-  log_mass           = .false.                         ! do not compute minimum mass and mass conservation
-  match_time         = .false.                         ! avoid very small time steps when saving (if false) 
+  log_mass           = .false.                         ! compute minimum mass and mass conservation (if true)
+  match_time         = .true.                          ! avoid very small time steps when saving (if false) 
   penalize           = .true.                          ! penalize land regions
   alpha              = 1d-2                            ! porosity used in penalization
   npts_penal         = 4.5d0                           ! number of points to smooth over in penalization
-  coarse_iter        = 100                              ! number of coarse scale iterations of elliptic solver
-  fine_iter          = 200                              ! number of fine scale iterations of elliptic solver
+  coarse_iter        = 100                             ! number of coarse scale iterations of elliptic solver
+  fine_iter          = 200                             ! number of fine scale iterations of elliptic solver
   tol_elliptic       = 1d-9                            ! coarse scale tolerance of bicgstab elliptic solver
   tol_jacobi         = 1d-3                            ! fine scale tolerance for jacobi iterations
   compressible       = .false.                         ! always run with incompressible equations
@@ -53,7 +53,7 @@ program jet
 
   ! Time stepping parameters
   timeint_type       = "RK3"                           ! time integration scheme
-  adapt_dt           = .false.                          ! adapt time step
+  adapt_dt           = .false.                         ! adapt time step
   mode_split         = .true.                          ! split barotropic mode if true
   theta1             = 0.8d0                           ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75
   theta2             = 0.8d0                           ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75
