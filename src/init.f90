@@ -33,6 +33,15 @@ module init_mod
        integer, dimension(2,N_BDRY+1) :: dims
        real(8), dimension(1:EDGE)     :: fun4
      end function fun4
+     function fun5 (q, dom, id, idE, idNE, idN, v, zlev, type)
+       use domain_mod
+       implicit none
+       real(8), dimension(1:EDGE)                           :: fun5
+       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+       type(domain)                                         :: dom
+       integer                                              :: d, id, idE, idNE, idN, v, zlev
+       logical, optional                                    :: type
+     end function fun5
      real(8) function coord_fun (p)
        use geom_mod
        implicit none
@@ -70,6 +79,8 @@ module init_mod
   procedure (fun3),        pointer :: top_buoy_flux            => null ()
   procedure (noarg_fun),   pointer :: update                   => null ()
   procedure (fun4),        pointer :: wind_flux                => null ()
+  procedure (fun4),        pointer :: physics_velo_source      => null ()
+  procedure (fun5),        pointer :: physics_scalar_flux      => null ()
   procedure (zcoords_fun), pointer :: z_coords                 => null ()
 contains
   subroutine init_init_mod

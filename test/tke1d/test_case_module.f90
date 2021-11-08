@@ -12,7 +12,7 @@ Module test_case_mod
   real(8)                              :: dt_cfl,  tau_diffusion, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8), target                      :: bottom_friction_case
-  
+
   ! Local variables
   real(8)                              :: drho
   real(8)                              :: N_0, Q_0, r_max, r_max_loc, tau_0, u_0
@@ -30,6 +30,8 @@ contains
     initialize_a_b_vert      => initialize_a_b_vert_case
     initialize_dt_viscosity  => initialize_dt_viscosity_case
     initialize_thresholds    => initialize_thresholds_case
+    physics_scalar_flux      => physics_scalar_flux_case
+    physics_velo_source      => physics_velo_source_case
     set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
@@ -43,7 +45,38 @@ contains
     wind_flux        => wind_flux_case
     tau_mag          => tau_mag_case
   end subroutine assign_functions
-  
+
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+    ! Additional physics for the flux term of the scalar trend
+    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+    !
+    ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+    type(domain)                                         :: dom
+    integer                                              :: d, id, idE, idNE, idN, v, zlev
+    logical, optional                                    :: type
+
+    physics_scalar_flux_case = 0.0_8
+  end function physics_scalar_flux_case
+
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+    ! Additional physics for the source term of the velocity trend
+    ! wind stress and bottom friction are included as surface fluxes in the split eddy viscosity split step
+    implicit none
+
+    real(8), dimension(1:EDGE)     :: physics_velo_source_case
+    type(domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    physics_velo_source_case = 0.0_8 
+  end function physics_velo_source_case
+
   subroutine read_test_case_parameters
     implicit none
     integer            :: ilat, ilon, k
@@ -176,7 +209,7 @@ contains
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance
     end if
   end subroutine print_log
-  
+
   subroutine avg_temp (iwrt)
     ! Saves  temperature averaged over the sphere
     ! (assumes non-adaptive grid)
@@ -190,7 +223,7 @@ contains
     real(8), dimension(1:zlevels) :: dz, T_avg
     real(8), dimension(0:zlevels) :: Kt_avg, Kv_avg, z
     character(4)                  :: s_time
-    
+
     area = integrate_hex (area_fun, level_start, k)
     do k = 0, zlevels
        Kt_avg(k) = integrate_hex (Kt_fun, level_start, k)
@@ -218,12 +251,12 @@ contains
 
        write (6,'(a, f4.1, a)') "Temperature profile at time ", time/HOUR, " h"
        write (6,'(a)') "Level    z_l     Kt(z_l)     Kv(z_l)     z_k    T(z_k)        rho(k)"
-       
+
        z_k = interp (z(0), z(1))
        write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
             0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1), density_eos (S_ref, T_avg(1),  z_k)
        write (20,'(i3, 1x, 5(es13.6,1x))')    0, z(0), Kt_avg(0), Kv_avg(0), z_k, T_avg(1)
-       
+
        do k = 1, zlevels
           z_k = interp (z(k-1), z(k))
           write (6,'(i3, 3x, f7.2, 1x, 2(es11.4, 1x), f7.2, 1x, es11.4, 1x, es14.7)') &
@@ -339,7 +372,7 @@ contains
       end if
     end function area_fun
   end subroutine avg_temp
-  
+
   subroutine apply_initial_conditions_case
     implicit none
     integer :: d, k, l
@@ -353,7 +386,7 @@ contains
        do k = 0, zlevels
           call apply_onescale (init_eddy, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
-       
+
        do k = 1, zlevels
           call apply_onescale (init_tke, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
@@ -405,7 +438,7 @@ contains
 
     eta = init_free_surface (dom%node%elts(id_i))
     z_s = dom%topo%elts(id_i)
-    
+
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -452,7 +485,7 @@ contains
 
     eta = 0.0_8
     z_s = dom%topo%elts(id_i)
-    
+
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -473,7 +506,7 @@ contains
        sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0.0_8
     end if
   end subroutine init_mean
-  
+
   subroutine initialize_a_b_vert_case
     ! Initialize hybrid sigma-coordinate vertical grid 
     ! (a_vert, b_vert not used if sigma_z = .true.)
@@ -481,7 +514,7 @@ contains
     integer               :: k
     real(8)               :: z
     real(8), dimension(6) :: p
-    
+
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
@@ -581,7 +614,7 @@ contains
 
     eta = 0.0_8
     z_s = max_depth
-    
+
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -595,7 +628,7 @@ contains
        rho = ref_density * (1.0_8 - buoyancy_init (z_k))
        write (6, '(2x, i4, 4x, 2(es9.2, 1x), es10.4, 1x, es13.7)') k, z_k, dz(k), temp_init (z_k), rho
     end do
-    
+
     write (6,'(/,a)') " Interface     z"
     do k = 0, zlevels
        write (6, '(3x, i4, 5x, es9.2)') k, z(k)
@@ -607,15 +640,15 @@ contains
        z_above = interp (z(k),   z(k+1))
        z_k     = interp (z(k-1), z(k))
        dz_l    = z_above - z_k
-       
+
        rho_above = ref_density * (1.0_8 - buoyancy_init (z_above))
        rho  = ref_density * (1.0_8 - buoyancy_init (z_k))
        drho = rho_above - rho
-       
+
        bv = sqrt(- grav_accel * drho/dz_l/rho)
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
-       
+
        write (6, '(3x, i4, 5x,3(es9.2,1x))') k, bv, c_k, c1*dt_init/dx_min
     end do
     write (6,'(/,a,es10.4)') "Maximum internal wave speed = ", c1
@@ -638,14 +671,14 @@ contains
     else
        call cal_lnorm_sol (sol, order)
        threshold_new = tol * lnorm
-       
+
        ! Correct very small values
        do k = 1, zmax
           if (threshold_new(S_MASS,k) < threshold_def(S_MASS,k)/10) threshold_new(S_MASS,k) = threshold_def(S_MASS,k)
           if (threshold_new(S_TEMP,k) < threshold_def(S_TEMP,k)/10) threshold_new(S_TEMP,k) = threshold_def(S_TEMP,k)
           if (threshold_new(S_VELO,k) < threshold_def(S_VELO,k)/10) threshold_new(S_VELO,k) = threshold_def(S_VELO,k)
        end do
-       
+
        if (istep >= 10) then
           threshold = 0.01*threshold_new + 0.99*threshold
        else
@@ -675,7 +708,7 @@ contains
        z = eta * a_vert + z_s * b_vert
     end if
     dz = z(1:zlevels) - z(0:zlevels-1)
-    
+
     do k = 1, zlevels
        lnorm(S_MASS,k) = ref_density * dz(k)
        lnorm(S_TEMP,k) = drho * dz(k)
@@ -704,7 +737,7 @@ contains
     C_divu = C
     C_mu   = C
     C_b    = C
-    
+
     ! Diffusion time scales
     tau_mu   = dt_cfl / C_mu
     tau_b    = dt_cfl / C_b
@@ -837,12 +870,12 @@ contains
     real(8)                       :: cff, cff1, cff2, hc, z_0
     real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
     real(8), dimension(0:zlevels) :: Cs, sc
-    
+
     hc = abs(min_depth)
-    
+
     cff1 = 1.0_8 / sinh (theta_s)
     cff2 = 0.5d0 / tanh (0.50 * theta_s)
-    
+
     sc(0) = -1.0_8
     Cs(0) = -1.0_8
     cff = 1d0 / dble(zlevels)
@@ -906,7 +939,7 @@ contains
     real(8) :: dz0, dz_e, r_loc
 
     id   = idx (i,   j,   offs, dims)
-    
+
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
@@ -914,13 +947,13 @@ contains
     idW  = idx (i-1, j,   offs, dims)
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
-    
+
     d    = dom%id + 1
-    
+
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        dz0  = (sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)) &
             / porous_density (d, id+1, zlev)
-       
+
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)) &
             / porous_density (d, idE+1, zlev)
        r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
@@ -935,7 +968,7 @@ contains
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
-  
+
   real(8) function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims)
     ! Bottom boundary flux for vertical diffusion of buoyancy 
     implicit none
@@ -948,7 +981,7 @@ contains
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
-    
+
     bottom_buoy_flux_case =  Kt(0)%data(d)%elts(id_i) * N_0**2 / grav_accel
   end function bottom_buoy_flux_case
 

@@ -597,49 +597,7 @@ contains
     call cart2sph (dom%node%elts(id), lon_loc(idata_loc), lat_loc(idata_loc))
   end subroutine define_data_hex
 end program spherical_harmonics
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Physics routines for this test case (including diffusion)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-function physics_scalar_flux (dom, id, idE, idNE, idN, type)
-  use domain_mod
-  implicit none
 
-  real(8), dimension(S_MASS:S_TEMP,1:EDGE) :: physics_scalar_flux
-  type(Domain)                             :: dom
-  integer                                  :: id, idE, idNE, idN
-  logical, optional                        :: type
-
-  physics_scalar_flux(S_MASS,:) = 0.0_8
-end function physics_scalar_flux
-
-function physics_scalar_source (dom, i, j, zlev, offs, dims)
-  ! Additional physics for the source term of the scalar trend
-  ! Newton cooling to equilibrium potential temperature theta_equil
-  use domain_mod
-  implicit none
-
-  real(8), dimension(S_MASS:S_TEMP) :: physics_scalar_source
-  type(Domain)                      :: dom
-  integer                           :: i, j, zlev
-  integer, dimension(N_BDRY+1)      :: offs
-  integer, dimension(2,N_BDRY+1)    :: dims
-
-  physics_scalar_source(S_MASS) = 0.0_8
-  physics_scalar_source(S_TEMP) = 0.0_8
-end function physics_scalar_source
-
-function physics_velo_source (dom, i, j, zlev, offs, dims)
-  use domain_mod
-  implicit none
-
-  real(8), dimension(1:EDGE)     :: physics_velo_source
-  type(Domain)                   :: dom
-  integer                        :: i, j, zlev
-  integer, dimension(N_BDRY+1)   :: offs
-  integer, dimension(2,N_BDRY+1) :: dims
-
-  physics_velo_source = 0.0_8
-end function physics_velo_source
 
 
 

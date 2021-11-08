@@ -30,6 +30,8 @@ contains
     initialize_a_b_vert      => initialize_a_b_vert_case
     initialize_dt_viscosity  => initialize_dt_viscosity_case
     initialize_thresholds    => initialize_thresholds_case
+    physics_scalar_flux      => physics_scalar_flux_case
+    physics_velo_source      => physics_velo_source_case
     set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
@@ -38,7 +40,180 @@ contains
 
     bottom_friction  => bottom_friction_case
   end subroutine assign_functions
-  
+
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+    ! Additional physics for the flux term of the scalar trend
+    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+    !
+    ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+    type(domain)                                         :: dom
+    integer                                              :: d, id, idE, idNE, idN, v, zlev
+    logical, optional                                    :: type
+
+    integer                    :: id_i
+    real(8), dimension(1:EDGE) :: d_e, grad, l_e
+    logical                    :: local_type
+
+    if (present(type)) then
+       local_type = type
+    else
+       local_type = .false.
+    end if
+
+    id_i = id + 1
+    d = dom%id + 1
+
+    if (Laplace_order == 0 .or. maxval (visc_sclr) == 0.0_8) then
+       physics_scalar_flux_case = 0.0_8
+    else
+       if (.not.local_type) then ! usual flux at edges E, NE, N
+          l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
+          d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
+       else ! flux at SW corner
+          l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
+          l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
+          l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
+          d_e(RT+1) = -dom%len%elts(EDGE*idE+RT+1)
+          d_e(DG+1) = -dom%len%elts(EDGE*idNE+DG+1)
+          d_e(UP+1) = -dom%len%elts(EDGE*idN+UP+1)
+       end if
+
+       ! Calculate gradients
+       if (Laplace_order == 1) then
+          grad = grad_physics (q(v,zlev)%data(d)%elts)
+       elseif (Laplace_order == 2) then
+          grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
+       end if
+
+       ! Complete scalar diffusion
+       physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
+    end if
+  contains
+    function grad_physics (scalar)
+      implicit none
+      real(8), dimension(1:EDGE) :: grad_physics
+      real(8), dimension(:)      :: scalar
+
+      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
+      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
+      grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
+    end function grad_physics
+  end function physics_scalar_flux_case
+
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+    ! Additional physics for the source term of the velocity trend
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)     :: physics_velo_source_case
+    type(domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                         :: d, id, id_i, idE, idN, idNE
+    real(8)                         :: dx, visc
+    real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e, tau_wind, wave_drag, wind_drag
+    real(8), dimension(0:NORTHEAST) :: full_mass
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    idE  = idx (i+1, j,   offs, dims) + 1
+    idNE = idx (i+1, j+1, offs, dims) + 1
+    idN  = idx (i,   j+1, offs, dims) + 1
+
+    ! Increase diffusion near poles to remove noise at these lower accuracy points
+    if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4*dx_max)**2 < 1.0_8) then
+       dx = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end)) 
+       if (istep <= 2) then
+          visc = dx**2/(0.1*dx/wave_speed)/32
+       else
+          visc = dx**2/dt/32
+       end if
+       diffusion =  (-1)**(Laplace_order-1) * visc * (grad_divu() - curl_rotu())
+    else
+       diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+    end if
+
+    ! Wind stress per unit length in top layer only
+    if (zlev == zlevels) then
+       full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+
+       mass_e(RT+1) = interp (full_mass(0), full_mass(EAST))
+       mass_e(DG+1) = interp (full_mass(0), full_mass(NORTHEAST))
+       mass_e(UP+1) = interp (full_mass(0), full_mass(NORTH))
+
+       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idE))
+       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE), dom%node%elts(id_i))
+       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idN))
+       wind_drag = tau_wind / mass_e ! variable forcing
+    else
+       wind_drag = 0.0_8
+    end if
+
+    ! Bottom stress applied in lowest layer only 
+    if (zlev == 1) then
+       bottom_drag = - bottom_friction_case * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
+    else
+       bottom_drag = 0.0_8
+    end if
+
+    ! Internal wave drag to reduce oscillation amplitude (energy neutral) 
+    if (zlevels >= 2) then
+       if (zlev > 1) then
+          wave_drag = velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+       else
+          wave_drag = velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+       end if
+    else
+       wave_drag = 0.0_8
+    end if
+    wave_drag = - wave_friction * wave_drag
+
+    ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
+    if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
+       physics_velo_source_case = diffusion + bottom_drag + wave_drag + wind_drag
+    else
+       physics_velo_source_case = diffusion
+    end if
+  contains
+    function grad_divu()
+      implicit none
+      real(8), dimension(3) :: grad_divu
+
+      integer :: idE, idN, idNE
+
+      idE  = idx (i+1, j,   offs, dims)
+      idN  = idx (i,   j+1, offs, dims)
+      idNE = idx (i+1, j+1, offs, dims)
+
+      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+    end function grad_divu
+
+    function curl_rotu()
+      implicit none
+      real(8), dimension(3) :: curl_rotu
+
+      integer :: idS, idW
+
+      idS = idx (i,   j-1, offs, dims)
+      idW = idx (i-1, j,   offs, dims)
+
+      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+    end function curl_rotu
+  end function physics_velo_source_case
+
   subroutine read_test_case_parameters
     implicit none
     integer            :: ilat, ilon, k
@@ -309,7 +484,7 @@ contains
        z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
 
        porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
-       
+
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy_init (x_i, z)
     end if
@@ -473,7 +648,7 @@ contains
 
     ! Ensure stability
     C_visc = min ((1.0_8/32)**Laplace_order_init, max (C_visc, 1d-4))
-    
+
     C_rotu = C_visc
     C_divu = C_visc
     C_sclr = C_visc
@@ -564,7 +739,7 @@ contains
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
        dx = dx_max
-      
+
        ! Analytic land mass with smoothing
        lat_width = (lat_max - lat_min) / 2
        lat0 = lat_max - lat_width
@@ -596,7 +771,7 @@ contains
     if (etopo_coast) then
        if (rank == 0) write(6,'(a)') 'Reading bathymetry data'
        bathy_per_deg = 60/etopo_res
-       
+
        allocate (topo_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
        open (unit=1086,file='bathymetry') ! "bathymetry" is symbolic link to appropriate etopo bathymetry data
        do kk = ubound (topo_data,2), lbound (topo_data,2), -1 ! north to south (as read from file)
@@ -612,7 +787,7 @@ contains
 
     implicit none
     real(8) :: lat, lon, peak, tau_zonal, tau_merid
-    
+
     logical, parameter :: merid_stress = .false.
 
     peak = (abs(lat)*180/MATH_PI - 35.0_8) / 20
@@ -657,7 +832,7 @@ contains
           b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
        end do
     end if
-    
+
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
@@ -666,20 +841,20 @@ contains
   subroutine update_diagnostics
     ! Update diagnostics
     implicit none
-    
+
   end subroutine update_diagnostics
 
   subroutine init_diagnostics
     ! Initialize diagnostics
     implicit none 
-   
+
   end subroutine init_diagnostics
 
   subroutine deallocate_diagnostics
     implicit none
-    
+
   end subroutine deallocate_diagnostics
-  
+
   subroutine dump_case (fid)
     implicit none
     integer :: fid
@@ -706,7 +881,7 @@ contains
     integer :: d, k, p
 
     call update_array_bdry (q, NONE, 27)
-    
+
     do k = 1, zlevels
        ! Scalars
        do d = 1, size(grid)
@@ -742,7 +917,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    
+
     dmass(id_i) = 0.0_8
     dtemp(id_i) = - temp(id_i) * k_T
   end subroutine trend_scalars
@@ -755,7 +930,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    
+
     id = idx (i, j, offs, dims)
 
     dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8

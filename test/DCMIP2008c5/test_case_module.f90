@@ -23,13 +23,135 @@ contains
     initialize_a_b_vert      => initialize_a_b_vert_case
     initialize_dt_viscosity  => initialize_dt_viscosity_case
     initialize_thresholds    => initialize_thresholds_case
+    physics_scalar_flux      => physics_scalar_flux_case
+    physics_velo_source      => physics_velo_source_case
     set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
     z_coords                 => z_coords_case
   end subroutine assign_functions
-  
+
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+    ! Additional physics for the flux term of the scalar trend
+    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+    !
+    ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+    type(domain)                                         :: dom
+    integer                                              :: d, id, idE, idNE, idN, v, zlev
+    logical, optional                                    :: type
+
+    integer                    :: id_i
+    real(8), dimension(1:EDGE) :: d_e, grad, l_e
+    logical                    :: local_type
+
+    if (present(type)) then
+       local_type = type
+    else
+       local_type = .false.
+    end if
+
+    id_i = id + 1
+    d = dom%id + 1
+
+    if (Laplace_order == 0) then
+       physics_scalar_flux_case = 0d0
+    else
+       if (.not.local_type) then ! usual flux at edges E, NE, N
+          l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
+          d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
+       else ! flux at SW corner
+          l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
+          l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
+          l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
+          d_e(RT+1) = -dom%len%elts(EDGE*idE+RT+1)
+          d_e(DG+1) = -dom%len%elts(EDGE*idNE+DG+1)
+          d_e(UP+1) = -dom%len%elts(EDGE*idN+UP+1)
+       end if
+
+       ! Calculate gradients
+       if (Laplace_order == 1) then
+          grad = grad_physics (q(v,zlev)%data(d)%elts)
+       elseif (Laplace_order == 2) then
+          grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
+       end if
+
+       ! Complete scalar diffusion
+       physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
+    end if
+  contains
+    function grad_physics (scalar)
+      implicit none
+      real(8), dimension(1:EDGE) :: grad_physics
+      real(8), dimension(:)      :: scalar
+
+      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
+      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
+      grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
+    end function grad_physics
+  end function physics_scalar_flux_case
+
+  function physics_velo_source_case(dom, i, j, zlev, offs, dims)
+    ! Additional physics for the source term of the velocity trend
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)     :: physics_velo_source_case
+    type(domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                    :: id
+    real(8), dimension(1:EDGE) :: diffusion
+
+    id = idx (i, j, offs, dims)
+
+    if (Laplace_order == 0) then
+       diffusion = 0d0
+    else
+       ! Calculate Laplacian of velocity
+       diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+    end if
+
+    ! Total physics for source term of velocity trend
+    physics_velo_source_case =  diffusion
+  contains
+    function grad_divu()
+      implicit none
+      real(8), dimension(3) :: grad_divu
+
+      integer :: idE, idN, idNE
+
+      idE  = idx (i+1, j,   offs, dims)
+      idN  = idx (i,   j+1, offs, dims)
+      idNE = idx (i+1, j+1, offs, dims)
+
+      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))  /dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))  /dom%len%elts(EDGE*id+UP+1)
+    end function grad_divu
+
+    function curl_rotu()
+      implicit none
+      real(8), dimension(3) :: curl_rotu
+
+      integer :: idS, idW
+
+      idS  = idx (i,   j-1, offs, dims)
+      idW  = idx (i-1, j,   offs, dims)
+
+      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
+    end function curl_rotu
+  end function physics_velo_source_case
+
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
     type (Domain)                   :: dom
@@ -77,7 +199,7 @@ contains
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
-    
+
     real(8) :: lon, lat, rgrc
 
     ! Find latitude and longitude from Cartesian coordinates
@@ -94,7 +216,7 @@ contains
     type(Coord) :: x_i
 
     real(8) :: lon, lat
-    
+
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
@@ -111,7 +233,7 @@ contains
     u = u_0*cos(lat)  ! Zonal velocity component
     v = 0.0_8         ! Meridional velocity component
   end subroutine vel_fun
-  
+
   subroutine set_thresholds_case
     ! Set thresholds dynamically (trend or sol must be known)
     use lnorms_mod
@@ -208,7 +330,7 @@ contains
        a_vert = a_vert(zlevels+1:1:-1) * p_0
        b_vert = b_vert(zlevels+1:1:-1)
     end if
-    
+
     ! Set pressure at infinity
     p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
 
@@ -217,7 +339,7 @@ contains
     b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
   end subroutine initialize_a_b_vert_case
 
-   subroutine read_test_case_parameters
+  subroutine read_test_case_parameters
     implicit none
     integer, parameter :: fid = 500
     real(8)            :: press_save
@@ -258,7 +380,7 @@ contains
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     close(fid)
-    
+
     allocate (pressure_save(1))
     pressure_save(1) = 1.0d2*press_save
     dt_write = dt_write * DAY
@@ -269,8 +391,8 @@ contains
 
   subroutine print_test_case_parameters
     implicit none
-    
-     if (rank==0) then
+
+    if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
             ************************************************************'
@@ -305,7 +427,7 @@ contains
        write (6,'(a,l1)')     "rebalance           = ", rebalance
        write (6,'(A,es10.4)') "time_end (h)        = ", time_end/DAY
        write (6,'(A,i6)')     "resume              = ", resume_init
-       
+
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius              = ", radius
        write (6,'(A,es10.4)') "omega               = ", omega
@@ -342,7 +464,7 @@ contains
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
-    
+
     if (rank == 0) then
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es8.2,1x))') &
             'time [d] = ', time/DAY, &
@@ -368,7 +490,7 @@ contains
     implicit none
 
     integer :: k
-    
+
     allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
     allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
 
@@ -380,7 +502,7 @@ contains
     lnorm(S_VELO,:) = Udim
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds_case
-  
+
   subroutine initialize_dt_viscosity_case
     ! Initializes viscosity
     implicit none
@@ -388,12 +510,12 @@ contains
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
-      
+
     ! Diffusion constants
     C_sclr = 2d-3       ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_divu = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
-    
+
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
     dt_init = dt_cfl
@@ -419,8 +541,8 @@ contains
        write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
        write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
-          " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
-          " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
+            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
+            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
   end subroutine initialize_dt_viscosity_case
 
@@ -439,7 +561,7 @@ contains
     ! Update means, bathymetry and penalization mask
     ! not needed in this test case
     implicit none
-  
+
   end subroutine update_case
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
@@ -514,7 +636,7 @@ contains
     implicit none
     real(8)                       :: eta_surf, z_s ! free surface and bathymetry
     real(8), dimension(0:zlevels) :: z_coords_case
-    
+
     z_coords_case = 0.0_8
   end function z_coords_case
 end module test_case_mod

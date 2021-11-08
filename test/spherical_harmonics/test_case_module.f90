@@ -9,7 +9,7 @@ module test_case_mod
   real(8)        :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   character(255) :: spec_type
   logical        :: local_spec
-  
+
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
   ! DCMIP2008c5
@@ -32,12 +32,45 @@ contains
     initialize_a_b_vert      => initialize_a_b_vert_case
     initialize_dt_viscosity  => initialize_dt_viscosity_case
     initialize_thresholds    => initialize_thresholds_case
+    physics_scalar_flux      => physics_scalar_flux_case
+    physics_velo_source      => physics_velo_source_case
     set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
     z_coords                 => z_coords_case
   end subroutine assign_functions
+
+
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+    ! Additional physics for the flux term of the scalar trend
+    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+    !
+    ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at southwest edges W, SW, S
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+    type(domain)                                         :: dom
+    integer                                              :: d, id, idE, idNE, idN, v, zlev
+    logical, optional                                    :: type
+
+    physics_scalar_flux_case = 0.0_8
+  end function physics_scalar_flux_case
+
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)     :: physics_velo_source_case
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    physics_velo_source_case = 0.0_8
+  end function physics_velo_source_case
 
   real(8) function surf_geopot_case (x_i)
     ! Surface geopotential
@@ -49,7 +82,7 @@ contains
     call cart2sph (x_i, lon, lat)
     cs2 = cos(lat)**2
     sn2 = sin(lat)**2
-    
+
     if (trim (test_case) == "DCMIP2012c4") then
        c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
 
@@ -69,8 +102,8 @@ contains
        stop
     end if
   end function surf_geopot_case
-  
- subroutine initialize_a_b_vert_case
+
+  subroutine initialize_a_b_vert_case
     implicit none
     integer :: k
 
@@ -143,7 +176,7 @@ contains
           call cal_AB
        end if
     end if
-    
+
     ! Set pressure at infinity
     p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
 
@@ -246,7 +279,7 @@ contains
     end if
   end subroutine read_test_case_parameters
 
-   subroutine topography (dom, i, j, zlev, offs, dims, itype)
+  subroutine topography (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
     ! uses radial basis function for smoothing (if specified)
     implicit none
@@ -271,7 +304,7 @@ contains
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
        dx = dx_max
-      
+
        ! Analytic land mass with smoothing
        lat_width = (lat_max - lat_min) / 2
        lat0 = lat_max - lat_width
@@ -322,7 +355,7 @@ contains
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
     end if
   end subroutine set_penal
-  
+
   subroutine apply_initial_conditions_case
     implicit none
     integer :: d, k, l
@@ -374,7 +407,7 @@ contains
     if (trim (test_case) == "drake") then
        x_i  = dom%node%elts(id_i)
        eta_surf = 0.0_8
-       
+
        if (zlev == zlevels+1) then
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8

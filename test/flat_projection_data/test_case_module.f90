@@ -9,7 +9,7 @@ module test_case_mod
   real(8) :: npts_penal, ref_surf_press, scale
   real(8) :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   logical :: mean_split
-  
+
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
   ! DCMIP2008c5
@@ -39,24 +39,51 @@ contains
     initialize_a_b_vert      => initialize_a_b_vert_case
     initialize_dt_viscosity  => initialize_dt_viscosity_case
     initialize_thresholds    => initialize_thresholds_case
+    physics_scalar_flux      => physics_scalar_flux_case
+    physics_velo_source      => physics_velo_source_case
     set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
     z_coords                 => z_coords_case
   end subroutine assign_functions
-  
+
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+    use domain_mod
+    implicit none
+    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+    type(domain)                                         :: dom
+    integer                                              :: d, id, idE, idNE, idN, v, zlev
+    logical, optional                                    :: type
+
+    physics_scalar_flux_case = 0.0_8
+  end function physics_scalar_flux_case
+
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)     :: physics_velo_source_case
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    physics_velo_source_case = 0.0_8
+  end function physics_velo_source_case
+
   real(8) function surf_geopot_case (x_i)
     ! Surface geopotential
     implicit none
     Type(Coord) :: x_i
     real(8)     :: amp, b_max, c1, cs2, sn2, lon, lat, rgrc, y
-    
+
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
     cs2 = cos(lat)**2
     sn2 = sin(lat)**2
-    
+
     if (trim (test_case) == "DCMIP2012c4") then
        c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
 
@@ -85,7 +112,7 @@ contains
        end if
        surf_geopot_case = grav_accel * surf_geopot_case
     else
-      surf_geopot_case = grav_accel * 0d0
+       surf_geopot_case = grav_accel * 0d0
     end if
   end function surf_geopot_case
 
@@ -127,10 +154,10 @@ contains
        end if
        surf_geopot_latlon = grav_accel * surf_geopot_latlon
     else
-      surf_geopot_latlon = grav_accel * 0d0
+       surf_geopot_latlon = grav_accel * 0d0
     end if
   end function surf_geopot_latlon
-  
+
   real(8) function f (y)
     implicit none
     real(8) :: y
@@ -239,7 +266,7 @@ contains
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
     elseif (trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
        b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
-       
+
        if (trim (coords) == "uniform") then
           do k = 1, zlevels-1
              b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
@@ -277,12 +304,12 @@ contains
     real(8)                       :: cff, cff1, cff2, hc, z_0
     real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
     real(8), dimension(0:zlevels) :: Cs, sc
-    
+
     hc = min (abs(min_depth), abs(Tcline))
-    
+
     cff1 = 1.0_8 / sinh (theta_s)
     cff2 = 0.5d0 / tanh (0.50 * theta_s)
-    
+
     sc(0) = -1.0_8
     Cs(0) = -1.0_8
     cff = 1d0 / dble(zlevels)
@@ -385,12 +412,12 @@ contains
        write (6,'(A,es10.4)') "lon_val = ", lon_val
        write (6,*) ' '
     end if
-    
+
     allocate (pressure_save(1))
     pressure_save(1) = 100*press_save
   end subroutine read_test_case_parameters
 
-   subroutine topography (dom, i, j, zlev, offs, dims, itype)
+  subroutine topography (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
     ! uses radial basis function for smoothing (if specified)
     implicit none
@@ -401,7 +428,7 @@ contains
     character(*)                   :: itype
 
     integer  :: d, e, id, id_e, id_i
-    
+
     type(Coord)                    :: p
     type(Coord), dimension(1:EDGE) :: q
 
@@ -409,7 +436,7 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
     p = dom%node%elts(id_i)
-   
+
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot (p) / grav_accel
@@ -439,10 +466,10 @@ contains
     dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
     width_S = 90d0 + (lat_c - (lat_width/2d0 + dlat))
     width_N = 90d0 - (lat_c + (lat_width/2d0 + dlat))
-    
+
     n_smth_S = 4d0*radius * width_S*DEG / (dx_max * npts_penal)
     n_smth_N = 4d0*radius * width_N*DEG / (dx_max * npts_penal)
-    
+
     call cart2sph (p, lon, lat)
 
     mask = exp__flush (- abs((lat/DEG+90d0)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90d0)/width_N)**n_smth_N)
@@ -480,7 +507,7 @@ contains
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
     end if
   end subroutine set_penal
-  
+
   subroutine apply_initial_conditions_case
     implicit none
     integer :: d, k, l
@@ -531,10 +558,10 @@ contains
     id_i = id + 1
 
     x_i = dom%node%elts(id_i)
-    
+
     eta = 0.0_8
     z_s = dom%topo%elts(id_i)
-    
+
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -578,7 +605,7 @@ contains
        end if
     end do
   end subroutine init_mean
-  
+
   real(8) function buoy_flat (eta, z_s, zlev)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
@@ -604,7 +631,7 @@ contains
 
        buoy_flat = (ref_density - rho) / ref_density 
     else
-      buoy_flat = 0.0_8 ! no mean component
+       buoy_flat = 0.0_8 ! no mean component
     end if
   end function buoy_flat
 

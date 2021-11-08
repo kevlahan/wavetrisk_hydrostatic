@@ -33,18 +33,6 @@ contains
 
     logical :: S_bdry, W_bdry
 
-    interface
-       function physics_scalar_flux (q, dom, id, idE, idNE, idN, v, zlev, type)
-         import
-         implicit none
-         real(8), dimension(1:EDGE)                           :: physics_scalar_flux
-         type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-         type(domain)                                         :: dom
-         integer                                              :: d, id, idE, idNE, idN, v, zlev
-         logical, optional                                    :: type
-       end function physics_scalar_flux
-    end interface
-
     call comp_offs3 (dom, p, offs, dims)
 
     S_bdry = (dom%patch%elts(p+1)%neigh(SOUTH) < 0)
@@ -687,17 +675,6 @@ contains
     integer,                        intent(in) :: i, j, zlev
     integer, dimension(N_BDRY+1),   intent(in) :: offs
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
-
-    interface
-       function physics_velo_source (dom, i, j, zlev, offs, dims)
-         import
-         real(8), dimension(1:EDGE)     :: physics_velo_source
-         type(domain)                   :: dom
-         integer                        :: i, j, zlev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
-       end function physics_velo_source
-    end interface
 
     integer                :: e, id
     real(8), dimension (3) :: Qperp_e, physics
