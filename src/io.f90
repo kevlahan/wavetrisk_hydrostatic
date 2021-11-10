@@ -22,15 +22,15 @@ contains
     if (initialized) return ! initialize only once
     call init_domain_mod
     next_fid = 100
-    
+
     if (compressible .or. zlevels /= 2) then
        N_VAR_OUT = 7
     else
        N_VAR_OUT = 11
     end if
-    
+
     allocate (minv(1:N_VAR_OUT), maxv(1:N_VAR_OUT))
-    
+
     initialized = .true.
   end subroutine init_io_mod
 
@@ -80,7 +80,7 @@ contains
     logical :: initialgo
 
     integer :: k
-    
+
     if (initialgo) then
        initotalmass = 0.0_8
        do k = 1, zlevels
@@ -122,7 +122,7 @@ contains
     integer :: id
 
     id = idx(i, j, offs, dims) + 1
-    
+
     if (dom%mask_n%elts(id) >= ADJZONE) then
        pot_energy = sol(S_MASS,zlev)%data(dom%id+1)%elts(id)**2
     else
@@ -134,9 +134,9 @@ contains
     ! Computes total kinetic energy
     implicit none
     character(*) :: itype
-    
+
     integer :: k
-    
+
     total_ke = 0.0_8
     do k = 1, zlevels
        if (trim(itype) == 'adaptive') then
@@ -230,7 +230,7 @@ contains
 
        layer1_ke = (sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1))  &
             * (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
        layer1_ke = 0.0_8
@@ -275,8 +275,8 @@ contains
 
        layer2_ke = (sol_mean(S_MASS,2)%data(d)%elts(id+1) + sol(S_MASS,2)%data(d)%elts(id+1)) * &
             (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-           + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-           * dom%areas%elts(id+1)%hex_inv/4
+            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+            * dom%areas%elts(id+1)%hex_inv/4
     else
        layer2_ke = 0.0_8
     end if
@@ -320,8 +320,8 @@ contains
 
        one_layer_ke = (sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1)) * &
             (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-           + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-           * dom%areas%elts(id+1)%hex_inv/4
+            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+            * dom%areas%elts(id+1)%hex_inv/4
     else
        one_layer_ke = 0.0_8
     end if
@@ -376,9 +376,9 @@ contains
 
        barotropic_ke = &
             (sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1) + &
-             sol_mean(S_MASS,2)%data(d)%elts(id+1) + sol(S_MASS,2)%data(d)%elts(id+1)) * &
+            sol_mean(S_MASS,2)%data(d)%elts(id+1) + sol(S_MASS,2)%data(d)%elts(id+1)) * &
             (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-           + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
        barotropic_ke = 0.0_8
@@ -386,7 +386,7 @@ contains
   contains
     function barotropic_velo ()
       real(8), dimension(1:EDGE) :: barotropic_velo
-      
+
       integer                    :: e, id_e, k
       real(8), dimension(1:EDGE) :: dz
 
@@ -395,9 +395,9 @@ contains
 
          do k = 1, 2
             dz(k) = interp (sol_mean(S_MASS,k)%data(d)%elts(id+1)         + sol(S_MASS,k)%data(d)%elts(id+1), &
-                            sol_mean(S_MASS,k)%data(d)%elts(id_node(e)+1) + sol(S_MASS,k)%data(d)%elts(id_node(e)+1))
+                 sol_mean(S_MASS,k)%data(d)%elts(id_node(e)+1) + sol(S_MASS,k)%data(d)%elts(id_node(e)+1))
          end do
-         
+
          barotropic_velo(e) = (dz(1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(2)*sol(S_VELO,2)%data(d)%elts(id_e)) / sum(dz)
       end do
     end function barotropic_velo
@@ -447,7 +447,7 @@ contains
     integer :: id
 
     id = idx (i, j, offs, dims)
-    
+
     tri_only_area = 1.0_8
   end function tri_only_area
 
@@ -697,7 +697,7 @@ contains
        idW  = idx (i-1, j,   offs, dims)
        idSW = idx (i-1, j-1, offs, dims)
        idS  = idx (i,   j-1, offs, dims)
-       
+
        if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
           outl = nint(active_level%data(d)%elts(id_i))
        else
@@ -714,7 +714,7 @@ contains
 !!$             outv(1) = ref_density * (1.0_8 - full_temp / full_mass) ! density
              outv(1) = -ref_density * full_temp / full_mass  ! density perturbation
           end if
-          
+
           outv(2) = dom%u_zonal%elts(id_i) * phi_node (d, id_i, zlev)  ! zonal velocity
           outv(3) = dom%v_merid%elts(id_i) * phi_node (d, id_i, zlev)  ! meridional velocity
 
@@ -741,7 +741,7 @@ contains
                 outv(6) = free_surface (dom, i, j, zlev, offs, dims)
              end if
           end if
-    
+
           outv(7) = dom%press_lower%elts(id_i)          ! vorticity (at hexagon points)
 
           write (funit,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
@@ -755,7 +755,7 @@ contains
           ! Barotropic velocity
           outv(2) = dom%u_zonal%elts(id_i)
           outv(3) = dom%v_merid%elts(id_i)
-          
+
           ! Baroclinic velocity
           outv(4) = trend(S_VELO,1)%data(d)%elts(id_i)
           outv(5) = trend(S_VELO,2)%data(d)%elts(id_i)
@@ -768,7 +768,7 @@ contains
 
           ! Baroclinic eta
           outv(8) = sol(S_MASS,1)%data(d)%elts(id_i) / (ref_density * phi_node (d, id_i, zlev))
-          
+
           ! Free surface perturbation (barotropic eta)
           if (mode_split) then 
              outv(9) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
@@ -778,7 +778,7 @@ contains
 
           ! Topography
           outv(10) = -dom%topo%elts(id_i)
-          
+
           ! Penalization mask
           outv(11) = penal_node(zlev)%data(d)%elts(id_i)  ! penalization mask
 
@@ -943,35 +943,24 @@ contains
           read (fid) tke(k)%data(d)%elts(id)
        end do
     end if
-  end subroutine read_scalar
+  end subroutine read_scalar 
 
-  subroutine dump_adapt_mpi (id, custom_dump, run_id)
+  subroutine dump_adapt_mpi (id, run_id)
     ! Save data in check point files for restart
     ! One file per domain
     ! NOTE: modifies grid structure
     implicit none
     integer      :: id
-    external     :: custom_dump
     character(*) :: run_id
 
-    integer                          :: c, d, ibeg, iend, j, k, l, p_chd, p_lev, p_par, v
+    integer                          :: c, d, ibeg, iend, j, k, l, p_chd, p_lev, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(255)                   :: filename_gr, filename_no
     logical, dimension(1:N_CHDRN)    :: required
 
-    interface
-       subroutine custom_dump (fid)
-         implicit none
-         integer :: fid
-       end subroutine custom_dump
-    end interface
-
-    fid_no = id+1000000
-    fid_gr = id+3000000
-
     call update_array_bdry (wav_coeff(scalars(1):scalars(2),1:zmax), NONE, 20)
     if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 20)
-    
+
     do d = 1, size(grid)
        do k = 1, zmax
           do v = scalars(1), scalars(2)
@@ -992,6 +981,9 @@ contains
     end do
 
     do d = 1, size(grid)
+       fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
+       fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
+       
        write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
        write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
 
@@ -1000,8 +992,7 @@ contains
 
        write (fid_no(d)) istep
        write (fid_no(d)) time
-
-       call custom_dump (fid_no(d))
+       call dump (fid_no(d))
 
        ! Write data at coarsest scale (scaling functions)
        p_par = 1
@@ -1014,7 +1005,7 @@ contains
              write (fid_no(d)) sol(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
-       
+
        if (vert_diffuse) then
           do k = 1, zlevels
              ibeg = grid(d)%patch%elts(p_par+1)%elts_start + 1
@@ -1075,45 +1066,37 @@ contains
     end do
   end subroutine dump_adapt_mpi
 
-  subroutine load_adapt_mpi (id, custom_load, run_id)
+  subroutine load_adapt_mpi (id, run_id)
     ! Read data from check point files for restart
     ! One file per domain
     implicit none
     integer      :: id
-    external     :: custom_load
     character(*) :: run_id
 
     character(255)                   :: filename_gr, filename_no
-    integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, v
+    integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     logical, dimension(1:N_CHDRN)    :: required
 
-    interface
-       subroutine custom_load (fid)
-         implicit none
-         integer :: fid
-       end subroutine custom_load
-    end interface
 
     ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
-       fid_no(d) = id*1000 + 1000000 + d
-       fid_gr(d) = id*1000 + 3000000 + d
+       fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
+       fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
 
        write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
        write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
 
        open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ', status='OLD')
        open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
-
+       
        read (fid_no(d)) istep
        read (fid_no(d)) time
-
-       call custom_load (fid_no(d))
-
+       call load (fid_no(d))
+              
        p_par = 1
        call apply_to_pole_d (read_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
-       
+
        do k = 1, zmax
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
@@ -1219,9 +1202,9 @@ contains
     ! Reads in Heikes & Randall (1995) optimized grid from file in directory grid_HR
     ! Need to provide a symbolic link to grid_HR in working directory
     implicit none
+    integer                        :: d_glo, d_HR, d_sub, fid, loz, p, r
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer                        :: d_HR, p, d_glo, d_sub, fid, loz
     character(19+1)                :: filename
 
     maxerror = 0.0_8
@@ -1249,19 +1232,26 @@ contains
        return
     end if
 
-    write (filename, '(A,I1)')  "grid_HR/J", level_start-1
-    open (unit=fid, file=filename, status='OLD')
+    do r = 1, n_process
+       if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
+          call MPI_Barrier (MPI_Comm_World, ierror)
+          cycle 
+       end if
 
-    p = 1
-    do d_HR = 1, N_ICOSAH_LOZENGE
-       loz = dom_id_from_HR_id(d_HR)
-       do d_sub = 1, N_SUB_DOM
-          d_glo = loz*N_SUB_DOM + sub_dom_id_from_HR_sub_id(d_sub)
-          if (owner(d_glo+1) == rank) call get_offs_Domain (grid(loc_id(d_glo+1)+1), p, offs, dims)
-          call coord_from_file (d_glo, PATCH_LEVEL, fid, offs, dims, (/0, 0/))
+       write (filename, '(A,I1)')  "grid_HR/J", level_start-1
+       open (unit=fid, file=filename, status='OLD')
+
+       p = 1
+       do d_HR = 1, N_ICOSAH_LOZENGE
+          loz = dom_id_from_HR_id(d_HR)
+          do d_sub = 1, N_SUB_DOM
+             d_glo = loz * N_SUB_DOM + sub_dom_id_from_HR_sub_id (d_sub)
+             if (owner(d_glo+1) == rank) call get_offs_Domain (grid(loc_id(d_glo+1)+1), p, offs, dims)
+             call coord_from_file (d_glo, PATCH_LEVEL, fid, offs, dims, (/0, 0/))
+          end do
        end do
+       close(fid)
     end do
-    close(fid)
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
@@ -1327,8 +1317,8 @@ contains
     type(Coord),  intent(in) :: c_in
     type(Coord), intent(out) :: c_out
 
-    c_out%x =  c_in%x*cos(angle) - c_in%y*sin(angle)
-    c_out%y =  c_in%x*sin(angle) + c_in%y*cos(angle)
+    c_out%x =  c_in%x * cos(angle) - c_in%y * sin(angle)
+    c_out%y =  c_in%x * sin(angle) + c_in%y * cos(angle)
     c_out%z =  c_in%z
   end subroutine zrotate
 
@@ -1339,19 +1329,19 @@ contains
     integer, dimension(N_BDRY+1),   intent(in) :: offs
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
 
-    integer :: d_loc, k, ij(2)
-    type(Coord) node, node_r
+    integer               :: d_loc, k
+    integer, dimension(2) :: ij
+    type(Coord)           :: node, node_r
 
     d_loc = loc_id(d_glo+1)
     do k = 1, 4
-       ij = ij0 + HR_offs(:,k)*2**(l-1)
+       ij = ij0 + HR_offs(:,k) * 2**(l-1)
        if (l == 1) then
-          ! if domain on other process still read to get to correct position in file
           if (owner(d_glo+1) == rank) then
              read(fid,*) node
-             call zrotate (node, node_r, -0.5_8)  ! icosahedron orientation good for tsunami
-             grid(d_loc+1)%node%elts(idx(ij(1), ij(2), offs, dims)+1) = project_on_sphere(node_r)
-          else
+             call zrotate (node, node_r, -0.5d0) ! icosahedron orientation good for tsunami
+             grid(d_loc+1)%node%elts(idx(ij(1), ij(2), offs, dims) + 1) = project_on_sphere(node_r)
+          else ! if domain is on another process, still read to get to correct position in file
              read(fid,*)
           end if
        else
@@ -1514,7 +1504,7 @@ contains
              end do
              nullify (vort)
           end do
-          
+
           ! Baroclinic velocity in top layer
           do d = 1, size(grid)
              velo1  => sol(S_VELO,zlevels+1)%data(d)%elts   ! barotropic velocity
@@ -1534,7 +1524,7 @@ contains
              end do
              nullify (velo, velo1, velo2)
           end do
-          
+
           ! Baroclinic vorticity in top layer
           do d = 1, size(grid)
              velo  => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in top layer
@@ -1736,7 +1726,7 @@ contains
     end do
     integrate_tri = sum_real (s)
   end function integrate_tri
-  
+
   real(8) function integrate_adaptive (routine, zlev)
     ! Integrates value define in routine over adaptive grid
     implicit none
@@ -1744,7 +1734,7 @@ contains
     real(8), external :: routine
 
     integer ::  l
-        
+
     hex_int = 0.0_8
     call fine_hex_area (routine, level_start, zlev)
     do l = level_start+1, level_end-1
@@ -1759,7 +1749,7 @@ contains
     implicit none
     integer           :: l, zlev
     real(8), external :: routine
-    
+
     integer                          :: d, i, id, j, jj, p
     integer, dimension(N_BDRY+1)     :: offs
     integer, dimension(2,N_BDRY+1)   :: dims
@@ -1784,7 +1774,7 @@ contains
     implicit none
     integer           :: l, zlev
     real(8), external :: routine
-    
+
     integer                          :: c, d, i, id, i_par, j, j_par, jj, p, p_chd, p_par, s
     integer, dimension(N_BDRY+1)     :: offs, offs_chd, offs_par
     integer, dimension(2,N_BDRY+1)   :: dims, dims_chd, dims_par

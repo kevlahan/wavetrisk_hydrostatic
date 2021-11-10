@@ -1054,19 +1054,4 @@ contains
     domain_load = count(abs(dom%mask_n%elts(1+1:dom%node%length)) > ADJZONE) &
          + count(abs(dom%mask_e%elts(EDGE+1:dom%midpt%length)) > ADJZONE)
   end function domain_load
-
-  subroutine write_load_conn1 (fid)
-    implicit none
-    integer :: fid
-
-    integer :: d, n_active_d
-
-    do d = 1, size(grid)
-       ! The following includes load for boundaries, but that seem just fair
-       n_active_d = domain_load(grid(d))
-       write(fid,'(I10, 99999(1X,I8))') n_active_d, ( &
-            grid(d)%pack(AT_NODE,:)%length + grid(d)%pack(AT_EDGE,:)%length + &
-            grid(d)%unpk(AT_NODE,:)%length + grid(d)%unpk(AT_EDGE,:)%length)/2
-    end do
-  end subroutine write_load_conn1
 end module comm_mod

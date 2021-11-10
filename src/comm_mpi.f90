@@ -78,28 +78,53 @@ contains
     integer      :: id
     character(*) :: run_id
     
-    integer        :: r, fid
-    character(255) :: filename
+    integer                                           :: d, ii, r, sz
+    integer, parameter                                :: fid = 599
+    integer, dimension(n_process)                     :: displs, rcounts
+    integer, dimension(:), allocatable                :: n_active_loc
+    integer, dimension(N_GLO_DOMAIN*(N_GLO_DOMAIN+1)) :: n_active_glo
+    character(255)                                    :: filename
 
-    fid = 599
-    write (filename, '(A,A,I4.4)')  trim (run_id), "_conn.", id
+    ! Size of load data for current rank
+    sz = size(grid) * (N_GLO_DOMAIN+1)
 
-    do r = 1, n_process
-       if (r /= rank+1) then ! write only if our turn, otherwise only wait at Barrier
-          call MPI_Barrier (MPI_Comm_World, ierror)
-          cycle 
-       end if
+    ! Gather rcounts on root
+    call MPI_Gather (sz, 1, MPI_INTEGER, rcounts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
 
-       if (r == 1) then ! first process opens without append to delete old file if existing
-          open (unit=fid, file=trim(filename), recl=333333, status='REPLACE')
-       else
-          open (unit=fid, file=trim(filename), recl=333333, access='APPEND', status='OLD')
-       end if
-
-       call write_load_conn1 (fid)
-       close(fid)
-       call MPI_Barrier (MPI_Comm_World, ierror)
+    ! Set displacements for contiguous positions
+    displs(1) = 0
+    do r = 2, n_process
+       displs(r) = displs(r-1) + rcounts(r-1)
     end do
+
+    ! Set load data on this rank
+    allocate (n_active_loc(sz))
+    ii = 1 
+    do d = 1, size(grid)
+       n_active_loc(ii) = domain_load(grid(d))
+       
+       n_active_loc(ii+1:ii+N_GLO_DOMAIN) = (grid(d)%pack(AT_NODE,:)%length + grid(d)%pack(AT_EDGE,:)%length + &
+            grid(d)%unpk(AT_NODE,:)%length + grid(d)%unpk(AT_EDGE,:)%length)/2
+       
+       ii = ii + 1 + N_GLO_DOMAIN
+    end do
+
+    ! Gather all load data onto rank 0
+    call MPI_Gatherv (n_active_loc, sz, MPI_INTEGER, n_active_glo, rcounts, displs, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+    deallocate (n_active_loc)
+
+    ! Write out load data
+    if (rank==0) then
+       write (filename, '(A,A,I4.4)')  trim (run_id), "_conn.", id
+       open (unit = fid, file = trim(filename), recl = 333333, status = 'REPLACE')
+
+       ii = 1
+       do d = 1, N_GLO_DOMAIN
+          write (fid,'(I10, 99999(1X,I8))') n_active_glo(ii:ii+N_GLO_DOMAIN)
+          ii = ii + 1 + N_GLO_DOMAIN
+       end do
+       close (fid)
+    end if
   end subroutine write_load_conn
 
   subroutine cal_load_balance (min_load, avg_load, max_load, rel_imbalance)

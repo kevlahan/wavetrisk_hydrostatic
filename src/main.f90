@@ -176,7 +176,7 @@ contains
 
     idt    = nint (dt*time_mult, 8)
     ialign = nint (align_time*time_mult, 8)
-    if (ialign > 0 .and. istep > 5) then
+    if (ialign > 0 .and. istep > 20) then
        aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
     else
        aligned = .false.
@@ -315,7 +315,7 @@ contains
     call initialize_thresholds
 
     ! Load checkpoint data
-    call load_adapt_mpi (cp_idx, load, run_id)
+    call load_adapt_mpi (cp_idx, run_id)
 
     ! Delete temporary files
     call barrier ! Do not delete files before everyone has read them
@@ -369,7 +369,7 @@ contains
 
     character(255) :: cmd_archive, cmd_files, command
     
-    cp_idx = cp_idx + 1
+    cp_idx = cp_idx + 1 
 
     if (rank == 0) then
        write (6,'(A,/)') &
@@ -377,10 +377,10 @@ contains
             **********************************************************'
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
     end if
-    
+
     call write_load_conn (cp_idx, run_id)
-    call dump_adapt_mpi  (cp_idx, dump, run_id)
-    
+    call dump_adapt_mpi  (cp_idx, run_id)
+
     ! Archive checkpoint (overwriting existing checkpoint if present)
     call barrier ! Make sure all processors have written data
     if (rank == 0) then
@@ -390,7 +390,7 @@ contains
        write (command, '(A,A,A,A,A)') 'tar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
        call system (command)
     end if
-    call barrier ! Make sure data is archived before restarting
+    call barrier ! make sure data is archived before restarting
     
     ! Must restart if want to load balance (compiled with mpi-lb)
     if (rebal) call restart (run_id)

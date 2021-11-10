@@ -1,10 +1,16 @@
-# options: ser mpi mpi-lb
-TEST_CASE  = DCMIP2012c4
+# Default options
+TEST_CASE  = jet
 ARCH       = mpi-lb
-PARAM      = param_J4
+PARAM      = param_J5
 GEOM       = sphere
 ARRAYS     = dyn_array
 BUILD_DIR  = build
+MPIF90     = mpi
+AMPIF90    = /home/kevlahan/charm/bin/mpif90.ampi
+F90        = gfortran
+OPTIM      = -O2
+FLAGS      = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
+LIBS       = 
 
 PREFIX = .
 
@@ -28,28 +34,15 @@ ifeq ($(SYSTEM),Darwin)
   MACHINE = mac
 else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
-endif
+endif 
 
 ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
   # Need module load intel; module load intelmpi
   F90    = ifort	
-  MPIF90 = mpif90
-  OPTIM  = -O2
-  #FLAGS  =  $(OPTIM) -g -trace -profile=vtmc -module $(BUILD_DIR) -Isrc/ppr -cpp -diag-disable 8291	
-  FLAGS  =  $(OPTIM) -traceback -module $(BUILD_DIR) -Isrc/ppr -cpp -diag-disable 8291
-  LIBS   = 
-else # gfortran as default
-  F90    = gfortran
-  MPIF90 = mpif90
-  OPTIM  = -O2
-  FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
-  LIBS   = 
+  FLAGS  = $(OPTIM) -traceback -module $(BUILD_DIR) -Isrc/ppr -cpp -diag-disable 8291
 endif
 
 ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
-  F90    = gfortran
-  MPIF90 = mpif90
-  OPTIM  = -O2
   ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
     # need to do:
     # module load gcc openmpi fftw mkl
@@ -66,13 +59,15 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
   endif
 endif
 
-LIBMETIS = -lmetis
 ifeq ($(ARCH),ser)
   COMPILER = $(F90)
 else
-  COMPILER = $(MPIF90)
-  ifeq ($(ARCH),mpi-metis)
-    LIBS += $(LIBMETIS)
+  ifeq ($(MPIF90),mpi)
+    COMPILER = mpif90
+  else
+    F90      = $(AMPIF90)
+    COMPILER = $(AMPIF90)
+    FLAGS    = $(OPTIM) -J$(BUILD_DIR) -cpp -pieglobals 
   endif
 endif
 LINKER = $(COMPILER)
@@ -82,7 +77,7 @@ $(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
 	$(LINKER) $(FLAGS) -o $@ $^ $(LIBS)
 
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
-	$(COMPILER) -c $< -o $@ $(FLAGS) 
+	$(COMPILER) $(FLAGS) -c $< -o $@ 
 
 clean:
-	rm -f $(BUILD_DIR)/*
+	\rm -f $(BUILD_DIR)/*
