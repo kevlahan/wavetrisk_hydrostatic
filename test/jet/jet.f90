@@ -1,15 +1,12 @@
-#ifdef AMPI
-subroutine MPI_main
-#else
 program jet
-#endif
   ! Baroclinic jet test case based on the beta plane configuration in Soufflet et al (Ocean Modelling 98, 36-50, 2016)
   use main_mod
   use test_case_mod
   use io_mod
   implicit none
+  integer :: ierr
   logical :: aligned
-  
+
   ! Initialize mpi, shared variables and domainss
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -151,12 +148,19 @@ program jet
   ! Save initial conditions
   call print_test_case_parameters
   call write_and_export (iwrite)
+  
+#ifdef AMPI
+  if (modulo (istep, 2) == 0) then
+     if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary"
+     call MPI_Barrier (MPI_COMM_WORLD, ierror)
+     call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierr)
+  end if
+#endif
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
-  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0d0
   do while (time < time_end)
      call start_timing
@@ -190,24 +194,19 @@ program jet
         call write_and_export (iwrite)
      end if
 
-!#ifdef AMPI
-!      if (modulo (istep, 5) == 0) then
-        !if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary"
-        !call AMPI_Migrate (AMPI_INFO_LB_SYNC)
-!      end if
-!#endif
+#ifdef AMPI
+      if (modulo (istep, 2) == 0) then
+        if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary"
+        call MPI_Barrier (MPI_COMM_WORLD, ierror)
+        call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierr)
+      end if
+#endif
   end do
-
   if (rank == 0) then
-     close (12)
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
   end if
   call finalize
-  
-#ifdef AMPI
-end subroutine MPI_main
-#else
 end program jet
-#endif
+
 
 

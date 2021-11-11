@@ -189,23 +189,8 @@ contains
     real(8)            :: lat, lon, press_save
     character(255)     :: filename, varname
 
-#ifdef AMPI
-    integer                                           :: i, argc, ierr
-    integer, parameter                                :: arg_len = 128
-    character(len=arg_len), dimension(:), allocatable :: raw_arguments
-
-    call AMPI_command_argument_count (argc)
-    allocate (raw_arguments(argc))
-    do i = 1, size(raw_arguments)
-       call AMPI_Get_command_argument (i, raw_arguments(i), arg_len, ierr)
-    end do
-
-    if (size(raw_arguments) >= 1) then
-       filename = raw_arguments(1)
-#else
     if (command_argument_count() >= 1) then
        CALL getarg (1, filename)
-#endif
     else
        filename = 'test_case.in'
     end if
@@ -231,19 +216,19 @@ contains
     end if
     call MPI_Bcast (test_case, 255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (run_id,    255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
-    call MPI_Bcast (max_level,   1, MPI_INT,              0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (zlevels,     1, MPI_INT,              0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (max_level,   1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (zlevels,     1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (no_slip,     1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (remap,       1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (iremap,      1, MPI_INT,              0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (iremap,      1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (log_iter,    1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (tol,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (cfl_num,     1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (dt_write,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (CP_EVERY,    1, MPI_INT,              0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (CP_EVERY,    1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (time_end,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (resume_init, 1, MPI_INT,              0, MPI_COMM_WORLD, ierror)
-    
+    call MPI_Bcast (resume_init, 1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)    
+
     press_save = 0d0
     allocate (pressure_save(1))
     pressure_save(1) = press_save
@@ -256,6 +241,7 @@ contains
     implicit none
 
     call set_save_level
+
     call cal_r_max
 
     if (rank==0) then
@@ -357,6 +343,7 @@ contains
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
     if (rank == 0) then
+       open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
        if (log_mass) then
           write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
                'time [d] = ', time/DAY, &
@@ -389,6 +376,7 @@ contains
           write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  time/DAY, dt, &
                threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
                level_end, sum (n_active), rel_imbalance, timing
+          close (12)
        end if
     end if
   end subroutine print_log
@@ -409,7 +397,7 @@ contains
        call apply_onescale (init_mean,    l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        call apply_onescale (init_scalars, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
-
+    
     ! Initial velocity is given by thermal wind geostrophic balance with density
     do k = 1, zlevels
        call thermal_wind (k)
@@ -425,7 +413,7 @@ contains
     ! results are stored in u_zonal, v_merid
     implicit none
     integer :: k
-
+    
     integer :: d, j, l
 
     do l = level_end, level_start, -1
@@ -460,13 +448,13 @@ contains
 
     integer                    :: d, id, idE, idN, idNE
     real(8), dimension(1:EDGE) :: f
-
+    
     d = dom%id + 1
     id = idx (i, j, offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
-
+    
     f = f_coriolis_edge (dom, i, j, zlev, offs, dims)
     if (zlev > 1) then
        sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = &
@@ -488,7 +476,7 @@ contains
       dz = dz_e (dom, i, j, k, offs, dims)
 
       rho_0 = porous_density_edge (d, id+1, k)
-
+      
       rho(0)    = rho_i (i,   j,   k)
       rho(RT+1) = rho_i (i+1, j,   k)
       rho(DG+1) = rho_i (i+1, j+1, k)
@@ -586,7 +574,7 @@ contains
 
     eta = init_free_surface (dom%node%elts(id_i))
     z_s = dom%topo%elts(id_i)
-
+    
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -612,7 +600,7 @@ contains
        sol(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0d0
     end if
   end subroutine init_scalars
-
+  
   subroutine init_velo (dom, i, j, zlev, offs, dims, vel_fun)
     ! Sets the velocities on the computational grid from zonal and meridional velocities dom%u_zonal and dom%v_merid
     ! (also sets sol_mean to be used in nudging)
@@ -631,7 +619,7 @@ contains
     call interp_node_edge (dom, i, j, z_null, offs, dims, sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   end subroutine init_velo
 
-  subroutine init_mean (dom, i, j, zlev, offs, dims)
+   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values for an entire vertical column
     implicit none
     type (Domain)                   :: dom
@@ -650,7 +638,7 @@ contains
 
     eta = 0d0
     z_s = dom%topo%elts(id_i)
-
+    
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -672,7 +660,7 @@ contains
        sol_mean(S_VELO,zlevels+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end if
   end subroutine init_mean
-
+  
   subroutine initialize_a_b_vert_case
     ! Initialize hybrid sigma-coordinate vertical grid 
     ! (a_vert, b_vert not used if sigma_z = .true.)
@@ -680,7 +668,7 @@ contains
     integer               :: k
     real(8)               :: z
     real(8), dimension(6) :: p
-
+    
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
@@ -738,7 +726,7 @@ contains
 
     init_free_surface = 0d0
   end function init_free_surface
-
+  
   real(8) function buoyancy_init (lat, z)
     ! Initial buoyancy at depth z at latitude lat (in degrees)
     ! buoyancy = (ref_density - density)/ref_density
@@ -747,7 +735,7 @@ contains
 
     buoyancy_init = (ref_density - density_init (lat, z)) / ref_density
   end function buoyancy_init
-
+  
   real(8) function density_init (lat, z)
     implicit none
     real(8) :: lat, z
@@ -812,10 +800,10 @@ contains
     real(8), dimension(0:zlevels) :: z
 
     lat = lat_c ! latitude to evaluate buoyancy
-
+    
     eta = 0d0
     z_s = max_depth
-
+    
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -829,7 +817,7 @@ contains
        write (6, '(2x, i2, 4x, 2(es9.2, 1x), es11.5)') &
             k, z_k, dz(k), ref_density * (1d0 - buoyancy_init (lat, z_k))
     end do
-
+    
     write (6,'(/,a)') " Interface     z"
     do k = 0, zlevels
        write (6, '(3x, i3, 5x, es9.2)') k, z(k)
@@ -841,15 +829,15 @@ contains
        z_above = interp (z(k),   z(k+1))
        z_k     = interp (z(k-1), z(k))
        dz_l    = z_above - z_k
-
+       
        rho_above = ref_density * (1d0 - buoyancy_init (lat, z_above))
        rho  = ref_density * (1d0 - buoyancy_init (lat, z_k))
        drho = rho_above - rho
-
+       
        bv = sqrt(- grav_accel * drho/dz_l/rho)
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
-
+       
        write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c_k*dt_init/dx_min
     end do
     write (6,'(/,a,es8.2)') "Maximum internal wave speed [m/s] = ", c1
@@ -873,14 +861,14 @@ contains
     else
        call cal_lnorm_sol (sol, order)
        threshold_new = tol * lnorm
-
+       
        ! Correct very small values
        do k = 1, zmax
           if (threshold_new(S_MASS,k) < threshold_def(S_MASS,k)/10) threshold_new(S_MASS,k) = threshold_def(S_MASS,k)
           if (threshold_new(S_TEMP,k) < threshold_def(S_TEMP,k)/10) threshold_new(S_TEMP,k) = threshold_def(S_TEMP,k)
           if (threshold_new(S_VELO,k) < threshold_def(S_VELO,k)/10) threshold_new(S_VELO,k) = threshold_def(S_VELO,k)
        end do
-
+       
        if (istep >= 10) then
           threshold = 0.01*threshold_new + 0.99*threshold
        else
@@ -910,7 +898,7 @@ contains
        z = eta * a_vert + z_s * b_vert
     end if
     dz = z(1:zlevels) - z(0:zlevels-1)
-
+    
     do k = 1, zlevels
        lnorm(S_MASS,k) = ref_density * dz(k)
        lnorm(S_TEMP,k) = drho * dz(k)
@@ -942,7 +930,7 @@ contains
     C_divu = C
     C_mu   = 0d0
     C_b    = 0d0
-
+    
     ! Diffusion time scales
     tau_mu   = dt_cfl / C_mu
     tau_b    = dt_cfl / C_b
@@ -971,7 +959,7 @@ contains
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
-
+    
     ! Penalization parameterss
     dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
 
@@ -1034,14 +1022,14 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
     d = dom%id + 1
-
+    
     p = dom%node%elts(id_i)
     l = dom%level%elts(id_i)
 
 !!$    dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
     dx = dx_max
 !!$    dx = dx_min
-
+    
     select case (itype)
     case ("bathymetry")
 !!$       nsmth = 2 * (l - min_level)
@@ -1049,9 +1037,9 @@ contains
        dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = 0
-
+       
        penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, nsmth)
-
+      
        q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
        q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1)
        q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
@@ -1179,12 +1167,12 @@ contains
     real(8)                       :: cff, cff1, cff2, hc, z_0
     real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
     real(8), dimension(0:zlevels) :: Cs, sc
-
+    
     hc = min (abs(min_depth), abs(Tcline))
-
+    
     cff1 = 1.0_8 / sinh (theta_s)
     cff2 = 0.5d0 / tanh (0.50 * theta_s)
-
+    
     sc(0) = -1.0_8
     Cs(0) = -1.0_8
     cff = 1d0 / dble(zlevels)
@@ -1205,34 +1193,27 @@ contains
   subroutine update_diagnostics
     ! Update diagnostics
     implicit none
-
+    
   end subroutine update_diagnostics
 
   subroutine init_diagnostics
     ! Initialize diagnostics
     implicit none 
-
+   
   end subroutine init_diagnostics
 
   subroutine deallocate_diagnostics
     implicit none
-
+    
   end subroutine deallocate_diagnostics
-
+  
   subroutine dump_case (fid)
     implicit none
     integer :: fid
-    integer :: r
 
-    do r = 1, n_process
-       if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
-          call MPI_Barrier (MPI_Comm_World, ierror)
-          cycle 
-       end if
-       write (fid) itime
-       write (fid) iwrite
-       write (fid) threshold
-    end do
+    write (fid) itime
+    write (fid) iwrite
+    write (fid) threshold
   end subroutine dump_case
 
   subroutine load_case (fid)
@@ -1272,7 +1253,7 @@ contains
     real(8) :: dz0, dz_e, r_loc
 
     id   = idx (i,   j,   offs, dims)
-
+    
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
@@ -1280,13 +1261,13 @@ contains
     idW  = idx (i-1, j,   offs, dims)
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
-
+    
     d    = dom%id + 1
-
+    
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        dz0  = (sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)) &
             / porous_density (d, id+1, zlev)
-
+       
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)) &
             / porous_density (d, idE+1, zlev)
        r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
@@ -1301,7 +1282,7 @@ contains
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
-
+  
   real(8) function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims)
     ! Bottom boundary flux boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
@@ -1356,15 +1337,15 @@ contains
        wind_flux_case = 0d0
     end if
   end function wind_flux_case
-
+  
   subroutine zonal_mean (avg, y2_avg)
     ! Computes zonal means of all prognostic variables and cubic spline interpolant
     ! (projects coarsest resolution onto lat-lon plane)
     implicit none
     real(8), dimension(Ny(1):Ny(2),1:zlevels,1:4) :: avg, y2_avg
-
+    
     integer :: d, j, k, l
-
+    
     l = min_level ! coarsest level
 
     do k = 1, zlevels
@@ -1402,7 +1383,7 @@ contains
        call project_array_onto_plane ("u_zonal", l, 0d0)
        avg(:,k,3) = sum (field2d, 1) / size (field2d, 1)
        call spline (lat, avg(:,k,3), Nproj/2, 1d35, 1d35, y2_avg(:,k,3))
-
+       
        call project_array_onto_plane ("v_merid", l, 0d0)
        avg(:,k,4) = sum (field2d, 1) / size (field2d, 1)
        call spline (lat, avg(:,k,4), Nproj/2, 1d35, 1d35, y2_avg(:,k,4))
@@ -1414,7 +1395,7 @@ contains
     implicit none
     real(8), dimension(Ny(1):Ny(2)) :: var, y2
     character(*)                    :: filename
-
+    
     integer :: i, N_interp 
     real(8) :: lat_interp, var_interp
 
@@ -1524,7 +1505,7 @@ contains
     integer     :: k
     type(Coord) :: ep1, ep2
     external    :: vel_fun
-
+    
     type(Coord) :: co, e_zonal, e_merid, vel
     real(8)     :: lon, lat, u_zonal, v_merid
 

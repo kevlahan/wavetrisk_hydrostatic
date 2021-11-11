@@ -67,7 +67,7 @@ else
   else
     F90      = $(AMPIF90)
     COMPILER = $(AMPIF90)
-    FLAGS    = $(OPTIM) -J$(BUILD_DIR) -cpp -pieglobals 
+    FLAGS    = $(OPTIM) -J$(BUILD_DIR) -cpp -DAMPI -pieglobals 
   endif
 endif
 LINKER = $(COMPILER)
