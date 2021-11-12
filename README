@@ -32,8 +32,18 @@ Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suare
 **********************************************************************************************************************************
 COMPILING and RUNNING
 
-If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  With option mpi-lb the
-computational load is re-balanced each time a checkpoint is saved.
+If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  ARCH=ser compiles a serial
+version, primarily for testing. With option mpi-lb the computational load is re-balanced at each checkpoint using a simple
+next fit algorithm .
+
+If the code is compiled with MPIF90=ampi (instead of MPIF90=mpi) the load is checked and rebalanced if necessary every irebalance 
+time steps using charm++/AMPI. You need to first install the charm++/AMPI library (example for version 7.0 where pieglobals are
+not yet included by default):
+
+git clone https://github.com/UIUC-PPL/charm
+cd charm/
+git fetch  &&  git checkout pieglobals-testing  
+./build
 
 We have found that the code often runs significantly faster with mpirun than with srun when using the slurm scheduler.
  

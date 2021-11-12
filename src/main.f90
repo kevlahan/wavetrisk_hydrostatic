@@ -270,6 +270,15 @@ contains
     
     ! Set new time step and count active nodes
     if (modulo (istep, iadapt) == 0) dt_new = cpt_dt ()
+
+    ! Check load balance
+#ifdef AMPI
+    if (modulo (istep, irebalance) == 0) then
+       if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary using AMPI ..."
+       call MPI_Barrier (MPI_COMM_WORLD, ierror)
+       call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierror)
+    end if
+#endif
   end subroutine time_step
 
   subroutine restart (run_id)
@@ -277,7 +286,7 @@ contains
     implicit none
     character(*) :: run_id
 
-    integer        :: ierror, l    
+    integer        :: l    
     character(255) :: cmd_archive, cmd_files, command
 
     if (rank == 0) then
@@ -352,14 +361,20 @@ contains
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [d] = ', time/DAY, &
             '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
-             ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &
-             ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
+            ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &
+            ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
             ' Jmax = ', level_end, &
             '  dof = ', sum (n_active)
        write (6,'(A)') &
             '********************************************************** End Restart &
             ***********************************************************'
     end if
+
+#ifdef AMPI
+    if (rank == 0) write (6,'(/,a)') "Rebalancing using AMPI ..."
+    call MPI_Barrier (MPI_COMM_WORLD, ierror)
+    call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierror)
+#endif
   end subroutine restart
 
   subroutine write_checkpoint (run_id, rebal)

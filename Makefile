@@ -6,13 +6,27 @@ GEOM       = sphere
 ARRAYS     = dyn_array
 BUILD_DIR  = build
 MPIF90     = mpi
-AMPIF90    = /home/kevlahan/charm/bin/mpif90.ampi
+AMPIF90    = ~/charm/bin/mpif90.ampi
 F90        = gfortran
 OPTIM      = -O2
 FLAGS      = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all
 LIBS       = 
 
 PREFIX = .
+
+ifeq ($(ARCH),ser)
+  COMPILER = $(F90)
+else
+  ifeq ($(MPIF90),mpi)
+    COMPILER = mpif90
+  else
+    ARCH     = mpi
+    F90      = $(AMPIF90)
+    COMPILER = $(AMPIF90)
+    FLAGS    = $(OPTIM) -J$(BUILD_DIR) -cpp -DAMPI -pieglobals 
+  endif
+endif
+LINKER = $(COMPILER)
 
 # Remove files associated with previous test case
 $(shell \rm $(BUILD_DIR)/test_case_module.o $(BUILD_DIR)/test_case_mod.mod)
@@ -58,19 +72,6 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
     LIBS  += -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm -lblas -llapack
   endif
 endif
-
-ifeq ($(ARCH),ser)
-  COMPILER = $(F90)
-else
-  ifeq ($(MPIF90),mpi)
-    COMPILER = mpif90
-  else
-    F90      = $(AMPIF90)
-    COMPILER = $(AMPIF90)
-    FLAGS    = $(OPTIM) -J$(BUILD_DIR) -cpp -DAMPI -pieglobals 
-  endif
-endif
-LINKER = $(COMPILER)
 
 $(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
 	mkdir -p $(PREFIX)/bin

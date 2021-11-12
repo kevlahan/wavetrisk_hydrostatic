@@ -51,7 +51,8 @@ program jet
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
   remapvelo_type     = "PPR"                           ! optimal remapping scheme
-
+  irebalance         = 10                              ! rebalance interval using charm++/AMPI
+  
   ! Time stepping parameters
   timeint_type       = "RK3"                           ! time integration scheme
   adapt_dt           = .false.                         ! adapt time step
@@ -147,15 +148,7 @@ program jet
 
   ! Save initial conditions
   call print_test_case_parameters
-  call write_and_export (iwrite)
-  
-#ifdef AMPI
-  if (modulo (istep, 2) == 0) then
-     if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary"
-     call MPI_Barrier (MPI_COMM_WORLD, ierror)
-     call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierr)
-  end if
-#endif
+  call write_and_export (iwrite)  
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
@@ -193,14 +186,6 @@ program jet
         call vertical_velocity
         call write_and_export (iwrite)
      end if
-
-#ifdef AMPI
-      if (modulo (istep, 2) == 0) then
-        if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary"
-        call MPI_Barrier (MPI_COMM_WORLD, ierror)
-        call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierr)
-      end if
-#endif
   end do
   if (rank == 0) then
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
