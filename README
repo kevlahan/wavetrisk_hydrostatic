@@ -53,7 +53,15 @@ problems (i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin
 problems it is more efficient to choose a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores
 may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used.
 
-TO COMPILE (using the test case Held_Suarez as an example): mkdir build make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
+TO COMPILE (using the test case Held_Suarez as an example):
+
+mkdir build
+make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
+
+or to compile test case jet using charm++/AMPI:
+
+make build
+make TEST_CASE=jet PARAM=param_J6 MPIF90=ampi
 
 Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean
 build. Can also compile as serial (ARCH=ser) or without load balancing (ARCH=mpi).  The code has been tested for the gfortran and
@@ -61,15 +69,26 @@ ifort compilers and the openmpi and intelmpi mpi libraries.
 
 !! Always do "make clean" when compiling a new test case !!
 
-TO RUN (using test case Held_Suarez as an example): cd to-working_directory (move to working directory, mkdir if necessary) ln -s
+RUNNING
+(using test case Held_Suarez as an example): cd to-working_directory (move to working directory, mkdir if necessary) ln -s
 wavetrisk_hydrostatic/bin/Held_Suarez .  (provide symbolic link to executable) ln -s path-to-grid_HR .  (provide symbolic link to
 Heikes and Randall grids, if using) cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in . (copy parameters files and then edit
-as appropriate) mpirun -n 40 Held_Suarez > log & (run on 40 processors using mpi)
+as appropriate) g & (run on 40 processors using mpi)
+
 
 If running with bathymetry data (e.g. incompressible tsunami test case) need to provide a symbolic link to the ETOPO data:
 
 ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute etopo topography data)
 
+Examples:
+1. To run test case Held_Suarez with input file HS.in with mpirun on 40 cores
+
+mpirun -n 40 Held_Suarez HS.in
+
+2. To run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
+using "Refine load balancing" and outputting details of the load balancing:
+
+/charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 3 > log&
 
 **********************************************************************************************************************************
 POST-PROCESSING DATA USING PARAVIEW AND MATLAB
