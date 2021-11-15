@@ -88,7 +88,7 @@ mpirun -n 40 Held_Suarez HS.in
 2. To run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
 using "Refine load balancing" and outputting details of the load balancing:
 
-/charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 3 > log&
+/charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 > log&
 
 **********************************************************************************************************************************
 POST-PROCESSING DATA USING PARAVIEW AND MATLAB

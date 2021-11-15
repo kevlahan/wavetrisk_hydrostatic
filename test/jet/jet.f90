@@ -51,7 +51,7 @@ program jet
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
   remapvelo_type     = "PPR"                           ! optimal remapping scheme
-  irebalance         = 10                              ! rebalance interval using charm++/AMPI
+  irebalance         = 4                              ! rebalance interval using charm++/AMPI
   
   ! Time stepping parameters
   timeint_type       = "RK3"                           ! time integration scheme
