@@ -373,8 +373,9 @@ contains
 #ifdef AMPI
     if (rank == 0) write (6,'(/,a)') "Rebalancing using AMPI ..."
     call MPI_Barrier (MPI_COMM_WORLD, ierror)
-    call AMPI_Load_reset_measure (ierror)
     call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierror)
+
+    call AMPI_Load_reset_measure (ierror)
 #endif
   end subroutine restart
 
