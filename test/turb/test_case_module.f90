@@ -194,25 +194,41 @@ contains
     else
        filename = 'test_case.in'
     end if
-    if (rank == 0) write (6,'(A,A)') "Input file = ", trim (filename)
+    if (rank == 0) then
+       write (6,'(A,A)') "Input file = ", trim (filename)
 
-    open(unit=fid, file=filename, action='READ')
-    read (fid,*) varname, test_case
-    read (fid,*) varname, run_id
-    read (fid,*) varname, max_level
-    read (fid,*) varname, zlevels
-    read (fid,*) varname, no_slip
-    read (fid,*) varname, remap
-    read (fid,*) varname, iremap
-    read (fid,*) varname, log_iter
-    read (fid,*) varname, tol
-    read (fid,*) varname, cfl_num
-    read (fid,*) varname, dt_write
-    read (fid,*) varname, CP_EVERY
-    read (fid,*) varname, time_end
-    read (fid,*) varname, resume_init
-    close(fid)
-
+       open(unit=fid, file=filename, action='READ')
+       read (fid,*) varname, test_case
+       read (fid,*) varname, run_id
+       read (fid,*) varname, max_level
+       read (fid,*) varname, zlevels
+       read (fid,*) varname, no_slip
+       read (fid,*) varname, remap
+       read (fid,*) varname, iremap
+       read (fid,*) varname, log_iter
+       read (fid,*) varname, tol
+       read (fid,*) varname, cfl_num
+       read (fid,*) varname, dt_write
+       read (fid,*) varname, CP_EVERY
+       read (fid,*) varname, time_end
+       read (fid,*) varname, resume_init
+       close(fid)
+    end if
+    call MPI_Bcast (test_case, 255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (run_id,    255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
+    call MPI_Bcast (max_level,   1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (zlevels,     1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (no_slip,     1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (remap,       1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (iremap,      1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (log_iter,    1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (tol,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (cfl_num,     1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (dt_write,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (CP_EVERY,    1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (time_end,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (resume_init, 1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    
     press_save = 0d0
     allocate (pressure_save(1))
     pressure_save(1) = press_save
