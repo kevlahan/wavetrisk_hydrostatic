@@ -1,5 +1,5 @@
 **********************************************************************************************************************************
-A brief user's guide for WAVETRISK 2.1 2021-10-28
+A brief user's guide for WAVETRISK 2.2 2021-10-28
 N Kevlahan
 Department of Mathematics and Statistics
 McMaster University
@@ -11,8 +11,10 @@ water equations in Boussinesq form using a mimetic method.  Both compressible (a
 available. 
 
 **********************************************************************************************************************************
-Major changes compared to WAVETRISK 1.x
+Major changes compared to WAVETRISK 2.1
+1. Addition of dynamic load balancing using charm++/AMPI.
 
+Major changes compared to WAVETRISK 1.x
 1. Addition of spherical harmonics test case and associated matlab m-file for computing energy spectra.
 2. Additional ocean modelling test cases.
 3. Addition of vertical diffusion for ocean modelling using a TKE closure similar to that used in NEMO.
@@ -36,24 +38,35 @@ If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in pa
 version, primarily for testing. With option mpi-lb the computational load is re-balanced at each checkpoint using a simple
 next fit algorithm .
 
+LOAD BALANCING
 If the code is compiled with MPIF90=ampi (instead of MPIF90=mpi) the load is checked and rebalanced if necessary every irebalance 
 time steps using charm++/AMPI. You need to first install the charm++/AMPI library (example for version 7.0 where pieglobals are
-not yet included by default):
+not yet included by default). The following gives an interactive build (you should choose gcc and gfortran compilers):
 
 git clone https://github.com/UIUC-PPL/charm
 cd charm/
 git fetch  &&  git checkout pieglobals-testing  
 ./build
 
-We have found that the code often runs significantly faster with mpirun than with srun when using the slurm scheduler.
- 
+We have found that the following works to build AMPI with intel compilers (using the Compute Canada machine niagara as an
+example):
+
+module load NiaEnv/.2021a
+module load cmake
+module load intel
+module load ucx
+
+CMK_NATIVE_CXX=icpc CMK_NATIVE_LDXX=icpc ./build AMPI ucx-linux-x86_64 icc ifort --with-production  -c++ icpc
+
+COMPILING 
 The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10*4**DOMAIN_LEVEL.
 Since DOMAIN_LEVEL = Jmin - (PATCH_LEVEL+1) larger Jmin or smaller PATCH_LEVEL allows more cores to be used.  For inhomogeneous
 problems (i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin while for homogeneous (i.e. well-balanced)
 problems it is more efficient to choose a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores
 may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used.
 
-TO COMPILE (using the test case Held_Suarez as an example):
+TO COMPILE
+Using the test case Held_Suarez as an example:
 
 mkdir build
 make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
@@ -67,7 +80,7 @@ Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mp
 build. Can also compile as serial (ARCH=ser) or without load balancing (ARCH=mpi).  The code has been tested for the gfortran and
 ifort compilers and the openmpi and intelmpi mpi libraries.
 
-!! Always do "make clean" when compiling a new test case !!
+!! Always do "make clean" when compiling a new test case and when you have modified the main program (e.g. jet.f90)!!
 
 RUNNING
 (using test case Held_Suarez as an example): cd to-working_directory (move to working directory, mkdir if necessary) ln -s
@@ -75,6 +88,7 @@ wavetrisk_hydrostatic/bin/Held_Suarez .  (provide symbolic link to executable) l
 Heikes and Randall grids, if using) cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in . (copy parameters files and then edit
 as appropriate) g & (run on 40 processors using mpi)
 
+The code often runs significantly faster with mpirun than with srun when using the slurm scheduler.
 
 If running with bathymetry data (e.g. incompressible tsunami test case) need to provide a symbolic link to the ETOPO data:
 
@@ -89,6 +103,7 @@ mpirun -n 40 Held_Suarez HS.in
 using "Refine load balancing" and outputting details of the load balancing:
 
 /charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 > log&
+
 
 **********************************************************************************************************************************
 POST-PROCESSING DATA USING PARAVIEW AND MATLAB
@@ -131,7 +146,6 @@ An example matlab m-file spherical_harmonic_analysis.m is also provided for visu
 BASICS OF THE CODE
 
 PROGNOSTIC VARIABLES
-
 The variables are stored in a Float_Array (see below) sol, with components S_MASS, S_TEMP and S_VELO.  The code solves the
 hydrostatic Boussinesq equations in compressible (i.e. atmosphere) or incompressible (i.e. ocean) form.
 
@@ -146,13 +160,10 @@ S_VELO contains the three velocity components U, V, W at edges RT, DG and UP res
 
 
 HORIZONTAL COORDINATES
-
 Cartesian (x,y,z) coordinates are used with spherical geometry for lengths and areas on the sphere.  Since the equations are
 written in vector invariant form, there are no explicit metric terms.
 
-
 VERTICAL COORDINATES
-
 The zero level of the vertical coordinate is at mean sea level and vertical levels are always indexed starting at the lowest
 level.  The coordinate of the local topography is given by dom%topo%elts(id_i) (or by the test case function surf_geopot in the
 case of analytical topography), which is positive for orography and negative for bathymetry.  For incompressible (i.e. ocean)
@@ -164,15 +175,12 @@ The vertical coordinates are Lagrangian (i.e. they move as material surfaces) wi
 grid).  A collection of different conservative piecewise remapping routines are available.
 
 SOLID BOUNDARIES
-
 In ocean test cases solid lateral boundaries are modelled using Brinkman volume penalization (see Kevlahan, Dubos & Aechtner 2015,
 Geosci Model Dev 8).  The permeability parameter is fixed equal to dt and the porosity parameter alpha is set by the user
 (e.g. alpha = 0.01). The permeability friction term -1/eta u in the velocity equation is applied as a separate split step after the
 main time step, as in Rassmussen, Cottet & Walther (J Comput Phys 230, 2011).
 
-
 BAROTROPIC - BARCOCLINIC MODE SPLITTING
-
 Incompressible (i.e. ocean) simulations can be run with 2D barotropic - 3D baroclinic mode splitting to avoid the stability
 constraint of the fast external mode with speed c = sqrt(g H). Setting mode_split = .true. chooses mode splitting, which integrates
 the barotropic component implicitly in time on the slow geostrophic time scale. The computation is stable with
@@ -201,7 +209,6 @@ multigrid solver by reducing the size of of the coarsest grid where the elliptic
 
 
 VERTICAL DIFFUSION AND SURFACE FLUXES IN OCEAN MODEL (INCOMPRESSIBLE CASE)
-
 Eddy diffusion of buoyancy and eddy viscosity for velocity is implemented using a flux-based implicit time integration scheme in the module
 vert_diffusion_mod (option vert_diffuse = .true.).  Wind stress, bottom friction and buoyancy fluxes are included via flux (Neumann) boundary conditions.
 A solar radiation model (as in NEMO) is activated by setting a non-zero value for the solar radiation flux Q_sr .  Two options are available:
@@ -210,7 +217,6 @@ eddy-viscosity.
 
 
 GRID STRUCTURE
-
 The icosahedron is divided into a network of ten regular lozenge grids (with the exception of the POLES), each lozenge is then
 divided into N_SUB_DOM = 4**DOMAIN_LEVEL regular sub-domains with the number of sub-domains on each processor given by
 n_domain(rank+1).
@@ -228,14 +234,12 @@ element is made up of one node for scalars and three edges for vectors U, V,W (s
 
 
 2D PROJECTION ONTO A LONGITUDE-LATITUDE GRID
-
 The module projection_mod includes routines for projecting data from the sphere to a uniform longitude-latitude grid.  These can be used to
 save projections for post-processing, spherical harmonics, or for zonal averaging.  Note that these routines require a "full" (i.e. non-adaptive
 grid) which can be either min_lev, or computed using call fill_up_grid_and_IWT (level_save).
 
 
 BASIC GRID DATA TYPES
-
 Type(Coord_Array) has components elts(:)%length (where elts is Type(Coord) array of x%y%z coordinates on the sphere for each grid
 element and length is an integer giving the size of elts).
 
@@ -256,7 +260,6 @@ Various other dynamical data types and subroutines for allocating them are defin
 
 
 GRID ELEMENTS
-
 The triangular primal grid element (one hexagonal node H, three edges UP, DG, RT and two triangular nodes UPLT, LORT) is
 
              ------------ 
@@ -317,7 +320,6 @@ Note that within a patch similar notation is used for shifts in i and j (e.g. sh
 
 
 INDEXING OF GRID ELEMENTS AND NEIGHBOURS
-
 Quantities (e.g. mass, velocities) are all stored in a single array, whose elements are organized in patches.  Each patch has
 regular array coordinates (i,j).
 
@@ -339,12 +341,10 @@ The components of the grid elements are then found as:
 Wavelet coefficients are stored at the SAME nodes/edges as the nodes/edges they characterize.
 
 DATA OUTPUT
-
 Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual.  The full state of the simulation is saved in
 io.f90/dump_adapt_mpi and read in again by io.f90/load_adapt_mpi.
 
 CALCULATIONS ON ADAPTED GRID
-
 By default fields are calculated and operators are applied on the ENTIRE grid (including at nodes where the result can be obtained
 by restriction indicated by mask=12 and adjacent zone nodes indicated by mask=8) and the results are then over-written by correct
 values.  (Note that the solution in the adjacent zone at fine scale j+1 are found from values at coarse scale j so the values
