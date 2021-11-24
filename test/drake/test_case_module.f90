@@ -227,38 +227,65 @@ contains
     else
        filename = 'test_case.in'
     end if
-    if (rank == 0) write (6,'(A,A)') "Input file = ", trim (filename)
+    if (rank == 0) then
+       write (6,'(A,A)') "Input file = ", trim (filename)
+       open(unit=fid, file=filename, action='READ')
+       
+       read (fid,*) varname, test_case
+       read (fid,*) varname, run_id
+       read (fid,*) varname, scale
+       read (fid,*) varname, scale_omega
+       read (fid,*) varname, max_level
+       read (fid,*) varname, level_fill
+       read (fid,*) varname, zlevels
+       read (fid,*) varname, remap
+       read (fid,*) varname, iremap
+       read (fid,*) varname, tol_elliptic
+       read (fid,*) varname, coarse_iter
+       read (fid,*) varname, fine_iter
+       read (fid,*) varname, log_iter
+       read (fid,*) varname, default_thresholds
+       read (fid,*) varname, tol
+       read (fid,*) varname, cfl_num
+       read (fid,*) varname, adapt_dt
+       read (fid,*) varname, dt_write
+       read (fid,*) varname, CP_EVERY
+       read (fid,*) varname, time_end
+       read (fid,*) varname, resume_init
+       read (fid,*) varname, alpha
+       read (fid,*) varname, drag
+       read (fid,*) varname, npts_penal
+       read (fid,*) varname, resolution
+       close(fid)
+    end if
 
-    open(unit=fid, file=filename, action='READ')
-    read (fid,*) varname, test_case
-    read (fid,*) varname, run_id
-    read (fid,*) varname, scale
-    read (fid,*) varname, scale_omega
-    read (fid,*) varname, max_level
-    read (fid,*) varname, level_fill
-    read (fid,*) varname, zlevels
-    read (fid,*) varname, remap
-    read (fid,*) varname, iremap
-    read (fid,*) varname, tol_elliptic
-    read (fid,*) varname, coarse_iter
-    read (fid,*) varname, fine_iter
-    read (fid,*) varname, log_iter
-    read (fid,*) varname, default_thresholds
-    read (fid,*) varname, tol
-    read (fid,*) varname, cfl_num
-    read (fid,*) varname, adapt_dt
-    read (fid,*) varname, dt_write
-    read (fid,*) varname, CP_EVERY
-    read (fid,*) varname, time_end
-    read (fid,*) varname, resume_init
-    read (fid,*) varname, alpha
-    read (fid,*) varname, drag
-    read (fid,*) varname, npts_penal
-    read (fid,*) varname, resolution
-
-    close(fid)
-
-    press_save = 0.0_8
+    call MPI_Bcast (test_case,        255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (run_id,           255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
+    call MPI_Bcast (scale,              1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (scale_omega,        1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (max_level,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (level_fill,         1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (zlevels,            1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (remap,              1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (iremap,             1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (tol_elliptic,       1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (coarse_iter,        1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (fine_iter,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (log_iter,           1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (default_thresholds, 1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (tol,                1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (cfl_num,            1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (adapt_dt,           1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (dt_write,           1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (CP_EVERY,           1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (time_end,           1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (resume_init,        1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror) 
+    call MPI_Bcast (alpha,              1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (drag,               1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (npts_penal,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (resolution,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    
+    press_save = 0d0
     allocate (pressure_save(1))
     pressure_save(1) = press_save
     dt_write = dt_write * DAY
@@ -378,6 +405,7 @@ contains
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
     if (rank == 0) then
+       open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
@@ -394,6 +422,7 @@ contains
        write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
             threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
             level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
+       close (12)
     end if
   end subroutine print_log
 

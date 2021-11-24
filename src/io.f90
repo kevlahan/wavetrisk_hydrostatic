@@ -957,7 +957,7 @@ contains
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(255)                   :: filename_gr, filename_no
     logical, dimension(1:N_CHDRN)    :: required
-
+    
     call update_array_bdry (wav_coeff(scalars(1):scalars(2),1:zmax), NONE, 20)
     if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 20)
 
@@ -980,16 +980,25 @@ contains
        end if
     end do
 
+    do r = 1, n_process
+       if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
+          call MPI_Barrier (MPI_Comm_World, ierror)
+          cycle 
+       end if
+            
+       do d = 1, size(grid)
+          fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
+          fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
+
+          write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
+          write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
+
+          open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE', status='REPLACE')
+          open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE', status='REPLACE')
+       end do
+    end do
+
     do d = 1, size(grid)
-       fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
-       fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
-       
-       write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
-       write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
-
-       open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE', status='REPLACE')
-       open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE', status='REPLACE')
-
        write (fid_no(d)) istep
        write (fid_no(d)) time
        call dump (fid_no(d))
@@ -997,7 +1006,7 @@ contains
        ! Write data at coarsest scale (scaling functions)
        p_par = 1
        call apply_to_pole_d (write_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
-       
+
        do k = 1, zmax
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
@@ -1077,23 +1086,30 @@ contains
     integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     logical, dimension(1:N_CHDRN)    :: required
+    
+    do r = 1, n_process
+       if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
+          call MPI_Barrier (MPI_Comm_World, ierror)
+          cycle 
+       end if
+       do d = 1, size(grid)
+          fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
+          fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
 
+          write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
+          write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
 
+          open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ', status='OLD')
+          open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
+       end do
+    end do
+    
     ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
-       fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
-       fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
-
-       write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
-       write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
-
-       open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ', status='OLD')
-       open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
-       
        read (fid_no(d)) istep
        read (fid_no(d)) time
        call load (fid_no(d))
-              
+
        p_par = 1
        call apply_to_pole_d (read_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
 

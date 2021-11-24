@@ -10,7 +10,6 @@ program Drake
   use io_mod  
   implicit none
   integer :: l
-  real(8) :: total_eta
   logical :: aligned
 
   ! Initialize mpi, shared variables and domains
@@ -20,55 +19,55 @@ program Drake
   ! Read test case parameters
   call read_test_case_parameters
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
-  radius_earth   = 6371.229                * KM
-  omega_earth    = 7.29211d-5              * RAD/SECOND
-  grav_accel     = 9.80616                 * METRE/SECOND**2 ! gravitational acceleration 
-  p_top          = 0.0_8                   * hPa             ! pressure at free surface
-  ref_density    = 1028                    * KG/METRE**3     ! reference density at depth (seawater)
+  radius_earth   = 6371.229d0                * KM
+  omega_earth    = 7.29211d-5                * RAD/SECOND
+  grav_accel     = 9.80616d0                 * METRE/SECOND**2 ! gravitational acceleration 
+  p_top          = 0d0                       * hPa             ! pressure at free surface
+  ref_density    = 1028d0                    * KG/METRE**3     ! reference density at depth (seawater)
 
-  radius         = radius_earth/scale                        ! mean radius of the small planet
-  omega          = omega_earth/scale_omega                   ! angular velocity (scaled for small planet to keep beta constant)
+  radius         = radius_earth/scale                          ! mean radius of the small planet
+  omega          = omega_earth/scale_omega                     ! angular velocity (scaled for small planet to keep beta constant)
 
   ! Numerical method parameters
-  nstep_init         =  5                             ! take some small time steps on restart
   match_time         = .false.                        ! avoid very small time steps when saving 
   mode_split         = .true.                         ! split barotropic mode if true
   timeint_type       = "RK3"                          
-
+  rebalance          = .true.
   penalize           = .true.                         ! penalize land regions
   compressible       = .false.                        ! always run with incompressible equations
   remapscalar_type   = "PPR"                          ! optimal remapping scheme
   remapvelo_type     = "PPR"                          ! optimal remapping scheme
   Laplace_order_init = 1                              
   Laplace_order      = Laplace_order_init
+  nstep_init         = 5                               ! take 5 small steps on restart
 
   ! Depth and layer parameters
-  etopo_res      = 4                                  ! resolution of etopo data in arcminutes (if used) 
-  etopo_coast    = .false.                            ! use etopo data for coastlines (i.e. penalization)
-  min_depth      =   -50 * METRE                      ! minimum allowed depth (must be negative)
-  if (zlevels == 1) then                              ! maximum allowed depth (must be negative)
-     max_depth   = -4000 * METRE                      ! total depth
-     halocline   = -4000 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer = -4000 * METRE                      ! location of layer forced by surface wind stress
-     drho        =     0 * KG/METRE**3                ! density perturbation at free surface 
-     tau_0       =   0.8 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =   1.5 * METRE/SECOND               ! estimated western boundary current speed
+  etopo_res      = 4                                    ! resolution of etopo data in arcminutes (if used) 
+  etopo_coast    = .false.                              ! use etopo data for coastlines (i.e. penalization)
+  min_depth      =   -50d0 * METRE                      ! minimum allowed depth (must be negative)
+  if (zlevels == 1) then                                ! maximum allowed depth (must be negative)
+     max_depth   = -4000d0 * METRE                      ! total depth
+     halocline   = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer = -4000d0 * METRE                      ! location of layer forced by surface wind stress
+     drho        =     0d0 * KG/METRE**3                ! density perturbation at free surface 
+     tau_0       =   0.8d0 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels == 2) then
-     max_depth   = -4000 * METRE                      ! total depth
-     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =   1.7 * METRE/SECOND               ! estimated western boundary current speed
+     max_depth   = -4000d0 * METRE                      ! total depth
+     halocline   = -1000d0 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer = -1000d0 * METRE                      ! location of layer forced by surface wind stress
+     drho        =    -8d0 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc       =   1.7d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     max_depth   = -4000 * METRE                      ! total depth
-     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer =  -100 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (linear stratification from free surface to halocline)
-     tau_0       =   0.4 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =   1.7 * METRE/SECOND               ! estimated western boundary current speed
+     max_depth   = -4000d0 * METRE                      ! total depth
+     halocline   = -1000d0 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer =  -100d0 * METRE                      ! location of layer forced by surface wind stress
+     drho        =    -8d0 * KG/METRE**3                ! density perturbation at free surface (linear stratification from free surface to halocline)
+     tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc       =   1.7d0 * METRE/SECOND               ! estimated western boundary current speed
   end if
 
   ! Vertical level to save
@@ -76,21 +75,21 @@ program Drake
 
   ! Characteristic scales
   wave_speed     = sqrt (grav_accel*abs(max_depth))        ! inertia-gravity wave speed 
-  f0             = 2*omega*sin(45*DEG)                     ! representative Coriolis parameter
-  beta           = 2*omega*cos(45*DEG) / radius            ! beta parameter at 30 degrees latitude
+  f0             = 2d0*omega*sin(45*DEG)                     ! representative Coriolis parameter
+  beta           = 2d0*omega*cos(45*DEG) / radius            ! beta parameter at 30 degrees latitude
   Rd             = wave_speed / f0                         ! barotropic Rossby radius of deformation                   
   drho_dz        = drho / halocline                        ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
 
   if (zlevels == 2) then
-     c1 = sqrt (grav_accel*abs(drho)/2/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
+     c1 = sqrt (grav_accel*abs(drho)/2d0/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
   elseif (zlevels >= 3) then
      c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   endif
 
   ! First baroclinic Rossby radius of deformation
   if (zlevels == 1) then
-     Rb = 0.0_8
+     Rb = 0d0
   elseif (zlevels == 2) then
      Rb = c1 / f0                                 
   else
@@ -101,23 +100,22 @@ program Drake
   if (drag) then
      bottom_friction_case = 4d-4 / abs(max_depth) ! nemo value
   else
-     bottom_friction_case = 0 / SECOND
+     bottom_friction_case = 0d0 / SECOND
   end if
 
   ! Internal wave friction 
-  if (drho == 0.0_8 .or. remap) then
-     wave_friction = 0.0_8
+  if (drho == 0d0 .or. remap) then
+     wave_friction = 0d0
   else
-     wave_friction = u_wbc / Rb / 3                   ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
-!!$     wave_friction = 1.0_8 / (200 * HOUR)                 ! fixed
+     wave_friction = u_wbc / Rb / 3d0                   ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
+!!$     wave_friction = 1.0_8 / (200d0 * HOUR)                 ! fixed
   end if
 
   ! Relaxation of buoyancy to mean profile 
   if (remap) then
-!!$     k_T = 1.0_8 / (30 * DAY)               
-     k_T = 1.0_8 / (30 * DAY)               
+     k_T = 1d0 / (30d0 * DAY)               
   else
-     k_T = 0.0_8
+     k_T = 0d0
   end if
 
   delta_I        = sqrt (u_wbc/beta)                  ! inertial layer
@@ -137,10 +135,8 @@ program Drake
   call initialize (run_id)
 
   ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
-  iadapt = CFL_adv * nint ((dx_min/Udim) / dt_init)
-
-  ! Initialize diagnostic variables
-  call init_diagnostics
+  iadapt    = CFL_adv * nint ((dx_min/Udim) / dt_init)
+  irebalance = iadapt ! rebalance interval using charm++/AMPI
 
   ! Save initial conditions
   call print_test_case_parameters
@@ -150,15 +146,12 @@ program Drake
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
-  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  total_cpu_time = 0.0_8
+  total_cpu_time = 0d0
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned)
      if (k_T /= 0.0_8) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
-
-     call update_diagnostics
 
      call print_log
 
@@ -167,21 +160,14 @@ program Drake
         if (remap) call remap_vertical_coordinates
 
         ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) then
-           call deallocate_diagnostics
-           call write_checkpoint (run_id, rebalance)
-           call init_diagnostics !! resets diagnostics !!
-        end if
+        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
 
         ! Save fields
         call write_and_export (iwrite)
      end if
   end do
 
-  if (rank == 0) then
-     close (12)
-     write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
-  end if
+  if (rank == 0)  write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
   call finalize
 end program Drake
 
