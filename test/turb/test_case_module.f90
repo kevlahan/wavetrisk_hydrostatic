@@ -182,6 +182,7 @@ contains
   end function physics_velo_source_case
 
   subroutine read_test_case_parameters
+    use mpi
     implicit none
     integer            :: ilat, ilon, k
     integer, parameter :: fid = 500

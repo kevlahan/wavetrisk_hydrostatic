@@ -6,6 +6,7 @@ GEOM      = sphere
 ARRAYS    = dyn_array
 BUILD_DIR = build
 MPIF90    = mpi
+F90       = gfortran
 AMPIF90   = ~/charm/bin/mpif90.ampi
 OPTIM     = -O2
 LIBS      = 
@@ -29,8 +30,6 @@ endif
 ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
 # Need: module load NiaEnv/.2021a cmake intel intelmpi ucx
   F90 = ifort
-else
-  F90 = gfortran
 endif
 
 ifeq ($(F90),ifort)
@@ -43,7 +42,8 @@ ifeq ($(F90),ifort)
   endif
 else
 # Could add -fbacktrace -fcheck=all for testing
-  FLAGS_COMP = $(OPTIM) -c -J$(BUILD_DIR) -cpp
+# Use -fallow-argument-mismatch to deal with mpi argument mismatch bug in gcc 10.1
+  FLAGS_COMP = $(OPTIM) -c -J$(BUILD_DIR) -cpp 
   FLAGS_LINK = $(OPTIM) -J$(BUILD_DIR)
 endif
 
