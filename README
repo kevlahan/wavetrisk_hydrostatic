@@ -51,10 +51,7 @@ git fetch  &&  git checkout pieglobals-testing
 We have found that the following works to build AMPI with intel compilers (using the Compute Canada machine niagara as an
 example):
 
-module load NiaEnv/.2021a
-module load cmake
-module load intel
-module load ucx
+module load NiaEnv/.2021a cmake intel intelmpi ucx
 
 CMK_NATIVE_CXX=icpc CMK_NATIVE_LDXX=icpc ./build AMPI ucx-linux-x86_64 icc ifort --with-production  -c++ icpc
 
