@@ -13,10 +13,11 @@ LIBS      =
 PREFIX    = .
 
 # Remove files associated with previous test case
-$(shell \rm $(BUILD_DIR)/test_case_module.o $(BUILD_DIR)/test_case_mod.mod test_case_mod.mod)
+$(shell \rm $(BUILD_DIR)/test_case_module.o $(BUILD_DIR)/test_case_mod.mod test_case_mod.mod src/test_case_module.f90 src/test.f90)
 
 # Link to test case module file	
-$(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src/.)
+$(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src)
+$(shell ln -nsf ../test/$(TEST_CASE)/$(TEST_CASE).f90 src/test.f90)
 
 vpath %.f90 src
 
@@ -50,7 +51,7 @@ endif
 SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
 base_$(ARCH).f90 dgesv.f90 dgtsv.f90 spline.f90 domain.f90 init.f90 utils.f90 comm.f90 comm_$(ARCH).f90  projection.f90 equation_of_state.f90 \
 wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 ops.f90 multi_level.f90 adapt.f90 lin_solve.f90  \
-barotropic_2d.f90 time_integr.f90 vert_diffusion.f90 lateral_diffusion.f90 io.f90 remap.f90 main.f90 test_case_module.f90
+barotropic_2d.f90 time_integr.f90 vert_diffusion.f90 lateral_diffusion.f90 io.f90 remap.f90 main.f90 test_case_module.f90 test.f90 
 
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
@@ -86,7 +87,7 @@ else
 endif
 LINKER = $(COMPILER)
 
-$(PREFIX)/bin/$(TEST_CASE): $(OBJ) test/$(TEST_CASE)/$(TEST_CASE).f90
+$(PREFIX)/bin/$(TEST_CASE): $(OBJ) 
 	mkdir -p $(PREFIX)/bin
 	$(LINKER) $(FLAGS_LINK) -o $@ $^ $(LIBS) 
 
@@ -94,4 +95,4 @@ $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 	$(COMPILER) $(FLAGS_COMP) $< -o $@ 
 
 clean:
-	\rm -f $(BUILD_DIR)/* *.mod
+	\rm -f $(BUILD_DIR)/* *.mod src/test_case_module.f90 src/test.f90
