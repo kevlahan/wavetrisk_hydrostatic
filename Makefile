@@ -55,7 +55,7 @@ ifeq ($(F90),ifort)
   endif
 else
 # Use -fallow-argument-mismatch to deal with mpi argument mismatch bug in gcc 10.1
-  FLAGS_COMP = -O$(OPTIM) $(DEBUG) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch
+  FLAGS_COMP = -O$(OPTIM) $(DEBUG) -c -J$(BUILD_DIR) -cpp #-fallow-argument-mismatch
   FLAGS_LINK = -O$(OPTIM) -J$(BUILD_DIR)
 endif
 
