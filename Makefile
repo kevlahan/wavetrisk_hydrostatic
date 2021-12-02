@@ -7,9 +7,9 @@ ARRAYS    = dyn_array
 BUILD_DIR = build
 MPIF90    = mpi
 F90       = gfortran
+OPTIM     = 2
 DEBUG     = 
 AMPIF90   = ~/charm/bin/mpif90.ampi
-OPTIM     = 2
 LIBS      = 
 PREFIX    = .
 
@@ -19,6 +19,10 @@ $(shell \rm $(BUILD_DIR)/test_case_module.o $(BUILD_DIR)/test_case_mod.mod test_
 # Link to test case module file	
 $(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src)
 $(shell ln -nsf ../test/$(TEST_CASE)/$(TEST_CASE).f90 src/test.f90)
+
+# Make directories
+$(shell mkdir -p $(PREFIX)/$(BUILD_DIR))
+$(shell mkdir -p $(PREFIX)/bin)
 
 vpath %.f90 src
 
@@ -50,7 +54,6 @@ ifeq ($(F90),ifort)
     FLAGS_LINK += -module $(BUILD_DIR)
   endif
 else
-# Could add -fbacktrace -fcheck=all for testing
 # Use -fallow-argument-mismatch to deal with mpi argument mismatch bug in gcc 10.1
   FLAGS_COMP = -O$(OPTIM) $(DEBUG) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch
   FLAGS_LINK = -O$(OPTIM) -J$(BUILD_DIR)
@@ -96,7 +99,6 @@ endif
 LINKER = $(COMPILER)
 
 $(PREFIX)/bin/$(TEST_CASE): $(OBJ) 
-	mkdir -p $(PREFIX)/bin
 	$(LINKER) $(FLAGS_LINK) -o $@ $^ $(LIBS) 
 
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
