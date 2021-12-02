@@ -7,8 +7,9 @@ ARRAYS    = dyn_array
 BUILD_DIR = build
 MPIF90    = mpi
 F90       = gfortran
+DEBUG     = 
 AMPIF90   = ~/charm/bin/mpif90.ampi
-OPTIM     = -O2
+OPTIM     = 2
 LIBS      = 
 PREFIX    = .
 
@@ -26,17 +27,24 @@ ifeq ($(SYSTEM),Darwin)
   MACHINE = mac
 else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
-endif 
+endif
 
 ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
 # Need: module load NiaEnv/.2021a cmake intel intelmpi ucx
   F90 = ifort
 endif
 
+ifeq ($(OPTIM),0)
+  ifeq ($(F90),ifort)
+    DEBUG = -g -traceback 
+  else
+    DEBUG = -g -fbacktrace -fcheck=all
+  endif
+endif
+
 ifeq ($(F90),ifort)
-# Could add -traceback for testing
-  FLAGS_COMP = $(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
-  FLAGS_LINK = $(OPTIM)
+  FLAGS_COMP = -O$(OPTIM) $(DEBUG) -c -Isrc/ppr -cpp -diag-disable 8291
+  FLAGS_LINK = -O$(OPTIM)
   ifeq ($(MPIF90),mpi) # problem with -module when using AMPI
     FLAGS_COMP += -module $(BUILD_DIR)
     FLAGS_LINK += -module $(BUILD_DIR)
@@ -44,8 +52,8 @@ ifeq ($(F90),ifort)
 else
 # Could add -fbacktrace -fcheck=all for testing
 # Use -fallow-argument-mismatch to deal with mpi argument mismatch bug in gcc 10.1
-  FLAGS_COMP = $(OPTIM) -c -J$(BUILD_DIR) -cpp 
-  FLAGS_LINK = $(OPTIM) -J$(BUILD_DIR)
+  FLAGS_COMP = -O$(OPTIM) $(DEBUG) -c -J$(BUILD_DIR) -cpp 
+  FLAGS_LINK = -O$(OPTIM) -J$(BUILD_DIR)
 endif
 
 SRC = $(PARAM).f90 shared.f90 $(GEOM).f90 patch.f90 $(ARRAYS).f90 \
@@ -62,7 +70,7 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
     SHTOOLSLIBPATH = /home/k/kevlahan/kevlahan/SHTOOLS-4.7.1/lib
     SHTOOLSMODPATH = /home/k/kevlahan/kevlahan/SHTOOLS-4.7.1/include
     BLAS   =-L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_gf_ilp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl -lmkl_blas95_lp64
-    FLAGS  = $(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all -std=gnu -ffast-math -I$(SHTOOLSMODPATH) -m64 -fPIC
+    FLAGS  = -O$(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all -std=gnu -ffast-math -I$(SHTOOLSMODPATH) -m64 -fPIC
     LIBS   =-L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm $(BLAS) $(LAPACK)
   else 
     SHTOOLSMODPATH = /usr/local/include
