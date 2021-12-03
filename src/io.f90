@@ -979,12 +979,14 @@ contains
           end do
        end if
     end do
-
+    
     do r = 1, n_process
+#ifdef MPI       
        if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
           call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
+#endif       
             
        do d = 1, size(grid)
           fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
@@ -1088,10 +1090,12 @@ contains
     logical, dimension(1:N_CHDRN)    :: required
     
     do r = 1, n_process
+#ifdef MPI
        if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
           call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
+#endif
        do d = 1, size(grid)
           fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
           fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
@@ -1249,10 +1253,12 @@ contains
     end if
 
     do r = 1, n_process
+#ifdef MPI
        if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
           call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
+#endif
 
        write (filename, '(A,I1)')  "grid_HR/J", level_start-1
        open (unit=fid, file=filename, status='OLD')

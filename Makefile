@@ -42,7 +42,7 @@ ifeq ($(OPTIM),0)
   ifeq ($(F90),ifort)
     DEBUG = -g -traceback 
   else
-    DEBUG = -g -fbacktrace -fcheck=all
+    DEBUG = -ggdb3 -fbacktrace -fcheck=all
   endif
 endif
 
@@ -86,6 +86,8 @@ endif
 ifeq ($(ARCH),ser)
   COMPILER = $(F90)	
 else
+   FLAGS_COMP += -DMPI
+   FLAGS_LINK += -DMPI
   ifeq ($(MPIF90),mpi)
     COMPILER = mpif90
   else

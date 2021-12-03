@@ -182,7 +182,9 @@ contains
   end function physics_velo_source_case
 
   subroutine read_test_case_parameters
+#ifdef MPI
     use mpi
+#endif
     implicit none
 
     integer            :: ilat, ilon, k
@@ -215,6 +217,7 @@ contains
        read (fid,*) varname, resume_init
        close(fid)
     end if
+#ifdef MPI
     call MPI_Bcast (test_case, 255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (run_id,    255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
     call MPI_Bcast (max_level,   1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
@@ -228,7 +231,8 @@ contains
     call MPI_Bcast (dt_write,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (CP_EVERY,    1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (time_end,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (resume_init, 1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)    
+    call MPI_Bcast (resume_init, 1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+#endif
 
     press_save = 0d0
     allocate (pressure_save(1))
@@ -1228,7 +1232,9 @@ contains
 
   subroutine cal_r_max
     ! Calculates minimum relative mass and checks diffusion stability limits
+#ifdef MPI
     use mpi
+#endif
     implicit none
     integer :: ierror, k, l
 
@@ -1239,7 +1245,11 @@ contains
        end do
     end do
 
+#ifdef MPI
     call MPI_Allreduce (r_max_loc, r_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+#else
+    r_max = r_max_loc
+#endif
   end subroutine cal_r_max
 
   subroutine cal_rmax_loc (dom, i, j, zlev, offs, dims)

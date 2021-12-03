@@ -2,7 +2,8 @@ module comm_mpi_mod
   use domain_mod
   use comm_mod
   implicit none
-  integer, dimension(:), allocatable   :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
+  integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
+  real(8), dimension(2)              :: times
 contains
   subroutine init_comm_mpi
     ! Needed for compatibility with mpi code (not actually used in serial case)
@@ -64,13 +65,19 @@ contains
     character(*)   :: run_id
     
     character(255) :: filename
-    integer        :: fid
+    integer        :: d, fid, n_active_d
 
     fid = 599
 
     write (filename,'(A,A,I4.4)') trim (run_id), "_conn.", id
     open (unit=fid, file=trim(filename), status='REPLACE')
-    call write_load_conn1 (fid)
+    do d = 1, size(grid)
+       ! The following includes load for boundaries, but that seem just fair
+       n_active_d = domain_load(grid(d))
+       write(fid,'(I10, 99999(1X,I8))') n_active_d, ( &
+            grid(d)%pack(AT_NODE,:)%length + grid(d)%pack(AT_EDGE,:)%length + &
+            grid(d)%unpk(AT_NODE,:)%length + grid(d)%unpk(AT_EDGE,:)%length)/2
+    end do
     close (fid)
   end subroutine write_load_conn
 
@@ -318,15 +325,19 @@ contains
   end function sum_int
 
   subroutine start_timing
+    implicit none
+    call cpu_time(times(1))
   end subroutine start_timing
 
   subroutine stop_timing
+    implicit none
+    call cpu_time(times(2))
   end subroutine stop_timing
 
-  real(8) function get_timing()
+ real(8) function get_timing()
     implicit none
-    get_timing = 0.0_8
-  end function get_timing
+    get_timing = times(2) - times(1)
+  end function get_timing  
 
   subroutine sync_array (arr, N)
     implicit none

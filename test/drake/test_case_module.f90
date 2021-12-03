@@ -15,7 +15,7 @@ Module test_case_mod
   real(8)                              :: delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, mixed_layer, Rb, Rd, Rey, Ro
   real(8)                              :: radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc
   real(8)                              :: resolution, tau_0, wave_friction
-  real(8),                     target :: bottom_friction_case  
+  real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: drag, etopo_coast
 contains
@@ -215,7 +215,9 @@ contains
   end function physics_velo_source_case
 
   subroutine read_test_case_parameters
+#ifdef MPI
     use mpi
+#endif
     implicit none
     integer            :: ilat, ilon, k
     integer, parameter :: fid = 500
@@ -260,6 +262,7 @@ contains
        close(fid)
     end if
 
+#ifdef MPI
     call MPI_Bcast (test_case,        255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (run_id,           255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
     call MPI_Bcast (scale,              1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
@@ -285,6 +288,7 @@ contains
     call MPI_Bcast (drag,               1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (npts_penal,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (resolution,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+#endif
     
     press_save = 0d0
     allocate (pressure_save(1))
