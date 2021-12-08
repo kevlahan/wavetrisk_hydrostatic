@@ -28,62 +28,84 @@ TEST CASES
 Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suarez).  Each test case consists of three files:
 
 - the main program (e.g. Held_Suarez.f90) test_case_module.f90 (which sets initial conditions, defines the vertical grid, defines
-- and reads/prints parameters for this test case) test_case.in (a file setting the parameters for the run)
+- and reads/prints parameters for this test case) test_case.in (a file setting the input parameters for the run)
 
 
 **********************************************************************************************************************************
-COMPILING and RUNNING
+COMPILING
+The various compile options and their default values are given at the start of the Makefile.
 
-If compiled with ARCH = mpi or mpi-lb (load balancing) the code can be run in parallel using mpi.  ARCH=ser compiles a serial
-version, primarily for testing. With option mpi-lb the computational load is re-balanced at each checkpoint using a simple
-next fit algorithm .
+PARALLEL AND SERIAL VERSIONS
+If compiled with option ARCH=mpi or mpi-lb the code is run in parallel using mpi.  ARCH=ser compiles a serial version, primarily for testing.
 
 LOAD BALANCING
-If the code is compiled with MPIF90=ampi (instead of MPIF90=mpi) the load is checked and rebalanced if necessary every irebalance 
-time steps using charm++/AMPI. You need to first install the charm++/AMPI library (example for version 7.0 where pieglobals are
-not yet included by default). The following gives an interactive build (you should choose gcc and gfortran compilers):
+With option ARCH=mpi-lb the computational load is re-balanced at each checkpoint using a simple next fit algorithm .
+ 
+With option MPIF90=ampi (instead of the default MPIF90=mpi) charm++/AMPI is used to check the load and rebalanced if necessary every irebalance 
+time steps using.
 
-git clone https://github.com/UIUC-PPL/charm
-cd charm/
-git fetch  &&  git checkout pieglobals-testing  
-./build
+You first need to install the charm++/AMPI library as follows:
 
-We have found that the following works to build AMPI with intel compilers (using the Compute Canada machine niagara as an
-example):
+    git clone https://github.com/UIUC-PPL/charm
+    cd charm/
+    git fetch  &&  git checkout pieglobals-testing  (example for version 7.0 where pieglobals are not included by default)
 
-module load NiaEnv/.2021a cmake intel intelmpi ucx
+Build for a local machine with gfortran:
 
-CMK_NATIVE_CXX=icpc CMK_NATIVE_LDXX=icpc ./build AMPI ucx-linux-x86_64 icc ifort --with-production  -c++ icpc
+./build AMPI-only multicore-linux-x86_64 --with-production
 
-COMPILING 
+Build for Compute Canada machine niagara using gfortran:
+
+module load NiaEnv/.2021a intel intelmpi ucx autotools
+CMK_NATIVE_CXX=icc CMK_NATIVE_LDXX=icc ./build AMPI-only ucx-linux-x86_64 icc smp ifort --with-production
+
+Build for Compute Canada machine niagara using gfortran:
+
+module load NiaEnv/.2021a gcc openmpi autotools
+./build AMPI-only mpi-linux-x86_64 --with-production
+
+OPTIMIZATION
+Default is OPTIM=2. Setting OPTIM=0 adds the flag -g and other compiler-dependent checks.
+
+COARSEST GRID
+The coarsest grid is set by option PARAM=param_Jn, where n = 4, 5, 6, 7, 8, or 9 is the number of subdivisions of the icosahedron. 
+
 The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10*4**DOMAIN_LEVEL.
 Since DOMAIN_LEVEL = Jmin - (PATCH_LEVEL+1) larger Jmin or smaller PATCH_LEVEL allows more cores to be used.  For inhomogeneous
 problems (i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin while for homogeneous (i.e. well-balanced)
 problems it is more efficient to choose a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores
-may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used.
+may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used. These options are set in the files src/param_Jn.f90.
 
-TO COMPILE
-Using the test case Held_Suarez as an example:
+EXAMPLE
+To compile the test case Held_Suarez:
 
-mkdir build
 make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
 
 or to compile test case jet using charm++/AMPI:
 
-make build
 make TEST_CASE=jet PARAM=param_J6 MPIF90=ampi
 
 Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean
 build. Can also compile as serial (ARCH=ser) or without load balancing (ARCH=mpi).  The code has been tested for the gfortran and
 ifort compilers and the openmpi and intelmpi mpi libraries.
 
-!! Always do "make clean" when compiling a new test case and when you have modified the main program (e.g. jet.f90)!!
+!! Always do "make clean" when compiling a new test case and when you have modified the main program (e.g. jet.f90 for test case jet)!!
 
+**********************************************************************************************************************************
 RUNNING
-(using test case Held_Suarez as an example): cd to-working_directory (move to working directory, mkdir if necessary) ln -s
-wavetrisk_hydrostatic/bin/Held_Suarez .  (provide symbolic link to executable) ln -s path-to-grid_HR .  (provide symbolic link to
-Heikes and Randall grids, if using) cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in . (copy parameters files and then edit
-as appropriate) g & (run on 40 processors using mpi)
+
+Initial steps (using test case Held_Suarez as an example).
+
+1. cd to the working directory (move to working directory, mkdir if necessary)
+
+2. Provide symbolic link to executable:
+ln -s wavetrisk_hydrostatic/bin/Held_Suarez
+
+3. Provide symbolic link to Heikes and Randall optimized grids (if optimize_grid=HR_GRID)
+ln -s path-to-grid_HR
+
+4. Copy input parameters file and edit as appropriate:
+cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in .
 
 The code often runs significantly faster with mpirun than with srun when using the slurm scheduler.
 
@@ -91,15 +113,26 @@ If running with bathymetry data (e.g. incompressible tsunami test case) need to 
 
 ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute etopo topography data)
 
-Examples:
-1. To run test case Held_Suarez with input file HS.in with mpirun on 40 cores
+EXAMPLES
+
+1. With MPIF90=mpi, to run test case Held_Suarez with input file HS.in on 40 cores
 
 mpirun -n 40 Held_Suarez HS.in
 
-2. To run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
+2. With MPIF90=ampi, to run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
 using "Refine load balancing" and outputting details of the load balancing:
 
 /charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 > log&
+
+To restart from a saved checkpoint
+
+1. With MPIF90=mpi, set resume = N in the input file, where N = index of checkpoint to restart from (resum = -1 gives is a fresh start).
+
+2. With MPIF90=ampi indicate the checkpoint in the command line:
+
+/charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 +restart directory_name
+
+where directory_name is the directory containing the checkpoint to restart from.
 
 
 **********************************************************************************************************************************
