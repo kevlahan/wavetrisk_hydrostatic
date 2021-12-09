@@ -13,9 +13,6 @@ AMPIF90   = ~/charm/bin/mpif90.ampi
 LIBS      = 
 PREFIX    = .
 
-# Remove files associated with previous test case
-$(shell \rm $(BUILD_DIR)/test_case_module.o $(BUILD_DIR)/test_case_mod.mod test_case_mod.mod src/test_case_module.f90 src/test.f90)
-
 # Link to test case module file	
 $(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src)
 $(shell ln -nsf ../test/$(TEST_CASE)/$(TEST_CASE).f90 src/test.f90)
@@ -107,4 +104,4 @@ $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 	$(COMPILER) $(FLAGS_COMP) $< -o $@ 
 
 clean:
-	\rm -f $(BUILD_DIR)/* *.mod src/test_case_module.f90 src/test.f90
+	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90
