@@ -30,36 +30,34 @@ Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suare
 - the main program (e.g. Held_Suarez.f90) test_case_module.f90 (which sets initial conditions, defines the vertical grid, defines
 - and reads/prints parameters for this test case) test_case.in (a file setting the input parameters for the run)
 
-
 **********************************************************************************************************************************
 COMPILING
-The various compile options and their default values are given at the start of the Makefile.
+The compile options and their default values are given at the start of the Makefile.
 
 PARALLEL AND SERIAL VERSIONS
-If compiled with option ARCH=mpi or mpi-lb the code is run in parallel using mpi.  ARCH=ser compiles a serial version, primarily for testing.
+ARCH=mpi (default) or ARCH=ampi compiles a parallel version.
+ARCH=ser compiles a serial version, primarily for testing.
 
 LOAD BALANCING
-With option ARCH=mpi-lb the computational load is re-balanced at each checkpoint using a simple next fit algorithm .
- 
-With option MPIF90=ampi (instead of the default MPIF90=mpi) charm++/AMPI is used to check the load and rebalanced if necessary every irebalance 
-time steps using.
+ARCH=mpi (default) rebalances the computational load at each checkpoint using a simple next fit algorithm using mpi.
+ARCH=ampi uses charm++/AMPI to check the load and rebalance if necessary every irebalance time steps.
 
-You first need to install the charm++/AMPI library as follows:
+To use ampi you first need to install the charm++/AMPI library as follows:
 
     git clone https://github.com/UIUC-PPL/charm
     cd charm/
-    git fetch  &&  git checkout pieglobals-testing  (example for version 7.0 where pieglobals are not included by default)
+    git fetch  &&  git checkout pieglobals-testing  (for version 7.0 where pieglobals are not included by default)
 
-Build for a local machine with gfortran:
+To build for a local machine with gfortran:
 
 ./build AMPI-only multicore-linux-x86_64 --with-production
 
-Build for Compute Canada machine niagara using gfortran:
+To build for Compute Canada machine niagara using gfortran:
 
 module load NiaEnv/.2021a intel intelmpi ucx autotools
 CMK_NATIVE_CXX=icc CMK_NATIVE_LDXX=icc ./build AMPI-only ucx-linux-x86_64 icc smp ifort --with-production
 
-Build for Compute Canada machine niagara using gfortran:
+To build for Compute Canada machine niagara using gfortran:
 
 module load NiaEnv/.2021a gcc openmpi autotools
 ./build AMPI-only mpi-linux-x86_64 --with-production
@@ -77,19 +75,17 @@ problems it is more efficient to choose a larger PATCH_LEVEL. For example, if Jm
 may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used. These options are set in the files src/param_Jn.f90.
 
 EXAMPLE
-To compile the test case Held_Suarez:
+To compile test case Held_Suarez using mpi:
 
-make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi-lb
+make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi
 
 or to compile test case jet using charm++/AMPI:
 
-make TEST_CASE=jet PARAM=param_J6 MPIF90=ampi
+make TEST_CASE=jet PARAM=param_J6 ARCH=ampi
 
-Selects Held_Suarez test case, J=5 coarsest grid and load balancing parallel (mpi) version. Can use "make clean" to ensure a clean
-build. Can also compile as serial (ARCH=ser) or without load balancing (ARCH=mpi).  The code has been tested for the gfortran and
-ifort compilers and the openmpi and intelmpi mpi libraries.
+The code has been tested for the gfortran and ifort compilers and the openmpi and intelmpi mpi libraries.
 
-!! Always do "make clean" when compiling a new test case and when you have modified the main program (e.g. jet.f90 for test case jet)!!
+!! Always do "make clean" when compiling a new test case and when you modify the test case !!
 
 **********************************************************************************************************************************
 RUNNING
@@ -115,20 +111,20 @@ ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute e
 
 EXAMPLES
 
-1. With MPIF90=mpi, to run test case Held_Suarez with input file HS.in on 40 cores
+1. With ARCH=mpi, to run test case Held_Suarez with input file HS.in on 40 cores
 
 mpirun -n 40 Held_Suarez HS.in
 
-2. With MPIF90=ampi, to run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
+2. With ARCH=ampi, to run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
 using "Refine load balancing" and outputting details of the load balancing:
 
 /charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 > log&
 
 To restart from a saved checkpoint
 
-1. With MPIF90=mpi, set resume = N in the input file, where N = index of checkpoint to restart from (resum = -1 gives is a fresh start).
+1. With ARCH=mpi, set resume = N in the input file, where N = index of the checkpoint to restart from (resume = -1 gives is a fresh start).
 
-2. With MPIF90=ampi indicate the checkpoint in the command line:
+2. With ARCH=ampi indicate the checkpoint in the command line:
 
 /charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 +restart directory_name
 
