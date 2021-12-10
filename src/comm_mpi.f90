@@ -11,9 +11,14 @@ module comm_mpi_mod
 contains
   subroutine init_comm_mpi
     implicit none
-    allocate (send_lengths(n_process), send_offsets(n_process))
     allocate (recv_lengths(n_process), recv_offsets(n_process))
+    allocate (send_lengths(n_process), send_offsets(n_process))
     allocate (req(2*n_process))
+    recv_lengths = 0
+    recv_offsets = 0
+    send_lengths = 0
+    send_offsets = 0
+    req          = 0
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi
@@ -99,6 +104,7 @@ contains
 
     ! Set load data on this rank
     allocate (n_active_loc(sz))
+    n_active_loc = 0
     ii = 1 
     do d = 1, size(grid)
        n_active_loc(ii) = domain_load(grid(d))
@@ -328,11 +334,12 @@ contains
        recv_offsets(i) = recv_offsets(i-1) + recv_lengths(i-1)
     end do
 
-    recv_buf_i%length = sum(recv_lengths)
+    recv_buf_i%length = sum (recv_lengths)
 
     if (size(recv_buf_i%elts) < recv_buf_i%length) then
        deallocate (recv_buf_i%elts)
        allocate (recv_buf_i%elts(recv_buf_i%length))
+       recv_buf_i%elts = 0
     end if
 
     call MPI_Alltoallv (send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, recv_buf_i%elts, &
@@ -394,6 +401,7 @@ contains
     if (size(recv_buf_i%elts) < recv_buf_i%length) then
        deallocate (recv_buf_i%elts)
        allocate (recv_buf_i%elts(recv_buf_i%length))
+       recv_buf_i%elts = 0
     end if
 
     ! Call check_alltoall_lengths()
@@ -602,6 +610,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
+       recv_buf%elts = 0d0
     end if
 
     ! Post all receives first so buffer is available
@@ -697,6 +706,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
+       recv_buf%elts = 0d0
     end if
 
     ! Post all receives first so buffer is available
@@ -798,6 +808,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
+       recv_buf%elts = 0d0
     end if
 
     ! Post all receives first so buffer is available
@@ -1049,6 +1060,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
+       recv_buf%elts = 0d0
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
@@ -1119,6 +1131,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
+       recv_buf%elts = 0d0
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &

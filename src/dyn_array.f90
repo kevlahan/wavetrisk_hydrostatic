@@ -44,7 +44,7 @@ module dyn_arrays
 
   type Bdry_Patch_Array
      type(Bdry_Patch), dimension(:), allocatable :: elts
-     integer                                    :: length
+     integer                                     :: length
   end type Bdry_Patch_Array
 
   interface init
@@ -83,6 +83,8 @@ contains
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    
+    arr%elts = 0
   end subroutine init_Int_Array
 
   subroutine init_Float_Array (arr, N)
@@ -92,6 +94,7 @@ contains
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    arr%elts = 0d0
   end subroutine init_Float_Array
 
   subroutine init_Coord_Array (arr, N)
@@ -101,14 +104,21 @@ contains
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    arr%elts = ORIGIN
   end subroutine init_Coord_Array
 
   subroutine init_Areas_Array (arr, N)
     type(Areas_Array) :: arr
     integer           :: N
 
+    integer :: i
+
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    do i = 1, 6
+       arr%elts%part(i) = 0d0
+    end do
+    arr%elts%hex_inv = 0d0
   end subroutine init_Areas_Array
 
   subroutine init_Overl_Area_Array (arr, N)
@@ -116,8 +126,16 @@ contains
     type(Overl_Area_Array) :: arr
     integer                :: N
 
+    integer :: i
+
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    do i = 1, 4
+       arr%elts%a(i) = 0d0
+    end do
+    do i = 1, 2
+       arr%elts%split(i) = 0.0
+    end do
   end subroutine init_Overl_Area_Array
 
   subroutine init_Iu_Wgt_Array (arr, N)
@@ -125,8 +143,13 @@ contains
     type(Iu_Wgt_Array) :: arr
     integer            :: N
 
+    integer :: i
+
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    do i = 1, 9
+       arr%elts%enc(i) = 0.0
+    end do
   end subroutine init_Iu_Wgt_Array
 
   subroutine init_RF_Wgt_Array (arr, N)
@@ -134,8 +157,13 @@ contains
     type(RF_Wgt_Array) :: arr
     integer            :: N
 
+    integer :: i
+
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    do i = 1, 3
+       arr%elts%enc(i) = 0.0
+    end do
   end subroutine init_RF_Wgt_Array
 
   subroutine init_Patch_Array (arr, N)
@@ -143,8 +171,20 @@ contains
     type(Patch_Array) :: arr
     integer           :: N
 
+    integer :: i
+
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    arr%elts%elts_start = 0
+    arr%elts%level      = 0
+    do i = 1, N_CHDRN
+       arr%elts%children(i) = 0
+    end do
+    do i = 1, N_BDRY
+       arr%elts%neigh(i) = 0
+    end do
+    arr%elts%active  = 0
+    arr%elts%deleted = .false.
   end subroutine init_Patch_Array
 
   subroutine init_Bdry_Patch_Array (arr, N)
@@ -154,6 +194,9 @@ contains
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    arr%elts%elts_start = 0
+    arr%elts%side       = 0
+    arr%elts%neigh      = 0
   end subroutine init_Bdry_Patch_Array
 
   subroutine append_Int_Array (arr, item)
@@ -374,7 +417,7 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    tmparr = 0
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -383,7 +426,8 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    arr%elts = 0
+    
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Int_Array
@@ -402,7 +446,7 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    tmparr = 0d0
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -411,7 +455,7 @@ contains
        write(0,*) "ERROR: not enough memory"
        stop
     endif
-
+    arr%elts = 0d0
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Float_Array
@@ -430,7 +474,7 @@ contains
        write(0,*) "ERROR: not enough memory"
        stop
     endif
-
+    tmparr = ORIGIN
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -439,7 +483,7 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    arr%elts = ORIGIN
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Coord_Array
@@ -450,15 +494,18 @@ contains
     type(Areas_Array) :: arr
     integer           :: N
 
-    integer                                :: ierr
+    integer                                :: i, ierr
     type(Areas), dimension(:), allocatable :: tmparr
-
+    
     allocate (tmparr(2*N), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    do i = 1, 6
+      tmparr%part(i) = 0d0
+    end do
+    tmparr%hex_inv = 0d0
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -467,7 +514,10 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    do i = 1, 6
+       arr%elts%part(i) = 0d0
+    end do
+    arr%elts%hex_inv = 0d0
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Areas_Array
@@ -478,7 +528,7 @@ contains
     type(Overl_Area_Array) :: arr
     integer                :: N
     
-    integer                                     ::  ierr
+    integer                                     :: i, ierr
     type(Overl_Area), dimension(:), allocatable :: tmparr
 
     allocate (tmparr(2*N), stat=ierr)
@@ -486,7 +536,12 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    do i = 1, 4
+       tmparr%a(i) = 0d0
+    end do
+    do i = 1, 2
+       tmparr%split(i) = 0.0
+    end do
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -495,7 +550,12 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    do i = 1, 4
+       arr%elts%a(i) = 0d0
+    end do
+    do i = 1, 2
+       arr%elts%split(i) = 0.0
+    end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Overl_Area_Array
@@ -506,7 +566,7 @@ contains
     type(Iu_Wgt_Array) :: arr
     integer            :: N
 
-    integer                                 :: ierr
+    integer                                 :: i, ierr
     type(Iu_Wgt), dimension(:), allocatable :: tmparr
 
     allocate (tmparr(2*N), stat=ierr)
@@ -514,7 +574,9 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    do i = 1, 9
+       tmparr%enc(i) = 0.0
+    end do
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -523,7 +585,9 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    do i = 1, 9
+       arr%elts%enc(i) = 0.0
+    end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Iu_Wgt_Array
@@ -534,7 +598,7 @@ contains
     type(RF_Wgt_Array) :: arr
     integer            :: N
     
-    integer                                 :: ierr
+    integer                                 :: i, ierr
     type(RF_Wgt), dimension(:), allocatable :: tmparr
 
     allocate (tmparr(2*N), stat=ierr)
@@ -542,7 +606,9 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    do i = 1, 3
+       tmparr%enc(i) = 0.0
+    end do
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -551,7 +617,9 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    do i = 1, 3
+       arr%elts%enc(i) = 0.0
+    end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_RF_Wgt_Array
@@ -562,7 +630,7 @@ contains
     type(Patch_Array) :: arr
     integer           :: N
     
-    integer                                :: ierr
+    integer                                :: i, ierr
     type(Patch), dimension(:), allocatable :: tmparr
 
     allocate (tmparr(2*N), stat=ierr)
@@ -570,7 +638,16 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    tmparr%elts_start = 0
+    tmparr%level      = 0
+    do i = 1, N_CHDRN
+       tmparr%children(i) = 0
+    end do
+    do i = 1, N_BDRY
+       tmparr%neigh(i) = 0
+    end do
+    tmparr%active  = 0
+    tmparr%deleted = .false.
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -579,7 +656,16 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    arr%elts%elts_start = 0
+    arr%elts%level      = 0
+    do i = 1, N_CHDRN
+       arr%elts%children(i) = 0
+    end do
+    do i = 1, N_BDRY
+       arr%elts%neigh(i) = 0
+    end do
+    arr%elts%active  = 0
+    arr%elts%deleted = .false.
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Patch_Array
@@ -592,13 +678,15 @@ contains
 
     integer                                     :: ierr
     type(Bdry_Patch), dimension(:), allocatable :: tmparr
-
+    
     allocate (tmparr(2*N), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    tmparr%elts_start = 0
+    tmparr%side       = 0
+    tmparr%neigh      = 0
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -607,7 +695,9 @@ contains
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-
+    arr%elts%elts_start = 0
+    arr%elts%side       = 0
+    arr%elts%neigh      = 0
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Bdry_Patch_Array

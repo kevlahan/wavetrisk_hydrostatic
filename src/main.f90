@@ -1,5 +1,4 @@
 module main_mod
-  !use time_integr_mod
   use io_mod
   use wavelet_mod
   use adapt_mod
@@ -24,7 +23,7 @@ contains
     call init_wavelet_mod
     call init_mask_mod
     call init_adapt_mod
-    time_mult = 1.0_8
+    time_mult = 1d0
   end subroutine init_basic
 
   subroutine initialize (run_id)
