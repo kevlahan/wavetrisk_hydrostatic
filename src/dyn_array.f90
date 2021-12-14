@@ -83,7 +83,6 @@ contains
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
-    
     arr%elts = 0
   end subroutine init_Int_Array
 

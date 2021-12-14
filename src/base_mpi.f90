@@ -86,6 +86,7 @@ contains
 
     if (allocated (glo_id)) deallocate (glo_id)
     allocate (glo_id(n_process, maxval (n_domain)))
+    glo_id = 0
 
     do d = 1, N_GLO_DOMAIN
        glo_id(owner(d)+1,loc_id(d)+1) = d - 1
@@ -105,6 +106,7 @@ contains
     call MPI_Comm_Rank (MPI_COMM_WORLD, rank,      ierror)
 
     allocate (n_domain(n_process))
+    n_domain = 0
     
     initialized = .true.
 

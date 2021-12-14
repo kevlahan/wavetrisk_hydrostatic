@@ -30,7 +30,8 @@ contains
     end if
 
     allocate (minv(1:N_VAR_OUT), maxv(1:N_VAR_OUT))
-
+    minv = 0d0
+    maxv = 0d0
     initialized = .true.
   end subroutine init_io_mod
 

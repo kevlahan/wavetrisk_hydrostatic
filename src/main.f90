@@ -432,6 +432,8 @@ contains
     call precompute_geometry
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
+    edge_level_start = 0
+    node_level_start = 0
 
     if (rank == 0) write (6,'(A,i2,A)') 'Make level J_min = ', min_level, ' ...'
     

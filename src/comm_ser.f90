@@ -10,7 +10,10 @@ contains
     allocate(send_lengths(n_process), send_offsets(n_process))
     allocate(recv_lengths(n_process), recv_offsets(n_process))
     allocate(req(2*n_process))
-    
+    recv_lengths = 0
+    recv_offsets = 0
+    send_lengths = 0
+    send_offsets = 0
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi
