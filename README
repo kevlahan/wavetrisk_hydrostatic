@@ -101,7 +101,7 @@ ln -s wavetrisk_hydrostatic/bin/Held_Suarez
 
 ln -s path-to-grid_HR
 
-The compressed Heikes and Randall grids J2, ... , J8 are in the directory data.
+The compressed Heikes and Randall grids J2, ... , J8 are in  data/grid_HR.7z.
 
 4. Copy input parameters file and edit as appropriate:
 cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in .
