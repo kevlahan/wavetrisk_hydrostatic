@@ -41,7 +41,8 @@ program Drake
   remapvelo_type     = "PPR"                          ! optimal remapping scheme
   Laplace_order_init = 1                              
   Laplace_order      = Laplace_order_init
-  nstep_init         = 5                               ! take 5 small steps on restart
+  nstep_init         = 5                               ! take nstep_init small steps on restart
+  log_mass           = .false.
 
   ! Depth and layer parameters
   etopo_res      = 4                                    ! resolution of etopo data in arcminutes (if used) 
@@ -108,7 +109,7 @@ program Drake
      wave_friction = 0d0
   else
      wave_friction = u_wbc / Rb / 3d0                   ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
-!!$     wave_friction = 1.0_8 / (200d0 * HOUR)                 ! fixed
+!!$     wave_friction = 1d0/ (200d0 * HOUR)                 ! fixed
   end if
 
   ! Relaxation of buoyancy to mean profile 
