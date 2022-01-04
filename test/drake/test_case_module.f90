@@ -494,7 +494,7 @@ contains
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
     else ! 3D layers
        dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
-       z = 0.5 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
+       z = 0.5d0* ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
 
        porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
 
@@ -608,7 +608,7 @@ contains
     x_i = Coord (radius, 0d0, 0d0)
     write (6,'(a)') " Layer    z       drho"      
     do k = 1, zlevels
-       z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
+       z = 0.5d0 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
        write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, - buoyancy_init (x_i, z)*ref_density
     end do
     write (6,'(A)') &
@@ -632,9 +632,9 @@ contains
        threshold_new = tol * lnorm
        ! Correct very small values
        do k = 1, zmax
-          if (threshold_new(S_MASS,k) < threshold_def(S_MASS,k)/10) threshold_new(S_MASS,k) = threshold_def(S_MASS,k)
-          if (threshold_new(S_TEMP,k) < threshold_def(S_TEMP,k)/10) threshold_new(S_TEMP,k) = threshold_def(S_TEMP,k)
-          if (threshold_new(S_VELO,k) < threshold_def(S_VELO,k)/10) threshold_new(S_VELO,k) = threshold_def(S_VELO,k)
+          if (threshold_new(S_MASS,k) < threshold_def(S_MASS,k)/1d1) threshold_new(S_MASS,k) = threshold_def(S_MASS,k)
+          if (threshold_new(S_TEMP,k) < threshold_def(S_TEMP,k)/1d1) threshold_new(S_TEMP,k) = threshold_def(S_TEMP,k)
+          if (threshold_new(S_VELO,k) < threshold_def(S_VELO,k)/1d1) threshold_new(S_VELO,k) = threshold_def(S_VELO,k)
        end do
     end if
 
@@ -692,13 +692,13 @@ contains
 
     ! Diffusion constants
     if (munk) then
-       C_visc = dt_cfl * beta * dx_min * resolution**(2*Laplace_order_init+1)                  ! resolve Munk layer with "resolution" points
+       C_visc = dt_cfl * beta * dx_min * resolution**(2d0*Laplace_order_init+1)                ! resolve Munk layer with "resolution" points
     else
        C_visc = resolution**2 * dx_min**(2*(1-Laplace_order_init)) * dt_cfl * u_wbc / delta_I  ! resolve Taylor scale with "resolution" points
     end if
 
     ! Ensure stability
-    C_visc = min ((1d0/32)**Laplace_order_init, max (C_visc, 1d-4))
+    C_visc = min ((1d0/32d0)**Laplace_order_init, max (C_visc, 1d-4))
 
     C_rotu = C_visc
     C_divu = C_visc
@@ -716,8 +716,8 @@ contains
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_sclr
        visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
+       visc_rotu = dx_min**(2d0*Laplace_order_init) / tau_rotu
+       visc_divu = dx_min**(2d0*Laplace_order_init) / tau_divu
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop

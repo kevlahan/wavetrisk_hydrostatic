@@ -32,7 +32,7 @@ endif
 ifeq ($(F90),ifort)
   FLAGS_COMP = -O$(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
   FLAGS_LINK = -O$(OPTIM)
-  ifeq ($(MPIF90),mpi) # problem with -module when using AMPI
+  ifeq ($(ARCH),mpi) # problem with -module when using AMPI
     FLAGS_COMP += -module $(BUILD_DIR)
     FLAGS_LINK += -module $(BUILD_DIR)
   endif
