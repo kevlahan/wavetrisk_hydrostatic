@@ -21,29 +21,26 @@ program Drake
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
-  radius_earth   = 6371.229d0                * KM
-  omega_earth    = 7.29211d-5                * RAD/SECOND
+  radius_earth   = 6371.229d0                * KM              ! radius of Earth
+  omega_earth    = 7.29211d-5                * RAD/SECOND      ! rotation rate of Earth
   grav_accel     = 9.80616d0                 * METRE/SECOND**2 ! gravitational acceleration 
   p_top          = 0d0                       * hPa             ! pressure at free surface
   ref_density    = 1028d0                    * KG/METRE**3     ! reference density at depth (seawater)
-
   radius         = radius_earth/scale                          ! mean radius of the small planet
   omega          = omega_earth/scale_omega                     ! angular velocity (scaled for small planet to keep beta constant)
 
   ! Numerical method parameters
-  match_time         = .true.                        ! avoid very small time steps when saving 
-  mode_split         = .true.                         ! split barotropic mode if true
-  timeint_type       = "RK3"                          
-  rebalance          = .true.
-  penalize           = .true.                         ! penalize land regions
-  compressible       = .false.                        ! always run with incompressible equations
-  remapscalar_type   = "PPR"                          ! optimal remapping scheme
-  remapvelo_type     = "PPR"                          ! optimal remapping scheme
-  Laplace_order_init = 1                              
-  Laplace_order      = Laplace_order_init
-  nstep_init         = 5                               ! take nstep_init small steps on restart
-  log_mass           = .true.
-
+  match_time         = .true.                           ! avoid very small time steps when saving 
+  mode_split         = .true.                           ! split barotropic mode if true
+  timeint_type       = "RK3"                            ! time scheme
+  penalize           = .true.                           ! penalize land regions
+  compressible       = .false.                          ! always run with incompressible equations
+  Laplace_order_init = 1                                ! use Laplacian viscosity
+  nstep_init         = 10                               ! take nstep_init small steps on restart
+  log_mass           = .false.                          ! do not compute mass diagnostics
+  damp_wave          = .false.                          ! do not damp internal waves
+  save_zlev          = zlevels                          ! vertical layer to save
+  
   ! Depth and layer parameters
   etopo_res      = 4                                    ! resolution of etopo data in arcminutes (if used) 
   etopo_coast    = .false.                              ! use etopo data for coastlines (i.e. penalization)
@@ -71,17 +68,17 @@ program Drake
      u_wbc       =   1.7d0 * METRE/SECOND               ! estimated western boundary current speed
   end if
 
-  ! Vertical level to save
-  save_zlev = zlevels 
-
   ! Characteristic scales
-  wave_speed     = sqrt (grav_accel*abs(max_depth))        ! inertia-gravity wave speed 
-  f0             = 2d0*omega*sin(45*DEG)                     ! representative Coriolis parameter
-  beta           = 2d0*omega*cos(45*DEG) / radius            ! beta parameter at 30 degrees latitude
-  Rd             = wave_speed / f0                         ! barotropic Rossby radius of deformation                   
-  drho_dz        = drho / halocline                        ! density gradient
+  wave_speed     = sqrt (grav_accel*abs(max_depth))             ! inertia-gravity wave speed 
+  f0             = 2d0*omega*sin(45d0*DEG)                      ! representative Coriolis parameter
+  beta           = 2d0*omega*cos(45d0*DEG) / radius             ! beta parameter at 30 degrees latitude
+  Rd             = wave_speed / f0                              ! barotropic Rossby radius of deformation                   
+  drho_dz        = drho / halocline                             ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
+  delta_I        = sqrt (u_wbc/beta)                            ! inertial layer
+  delta_sm       = u_wbc/f0                                     ! barotropic submesoscale
 
+  ! Baroclinic wave speed
   if (zlevels == 2) then
      c1 = sqrt (grav_accel*abs(drho)/2d0/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
   elseif (zlevels >= 3) then
@@ -105,11 +102,10 @@ program Drake
   end if
 
   ! Internal wave friction 
-  if (drho == 0d0 .or. remap) then
-     wave_friction = 0d0
+  if (damp_wave) then
+     wave_friction = u_wbc / Rb / 3d0 ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
   else
-     wave_friction = 0d0*u_wbc / Rb / 3d0                   ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
-!!$     wave_friction = 1d0/ (200d0 * HOUR)                 ! fixed
+     wave_friction = 0d0
   end if
 
   ! Relaxation of buoyancy to mean profile 
@@ -118,9 +114,6 @@ program Drake
   else
      k_T = 0d0
   end if
-
-  delta_I        = sqrt (u_wbc/beta)                  ! inertial layer
-  delta_sm       = u_wbc/f0                           ! barotropic submesoscale  
 
   ! Dimensional scaling
   Udim           = u_wbc                              ! velocity scale

@@ -2,19 +2,19 @@ module shared_mod
   use param_mod
   implicit none
 
-  ! numbers of triangles and edges per grid element
+  ! Numbers of triangles and edges per grid element
   integer, parameter :: TRIAG = 2, EDGE = 3
 
-  ! indices for edges
+  ! Indices for edges
   integer, parameter :: RT = 0, DG = 1, UP = 2
 
-  ! indices for triangles
+  ! Indices for triangles
   integer, parameter :: LORT = 0, UPLT = 1
 
-  ! find nodes and edges of type Float_Field variables (e.g. sol, wave_coeff)
+  ! Indices for nodes and edges of type Float_Field variables (e.g. sol, wave_coeff)
   integer, parameter :: AT_NODE = 1, AT_EDGE = 2
 
-  ! shifts on regular (i,j) grid
+  ! Shifts on regular (i,j) grid
   integer, parameter :: JPLUS = 1
   integer, parameter :: IPLUS = 2
   integer, parameter :: JMINUS = 3
@@ -24,7 +24,7 @@ module shared_mod
   integer, parameter :: IJMINUS = 7
   integer, parameter :: IMINUSJPLUS = 8
 
-  ! neighbouring patch indices for use in index arrays offs and dims 
+  ! Neighbouring patch indices for use in index arrays offs and dims 
   integer, parameter :: NORTH     = 1
   integer, parameter :: EAST      = 2
   integer, parameter :: SOUTH     = 3
@@ -34,10 +34,10 @@ module shared_mod
   integer, parameter :: SOUTHWEST = 7
   integer, parameter :: NORTHWEST = 8
 
-  ! number of children nodes associated to each parent node
+  ! Number of children nodes associated to each parent node
   integer, parameter :: N_CHDRN = 4 
 
-  ! domain parameters
+  ! Domain parameters
   integer, parameter :: N_BDRY            = 8                            ! number of boundary patches associated to each patch
   integer, parameter :: N_ICOSAH_LOZENGE  = 10                           ! number of lozenges (coarse regular domains) in icosahedron
   integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL              ! number of subdomains per lozenge in each direction
@@ -46,30 +46,30 @@ module shared_mod
   integer, parameter :: PATCH_LEVEL       = MIN_LEVEL - DOMAIN_LEVEL - 1 ! patch level: MIN_LEVEL = DOMAIN_LEVEL + PATCH_LEVEL + 1
   integer, dimension(:), allocatable :: n_domain                         ! number of subdomains on each processor
 
-  ! thickness of boundary overlaps between lozenges (ghost points or halo)
+  ! Thickness of boundary overlaps between lozenges (ghost points or halo)
   integer, parameter :: BDRY_THICKNESS = 2
 
   integer, parameter :: FROZEN = 32
 
-  ! label for active nodes
+  ! Label for active nodes
   integer, parameter :: TOLRNZ = 16
 
-   ! label for adjacent nodes  in position (space) only 
+  ! Label for adjacent nodes  in position (space) only 
   integer, parameter :: ADJSPACE = 14
 
-  ! label for nodes whose flux can be obtained by restriction from fine level
+  ! Label for nodes whose flux can be obtained by restriction from fine level
   integer, parameter :: RESTRCT = 12
 
-  ! label for nodes where trend is uniformly accurate
+  ! Label for nodes where trend is uniformly accurate
   integer, parameter :: TRND = 10
 
-  ! label for adjacent zone nodes in either position (space) or scale
+  ! Label for adjacent zone nodes in either position (space) or scale
   integer, parameter :: ADJZONE = 8
 
-  ! label for nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
+  ! Label for nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
   integer, parameter :: CONSIST = 4
 
-  ! label nodes needed for trisk operators 
+  ! Label nodes needed for trisk operators 
   integer, parameter :: TRSK = 2
 
   integer, parameter :: NODE = 3
@@ -94,9 +94,9 @@ module shared_mod
   ! P = positive shift
   ! M = negative shift
 
-  ! note that there are 16 flux locations but only 14 distinct weights
+  ! Note that there are 16 flux locations but only 14 distinct weights
   !
-  ! first neighbours Uij, Vij, Wij where i and j can be any of (M,Z,P)
+  ! First neighbours Uij, Vij, Wij where i and j can be any of (M,Z,P)
   integer, parameter :: UZM = 0
   integer, parameter :: UPZ = 1
   integer, parameter :: UMZ = 2
@@ -112,24 +112,24 @@ module shared_mod
   integer, parameter :: WMP = 10
   integer, parameter :: WPP = 11
 
-  ! indices used by two flux locations (C is centre: no shift in x direction)
+  ! Indices used by two flux locations (C is centre: no shift in x direction)
   integer, parameter :: CMM = 12 ! same as WMMM
   integer, parameter :: CPP = 13 ! same as WPPP
 
-  ! second neighbours Wijj, Vijj
+  ! Second neighbours Wijj, Vijj
   integer, parameter :: WMMM = 12
   integer, parameter :: WPPP = 13
 
   integer, parameter :: VMPP = 14
   integer, parameter :: VPMM = 15
 
-  ! first diagonal neighbours of hexagon points 
+  ! First diagonal neighbours of hexagon points 
   integer, parameter :: MP = 16
   integer, parameter :: PP = 17
   integer, parameter :: PM = 18
   integer, parameter :: MM = 19
 
-  ! weights for various interpolation schemes
+  ! Weights for various interpolation schemes
   integer, dimension(3)     :: hex_s_offs
   integer, dimension(2,10)  :: nghb_pt
   integer, dimension(3,10)  :: hex_sides, no_adj_tri
@@ -173,7 +173,7 @@ module shared_mod
   ! Basic constants (uses MKS system of units)
 
   ! Math
-  real(8), parameter :: MATH_PI = acos (-1.0_8)
+  real(8), parameter :: MATH_PI = acos (-1d0)
 
   ! Length
   real(8), parameter :: METRE   = 1
@@ -184,27 +184,27 @@ module shared_mod
   real(8), parameter :: GRAM    = KG / 1000
 
   ! Time
-  real(8), parameter :: SECOND  = 1
-  real(8), parameter :: MINUTE  = 60  * SECOND
-  real(8), parameter :: HOUR    = 60  * MINUTE
-  real(8), parameter :: DAY     = 24  * HOUR
-  real(8), parameter :: WEEK    =   7 * DAY
-  real(8), parameter :: YEAR    = 365 * DAY
+  real(8), parameter :: SECOND  = 1d0
+  real(8), parameter :: MINUTE  = 60d0  * SECOND
+  real(8), parameter :: HOUR    = 60d0  * MINUTE
+  real(8), parameter :: DAY     = 24d0  * HOUR
+  real(8), parameter :: WEEK    =   7d0 * DAY
+  real(8), parameter :: YEAR    = 365d0 * DAY
    
   ! Angle
-  real(8), parameter :: RAD     = 1
-  real(8), parameter :: DEG     = MATH_PI / 180
+  real(8), parameter :: RAD     = 1d0
+  real(8), parameter :: DEG     = MATH_PI / 180d0
 
   ! Force
   real(8), parameter :: NEWTON  = KG * METRE / SECOND**2
 
   ! Pressure
   real(8), parameter :: Pa      = NEWTON / METRE**2
-  real(8), parameter :: hPa     =  100*Pa
-  real(8), parameter :: kPa     = 1000*Pa
+  real(8), parameter :: hPa     =  100d0 * Pa
+  real(8), parameter :: kPa     = 1000d0 * Pa
 
   ! Heat and energy
-  real(8), parameter :: KELVIN  = 1
+  real(8), parameter :: KELVIN  = 1d0
   real(8), parameter :: CELSIUS = KELVIN
   real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2
   real(8), parameter :: WATT    = JOULE / SECOND
@@ -290,7 +290,7 @@ contains
     istep               = 0
     istep_cumul         = 0
     iwrite              = 0
-    time                = 0.0_8
+    time                = 0d0
     max_level           = MIN_LEVEL
     level_start         = MIN_LEVEL
     level_end           = level_start
@@ -321,7 +321,7 @@ contains
     ! Default numerical method values
     alpha               = 1d-2                              ! porosity
     cfl_adv             = 1.4d0                             ! advective CFL number in mode split case
-    cfl_bar             = 1.0d0                             ! baroclinic CFL number in mode split case
+    cfl_bar             = 1d0                               ! baroclinic CFL number in mode split case
     cfl_num             = 1d0                               ! CFL number (barotropic CFL in mode split case)
     C_visc              = 1d-2                              ! constant for determining horizontal viscosity
     iadapt              = 1                                 ! adapt horizontal grid every iadapt time step
@@ -342,42 +342,41 @@ contains
     
     ! Default physical parameters
     ! (these parameters are typically reset in test case file, but are needed for compilation)
-    c_p                 = 1004.64   * JOULE / (KG*KELVIN)   ! specific heat at constant pressure for air (= 3991.87 for seawater)
-    c_v                 = 717.6     * JOULE / (KG*KELVIN)   ! specfic heat at constant volume c_v = R_d - c_p
-    grav_accel          = 9.80616   * METRE / SECOND**2     ! gravitational acceleration
-    p_top               = 0.0_8     * hPa                   ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
-    R_d                 = 287       * JOULE / (KG*KELVIN)   ! ideal gas constant for dry air in joules per kilogram Kelvin
-    ref_density         = 1000      * KG                    ! reference density for incompressible case
-    omega               = 7.292d-05 * RAD / SECOND          ! rotation rate of Earth
-    radius              = 6371.22   * KM                    ! radius of Earth
-    p_0                 = 1000      * hPA                   ! standard pressure
-    visc_sclr           = 0         * METRE**2 / SECOND     ! kinematic viscosity of scalars 
-    visc_divu           = 0         * METRE**2 / SECOND     ! kinematic viscosity of divergence of velocity 
-    visc_rotu           = 0         * METRE**2 / SECOND     ! kinematic viscosity of vorticity 
+    c_p                 = 1004.64d0   * JOULE / (KG*KELVIN)   ! specific heat at constant pressure for air (= 3991.87 for seawater)
+    c_v                 = 717.6d0     * JOULE / (KG*KELVIN)   ! specfic heat at constant volume c_v = R_d - c_p
+    grav_accel          = 9.80616d0   * METRE / SECOND**2     ! gravitational acceleration
+    p_top               = 0d0         * hPa                   ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
+    R_d                 = 287d0       * JOULE / (KG*KELVIN)   ! ideal gas constant for dry air in joules per kilogram Kelvin
+    ref_density         = 1000d0      * KG                    ! reference density for incompressible case
+    omega               = 7.292d-05   * RAD / SECOND          ! rotation rate of Earth
+    radius              = 6371.22d0   * KM                    ! radius of Earth
+    p_0                 = 1000d0      * hPA                   ! standard pressure
+    visc_sclr           = 0d0         * METRE**2 / SECOND     ! kinematic viscosity of scalars 
+    visc_divu           = 0d0         * METRE**2 / SECOND     ! kinematic viscosity of divergence of velocity 
+    visc_rotu           = 0d0         * METRE**2 / SECOND     ! kinematic viscosity of vorticity 
 
     kappa               = R_d/c_p                           ! heat capacity ratio
 
     ! Parameters for ocean (incompressible) model
+    coarse_iter         = 100                                     ! maximum number of coarse scale bicgstab iterations for elliptic solver
+    fine_iter           = 200                                     ! maximum number of fine scale jacobi iterations for elliptic solver
     a_0                 = 1.6550d-1 * KG / METRE**3 / CELSIUS     ! linear coefficient of thermal expansion for seawater 
     b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
-    c_s                 = 1500      * METRE / SECOND              ! sound speed for seawater
-    coarse_iter         = 100                                      ! maximum number of coarse scale bicgstab iterations for elliptic solver
+    c_s                 = 1500d0    * METRE / SECOND              ! sound speed for seawater
     e_min               = 1d-6      * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
-    fine_iter           = 200                                      ! maximum number of fine scale jacobi iterations for elliptic solver
     Kt_0                = 1.2d-5    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy diffusion
     Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
     lambda_1            = 5.9520d-2                               ! cabbeling coefficient in T^2
     lambda_2            = 5.4914d-4                               ! cabbeling coefficient in S^2
-    max_depth           = 4         * KM                          ! maximum depth 
+    max_depth           = 4d0       * KM                          ! maximum depth 
     min_depth           = max_depth                               ! minimum depth 
-    mu_1                = 1.4970d-4  / METRE                      ! thermobaric coefficient in temperature (pressure effect)
-    mu_2                = 1.1090d-5  / METRE                      ! thermobaric coefficient in salinity (pressure effect)
+    mu_1                = 1.4970d-4 / METRE                       ! thermobaric coefficient in temperature (pressure effect)
+    mu_2                = 1.1090d-5 / METRE                       ! thermobaric coefficient in salinity (pressure effect)
     nu_0                = 2.4341d-3                               ! cabbeling coefficient in temperature S, T
-    Q_sr                = 0          * WATT / METRE**2            ! penetrative part of solar short wave radiation
-    T_ref               = 10         * CELSIUS                    ! reference temperature
-    S_ref               = 35         * GRAM / KG                  ! reference salinity
-
+    Q_sr                = 0d0       * WATT / METRE**2             ! penetrative part of solar short wave radiation
+    T_ref               = 10d0      * CELSIUS                     ! reference temperature
+    S_ref               = 35d0      * GRAM / KG                  ! reference salinity
     H_rho               = c_s**2 / grav_accel                     ! density scale height
 
     ! Theta parameters for barotropic-baroclinic mode splitting
@@ -408,7 +407,7 @@ contains
     if (x > -1.0d2) then
        exp__flush = exp (x)
     else
-       exp__flush = 0.0_8
+       exp__flush = 0d0
     end if
   end function exp__flush
 end module shared_mod

@@ -17,7 +17,7 @@ Module test_case_mod
   real(8)                              :: resolution, tau_0, wave_friction
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
-  logical                              :: drag, etopo_coast
+  logical                              :: damp_wave, drag, etopo_coast
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -731,6 +731,8 @@ contains
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
+
+    Laplace_order = Laplace_order_init
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
