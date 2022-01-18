@@ -121,7 +121,7 @@ mpirun -n 40 Held_Suarez HS.in
 2. With ARCH=ampi, to run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
 using "Refine load balancing" and outputting details of the load balancing:
 
-/charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 > log&
+./charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 > log&
 
 To restart from a saved checkpoint
 
@@ -129,7 +129,7 @@ To restart from a saved checkpoint
 
 2. With ARCH=ampi indicate the checkpoint in the command line:
 
-/charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 +restart directory_name
+./charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 +restart directory_name
 
 where directory_name is the directory containing the checkpoint to restart from.
 
