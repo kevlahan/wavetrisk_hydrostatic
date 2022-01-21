@@ -130,13 +130,9 @@ contains
     idN  = idx (i,   j+1, offs, dims) + 1
 
     ! Increase diffusion near poles to remove noise at these lower accuracy points
-    if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4*dx_max)**2 < 1d0) then
-       dx = sqrt (4/sqrt(3.0_8) * 4*MATH_PI*radius**2/(20*4**level_end)) 
-       if (istep <= 2) then
-          visc = dx**2/(0.1*dx/wave_speed)/32
-       else
-          visc = dx**2/dt/32
-       end if
+    if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4d0*dx_max)**2 < 1d0) then
+       dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
+       visc = dx**2/dt/32d0
        diffusion =  (-1)**(Laplace_order-1) * visc * (grad_divu() - curl_rotu())
     else
        diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
