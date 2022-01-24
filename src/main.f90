@@ -190,7 +190,7 @@ contains
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
        if (istep <= nstep_init) then  ! small time steps to start
-          dx = sqrt (4d0/sqrt(3d0) * 4*MATH_PI*radius**2/(20d0*4**level_end)) 
+          dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
           dt_0 = 0.8d0*dx/wave_speed
 
           dt = dt_0 + (dt - dt_0) * sin (MATH_PI/2d0 * dble(istep-1)/dble(nstep_init-1))
