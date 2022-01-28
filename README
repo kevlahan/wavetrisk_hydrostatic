@@ -1,19 +1,19 @@
 **********************************************************************************************************************************
-*   WAVETRISK 2.2														 *	
+*   WAVETRISK 2.2														 *
 *   2022-01-20															 *
-*																 *	
+*																 *
 *   User's guide and code description												 *
 *															         *
-*   N Kevlahan															 *				
-*   Department of Mathematics and Statistics											 *				
+*   N Kevlahan															 *
+*   Department of Mathematics and Statistics											 *
 *   McMaster University	    													 *
-*   Hamilton, Canada														 *	
+*   Hamilton, Canada														 *
 *   kevlahan@mcmaster.ca													 *
 * 																 *
 *   WAVETRISK: A dynamically adaptive wavelet-based experimental global climate model that solves the multi-layer hydrostatic    *
 *   rotating shallow water equations in Boussinesq form using a mimetic method. Compressible (atmosphere) and incompressible 	 * 
 *   (ocean) options are available by setting the parameter compressible = .false. or .true. respectively.	   		 *
-*															         *				
+*															         *
 *																 *
 **********************************************************************************************************************************
 *																 *
@@ -24,7 +24,7 @@
 *   1. Addition of spherical harmonics test case and associated matlab m-file for computing energy spectra.			 *
 *   2. Additional ocean modelling test cases.    	 	    	   	      		       				 *
 *   3. Addition of vertical diffusion for ocean modelling using a TKE closure similar to that used in NEMO.			 *
-*   4. Option of implicit time step for horizontal diffusion.									 *	
+*   4. Option of implicit time step for horizontal diffusion.									 *
 *   5. Option of semi-implicit barotropic-baroclinic time integration.								 *
 *   6. Adaptive multigrid solver, using scheduled relaxation Jacobi (SRJ) iterations.						 *
 *   	    	      	      	    	      		 	  								 *
@@ -97,6 +97,14 @@ module load NiaEnv/.2021a gcc openmpi autotools
 ./build AMPI-only mpi-linux-x86_64 --with-production
 
 ************************************************************
+CHARM++/AMPI DEBUGGER
+The charm++/ampi version of the code can be debugged with the custom charm debugger. To install:
+
+git clone https://github.com/UIUC-PPL/ccs_tools
+cd ccs_tools
+ant
+
+************************************************************
 OPTIMIZATION
 Default is OPTIM=2. Setting OPTIM=0 adds the flag -g and other compiler-dependent checks.
 
@@ -159,7 +167,7 @@ mpirun -n 40 Held_Suarez HS.in
 2. With ARCH=ampi, to run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
 using "Refine load balancing" and outputting details of the load balancing:
 
-./charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 > log&
+./charmrun +p 60 ./jet_J6 test_case.in +vp 160 +balancer RefineLB +LBDebug 1 > log&
 
 To restart from a saved checkpoint
 
@@ -167,7 +175,7 @@ To restart from a saved checkpoint
 
 2. With ARCH=ampi indicate the checkpoint in the command line:
 
-./charmrun +p 60 ./jet_J6 +vp 160 +balancer RefineLB +LBDebug 1 +restart directory_name
+./charmrun +p 60 ./jet_J6 test_case.in +vp 160 +balancer RefineLB +LBDebug 1 +restart directory_name
 
 where directory_name is the directory containing the checkpoint to restart from.
 
