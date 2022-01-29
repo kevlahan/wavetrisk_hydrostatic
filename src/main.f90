@@ -9,6 +9,7 @@ module main_mod
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
+  integer                                        :: chkpt_info
   integer,             dimension(:), allocatable :: node_level_start, edge_level_start
   real(8)                                        :: dt_new, time_mult  
   type(Initial_State), dimension(:), allocatable :: ini_st
@@ -54,6 +55,11 @@ contains
        write (6,'(a)') "Cannot use mode splitting with compressible dynamics ... aborting"
        call abort
     end if
+
+#ifdef AMPI
+    call MPI_Info_create (chkpt_info, ierror)
+    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
+#endif       
 
     if (resume >= 0) then
        cp_idx = resume
@@ -126,7 +132,7 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
-       
+
        call write_checkpoint (run_id, .true.)
     end if
     call barrier
@@ -191,7 +197,7 @@ contains
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
        if (istep <= nstep_init) then  ! small time steps to start
           dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
-          dt_0 = 0.8d0*dx/wave_speed
+          dt_0 = 0.8d0 * dx / wave_speed
 
           dt = dt_0 + (dt - dt_0) * sin (MATH_PI/2d0 * dble(istep-1)/dble(nstep_init-1))
        end if
@@ -391,7 +397,14 @@ contains
             **********************************************************'
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
     end if
-
+    
+! #ifdef AMPI
+!     if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
+!     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
+!     call MPI_Barrier (MPI_COMM_WORLD, ierror)
+!     call AMPI_Migrate (chkpt_info, ierror)
+!     if (log_mass) call sum_total_mass (.true.) 
+! #else
     call write_load_conn (cp_idx, run_id)
     call dump_adapt_mpi  (cp_idx, run_id)
 
@@ -408,6 +421,7 @@ contains
     
     ! Must restart if want to load balance (compiled with mpi-lb)
     if (rebal) call restart (run_id)
+!#endif
   end subroutine write_checkpoint
 
   subroutine init_structures (run_id)
