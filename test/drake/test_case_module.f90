@@ -133,11 +133,11 @@ contains
     if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4d0*dx_max)**2 < 1d0) then
        dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
        visc = dx**2/dt/32d0
-       diffusion =  (-1)**(Laplace_order-1) * visc * (grad_divu() - curl_rotu())
+       diffusion =  (-1d0)**(Laplace_order-1d0) * visc * (grad_divu() - curl_rotu())
     else
-       diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+       diffusion =  (-1d0)**(Laplace_order-1d0) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
     end if
-
+    
     ! Wind stress per unit length in top layer only
     if (zlev == zlevels) then
        full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)

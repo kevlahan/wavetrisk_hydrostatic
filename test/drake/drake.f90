@@ -37,7 +37,7 @@ program Drake
   compressible       = .false.                          ! always run with incompressible equations
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
-  log_mass           = .false.                          ! do not compute mass diagnostics
+  log_mass           = .true.                          ! do not compute mass diagnostics
   damp_wave          = .false.                          ! do not damp internal waves
   save_zlev          = zlevels                          ! vertical layer to save
   
@@ -130,7 +130,7 @@ program Drake
 
   ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
   iadapt    = CFL_adv * nint ((dx_min/Udim) / dt_init)
-  irebalance = iadapt ! rebalance interval using charm++/AMPI
+  irebalance = 4*iadapt ! rebalance interval using charm++/AMPI
 
   ! Save initial conditions
   call print_test_case_parameters
