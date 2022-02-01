@@ -56,53 +56,44 @@ TEST CASES
 
 Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suarez).  Each test case consists of three files:
 
-1. The main program (e.g. Held_Suarez.f90)
+1. The main program (e.g. Held_Suarez.f90).
 2. A file setting various case-specific properties: test_case_module.f90 (sets initial conditions, defines the vertical grid,
-   defines and reads/prints parameters for this test case)
-3. test_case.in (an example input file setting the input parameters for the run)
+   defines and reads/prints parameters for this test case).
+3. An example input parameter file test_case.in.
 
 
 **********************************************************************************************************************************
 COMPILING
 The compile options and their default values are given at the start of the Makefile.
-The code has been tested for the gfortran and ifort compilers and the openmpi and intelmpi mpi libraries.
+
+The code has been tested for the gfortran and ifort compilers and the openmpi and intelmpi mpi libraries. gfortran/openmpi is the
+recommended choice for portability, and because AMPI (see below) does not currently work with intel.
 
 ************************************************************
 PARALLEL AND SERIAL VERSIONS
-ARCH=mpi (default) or ARCH=ampi (using AMPI load balancing) compiles a parallel version.
+ARCH=mpi (default load balancing and checkpointing) or ARCH=ampi (AMPI load balancing and checkpointing) compiles
+a parallel version.
 ARCH=ser compiles a serial version, primarily for testing.
 
 ************************************************************
 LOAD BALANCING
-ARCH=mpi (default) rebalances the computational load at each checkpoint using a simple next fit algorithm using mpi.
+ARCH=mpi (default) rebalances the computational load statically at each checkpoint using a simple next fit algorithm.
 ARCH=ampi uses charm++/AMPI to check the load and rebalance dynamically if necessary every irebalance time steps.
 
-To use ampi you first need to install the charm++/AMPI library as follows:
+To use AMPI you first need to install the charm++/AMPI library as follows:
     git clone https://github.com/UIUC-PPL/charm
     cd charm/
-    git fetch  &&  git checkout pieglobals-testing  (for version 7.0 where pieglobals are not included by default)
+    git fetch  &&  git checkout pieglobals-testing  (pieglobals are not included by default in version 7.0)
 
 To build for a local machine with gfortran:
 
 ./build AMPI-only multicore-linux-x86_64 --with-production
 
-To build for Compute Canada machine niagara using gfortran:
-
-module load NiaEnv/.2021a intel intelmpi ucx autotools
-CMK_NATIVE_CXX=icc CMK_NATIVE_LDXX=icc ./build AMPI-only ucx-linux-x86_64 icc smp ifort --with-production
-
-To build for Compute Canada machine niagara using gfortran:
+To build for a multi-node machine, e.g. Compute Canada machine niagara, using gfortran (ifort does not work with AMPI):
 
 module load NiaEnv/.2021a gcc openmpi autotools
-./build AMPI-only mpi-linux-x86_64 --with-production
+./build AMPI-only mpi-linux-x86_64-smp -j16 --with-production
 
-************************************************************
-CHARM++/AMPI DEBUGGER
-The charm++/ampi version of the code can be debugged with the custom charm debugger. To install:
-
-git clone https://github.com/UIUC-PPL/ccs_tools
-cd ccs_tools
-ant
 
 ************************************************************
 OPTIMIZATION
@@ -110,7 +101,7 @@ Default is OPTIM=2. Setting OPTIM=0 adds the flag -g and other compiler-dependen
 
 ************************************************************
 COARSEST GRID
-The properties of the coarsest grid is set by option PARAM=param_Jn, where n = 4, 5, 6, 7, or 8 is the number of subdivisions
+The coarsest grid is set by the compile option PARAM=param_Jn, where n = 4, 5, 6, 7, or 8 is the number of subdivisions
 of the icosahedron. 
 
 The maximum number of computational cores must be less than or equal to the number of domains, i.e. Ncore <= 10*4**DOMAIN_LEVEL.
@@ -119,17 +110,22 @@ problems (i.e. unbalanced) it is best to set PATCH_LEVEL=2 and use a larger Jmin
 problems it is more efficient to choose a larger PATCH_LEVEL. For example, if Jmin = 7 and PATCH_LEVEL = 4 then up to 160 cores
 may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used. These options are set in the files src/param_Jn.f90.
 
+The finest allowable grid is set by the parameter max_level in the input file (e.g. test_case.in). The finest grid actually
+used changes dynamically and depends on the solution and the tolerance parameter tol.
+
 ************************************************************
 EXAMPLE
-To compile test case Held_Suarez using mpi:
+To compile test case Held_Suarez using mpi and ifort with J5 as the coarsest grid:
 
-make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi
-
-or to compile test case jet using charm++/AMPI:
-
-make TEST_CASE=jet PARAM=param_J6 ARCH=ampi
+make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi F90=ifort
 
 !! Always do "make clean" when compiling a new test case and when you modify the test case !!
+
+To compile test case jet using charm++/AMPI and gfortran with J5 as the coarsest grid:
+
+make TEST_CASE=jet PARAM=param_J6 ARCH=ampi F90=gfortran
+
+!! Note that AMPI does not work properly with ifort !!
 
 
 **********************************************************************************************************************************
@@ -137,35 +133,39 @@ RUNNING
 
 Initial steps (using test case Held_Suarez as an example).
 
-1. cd to the working directory (move to working directory, mkdir if necessary)
+1. cd to the working directory (mkdir if necessary).
 
-2. Provide symbolic link to executable:
+2. Provide symbolic links to all files required for execution:
+
 ln -s wavetrisk_hydrostatic/bin/Held_Suarez
 
-3. Provide symbolic link to Heikes and Randall optimized grids (if optimize_grid=HR_GRID)
+Also include Held_Suarez.user.so and charmrun, in addition to executable Held_Suarez, for AMPI.
+
+3. Provide a symbolic link to the Heikes and Randall optimized grids (if optimize_grid=HR_GRID):
 
 ln -s path-to-grid_HR
 
 The compressed Heikes and Randall grids J2, ... , J8 are provided in cmpressed format in data/grid_HR.7z.
 
 4. Copy input parameters file and edit as appropriate:
+
 cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in .
 
-The code often runs significantly faster with mpirun than with srun when using the slurm scheduler.
+Note: the code runs significantly faster with mpirun than with srun when using the slurm scheduler.
 
-If running with bathymetry data (e.g. incompressible tsunami test case) need to provide a symbolic link to the ETOPO data:
+If running with bathymetry data (e.g. incompressible tsunami test case) you need to provide a symbolic link to the ETOPO data:
 
 ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute etopo topography data)
 
 ************************************************************
-EXAMPLES
+RUN EXAMPLES
 
-1. With ARCH=mpi, to run test case Held_Suarez with input file HS.in on 40 cores
+1. With ARCH=mpi, to run test case Held_Suarez with input file HS.in on a local machine with shared memory 40 cores
 
-mpirun -n 40 Held_Suarez HS.in
+mpirun -n 40 ./Held_Suarez HS.in 
 
-2. With ARCH=ampi, to run test case jet with default input file test_case.in with charm++/AMPI on 60 cores with 160 virtual processors
-using "Refine load balancing" and outputting details of the load balancing:
+2. With ARCH=ampi, to run test case jet with default input file test_case.in using charm++/AMPI on a local machine with 40 cores
+using 160 virtual processors and "Refine load balancing":
 
 ./charmrun +p 60 ./jet_J6 test_case.in +vp 160 +balancer RefineLB +LBDebug 1 > log&
 
@@ -179,6 +179,24 @@ To restart from a saved checkpoint
 
 where directory_name is the directory containing the checkpoint to restart from.
 
+3. Multi node run on Compute Canada machine niagara using AMPI on 2 nodes (each node has 2 sockets with 20 cores each).
+
+Note that you need to launch 19 worker threads and 1 dedicated communication thread per socket, i.e. you must reserve
+1 thread for communication on each socket.
+
+./charmrun +p 76 ./drake_charm_J6 2layer.in +ppn 19 +vp 76 +pemap 1-19,21-39 +commap 0,20
+
+p    = number of physical processors (limited by the number of available nodes and cores per node)
+ppn  = number of threads per socket  (determined by node characteristics)
+pemap  specifies which cores to use on each node
+commap specifies which cores to use for communication threads 
+
+vp   = number of virtual processors  (<= number of coarse scale domains 10*4**DOMAIN_LEVEL)
+
+In this case, p = (2 nodes) * (19 threads  * 2 sockets) = 76. Note that ppn, pemap, and commap are specified per node,
+so they don't change as you modify the number of nodes.
+
+The ratio vp/p determines the degree of "virtualization" used for load balancing. Typically, vp/p = 4 to 16 is optimal.
 
 **********************************************************************************************************************************
 POST-PROCESSING DATA USING PARAVIEW AND MATLAB
