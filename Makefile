@@ -1,16 +1,19 @@
-# Default options
+# Default general options
 TEST_CASE = jet
 PARAM     = param_J5
 ARCH      = mpi
 OPTIM     = 2
 F90       = gfortran
 MPIF90    = mpif90
-AMPIF90   = ~/charm/bin/mpif90.ampi
-
 BIN_DIR   = bin
 BUILD_DIR = build
 LIBS      =
 PREFIX    = .
+
+# AMPI options
+BUILD     = ucx-linux-x86_64-openpmix-smp
+#BUILD     = multicore-linux-x86_64 
+AMPIF90   = ~/charm/$(BUILD)/bin/mpif90.ampi
 
 # Link to test case module file	
 $(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src)
@@ -38,8 +41,8 @@ ifeq ($(F90),ifort)
   endif
 else
 # Use -fallow-argument-mismatch to deal with mpi argument mismatch bug in gcc 10.1
-  FLAGS_COMP = -O$(OPTIM) -c -J$(BUILD_DIR) -cpp
-  FLAGS_LINK = -O$(OPTIM) -J$(BUILD_DIR)
+  FLAGS_COMP = -O$(OPTIM) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch
+  FLAGS_LINK = -O$(OPTIM) -J $(BUILD_DIR)
 endif
 
 ifeq ($(OPTIM),0)
