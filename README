@@ -61,7 +61,7 @@ CONTENTS
    2.2 LOAD BALANCING
    2.3 OPTIMIZATION
    2.4 COARSEST GRID
-   2.4 EXAMPLES
+   2.5 EXAMPLES
    
 3. RUNNING
    3.1 MPI EXAMPLES
@@ -161,7 +161,7 @@ The finest allowable grid is set by the parameter max_level in the input file (e
 used changes dynamically and depends on the solution and the tolerance parameter tol.
 
 ************************************************************
-2.4 EXAMPLES
+2.5 EXAMPLES
 To compile test case Held_Suarez using mpi and ifort with J5 as the coarsest grid:
 
 make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi F90=ifort

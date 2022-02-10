@@ -11,9 +11,10 @@ LIBS      =
 PREFIX    = .
 
 # AMPI options
-BUILD     = ucx-linux-x86_64-openpmix-smp
-#BUILD     = multicore-linux-x86_64 
-AMPIF90   = ~/charm/$(BUILD)/bin/mpif90.ampi
+CHARM_DIR   = ~/charm
+CHARM_BUILD = ucx-linux-x86_64-openpmix-smp
+#CHARM_BUILD  = multicore-linux-x86_64 
+AMPIF90     = $(CHARM_DIR)/$(CHARM_BUILD)/bin/mpif90.ampi
 
 # Link to test case module file	
 $(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src)
@@ -96,7 +97,7 @@ barotropic_2d.f90 time_integr.f90 vert_diffusion.f90 lateral_diffusion.f90 io.f9
 
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
-$(PREFIX)/$(BIN_DIR)/$(TEST_CASE): $(OBJ) 
+$(PREFIX)/$(BIN_DIR)/$(TEST_CASE): $(OBJ)
 	$(LINKER) $(FLAGS_LINK) -o $@ $^ $(LIBS) 
 
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
