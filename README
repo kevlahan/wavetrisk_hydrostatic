@@ -129,7 +129,7 @@ To build for a local machine ("standalone") with gfortran:
 
 ./build AMPI-only multicore-linux-x86_64 --with-production --force
 
-On niagara: module load NiaEnv/.2021a gcc openmpi autotools
+On niagara: module load NiaEnv/.2022a gcc openmpi autotools
 
 To build for a multi-node machine, e.g. Compute Canada machine niagara, using gfortran (ifort does not work with AMPI):
 
