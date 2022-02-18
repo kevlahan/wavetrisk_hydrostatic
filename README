@@ -276,14 +276,36 @@ In this case the virtualization ratio is vp/p = 160/40 = 4.
 **********************************************************************************************************************************
 4. POST-PROCESSING DATA USING PARAVIEW AND MATLAB
 
+See also post/paraview_notes.
+
 ************************************************************
 4.1 VIEWING SPHERICAL DATA WITH PARAVIEW
+
 The raw data files (e.g. Held_Suarez.1... and Held_Suarez.2...) must be converted to .vtk format for viewing with paraview:
  
-cd post gfortran -o trisk2vtk trisk2vtk.f90 cd to-working-directory ln -s wavetrisk_hydrostatic/post/trisk2vtk .  trisk2vtk
-Held_Suarez.1 primal 0 10 5 8 out (generates .vtk files for the saved hexagon grid fields 0 to 10 at scales j = 5:8 and saves in
-files out...vtk) trisk2vtk Held_Suarez.2 dual 0 10 5 8 out (generates .vtk files for the saved triangle grid fields 0 to 10 at
-scales j = 5:8 and saves in files out...vtk). Advice on using paraview for visualization is given in post/paraview_notes.
+cd post
+gfortran -o trisk2vtk trisk2vtk.f90
+cd to-working-directory
+ln -s wavetrisk_hydrostatic/post/trisk2vtk .
+
+EXAMPLES:
+
+trisk2vtk Held_Suarez.1 primal 0 10 5 8 out
+
+Generates .vtk files for the saved hexagon grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk
+
+trisk2vtk Held_Suarez.2 dual 0 10 5 8 out
+
+Generates .vtk files for the saved triangle grid fields 0 to 10 at scales j = 5:8 and saves in files out...vtk.
+
+ trisk2vtk jet.1 primal 266 266 5 5 jet_J5
+ trisk2vtk jet.1 primal 266 266 6 6 jet_J6
+ trisk2vtk jet.1 primal 266 266 7 7 jet_J7
+ trisk2vtk jet.1 primal 266 266 8 8 jet_J8
+ trisk2vtk jet.1 primal 266 266 9 9 jet_J9
+
+Generates separate vtk files for each level for the time 266. These images can then be overlayed (appropriately re-scaled) to 
+ensure perfectly resolved images. 
 
 ************************************************************
 4.2 POST-PROCESS CHECKPOINTS FOR MATLAB PLOTTING OF 2-D PROJECTIONS ON LONGITUDE-LATITUDE PLANE
