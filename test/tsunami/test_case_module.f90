@@ -7,13 +7,13 @@ Module test_case_mod
 
   ! Standard variables
   integer :: CP_EVERY, resume_init
-  real(8) :: dt_cfl, tau_diffusion, total_cpu_time, dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8) :: total_cpu_time, Hdim, Ldim, Tdim, Udim
 
   ! Local variables
   integer                              :: bathy_per_deg, etopo_res, npts_penal, npts_topo
-  real(8)                              :: dH, lon_c, lat_c, pert_radius
+  real(8)                              :: dt_cfl, dH, lon_c, lat_c, pert_radius
   real(4), allocatable, dimension(:,:) :: topo_data
-  real(8), parameter                   :: theta0 = 0.01
+  real(8), parameter                   :: theta0 = 0.01d0
   logical                              :: etopo_bathy, etopo_coast
   type(Float_Field)                    :: arrival_time, max_wave_height
 contains
@@ -65,7 +65,7 @@ contains
     d = dom%id + 1
 
     if (Laplace_order == 0) then
-       physics_scalar_flux_case = 0.0_8
+       physics_scalar_flux_case = 0d0
     else
        if (.not.local_type) then ! usual flux at edges E, NE, N
           l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
@@ -119,10 +119,10 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    visc_scale = 1.0_8!(max_level/dom%level%elts(id+1))**(2*Laplace_order_init-1)
+    visc_scale = 1d0 !(max_level/dom%level%elts(id+1))**(2*Laplace_order_init-1)
 
     if (Laplace_order == 0) then
-       diffusion = 0.0_8
+       diffusion = 0d0
     else
        ! Calculate Laplacian of velocity
        diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu()) * visc_scale
@@ -181,10 +181,10 @@ contains
     dz = abs(dom%topo%elts(id_i)) / zlevels
 
     ! Local z-coordinate (mid layer)
-    z = init_free_surface (x_i) - (zlevels - zlev + 0.5_8) * dz 
+    z = init_free_surface (x_i) - (zlevels - zlev + 0.5d0) * dz 
 
     ! Equally spaced sigma coordinates in z: sol(S_MASS) = ref_density * dz, sol(S_TEMP) = density * dz
-    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+    porous_density = ref_density * (1.0_8 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
 
     if (zlev == zlevels+1) then ! 2D barotropic mode
        sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) ! free surface perturbation
@@ -193,13 +193,13 @@ contains
        if (zlev == zlevels) then
           sol(S_MASS,zlev)%data(d)%elts(id_i) = init_free_surface (x_i) * ref_density
        else
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
        end if
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = ref_density*dz * buoyancy_init (x_i, zlev)
     end if
 
     ! Set initial velocity field to zero
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
   end subroutine init_sol
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
@@ -218,13 +218,13 @@ contains
     id_i = id + 1
 
     x_i  = dom%node%elts(id_i)
-    porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+    porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
     dz = - dom%topo%elts(id_i) / zlevels
-    z = - (zlevels - zlev + 0.5_8) * dz
+    z = - (zlevels - zlev + 0.5d0) * dz
 
     sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz ! add a small amount of noise to stabilize split case
-    sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8!sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
-    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
+    sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0 !sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
+    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
   end subroutine init_mean
 
   real(8) function surf_geopot_case (x_i)
@@ -232,7 +232,7 @@ contains
     implicit none
     type(Coord) :: x_i
 
-    surf_geopot_case = grav_accel * 0.0_8
+    surf_geopot_case = grav_accel * 0d0
   end function surf_geopot_case
 
   real(8) function init_free_surface (x_i)
@@ -241,13 +241,13 @@ contains
     type(Coord) :: x_i
 
     real(8)            :: lon, lat
-    real(8), parameter :: n_lat = 20, n_lon = 2
+    real(8), parameter :: n_lat = 20d0, n_lon = 2d0
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
     init_free_surface = dH * exp__flush (- abs((lat-lat_c)/(pert_radius/radius))**n_lat &
-         - abs((lon-lon_c)/(pert_radius/radius/40))**n_lon) 
+         - abs((lon-lon_c)/(pert_radius/radius/40d0))**n_lon) 
   end function init_free_surface
 
   real(8) function buoyancy_init (x_i, zlev)
@@ -258,7 +258,7 @@ contains
 
     real(8) :: lon, lat, rgrc
 
-    buoyancy_init = 0.0_8
+    buoyancy_init = 0d0
   end function buoyancy_init
 
   subroutine set_thresholds_case
@@ -277,14 +277,14 @@ contains
        threshold_new = tol*lnorm
        ! Correct for zero velocity case
        do k = 1, zlevels
-          if (threshold_new(S_MASS,k) == 0.0_8) threshold_new(S_MASS,k) = 1d16
-          if (threshold_new(S_TEMP,k) == 0.0_8) threshold_new(S_TEMP,k) = 1d16
-          if (threshold_new(S_VELO,k) == 0.0_8) threshold_new(S_VELO,k) = 1d16
+          if (threshold_new(S_MASS,k) == 0d0) threshold_new(S_MASS,k) = 1d16
+          if (threshold_new(S_TEMP,k) == 0d0) threshold_new(S_TEMP,k) = 1d16
+          if (threshold_new(S_VELO,k) == 0d0) threshold_new(S_VELO,k) = 1d16
        end do
     end if
 
     if (istep >= 10) then
-       threshold = 0.01*threshold_new + 0.99*threshold
+       threshold = 0.01d0*threshold_new + 0.99d0*threshold
     else
        threshold = threshold_new
     end if
@@ -295,8 +295,8 @@ contains
     implicit none
     real(8) :: dz
 
-    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
+    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
 
     dz = Hdim/zlevels
 
@@ -311,16 +311,16 @@ contains
     implicit none
     real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
-    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
+    area = 4d0*MATH_PI*radius**2/(20d0*4d0**max_level) ! average area of a triangle
+    dx_min = sqrt (4d0/sqrt(3d0) * area)               ! edge length of average triangle
 
     ! Diffusion constants
     C_sclr = 4d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_divu = 4d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
+    C_rotu = C_sclr / 4d0**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
 
     ! CFL limit for time step
-    dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
+    dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85d0 ! corrected for dynamic value
     dt_init = dt_cfl
 
     tau_sclr = dt_cfl / C_sclr
@@ -328,9 +328,9 @@ contains
     tau_rotu = dt_cfl / C_rotu
 
     if (Laplace_order_init == 0) then
-       visc_sclr = 0.0_8
-       visc_divu = 0.0_8
-       visc_rotu = 0.0_8
+       visc_sclr = 0d0
+       visc_divu = 0d0
+       visc_rotu = 0d0
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
        visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
@@ -391,8 +391,8 @@ contains
           call analytic_topography (dom, i, j, zlev, offs, dims, "penalize")
        end if
     else
-       penal_node(zlev)%data(d)%elts(id_i)                = 0.0_8
-       penal_edge(zlev)%data(d)%elts(EDGE*id+1:EDGE*id_i) = 0.0_8   
+       penal_node(zlev)%data(d)%elts(id_i)                = 0d0
+       penal_edge(zlev)%data(d)%elts(EDGE*id+1:EDGE*id_i) = 0d0   
     end if
   end subroutine set_penal
 
@@ -406,8 +406,8 @@ contains
 
     integer            :: d, e, id, id_i, idW, idS, idSW
     real(8)            :: lat, lon, mask, r, rgrc, width
-    real(8), parameter :: land_radius = 2000*KM
-    real(8), parameter :: lon_land = 0.0_8, lat_land = 0.0_8
+    real(8), parameter :: land_radius = 2000d0*KM
+    real(8), parameter :: lon_land = 0d0, lat_land = 0d0
     type(Coord)        :: p
 
     d = dom%id + 1
@@ -416,16 +416,16 @@ contains
 
     p = dom%node%elts(id_i)
 
-    width = 1.5*dx_min
+    width = 1.5d0*dx_min
 
-    mask = 0.0_8
+    mask = 0d0
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot_case (p) / grav_accel
     case ("penalize")
        call cart2sph (p, lon, lat)
        rgrc = radius * acos(sin(lat_land)*sin(lat) + cos(lat_land)*cos(lat)*cos(lon-lon_land))
-       mask = (1.0_8 - tanh ((rgrc-land_radius)/width)) / 2
+       mask = (1d0 - tanh ((rgrc-land_radius)/width)) / 2d0
 
        penal_node(zlev)%data(d)%elts(id_i) = mask
 
@@ -465,7 +465,7 @@ contains
        dx_dual(e)   = dom%pedlen%elts(id_e)
     end do
     dx_local = max (maxval(dx_primal), maxval(dx_dual))
-    if (dx_local == 0.0_8) dx_local = dx_min
+    if (dx_local == 0d0) dx_local = dx_min
 
     ! Find longitude and latitude coordinates
     call cart2sph (dom%node%elts(id_i), lon, lat)
@@ -517,16 +517,16 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       if (topo_data(s, t) > 0.0_8) then ! land
+       if (topo_data(s, t) > 0d0) then ! land
           topo_value = min_depth
        else ! sea: topography is less than zero
           topo_value = max (min (topo_data(s, t), min_depth), max_depth)
        end if
     case ("penalize")
-       if (topo_data(s, t) > 0.0_8) then ! land
-          topo_value = 1.0_8
+       if (topo_data(s, t) > 0d0) then ! land
+          topo_value = 1d0
        else ! sea: topography is less than zero
-          topo_value = 0.0_8
+          topo_value = 0d0
        end if
     end select
   end function topo_value
@@ -552,8 +552,8 @@ contains
 
     if (t < lbound (topo_data,2)) t = lbound (topo_data,2) ! pole
     if (t > ubound (topo_data,2)) t = ubound (topo_data,2) ! pole
-    if (s < lbound (topo_data,1)) s = s + 360*BATHY_PER_DEG
-    if (s > ubound (topo_data,1)) s = s - 360*BATHY_PER_DEG
+    if (s < lbound (topo_data,1)) s = s + 360 * BATHY_PER_DEG
+    if (s > ubound (topo_data,1)) s = s - 360 * BATHY_PER_DEG
   end subroutine wrap_lonlat
 
   type(Coord) function proj_lon_lat (s, t)
@@ -570,7 +570,6 @@ contains
     implicit none
     integer            :: k
     integer, parameter :: fid = 500
-    real(8)            :: press_save
     character(255)     :: filename, varname
 
     ! Find input parameters file name
@@ -584,49 +583,25 @@ contains
     open(unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
-    read (fid,*) varname, penalize
-    read (fid,*) varname, etopo_coast
-    read (fid,*) varname, etopo_bathy
-    read (fid,*) varname, etopo_res
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
-    read (fid,*) varname, remap
-    read (fid,*) varname, remapscalar_type
-    read (fid,*) varname, remapvelo_type
-    read (fid,*) varname, iremap
     read (fid,*) varname, default_thresholds
-    read (fid,*) varname, perfect
     read (fid,*) varname, tol
-    read (fid,*) varname, optimize_grid
-    read (fid,*) varname, adapt_dt
-    read (fid,*) varname, cfl_num
-    read (fid,*) varname, timeint_type
-    read (fid,*) varname, press_save
-    read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
-    read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
-    read (fid,*) varname, alpha
-    read (fid,*) varname, npts_penal
-    read (fid,*) varname, npts_topo
     close(fid)
 
-    ! Always run with incompressible equations
-
-
-    allocate (pressure_save(1))
-    pressure_save(1) = press_save
     call set_save_level_case
     dt_write = dt_write * MINUTE
     time_end = time_end * HOUR
     resume   = resume_init
     Laplace_order = Laplace_order_init
-    bathy_per_deg = 60/etopo_res
+    bathy_per_deg = 60d0/etopo_res
 
     if (etopo_bathy .or. etopo_coast) then
-       if (rank == 0) write(6,'(a)') 'Reading bathymetry data'
+       if (rank == 0) write(6,'(a)') 'Reading bathymetry data ...'
        allocate (topo_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
        open (unit=1086,file='bathymetry')
        do k = ubound (topo_data,2), lbound (topo_data,2), -1 ! north to south (as read from file)
@@ -663,25 +638,20 @@ contains
        write (6,'(a,a)')      "remapvelo_type       = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap               = ", iremap
        write (6,'(A,L1)')     "default_thresholds   = ", default_thresholds
-       write (6,'(A,L1)')     "perfect              = ", perfect
        write (6,'(A,es11.4)') "tolerance            = ", tol
        write (6,'(A,i1)')     "optimize_grid        = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt             = ", adapt_dt
        write (6,'(A,es11.4)') "cfl_num              = ", cfl_num
        write (6,'(a,a)')      "timeint_type         = ", trim (timeint_type)
-       write (6,'(A,es11.4)') "pressure_save [hPa]  = ", pressure_save(1)/100
        write (6,'(A,i1)')     "Laplace_order        = ", Laplace_order_init
-       write (6,'(A,i1)')     "n_diffuse            = ", n_diffuse
        write (6,'(A,es11.4)') "dt_write [min]       = ", dt_write/MINUTE
        write (6,'(A,i6)')     "CP_EVERY             = ", CP_EVERY
-       write (6,'(a,l1)')     "rebalance            = ", rebalance
        write (6,'(A,es11.4)') "time_end [h]         = ", time_end/HOUR
        write (6,'(A,i6)')     "resume               = ", resume_init
 
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es11.4)') "radius               = ", radius
        write (6,'(A,es11.4)') "omega                = ", omega
-       write (6,'(A,es11.4)') "p_top (hPa)          = ", p_top/100
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
        write (6,'(A,es11.4)') "pert_radius          = ", pert_radius
@@ -785,8 +755,8 @@ contains
     do d = 1, size(grid)
        num = grid(d)%node%length - n_node_old(d)
        if (num > 0) then
-          call extend (max_wave_height%data(d), num, 0.0_8)
-          call extend (arrival_time%data(d),    num, 1.0d8)
+          call extend (max_wave_height%data(d), num, 0d0)
+          call extend (arrival_time%data(d),    num, 1d0)
        end if
     end do
     call apply_onescale (cal_diagnostics, min_level, z_null, 0, 0)
@@ -801,7 +771,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer            :: d, id_i
-    real(8), parameter :: min_wave = 0.05_8 ! lower bound for wave arrival
+    real(8), parameter :: min_wave = 0.05d0 ! lower bound for wave arrival
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
@@ -819,13 +789,13 @@ contains
       integer :: k
       real(8) :: full_mass, porosity, total_depth
 
-      total_depth = 0.0_8
+      total_depth = 0d0
       do k = 1, zlevels
-         porosity = 1.0_8 + (alpha - 1.0_8) * penal_node(k)%data(d)%elts(id_i)
+         porosity = 1d0 + (alpha - 1d0) * penal_node(k)%data(d)%elts(id_i)
          full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
          total_depth = total_depth + full_mass / (ref_density*porosity)
       end do
-      free_surface = (1.0_8 - penal_node(zlevels)%data(d)%elts(id_i)) * (total_depth + dom%topo%elts(id_i))
+      free_surface = (1d0 - penal_node(zlevels)%data(d)%elts(id_i)) * (total_depth + dom%topo%elts(id_i))
     end function free_surface
   end subroutine cal_diagnostics
 
@@ -840,8 +810,8 @@ contains
     do d = 1, size(grid)
        call init (max_wave_height%data(d), grid(d)%node%length)
        call init (arrival_time%data(d),    grid(d)%node%length)
-       max_wave_height%data(d)%elts = 0.0_8
-       arrival_time%data(d)%elts    = 1.0d8
+       max_wave_height%data(d)%elts = 0d0
+       arrival_time%data(d)%elts    = 1d0
     end do
   end subroutine init_diagnostics
 
@@ -859,29 +829,32 @@ contains
   end subroutine deallocate_diagnostics
 
   subroutine set_save_level_case
-    ! Determines closest vertical level to desired height z
     implicit none
-    integer :: k
-    real(8) :: dz, p, save_press, z
 
-    dz = abs (max_depth) / zlevels; save_zlev = 0
-    do k = 1, zlevels
-       z = (zlevels - k) * dz 
-       if (abs (z - pressure_save(1)) < dz) then
-          save_zlev = k
-          save_press = z
-          exit
-       end if
-    end do
-    if (rank==0) write (6,'(/,A,i2,A,es10.4,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate height = ", save_press, " [m])"
+    save_zlev = zlevels
   end subroutine set_save_level_case
 
   subroutine initialize_a_b_vert_case
+    ! Initialize hybrid sigma-coordinate vertical grid
     implicit none
+    integer :: k
 
-    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
+
+    if (zlevels == 1) then 
+       a_vert(0) = 0d0; a_vert(2) = 1d0
+       b_vert(0) = 1d0; b_vert(1) = 0d0
+    else ! uniform sigma grid: z = a_vert*eta + b_vert*z_s
+       do k = 0, zlevels
+          a_vert(k) = dble(k)/dble(zlevels)
+          b_vert(k) = 1d0 - dble(k)/dble(zlevels)
+       end do
+    end if
+
+    ! Vertical grid spacing
+    a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
+    b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
   end subroutine initialize_a_b_vert_case
 
   subroutine dump_case (fid)
@@ -909,6 +882,6 @@ contains
     real(8)                       :: eta_surf, z_s ! free surface and bathymetry
     real(8), dimension(0:zlevels) :: z_coords_case
 
-    z_coords_case = 0.0_8
+    z_coords_case = 0d0
   end function z_coords_case
 end module test_case_mod

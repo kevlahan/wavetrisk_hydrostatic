@@ -1020,7 +1020,7 @@ contains
        else
           z_s = dom%topo%elts(id_i)
           if (sigma_z) then
-             z = z_coords (0.0_8, z_s)
+             z = z_coords (0d0, z_s)
           else
              z = b_vert * z_s
           end if
