@@ -16,7 +16,7 @@ contains
     call init_init_mod
     call init_wavelet_mod
     call init_mask_mod
-    initialized = .True.
+    initialized = .true.
   end subroutine init_refine_patch_mod
 
   subroutine attach_bdry (dom, p_par, c, s, side)
@@ -137,67 +137,67 @@ contains
     call ccentre_penta (dom, p_chd)
     call extend (dom%midpt, EDGE*num, ORIGIN)
     call apply_onescale_to_patch2 (midpt, dom, p_chd, z_null, -1, 2)
-    call extend (dom%pedlen, EDGE*num, 0.0_8)
-    call extend (dom%len, EDGE*num, 0.0_8)
+    call extend (dom%pedlen, EDGE*num, 0d0)
+    call extend (dom%len, EDGE*num, 0d0)
     call apply_onescale_to_patch2 (lengths, dom, p_chd, z_null, -1, 2)
 
     tmp = ORIGIN
-    call extend (dom%areas, num, Areas(0.0_8, 0.0_8))
+    call extend (dom%areas, num, Areas(0d0, 0d0))
     call apply_onescale_to_patch2 (cpt_areas, dom, p_chd, z_null, -1, 2)
-    call extend (dom%triarea, EDGE*num, 1.0_8)
+    call extend (dom%triarea, EDGE*num, 1d0)
     call apply_onescale_to_patch (cpt_triarea, dom, p_chd, z_null, -1, 1)
-    call extend (dom%coriolis, TRIAG*num, 0.0_8)
+    call extend (dom%coriolis, TRIAG*num, 0d0)
     call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -1, 1)
     
-    call extend (dom%surf_press,   num, 0.0_8)
-    call extend (dom%press,        num, 0.0_8)
-    call extend (dom%geopot,       num, 0.0_8)
-    call extend (dom%u_zonal,      num, 0.0_8)
-    call extend (dom%v_merid,      num, 0.0_8)
-    call extend (dom%press_lower,  num, 0.0_8)
-    call extend (dom%geopot_lower, num, 0.0_8)
-    call extend (dom%bernoulli,    num, 0.0_8)
-    call extend (dom%ke,           num, 0.0_8)
-    call extend (dom%divu,         num, 0.0_8)
-    call extend (dom%topo,         num, 0.0_8)
+    call extend (dom%surf_press,   num, 0d0)
+    call extend (dom%press,        num, 0d0)
+    call extend (dom%geopot,       num, 0d0)
+    call extend (dom%u_zonal,      num, 0d0)
+    call extend (dom%v_merid,      num, 0d0)
+    call extend (dom%press_lower,  num, 0d0)
+    call extend (dom%geopot_lower, num, 0d0)
+    call extend (dom%bernoulli,    num, 0d0)
+    call extend (dom%ke,           num, 0d0)
+    call extend (dom%divu,         num, 0d0)
+    call extend (dom%topo,         num, 0d0)
     
-    call extend (dom%qe,      EDGE*num, 0.0_8)
-    call extend (dom%vort,   TRIAG*num, 0.0_8)
-    
+    call extend (dom%qe,      EDGE*num, 0d0)
+    call extend (dom%vort,   TRIAG*num, 0d0)
+
     do k = 1, zmax
-       call extend (penal_node(k)%data(d),      num, 0.0_8)
-       call extend (penal_edge(k)%data(d), EDGE*num, 0.0_8)
-       call extend (exner_fun(k)%data(d), num, 0.0_8)
+       call extend (penal_node(k)%data(d),      num, 0d0)
+       call extend (penal_edge(k)%data(d), EDGE*num, 0d0)
+       call extend (exner_fun(k)%data(d), num, 0d0)
        do v = scalars(1), scalars(2)
-          call extend (trend(v,k)%data(d),           num, 0.0_8)
-          call extend (wav_coeff(v,k)%data(d),       num, 0.0_8)
+          call extend (trend(v,k)%data(d),           num, 0d0)
+          call extend (wav_coeff(v,k)%data(d),       num, 0d0)
        end do
-       call extend (trend(S_VELO,k)%data(d),           EDGE*num, 0.0_8)
-       call extend (wav_coeff(S_VELO,k)%data(d),       EDGE*num, 0.0_8)
+       call extend (trend(S_VELO,k)%data(d),           EDGE*num, 0d0)
+       call extend (wav_coeff(S_VELO,k)%data(d),       EDGE*num, 0d0)
     end do
-    call extend (exner_fun(zmax+1)%data(d), num, 0.0_8)
+    call extend (exner_fun(zmax+1)%data(d), num, 0d0)
 
     if (vert_diffuse) then
-       call extend (Kt(0)%data(d), num, 0.0_8)
-       call extend (Kv(0)%data(d), num, 0.0_8)
+       call extend (Kt(0)%data(d), num, 0d0)
+       call extend (Kv(0)%data(d), num, 0d0)
        do k = 1, zlevels
-          call extend (Kt(k)%data(d),      num, 0.0_8)
-          call extend (Kv(k)%data(d),      num, 0.0_8)
-          call extend (tke(k)%data(d),     num, 1d-6)
-          call extend (wav_tke(k)%data(d), num, 0.0_8)
+          call extend (Kt(k)%data(d),      num, 0d0)
+          call extend (Kv(k)%data(d),      num, 0d0)
+          call extend (tke(k)%data(d),     num, e_min)
+          call extend (wav_tke(k)%data(d), num, 0d0)
        end do
     end if
     
-    call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0.0_8)
-    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE*num, 0.0_8)
+    call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0d0)
+    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE*num, 0d0)
     do v = scalars(1), scalars(2)
-       call extend (horiz_flux(v)%data(d),       EDGE*num, 0.0_8)
-       call extend (Laplacian_scalar(v)%data(d),      num, 0.0_8)
+       call extend (horiz_flux(v)%data(d),       EDGE*num, 0d0)
+       call extend (Laplacian_scalar(v)%data(d),      num, 0d0)
     end do
     
-    call extend (dom%overl_areas, EDGE*num, Overl_Area(0.0_8, 0.0_8))
-    call extend (dom%I_u_wgt,     EDGE*num, Iu_Wgt(0.0_8))
-    call extend (dom%R_F_wgt,          num, RF_Wgt(0.0_8))
+    call extend (dom%overl_areas, EDGE*num, Overl_Area(0d0, 0d0))
+    call extend (dom%I_u_wgt,     EDGE*num, Iu_Wgt(0d0))
+    call extend (dom%R_F_wgt,          num, RF_Wgt(0d0))
     call extend (dom%mask_n,           num, ZERO)
     call extend (dom%mask_e,      EDGE*num, ZERO)
 

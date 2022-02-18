@@ -477,8 +477,8 @@ contains
     if (npts == 0) then ! no smoothing
        mask = topo_value (is0, it0, itype)
     else ! smoothing
-       sw_topo  = 0.0_8
-       topo_sum = 0.0_8
+       sw_topo  = 0d0
+       topo_sum = 0d0
        do ii = -npts, npts
           do jj = -npts, npts
              s = is0+ii ; t = it0+jj
