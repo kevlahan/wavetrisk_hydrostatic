@@ -41,9 +41,17 @@ ifeq ($(F90),ifort)
     FLAGS_LINK += -module $(BUILD_DIR)
   endif
 else
-# Use -fallow-argument-mismatch to deal with mpi argument mismatch bug in gcc 10.1
-  FLAGS_COMP = -O$(OPTIM) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch
+  FLAGS_COMP = -O$(OPTIM) -c -J$(BUILD_DIR) -cpp 
   FLAGS_LINK = -O$(OPTIM) -J $(BUILD_DIR)
+
+# Deal with bug in argument checking 
+  GCC_VERSION := $(shell gcc -dumpversion)
+  BUG_VERSION := 10
+  GCC_MAJOR := $(shell echo $(GCC_VERSION) | cut -f1 -d.)
+  MIN_VERSION := $(shell expr "$(GCC_MAJOR)" ">=" "$(BUG_VERSION)")
+  ifeq "$(MIN_VERSION)" "1"
+    FLAGS_COMP += -fallow-argument-mismatch
+  endif 
 endif
 
 ifeq ($(OPTIM),0)
