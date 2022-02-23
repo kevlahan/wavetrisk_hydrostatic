@@ -91,7 +91,7 @@ contains
     call init_sphere_mod
     call init_domain_mod
     call init_arch_mod
-    initialized = .True.
+    initialized = .true.
   end subroutine init_init_mod
 
   subroutine init_grid
@@ -115,6 +115,8 @@ contains
     allocate (lnorm(1:N_VARIABLE,1:zmax))
     if (vert_diffuse) allocate (Kt(0:zlevels), Kv(0:zlevels), tke(1:zlevels), wav_tke(1:zlevels))
 
+    call init_Float_Field (topography, AT_NODE)
+    
     do k = 1, zmax
        call init_Float_Field (penal_node(k), AT_NODE)
        call init_Float_Field (penal_edge(k), AT_EDGE)
@@ -153,6 +155,8 @@ contains
     do d = 1, n_domain(rank+1)
        call init_Domain (grid(d))
 
+       call init (topography%data(d), 1)
+       
        do k = 1, zmax
           do v = scalars(1), scalars(2)
              call init (sol(v,k)%data(d),      1)
@@ -175,12 +179,12 @@ contains
        grid(d)%id = d-1
 
        do s = 1, N_BDRY
-          b = add_bdry_patch_Domain(grid(d), s)
+          b = add_bdry_patch_Domain (grid(d), s)
        end do
 
-       grid(d)%penta = .False.
+       grid(d)%penta = .false.
 
-       p = add_patch_Domain(grid(d), min_level-1)
+       p = add_patch_Domain (grid(d), min_level-1)
 
        grid(d)%patch%elts(p+1)%children = 0
        grid(d)%patch%elts(p+1)%neigh    = (/ ( i_ , i_ = -1, -N_BDRY, -1 ) /)

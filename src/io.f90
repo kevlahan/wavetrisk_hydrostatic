@@ -722,8 +722,8 @@ contains
           if (compressible) then ! geopotential height at level zlev
              outv(4) = dom%geopot%elts(id_i)/grav_accel
           else ! topography
-!!$             outv(4) = -dom%topo%elts(id_i) ! bathymetry
-             outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
+             outv(4) = -dom%topo%elts(id_i) ! bathymetry
+!!$             outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
           end if
 
           if (compressible .or. .not. penalize) then

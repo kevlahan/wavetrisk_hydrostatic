@@ -69,6 +69,7 @@ module domain_mod
 
   type(Domain), dimension(:), allocatable, target        :: grid
 
+  type(Float_Field),                              target :: topography, wav_topography
   type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, penal_node, penal_edge
   type(Float_Field), dimension(:),   allocatable, target :: Kv, Kt, tke, wav_tke
   type(Float_Field), dimension(:),   allocatable, target :: Laplacian_scalar, Laplacian_vector
@@ -913,18 +914,11 @@ contains
 
     do k = 1, zmax
        do v = scalars(1), scalars(2)
-          call extend (sol(v,k)%data(d),      num, 0.0_8)
-          call extend (sol_mean(v,k)%data(d), num, 0.0_8)
+          call extend (sol(v,k)%data(d),      num, 0d0)
+          call extend (sol_mean(v,k)%data(d), num, 0d0)
        end do
-       call extend (sol(S_VELO,k)%data(d),      EDGE*num, 0.0_8)
-       call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0.0_8)
-    end do
-    
-    do k = 1, save_levels
-       do v = scalars(1), scalars(2)
-          call extend (sol_save(v,k)%data(d), num, 0.0_8)
-       end do
-       call extend (sol_save(S_VELO,k)%data(d), EDGE*num, 0.0_8)
+       call extend (sol(S_VELO,k)%data(d),      EDGE*num, 0d0)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0d0)
     end do
   end subroutine extend_Domain
 

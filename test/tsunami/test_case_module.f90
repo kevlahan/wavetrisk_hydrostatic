@@ -422,6 +422,7 @@ contains
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot_case (p) / grav_accel
+       topography%data(d)%elts(id_i) = max_depth + surf_geopot_case (p) / grav_accel
     case ("penalize")
        call cart2sph (p, lon, lat)
        rgrc = radius * acos(sin(lat_land)*sin(lat) + cos(lat_land)*cos(lat)*cos(lon-lon_land))
@@ -429,12 +430,9 @@ contains
 
        penal_node(zlev)%data(d)%elts(id_i) = mask
 
-       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*idW +RT+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idW+RT+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*idSW+DG+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idSW+DG+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*idS +UP+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idS+UP+1))
+       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1))
+       penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1))
+       penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1))
     end select
   end subroutine analytic_topography
 
@@ -498,15 +496,13 @@ contains
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = mask
+!       topography%data(d)%elts(id_i) = mask
     case ("penalize")
        penal_node(zlev)%data(d)%elts(id_i) = mask
 
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1))
        penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1))
        penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*idW +RT+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idW+RT+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*idSW+DG+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idSW+DG+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*idS +UP+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*idS+UP+1))
     end select
   end subroutine etopo_topography
 
@@ -858,7 +854,7 @@ contains
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (zlevels == 1) then 
-       a_vert(0) = 0d0; a_vert(2) = 1d0
+       a_vert(0) = 0d0; a_vert(1) = 1d0
        b_vert(0) = 1d0; b_vert(1) = 0d0
     else ! uniform sigma grid: z = a_vert*eta + b_vert*z_s
        do k = 0, zlevels

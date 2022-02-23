@@ -592,7 +592,10 @@ contains
           end do
        end if
     end do
-    
+
+    deallocate (topography%data)
+    deallocate (wav_topography%data)
+
     deallocate (Laplacian_vector(S_DIVU)%data)
     deallocate (Laplacian_vector(S_ROTU)%data)
 
