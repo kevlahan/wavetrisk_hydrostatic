@@ -539,7 +539,7 @@ contains
 
     real(8) :: alph
 
-    alph = 1.0_8 / (npts/2 * dx)
+    alph = 1d0 / (npts/2d0 * dx)
 
     radial_basis_fun = exp (-(alph*r)**2)
   end function radial_basis_fun
@@ -728,23 +728,38 @@ contains
     implicit none
     integer :: d, k, l, p
 
-    do d = 1, size(grid)
-       do p = n_patch_old(d)+1, grid(d)%patch%length
-          call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-          do k = 1, zlevels
-             call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
-       end do
-    end do
-    call barrier
-
-    do k = 1, zlevels
+    if (istep /= 0) then
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+             call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+             do k = 1, zlevels
+                call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+             end do
           end do
        end do
-    end do
+       call barrier
+
+       do k = 1, zlevels
+          do d = 1, size(grid)
+             do p = n_patch_old(d)+1, grid(d)%patch%length
+                call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+             end do
+          end do
+       end do
+    else ! need to set values over entire grid on restart
+       do l = level_start, level_end
+          call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+          do k = 1, zmax
+             call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          end do
+       end do
+
+       do l = level_start, level_end
+          do k = 1, zmax
+             call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          end do
+       end do
+    end if
   end subroutine update_case
 
   subroutine update_diagnostics

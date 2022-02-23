@@ -345,14 +345,14 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol, level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, level_start-1)
 
-    ! Apply velocity penalization
-    if (penalize) call apply_penal
-
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
 
-    ! Set penalization and depth
+    ! Initialize topography, mean values, ...
     call update
+
+     ! Apply velocity penalization
+    if (penalize) call apply_penal
 
     ! Initialize total mass value
     if (log_mass) call sum_total_mass (.true.)
