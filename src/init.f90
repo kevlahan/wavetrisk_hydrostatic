@@ -3,7 +3,7 @@ module init_mod
   use domain_mod
   use arch_mod
   implicit none
-  real(8), parameter :: YANGLE = 0.0_8
+  real(8), parameter :: YANGLE = 0d0
   
   abstract interface
      real(8) function fun1 (eta, ri, z)
@@ -85,7 +85,7 @@ module init_mod
 contains
   subroutine init_init_mod
     implicit none
-    logical :: initialized = .False.
+    logical :: initialized = .false.
     
     if (initialized) return ! initialize only once
     call init_sphere_mod
@@ -155,8 +155,6 @@ contains
     do d = 1, n_domain(rank+1)
        call init_Domain (grid(d))
 
-       call init (topography%data(d), 1)
-       
        do k = 1, zmax
           do v = scalars(1), scalars(2)
              call init (sol(v,k)%data(d),      1)
@@ -173,7 +171,7 @@ contains
        end do
     end do
 
-    !  initializes grid for icosahedron
+    !  Initializes grid for icosahedron
     do d = 1, n_domain(rank+1)
 
        grid(d)%id = d-1
@@ -413,7 +411,7 @@ contains
 
     call apply_onescale2 (ccentre, min_level-1, z_null, -2, 1)
 
-    do d = 1, n_domain(rank+1)
+    do d = 1, size(grid)
        call ccentre_penta (grid(d), 1)
     end do
 
@@ -423,45 +421,6 @@ contains
 
     call apply_onescale (cpt_triarea, min_level-1, z_null, -1, 1)
     call apply_onescale (coriolis,    min_level-1, z_null, -1, 1)
-
-    do k = 1, zmax
-       do d = 1, size(grid)
-          call init (penal_node(k)%data(d),      grid(d)%node%length)
-          call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)
-          
-          call init (exner_fun(k)%data(d), grid(d)%node%length)
-          do v = scalars(1), scalars(2)
-             call init (trend(v,k)%data(d), grid(d)%node%length)
-          end do
-          call init (trend(S_VELO,k)%data(d), EDGE*grid(d)%node%length)
-          trend(S_VELO,k)%data(d)%elts = 0.0_8
-       end do
-    end do
-
-    if (vert_diffuse) then
-       do d = 1, size(grid)
-          call init (Kt(0)%data(d), grid(d)%node%length)
-          call init (Kv(0)%data(d), grid(d)%node%length)
-          do k = 1, zlevels
-             call init (Kt(k)%data(d),  grid(d)%node%length)
-             call init (Kv(k)%data(d),  grid(d)%node%length)
-             call init (tke(k)%data(d), grid(d)%node%length)
-          end do
-       end do
-    end if
-    
-    do d = 1, size(grid)
-       call init (exner_fun(zmax+1)%data(d), grid(d)%node%length)
-    end do
-
-    do d = 1, size(grid)
-       call init (Laplacian_vector(S_DIVU)%data(d),      grid(d)%node%length)
-       call init (Laplacian_vector(S_ROTU)%data(d), EDGE*grid(d)%node%length)
-       do v = scalars(1), scalars(2)
-          call init (horiz_flux(v)%data(d), EDGE*grid(d)%node%length)
-          call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
-       end do
-    end do
     
     do d = 1, size(grid)
        call init (grid(d)%surf_press,   grid(d)%node%length)
@@ -475,9 +434,41 @@ contains
        call init (grid(d)%ke,           grid(d)%node%length)
        call init (grid(d)%divu,         grid(d)%node%length)
        call init (grid(d)%topo,         grid(d)%node%length)
-       call init (grid(d)%vort,         grid(d)%node%length*TRIAG)
-       call init (grid(d)%qe,           grid(d)%node%length*EDGE)
+       call init (grid(d)%vort,   TRIAG*grid(d)%node%length)
+       call init (grid(d)%qe,      EDGE*grid(d)%node%length)
+       
+       call init (Laplacian_vector(S_DIVU)%data(d),      grid(d)%node%length)
+       call init (Laplacian_vector(S_ROTU)%data(d), EDGE*grid(d)%node%length)
+       
+       do v = scalars(1), scalars(2)
+          call init (horiz_flux(v)%data(d), EDGE*grid(d)%node%length)
+          call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
+       end do
+       
+       call init (topography%data(d), grid(d)%node%length)
+       do k = 1, zmax
+          call init (penal_node(k)%data(d),      grid(d)%node%length)
+          call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)
+          call init (exner_fun(k)%data(d),       grid(d)%node%length)
+          do v = scalars(1), scalars(2)
+             call init (trend(v,k)%data(d), grid(d)%node%length)
+          end do
+          call init (trend(S_VELO,k)%data(d), EDGE*grid(d)%node%length)
+       end do
+       call init (exner_fun(zmax+1)%data(d),  grid(d)%node%length)
     end do
+
+    if (vert_diffuse) then
+       do d = 1, size(grid)
+          call init (Kt(0)%data(d), grid(d)%node%length)
+          call init (Kv(0)%data(d), grid(d)%node%length)
+          do k = 1, zlevels
+             call init (Kt(k)%data(d),  grid(d)%node%length)
+             call init (Kv(k)%data(d),  grid(d)%node%length)
+             call init (tke(k)%data(d), grid(d)%node%length)
+          end do
+       end do
+    end if
   end subroutine precompute_geometry
 
   subroutine init_connections

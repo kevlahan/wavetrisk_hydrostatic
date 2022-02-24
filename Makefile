@@ -41,7 +41,7 @@ ifeq ($(F90),ifort)
     FLAGS_LINK += -module $(BUILD_DIR)
   endif
 else
-  FLAGS_COMP = -O$(OPTIM) -c -J$(BUILD_DIR) -cpp 
+  FLAGS_COMP = -O$(OPTIM) -c -J$(BUILD_DIR) -cpp
   FLAGS_LINK = -O$(OPTIM) -J $(BUILD_DIR)
 
 # Deal with bug in argument checking 

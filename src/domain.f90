@@ -84,6 +84,9 @@ module domain_mod
   real(8), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
   real(8), dimension(:), pointer :: wc_s, wc_u
 contains
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! Initialization subroutines !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_Float_Field (self, pos)
     implicit none
     type(Float_Field) :: self
@@ -118,18 +121,125 @@ contains
     initialized = .true.
   end subroutine init_domain_mod
 
-  subroutine apply_onescale_d (routine, dom, l, zlev, st, en)
+  subroutine init_Domain (self)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, l, st, zlev
+    type(Domain) :: self
+    
+    integer :: i, k, l, r
 
-    integer :: j
+    call init (self%patch, 1)
+    call init (self%bdry_patch, 1)
+    call init (self%node, 1)
 
-    do j = 1, dom%lev(l)%length
-       call apply_onescale_to_patch (routine, dom, dom%lev(l)%elts(j), zlev, st, en)
+    allocate (self%src_patch(n_process,min_level:max_level))
+
+    do l = min_level, max_level
+       do r = 1, n_process
+          call init (self%src_patch(r,l), 0)
+       end do
     end do
-  end subroutine apply_onescale_d
+
+    allocate (self%lev(min_level-1:max_level))
+
+    do i = lbound(self%lev,1), ubound(self%lev,1)
+       call init (self%lev(i), 0)
+    end do
+
+    do i = 1, N_GLO_DOMAIN
+       call init (self%send_conn(i), 0)
+    end do
+
+    call init (self%send_pa_all, 0)
+
+    do i = 1, N_GLO_DOMAIN
+       call init (self%recv_pa(i), 0)
+    end do
+
+    do k = AT_NODE, AT_EDGE
+       do i = 1, N_GLO_DOMAIN
+          call init (self%pack(k,i), 0)
+          call init (self%unpk(k,i), 0)
+       end do
+    end do
+
+    self%pole_master = .false.
+  end subroutine init_Domain
+
+  integer function add_patch_Domain (self, level)
+    implicit none
+    type(Domain) :: self
+    
+    integer :: level, p
+
+    p = self%patch%length
+
+    call append (self%lev(level), p)
+    call append (self%patch, Patch(self%node%length, level, 0, 0, 0, .false.))
+    call extend_Domain (self, PATCH_SIZE**2)
+    
+    add_patch_Domain = p
+  end function add_patch_Domain
+
+  integer function add_bdry_patch_Domain (self, side)
+    implicit none
+    type(Domain) :: self
+    integer      :: side
+
+    integer :: p
+
+    p = self%bdry_patch%length
+
+    call append (self%bdry_patch, Bdry_Patch(self%node%length, side, 0))
+
+    call extend_Domain (self, BDRY_THICKNESS*PATCH_SIZE)
+
+    add_bdry_patch_Domain = p
+  end function add_bdry_patch_Domain
+
+  subroutine extend_Domain (self, num)
+    implicit none
+    type(Domain) :: self
+    integer      :: num
+    
+    integer :: d, k, v
+
+    d = self%id + 1
+
+    call extend (self%node, num, ORIGIN)
+
+    do k = 1, zmax
+       do v = scalars(1), scalars(2)
+          call extend (sol(v,k)%data(d),      num, 0d0)
+          call extend (sol_mean(v,k)%data(d), num, 0d0)
+       end do
+       call extend (sol(S_VELO,k)%data(d),      EDGE*num, 0d0)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0d0)
+    end do
+  end subroutine extend_Domain
+
+  subroutine set_neigh_Domain (self, s, id, rot)
+    implicit none
+    type(Domain) :: self
+    integer      :: id, rot, s
+
+    self%neigh(s) = id
+    self%neigh_rot(s) = rot
+  end subroutine set_neigh_Domain
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! Subroutines for applying a routine to domains, patches, ... !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine apply (routine, zlev)
+    implicit none
+    external :: routine
+    integer  :: zlev
+
+    integer :: l
+
+    do l = level_start, level_end
+       call apply_onescale (routine, l, zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
+    end do
+  end subroutine apply
   
   subroutine apply_onescale_to_patch (routine, dom, p, zlev, st, en)
     implicit none
@@ -155,6 +265,48 @@ contains
        end do
     end do
   end subroutine apply_onescale_to_patch
+
+  subroutine apply_onescale (routine, l, zlev, st, en)
+    implicit none
+    external :: routine
+    integer  :: en, l, st, zlev
+
+    integer :: d, k
+
+    do d = 1, size(grid)
+       do k = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en)
+       end do
+    end do
+  end subroutine apply_onescale
+
+  subroutine apply_onescale__int (routine, l, zlev, st, en, ival)
+    implicit none
+    external :: routine
+    integer  :: en, ival, l, st, zlev
+
+    integer               :: d, k
+    logical, dimension(2) :: pole_done
+
+    do d = 1, size(grid)
+       do k = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch__int (routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en, ival)
+       end do
+    end do
+  end subroutine apply_onescale__int
+
+  subroutine apply_onescale_d (routine, dom, l, zlev, st, en)
+    implicit none
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, l, st, zlev
+
+    integer :: j
+
+    do j = 1, dom%lev(l)%length
+       call apply_onescale_to_patch (routine, dom, dom%lev(l)%elts(j), zlev, st, en)
+    end do
+  end subroutine apply_onescale_d
 
   subroutine apply_onescale_to_patch__int (routine, dom, p, zlev, st, en, ival)
     implicit none
@@ -410,16 +562,20 @@ contains
     end do
   end subroutine apply_interscale_to_patch3
 
-  integer function ed_idx (i, j, ed, offs, dims)
-    ! Return edge index
+  subroutine apply_to_pole (routine, l, zlev, ival, to_all)
     implicit none
-    integer                        :: i, j
-    integer, dimension(3)          :: ed
+    external :: routine
+    integer  :: ival, l, zlev
+    logical  :: to_all
+
+    integer                        :: c, d, l_cur, p, p_par
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
-    ed_idx = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
-  end function ed_idx
+
+    do d = 1, size(grid)
+       call apply_to_pole_d (routine, grid(d), l, zlev, ival, to_all)
+    end do
+  end subroutine apply_to_pole
 
   subroutine apply_to_pole_d (routine, dom, l, zlev, ival, to_all)
     implicit none
@@ -459,25 +615,24 @@ contains
           else
              call routine (dom, p_par, PATCH_SIZE, 0, zlev, offs, dims, ival) ! SOUTHPOLE
           end if
-
+          
        end do
     end do
   end subroutine apply_to_pole_d
 
-  subroutine apply_to_pole (routine, l, zlev, ival, to_all)
+  subroutine apply_to_penta (routine, l, zlev)
     implicit none
     external :: routine
-    integer  :: ival, l, zlev
-    logical  :: to_all
+    integer  :: l, zlev
 
     integer                        :: c, d, l_cur, p, p_par
-    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     do d = 1, size(grid)
-       call apply_to_pole_d (routine, grid(d), l, zlev, ival, to_all)
+       call apply_to_penta_d(routine, grid(d), l, zlev)
     end do
-  end subroutine apply_to_pole
+  end subroutine apply_to_penta
 
   subroutine apply_to_penta_d (routine, dom, l, zlev)
     implicit none
@@ -511,122 +666,9 @@ contains
     end do
   end subroutine apply_to_penta_d
 
-  subroutine apply_to_penta (routine, l, zlev)
-    implicit none
-    external :: routine
-    integer  :: l, zlev
-    
-    integer                        :: c, d, l_cur, p, p_par
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    do d = 1, size(grid)
-       call apply_to_penta_d(routine, grid(d), l, zlev)
-    end do
-  end subroutine apply_to_penta
-
-  integer function tri_idx (i, j, tri, offs, dims)
-    implicit none
-    integer                        :: i, j
-    integer, dimension(3)          :: tri
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    tri_idx = TRIAG * idx(i + tri(1), j + tri(2), offs, dims) + tri(3)
-  end function tri_idx
-
-  integer function nidx (i, j, s, offs, dims)
-    implicit none
-    integer                        :: i, j, s
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    nidx = offs(s+1) + j*dims(1,s+1) + i
-  end function nidx
-
-  integer function idx2 (i, j, noffs, offs, dims)
-    implicit none
-    integer                        :: i, j
-    integer, dimension(2)          :: noffs
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    idx2 = idx(i + noffs(1), j + noffs(2), offs, dims)
-  end function idx2
-
-  logical function is_penta (dom, p, s)
-    implicit none
-    type(Domain) :: dom
-    integer      :: p, s
-
-    integer :: n, side
-    logical :: penta
-
-    penta = .false.
-
-    n = dom%patch%elts(p+1)%neigh(s+1)
-
-    if (n < 0) then
-       n = -n
-       side = dom%bdry_patch%elts(n+1)%side
-
-       if (side > 0) then
-          is_penta = dom%penta(side)
-          return
-       end if
-    end if
-
-    is_penta = penta
-  end function is_penta
-
-  subroutine apply (routine, zlev)
-    implicit none
-    external :: routine
-    integer  :: zlev
-
-    integer :: l
-
-    do l = level_start, level_end
-       call apply_onescale (routine, l, zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
-    end do
-  end subroutine apply
-
-  subroutine apply_onescale (routine, l, zlev, st, en)
-    implicit none
-    external :: routine
-    integer  :: en, l, st, zlev
-
-    integer :: d, k
-
-    do d = 1, size(grid)
-       do k = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en)
-       end do
-    end do
-  end subroutine apply_onescale
-
-  subroutine apply_onescale__int (routine, l, zlev, st, en, ival)
-    implicit none
-    external :: routine
-    integer  :: en, ival, l, st, zlev
-
-    integer               :: d, k
-    logical, dimension(2) :: pole_done
-
-    do d = 1, size(grid)
-       do k = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch__int (routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en, ival)
-       end do
-    end do
-  end subroutine apply_onescale__int
-
-  integer function idx__fast (i, j, offs)
-    implicit none
-    integer :: i, j, offs
-
-    idx__fast = PATCH_SIZE*j + i + offs
-  end function idx__fast
-
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! Index and neighbour routines !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   integer function idx (i0, j0, offs, dims)
     ! Given regular array coordinates (i0,j0), offset array offs and domain array dims returns associated grid element as elts(idx+1)
     implicit none
@@ -684,6 +726,13 @@ contains
     end if
   end function idx
 
+  integer function idx__fast (i, j, offs)
+    implicit none
+    integer :: i, j, offs
+
+    idx__fast = PATCH_SIZE*j + i + offs
+  end function idx__fast
+
   function idu (id)
     ! Returns vector with the indices of the three edges associated to node id
     implicit none
@@ -693,91 +742,70 @@ contains
     idu = EDGE*id + 1 + (/ RT, DG, UP /)
   end function idu
 
-  integer function add_bdry_patch_Domain (self, side)
+  integer function tri_idx (i, j, tri, offs, dims)
     implicit none
-    type(Domain) :: self
-    integer      :: side
+    integer                        :: i, j
+    integer, dimension(3)          :: tri
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    tri_idx = TRIAG * idx(i + tri(1), j + tri(2), offs, dims) + tri(3)
+  end function tri_idx
+
+  integer function nidx (i, j, s, offs, dims)
+    implicit none
+    integer                        :: i, j, s
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    nidx = offs(s+1) + j*dims(1,s+1) + i
+  end function nidx
+
+  integer function idx2 (i, j, noffs, offs, dims)
+    implicit none
+    integer                        :: i, j
+    integer, dimension(2)          :: noffs
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    idx2 = idx(i + noffs(1), j + noffs(2), offs, dims)
+  end function idx2
+
+  integer function ed_idx (i, j, ed, offs, dims)
+    ! Return edge index
+    implicit none
+    integer                        :: i, j
+    integer, dimension(3)          :: ed
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: p
+    ed_idx = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
+  end function ed_idx
 
-    p = self%bdry_patch%length
-
-    call append (self%bdry_patch, Bdry_Patch(self%node%length, side, 0))
-
-    call extend_Domain (self, BDRY_THICKNESS*PATCH_SIZE)
-
-    add_bdry_patch_Domain = p
-  end function add_bdry_patch_Domain
-
-  subroutine get_offs_Domain5 (self, p, offs, dims, inner_patch)
+  logical function is_penta (dom, p, s)
     implicit none
-    type(Domain)                    :: self
-    integer                         :: p
-    integer, dimension(N_BDRY+1)    :: offs
-    integer, dimension(2,N_BDRY+1)  :: dims
-    logical, dimension(4), optional :: inner_patch
+    type(Domain) :: dom
+    integer      :: p, s
 
-    integer :: i, n
+    integer :: n, side
+    logical :: penta
 
-    offs = -1
-    dims =  0
-    offs(1) = self%patch%elts(p+1)%elts_start
+    penta = .false.
 
-    if (present(inner_patch)) inner_patch = .false.
+    n = dom%patch%elts(p+1)%neigh(s+1)
 
-    do i = 1, N_BDRY
-       n = self%patch%elts(p+1)%neigh(i)
-       if (n > 0) then
-          offs(i+1) = self%patch%elts(n+1)%elts_start
-          dims(:,i+1) = PATCH_SIZE
-          if (present(inner_patch) .and. i <= 4) inner_patch(i) = .true.
-       else
-          if (n < 0) then
-             offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
-             dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-          end if
+    if (n < 0) then
+       n = -n
+       side = dom%bdry_patch%elts(n+1)%side
+
+       if (side > 0) then
+          is_penta = dom%penta(side)
+          return
        end if
-    end do
-  end subroutine get_offs_Domain5
+    end if
 
-  subroutine get_offs_Domain (self, p, offs, dims, inner_bdry)
-    implicit none
-    type(Domain)                    :: self
-    integer                         :: p
-    integer, dimension(N_BDRY+1)    :: offs
-    integer, dimension(2,N_BDRY+1)  :: dims
-    logical, dimension(4), optional :: inner_bdry
-
-    integer :: i, n
-
-    offs = -1
-    dims = 0
-    offs(1) = self%patch%elts(p+1)%elts_start
-
-    do i = 1, N_BDRY
-       n = self%patch%elts(p+1)%neigh(i)
-       if (n > 0) then
-          offs(i+1) = self%patch%elts(n+1)%elts_start
-          dims(:,i+1) = PATCH_SIZE
-          if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = .true. 
-       else
-          if (n < 0) then
-             offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
-             dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-             if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = self%bdry_patch%elts(-n+1)%side < 0
-          end if
-       end if
-    end do
-  end subroutine get_offs_Domain
-
-  subroutine set_neigh_Domain (self, s, id, rot)
-    implicit none
-    type(Domain) :: self
-    integer      :: id, rot, s
-
-    self%neigh(s) = id
-    self%neigh_rot(s) = rot
-  end subroutine set_neigh_Domain
+    is_penta = penta
+  end function is_penta
 
   integer function find_neigh_bdry_patch_Domain (self, p_par, c, s)
     implicit none
@@ -901,83 +929,64 @@ contains
     end if
   end function par_side
 
-  subroutine extend_Domain (self, num)
+  subroutine get_offs_Domain5 (self, p, offs, dims, inner_patch)
     implicit none
-    type(Domain) :: self
-    integer      :: num
-    
-    integer :: d, k, v
+    type(Domain)                    :: self
+    integer                         :: p
+    integer, dimension(N_BDRY+1)    :: offs
+    integer, dimension(2,N_BDRY+1)  :: dims
+    logical, dimension(4), optional :: inner_patch
 
-    d = self%id + 1
+    integer :: i, n
 
-    call extend (self%node, num, ORIGIN)
+    offs = -1
+    dims =  0
+    offs(1) = self%patch%elts(p+1)%elts_start
 
-    do k = 1, zmax
-       do v = scalars(1), scalars(2)
-          call extend (sol(v,k)%data(d),      num, 0d0)
-          call extend (sol_mean(v,k)%data(d), num, 0d0)
-       end do
-       call extend (sol(S_VELO,k)%data(d),      EDGE*num, 0d0)
-       call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0d0)
+    if (present(inner_patch)) inner_patch = .false.
+
+    do i = 1, N_BDRY
+       n = self%patch%elts(p+1)%neigh(i)
+       if (n > 0) then
+          offs(i+1) = self%patch%elts(n+1)%elts_start
+          dims(:,i+1) = PATCH_SIZE
+          if (present(inner_patch) .and. i <= 4) inner_patch(i) = .true.
+       else
+          if (n < 0) then
+             offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
+             dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
+          end if
+       end if
     end do
-  end subroutine extend_Domain
+  end subroutine get_offs_Domain5
 
-  subroutine init_Domain (self)
+  subroutine get_offs_Domain (self, p, offs, dims, inner_bdry)
     implicit none
-    type(Domain) :: self
-    
-    integer :: i, k, l, r
+    type(Domain)                    :: self
+    integer                         :: p
+    integer, dimension(N_BDRY+1)    :: offs
+    integer, dimension(2,N_BDRY+1)  :: dims
+    logical, dimension(4), optional :: inner_bdry
 
-    call init (self%patch, 1)
-    call init (self%bdry_patch, 1)
-    call init (self%node, 1)
+    integer :: i, n
 
-    allocate (self%src_patch(n_process,min_level:max_level))
+    offs = -1
+    dims = 0
+    offs(1) = self%patch%elts(p+1)%elts_start
 
-    do l = min_level, max_level
-       do r = 1, n_process
-          call init (self%src_patch(r,l), 0)
-       end do
+    do i = 1, N_BDRY
+       n = self%patch%elts(p+1)%neigh(i)
+       if (n > 0) then
+          offs(i+1) = self%patch%elts(n+1)%elts_start
+          dims(:,i+1) = PATCH_SIZE
+          if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = .true. 
+       else
+          if (n < 0) then
+             offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
+             dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
+             if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = self%bdry_patch%elts(-n+1)%side < 0
+          end if
+       end if
     end do
-
-    allocate (self%lev(min_level-1:max_level))
-
-    do i = lbound(self%lev,1), ubound(self%lev,1)
-       call init (self%lev(i), 0)
-    end do
-
-    do i = 1, N_GLO_DOMAIN
-       call init (self%send_conn(i), 0)
-    end do
-
-    call init (self%send_pa_all, 0)
-
-    do i = 1, N_GLO_DOMAIN
-       call init (self%recv_pa(i), 0)
-    end do
-
-    do k = AT_NODE, AT_EDGE
-       do i = 1, N_GLO_DOMAIN
-          call init (self%pack(k,i), 0)
-          call init (self%unpk(k,i), 0)
-       end do
-    end do
-
-    self%pole_master = .false.
-  end subroutine init_Domain
-
-  integer function add_patch_Domain (self, level)
-    implicit none
-    type(Domain) :: self
-    
-    integer :: level, p
-
-    p = self%patch%length
-
-    call append (self%lev(level), p)
-    call append (self%patch, Patch(self%node%length, level, 0, 0, 0, .false.))
-    call extend_Domain (self, PATCH_SIZE**2)
-
-    add_patch_Domain = p
-  end function add_patch_Domain
+  end subroutine get_offs_Domain
 end module domain_mod

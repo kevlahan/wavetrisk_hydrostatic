@@ -28,7 +28,7 @@ contains
 
     n_chd = find_neigh_patch_Domain(dom, p_par, c, s)
 
-    if (n_chd == 0) n_chd = -add_bdry_patch_Domain(dom, side)
+    if (n_chd == 0) n_chd = - add_bdry_patch_Domain (dom, side)
 
     p_chd = dom%patch%elts(p_par+1)%children(c+1)
     dom%patch%elts(p_chd+1)%neigh(s+1) = n_chd

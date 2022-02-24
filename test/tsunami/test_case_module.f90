@@ -357,11 +357,6 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_i
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
     ! Set bathymetry
     if (etopo_bathy) then ! set bathymetry coordinates using etopo data
        call etopo_topography (dom, i, j, zlev, offs, dims, 'bathymetry', npts_topo)
