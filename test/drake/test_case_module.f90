@@ -448,7 +448,7 @@ contains
     implicit none
     integer :: d, k, l
 
-    call topography_data
+    call topo_drake_data
 
     do l = level_start, level_end
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -754,7 +754,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+    call topo_drake (dom, i, j, zlev, offs, dims, 'bathymetry')
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
@@ -772,14 +772,14 @@ contains
     id_i = id + 1
 
     if (penalize) then
-       call topography (dom, i, j, zlev, offs, dims, "penalize")
+       call topo_drake (dom, i, j, zlev, offs, dims, "penalize")
     else
        penal_node(zlev)%data(d)%elts(id_i)                      = 0d0
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0       
     end if
   end subroutine set_penal
 
-  subroutine topography (dom, i, j, zlev, offs, dims, itype)
+  subroutine topo_drake (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
     ! uses radial basis function for smoothing (if specified)
     implicit none
@@ -820,9 +820,9 @@ contains
           penal_edge(zlev)%data(d)%elts(id_e) = max (penal_edge(zlev)%data(d)%elts(id_e), mask)
        end do
     end select
-  end subroutine topography
+  end subroutine topo_drake
 
-  subroutine topography_data
+  subroutine topo_drake_data
     ! Defines analytic latitude-longitude topography data for Drake passage case
     implicit none
     integer                              :: ii, ilat, ilon, lat_avg, lon_avg, jj, kk
@@ -843,7 +843,7 @@ contains
        end do
        close (1086)
     end if
-  end subroutine topography_data
+  end subroutine topo_drake_data
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     ! Idealized zonally and temporally averaged zonal and meridional wind stresses
