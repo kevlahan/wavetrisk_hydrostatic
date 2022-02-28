@@ -37,8 +37,8 @@ program Drake
   compressible       = .false.                          ! always run with incompressible equations
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
-  log_mass           = .true.                          ! do not compute mass diagnostics
-  damp_wave          = .false.                          ! do not damp internal waves
+  log_mass           = .true.                           ! do not compute mass diagnostics
+  damp_wave          = .true.                          ! do not damp internal waves
   save_zlev          = zlevels                          ! vertical layer to save
   
   ! Depth and layer parameters
