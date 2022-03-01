@@ -30,18 +30,22 @@ program Drake
   omega          = omega_earth/scale_omega                     ! angular velocity (scaled for small planet to keep beta constant)
 
   ! Numerical method parameters
+  timeint_type       = "RK3"                            ! time scheme
   match_time         = .true.                           ! avoid very small time steps when saving 
   mode_split         = .true.                           ! split barotropic mode if true
-  timeint_type       = "RK3"                            ! time scheme
   penalize           = .true.                           ! penalize land regions
   compressible       = .false.                          ! always run with incompressible equations
+  log_mass           = .true.                           ! do not compute mass diagnostics
+  remap              = .false.                          ! do not remap
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
-  log_mass           = .true.                           ! do not compute mass diagnostics
-  damp_wave          = .true.                          ! do not damp internal waves
+  cfl_num            = 20d0                             ! cfl number
   save_zlev          = zlevels                          ! vertical layer to save
   
-  ! Depth and layer parameters
+  damp_wave      = .false.                           ! do not damp internal waves
+  resolution     = 1.5d0                                ! resolve Munk layer with this many points
+  drag           = .true.                               ! apply bottom drag
+  npts_penal     =  4.5d0                               ! smooth mask over npts_penal points 
   etopo_res      = 4                                    ! resolution of etopo data in arcminutes (if used) 
   etopo_coast    = .false.                              ! use etopo data for coastlines (i.e. penalization)
   min_depth      =   -50d0 * METRE                      ! minimum allowed depth (must be negative)

@@ -235,26 +235,12 @@ contains
        read (fid,*) varname, scale
        read (fid,*) varname, scale_omega
        read (fid,*) varname, max_level
-       read (fid,*) varname, level_fill
        read (fid,*) varname, zlevels
-       read (fid,*) varname, remap
-       read (fid,*) varname, iremap
-       read (fid,*) varname, tol_elliptic
-       read (fid,*) varname, coarse_iter
-       read (fid,*) varname, fine_iter
-       read (fid,*) varname, log_iter
-       read (fid,*) varname, default_thresholds
        read (fid,*) varname, tol
-       read (fid,*) varname, cfl_num
-       read (fid,*) varname, adapt_dt
        read (fid,*) varname, dt_write
        read (fid,*) varname, CP_EVERY
        read (fid,*) varname, time_end
        read (fid,*) varname, resume_init
-       read (fid,*) varname, alpha
-       read (fid,*) varname, drag
-       read (fid,*) varname, npts_penal
-       read (fid,*) varname, resolution
        close(fid)
     end if
 
@@ -264,26 +250,12 @@ contains
     call MPI_Bcast (scale,              1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (scale_omega,        1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (max_level,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (level_fill,         1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (zlevels,            1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (remap,              1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (iremap,             1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (tol_elliptic,       1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (coarse_iter,        1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (fine_iter,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (log_iter,           1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (default_thresholds, 1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (tol,                1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (cfl_num,            1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (adapt_dt,           1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (dt_write,           1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (CP_EVERY,           1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (time_end,           1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (resume_init,        1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror) 
-    call MPI_Bcast (alpha,              1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (drag,               1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (npts_penal,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (resolution,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
 #endif
     
     press_save = 0d0
