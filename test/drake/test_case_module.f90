@@ -11,13 +11,13 @@ Module test_case_mod
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
 
   ! Local variables
-  real(8)                              :: beta, bv
-  real(8)                              :: delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, mixed_layer, Rb, Rd, Rey, Ro
-  real(8)                              :: radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc
-  real(8)                              :: resolution, tau_0, wave_friction
+  real(8)                              :: beta, bv, H1, H2
+  real(8)                              :: delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, K_u, mixed_layer, Rb, Rd
+  real(8)                              :: Rey, Ro, radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc 
+  real(8)                              :: resolution, tau_0
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
-  logical                              :: damp_wave, drag, etopo_coast
+  logical                              :: etopo_coast
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -117,78 +117,62 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                         :: d, id, id_i, idE, idN, idNE
-    real(8)                         :: dx, visc
-    real(8), dimension(1:EDGE)      :: bottom_drag, diffusion, mass_e, tau_wind, wave_drag, wind_drag
-    real(8), dimension(0:NORTHEAST) :: full_mass
+    real(8), dimension(1:EDGE)      :: horiz_diffusion, u1, u2, vert_diffusion
 
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
+    d    = dom%id + 1
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
-
-    idE  = idx (i+1, j,   offs, dims) + 1
-    idNE = idx (i+1, j+1, offs, dims) + 1
-    idN  = idx (i,   j+1, offs, dims) + 1
-
-    ! Increase diffusion near poles to remove noise at these lower accuracy points
-    if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4d0*dx_max)**2 < 1d0) then
-       dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
-       visc = dx**2/dt/32d0
-       diffusion =  (-1d0)**(Laplace_order-1d0) * visc * (grad_divu() - curl_rotu())
-    else
-       diffusion =  (-1d0)**(Laplace_order-1d0) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
-    end if
     
-    ! Wind stress per unit length in top layer only
-    if (zlev == zlevels) then
-       full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+    idE  = idx (i+1, j,   offs, dims) 
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
 
-       mass_e(RT+1) = interp (full_mass(0), full_mass(EAST))
-       mass_e(DG+1) = interp (full_mass(0), full_mass(NORTHEAST))
-       mass_e(UP+1) = interp (full_mass(0), full_mass(NORTH))
-
-       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idE))
-       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE), dom%node%elts(id_i))
-       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i), dom%node%elts(idN))
-       wind_drag = tau_wind / mass_e ! variable forcing
-    else
-       wind_drag = 0d0
-    end if
-
-    ! Bottom stress applied in lowest layer only 
-    if (zlev == 1) then
-       bottom_drag = - bottom_friction_case * velo(EDGE*id+RT+1:EDGE*id+UP+1) ! linear
-    else
-       bottom_drag = 0d0
-    end if
-
-    ! Internal wave drag to reduce oscillation amplitude (energy neutral) 
-    if (zlevels >= 2) then
-       if (zlev > 1) then
-          wave_drag = velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,zlev-1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-       else
-          wave_drag = velo(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    ! Horizontal diffusion
+    horiz_diffusion =  (-1d0)**(Laplace_order-1d0) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+    
+    ! Vertical diffusion
+    if (zlevels == 2) then
+       u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+       u2 = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+       if (zlev == 1) then
+          vert_diffusion = - Kv_0 / (H1 * (H1 + H2)/2d0) * (u1 - u2) + bottom_drag ()
+       elseif (zlev == 2) then
+          vert_diffusion = - Kv_0 / (H2 * (H1 + H2)/2d0) * (u2 - u1) + wind_drag ()
        end if
-    else
-       wave_drag = 0d0
+    elseif (zlevels == 1) then
+       vert_diffusion = bottom_drag () + wind_drag ()
     end if
-    wave_drag = - wave_friction * wave_drag
 
     ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
     if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
-       physics_velo_source_case = diffusion + bottom_drag + wave_drag + wind_drag
+       physics_velo_source_case = horiz_diffusion + vert_diffusion
     else
-       physics_velo_source_case = diffusion
+       physics_velo_source_case = horiz_diffusion
     end if
   contains
-    function grad_divu()
+    function bottom_drag ()
+      implicit none
+      real(8), dimension(3) :: bottom_drag
+
+      bottom_drag = - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1) / H1
+    end function bottom_drag
+    
+    function wind_drag ()
+      implicit none
+      real(8), dimension(3) :: wind_drag
+      
+      real(8), dimension(3) :: tau_wind
+     
+      tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idE+1))
+      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id_i))
+      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idN+1))
+
+      wind_drag = tau_wind / (ref_density * H2)
+    end function wind_drag
+    
+    function grad_divu ()
       implicit none
       real(8), dimension(3) :: grad_divu
-
-      integer :: idE, idN, idNE
-
-      idE  = idx (i+1, j,   offs, dims)
-      idN  = idx (i,   j+1, offs, dims)
-      idNE = idx (i+1, j+1, offs, dims)
 
       grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
       grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
@@ -319,7 +303,6 @@ contains
        write (6,'(a,l1)')     "rebalance                      = ", rebalance
        write (6,'(A,es10.4)') "time_end [d]                   = ", time_end/DAY
        write (6,'(A,i6)')     "resume                         = ", resume_init
-       write (6,'(A,L1)')     "bottom drag                    = ", drag
        write (6,'(A,i3)')     "etopo_res                      = ", etopo_res
        write (6,'(A,es10.4)') "resolution                     = ", resolution
 
@@ -341,9 +324,13 @@ contains
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
-       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
-       write (6,'(A,es11.4)') "wave drag decay           [h]  = ", 1/wave_friction / HOUR
-       write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
+       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1d0/bottom_friction_case / DAY
+       if (zlevels == 2) then
+          write (6,'(A,es11.4)') "K_u                   [m^2/s]  = ", K_u
+          write (6,'(A,es11.4)') "wave friction layer 1   [1/s]  = ", K_u / (H1 * (H1 + H2)/2d0)
+          write (6,'(A,es11.4)') "wave friction layer 2   [1/s]  = ", K_u / (H2 * (H1 + H2)/2d0)
+       end if
+       write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1d0/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM

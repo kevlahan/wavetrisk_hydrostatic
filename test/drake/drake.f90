@@ -37,18 +37,24 @@ program Drake
   compressible       = .false.                          ! always run with incompressible equations
   log_mass           = .true.                           ! do not compute mass diagnostics
   remap              = .false.                          ! do not remap
+  
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
   cfl_num            = 20d0                             ! cfl number
   save_zlev          = zlevels                          ! vertical layer to save
   
-  damp_wave      = .false.                           ! do not damp internal waves
+  tol_elliptic       = 1d-8                             ! tolerance for coarse scale bicgstab elliptic solver
+  coarse_iter        = 100                              ! maximum number of coarse scale bicgstab iterations for elliptic solver
+  fine_iter          =  40                              ! maximum number of fine scale jacobi iterations for elliptic solver
+
+  ! Test case parameters
+  bottom_friction_case = 4d-4 / SECOND                  ! nemo value
   resolution     = 1.5d0                                ! resolve Munk layer with this many points
-  drag           = .true.                               ! apply bottom drag
-  npts_penal     =  4.5d0                               ! smooth mask over npts_penal points 
+  npts_penal     = 4.5d0                                ! smooth mask over npts_penal points 
   etopo_res      = 4                                    ! resolution of etopo data in arcminutes (if used) 
   etopo_coast    = .false.                              ! use etopo data for coastlines (i.e. penalization)
-  min_depth      =   -50d0 * METRE                      ! minimum allowed depth (must be negative)
+  min_depth      = -50d0 * METRE                        ! minimum allowed depth (must be negative)
+
   if (zlevels == 1) then                                ! maximum allowed depth (must be negative)
      max_depth   = -4000d0 * METRE                      ! total depth
      halocline   = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
@@ -64,12 +70,8 @@ program Drake
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.7d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     max_depth   = -4000d0 * METRE                      ! total depth
-     halocline   = -1000d0 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer =  -100d0 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -8d0 * KG/METRE**3                ! density perturbation at free surface (linear stratification from free surface to halocline)
-     tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =   1.7d0 * METRE/SECOND               ! estimated western boundary current speed
+     if (rank == 0) write (6,'(a)') "zlevels must be 1 or 2 ... aborting"
+     call abort
   end if
 
   ! Characteristic scales
@@ -81,6 +83,15 @@ program Drake
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                            ! inertial layer
   delta_sm       = u_wbc/f0                                     ! barotropic submesoscale
+
+  ! Layer depths for bottom_drag and wind_drag functions
+  if (zlevels == 2) then
+     H1 = abs (max_depth - mixed_layer) ! top layer depth
+     H2 = abs (mixed_layer)             ! bottom layer depth
+  elseif (zlevels == 1) then
+     H1 = abs(max_depth)
+     H2 = H1
+  end if
 
   ! Baroclinic wave speed
   if (zlevels == 2) then
@@ -96,20 +107,6 @@ program Drake
      Rb = c1 / f0                                 
   else
      Rb = bv * abs(max_depth) / (MATH_PI*f0)
-  end if
-
-  ! Bottom friction
-  if (drag) then
-     bottom_friction_case = 4d-4 / abs(max_depth) ! nemo value
-  else
-     bottom_friction_case = 0d0 / SECOND
-  end if
-
-  ! Internal wave friction 
-  if (damp_wave) then
-     wave_friction = u_wbc / Rb / 3d0 ! three e-folding growth times of internal wave (requires accurate u_wbc estimate)
-  else
-     wave_friction = 0d0
   end if
 
   ! Relaxation of buoyancy to mean profile 
