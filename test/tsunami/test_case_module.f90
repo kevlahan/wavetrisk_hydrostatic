@@ -491,7 +491,7 @@ contains
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = mask
-!       topography%data(d)%elts(id_i) = mask
+       topography%data(d)%elts(id_i) = mask
     case ("penalize")
        penal_node(zlev)%data(d)%elts(id_i) = mask
 
