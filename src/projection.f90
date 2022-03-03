@@ -27,6 +27,12 @@ contains
     kx_export = 1d0 / dx_export
     ky_export = 1d0 / dy_export
 
+    if (allocated(field2d)) deallocate (field2d)
+    if (allocated(lat)) deallocate (lat)
+    if (allocated(lon)) deallocate (lon)
+    if (allocated(xcoord_lat)) deallocate (xcoord_lat)
+    if (allocated(xcoord_lon)) deallocate (xcoord_lon)
+    
     allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2))) ; field2d = 0d0
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
     allocate (xcoord_lat(Ny(1):Ny(2),1:2), xcoord_lon(Nx(1):Nx(2),1:2))
