@@ -4,7 +4,7 @@ module test_case_mod
   use utils_mod
   use init_mod
   implicit none
-  integer        :: angular_order, cp_beg, cp_end, N, ntaper
+  integer        :: angular_order, cp_beg, cp_end, lwin, N, ntaper
   real(8)        :: concentration, lat0, lon0, ref_surf_press, theta0
   real(8)        :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   character(255) :: spec_type

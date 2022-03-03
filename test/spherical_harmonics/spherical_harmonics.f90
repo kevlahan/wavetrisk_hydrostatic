@@ -28,25 +28,25 @@ program spherical_harmonics
      compressible   = .true.                      ! Compressible equations
 
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
-     grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
+     grav_accel     = 9.80616d0                   ! gravitational acceleration in meters per second squared
      omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
      p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
      ref_surf_press = p_0                         ! reference surface pressure
-     R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-     kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
+     R_d            = 287d0                     ! ideal gas constant for dry air in joules per kilogram Kelvin
+     kappa          = 2d0/7d0                 ! kappa=R_d/c_p
 
-     u_0            = 35.0_8                      ! maximum velocity of zonal wind
+     u_0            = 35d0                      ! maximum velocity of zonal wind
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
   elseif (trim (test_case) == "DCMIP2008c5") then
      compressible   = .true.                      ! Compressible equations
 
      radius         = 6.371229d6                  ! mean radius of the Earth in meters
-     grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
+     grav_accel     = 9.80616d0                   ! gravitational acceleration in meters per second squared
      omega          = 7.29211d-5                  ! Earth’s angular velocity in radians per second
      p_0            = 100145.6_8                  ! reference pressure (mean surface pressure) in Pascals
      ref_surf_press = 930.0d2                     ! reference surface pressure
      R_d            = 287.04_8                    ! ideal gas constant for dry air in joules per kilogram Kelvin
-     kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
+     kappa          = 2d0/7.0_8                 ! kappa=R_d/c_p
 
      d2             = 1.5d6**2                    ! square of half width of Gaussian mountain profile in meters
      h_0            = 2.0d3                       ! mountain height in meters
@@ -101,29 +101,117 @@ program spherical_harmonics
      stop
   end if
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  resume = cp_idx
-  
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  resume = cp_beg
+
   ! Initialize functions
   call assign_functions
 
   ! Initialize variables
   call initialize (run_id)
+     
+  do cp_idx = cp_beg, cp_end
+     resume = NONE
+     call restart (run_id)
 
-  resume = NONE
-  call restart (run_id)
+     if (trim (spec_type) == 'sphere') then
+        call spec_sphere
+     elseif (trim (spec_type) == 'latlon') then
+        if (zlevels == 2 .and. trim (test_case) == "drake") then
+           call spec_latlon_2layer
+        else
+           call spec_latlon_1layer
+        end if
+     end if
+  end do
 
-  if (trim (spec_type) == 'sphere') then
-     call spec_sphere
-  elseif (trim (spec_type) == 'latlon') then
-     if (zlevels == 2 .and. trim (test_case) == "drake") then
-        call spec_latlon_2layer
-     else
-        call spec_latlon_1layer
+  ! Compute and save averages
+  if (cp_end /= cp_beg .and. rank == 0) then
+     call avg_spec ('barotropic')
+     call avg_spec ('baroclinic_2')
+     call avg_spec ('baroclinic_2')
+     call avg_spec ('total_1')
+     call avg_spec ('total_2')
+     if (local_spec) then
+        call avg_local_spec ('barotropic_local')
+        call avg_local_spec ('baroclinic_2_local')
+        call avg_local_spec ('baroclinic_2_local')
+        call avg_local_spec ('total_1_local')
+        call avg_local_spec ('total_2_local')
      end if
   end if
   call finalize
 contains
+  subroutine avg_spec (data_type)
+    implicit none
+    character(*) :: data_type
+
+    integer                            :: cp, j, jj, lmax
+    real(8), dimension(:), allocatable :: pspec, pspec_av
+    character(4)                       :: var_file
+
+    lmax = N/4 - 1
+
+    allocate (pspec(lmax+1), pspec_av(lmax+1))
+    pspec = 0d0; pspec_av = 0d0
+
+    do cp = cp_beg, cp_end
+       write (var_file, '(i4.4)') cp
+       open (unit=10, file=trim(run_id)//'_'//var_file//'_'//trim(data_type)//'_spec', form="FORMATTED", status="OLD")
+       do j = 1, lmax + 1
+          read (10,*) jj, pspec(j)
+       end do
+       close (10)
+       pspec_av = pspec_av + pspec
+    end do
+    pspec_av = pspec_av / (cp_end - cp_beg + 1)
+    
+    open (unit=10, file=trim(run_id)//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
+    do j = 1, lmax + 1
+       write (10,'(i4,1x,es10.4)') j, pspec_av(j)
+    end do
+    close (10)
+    
+    deallocate (pspec, pspec_av)
+  end subroutine avg_spec
+
+  subroutine avg_local_spec (data_type)
+    implicit none
+    character(*) :: data_type
+
+    integer                            :: cp, j, jj, lmax
+    real(8), dimension(:), allocatable :: mtse, mtse_av, sd, sd_av
+    character(4)                       :: var_file
+
+    lmax = N/4 - 1
+    
+    allocate (mtse(lmax-lwin+1),    sd(lmax-lwin+1))
+    allocate (mtse_av(lmax-lwin+1), sd_av(lmax-lwin+1))
+    mtse = 0d0; mtse_av = 0d0; sd = 0d0; sd_av = 0d0
+
+    do cp = cp_beg, cp_end
+       write (var_file, '(i4.4)') cp
+       open (unit=10, file=trim(run_id)//'_'//var_file//'_'//trim(data_type)//'_spec', form="FORMATTED", status="OLD")
+        do j = 1, lmax - lwin + 1
+           read (10,*) jj, mtse(j), sd(j)
+        end do
+       close (10)
+       mtse_av = mtse_av + mtse
+       sd_av = sd_av + sd
+    end do
+    mtse_av = mtse_av / (cp_end - cp_beg + 1)
+    sd_av   = sd_av   / (cp_end - cp_beg + 1)
+    
+    open (unit=10, file=trim(run_id)//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
+    do j = 1, lmax - lwin + 1
+       write (10,'(i4,1x,2(es10.4,1x))') j, mtse_av(j), sd_av(j)
+    end do
+    close (10)
+
+    deallocate (mtse, mtse_av, sd, sd_av)
+  end subroutine avg_local_spec
+
   subroutine spec_latlon_1layer
     ! Compute energy spectrum from 2d latitude-longitude projection
     use domain_mod
@@ -320,7 +408,7 @@ contains
 !!$  If the optional parameter lmax_calc is not specified, this corresponds to the maximum spherical harmonic degree of the output coefficients cilm.
     character(*)                            :: data_type
 
-    integer                                 :: ierr, i, j, lmax, lwin
+    integer                                 :: ierr, i, j, lmax
     real(8)                                 :: area
     real(8), dimension (:,:,:), allocatable :: cilm      ! spherical harmonic coefficients
     real(8), dimension (:),     allocatable :: pspectrum ! global power spectrum of the function
@@ -365,17 +453,17 @@ contains
        lwin = SHFindLWin (theta0*DEG, angular_order, concentration)
 
        ! Compute local spectrum and associated error
-       call local_spectrum (cilm, lmax, lwin)
+       call local_spectrum (cilm, lmax)
     end if
     deallocate (cilm, pspectrum)
   end subroutine spectrum_lon_lat
   
-  subroutine local_spectrum (cilm, lmax, lwin)
+  subroutine local_spectrum (cilm, lmax)
     ! Computes a localized multitaper spectral analysis of an input function expressed in spherical harmonics. The maximum degree of the
     ! localized multitaper cross-power spectrum estimate is lmax-lmaxt. lat0 (deg), lon0 (deg), theta0 (radians) define local region
     use SHTOOLS
     implicit none
-    integer                                :: lmax, lwin
+    integer                                :: lmax
     real(8), dimension (2, lmax+1, lmax+1) :: cilm
    
     integer                               :: ierr, j
@@ -401,7 +489,7 @@ contains
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHMultiTaperSE"
 
     ! Save data
-    area = 2*MATH_PI*radius**2 * (1.0_8 - cos(theta0*DEG))
+    area = 2d0*MATH_PI*radius**2 * (1d0 - cos(theta0*DEG))
     do j = 1, lmax - lwin + 1
        write (6, '(i4,1x,2(es10.4,1x))') j, mtse(j) * area, sd(j) * area
        write (10,'(i4,1x,2(es10.4,1x))') j, mtse(j) * area, sd(j) * area
@@ -518,7 +606,7 @@ contains
     implicit none
     character(*)                            :: data_type
 
-    integer                                 :: ierr, j, lmax, lwin
+    integer                                 :: ierr, j, lmax
     real(8), dimension(:),      allocatable :: pspectrum
     real(8), dimension (:,:,:), allocatable :: cilm
     character(4)                            :: var_file
@@ -550,7 +638,7 @@ contains
        lwin = SHFindLWin (theta0*DEG, angular_order, concentration)
 
        ! Compute local spectrum and associated error
-       call local_spectrum (cilm, lmax, lwin)
+       call local_spectrum (cilm, lmax)
     end if
     deallocate (cilm, pspectrum)
   end subroutine spectrum_sphere

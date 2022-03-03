@@ -1,7 +1,8 @@
 spec_type      "latlon"     ! "sphere" or "latlon"
 test_case      "drake"      ! test case
 run_id         "1layer_J6"  ! run
-cp_2d	        33          ! checkpoint for 2d projection	
+cp_beg	        15          ! first checkpoint
+cp_end	        17          ! last  checkpoint	
 max_level	10          ! maximum level of resolution
 zlevels         1           ! number of vertical levels
 save_zlev       55          ! vertical level at which to compute energy spectra
