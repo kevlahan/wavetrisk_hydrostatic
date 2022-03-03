@@ -12,7 +12,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, H1, H2
-  real(8)                              :: delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, K_u, mixed_layer, Rb, Rd
+  real(8)                              :: delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, Ku, mixed_layer, Rb, Rd
   real(8)                              :: Rey, Ro, radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc 
   real(8)                              :: resolution, tau_0
   real(8),                      target :: bottom_friction_case  
@@ -326,9 +326,9 @@ contains
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1d0/bottom_friction_case / DAY
        if (zlevels == 2) then
-          write (6,'(A,es11.4)') "K_u                   [m^2/s]  = ", K_u
-          write (6,'(A,es11.4)') "wave friction layer 1   [1/s]  = ", K_u / (H1 * (H1 + H2)/2d0)
-          write (6,'(A,es11.4)') "wave friction layer 2   [1/s]  = ", K_u / (H2 * (H1 + H2)/2d0)
+          write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
+          write (6,'(A,es11.4)') "wave drag decay layer 1   [d]  = ", 1d0/(Ku / (H1 * (H1 + H2)/2d0)) / DAY
+          write (6,'(A,es11.4)') "wave drag decay layer 2   [d]  = ", 1d0/(Ku / (H2 * (H1 + H2)/2d0)) / DAY
        end if
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1d0/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0

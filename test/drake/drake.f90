@@ -48,12 +48,13 @@ program Drake
   fine_iter          =  40                              ! maximum number of fine scale jacobi iterations for elliptic solver
 
   ! Test case parameters
-  bottom_friction_case = 4d-4 / SECOND                  ! nemo value
-  resolution     = 1.5d0                                ! resolve Munk layer with this many points
-  npts_penal     = 4.5d0                                ! smooth mask over npts_penal points 
-  etopo_res      = 4                                    ! resolution of etopo data in arcminutes (if used) 
-  etopo_coast    = .false.                              ! use etopo data for coastlines (i.e. penalization)
-  min_depth      = -50d0 * METRE                        ! minimum allowed depth (must be negative)
+  Ku                   = 2d0 * METRE**2/SECOND          ! viscosity for vertical diffusion (damp internal waves)
+  bottom_friction_case = 1d-7 / SECOND                  ! much smaller than NEMO value of 4d-4
+  resolution           = 1.5d0                          ! resolve Munk layer with this many points
+  npts_penal           = 4.5d0                          ! smooth mask over npts_penal points 
+  etopo_res            = 4                              ! resolution of etopo data in arcminutes (if used) 
+  etopo_coast          = .false.                        ! use etopo data for coastlines (i.e. penalization)
+  min_depth            = -50d0 * METRE                  ! minimum allowed depth (must be negative)
 
   if (zlevels == 1) then                                ! maximum allowed depth (must be negative)
      max_depth   = -4000d0 * METRE                      ! total depth
@@ -77,7 +78,7 @@ program Drake
   ! Characteristic scales
   wave_speed     = sqrt (grav_accel*abs(max_depth))             ! inertia-gravity wave speed 
   f0             = 2d0*omega*sin(45d0*DEG)                      ! representative Coriolis parameter
-  beta           = 2d0*omega*cos(45d0*DEG) / radius             ! beta parameter at 30 degrees latitude
+  beta           = 2d0*omega*cos(45d0*DEG) / radius             ! beta parameter at 45 degrees latitude
   Rd             = wave_speed / f0                              ! barotropic Rossby radius of deformation                   
   drho_dz        = drho / halocline                             ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
