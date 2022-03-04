@@ -11,7 +11,7 @@ Module test_case_mod
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
 
   ! Local variables
-  real(8)                              :: beta, bv, H1, H2
+  real(8)                              :: beta, bv
   real(8)                              :: delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, Ku, mixed_layer, Rb, Rd
   real(8)                              :: Rey, Ro, radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc 
   real(8)                              :: resolution, tau_0
@@ -116,8 +116,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                         :: d, id, id_i, idE, idN, idNE
-    real(8), dimension(1:EDGE)      :: horiz_diffusion, u1, u2, vert_diffusion
+    integer                    :: d, id, id_i, idE, idN, idNE
+    real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, u1, u2, vert_diffusion
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -127,20 +127,30 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
+    ! Layer thicknesses and velocities
+    if (zlevels == 2) then
+       h1 = dz_e (dom, i, j, 1, offs, dims)
+       h2 = dz_e (dom, i, j, 2, offs, dims)
+       
+       u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+       u2 = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    elseif (zlevels == 1) then
+        h1 = dz_e (dom, i, j, 1, offs, dims);                       h2 = h1
+        u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1); u2 = u1
+    end if
+
     ! Horizontal diffusion
     horiz_diffusion =  (-1d0)**(Laplace_order-1d0) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
     
     ! Vertical diffusion
     if (zlevels == 2) then
-       u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-       u2 = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
        if (zlev == 1) then
-          vert_diffusion = - Kv_0 / (H1 * (H1 + H2)/2d0) * (u1 - u2) + bottom_drag ()
+          vert_diffusion = - Ku / (h1 * (h1 + h2)/2d0) * (u1 - u2) + bottom_drag()
        elseif (zlev == 2) then
-          vert_diffusion = - Kv_0 / (H2 * (H1 + H2)/2d0) * (u2 - u1) + wind_drag ()
+          vert_diffusion = - Ku / (h2 * (h1 + h2)/2d0) * (u2 - u1) + wind_drag()
        end if
     elseif (zlevels == 1) then
-       vert_diffusion = bottom_drag () + wind_drag ()
+       vert_diffusion = bottom_drag() + wind_drag()
     end if
 
     ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
@@ -154,7 +164,7 @@ contains
       implicit none
       real(8), dimension(3) :: bottom_drag
 
-      bottom_drag = - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1) / H1
+      bottom_drag = - bottom_friction * u1 / h1
     end function bottom_drag
     
     function wind_drag ()
@@ -162,12 +172,12 @@ contains
       real(8), dimension(3) :: wind_drag
       
       real(8), dimension(3) :: tau_wind
-     
+
       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idE+1))
       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id_i))
       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idN+1))
 
-      wind_drag = tau_wind / (ref_density * H2)
+      wind_drag = tau_wind / (ref_density * h2)
     end function wind_drag
     
     function grad_divu ()
@@ -254,9 +264,11 @@ contains
     implicit none
 
     delta_M = (visc_rotu/beta)**(1d0/(2*Laplace_order_init+1)) ! Munk layer scale
-    delta_S = bottom_friction_case / beta      ! Stommel layer (want delta_S = delta_M/4)
     Rey     = u_wbc * delta_I / visc_rotu ! Reynolds number of western boundary current
     Ro      = u_wbc / (delta_M*f0)        ! Rossby number (based on boundary current)
+
+    bottom_friction = beta * delta_M/4d0
+    !delta_S = bottom_friction_case / beta      ! Stommel layer (want delta_S = delta_M/4)
 
     call set_save_level_case
 
@@ -325,11 +337,7 @@ contains
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1d0/bottom_friction_case / DAY
-       if (zlevels == 2) then
-          write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
-          write (6,'(A,es11.4)') "wave drag decay layer 1   [d]  = ", 1d0/(Ku / (H1 * (H1 + H2)/2d0)) / DAY
-          write (6,'(A,es11.4)') "wave drag decay layer 2   [d]  = ", 1d0/(Ku / (H2 * (H1 + H2)/2d0)) / DAY
-       end if
+       if (zlevels == 2)  write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1d0/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
@@ -807,7 +815,6 @@ contains
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     ! Idealized zonally and temporally averaged zonal and meridional wind stresses
     ! (based on Figure 4 from Ferreira et al J Climate 24, 992-1012 (2011) and Figure 4 from Gille J Atmos Ocean Tech 22, 1353-1372 respectively)
-
     implicit none
     real(8) :: lat, lon, peak, tau_zonal, tau_merid
 
@@ -818,7 +825,7 @@ contains
 
     if (merid_stress) then
        peak = lat*180d0/MATH_PI / 15d0
-       tau_merid = -tau_0 * 2.5d0 * exp (-peak**2) * sin (2*lat) * peak**2
+       tau_merid = -tau_0 * 2.5d0 * exp (-peak**2) * sin (2d0*lat) * peak**2
     else
        tau_merid = 0d0
     end if

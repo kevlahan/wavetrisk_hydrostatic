@@ -21,14 +21,11 @@ program Drake
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
-  radius_earth   = 6371.229d0                * KM              ! radius of Earth
-  omega_earth    = 7.29211d-5                * RAD/SECOND      ! rotation rate of Earth
-  grav_accel     = 9.80616d0                 * METRE/SECOND**2 ! gravitational acceleration 
-  p_top          = 0d0                       * hPa             ! pressure at free surface
-  ref_density    = 1028d0                    * KG/METRE**3     ! reference density at depth (seawater)
-  radius         = radius_earth/scale                          ! mean radius of the small planet
-  omega          = omega_earth/scale_omega                     ! angular velocity (scaled for small planet to keep beta constant)
-
+  radius_earth   = 6371.229d0 * KM                      ! radius of Earth
+  omega_earth    = 7.29211d-5 * RAD/SECOND              ! rotation rate of Earth
+  grav_accel     = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
+  ref_density    = 1028d0     * KG/METRE**3             ! reference density at depth (seawater)
+  
   ! Numerical method parameters
   timeint_type       = "RK3"                            ! time scheme
   match_time         = .true.                           ! avoid very small time steps when saving 
@@ -48,20 +45,23 @@ program Drake
   fine_iter          =  40                              ! maximum number of fine scale jacobi iterations for elliptic solver
 
   ! Test case parameters
-  Ku                   = 2d0 * METRE**2/SECOND          ! viscosity for vertical diffusion (damp internal waves)
-  bottom_friction_case = 1d-7 / SECOND                  ! much smaller than NEMO value of 4d-4
-  resolution           = 1.5d0                          ! resolve Munk layer with this many points
-  npts_penal           = 4.5d0                          ! smooth mask over npts_penal points 
-  etopo_res            = 4                              ! resolution of etopo data in arcminutes (if used) 
-  etopo_coast          = .false.                        ! use etopo data for coastlines (i.e. penalization)
-  min_depth            = -50d0 * METRE                  ! minimum allowed depth (must be negative)
+  Ku                 = 4d0 * METRE**2/SECOND            ! viscosity for vertical diffusion (damp internal waves)
+  
+  bottom_friction_case = 1d-7 / SECOND                  ! drake value so delta_S ~ delta_M/4
+  !bottom_friction_case = 4d-4 / SECOND                  ! NEMO value
+  
+  resolution         = 1.5d0                            ! resolve Munk layer with this many grid points
+  npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
+  etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
+  etopo_res          = 4                                ! resolution of etopo data in arcminutes
+  min_depth          = -50d0 * METRE                    ! minimum allowed depth (must be negative)
 
   if (zlevels == 1) then                                ! maximum allowed depth (must be negative)
      max_depth   = -4000d0 * METRE                      ! total depth
      halocline   = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -4000d0 * METRE                      ! location of layer forced by surface wind stress
      drho        =     0d0 * KG/METRE**3                ! density perturbation at free surface 
-     tau_0       =   0.8d0 * NEWTON/METRE**2            ! maximum wind stress
+     tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels == 2) then
      max_depth   = -4000d0 * METRE                      ! total depth
@@ -76,6 +76,8 @@ program Drake
   end if
 
   ! Characteristic scales
+  radius         = radius_earth/scale                           ! mean radius of the small planet
+  omega          = omega_earth/scale_omega                      ! angular velocity (scaled for small planet to keep beta constant)
   wave_speed     = sqrt (grav_accel*abs(max_depth))             ! inertia-gravity wave speed 
   f0             = 2d0*omega*sin(45d0*DEG)                      ! representative Coriolis parameter
   beta           = 2d0*omega*cos(45d0*DEG) / radius             ! beta parameter at 45 degrees latitude
@@ -84,15 +86,6 @@ program Drake
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                            ! inertial layer
   delta_sm       = u_wbc/f0                                     ! barotropic submesoscale
-
-  ! Layer depths for bottom_drag and wind_drag functions
-  if (zlevels == 2) then
-     H1 = abs (max_depth - mixed_layer) ! top layer depth
-     H2 = abs (mixed_layer)             ! bottom layer depth
-  elseif (zlevels == 1) then
-     H1 = abs(max_depth)
-     H2 = H1
-  end if
 
   ! Baroclinic wave speed
   if (zlevels == 2) then

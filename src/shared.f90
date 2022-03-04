@@ -376,7 +376,7 @@ contains
     nu_0                = 2.4341d-3                               ! cabbeling coefficient in temperature S, T
     Q_sr                = 0d0       * WATT / METRE**2             ! penetrative part of solar short wave radiation
     T_ref               = 10d0      * CELSIUS                     ! reference temperature
-    S_ref               = 35d0      * GRAM / KG                  ! reference salinity
+    S_ref               = 35d0      * GRAM / KG                   ! reference salinity
     H_rho               = c_s**2 / grav_accel                     ! density scale height
 
     ! Theta parameters for barotropic-baroclinic mode splitting
