@@ -7,8 +7,8 @@ Module test_case_mod
 
   ! Standard variables
   integer                              :: bathy_per_deg, CP_EVERY, etopo_res, resume_init
-  real(8)                              :: dt_cfl, k_T, tau_diffusion, total_cpu_time
-  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8)                              :: dt_cfl, k_T, total_cpu_time
+  real(8)                              :: Hdim, Ldim, Tdim, Udim
 
   ! Local variables
   real(8)                              :: beta, bv
@@ -17,7 +17,7 @@ Module test_case_mod
   real(8)                              :: resolution, tau_0
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
-  logical                              :: etopo_coast
+  logical                              :: aligned, etopo_coast
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -263,13 +263,6 @@ contains
   subroutine print_test_case_parameters
     implicit none
 
-    delta_M = (visc_rotu/beta)**(1d0/(2*Laplace_order_init+1)) ! Munk layer scale
-    Rey     = u_wbc * delta_I / visc_rotu ! Reynolds number of western boundary current
-    Ro      = u_wbc / (delta_M*f0)        ! Rossby number (based on boundary current)
-
-    bottom_friction = beta * delta_M/4d0
-    !delta_S = bottom_friction_case / beta      ! Stommel layer (want delta_S = delta_M/4)
-
     call set_save_level_case
 
     if (rank==0) then
@@ -336,7 +329,7 @@ contains
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
-       write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1d0/bottom_friction_case / DAY
+       write (6,'(A,es11.4)') "bottom drag decay time    [d]  = ", abs(max_depth)/bottom_friction_case / DAY
        if (zlevels == 2)  write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1d0/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
@@ -676,7 +669,7 @@ contains
     end if
 
     ! Ensure stability
-    C_visc = min ((1d0/32d0)**Laplace_order_init, max (C_visc, 1d-4))
+    C_visc = min ((1d0/32d0)**Laplace_order_init, C_visc)
 
     C_rotu = C_visc
     C_divu = C_visc

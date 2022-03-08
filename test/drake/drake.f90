@@ -1,16 +1,10 @@
 program Drake
   ! Simplified Drake passage test case on small planet
   ! (inspired by Ferreira, Marshall and Rose 2011, J Climate 24, 992-1012)
-  !
-  ! The permeability penalization parameter eta = dt_cfl and the porosity parameter alpha is set in the input file.
-  ! The initial condition has a 500 m thick less dense layer over a 1500 m thick reference density layer (only the upper
-  ! layer is included in the single vertical layer shallow water case).
   use main_mod
   use test_case_mod
   use io_mod  
   implicit none
-  integer :: l
-  logical :: aligned
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -44,13 +38,10 @@ program Drake
   coarse_iter        = 100                              ! maximum number of coarse scale bicgstab iterations for elliptic solver
   fine_iter          =  40                              ! maximum number of fine scale jacobi iterations for elliptic solver
 
-  ! Test case parameters
+  ! Test case parameters (bottom_friction set below, after initialize)
   Ku                 = 4d0 * METRE**2/SECOND            ! viscosity for vertical diffusion (damp internal waves)
   
-  bottom_friction_case = 1d-7 / SECOND                  ! drake value so delta_S ~ delta_M/4
-  !bottom_friction_case = 4d-4 / SECOND                  ! NEMO value
-  
-  resolution         = 1.5d0                            ! resolve Munk layer with this many grid points
+  resolution         = 2.5d0                            ! resolve Munk layer with this many grid points
   npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
@@ -85,7 +76,7 @@ program Drake
   drho_dz        = drho / halocline                             ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                            ! inertial layer
-  delta_sm       = u_wbc/f0                                     ! barotropic submesoscale
+  delta_sm       = u_wbc / f0                                   ! barotropic submesoscale
 
   ! Baroclinic wave speed
   if (zlevels == 2) then
@@ -122,6 +113,19 @@ program Drake
   
   ! Initialize variables
   call initialize (run_id)
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Parameters that require viscosity
+  delta_M = (visc_rotu/beta)**(1d0/(2*Laplace_order_init+1)) ! Munk layer scale
+  Rey     = u_wbc * delta_I / visc_rotu                      ! Reynolds number of western boundary current
+  Ro      = u_wbc / (delta_M*f0)                             ! Rossby number (based on boundary current)
+
+  !bottom_friction_case = 1d-7 * METRE / SECOND               ! constant value
+  bottom_friction_case = beta * delta_M/4d0                  ! ensure that delta_S = delta_M/4
+  
+  delta_S = bottom_friction_case / beta                      ! Stommel layer
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
   iadapt    = CFL_adv * nint ((dx_min/Udim) / dt_init)
