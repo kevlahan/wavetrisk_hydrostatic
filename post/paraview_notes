@@ -102,6 +102,19 @@ TRANSFORM DATA
 Filter -> Alphabetical -> Cell Data to Point Data
 To convert Cell data (e.g. hexagons) to point data (that can be used by filters like contour).
 
+**********************************************************************************************************************************
+SAVE CURRENT VIEW POINT
+
+Click on camera+ icon to save current view point for future use.
+
+**********************************************************************************************************************************
+PYTHON SCRIPTING
+
+View -> Python Shell
+Opens a python shell to run *.py python scripts.
+
+Tools -> Start Trace
+Can record your modifications as a python script to reuse commands later or in a script.
 
 **********************************************************************************************************************************
 SAVE ANIMATION
