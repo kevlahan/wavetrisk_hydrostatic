@@ -223,7 +223,8 @@ module shared_mod
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
   real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
-  real(8)                                       :: e_min, Kt_0, Kv_0, theta1, theta2, tol_elliptic, tol_jacobi, visc_divu, visc_rotu
+  real(8)                                       :: e_min, Kt_0, Kv_0, rb_0
+  real(8)                                       :: theta1, theta2, tol_elliptic, tol_jacobi, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8), dimension(:),         allocatable    :: bounds, pressure_save, visc_sclr
@@ -375,6 +376,7 @@ contains
     mu_2                = 1.1090d-5 / METRE                       ! thermobaric coefficient in salinity (pressure effect)
     nu_0                = 2.4341d-3                               ! cabbeling coefficient in temperature S, T
     Q_sr                = 0d0       * WATT / METRE**2             ! penetrative part of solar short wave radiation
+    rb_0                = 4d-4      * METRE /SECOND               ! NEMO value for bottom friction
     T_ref               = 10d0      * CELSIUS                     ! reference temperature
     S_ref               = 35d0      * GRAM / KG                   ! reference salinity
     H_rho               = c_s**2 / grav_accel                     ! density scale height

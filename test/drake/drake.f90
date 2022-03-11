@@ -39,7 +39,8 @@ program Drake
   fine_iter          =  40                              ! maximum number of fine scale jacobi iterations for elliptic solver
 
   ! Test case parameters (bottom_friction set below, after initialize)
-  Ku                 = 4d0 * METRE**2/SECOND            ! viscosity for vertical diffusion (damp internal waves)
+  !Ku                 = 4d0 * METRE**2/SECOND            ! viscosity for vertical diffusion (damp internal waves)
+  Ku                 = Kv_0                             ! NEMO value = 1.2e-4 m^2/s
   
   resolution         = 2.5d0                            ! resolve Munk layer with this many grid points
   npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
@@ -60,7 +61,7 @@ program Drake
      mixed_layer = -1000d0 * METRE                      ! location of layer forced by surface wind stress
      drho        =    -8d0 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =   1.7d0 * METRE/SECOND               ! estimated western boundary current speed
+     u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
      if (rank == 0) write (6,'(a)') "zlevels must be 1 or 2 ... aborting"
      call abort
@@ -120,8 +121,8 @@ program Drake
   Rey     = u_wbc * delta_I / visc_rotu                      ! Reynolds number of western boundary current
   Ro      = u_wbc / (delta_M*f0)                             ! Rossby number (based on boundary current)
 
-  !bottom_friction_case = 1d-7 * METRE / SECOND               ! constant value
-  bottom_friction_case = beta * delta_M/4d0                  ! ensure that delta_S = delta_M/4
+  bottom_friction_case = rb_0                                ! NEMO value 4d-4 m/s
+  !bottom_friction_case = beta * delta_M/4d0                  ! ensure that delta_S = delta_M/4
   
   delta_S = bottom_friction_case / beta                      ! Stommel layer
 

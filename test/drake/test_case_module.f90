@@ -433,32 +433,17 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: d, id, id_i
-    real (8)    :: dz, eta_surf, phi, porous_density, z
-    type(Coord) :: x_i
+    integer :: d, id, id_i
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
-    x_i  = dom%node%elts(id_i)
-    eta_surf = init_free_surface (x_i)
 
     if (zlev == zlevels+1) then ! 2D barotropic mode
-       phi = 1d0 + (alpha - 1d0) * penal_node(zlevels)%data(d)%elts(id_i)
-
-       sol(S_MASS,zlev)%data(d)%elts(id_i) = phi * eta_surf ! free surface perturbation
+       sol(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
     else ! 3D layers
-       dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
-       z = 0.5d0* ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
-
-       porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
-
-       if (zlev == zlevels) then
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta_surf
-       else
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
-       end if
+       sol(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
     end if
     ! Set initial velocity field to zero
@@ -474,25 +459,23 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta_surf, porous_density, z
+    real (8)    :: dz, rho, z
     type(Coord) :: x_i
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
-    eta_surf = init_free_surface (x_i)
 
     if (zlev == zlevels+1) then
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
     else
-       dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * dom%topo%elts(id_i)
-       z = 0.5d0 * ((a_vert(zlev)+a_vert(zlev-1)) * eta_surf + (b_vert(zlev)+b_vert(zlev-1)) * dom%topo%elts(id_i))
+       dz =  b_vert_mass(zlev) * dom%topo%elts(id_i)
+       z = 0.5d0 * (b_vert(zlev) + b_vert(zlev-1)) * dom%topo%elts(id_i)
 
-       porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
-
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
+       rho = porous_density (d, id_i, zlev)
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = rho * dz
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy_init (x_i, z)
     end if
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
@@ -572,14 +555,14 @@ contains
   subroutine print_density_pert
     implicit none
     integer     :: k
-    real(8)     :: eta_surf, z
+    real(8)     :: z
     type(Coord) :: x_i 
 
-    eta_surf = 0d0
     x_i = Coord (radius, 0d0, 0d0)
+
     write (6,'(a)') " Layer    z       drho"      
     do k = 1, zlevels
-       z = 0.5d0 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
+       z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
        write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, - buoyancy_init (x_i, z)*ref_density
     end do
     write (6,'(A)') &
@@ -620,17 +603,16 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer     :: k
-    real(8)     :: dz, eta_surf, z
+    real(8)     :: dz, z
     type(Coord) :: x_i
 
     allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
 
     x_i = Coord (radius, 0d0, 0d0)
-    eta_surf = 0d0
     do k = 1, zlevels
-       dz = a_vert_mass(k) * eta_surf + b_vert_mass(k) * max_depth
-       z = 0.5d0 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
+       dz = b_vert_mass(k) * max_depth
+       z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
 
        lnorm(S_MASS,k) = ref_density*dz
 
