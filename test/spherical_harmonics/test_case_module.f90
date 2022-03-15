@@ -253,6 +253,8 @@ contains
     read (fid,*) varname, angular_order
     close(fid)
 
+    if (save_zlev > zlevels) save_zlev = zlevels ! avoid incorrect choice of save_zlev
+
     if (rank==0) then
        write (6,'(A,A)')      "spec_type              = ", trim (spec_type)
        write (6,'(A,A)')      "test_case              = ", trim (test_case)

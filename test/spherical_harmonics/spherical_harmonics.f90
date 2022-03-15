@@ -229,6 +229,9 @@ contains
     ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
     l = level_fill
     call fill_up_grid_and_IWT (l)
+
+    ! Set mean on filled grid
+    call apply_onescale (init_mean, l, save_zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
     
     ! Vorticity at hexagon points
     do d = 1, size(grid)
@@ -265,7 +268,7 @@ contains
     character(4)                         :: var_file
     character(255)                       :: data_type
 
-    if (rank == 0) write (6,'(A,i6)') "Energy spectrum of checkpoint file = ", cp_idx
+    if (rank == 0) write (6,'(A,i6,A,f10.2,A)') "Energy spectrum of checkpoint file = ", cp_idx, " at ", time/DAY, " days"
 
     call initialize_projection (N)
 
