@@ -129,16 +129,20 @@ program spherical_harmonics
   ! Compute and save averages
   if (cp_end /= cp_beg .and. rank == 0) then
      call avg_spec ('barotropic')
-     call avg_spec ('baroclinic_2')
-     call avg_spec ('baroclinic_2')
-     call avg_spec ('total_1')
-     call avg_spec ('total_2')
+     if (zlevels == 2) then
+        call avg_spec ('baroclinic_2')
+        call avg_spec ('baroclinic_2')
+        call avg_spec ('total_1')
+        call avg_spec ('total_2')
+     end if
      if (local_spec) then
         call avg_local_spec ('barotropic_local')
-        call avg_local_spec ('baroclinic_2_local')
-        call avg_local_spec ('baroclinic_2_local')
-        call avg_local_spec ('total_1_local')
-        call avg_local_spec ('total_2_local')
+        if (zlevels == 2) then
+           call avg_local_spec ('baroclinic_2_local')
+           call avg_local_spec ('baroclinic_2_local')
+           call avg_local_spec ('total_1_local')
+           call avg_local_spec ('total_2_local')
+        end if
      end if
   end if
   call finalize
