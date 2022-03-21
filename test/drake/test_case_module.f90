@@ -117,6 +117,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: d, id, id_i, idE, idN, idNE
+    real(8)                    :: dx, visc
     real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, u1, u2, vert_diffusion
 
     d    = dom%id + 1
@@ -140,7 +141,13 @@ contains
     end if
 
     ! Horizontal diffusion
-    horiz_diffusion =  (-1d0)**(Laplace_order-1d0) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+    if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4d0*dx_max)**2 < 1d0) then ! increase diffusion near poles to remove noise at these lower accuracy points
+       dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
+       visc = dx**2/dt/32d0
+       horiz_diffusion = (-1d0)**(Laplace_order-1) * visc * (grad_divu() - curl_rotu())
+    else
+       horiz_diffusion = (-1d0)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+    end if
     
     ! Vertical diffusion
     if (zlevels == 2) then
