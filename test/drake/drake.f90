@@ -39,10 +39,21 @@ program Drake
   fine_iter          =  40                              ! maximum number of fine scale jacobi iterations for elliptic solver
 
   ! Test case parameters (bottom_friction set below, after initialize)
-  !Ku                 = 4d0 * METRE**2/SECOND            ! viscosity for vertical diffusion (damp internal waves)
-  Ku                 = Kv_0                             ! NEMO value = 1.2e-4 m^2/s
-  
-  resolution         = 2.5d0                            ! resolve Munk layer with this many grid points
+  Ku                 = 4d0 * METRE**2/SECOND            ! viscosity for vertical diffusion (damp internal waves)
+  !Ku                 = Kv_0                             ! NEMO value = 1.2e-4 m^2/s
+
+  ! Resolve Munk layer with "resolution" grid points (constant viscosity based on resolution 2.5 for scale_omega = 6)
+  if (abs(scale_omega - 6d0) < 1d-2) then
+     resolution = 2.50d0                             
+  elseif (abs(scale_omega - 1d0) < 1d-2) then
+     resolution = 1.37d0                           
+  elseif (abs(scale_omega - 1d0/6d0) < 1d-2) then
+     resolution = 0.76d0
+  else
+     if (rank == 0) write (6,'(a)') "Only scale_omega = 6, 1, 1/6 supported ... aborting"
+     call abort
+  end if
+
   npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
@@ -121,10 +132,10 @@ program Drake
   Rey     = u_wbc * delta_I / visc_rotu                      ! Reynolds number of western boundary current
   Ro      = u_wbc / (delta_M*f0)                             ! Rossby number (based on boundary current)
 
-  bottom_friction_case = rb_0                                ! NEMO value 4d-4 m/s
-  !bottom_friction_case = beta * delta_M/4d0                  ! ensure that delta_S = delta_M/4
+  !bottom_friction_case = rb_0                                ! NEMO value 4d-4 m/s
+  bottom_friction_case = beta * delta_M/4d0                  ! ensure that delta_S = delta_M/4
   
-  delta_S = bottom_friction_case / beta                      ! Stommel layer
+  delta_S = bottom_friction_case / beta                      ! Stommel layer scale
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -144,7 +155,7 @@ program Drake
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned)
-     if (k_T /= 0.0_8) call euler (sol, wav_coeff, trend_relax, dt)
+     if (k_T /= 0d0) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
 
      call print_log
