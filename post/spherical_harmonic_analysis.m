@@ -41,6 +41,14 @@ if ~strcmp(machine,'mac')
     unix (sprintf(scp_cmd));
 end
 %% Plot local region
+
+local      = true;
+region     = 'mid';
+run_id     = "2layer_normal";
+cp_id      = "0031";
+type       = "barotropic";
+local_file = run_id + "_" + cp_id + "_" + type;
+
 fid = fopen(local_file);
 data = fread(fid,'double'); 
 N = round(-3/2 + sqrt(2*(numel(data)+1)));
@@ -55,7 +63,7 @@ lon  = (-N/2:N/2) * 360/N;
 lat  = (-N/4:N/4) * 360/N;
 
 % Target area for local spectral analysis
-region = 'mid';
+
 if local
     if strcmp(region,'southern') % Vortical region at southern edge of land mass
         lat0   = -40;
@@ -87,15 +95,24 @@ else
 end
 ax = [lon_min lon_max lat_min lat_max];
 
-c_scale = linspace(dmin*0.8, dmax*0.8, 100); 
-%c_scale = linspace(-1e-4, 1e-4, 100);
-v_title = 'vorticity';
+vort_limit = 3e-5;
+
+% Color vorticity beyond vort_limit to maximum colors
+data(data > vort_limit)  =  vort_limit;
+data(data < -vort_limit) = -vort_limit;
+
+c_scale = linspace(-vort_limit, vort_limit, 100); 
+
+if strcmp(type,"barotropic")
+    v_title = 'Barotropic vorticity';
+elseif strcmp(type,"baroclinic")
+    v_title = 'Baroclinic vorticity';
+end
 smooth  = 0;
 lines   = 0;
 shift   = 0;
 plot_lon_lat_data(data(1:4:end,1:4:end), lon(1:4:end), lat(1:4:end), c_scale, v_title, smooth, shift, lines);
 axis(ax);
-%axis([10 60 -40 50])
 %% Load spectrum data
 % file_base   = [run_id '_' cp_id '_' type '_spec'];
 % remote_file = ['~/hydro/' test_case '/' file_base];
