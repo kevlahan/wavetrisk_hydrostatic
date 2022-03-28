@@ -123,28 +123,38 @@ axis(ax);
 % end
 
 % Plot spectrum
-run_id      = "2layer_thin";
-scale_earth = 6;
-scale_omega = 1;
+run_id      = "2layer_slow";
+scale_omega = 6;
+uwbc        = 1.5; 
 local       = false;
-average     = average;
+average     = true;
 
 cp_id       = "0014";
 type        = "barotropic";
-type        = "baroclinic_2";
-type        = "total_2";
+%type        = "baroclinic_2";
+%type        = "total_2";
 
-p1           = -3; % comparison power spectrum
-range1       = [1000 20];    
+p1           = -5/3; % comparison power spectrum
+range1       = [1000 10];    
+range1       = [200 5];    
+%range1       = [50 4]; 
 
 if average
-    local_file  = run_id + "_" + type + "_spec"; % average
+    if local
+        local_file  = run_id + "_" + type + "_local_spec"; % average
+    else
+        local_file  = run_id + "_" + type + "_spec"; % average
+    end
 else
-    local_file  = run_id + "_" + cp_id + "_" + type + "_spec";
+    if local
+        local_file  = run_id + "_" + cp_id + "_" + type + "_local_spec";
+    else
+        local_file  = run_id + "_" + cp_id + "_" + type + "_spec";
+    end
 end
 
 % Physical parameters of simulation
-uwbc        =  1.5; 
+scale_earth = 6;
 theta       =  45; % latitude at which to calculate f0 and beta
 omega       =  7.29211e-5/scale_omega;
 radius      =  6371.229e3/scale_earth; 
@@ -159,7 +169,7 @@ f0          =  2*omega*sin(deg2rad(theta));
 beta        =  2*omega*cos(deg2rad(theta))/radius;
 r_b         =  1e-7;
 c0          =  sqrt(g*H);
-c1          =  sqrt (g*abs(drho)/2/ref_density * H2*(H-H2)/H);
+c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H);
 
 if strcmp(type,'barotropic')
     name_type = "Barotropic";
@@ -190,18 +200,6 @@ loglog(scales(:,1),pspec(:,2),'b-','linewidth',3,'DisplayName',name_type);hold o
 
 % Log-law comparison
 powerlaw (scales, pspec(:,2), range1, p1, 'r--')
-
-% Local power spectra
-if local
-    lspec = load(local_file);
-    lspec(:,2) = lspec(:,2)./lspec(:,1).^2; %* (1 - cos(deg2rad(theta0)));
-    lscales = 2*pi*radius/1e3./sqrt(lspec(:,1).*(lspec(:,1)+1)); % equivalent length scale (Jeans relation)
-    
-    loglog(lscales,lspec(:,2),'g-','linewidth',2,'DisplayName','equitorial');hold on; grid on;
-    powerlaw (lscales, lspec(:,2), 2000, 10, -2, 'm-.')
-    
-    powerlaw (lscales, lspec(:,2),  2500,  100, -0.8, 'r--')
-end
 
 axis([4e0 1e4 1e-10 1e0]);
 set (gca,'fontsize',20);
@@ -234,5 +232,5 @@ y = ylim;
 x = scale;
 h=loglog([x x], y, 'k','linewidth',1.5);
 set(get(get(h,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-text(0.85*scale,10*y(1),name,"fontsize",16)
+text(0.92*scale,10*y(1),name,"fontsize",16)
 end
