@@ -241,12 +241,26 @@ contains
     sync_max_int = val
   end function sync_max_int
 
+  integer function sync_min_int (val)
+    implicit none
+    integer :: val
+    
+    sync_min_int = val
+  end function sync_min_int
+
   real(8) function sync_max_real (val)
     implicit none
     real(8) :: val
     
     sync_max_real = val
   end function sync_max_real
+
+  real(8) function sync_min_real (val)
+    implicit none
+    real(8) :: val
+    
+    sync_min_real = val
+  end function sync_min_real
 
   real(8) function sum_real (val)
     implicit none
@@ -255,11 +269,29 @@ contains
     sum_real = val
   end function sum_real
 
+  function sum_real_vector (val, n)
+    implicit none
+    real(8), dimension(n) :: sum_real_vector
+    integer               :: n
+    real(8), dimension(n) :: val
+
+    sum_real_vector = val
+  end function sum_real_vector
+
   integer function sum_int (val)
     integer :: val
 
     sum_int = val
   end function sum_int
+
+  function sum_int_vector (val, n)
+    implicit none
+    integer, dimension(n) :: sum_int_vector
+    integer               :: n
+    integer, dimension(n) :: val
+
+    sum_int_vector = val
+  end function sum_int_vector
 
   subroutine start_timing
     implicit none
@@ -281,10 +313,4 @@ contains
     integer            :: N
     real(8), dimension(N) :: arr
   end subroutine sync_array
-  
-  subroutine combine_stats
-    implicit none
-    Nstats_glo    = Nstats
-    zonal_avg_glo = zonal_avg
-  end subroutine combine_stats
 end module comm_mpi_mod

@@ -618,6 +618,91 @@ contains
     end do
   end subroutine cal_zonal_avg
 
+  subroutine combine_stats
+    ! Uses Chan, Golub and LeVeque (1983) algorithm for partitioned data sets to combine zonal average results from each rank
+    !   T.F. Chan, G.H. Golub & R.J. LeVeque (1983):
+    !   "Algorithms for computing the sample variance: Analysis and recommendations." The American Statistician 37: 242–247.
+#ifdef MPI    
+    use mpi
+#endif
+    implicit none
+    integer                                  :: bin, k
+    real(8), dimension(nvar_zonal)           :: temp
+    integer, dimension(n_process)            :: Nstats_loc
+    real(8), dimension(n_process*nvar_zonal) :: zonal_avg_loc
+
+#ifdef MPI
+    ! Collect statistics data on rank 0 for combining
+    Nstats_glo    = 0d0
+    zonal_avg_glo = 0d0
+    do k = 1, zlevels
+       do bin = 1, nbins
+          call MPI_Gather (Nstats(k,bin), 1, MPI_INTEGER, Nstats_loc, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+          
+          temp = zonal_avg(k,bin,:)
+          call MPI_Gather (temp, nvar_zonal, MPI_DOUBLE_PRECISION, zonal_avg_loc, nvar_zonal, MPI_DOUBLE_PRECISION, &
+               0, MPI_COMM_WORLD, ierror)
+          
+          if (rank == 0) call combine_var
+       end do
+    end do
+#else
+    Nstats_glo    = Nstats
+    zonal_avg_glo = zonal_avg
+#endif
+  contains
+    subroutine combine_var
+      integer :: m, nA, nB, nAB, r
+      real(8) :: delta_KE, delta_T, delta_U, delta_V
+      real(8) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_zonal, mB_zonal, mA_merid, mB_merid, mA_VT, mB_VT, mA_UV, mB_UV
+
+      do r = 0, n_process-1
+         nA = Nstats_glo(k,bin)
+         nB = Nstats_loc(r+1)
+         if (nB /= 0) then
+            m = r*nvar_zonal
+            nAB = nA + nB
+
+            delta_T  = zonal_avg_loc(r*nvar_zonal+1) - zonal_avg_glo(k,bin,1)
+            delta_U  = zonal_avg_loc(r*nvar_zonal+3) - zonal_avg_glo(k,bin,3)
+            delta_V  = zonal_avg_loc(r*nvar_zonal+4) - zonal_avg_glo(k,bin,4)
+            delta_KE = zonal_avg_loc(r*nvar_zonal+5) - zonal_avg_glo(k,bin,5)
+
+            mA_T   = zonal_avg_glo(k,bin,2)
+            mB_T   = zonal_avg_loc(m+2)
+
+            mA_UV  = zonal_avg_glo(k,bin,6)
+            mB_UV  = zonal_avg_loc(m+6)
+
+            mA_zonal = zonal_avg_glo(k,bin,7)
+            mB_zonal = zonal_avg_loc(m+7)
+
+            mA_merid = zonal_avg_glo(k,bin,8)
+            mB_merid = zonal_avg_loc(m+8)
+
+            mA_VT  = zonal_avg_glo(k,bin,9)
+            mB_VT  = zonal_avg_loc(m+9)
+
+            ! Combine means
+            zonal_avg_glo(k,bin,1) = zonal_avg_glo(k,bin,1) + delta_T  * nB/nAB
+            zonal_avg_glo(k,bin,3) = zonal_avg_glo(k,bin,3) + delta_U  * nB/nAB
+            zonal_avg_glo(k,bin,4) = zonal_avg_glo(k,bin,4) + delta_V  * nB/nAB
+            zonal_avg_glo(k,bin,5) = zonal_avg_glo(k,bin,5) + delta_KE * nB/nAB
+
+            ! Combine sums of squares (for variances)
+            zonal_avg_glo(k,bin,2) = mA_T     + mB_T     + delta_T**2      * nA*nB/nAB ! temperature variance
+            zonal_avg_glo(k,bin,6) = mA_UV    + mB_UV    + delta_U*delta_V * nA*nB/nAB ! velocity covariance
+            zonal_avg_glo(k,bin,7) = mA_zonal + mB_zonal + delta_U**2      * nA*nB/nAB ! zonal wind variance
+            zonal_avg_glo(k,bin,8) = mA_merid + mB_merid + delta_V**2      * nA*nB/nAB ! meridional wind variance
+            zonal_avg_glo(k,bin,9) = mA_VT    + mB_VT    + delta_V*delta_T * nA*nB/nAB ! V-T covariance (eddy heat flux)
+
+            ! Update total number of data points
+            Nstats_glo(k,bin) = nAB
+         end if
+      end do
+    end subroutine combine_var
+  end subroutine combine_stats
+
   subroutine write_out_stats
     ! Writes out zonal average statistics
     implicit none

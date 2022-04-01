@@ -1192,6 +1192,17 @@ contains
     sync_max_int = val_glo
   end function sync_max_int
 
+  integer function sync_min_int (val)
+    use mpi
+    implicit none
+    integer :: val
+    
+    integer :: val_glo
+
+    call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierror)
+    sync_min_int = val_glo
+  end function sync_min_int
+
   real(8) function sync_max_real (val)
     use mpi
     implicit none
@@ -1202,6 +1213,17 @@ contains
     call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
     sync_max_real = val_glo
   end function sync_max_real
+
+  real(8) function sync_min_real (val)
+    use mpi
+    implicit none
+    real(8) :: val
+
+    real(8) :: val_glo
+
+    call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    sync_min_real = val_glo
+  end function sync_min_real
 
   real(8) function sum_real (val)
     use mpi
@@ -1214,6 +1236,19 @@ contains
     sum_real = val_glo
   end function sum_real
 
+  function sum_real_vector (val, n)
+    use mpi
+    implicit none
+    real(8), dimension(n) :: sum_real_vector
+    integer               :: n
+    real(8), dimension(n) :: val
+
+    real(8), dimension(n) :: val_glo
+    
+    call MPI_Allreduce (val, val_glo, n, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierror)
+    sum_real_vector = val_glo
+  end function sum_real_vector
+
   integer function sum_int (val)
     use mpi
     implicit none
@@ -1224,6 +1259,19 @@ contains
     call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
     sum_int = val_glo
   end function sum_int
+
+  function sum_int_vector (val, n)
+    use mpi
+    implicit none
+    integer, dimension(n) :: sum_int_vector
+    integer               :: n
+    integer, dimension(n) :: val
+
+    integer, dimension(n) :: val_glo
+    
+    call MPI_Allreduce (val, val_glo, n, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    sum_int_vector = val_glo
+  end function sum_int_vector
 
   subroutine start_timing
     use mpi
@@ -1269,104 +1317,4 @@ contains
   
     where (in /= sync_val) inout = in
   end subroutine sync
-
-  subroutine stop_and_record_timings (id)
-    ! Use like:
-    ! call stop_and_record_timings(6500); call start_timing()
-    ! call stop_and_record_timings(6501); call start_timing()
-    use mpi
-    implicit none
-    integer :: id
-
-    real(8) :: time_loc, time_max, time_min, time_sum
-
-    call stop_timing
-
-    time_loc = get_timing()
-
-    call MPI_Reduce (time_loc, time_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Reduce (time_loc, time_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Reduce (time_loc, time_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
-
-    if (rank == 0) write (id,'(3(es8.2,1x))') time_max, time_min, time_sum
-  end subroutine stop_and_record_timings
-
-  subroutine combine_stats
-    ! Uses Chan, Golub and LeVeque (1983) algorithm for partitioned data sets to combine zonal average results from each rank
-    !   T.F. Chan, G.H. Golub & R.J. LeVeque (1983):
-    !   "Algorithms for computing the sample variance: Analysis and recommendations." The American Statistician 37: 242–247.
-    use mpi
-    implicit none
-    integer                                  :: bin, k
-    real(8), dimension(nvar_zonal)           :: temp
-    integer, dimension(n_process)            :: Nstats_loc
-    real(8), dimension(n_process*nvar_zonal) :: zonal_avg_loc
-
-    Nstats_glo    = 0d0
-    zonal_avg_glo = 0d0
-
-    ! Collect statistics data on rank 0 for combining
-    do k = 1, zlevels
-       do bin = 1, nbins
-          call MPI_Gather (Nstats(k,bin), 1, MPI_INTEGER, Nstats_loc, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
-          
-          temp = zonal_avg(k,bin,:)
-          call MPI_Gather (temp, nvar_zonal, MPI_DOUBLE_PRECISION, zonal_avg_loc, nvar_zonal, MPI_DOUBLE_PRECISION, &
-               0, MPI_COMM_WORLD, ierror)
-          
-          if (rank == 0) call combine_var
-       end do
-    end do
-  contains
-    subroutine combine_var
-      integer :: m, nA, nB, nAB, r
-      real(8) :: delta_KE, delta_T, delta_U, delta_V
-      real(8) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_zonal, mB_zonal, mA_merid, mB_merid, mA_VT, mB_VT, mA_UV, mB_UV
-
-      do r = 0, n_process-1
-         nA = Nstats_glo(k,bin)
-         nB = Nstats_loc(r+1)
-         if (nB /= 0) then
-            m = r*nvar_zonal
-            nAB = nA + nB
-
-            delta_T  = zonal_avg_loc(r*nvar_zonal+1) - zonal_avg_glo(k,bin,1)
-            delta_U  = zonal_avg_loc(r*nvar_zonal+3) - zonal_avg_glo(k,bin,3)
-            delta_V  = zonal_avg_loc(r*nvar_zonal+4) - zonal_avg_glo(k,bin,4)
-            delta_KE = zonal_avg_loc(r*nvar_zonal+5) - zonal_avg_glo(k,bin,5)
-
-            mA_T   = zonal_avg_glo(k,bin,2)
-            mB_T   = zonal_avg_loc(m+2)
-
-            mA_UV  = zonal_avg_glo(k,bin,6)
-            mB_UV  = zonal_avg_loc(m+6)
-
-            mA_zonal = zonal_avg_glo(k,bin,7)
-            mB_zonal = zonal_avg_loc(m+7)
-
-            mA_merid = zonal_avg_glo(k,bin,8)
-            mB_merid = zonal_avg_loc(m+8)
-
-            mA_VT  = zonal_avg_glo(k,bin,9)
-            mB_VT  = zonal_avg_loc(m+9)
-
-            ! Combine means
-            zonal_avg_glo(k,bin,1) = zonal_avg_glo(k,bin,1) + delta_T  * nB/nAB
-            zonal_avg_glo(k,bin,3) = zonal_avg_glo(k,bin,3) + delta_U  * nB/nAB
-            zonal_avg_glo(k,bin,4) = zonal_avg_glo(k,bin,4) + delta_V  * nB/nAB
-            zonal_avg_glo(k,bin,5) = zonal_avg_glo(k,bin,5) + delta_KE * nB/nAB
-
-            ! Combine sums of squares (for variances)
-            zonal_avg_glo(k,bin,2) = mA_T     + mB_T     + delta_T**2      * nA*nB/nAB ! temperature variance
-            zonal_avg_glo(k,bin,6) = mA_UV    + mB_UV    + delta_U*delta_V * nA*nB/nAB ! velocity covariance
-            zonal_avg_glo(k,bin,7) = mA_zonal + mB_zonal + delta_U**2      * nA*nB/nAB ! zonal wind variance
-            zonal_avg_glo(k,bin,8) = mA_merid + mB_merid + delta_V**2      * nA*nB/nAB ! meridional wind variance
-            zonal_avg_glo(k,bin,9) = mA_VT    + mB_VT    + delta_V*delta_T * nA*nB/nAB ! V-T covariance (eddy heat flux)
-
-            ! Update total number of data points
-            Nstats_glo(k,bin) = nAB
-         end if
-      end do
-    end subroutine combine_var
-  end subroutine combine_stats
 end module comm_mpi_mod
