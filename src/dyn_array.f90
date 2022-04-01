@@ -133,7 +133,7 @@ contains
        arr%elts%a(i) = 0d0
     end do
     do i = 1, 2
-       arr%elts%split(i) = 0.0
+       arr%elts%split(i) = 0d0
     end do
   end subroutine init_Overl_Area_Array
 
@@ -147,7 +147,7 @@ contains
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     do i = 1, 9
-       arr%elts%enc(i) = 0.0
+       arr%elts%enc(i) = 0d0
     end do
   end subroutine init_Iu_Wgt_Array
 
@@ -161,7 +161,7 @@ contains
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     do i = 1, 3
-       arr%elts%enc(i) = 0.0
+       arr%elts%enc(i) = 0d0
     end do
   end subroutine init_RF_Wgt_Array
 
@@ -539,7 +539,7 @@ contains
        tmparr%a(i) = 0d0
     end do
     do i = 1, 2
-       tmparr%split(i) = 0.0
+       tmparr%split(i) = 0d0
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
@@ -553,7 +553,7 @@ contains
        arr%elts%a(i) = 0d0
     end do
     do i = 1, 2
-       arr%elts%split(i) = 0.0
+       arr%elts%split(i) = 0d0
     end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
@@ -574,7 +574,7 @@ contains
        stop
     endif
     do i = 1, 9
-       tmparr%enc(i) = 0.0
+       tmparr%enc(i) = 0d0
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
@@ -585,7 +585,7 @@ contains
        stop
     endif
     do i = 1, 9
-       arr%elts%enc(i) = 0.0
+       arr%elts%enc(i) = 0d0
     end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
@@ -606,7 +606,7 @@ contains
        stop
     endif
     do i = 1, 3
-       tmparr%enc(i) = 0.0
+       tmparr%enc(i) = 0d0
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
@@ -617,7 +617,7 @@ contains
        stop
     endif
     do i = 1, 3
-       arr%elts%enc(i) = 0.0
+       arr%elts%enc(i) = 0d0
     end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)

@@ -197,7 +197,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
     
     dom%mask_n%elts(id_i) = min (ADJZONE, dom%mask_n%elts(id_i))
-    wc_s(id_i) = 0.0_8
+    wc_s(id_i) = 0d0
   end subroutine compress_maxlevel_scalar
 
   subroutine compress_maxlevel_vector (dom, i, j, zlev, offs, dims)
@@ -215,7 +215,7 @@ contains
     do e = 1, EDGE
        id_e = EDGE*id+e
        dom%mask_e%elts(id_e) = min (ADJZONE, dom%mask_e%elts(id_e))
-       wc_u(id_e) = 0.0_8
+       wc_u(id_e) = 0d0
     end do
   end subroutine compress_maxlevel_vector
 
@@ -230,7 +230,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
     
-    if (dom%mask_n%elts(id_i) < ADJZONE) wc_s(id_i) = 0.0_8
+    if (dom%mask_n%elts(id_i) < ADJZONE) wc_s(id_i) = 0d0
   end subroutine compress_scalar
 
   subroutine compress_vector (dom, i, j, zlev, offs, dims)
@@ -245,7 +245,7 @@ contains
     id = idx (i, j, offs, dims)
     
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_8
+       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0d0
     end do
   end subroutine compress_vector
 

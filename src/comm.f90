@@ -552,22 +552,6 @@ contains
          LAST*(s_side - 3), pa, DG, nidx(ij_node(1), ij_node(2), s_side, offs, dims)*EDGE + 2*s_side - 6)
   end subroutine create_comm_pole
 
-  subroutine get_areas (dom, id, val)
-    implicit none
-    real(8), dimension(7), intent(out) :: val
-    type(Domain)                       :: dom
-    integer                            :: id
-    
-    real(8), dimension(7) :: area
-
-    area = 0.0_8
-    area(1:4) = dom%overl_areas%elts(id+1)%a
-    area(5:6) = dom%overl_areas%elts(id+1)%split
-    area(7) = dom%areas%elts(id+1)%hex_inv
-    val = area
-    return
-  end subroutine get_areas
-
   subroutine comm_masks
     implicit none
     integer dest_glo, dest_id, dest_loc, i, k, src_glo, src_id, src_loc
@@ -723,25 +707,6 @@ contains
        dom%recv_pa(src_glo)%length = unused_elements
     end do
   end subroutine update_comm
-
-  subroutine area_post_comm (dom, p, c, offs, dims, zlev)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: c, p, zlev
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-    integer, dimension(N_BDRY+1)   :: offs
-    
-    if (c == IPLUSJMINUS) then
-       id = idx(PATCH_SIZE, -1, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0.0
-    end if
-    if (c == IMINUSJPLUS) then
-       id = idx(-1, PATCH_SIZE, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0.0
-    end if
-  end subroutine area_post_comm
 
   subroutine comm_patch_conn
     implicit none
@@ -923,130 +888,7 @@ contains
        end do
     end do
   end subroutine comm_nodes
-
-  subroutine set_areas (dom, id, val)
-    implicit none
-    type(Domain)          :: dom
-    integer               :: id
-    real(8), dimension(7) :: val
-    
-    real(8), dimension(4) :: area
-
-    area = val(1:4)
-    if (id < 0) area = (/area(2), area(1), area(4), area(3)/)
-
-    dom%overl_areas%elts(abs(id) + 1)%a = area
-    dom%overl_areas%elts(abs(id) + 1)%split = val(5:6)
-    dom%areas%elts(abs(id) + 1)%hex_inv = val(7)
-  end subroutine set_areas
-
-  subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
-    ! Calculates time step and number of active nodes and edges
-    ! time step is smallest of barotropic time step, advective time step and internal wave time step for mode split case
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, e, id, id_e, id_i, k, l
-    real(8) :: dx, v_mag
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-    d  = dom%id + 1
-    l  = dom%level%elts(id_i)
-        
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       n_active_nodes(l) = n_active_nodes(l) + 1 
-       if (adapt_dt) then
-          dx = minval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))
-          do k = 1, zlevels
-             v_mag = maxval (abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)))
-             if (mode_split) then
-                dt_loc = min (dt_loc, dt_init, cfl_num*dx/wave_speed, cfl_adv*dx/v_mag, cfl_bar*dx/c1)
-             else
-                dt_loc = min (dt_loc, dt_init, cfl_num*dx/(v_mag + wave_speed))
-             end if
-          end do
-       end if
-    end if
-
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) n_active_edges(l) = n_active_edges(l) + 1
-    end do
-  end subroutine cal_min_dt
-
-  subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
-    ! Calculates minimum relative mass and checks diffusion stability limits
-    use utils_mod
-    use init_mod
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                       :: d, e, id, id_e, id_i, k, l
-    real(8)                       :: col_mass, d_e, fac, full_mass, init_mass, rho, z_s
-    real(8)                       :: beta_sclr, beta_divu, beta_rotu
-    real(8), dimension(1:zlevels) :: dz
-    real(8), dimension(0:zlevels) :: z
-
-    id   = idx (i, j, offs, dims)
-    id_i = id + 1
-    d    = dom%id + 1
-
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       col_mass = 0d0
-       do k = 1, zlevels
-          full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-          if (full_mass < 0.0_8 .or. full_mass /= full_mass) then
-             write (6,'(A,i8,A,3(es9.2,1x),A,i2,A)') "Mass negative at id = ", id_i, &
-                  " with position ", dom%node%elts(id_i)%x,  dom%node%elts(id_i)%y, dom%node%elts(id_i)%z, &
-                  " vertical level k = ", k, " ... aborting"
-             call abort
-          end if
-          col_mass = col_mass + full_mass
-       end do
-
-       ! Measure relative change in mass
-       if (compressible) then
-          do k = 1, zlevels
-             init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
-             min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
-          end do
-       else
-          z_s = dom%topo%elts(id_i)
-          if (sigma_z) then
-             z = z_coords (0d0, z_s)
-          else
-             z = b_vert * z_s
-          end if
-          dz = z(1:zlevels) - z(0:zlevels-1)
-          do k = 1, zlevels
-             rho = porous_density (d, id_i, k)
-             init_mass = rho * dz(k)
-             full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-             min_mass_loc = min (min_mass_loc, full_mass/init_mass)
-          end do
-       end if
-
-       ! Check diffusion stability
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          if (dom%mask_e%elts(id_e) >= ADJZONE) then
-             d_e = dom%len%elts(id_e) ! triangle edge length
-             fac = dt/d_e**(2*Laplace_order)
-             beta_sclr_loc = max (beta_sclr_loc, maxval(visc_sclr) * fac)
-             beta_divu_loc = max (beta_divu_loc, visc_divu * fac)
-             beta_rotu_loc = max (beta_rotu_loc, visc_rotu * fac)
-          end if
-       end do
-    end if
-  end subroutine cal_min_mass
-
+  
   integer function domain_load (dom)
     implicit none
     type(Domain) :: dom

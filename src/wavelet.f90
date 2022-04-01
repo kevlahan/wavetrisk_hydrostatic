@@ -1022,7 +1022,7 @@ contains
        call init (grid(d)%R_F_wgt, num)
 
        do i = 1, num
-          call init_RF_Wgt (grid(d)%R_F_wgt%elts(i), (/0.0_4, 0.0_4, 0.0_4/))
+          call init_RF_Wgt (grid(d)%R_F_wgt%elts(i), (/0d0, 0d0, 0d0/))
        end do
 
        call init (wav_topography%data(d), num)

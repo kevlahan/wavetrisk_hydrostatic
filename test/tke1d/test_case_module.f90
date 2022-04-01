@@ -795,7 +795,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+    call topo_tke1d (dom, i, j, zlev, offs, dims, 'bathymetry')
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
@@ -813,14 +813,14 @@ contains
     id_i = id + 1 
 
     if (penalize) then
-       call topography (dom, i, j, zlev, offs, dims, "penalize")
+       call topo_tke1d (dom, i, j, zlev, offs, dims, "penalize")
     else
        penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
     end if
   end subroutine set_penal
 
-  subroutine topography (dom, i, j, zlev, offs, dims, itype)
+  subroutine topo_tke1d (dom, i, j, zlev, offs, dims, itype)
     ! Not used
     implicit none
     type(Domain)                   :: dom
@@ -840,7 +840,7 @@ contains
        dom%topo%elts(id_i) = max_depth + surf_geopot_case (dom%node%elts(id_i)) / grav_accel
     case ("penalize") ! not used
     end select
-  end subroutine topography
+  end subroutine topo_tke1d
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     implicit none

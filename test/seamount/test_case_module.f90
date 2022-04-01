@@ -663,7 +663,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+    call topo_seamount (dom, i, j, zlev, offs, dims, 'bathymetry')
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
@@ -684,7 +684,7 @@ contains
     penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
   end subroutine set_penal
 
-  subroutine topography (dom, i, j, zlev, offs, dims, itype)
+  subroutine topo_seamount (dom, i, j, zlev, offs, dims, itype)
     ! Returns bathymetrys
     implicit none
     type(Domain)                   :: dom
@@ -699,7 +699,7 @@ contains
     id_i = id + 1
 
     dom%topo%elts(id+1) = max_depth + surf_geopot_case (dom%node%elts(id_i)) / grav_accel
-  end subroutine topography
+  end subroutine topo_seamount
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     ! Idealized zonally and temporally averaged zonal and meridional wind stresses

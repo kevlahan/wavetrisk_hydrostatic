@@ -75,8 +75,8 @@ contains
        local_type = .false.
     end if
 
-    if (implicit_diff_sclr .or. Laplace_order == 0 .or. maxval (visc_sclr) == 0.0_8) then
-       physics_scalar_flux_case = 0.0_8
+    if (implicit_diff_sclr .or. Laplace_order == 0 .or. maxval (visc_sclr) == 0d0) then
+       physics_scalar_flux_case = 0d0
     else
        id_i = id + 1
        d = dom%id + 1
@@ -202,7 +202,7 @@ contains
     read (fid,*) varname, resume_init
     close(fid)
 
-    press_save = 0.0_8
+    press_save = 0d0
     allocate (pressure_save(1))
     pressure_save(1) = press_save
     dt_write = dt_write * DAY
@@ -412,16 +412,16 @@ contains
        if (k == zlevels) then
           sol(S_MASS,zlevels)%data(d)%elts(id_i) = rho * eta
        else
-          sol(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
+          sol(S_MASS,k)%data(d)%elts(id_i) = 0d0
        end if
        sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (z_k)
-       sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+       sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
 
     if (mode_split) then
        phi = phi_node (d, id_i, zlevels)
        sol(S_MASS,zlevels+1)%data(d)%elts(id_i) = phi * eta ! free surface perturbation
-       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0.0_8
+       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0d0
     end if
   end subroutine init_sol
 
@@ -442,7 +442,7 @@ contains
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    eta = 0.0_8
+    eta = 0d0
     z_s = dom%topo%elts(id_i)
 
     if (sigma_z) then
@@ -456,13 +456,13 @@ contains
        rho = porous_density (d, id_i, k)
 
        sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = rho * dz(k)
-       sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = 0.0_8
-       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+       sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = 0d0
+       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
 
     if (mode_split) then
-       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i) = 0.0_8
-       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0.0_8
+       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i) = 0d0
+       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i) = 0d0
     end if
   end subroutine init_mean
 
@@ -477,7 +477,7 @@ contains
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0.0_8
+    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0d0
     if (trim (coords) == "uniform") then
        do k = 2, zlevels-1
           b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
@@ -551,7 +551,7 @@ contains
     implicit none
     type(Coord) :: x_i
 
-    init_free_surface = 0.0_8
+    init_free_surface = 0d0
   end function init_free_surface
 
   real(8) function buoyancy_init (z)
@@ -588,7 +588,7 @@ contains
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
 
-    eta = 0.0_8
+    eta = 0d0
     z_s = max_depth
 
     if (sigma_z) then
@@ -611,7 +611,7 @@ contains
     end do
 
     write (6,'(/,a)') " Interface      V        c1      CFL_c1"
-    c1 = 0.0_8
+    c1 = 0d0
     do k = 1, zlevels-1
        z_above = interp (z(k),   z(k+1))
        z_k     = interp (z(k-1), z(k))
@@ -672,10 +672,10 @@ contains
     real(8), dimension(0:zlevels) :: z
     type(Coord)                   :: x_i
 
-    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
+    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
 
-    eta = 0.0_8
+    eta = 0d0
     z_s = max_depth
 
     if (sigma_z) then
@@ -711,7 +711,7 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, 1.2*dx_min/c1)
     dt_init = dt_cfl
 
-    C = 0.0_8 ! <= 1/2 if explicit
+    C = 0d0 ! <= 1/2 if explicit
     C_rotu = C / 4**Laplace_order_init
     C_divu = C
     C_mu   = C
@@ -724,9 +724,9 @@ contains
     tau_rotu = dt_cfl / C_rotu
 
     if (Laplace_order_init == 0) then
-       visc_sclr = 0.0_8
-       visc_divu = 0.0_8
-       visc_rotu = 0.0_8
+       visc_sclr = 0d0
+       visc_divu = 0d0
+       visc_rotu = 0d0
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_mu
        visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_b
@@ -765,7 +765,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+    call topo_upwelling (dom, i, j, zlev, offs, dims, 'bathymetry')
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
@@ -783,14 +783,14 @@ contains
     id_i = id + 1
 
     if (penalize) then
-       call topography (dom, i, j, zlev, offs, dims, "penalize")
+       call topo_upwelling (dom, i, j, zlev, offs, dims, "penalize")
     else
-       penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
-       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
+       penal_node(zlev)%data(d)%elts(id_i)                      = 0d0
+       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0       
     end if
   end subroutine set_penal
 
-  subroutine topography (dom, i, j, zlev, offs, dims, itype)
+  subroutine topo_upwelling (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
     ! uses radial basis function for smoothing (if specified)
     implicit none
@@ -834,7 +834,7 @@ contains
           penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
        end do
     end select
-  end subroutine topography
+  end subroutine topo_upwelling
 
   real(8) function smooth (fun, p, dx, npts)
     ! Smooth a function using radial basis functions
@@ -859,8 +859,8 @@ contains
     else
        dtheta = dx/radius
        call cart2sph (p, lon0, lat0)
-       nrm = 0.0_8
-       rbf = 0.0_8
+       nrm = 0d0
+       rbf = 0d0
        do ii = -npts, npts
           lat = lat0 + dtheta * ii
           do jj = -npts, npts
@@ -881,7 +881,7 @@ contains
       ! Radial basis function for smoothing topography
       implicit none
 
-      radial_basis_fun = exp (-(r/(npts*dx/2))**2)
+      radial_basis_fun = exp (-(r/(npts*dx/2d0))**2)
     end function radial_basis_fun
   end function smooth
 
@@ -905,7 +905,7 @@ contains
     else
        tau_zonal = tau_0
     end if
-    tau_merid = 0.0_8
+    tau_merid = 0d0
   end subroutine wind_stress
 
   real(8) function tau_mag_case (p)
@@ -1071,7 +1071,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    bottom_buoy_flux_case= 0.0_8
+    bottom_buoy_flux_case= 0d0
   end function bottom_buoy_flux_case
 
   real(8) function top_buoy_flux_case (dom, i, j, z_null, offs, dims)
@@ -1082,7 +1082,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    top_buoy_flux_case = 0.0_8
+    top_buoy_flux_case = 0d0
   end function top_buoy_flux_case
 
   function wind_flux_case (dom, i, j, zlev, offs, dims)
@@ -1114,7 +1114,7 @@ contains
 
        wind_flux_case = tau_wind / rho  * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
     else
-       wind_flux_case = 0.0_8
+       wind_flux_case = 0d0
     end if
   end function wind_flux_case
 end module test_case_mod

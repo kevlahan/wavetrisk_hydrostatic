@@ -1003,7 +1003,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+    call topo_jet (dom, i, j, zlev, offs, dims, 'bathymetry')
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
@@ -1021,14 +1021,14 @@ contains
     id_i = id + 1
 
     if (penalize) then
-       call topography (dom, i, j, zlev, offs, dims, "penalize")
+       call topo_jet (dom, i, j, zlev, offs, dims, "penalize")
     else
        penal_node(zlev)%data(d)%elts(id_i)                      = 0d0
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0       
     end if
   end subroutine set_penal
 
-  subroutine topography (dom, i, j, zlev, offs, dims, itype)
+  subroutine topo_jet (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
     ! uses radial basis function for smoothing (if specified)
     implicit none
@@ -1072,7 +1072,7 @@ contains
           penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
        end do
     end select
-  end subroutine topography
+  end subroutine topo_jet
 
   real(8) function smooth (fun, p, dx, npts)
     ! Smooth a function using radial basis functions
@@ -1119,7 +1119,7 @@ contains
       ! Radial basis function for smoothing topography
       implicit none
 
-      radial_basis_fun = exp (-(r/(npts*dx/2))**2)
+      radial_basis_fun = exp (-(r/(npts*dx/2d0))**2)
     end function radial_basis_fun
   end function smooth
 

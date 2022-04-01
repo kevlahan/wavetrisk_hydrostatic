@@ -23,59 +23,6 @@ contains
     call comm_communication_mpi
   end subroutine init_comm_mpi
 
-  integer function write_active_per_level ()
-    ! Write out distribution of active nodes over levels
-    use mpi
-    implicit none
-    integer                                         :: l, n_full, fillin, n_lev_cur, recommended_level_start
-    integer, dimension(2*(level_end-level_start+1)) :: n_active_all_loc, n_active_all_glo
-    integer, dimension(level_start:level_end)       :: n_active_per_lev
-    real(8)                                         :: dt
-
-    dt = cpt_dt() ! to set n_active_*
-
-    n_lev_cur = level_end - level_start + 1
-
-    n_active_all_loc = (/n_active_nodes(level_start:level_end), n_active_edges(level_start:level_end)/)
-    
-    ! Sum n_active_all_loc up across all processes and distribute result n_active_all_glo among all processes
-    call MPI_Allreduce (n_active_all_loc, n_active_all_glo, n_lev_cur*2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    
-    n_active_nodes(level_start:level_end) = n_active_all_glo(1:n_lev_cur)
-    n_active_edges(level_start:level_end) = n_active_all_glo(n_lev_cur+1:n_lev_cur*2)
-    n_active_per_lev = n_active_edges(level_start:level_end) + n_active_nodes(level_start:level_end)
-
-    if (rank == 0) write (6,'(6X,A,A,3(1X,A))') '   N_p   ', '   N_u   ','of all active', 'of full level', 'fill-in'
-
-    recommended_level_start = level_start
-
-    do l = level_start, level_end
-       n_full = max_nodes_per_level(l) + max_nodes_per_level(l,EDGE)
-
-       ! Fill-in: additional nodes on level `l` if it'd become lowest level 
-       ! minus the nodes on lower levels which would be removed
-       fillin = n_full-n_active_per_lev(l)-sum(n_active_per_lev(level_start:l-1))
-
-       if (rank == 0) then
-          write (6,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
-               'lev', l, n_active_nodes(l), n_active_edges(l), &
-               float(n_active_per_lev(l))/float(sum(n_active(AT_NODE:AT_EDGE)))*100.0, '%', &
-               float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
-               fillin, float(fillin)/float(sum(n_active(AT_NODE:AT_EDGE)))*100.0, '%'
-       end if
-
-       if (fillin <= 0) recommended_level_start = l
-    end do
-
-    if (rank == 0) then
-       write (6,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(AT_NODE:AT_EDGE), 100.0, '%', &
-            float(sum(n_active(AT_NODE:AT_EDGE)))/float(n_full)*100.0, '%', &
-            n_full/sum(n_active(AT_NODE:AT_EDGE))
-    end if
-
-    write_active_per_level = recommended_level_start
-  end function write_active_per_level
-
   subroutine write_load_conn (id, run_id)
     ! Write out load distribution and connectivity for load balancing
     use mpi
@@ -1234,73 +1181,6 @@ contains
     end do
   end subroutine comm_patch_conn_mpi
 
-  real(8) function cpt_dt ()
-    ! Calculates time step, minimum relative mass and active nodes and edges
-    use mpi
-    implicit none
-    integer               :: l, ierror, level_end_glo
-    integer, dimension(2) :: n_active_loc
-    
-    if (adapt_dt) then
-       dt_loc = 1d16
-    else
-       dt_loc = dt_init
-    end if
-    n_active_nodes = 0
-    n_active_edges = 0
-
-    ! Calculate minimum time step, number of active nodes and edges
-    do l = level_start, level_end
-       call apply_onescale (cal_min_dt, l, z_null, 0, 0)
-    end do
-
-    ! Time step
-    if (adapt_dt) then
-       call MPI_Allreduce (dt_loc, cpt_dt, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    else
-       cpt_dt = dt_loc
-    end if
-
-    ! Active nodes and edges
-    n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
-    call MPI_Allreduce (n_active_loc, n_active,      2, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    call MPI_Allreduce (level_end,    level_end_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
-    level_end = level_end_glo
-  end function cpt_dt
-
-  real(8) function cpt_min_mass ()
-    ! Calculates minimum relative mass and checks diffusion stability limits
-    use mpi
-    implicit none
-    integer :: ierror, l
-    real(8) :: beta_sclr, beta_divu, beta_rotu
-
-    min_mass_loc = 1d16
-    beta_sclr_loc = -1d16; beta_divu_loc = -1d16; beta_rotu_loc = -1d16
-    do l = level_start, level_end
-       call apply_onescale (cal_min_mass, l, z_null, 0, 0)
-    end do
-
-    call MPI_Allreduce (min_mass_loc, cpt_min_mass, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    
-    call MPI_Allreduce (beta_sclr_loc, beta_sclr, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-    call MPI_Allreduce (beta_divu_loc, beta_divu, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-    call MPI_Allreduce (beta_rotu_loc, beta_rotu, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-
-    ! Check Klemp (2018) diffusion stability limits are satisfied
-    if (rank == 0) then
-       if (beta_sclr > (1.0_8/2)**Laplace_order_init .and. .not. implicit_diff_sclr) &
-            write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &
-            " is larger than ",  (1.0_8/2)**Laplace_order_init
-       if (beta_divu > (1.0_8/2)**Laplace_order_init .and. .not. implicit_diff_divu) &
-            write (6,'(2(a,es8.2))') "WARNING: divu diffusion coefficient = ", beta_divu, &
-            " is larger than ",  (1.0_8/2)**Laplace_order_init
-       if (beta_rotu > (1.0_8/2/4)**Laplace_order_init) &
-            write (6,'(2(a,es8.2))') "WARNING: rotu diffusion coefficient = ", beta_rotu, &
-            " is larger than ",  (1.0_8/2/4)**Laplace_order_init
-    end if
-  end function cpt_min_mass
-
   integer function sync_max_int (val)
     use mpi
     implicit none
@@ -1422,8 +1302,8 @@ contains
     integer, dimension(n_process)            :: Nstats_loc
     real(8), dimension(n_process*nvar_zonal) :: zonal_avg_loc
 
-    Nstats_glo    = 0.0_8
-    zonal_avg_glo = 0.0_8
+    Nstats_glo    = 0d0
+    zonal_avg_glo = 0d0
 
     ! Collect statistics data on rank 0 for combining
     do k = 1, zlevels

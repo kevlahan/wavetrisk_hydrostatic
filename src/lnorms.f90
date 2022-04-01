@@ -12,7 +12,7 @@ contains
 
     integer :: k, l, v
 
-    lnorm = 0.0_8
+    lnorm = 0d0
     do k = 1, zmax
        do l = level_start, level_end
           select case (order)

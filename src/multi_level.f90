@@ -480,7 +480,7 @@ contains
       integer, dimension(2,N_BDRY+1) :: dims
 
       type(Domain)           :: dom
-      real(4)                :: wgt
+      real(8)                :: wgt
       integer, dimension(20) :: id
 
       call get_indices (dom, i+1, j, RT, offs, dims, id)

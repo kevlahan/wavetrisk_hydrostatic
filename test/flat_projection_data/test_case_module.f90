@@ -417,7 +417,7 @@ contains
     pressure_save(1) = 100*press_save
   end subroutine read_test_case_parameters
 
-  subroutine topography (dom, i, j, zlev, offs, dims, itype)
+  subroutine topo_flat (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
     ! uses radial basis function for smoothing (if specified)
     implicit none
@@ -453,7 +453,7 @@ contains
           end do
        end if
     end select
-  end subroutine topography
+  end subroutine topo_flat
 
   real(8) function mask (p)
     ! Land mass mask
@@ -483,7 +483,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+    call topo_flat (dom, i, j, zlev, offs, dims, 'bathymetry')
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
@@ -501,7 +501,7 @@ contains
     id_i = id + 1
 
     if (penalize) then
-       call topography (dom, i, j, zlev, offs, dims, "penalize")
+       call topo_flat (dom, i, j, zlev, offs, dims, "penalize")
     else
        penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
