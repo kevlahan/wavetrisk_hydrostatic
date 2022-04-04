@@ -547,7 +547,7 @@ contains
   end function f_coriolis_node
 
   real(8) function integrate_hex (fun, l, zlev)
-    ! Integrate function defined by fun over hexagons
+    ! Integrate function defined by fun over hexagons at scale l
     implicit none
     integer  :: l, zlev
 
@@ -607,6 +607,7 @@ contains
   end function integrate_hex
 
   real(8) function integrate_tri (fun, k)
+    ! Integrate function defined defined by fun over triangles
     implicit none
     integer  :: k
 
@@ -721,55 +722,4 @@ contains
        end do
     end do
   end subroutine coarse_hex_area
-
-  subroutine set_areas (dom, id, val)
-    implicit none
-    type(Domain)          :: dom
-    integer               :: id
-    real(8), dimension(7) :: val
-
-    real(8), dimension(4) :: area
-
-    area = val(1:4)
-    if (id < 0) area = (/area(2), area(1), area(4), area(3)/)
-
-    dom%overl_areas%elts(abs(id) + 1)%a     = area
-    dom%overl_areas%elts(abs(id) + 1)%split = val(5:6)
-    dom%areas%elts(abs(id) + 1)%hex_inv     = val(7)
-  end subroutine set_areas
-
-  subroutine get_areas (dom, id, val)
-    implicit none
-    real(8), dimension(7), intent(out) :: val
-    type(Domain)                       :: dom
-    integer                            :: id
-
-    real(8), dimension(7) :: area
-
-    area = 0d0
-    area(1:4) = dom%overl_areas%elts(id+1)%a
-    area(5:6) = dom%overl_areas%elts(id+1)%split
-    area(7)   = dom%areas%elts(id+1)%hex_inv
-    val       = area
-    return
-  end subroutine get_areas
-
-  subroutine area_post_comm (dom, p, c, offs, dims, zlev)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: c, p, zlev
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-    integer, dimension(N_BDRY+1)   :: offs
-
-    if (c == IPLUSJMINUS) then
-       id = idx(PATCH_SIZE, -1, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0d0
-    end if
-    if (c == IMINUSJPLUS) then
-       id = idx(-1, PATCH_SIZE, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0d0
-    end if
-  end subroutine area_post_comm
 end module utils_mod
