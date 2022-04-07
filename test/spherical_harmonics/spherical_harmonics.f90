@@ -128,20 +128,30 @@ program spherical_harmonics
 
   ! Compute and save averages
   if (cp_end /= cp_beg .and. rank == 0) then
-     call avg_spec ('barotropic')
+     call avg_spec ('barotropic_curlu')
+     call avg_spec ('barotropic_divu')
      if (zlevels == 2) then
-        call avg_spec ('baroclinic_2')
-        call avg_spec ('baroclinic_2')
-        call avg_spec ('total_1')
-        call avg_spec ('total_2')
+        call avg_spec ('baroclinic_curlu_1')
+        call avg_spec ('baroclinic_curlu_2')
+        call avg_spec ('baroclinic_divu_1')
+        call avg_spec ('baroclinic_divu_2')
+        call avg_spec ('total_curlu_1')
+        call avg_spec ('total_curlu_2')
+        call avg_spec ('total_divu_1')
+        call avg_spec ('total_divu_2')
      end if
      if (local_spec) then
-        call avg_local_spec ('barotropic_local')
+        call avg_local_spec ('barotropic_curlu_local')
+        call avg_local_spec ('barotropic_divu_local')
         if (zlevels == 2) then
-           call avg_local_spec ('baroclinic_2_local')
-           call avg_local_spec ('baroclinic_2_local')
-           call avg_local_spec ('total_1_local')
-           call avg_local_spec ('total_2_local')
+           call avg_local_spec ('baroclinic_curlu_1_local')
+           call avg_local_spec ('baroclinic_curlu_2_local')
+           call avg_local_spec ('baroclinic_divu_1_local')
+           call avg_local_spec ('baroclinic_divu_2_local')
+           call avg_local_spec ('total_curlu_1_local')
+           call avg_local_spec ('total_curlu_2_local')
+           call avg_local_spec ('total_divu_1_local')
+           call avg_local_spec ('total_divu_2_local')
         end if
      end if
   end if
@@ -217,7 +227,8 @@ contains
   end subroutine avg_local_spec
 
   subroutine spec_latlon_1layer
-    ! Compute energy spectrum from 2d latitude-longitude projection
+    ! Compute energy spectra of div-free and curl-free parts of the velocity field from 2d latitude-longitude projections
+    ! of vorticity and div(u) respectively.
     use domain_mod
     implicit none
     integer :: d, i, j, l
@@ -235,8 +246,8 @@ contains
     
     ! Vorticity at hexagon points
     do d = 1, size(grid)
-       velo  => sol(S_VELO,save_zlev)%data(d)%elts
-       vort  => grid(d)%vort%elts
+       velo => sol(S_VELO,save_zlev)%data(d)%elts
+       vort => grid(d)%vort%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
        end do
@@ -250,12 +261,23 @@ contains
        end do
        nullify (vort)
     end do
-
-    ! Project vorticity (stored in field2d)
     field2d = 0d0
     call project_array_onto_plane ("press_lower", l, 1d0)
+    if (rank == 0) call spectrum_lon_lat ("barotropic_curlu")
 
-    if (rank == 0) call spectrum_lon_lat ("barotropic")
+    ! Divergence at hexagon points
+    do d = 1, size(grid)
+       velo => sol(S_VELO,save_zlev)%data(d)%elts
+       divu => grid(d)%divu%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (velo, divu)
+    end do
+    field2d = 0d0
+    call project_array_onto_plane ("divu", l, 1d0)
+    if (rank == 0) call spectrum_lon_lat ("barotropic_divu")
+
     deallocate (field2d)
   end subroutine spec_latlon_1layer
 
@@ -303,9 +325,24 @@ contains
        ! Project vorticity (stored in field2d)
        field2d = 0d0
        call project_array_onto_plane ("press_lower", l, 1d0)
-       
        if (rank == 0) then
-          write (data_type, '(a6,i1)') "total_", k
+          write (data_type, '(a6,i1)') "total_curlu_", k
+          call spectrum_lon_lat (data_type)
+       end if
+
+       ! Divergence at hexagon points
+       do d = 1, size(grid)
+          velo => sol(S_VELO,k)%data(d)%elts
+          divu => grid(d)%divu%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (velo, divu)
+       end do
+       field2d = 0d0
+       call project_array_onto_plane ("divu", l, 1d0)
+       if (rank == 0) then
+          write (data_type, '(a6,i1)') "total_divu_", k
           call spectrum_lon_lat (data_type)
        end if
     end do
@@ -353,9 +390,22 @@ contains
        nullify (vort)
     end do
     ! Project vorticity (stored in field2d)
-    field2d = 0.0_8
+    field2d = 0d0
     call project_array_onto_plane ("press_lower", l, 1d0)
-    if (rank == 0) call spectrum_lon_lat ("barotropic")
+    if (rank == 0) call spectrum_lon_lat ("barotropic_curlu")
+
+    ! Divergence at hexagon points
+    do d = 1, size(grid)
+       velo => sol(S_VELO,zlevels+1)%data(d)%elts
+       divu => grid(d)%divu%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (velo, divu)
+    end do
+    field2d = 0d0
+    call project_array_onto_plane ("divu", l, 1d0)
+    if (rank == 0) call spectrum_lon_lat ("barotropic_divu")
     
     ! Baroclinic velocity and vorticity in each layer
     do k = 1, 2
@@ -385,10 +435,26 @@ contains
           nullify (vort)
        end do
        
-       field2d = 0.0_8
+       field2d = 0
        call project_array_onto_plane ("press_lower", l, 1d0)
        if (rank == 0) then
-          write (data_type, '(a11,i1)') "baroclinic_", k
+          write (data_type, '(a11,i1)') "baroclinic_curlu_", k
+          call spectrum_lon_lat (data_type)
+       end if
+
+       ! Divergence at hexagon points
+       do d = 1, size(grid)
+          velo => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in current layer
+          divu => grid(d)%divu%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (velo, divu)
+       end do
+       field2d = 0d0
+       call project_array_onto_plane ("divu", l, 1d0)
+       if (rank == 0) then
+          write (data_type, '(a11,i1)') "baroclinic_divu_", k
           call spectrum_lon_lat (data_type)
        end if
     end do
