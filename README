@@ -1,4 +1,4 @@
-**********************************************************************************************************************************
+	**********************************************************************************************************************************
 *   WAVETRISK 2.2														 *
 *   2022-01-20															 *
 *																 *
@@ -440,8 +440,11 @@ divided into N_SUB_DOM = 4**DOMAIN_LEVEL regular sub-domains with the number of 
 n_domain(rank+1).
 
 There are two special nodes called POLEs. One connects the five lozenge vertices at the top of the network and the other connects
-the five lozenge grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic North and
-South poles.
+the five lozenge grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic north and
+south poles. The north pole and south poles are stored in the NORTHWEST and SOUTHEAST corner boundaries of two domains. The domains
+containing poles have grid(d)%pole_master(c/2-2) = .true., where c = NORTHWEST or SOUTHEAST. Applying a routine to the boundaries
+with options st = 0, en = 1 applies it to the poles. The routine apply_to_pole can be used when you do not want to apply the routine
+to the entire boundary strip with st = 0, en = 1.
 
 The coarsest level Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1 with PATCH_LEVEL>=2. The geometry of this coarsest level may be optimized
 by reading in a Heikes & Randall (1995) (optimize_grid = HR_GRID) grid of resolution Jmin-1 or using the Xu (2006) smoothing

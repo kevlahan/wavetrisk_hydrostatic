@@ -589,7 +589,6 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     do c = SOUTHEAST, NORTHWEST, 2
-
        if (.not. dom%pole_master(c/2-2) .and. .not. to_all) cycle
        if (.not. dom%penta(c)) cycle
        if (.not. dom%neigh(c) == POLE) cycle
@@ -610,10 +609,10 @@ contains
 
           call get_offs_Domain (dom, p_par, offs, dims)
 
-          if (c == NORTHWEST) then
-             call routine (dom, p_par, 0, PATCH_SIZE, zlev, offs, dims, ival) ! NORTHPOLE
-          else
-             call routine (dom, p_par, PATCH_SIZE, 0, zlev, offs, dims, ival) ! SOUTHPOLE
+          if (c == NORTHWEST) then     ! north pole
+             call routine (dom, p_par, 0, PATCH_SIZE, zlev, offs, dims, ival) 
+          elseif (c == SOUTHEAST) then ! south pole
+             call routine (dom, p_par, PATCH_SIZE, 0, zlev, offs, dims, ival) 
           end if
           
        end do

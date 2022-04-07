@@ -4,6 +4,28 @@ module utils_mod
   use comm_mod
   use comm_mpi_mod
   implicit none
+  real(8) :: integral
+
+  abstract interface
+     real(8) function routine_hex (dom, i, j, zlev, offs, dims)
+       use domain_mod
+       implicit none
+       type (Domain)                  :: dom
+       integer                        :: i, j, zlev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end function routine_hex
+     real(8) function routine_tri (dom, i, j, t, zlev, offs, dims)
+       use domain_mod
+       implicit none
+       type (Domain)                  :: dom
+       integer                        :: i, j, t, zlev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end function routine_tri
+  end interface
+  procedure (routine_hex), pointer :: integrand_hex => null ()
+  procedure (routine_tri), pointer :: integrand_tri => null ()
 contains
   real(8) function z_i (dom, i, j, zlev, offs, dims)
     ! Position of vertical level zlev at nodes
@@ -546,45 +568,181 @@ contains
     f_coriolis_node = dom%node%elts(id+1)%z / radius * 2d0*omega
   end function f_coriolis_node
 
-  real(8) function integrate_hex (fun, l, zlev)
-    ! Integrate function defined by fun over hexagons at scale l
+  real(8) function integrate_tri (fun, zlev, coarse_only)
+    ! Integrate over adaptive triangles, where the integrand is defined by the routine fun.
+    ! If optional variable coarse_only = .true. the integration is carried out over level_start only.
     implicit none
-    integer  :: l, zlev
+    integer           :: zlev
+    logical, optional :: coarse_only
+    
+    integer :: d, j, l
+    logical :: finer
+    
+    interface
+       real(8) function fun (dom, i, j, t, zlev, offs, dims)
+         use domain_mod
+         implicit none
+         type (Domain)                  :: dom
+         integer                        :: i, j, t, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end function fun
+    end interface
 
-    integer                        :: d, ll, p, i, j, c, id
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8)                        :: s, val
+    if (present(coarse_only)) then
+       finer = .not. coarse_only
+    else
+       finer = .true.
+    end if
+    integrand_tri => fun
+
+    ! Coarsest level
+    integral = 0d0
+    call apply_onescale (integrate_tri_coarse, level_start, zlev, 0, 0)
+
+    ! Finer levels
+    if (finer) then
+       do l = level_start, level_end-1
+          do d = 1, size(grid)
+             do j = 1, grid(d)%lev(l)%length
+                call apply_interscale_to_patch (integrate_tri_fine, grid(d), grid(d)%lev(l)%elts(j), zlev, 0, 0)
+             end do
+          end do
+       end do
+    end if
+    nullify (integrand_tri)
+    
+    integrate_tri = sum_real (integral)
+  end function integrate_tri
+    
+  subroutine integrate_tri_coarse (dom, i, j, zlev, offs, dims)
+    ! Integral over a single level.
+    implicit none
+    type(Domain),                   intent(in) :: dom
+    integer,                        intent(in) :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in) :: offs
+    integer, dimension(2,N_BDRY+1), intent(in) :: dims
+
+    integer :: id, t
+
+    id = idx (i, j, offs, dims)
+
+    do t = LORT, UPLT
+       integral = integral + integrand_tri (dom, i, j, t, zlev, offs, dims) * dom%triarea%elts(TRIAG*id+t+1)
+    end do
+  end subroutine integrate_tri_coarse
+
+  subroutine integrate_tri_fine (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Integrate over active finer levels.
+    implicit none
+    type(Domain)                     :: dom
+    integer                          :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
+
+    integer                       :: id_chd, idE_chd, idNE_chd, idN_chd, t
+    real(8), dimension(LORT:UPLT) :: parent_integrand
+
+    id_chd   = idx (i_chd,   j_chd,   offs_chd, dims_chd)
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+
+    if (dom%mask_n%elts(id_chd+1) >= ADJZONE) then
+       do t = LORT, UPLT
+          parent_integrand(t) = integrand_tri (dom, i_par, j_par, t, zlev, offs_par, dims_par)
+       end do
+
+       do t = LORT, UPLT
+          integral = integral + (integrand_tri (dom, i_chd, j_chd, t, zlev, offs_chd, dims_chd) - parent_integrand(t)) &
+               * dom%triarea%elts(TRIAG*id_chd+t+1)
+
+          integral = integral + (integrand_tri (dom, i_chd+1, j_chd, t, zlev, offs_chd, dims_chd) - parent_integrand(LORT)) &
+               * dom%triarea%elts(TRIAG*idE_chd+t+1)
+
+          integral = integral + (integrand_tri (dom, i_chd, j_chd+1, t, zlev, offs_chd, dims_chd) - parent_integrand(UPLT)) &
+               * dom%triarea%elts(TRIAG*idN_chd+t+1)
+
+          integral = integral + (integrand_tri (dom, i_chd+1, j_chd+1, t, zlev, offs_chd, dims_chd) - parent_integrand(t)) &
+               * dom%triarea%elts(TRIAG*idNE_chd+t+1)
+       end do
+    end if
+  end subroutine integrate_tri_fine
+  
+  real(8) function integrate_hex (fun, zlev, coarse_only)
+    ! Integrate over adaptive hexagons, where the integrand is defined by the routine fun.
+    ! If optional variable coarse_only = .true. the integration is carried out over level_start only.
+    implicit none
+    integer           :: zlev
+    logical, optional :: coarse_only
+
+    integer :: d, j, l
+    logical :: finer
 
     interface
        real(8) function fun (dom, i, j, zlev, offs, dims)
-         import
+         use domain_mod
          implicit none
-         type(Domain)                   :: dom
+         type (Domain)                  :: dom
          integer                        :: i, j, zlev
          integer, dimension(N_BDRY+1)   :: offs
          integer, dimension(2,N_BDRY+1) :: dims
        end function fun
     end interface
 
-    s = 0d0
+    if (present(coarse_only)) then
+       finer = .not. coarse_only
+    else
+       finer = .true.
+    end if
+    integrand_hex => fun
+
+    ! Coarsest level
+    integral = 0d0
+    call integrate_hex_coarse (zlev)
+    
+    ! Finer levels
+    if (finer) then
+       do l = level_start, level_end-1
+          do d = 1, size(grid)
+             do j = 1, grid(d)%lev(l)%length
+                call apply_interscale_to_patch (integrate_hex_fine, grid(d), grid(d)%lev(l)%elts(j), zlev, 0, 0)
+             end do
+          end do
+       end do
+    end if
+    nullify (integrand_hex)
+    
+    integrate_hex = sum_real (integral)
+  end function integrate_hex
+
+  subroutine integrate_hex_coarse (zlev)
+    ! Integrate function pointer integrand_hex over hexagons at coarsest scale.
+    implicit none
+    integer :: zlev
+    
+    integer                        :: c, d, i, id, j, jj, p
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
     do d = 1, size(grid)
-       do ll = 1, grid(d)%lev(l)%length
-          p = grid(d)%lev(l)%elts(ll)
+       ! Regular hexagons/pentagons
+       do jj = 1, grid(d)%lev(level_start)%length
+          p = grid(d)%lev(level_start)%elts(jj)
           call get_offs_Domain (grid(d), p, offs, dims)
           do j = 1, PATCH_SIZE
              do i = 1, PATCH_SIZE
                 id = idx (i-1, j-1, offs, dims)
-                val = fun (grid(d), i-1, j-1, zlev, offs, dims)
-                s = s + val/grid(d)%areas%elts(id+1)%hex_inv
+                integral = integral + integrand_hex (grid(d), i-1, j-1, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
              end do
           end do
        end do
 
+       ! Check domain d to see if its SOUTHEAST or NORTHWEST corners have associated poles
        do c = SOUTHEAST, NORTHWEST, 2
           if (.not. grid(d)%pole_master(c/2-2) .or. .not. grid(d)%penta(c)) cycle
           p = 1
-          do while (grid(d)%patch%elts(p+1)%level < l)
+          do while (grid(d)%patch%elts(p+1)%level < level_start)
              p = grid(d)%patch%elts(p+1)%children(c-4)
              if (p == 0) then
                 write (6,'(A, i4, A)') "ERROR(rank = ", rank, "): integrate_hex: level incomplete"
@@ -592,134 +750,86 @@ contains
              end if
           end do
           call get_offs_Domain (grid(d), p, offs, dims)
-          if (c == NORTHWEST) then
+
+          if (c == NORTHWEST) then     ! north pole
              id = idx (0, PATCH_SIZE, offs, dims)
-             val = fun (grid(d), 0, PATCH_SIZE, zlev, offs, dims)
-             s = s + val/grid(d)%areas%elts(id+1)%hex_inv
-          else
+             integral = integral + integrand_hex (grid(d), 0, PATCH_SIZE, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
+          elseif (c == SOUTHEAST) then ! south pole
              id = idx (PATCH_SIZE, 0, offs, dims)
-             val = fun (grid(d), PATCH_SIZE, 0, zlev, offs, dims)
-             s = s + val/grid(d)%areas%elts(id+1)%hex_inv
+             integral = integral + integrand_hex (grid(d), PATCH_SIZE, 0, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
           end if
+
        end do
     end do
-    integrate_hex = sum_real (s)
-  end function integrate_hex
+  end subroutine integrate_hex_coarse
 
-  real(8) function integrate_tri (fun, k)
-    ! Integrate function defined defined by fun over triangles
+  subroutine integrate_hex_fine (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Integrate over active finer levels.
     implicit none
-    integer  :: k
+    type(Domain)                     :: dom
+    integer                          :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
 
-    integer                        :: d, l, ll, p, i, j, t, id
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8)                        :: s
+    real(8), dimension(LORT:UPLT) :: parent_integrand
+    integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd, t
 
-    interface
-       real(8) function fun (dom, i, j, zlev, t, offs, dims)
-         import 
-         implicit none
-         type(Domain)                   :: dom
-         integer                        :: i, j, t, zlev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
-       end function fun
-    end interface
+    id_par = idx (i_par, j_par, offs_par, dims_par)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    s = 0d0
-    do l = level_start, level_end
-       do d = 1, size(grid)
-          do ll = 1, grid(d)%lev(l)%length
-             p = grid(d)%lev(l)%elts(ll)
-             call get_offs_Domain (grid(d), p, offs, dims)
-             do j = 1, PATCH_SIZE
-                do i = 1, PATCH_SIZE
-                   id = idx (i-1, j-1, offs, dims)
-                   do t = LORT, UPLT
-                      s = s + fun (grid(d), i-1, j-1, k, t, offs, dims) * grid(d)%triarea%elts(TRIAG*id+t+1)
-                   end do
-                end do
-             end do
-          end do
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+
+    if (dom%mask_n%elts(id_chd+1) >= ADJZONE) then
+       do t = LORT, UPLT
+          parent_integrand(t) = hex2tri (dom, i_par, j_par, t, offs_par, dims_par, zlev)
        end do
-    end do
-    integrate_tri = sum_real (s)
-  end function integrate_tri
+       
+       do t = LORT, UPLT
+          integral = integral + (hex2tri (dom, i_chd, j_chd, t, offs_chd, dims_chd, zlev) - parent_integrand(t)) &
+               * dom%triarea%elts(TRIAG*id_chd+t+1)
 
-  real(8) function integrate_adaptive (routine, zlev)
-    ! Integrates value define in routine over adaptive grid
-    implicit none
-    integer           :: zlev
-    real(8), external :: routine
+          integral = integral + (hex2tri (dom, i_chd+1, j_chd, t, offs_chd, dims_chd, zlev) - parent_integrand(LORT)) &
+               * dom%triarea%elts(TRIAG*idE_chd+t+1)
 
-    integer ::  l
+          integral = integral + &
+               (hex2tri (dom, i_chd, j_chd+1, t, offs_chd, dims_chd, zlev) - parent_integrand(UPLT)) &
+               * dom%triarea%elts(TRIAG*idN_chd+t+1)
 
-    hex_int = 0d0
-    call fine_hex_area (routine, level_start, zlev)
-    do l = level_start+1, level_end-1
-       call fine_hex_area (routine, l, zlev)
-       call coarse_hex_area (routine, l, zlev)
-    end do
-    call fine_hex_area (routine, level_end, zlev)
-    integrate_adaptive = sum_real (hex_int)
-  end function integrate_adaptive
-
-  subroutine fine_hex_area (routine, l, zlev)
-    implicit none
-    integer           :: l, zlev
-    real(8), external :: routine
-
-    integer                          :: d, i, id, j, jj, p
-    integer, dimension(N_BDRY+1)     :: offs
-    integer, dimension(2,N_BDRY+1)   :: dims
-    logical, dimension(JPlUS:IMINUS) :: inner_bdry
-
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          p = grid(d)%lev(l)%elts(jj)
-          call get_offs_Domain (grid(d), p, offs, dims, inner_bdry)
-          do j = 1, PATCH_SIZE 
-             do i = 1, PATCH_SIZE
-                id = idx (i, j, offs, dims) + 1
-                hex_int = hex_int + routine (grid(d), i, j, zlev, offs, dims) / grid(d)%areas%elts(id)%hex_inv
-             end do
-          end do
+          integral = integral + (hex2tri (dom, i_chd+1, j_chd+1, t, offs_chd, dims_chd, zlev) - parent_integrand(t)) &
+               * dom%triarea%elts(TRIAG*idNE_chd+t+1)
        end do
-    end do
-  end subroutine fine_hex_area
+    end if
+  end subroutine integrate_hex_fine
 
-  subroutine coarse_hex_area (routine, l, zlev)
-    ! Remove cells that are not at locally finest scale
+  real(8) function hex2tri (dom, i, j, t, offs, dims, zlev)
+    ! Integrand at triangles associated with node (i,j) computed from integral over hexagons
     implicit none
-    integer           :: l, zlev
-    real(8), external :: routine
+    integer :: i, j, t, zlev
+    type(Domain)                     :: dom
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer                          :: c, d, i, id, i_par, j, j_par, jj, p, p_chd, p_par, s
-    integer, dimension(N_BDRY+1)     :: offs, offs_chd, offs_par
-    integer, dimension(2,N_BDRY+1)   :: dims, dims_chd, dims_par
-    integer, dimension(JPlUS:IMINUS) :: bdry
-    logical, dimension(JPlUS:IMINUS) :: inner_bdry
+    integer :: id, idE, idNE, idN
 
-    do d = 1, size(grid)
-       do jj = 1, grid(d)%lev(l)%length
-          p_par = grid(d)%lev(l)%elts(jj)
-          call get_offs_Domain (grid(d), p_par, offs_par, dims_par)
-          do c = 1, N_CHDRN
-             p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-             if (p_chd == 0) cycle
-             call get_offs_Domain (grid(d), p_chd, offs_chd, dims_chd, inner_bdry)
-             do j = 1, PATCH_SIZE/2
-                j_par = j-1 + chd_offs(2,c)
-                do i = 1, PATCH_SIZE/2
-                   i_par = i-1 + chd_offs(1,c)
-                   id = idx (i_par, j_par, offs_par, dims_par) + 1
-                   hex_int = hex_int - routine (grid(d), i_par, j_par, zlev, offs_par, dims_par) &
-                        / grid(d)%areas%elts(id)%hex_inv
-                end do
-             end do
-          end do
-       end do
-    end do
-  end subroutine coarse_hex_area
+    id   = idx (i,   j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+
+    if (t == LORT) then
+       idE = idx (i+1, j, offs, dims)
+       hex2tri = &
+            integrand_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(1)  + &
+            integrand_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(5) + &
+            integrand_hex (dom, i+1, j,   zlev, offs, dims) * dom%areas%elts(idE+1)%part(3)
+    elseif (t == UPLT) then
+       idN = idx (i, j+1, offs, dims)
+       hex2tri = &
+            integrand_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(2)  + &
+            integrand_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(4) + &
+            integrand_hex (dom, i,   j+1, zlev, offs, dims) * dom%areas%elts(idN+1)%part(6)
+    end if
+
+    hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
+  end function hex2tri
 end module utils_mod

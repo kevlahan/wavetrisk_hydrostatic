@@ -76,58 +76,53 @@ contains
   subroutine sum_total_mass (initialgo)
     ! Total mass over all vertical layers
     implicit none
-    integer :: errcode, ierr
     logical :: initialgo
 
     integer :: k
 
     if (initialgo) then
-       initotalmass = 0.0_8
+       initotalmass = 0d0
        do k = 1, zlevels
-          initotalmass = initotalmass + integrate_hex (full_mass, level_start, k)
+          initotalmass = initotalmass + integrate_hex (full_mass, k, .true.)
        end do
     else
-       totalmass = 0.0_8
+       totalmass = 0d0
        do k = 1, zlevels
-          totalmass = totalmass + integrate_hex (full_mass, level_start, k)
+          totalmass = totalmass + integrate_hex (full_mass, k, .true.)
        end do
-       mass_error = abs (totalmass-initotalmass)/initotalmass
+       mass_error = abs (totalmass - initotalmass) / initotalmass
     end if
   end subroutine sum_total_mass
 
   real(8) function full_mass (dom, i, j, zlev, offs, dims)
-    ! Defines mass for total mass integration
+    use domain_mod
     implicit none
-    type(Domain)                   :: dom
+    type (Domain)                  :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id_i
+    integer :: d, id
 
     d = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims)
 
-    full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
+    full_mass = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
   end function full_mass
 
-  function pot_energy (dom, i, j, zlev, offs, dims)
+  real(8) function pot_energy (dom, i, j, zlev, offs, dims)
+    use domain_mod
     implicit none
-    real(8)                        :: pot_energy
-    type(Domain)                   :: dom
+    type (Domain)                  :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
 
-    id = idx(i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       pot_energy = sol(S_MASS,zlev)%data(dom%id+1)%elts(id)**2
-    else
-       pot_energy = 0.0_8
-    end if
+    id = idx (i, j, offs, dims)
+    
+    pot_energy = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)**2
   end function pot_energy
 
   real(8) function total_ke (itype)
@@ -136,60 +131,50 @@ contains
     character(*) :: itype
 
     integer :: k
-
-    total_ke = 0.0_8
+    
+    total_ke = 0d0
     do k = 1, zlevels
-       if (trim(itype) == 'adaptive') then
-          total_ke = total_ke + integrate_adaptive (kinetic_energy, k)
-       elseif (trim(itype) == 'coarse') then
-          total_ke = total_ke + integrate_hex (kinetic_energy, level_start, k)
-       end if
+       total_ke = total_ke + integrate_hex (kinetic_energy, k)
     end do
   end function total_ke
 
   real(8) function kinetic_energy (dom, i, j, zlev, offs, dims)
-    ! Kinetic energy u^2/2 using TRiSK formula
-    implicit none
-    type(Domain)                   :: dom
+    ! Kinetic energy u^2/2 using approximation to TRiSK formula
+    type (Domain)                  :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id, idS, idSW, idW
+   
+    integer :: d, id, idW, idSW, idS
     real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
     real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-
+    
+    d  = dom%id + 1
     id = idx (i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       idW  = idx (i-1, j,   offs, dims)
-       idSW = idx (i-1, j-1, offs, dims)
-       idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
 
-       d  = dom%id + 1
+    u_prim_RT = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
+    u_prim_DG = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
+    u_prim_UP = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
 
-       u_prim_RT = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
-       u_prim_DG = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
-       u_prim_UP = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
+    u_dual_RT = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+    u_dual_DG = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_UP = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
 
-       u_dual_RT = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-       u_dual_DG = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-       u_dual_UP = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+    u_prim_UP_S  = sol(S_VELO,1)%data(d)%elts(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
+    u_prim_DG_SW = sol(S_VELO,1)%data(d)%elts(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
+    u_prim_RT_W  = sol(S_VELO,1)%data(d)%elts(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
 
-       u_prim_UP_S  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
-       u_prim_DG_SW = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-       u_prim_RT_W  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
+    u_dual_RT_W  = sol(S_VELO,1)%data(d)%elts(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
+    u_dual_DG_SW = sol(S_VELO,1)%data(d)%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
+    u_dual_UP_S  = sol(S_VELO,1)%data(d)%elts(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
 
-       u_dual_RT_W  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
-       u_dual_DG_SW = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
-       u_dual_UP_S  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
-
-       kinetic_energy = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-            * dom%areas%elts(id+1)%hex_inv/4 
-    else
-       kinetic_energy = 0.0_8
-    end if
+    kinetic_energy = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT + &
+                      u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+         * dom%areas%elts(id+1)%hex_inv/4d0 
   end function kinetic_energy
 
   real(8) function layer1_ke (dom, i, j, zlev, offs, dims)
@@ -233,7 +218,7 @@ contains
             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
-       layer1_ke = 0.0_8
+       layer1_ke = 0d0
     end if
   end function layer1_ke
 
@@ -278,7 +263,7 @@ contains
             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
-       layer2_ke = 0.0_8
+       layer2_ke = 0d0
     end if
   end function layer2_ke
 
@@ -323,7 +308,7 @@ contains
             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
-       one_layer_ke = 0.0_8
+       one_layer_ke = 0d0
     end if
   end function one_layer_ke
 
@@ -381,7 +366,7 @@ contains
             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
-       barotropic_ke = 0.0_8
+       barotropic_ke = 0d0
     end if
   contains
     function barotropic_velo ()
@@ -431,40 +416,13 @@ contains
        else ! single layer
           h = (sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i)) / ref_density
        end if
-       pot_enstrophy = 0.5 * (w / h)**2
+       pot_enstrophy = 0.5d0 * (w / h)**2
     else
-       pot_enstrophy = 0.0_8
+       pot_enstrophy = 0d0
     end if
   end function pot_enstrophy
 
-  real(8) function tri_only_area (dom, i, j, zlev, t, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev, t
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims)
-
-    tri_only_area = 1.0_8
-  end function tri_only_area
-
-  real(8) function only_coriolis (dom, i, j, t, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, t
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx(i, j, offs, dims)
-    only_coriolis = (dom%coriolis%elts(TRIAG*id+t+1)/dom%triarea%elts(TRIAG*id+t+1))**2
-  end function only_coriolis
-
-  subroutine cal_temp (dom, i, j, zlev, offs, dims)
+   subroutine cal_temp (dom, i, j, zlev, offs, dims)
     ! Compute temperature in compressible case
     implicit none
     type(Domain)                   :: dom
@@ -1312,8 +1270,8 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(19+1)                :: filename
 
-    maxerror = 0.0_8
-    l2error = 0.0_8
+    maxerror = 0d0
+    l2error = 0d0
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
     call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
@@ -1366,8 +1324,8 @@ contains
     call apply_onescale2 (midpt,      level_end-1, z_null, -1, 1)
     call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
 
-    maxerror = 0.0_8
-    l2error = 0.0_8
+    maxerror = 0d0
+    l2error = 0d0
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
