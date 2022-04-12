@@ -597,11 +597,14 @@ contains
     end if
    
     m = 20; allocate (w(1:m))
-    fine_iter = m * (fine_iter / m)
-    do n = 1, m
-       w(n) = 2d0 / (k_min + k_max - (k_max - k_min) * cos (MATH_PI * (2d0*dble(n) - 1d0)/(2d0*dble(m))))
-    end do
-    if (fine_iter < m) w = 1d0 
+    if (fine_iter < m) then ! do not use SJR
+       w = 1d0
+    else 
+       fine_iter = m * (fine_iter / m) ! ensure that fine_iter is an integer multiple of m
+       do n = 1, m
+          w(n) = 2d0 / (k_min + k_max - (k_max - k_min) * cos (MATH_PI * (2d0*dble(n) - 1d0)/(2d0*dble(m))))
+       end do
+    end if
 
     var_type = "sclr"
 
