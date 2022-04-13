@@ -333,6 +333,9 @@ contains
     implicit none        
     real(8) :: dt
 
+    ! Compute flux divergence of vertically integrated velocity at previous time step
+    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    
     call trend_ml (sol, trend)
     
     call u_star (dt, sol)
