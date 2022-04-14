@@ -52,7 +52,7 @@ contains
 
     ! Check validity of various parameter choices
     if (compressible .and. mode_split) then
-       write (6,'(a)') "Cannot use mode splitting with compressible dynamics ... aborting"
+       if (rank == 0) write (6,'(a)') "Cannot use mode splitting with compressible dynamics ... aborting"
        call abort
     end if
 
