@@ -65,7 +65,9 @@ contains
     
     ! Make nodes and edges with significant wavelet coefficients active
     call update_array_bdry1 (wav_coeff, level_start, level_end, 15)
-    call mask_active 
+    call mask_active
+
+    call comm_masks_mpi (NONE)
     
    ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
