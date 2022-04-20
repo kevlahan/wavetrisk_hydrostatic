@@ -167,7 +167,7 @@ contains
           do d = 1, size(grid)
              velo => scaling(S_VELO,k)%data(d)%elts
              wc_u => wavelet(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (reconstruct_velo_inner, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d (reconstruct_inner_velo, grid(d), l, z_null, 0, 0)
              nullify (velo, wc_u)
           end do
        end do
@@ -262,7 +262,7 @@ contains
           do d = 1, size(grid)
              velo => scaling(k)%data(d)%elts
              wc_u => wavelet(k)%data(d)%elts
-             call apply_interscale_d (reconstruct_velo_inner, grid(d), l, z_null, 0, 0)
+             call apply_interscale_d (reconstruct_inner_velo, grid(d), l, z_null, 0, 0)
              nullify (velo, wc_u)
           end do
        end do
@@ -479,13 +479,11 @@ contains
 
        u = interp_outer_velo (dom, i_par, j_par, e-1, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
 
-       wc_u(EDGE*id1+e) = u - velo(EDGE*id2+e)
-       wc_u(EDGE*id2+e) = -wc_u(EDGE*id1+e)
+       wc_u(EDGE*id2+e) = velo(EDGE*id2+e) - u
+       wc_u(EDGE*id1+e) = - wc_u(EDGE*id2+e)
     end do
 
-    u_inner = Interp_velo_inner (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, &
-         offs_chd, dims_chd, EDGE*idE_chd + UP, EDGE*idE_chd + DG, &
-         EDGE*idNE_chd + RT, EDGE*idN_chd + RT, EDGE*idN_chd + DG, EDGE*idNE_chd + UP)
+    u_inner = Interp_inner_velo (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
 
     if (dom%mask_e%elts(EDGE*idE_chd+UP+1)  >= ADJZONE) wc_u(EDGE*idE_chd+UP+1)  = velo(EDGE*idE_chd+UP+1)  - u_inner(1)
     if (dom%mask_e%elts(EDGE*idE_chd+DG+1)  >= ADJZONE) wc_u(EDGE*idE_chd+DG+1)  = velo(EDGE*idE_chd+DG+1)  - u_inner(2)
@@ -597,17 +595,18 @@ contains
     integer :: e, id_chd, id_par, id1, id2
     real(8) :: u
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
     do e = 1, EDGE
-       id1    = idx (i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
-       id2    = idx (i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
+       id1 = idx (i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
+       id2 = idx (i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
+       
        id_par = idx (i_par, j_par, offs_par, dims_par)
 
        u = Interp_outer_velo (dom, i_par, j_par, e-1, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
 
        velo(EDGE*id2+e) = u + wc_u(EDGE*id2+e)
-       velo(EDGE*id1+e) = 2*velo(EDGE*id_par+e) - u + wc_u(EDGE*id1+e)
+       velo(EDGE*id1+e) = 2d0*velo(EDGE*id_par+e) - u + wc_u(EDGE*id1+e)
     end do
   end subroutine reconstruct_outer_velo
 
@@ -619,42 +618,34 @@ contains
     integer, dimension(N_BDRY+1)   :: offs, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims, dims_chd
 
-    integer :: ide
-    real(8) :: wgt(9)
+    integer               :: ide
+    real(8), dimension(9) :: wgt
 
-    ide = idx (i_chd+end_pt(1,2,e+1),j_chd+end_pt(2,2,e+1),offs_chd,dims_chd)
+    ide = idx (i_chd+end_pt(1,2,e+1), j_chd+end_pt(2,2,e+1), offs_chd, dims_chd)
 
     wgt = Iu_Base_Wgt + dble (dom%I_u_wgt%elts(ide+1)%enc)
 
-    interp_outer_velo = sum (wgt* &
-         (/velo(idx(i, j, offs, dims)*EDGE + e+1), &
-         velo(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+2+1), offs, dims)+1), &
-         velo(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+3+1), offs, dims)+1), &
-         velo(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+5+1), offs, dims)+1), &
-         velo(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+0+1), offs, dims)+1), &
-         velo(ed_idx(i + opp_no(1,1,e+1), j + opp_no(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+1+1), offs, dims)+1) - &
-         velo(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+2+1), offs, dims)+1), &
-         velo(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+3+1), offs, dims)+1) - &
-         velo(ed_idx(i + opp_no(1,1,e+1), j + opp_no(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+4+1), offs, dims)+1), &
-         velo(ed_idx(i + opp_no(1,2,e+1), j + opp_no(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+4+1), offs, dims)+1) - &
-         velo(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+5+1), offs, dims)+1), &
-         velo(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+0+1), offs, dims)+1) - &
-         velo(ed_idx(i + opp_no(1,2,e+1), j + opp_no(2,2,e+1), &
-         hex_sides(:,hex_s_offs(e+1)+1+1), offs, dims)+1)/))
+    interp_outer_velo = sum (wgt * &
+         (/velo(idx(i, j, offs, dims)*EDGE+e+1), &
+         velo(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), hex_sides(:,hex_s_offs(e+1)+2+1), offs, dims)+1), &
+         velo(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), hex_sides(:,hex_s_offs(e+1)+3+1), offs, dims)+1), &
+         velo(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), hex_sides(:,hex_s_offs(e+1)+5+1), offs, dims)+1), &
+         velo(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), hex_sides(:,hex_s_offs(e+1)+0+1), offs, dims)+1), &
+         
+         velo(ed_idx(i + opp_no(1,1,e+1), j + opp_no(2,1,e+1), hex_sides(:,hex_s_offs(e+1)+1+1), offs, dims)+1) - &
+         velo(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), hex_sides(:,hex_s_offs(e+1)+2+1), offs, dims)+1), &
+         
+         velo(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), hex_sides(:,hex_s_offs(e+1)+3+1), offs, dims)+1) - &
+         velo(ed_idx(i + opp_no(1,1,e+1), j + opp_no(2,1,e+1), hex_sides(:,hex_s_offs(e+1)+4+1), offs, dims)+1), &
+         
+         velo(ed_idx(i + opp_no(1,2,e+1), j + opp_no(2,2,e+1), hex_sides(:,hex_s_offs(e+1)+4+1), offs, dims)+1) - &
+         velo(ed_idx(i + end_pt(1,2,e+1), j + end_pt(2,2,e+1), hex_sides(:,hex_s_offs(e+1)+5+1), offs, dims)+1), &
+         
+         velo(ed_idx(i + end_pt(1,1,e+1), j + end_pt(2,1,e+1), hex_sides(:,hex_s_offs(e+1)+0+1), offs, dims)+1) - &
+         velo(ed_idx(i + opp_no(1,2,e+1), j + opp_no(2,2,e+1), hex_sides(:,hex_s_offs(e+1)+1+1), offs, dims)+1) /))
   end function interp_outer_velo
 
-  subroutine reconstruct_velo_inner (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine reconstruct_inner_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Reconstruct velocity at inner fine edges not existing on coarse grid
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
@@ -664,16 +655,13 @@ contains
     integer               :: id_chd, idN_chd, idE_chd, idNE_chd
     real(8), dimension(6) :: u_inner
 
-    id_chd   = idx (i_chd,     j_chd,     offs_chd, dims_chd)
+    id_chd   = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
     idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
     idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
-
-    u_inner = Interp_velo_inner (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, &
-         offs_chd, dims_chd, EDGE*idE_chd + UP, EDGE*idE_chd + DG, &
-         EDGE*idNE_chd + RT, EDGE*idN_chd + RT, EDGE*idN_chd + DG, &
-         EDGE*idNE_chd + UP)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    
+    u_inner = Interp_inner_velo (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
 
     velo(EDGE*idE_chd +UP+1) = u_inner(1) + wc_u(EDGE*idE_chd +UP+1)
     velo(EDGE*idE_chd +DG+1) = u_inner(2) + wc_u(EDGE*idE_chd +DG+1)
@@ -681,72 +669,65 @@ contains
     velo(EDGE*idN_chd +RT+1) = u_inner(4) + wc_u(EDGE*idN_chd +RT+1)
     velo(EDGE*idN_chd +DG+1) = u_inner(5) + wc_u(EDGE*idN_chd +DG+1)
     velo(EDGE*idNE_chd+UP+1) = u_inner(6) + wc_u(EDGE*idNE_chd+UP+1)
-  end subroutine reconstruct_velo_inner
+  end subroutine reconstruct_inner_velo
 
-  function interp_velo_inner (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd, &
-       idE_UP, idE_DG, idNE_RT, idN_RT, idN_DG, idNE_UP)
+  function Interp_inner_velo (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
     ! Interpolate inner velocities to fine edges
-    real(8), dimension(6)          :: Interp_velo_inner
+    real(8), dimension(6)          :: Interp_inner_velo
     type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, idE_UP, idE_DG, idNE_RT, idN_RT, idN_DG,  idNE_UP
+    integer                        :: i_par, j_par, i_chd, j_chd
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer               :: id, id_par, id1_par, id2_par, k, idN, idUP, idDG, idRT, idE, idNE, idN2E, id2NE, idN2, idE2
-    real(8), dimension(2) :: curl_u
-    real(8), dimension(6) :: u
+    integer                       :: id, id_par, id1_par, id2_par, t, idN, idE, idNE, idN2E, id2NE, idN2, idE2
+    real(8), dimension(LORT:UPLT) :: curl_u
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
     curl_u = 0d0
-    do k = 1, TRIAG
-       id1_par = idx (i_par-k+2, j_par,     offs_par, dims_par)
-       id2_par = idx (i_par,     j_par+k-1, offs_par, dims_par)
-       curl_u(k) = (velo(EDGE*id_par +DG+1)*dom%len%elts(EDGE*id_par+DG+1) &
+    do t = LORT, UPLT
+       id1_par = idx (i_par-t+1, j_par,   offs_par, dims_par)
+       id2_par = idx (i_par,     j_par+t, offs_par, dims_par)
+       curl_u(t) = (velo(EDGE*id_par +DG+1)*dom%len%elts(EDGE*id_par+DG+1) &
                   + velo(EDGE*id1_par+UP+1)*dom%len%elts(EDGE*id1_par+UP+1) &
-                  + velo(EDGE*id2_par+RT+1)*dom%len%elts(EDGE*id2_par+RT+1)) / dom%triarea%elts(TRIAG*id_par+k)
+                  + velo(EDGE*id2_par+RT+1)*dom%len%elts(EDGE*id2_par+RT+1)) / dom%triarea%elts(TRIAG*id_par+t+1)
     end do
 
-    id    = idx (i_chd, j_chd, offs_chd, dims_chd)
-    idN   = idx (i_chd, j_chd+1, offs_chd, dims_chd)
-    idUP  = EDGE*id + UP
-    idDG  = EDGE*id + DG
-    idRT  = EDGE*id + RT
-    idE   = idx (i_chd+1, j_chd,     offs_chd, dims_chd)
+    id = idx (i_chd, j_chd, offs_chd, dims_chd)
+    
+    idE   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
     idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+
     idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
     id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
-    idN2  = idx (i_chd,     j_chd+2, offs_chd, dims_chd)
-    idE2  = idx (i_chd+2, j_chd,     offs_chd, dims_chd)
+    idN2  = idx (i_chd,   j_chd+2, offs_chd, dims_chd)
+    idE2  = idx (i_chd+2, j_chd,   offs_chd, dims_chd)
 
-    u = 0d0
+    Interp_inner_velo(1) = (dom%triarea%elts(TRIAG*id+LORT+1) * curl_u(LORT) &
+         - velo(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1) - velo(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)) &
+         / dom%len%elts(EDGE*idE+UP+1)
 
-    u(1) = (dom%triarea%elts(LORT+TRIAG*id+1)*curl_u(1) - &
-         velo(idRT+1)*dom%len%elts(idRT+1) - &
-         velo(idDG+1)*dom%len%elts(idDG+1))/dom%len%elts(idE_UP+1)
+    Interp_inner_velo(2) = (dom%triarea%elts(TRIAG*idE+LORT+1) * curl_u(LORT) &
+         - velo(EDGE*idE+RT+1) * dom%len%elts(EDGE*idE+RT+1) - velo(EDGE*idE2+UP+1) * dom%len%elts(EDGE*idE2+UP+1)) &
+         / dom%len%elts(EDGE*idE+DG+1)
 
-    u(2) = (dom%triarea%elts(LORT+TRIAG*idE+1)*curl_u(1) - &
-         velo(EDGE*idE+RT+1)*dom%len%elts(EDGE*idE+RT+1) - &
-         velo(EDGE*idE2+UP+1)*dom%len%elts(EDGE*idE2+UP+1))/dom%len%elts(idE_DG+1)
+    Interp_inner_velo(3) = (dom%triarea%elts(TRIAG*idNE+LORT+1) * curl_u(LORT) &
+         - velo(EDGE*idNE+DG+1) * dom%len%elts(EDGE*idNE+DG+1) - velo(EDGE*idN2E+UP+1) * dom%len%elts(EDGE*idN2E+UP+1)) &
+         / dom%len%elts(EDGE*idNE+RT+1)
 
-    u(3) = (dom%triarea%elts(LORT+TRIAG*idNE+1)*curl_u(1) - &
-         velo(EDGE*idNE+DG+1)*dom%len%elts(DG+EDGE*idNE+1) - &
-         velo(EDGE*idN2E+UP+1)*dom%len%elts(EDGE*idN2E+UP+1))/dom%len%elts(idNE_RT+1)
+    Interp_inner_velo(4) = (dom%triarea%elts(TRIAG*id+UPLT+1) * curl_u(UPLT) &
+         - velo(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1) - velo(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)) &
+         / dom%len%elts(EDGE*idN+RT+1)
 
-    u(4) = (dom%triarea%elts(TRIAG*id+UPLT+1)*curl_u(2) - &
-         velo(idUP+1)*dom%len%elts(idUP+1) - &
-         velo(idDG+1)*dom%len%elts(idDG+1))/dom%len%elts(idN_RT+1)
+    Interp_inner_velo(5) = (dom%triarea%elts(TRIAG*idN+UPLT+1) * curl_u(UPLT) &
+         - velo(EDGE*idN+UP+1) * dom%len%elts(EDGE*idN+UP+1) - velo(EDGE*idN2+RT+1) * dom%len%elts(EDGE*idN2+RT+1)) &
+         / dom%len%elts(EDGE*idN+DG+1)
 
-    u(5) = (dom%triarea%elts(TRIAG*idN+UPLT+1)*curl_u(2) - &
-         velo(EDGE*idN+UP+1)*dom%len%elts(EDGE*idN+UP+1) - &
-         velo(EDGE*idN2+RT+1)*dom%len%elts(EDGE*idN2+RT+1))/dom%len%elts(idN_DG+1)
-
-    u(6) = (dom%triarea%elts(TRIAG*idNE+UPLT+1)*curl_u(2) - &
-         velo(EDGE*idNE+DG+1)*dom%len%elts(EDGE*idNE+DG+1) - &
-         velo(EDGE*id2NE+RT+1)*dom%len%elts(EDGE*id2NE+RT+1))/dom%len%elts(idNE_UP+1)
-
-    Interp_velo_inner = u
-  end function interp_velo_inner
+    Interp_inner_velo(6) = (dom%triarea%elts(TRIAG*idNE+UPLT+1) * curl_u(UPLT) &
+         - velo(EDGE*idNE+DG+1) * dom%len%elts(EDGE*idNE+DG+1) - velo(EDGE*id2NE+RT+1) * dom%len%elts(EDGE*id2NE+RT+1)) &
+         / dom%len%elts(EDGE*idNE+UP+1)
+  end function Interp_inner_velo
 
   subroutine reconstruct_velo_penta (dom, p, c, offs, dims, z_null)
     ! Interpolate velocity to fine edges at pentagons
@@ -1411,7 +1392,7 @@ contains
     call init_shared_mod
     call init_domain_mod
 
-    Iu_Base_Wgt = (/16.0_8, -1.0_8, 1.0_8, 1.0_8, -1.0_8, -1.0_8, -1.0_8, 1.0_8, 1.0_8/)/16
+    Iu_Base_Wgt = (/16d0, -1d0, 1d0, 1d0, -1d0, -1d0, -1d0, 1d0, 1d0/)/16d0
     initialized = .true.
   end subroutine init_wavelet_mod
 

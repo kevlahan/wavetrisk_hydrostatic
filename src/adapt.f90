@@ -18,28 +18,6 @@ contains
     initialized = .true.
   end subroutine init_adapt_mod
 
-  subroutine adapt_grid (set_thresholds, type)
-    ! Grid adaptation during time stepping
-    implicit none
-    external          :: set_thresholds
-    logical, optional :: type
-
-    integer :: l
-    logical :: local_type
-
-    if (present(type)) then
-       local_type = type
-    else
-       local_type = .true.
-    end if
-
-    ! Find significant wavelets, adaptive grid and all masks
-    call adapt (set_thresholds, local_type)
-
-    ! Interpolate onto active grid
-    call inverse_wavelet_transform (wav_coeff, sol)
-  end subroutine adapt_grid
-
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
     implicit none

@@ -255,7 +255,8 @@ contains
     if (min_level /= max_level .and. modulo (istep, iadapt) == 0) then
        if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
             call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
-       call adapt_grid (set_thresholds)
+       call adapt (set_thresholds)
+       call inverse_wavelet_transform (wav_coeff, sol, level_start)
     end if
 
     call update
@@ -456,7 +457,7 @@ contains
     call add_second_level
 
     call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
-    call apply_interscale (mask_adj_children, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
+    call apply_interscale (mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
     call record_init_state (ini_st)
     if (time_end > 0d0) time_mult = huge (itime)/2/time_end

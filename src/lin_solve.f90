@@ -456,7 +456,7 @@ contains
        ! Reconstruct inner velocities at finer edges (interpolate and add wavelet coefficients)
        do d = 1, size(grid)
           velo => scaling%data(d)%elts
-          call apply_interscale_d (interpolate_velo_inner, grid(d), coarse, z_null, 0, 0)
+          call apply_interscale_d (interpolate_inner_velo, grid(d), coarse, z_null, 0, 0)
           nullify (velo)
        end do
        scaling%bdry_uptodate = .false.
@@ -533,7 +533,7 @@ contains
     end do
   end subroutine interpolate_outer_velo
 
-  subroutine interpolate_velo_inner (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine interpolate_inner_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Reconstruct velocity at inner fine edges not existing on coarse grid
     use wavelet_mod
     type(Domain)                   :: dom
@@ -550,10 +550,7 @@ contains
     idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
     idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
 
-    u_inner = Interp_velo_inner (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, &
-         offs_chd, dims_chd, EDGE*idE_chd + UP, EDGE*idE_chd + DG, &
-         EDGE*idNE_chd + RT, EDGE*idN_chd + RT, EDGE*idN_chd + DG, &
-         EDGE*idNE_chd + UP)
+    u_inner = Interp_inner_velo (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
 
     velo(EDGE*idE_chd +UP+1) = u_inner(1) 
     velo(EDGE*idE_chd +DG+1) = u_inner(2) 
@@ -561,7 +558,7 @@ contains
     velo(EDGE*idN_chd +RT+1) = u_inner(4) 
     velo(EDGE*idN_chd +DG+1) = u_inner(5) 
     velo(EDGE*idNE_chd+UP+1) = u_inner(6) 
-  end subroutine interpolate_velo_inner
+  end subroutine interpolate_inner_velo
 
   subroutine multiscale (u, f, Lu)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with Scheduled Rexation Jacobi iterations as the smoother
