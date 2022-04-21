@@ -263,25 +263,55 @@ contains
     POSIT(S_VELO) = AT_EDGE
     POSIT(scalars(1):scalars(2)) = AT_NODE
 
-    end_pt = reshape ((/0,  0, 1, 0, 1, 1, 0, 0, 0, 0,  0, 1/), (/2, 2, 3/))
-    opp_no = reshape ((/0, -1, 1, 1, 0, 1, 1, 0, 1, 1, -1, 0/), (/2, 2, 3/))
+    ! i                        nghb_pt
+    ! 1    1    1    0   -1   -1    0    1    1    0   -1
+    ! 2    0    1    1    0   -1   -1    0    1    1    0
+    nghb_pt  = reshape ((/ 1, 0, 1, 1, 0, 1, -1, 0, -1, -1, 0, -1, 1, 0, 1, 1, 0, 1, -1, 0 /), (/2, 10/))
+    
+    ! i  j       end_pt
+    ! 1  1    0    1    0
+    ! 1  2    1    0    0
+    ! 2  1    0    1    0
+    ! 2  2    0    0    1
+    end_pt = reshape ((/ 0,  0, 1, 0, 1, 1, 0, 0, 0, 0,  0, 1 /), (/2, 2, 3/))
 
+    ! i  j       opp_no
+    ! 1  1    0    0    1
+    ! 1  2    1    1   -1
+    ! 2  1   -1    1    1
+    ! 2  2    1    0    0
+    opp_no = reshape ((/ 0, -1, 1, 1, 0, 1, 1, 0, 1, 1, -1, 0 /), (/2, 2, 3/))
+
+    ! i  j      adj_tri
+    ! 1  1    0    0    0
+    ! 1  2    0    0   -1
+    ! 2  1   -1    0    0
+    ! 2  2    0    0    0
+    ! 3  1    1    1    1
+    ! 3  2    0    0    0
+    adj_tri  = reshape ((/ 0, -1, UPLT, 0, 0, LORT, 0, 0, UPLT, 0, 0, LORT, 0, 0, UPLT, -1, 0, LORT /), (/3, 2, 3/))
+    
+    ! i                     no_adj_tri
+    ! 1     0    0   -1   -1   -1    0    0    0   -1   -1
+    ! 2     0   -1   -1   -1    0    0    0   -1   -1   -1
+    ! 3     0    1    0    1    0    1    0    1    0    1
     no_adj_tri = reshape ((/0, 0, LORT, 0, -1, UPLT, -1, -1, LORT, -1, -1, UPLT, -1, 0, LORT, 0, 0, UPLT, 0, 0, LORT, &
          0, -1, UPLT, -1, -1, LORT, -1, -1, UPLT/), (/3, 10/))
 
-    hex_sides = reshape ((/0, 0, RT, 0, 0, DG, 0, 0, UP, -1, 0, RT, -1, -1, DG, 0, -1, UP, 0, 0, RT, 0, 0, DG, 0, 0, UP, &
-         -1, 0, RT/), (/3, 10/))
+    ! i                     hex_sides
+    ! 1     0    0    0   -1   -1    0    0    0    0   -1
+    ! 2     0    0    0    0   -1   -1    0    0    0    0
+    ! 3     0    1    2    0    1    2    0    1    2    0
+    hex_sides = reshape ((/ 0, 0, RT, 0, 0, DG, 0, 0, UP, -1, 0, RT, -1, -1, DG, 0, -1, UP, 0, 0, RT, 0, 0, DG, 0, 0, UP, &
+         -1, 0, RT /), (/3, 10/))
 
-    hex_s_offs = (/2, 0, 4/)
+    hex_s_offs = (/ 2, 0, 4 /)
 
-    bfly_tri = reshape ((/-1, -1, LORT, 0, -1, LORT, 1, 0, UPLT, 0, 0, UPLT, 0, 1, LORT, -1, 0, LORT, 0, -1, UPLT, 1, 0, &
-         UPLT, 0, 0, LORT, 0, 1, LORT, -1, 0, UPLT, -1, -1, UPLT/), (/3, 4, 3/))
-    bfly_no  = reshape ((/-1, -1, 1, -1, 2, 1,  0, 1, 1, 2, -1,  0,  0, -1, 2, 1, 1, 0, 1, 2,  -1, 1, -1, -1/), (/2, 4, 3/))
-    bfly_no2 = reshape ((/-3, -2, 1, -2, 3, 2, -1, 2, 1, 3, -3, -1, -1, -3, 3, 1, 2, -1, 2, 3, -2, 1, -2, -3/), (/2, 4, 3/))
+    bfly_tri = reshape ((/ -1, -1, LORT, 0, -1, LORT, 1, 0, UPLT, 0, 0, UPLT, 0, 1, LORT, -1, 0, LORT, 0, -1, UPLT, 1, 0, &
+         UPLT, 0, 0, LORT, 0, 1, LORT, -1, 0, UPLT, -1, -1, UPLT /), (/3, 4, 3/))
     
-    adj_tri  = reshape ((/0, -1, UPLT, 0, 0, LORT, 0, 0, UPLT, 0, 0, LORT, 0, 0, UPLT, -1, 0, LORT/), (/3, 2, 3/))
-
-    nghb_pt  = reshape ((/1, 0, 1, 1, 0, 1, -1, 0, -1, -1, 0, -1, 1, 0, 1, 1, 0, 1, -1, 0/), (/2, 10/))
+    bfly_no  = reshape ((/ -1, -1, 1, -1, 2, 1,  0, 1, 1, 2, -1,  0,  0, -1, 2, 1, 1, 0, 1, 2,  -1, 1, -1, -1 /), (/2, 4, 3/))
+    bfly_no2 = reshape ((/ -3, -2, 1, -2, 3, 2, -1, 2, 1, 3, -3, -1, -1, -3, 3, 1, 2, -1, 2, 3, -2, 1, -2, -3 /), (/2, 4, 3/))
 
     ! Initialize values
     ! (these parameters may be reset in the test case file, but are needed for compilation)
