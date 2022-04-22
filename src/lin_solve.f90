@@ -526,7 +526,7 @@ contains
        id2    = idx (i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
        id_par = idx (i_par, j_par, offs_par, dims_par)
 
-       u = Interp_outer_velo (dom, i_par, j_par, e-1, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
+       u = Interp_outer_velo (dom, i_par, j_par, id2, e, offs_par, dims_par)
 
        velo(EDGE*id2+e) = u 
        velo(EDGE*id1+e) = 2d0 * velo(EDGE*id_par+e) - u 
