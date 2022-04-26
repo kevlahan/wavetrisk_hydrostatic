@@ -242,6 +242,10 @@ contains
 
          dz = interp (dz0, mass(idN+1) + mean_m(idN+1)) 
          h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) * dz
+      elseif (itype == 6) then ! divu
+         h_flux(EDGE*id+RT+1) = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+         h_flux(EDGE*id+DG+1) = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+         h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
       elseif (itype == 0) then ! standard 
          do v = scalars(1), scalars(2)
             full(0:NORTHEAST,v) = q(v,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE/)+1) &
@@ -299,10 +303,6 @@ contains
          ! Vorticity (for velocity diffusion)
          vort(TRIAG*id+LORT+1) = circ_LORT / dom%triarea%elts(TRIAG*id+LORT+1) 
          vort(TRIAG*id+UPLT+1) = circ_UPLT / dom%triarea%elts(TRIAG*id+UPLT+1)
-
-         ! Velocity divergence (for velocity diffusion)
-         if (Laplace_order /= 0) &
-              divu(id_i) = (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
 
          ! Kinetic energy (TRiSK formula) 
          ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
@@ -413,6 +413,10 @@ contains
 
          dz = interp (dz0, mass(idS+1) + mean_m(idS+1))
          h_flux(EDGE*idS+UP+1) = velo(EDGE*idS+UP+1) * dom%pedlen%elts(EDGE*idS+UP+1) * dz
+      elseif (itype == 6) then ! divu
+         h_flux(EDGE*idW+RT+1)  = velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1) 
+         h_flux(EDGE*idSW+DG+1) = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+         h_flux(EDGE*idS+UP+1)  = velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1) 
       elseif (itype == 0) then ! standard
          do v = scalars(1), scalars(2)
             full(0:SOUTHWEST,v) = q(v,zlev)%data(d)%elts((/id,id,id,idS,idW,id,id,idSW/)+1) &
@@ -663,7 +667,7 @@ contains
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
     else
-       dscalar(id_i) = 0.0_8
+       dscalar(id_i) = 0d0
     end if
   end subroutine scalar_trend
 
@@ -691,7 +695,7 @@ contains
        ! Trend
        dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - Qperp_e + physics * dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
     else
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end if
   end subroutine du_source
 
@@ -1159,58 +1163,6 @@ contains
     vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N) / dom%triarea%elts(TRIAG*id+UPLT+1)
   end subroutine cal_vort
 
-  subroutine cal_Laplacian_scalar (dom, i, j, zlev, offs, dims)
-    ! Calculate divergence of gradient of scalar
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id, idE, idNE, idN, idW, idSW, idS
-    integer :: id_i, idE_i, idNE_i, idN_i, idW_i, idSW_i, idS_i
-
-    id   = idx (i, j, offs, dims)
-    id_i = id+1
-
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-
-    idE_i  = idE+1
-    idNE_i = idNE+1
-    idN_i  = idN+1
-    idW_i  = idW+1
-    idSW_i = idSW+1
-    idS_i  = idS+1
-
-    Laplacian(id_i) = div_grad (grad_flux())
-  contains
-    function grad_flux()
-      ! Calculates gradient flux
-      implicit none
-      real(8), dimension(6) :: grad_flux
-
-      grad_flux(1) =  (scalar(idE_i) - scalar(id_i))  /dom%len%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
-      grad_flux(2) =  (scalar(id_i)  - scalar(idNE_i))/dom%len%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
-      grad_flux(3) =  (scalar(idN_i) - scalar(id_i))  /dom%len%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
-      grad_flux(4) = -(scalar(idW_i) - scalar(id_i))  /dom%len%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
-      grad_flux(5) = -(scalar(id_i)  - scalar(idSW_i))/dom%len%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-      grad_flux(6) = -(scalar(idS_i) - scalar(id_i))  /dom%len%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
-    end function grad_flux
-
-    real(8) function div_grad (grad)
-      ! Calculates divergence of gradient flux
-      implicit none
-      real(8), dimension(6) :: grad
-
-      div_grad = (grad(1)-grad(4) + grad(5)-grad(2) + grad(3)-grad(6)) * dom%areas%elts(id_i)%hex_inv
-    end function div_grad
-  end subroutine cal_Laplacian_scalar
-
   subroutine cal_Laplacian_rotu (dom, i, j, zlev, offs, dims)
     ! Curl of vorticity given at triangle circumcentres x_v, i.e. rotational part of vector Laplacian
     ! output is at edges x_e
@@ -1340,33 +1292,6 @@ contains
     end if
   end subroutine cal_div
 
-  subroutine cal_divu (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id, id_i, idS, idW, idSW
-    real(8) :: u_dual_RT, u_dual_RT_W, u_dual_DG_SW, u_dual_DG, u_dual_UP, u_dual_UP_S
-
-    id   = idx (i,   j,   offs, dims)
-    id_i = id+1
-
-    idS  = idx (i,   j-1, offs, dims)
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-
-    u_dual_RT    = velo(EDGE*id  +RT+1)*dom%pedlen%elts(EDGE*id+RT+1)
-    u_dual_RT_W  = velo(EDGE*idW +RT+1)*dom%pedlen%elts(EDGE*idW+RT+1)
-    u_dual_DG_SW = velo(EDGE*idSW+DG+1)*dom%pedlen%elts(EDGE*idSW+DG+1)
-    u_dual_DG    = velo(EDGE*id  +DG+1)*dom%pedlen%elts(EDGE*id+DG+1)
-    u_dual_UP    = velo(EDGE*id  +UP+1)*dom%pedlen%elts(EDGE*id+UP+1)
-    u_dual_UP_S  = velo(EDGE*idS +UP+1)*dom%pedlen%elts(EDGE*idS+UP+1)
-
-    divu(id_i) =  (u_dual_RT-u_dual_RT_W + u_dual_DG_SW-u_dual_DG + u_dual_UP-u_dual_UP_S) * dom%areas%elts(id_i)%hex_inv
-  end subroutine cal_divu
-  
   subroutine cal_density (dom, i, j, zlev, offs, dims)
     ! Compute total density in the incompressible case
     implicit none

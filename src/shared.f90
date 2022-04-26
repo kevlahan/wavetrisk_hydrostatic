@@ -333,8 +333,6 @@ contains
     compressible        = .true.                            ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.                            ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false.                           ! fill up grid to level j_fill if true (T)
-    implicit_diff_sclr  = .false.                           ! use implicit lateral diffusion of scalars (T)
-    implicit_diff_divu  = .false.                           ! use implicit lateral diffusion of scalars (T)
     log_iter            = .false.                           ! print residual error in elliptic solver (T)
     log_mass            = .true.                            ! compute minimum mass and mass conservation, relatively expensive (T)
     match_time          = .false.                           ! match time exactly for data saving (T)

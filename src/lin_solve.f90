@@ -630,52 +630,7 @@ contains
     deallocate (w)
   end subroutine multiscale
 
-  subroutine elliptic_solver (u, f, Lu, var_type_elliptic)
-    ! Solves linear equation L(u) = f using a simple multiscale algorithm with bicgstab as the fine scale solver
-    ! for implicit lateral diffusion
-    implicit none
-    character(4)              :: var_type_elliptic
-    type(Float_Field), target :: f, u
-
-    integer                                       :: l
-    real(8), dimension(level_start:level_end)     :: nrm_f
-    real(8), dimension(1:2,level_start:level_end) :: r_error
-
-    integer, dimension(level_start:level_end) :: iter
-
-    interface
-       function Lu (u, l)
-         ! Returns result of linear operator applied to u at scale l
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-    end interface
-
-    var_type = var_type_elliptic
-
-    do l = level_start, level_end
-       nrm_f(l) = l2 (f, l)
-       if (nrm_f(l) < tol_elliptic) nrm_f(l) = 1d0
-       if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
-    end do
-
-    l = level_start
-    call bicgstab (u, f, nrm_f(l), Lu, l, coarse_iter, r_error(2, l), iter(l))
-    do l = level_start+1, level_end
-       call prolongation (u, l)
-       call bicgstab (u, f, nrm_f(l), Lu, l, coarse_iter, r_error(2, l), iter(l))
-    end do
-    u%bdry_uptodate = .false.
-
-    if (log_iter) then
-       do l = level_start, level_end
-          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x))') l, r_error(:,l)
-       end do
-    end if
-  end subroutine elliptic_solver
-
+ 
   subroutine jacobi (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
     ! Max_iter Jacobi iterations for smoothing multigrid iterations
     ! uses Scheduled Relaxation Jacobi (SJR) iterations (Yang and Mittal JCP 274, 2014)

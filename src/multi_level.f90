@@ -17,6 +17,15 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
+       ! Compute velocity divu, required for curl-free part of Laplacian
+       if (Laplace_order >= 1) call cal_divu_ml (q(S_VELO,k))
+
+       ! Compute Laplacians required for second order Laplacians
+       if (Laplace_order == 2) then
+          call cal_Laplacian_scalars (q, k)
+          call cal_Laplacian_divu ! requires divu
+       end if
+
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
           ! Finish non-blocking communication of dq from previous level (l+1)
@@ -24,7 +33,7 @@ contains
 
           call basic_operators  (q, dq, k, l)
           call cal_scalar_trend (q, dq, k, l)
-          
+
           ! Start non-blocking communication of dq for use at next level (l-1)
           if (level_start /= level_end .and. l > level_start) call update_vector_bdry__start (dq(scalars(1):scalars(2),k), l) 
 
@@ -33,7 +42,7 @@ contains
        call velocity_trend_grad (q, dq, k)
     end do
   end subroutine trend_ml
- 
+
   subroutine basic_operators (q, dq, k, l)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     implicit none
@@ -42,8 +51,6 @@ contains
 
     integer :: d, j, v
 
-    if (Laplace_order == 2 .and. maxval (visc_sclr) /= 0d0) call second_order_Laplacian_scalar (q, k, l)
-    
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
        temp      => q(S_TEMP,k)%data(d)%elts
@@ -80,7 +87,7 @@ contains
     horiz_flux%bdry_uptodate = .false.
     if (level_start /= level_end) call update_vector_bdry (horiz_flux, l, 11)
 
-    if (Laplace_order == 2) call second_order_Laplacian_vector (q, k, l)
+    if (Laplace_order == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
   end subroutine basic_operators
 
   subroutine cal_scalar_trend (q, dq, k, l)
@@ -163,44 +170,60 @@ contains
     dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_grad
      
-  subroutine second_order_Laplacian_scalar (q, k, l)
-    ! Computes Laplacian(mass) and Laplacian(temp) needed for second order scalar Laplacian
+  subroutine cal_Laplacian_scalars (q, k)
+    ! Computes Laplacian of scalars q
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
-    integer                                                   :: k, l
-
-    integer :: d, j, v
-
-    do d = 1, size(grid)
-       do v = scalars(1), scalars(2)
-          scalar    => q(v,k)%data(d)%elts
-          Laplacian => Laplacian_scalar(v)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+    integer :: k
+    
+    integer :: d, j, l, v
+    
+    do l = level_end, level_start, -1
+       ! Compute scalar fluxes
+       do d = 1, size(grid)
+          do v = scalars(1), scalars(2)
+             scalar => q(v,k)%data(d)%elts
+             h_flux => horiz_flux(v)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=1)
+             end do
+             nullify (scalar, h_flux)
           end do
-          nullify (scalar, Laplacian)
+
+          ! Compute or restrict fluxes
+          if (l < level_end) then
+             do v = scalars(1), scalars(2)
+                dscalar => Laplacian_scalar(v)%data(d)%elts
+                h_flux  => horiz_flux(v)%data(d)%elts
+                call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dscalar (l+1)
+                nullify (dscalar, h_flux)
+             end do
+          end if
+       end do
+       horiz_flux%bdry_uptodate = .false.
+       call update_vector_bdry (horiz_flux, l, 11)
+
+       do d = 1, size(grid)
+          do v = scalars(1), scalars(2)
+             dscalar => Laplacian_scalar(v)%data(d)%elts
+             h_flux  => horiz_flux(v)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             nullify (dscalar, h_flux)
+          end do
        end do
     end do
-    Laplacian_scalar%bdry_uptodate = .false.
-    call update_vector_bdry (Laplacian_scalar, l, 12)
-  end subroutine second_order_Laplacian_scalar
+  end subroutine cal_Laplacian_scalars
 
-  subroutine second_order_Laplacian_vector (q, k, l)
+  subroutine cal_Laplacian_vector_rot (l)
     ! Computes rot(rot(vort)) needed for second order vector Laplacian
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
-    integer                                                   :: k, l
-
+    integer :: l
+    
     integer :: d, j
 
     do d = 1, size(grid)
-       scalar    => grid(d)%divu%elts
-       Laplacian => Laplacian_vector(S_DIVU)%data(d)%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (scalar, Laplacian)
-
        vort      => grid(d)%vort%elts
        Laplacian => Laplacian_vector(S_ROTU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
@@ -222,7 +245,44 @@ contains
        call apply_to_penta_d (post_vort, grid(d), l, z_null)
        nullify (velo, vort)
     end do
-  end subroutine second_order_Laplacian_vector
+  end subroutine cal_Laplacian_vector_rot
+  
+  subroutine cal_Laplacian_divu
+    ! Computes Laplacian of divu
+    implicit none
+    integer :: d, j, l, v
+
+    do l = level_end, level_start, -1
+       ! Compute scalar fluxes
+       do d = 1, size(grid)
+          scalar => grid(d)%divu%elts
+          h_flux => horiz_flux(S_MASS)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=1)
+          end do
+          nullify (scalar, h_flux)
+
+          ! Compute or restrict fluxes
+          if (l < level_end) then
+             dscalar => Laplacian_vector(S_DIVU)%data(d)%elts
+             h_flux  => horiz_flux(S_MASS)%data(d)%elts
+             call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dscalar (l+1)
+             nullify (dscalar, h_flux)
+          end if
+       end do
+       horiz_flux(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (horiz_flux(S_MASS), l, 11)
+
+       do d = 1, size(grid)
+          dscalar => Laplacian_vector(S_DIVU)%data(d)%elts
+          h_flux  => horiz_flux(S_MASS)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (dscalar, h_flux)
+       end do
+    end do
+  end subroutine cal_Laplacian_divu
  
   subroutine cpt_or_restr_Bernoulli_Exner (dom, l)
     implicit none
@@ -490,6 +550,46 @@ contains
          dom%overl_areas%elts(id_mm+1)%a(3)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv &
          * 0.5d0 * (dscalar(id_pz+1) - dscalar(id_mm2+1))
   end function coarse_flux
+
+  subroutine cal_divu_ml (q)
+    ! Returns flux divergence of vertical integrated velocity in divF using solution q, stored in dom%divu
+    implicit none
+    type(Float_Field), target :: q
+    
+    integer :: d, j, l
+
+    call update_bdry (q, NONE, 50)
+
+    do l = level_end, level_start, -1
+       ! Calculate vertically integrated velocity flux
+       do d = 1, size(grid)
+          h_flux => horiz_flux(S_MASS)%data(d)%elts
+          velo   => q%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=6)
+          end do
+          nullify (velo)
+          if (l < level_end) then
+             dscalar => grid(d)%divu%elts
+             call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
+             nullify (dscalar)
+          end if
+          nullify (h_flux)
+       end do
+       horiz_flux(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (horiz_flux(S_MASS), l, 211)
+
+       ! Calculate divergence of vertically integrated velocity flux
+       do d = 1, size(grid)
+          dscalar => grid(d)%divu%elts
+          h_flux  => horiz_flux(S_MASS)%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (dscalar, h_flux)
+       end do
+    end do
+  end subroutine cal_divu_ml
 
   subroutine get_indices (dom, i, j, e, offs, dims, id)
     implicit none

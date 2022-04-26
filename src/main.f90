@@ -162,7 +162,6 @@ contains
   end subroutine record_init_state
 
   subroutine time_step (align_time, aligned)
-    use lateral_diffusion_mod
     use vert_diffusion_mod
     implicit none
     real(8)              :: align_time
@@ -235,7 +234,6 @@ contains
     end if
 
     ! Split step routines
-    if (implicit_diff_sclr .or. implicit_diff_divu) call implicit_lateral_diffusion
     if (vert_diffuse) call vertical_diffusion 
 
     ! If necessary, remap vertical coordinates
