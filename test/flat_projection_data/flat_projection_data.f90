@@ -695,15 +695,9 @@ contains
     real(8), dimension(4) :: energy_drake
     character(*)          :: itype
     
-    if (trim(itype) == 'adaptive') then
-       energy_drake(1) = integrate_adaptive (layer1_ke, z_null)
-       energy_drake(2) = integrate_adaptive (layer2_ke, z_null)
-       energy_drake(3) = integrate_adaptive (barotropic_ke, z_null)
-    elseif (trim(itype) == 'coarse') then
-       energy_drake(1) = integrate_hex (layer1_ke,     level_start, z_null)
-       energy_drake(2) = integrate_hex (layer2_ke,     level_start, z_null)
-       energy_drake(3) = integrate_hex (barotropic_ke, level_start, z_null) 
-    end if
+    energy_drake(1) = integrate_hex (layer1_ke,     z_null)
+    energy_drake(2) = integrate_hex (layer2_ke,     z_null)
+    energy_drake(3) = integrate_hex (barotropic_ke, z_null) 
     energy_drake(4) = energy_drake(1) + energy_drake(2) - energy_drake(3) ! baroclinic energy
     
     energy_drake = energy_drake / (4*MATH_PI*radius**2*ref_density)
@@ -715,11 +709,7 @@ contains
     implicit none
     character(*) :: itype
     
-    if (trim(itype) == 'adaptive') then
-       energy_1layer = integrate_adaptive (one_layer_ke, z_null)
-    elseif (trim(itype) == 'coarse') then
-       energy_1layer = integrate_hex (one_layer_ke, level_start, z_null) 
-    end if
+    energy_1layer = integrate_hex (one_layer_ke, z_null)
     energy_1layer = energy_1layer / (4*MATH_PI*radius**2*ref_density)
   end function energy_1layer
   
@@ -753,11 +743,7 @@ contains
              nullify (vort)
           end do
        end do
-       if (trim(itype) == 'adaptive') then
-          pot_enstrophy_drake(k) = integrate_adaptive (pot_enstrophy, k)
-       elseif (trim(itype) == 'coarse') then
-          pot_enstrophy_drake(k) = integrate_hex (pot_enstrophy, level_start, k)
-       end if
+       pot_enstrophy_drake(k) = integrate_hex (pot_enstrophy, k)
     end do
 
     ! Barotropic enstrophy
@@ -795,11 +781,7 @@ contains
           nullify (vort)
        end do
     end do
-    if (trim(itype) == 'adaptive') then
-       pot_enstrophy_drake(3) = integrate_adaptive (pot_enstrophy, 3)
-    elseif (trim(itype) == 'coarse') then
-       pot_enstrophy_drake(3) = integrate_hex (pot_enstrophy, level_start, 3)
-    end if
+    pot_enstrophy_drake(3) = integrate_hex (pot_enstrophy, 3)
     
     ! Baroclinic velocity and vorticity in each layer at hexagon points
     do k = 1, 2
@@ -839,11 +821,7 @@ contains
              nullify (vort)
           end do
        end do
-       if (trim(itype) == 'adaptive') then
-          pot_enstrophy_drake(k+3) = integrate_adaptive (pot_enstrophy, k)
-       elseif (trim(itype) == 'coarse') then
-          pot_enstrophy_drake(k+3) = integrate_hex (pot_enstrophy, level_start, k)
-       end if
+       pot_enstrophy_drake(k+3) = integrate_hex (pot_enstrophy, k)
     end do
   end function pot_enstrophy_drake
 
@@ -876,11 +854,7 @@ contains
        end do
     end do
     
-    if (trim(itype) == 'adaptive') then
-       pot_enstrophy_1layer = integrate_adaptive (pot_enstrophy, 1)
-    elseif (trim(itype) == 'coarse') then
-       pot_enstrophy_1layer = integrate_hex (pot_enstrophy, level_start, 1)
-    end if
+    pot_enstrophy_1layer = integrate_hex (pot_enstrophy, 1)
   end function pot_enstrophy_1layer
 
   subroutine latlon_drake
