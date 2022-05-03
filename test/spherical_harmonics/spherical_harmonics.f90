@@ -230,6 +230,7 @@ contains
     ! Compute energy spectra of div-free and curl-free parts of the velocity field from 2d latitude-longitude projections
     ! of vorticity and div(u) respectively.
     use domain_mod
+    use multi_level_mod
     implicit none
     integer :: d, i, j, l
 
@@ -243,7 +244,7 @@ contains
 
     ! Set mean on filled grid
     call apply_onescale (init_mean, l, save_zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
-    
+
     ! Vorticity at hexagon points
     do d = 1, size(grid)
        velo => sol(S_VELO,save_zlev)%data(d)%elts
@@ -266,14 +267,7 @@ contains
     if (rank == 0) call spectrum_lon_lat ("barotropic_curlu")
 
     ! Divergence at hexagon points
-    do d = 1, size(grid)
-       velo => sol(S_VELO,save_zlev)%data(d)%elts
-       divu => grid(d)%divu%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (velo, divu)
-    end do
+    call cal_divu_ml (sol(S_VELO,save_zlev))
     field2d = 0d0
     call project_array_onto_plane ("divu", l, 1d0)
     if (rank == 0) call spectrum_lon_lat ("barotropic_divu")
@@ -284,6 +278,7 @@ contains
   subroutine spec_latlon_2layer
     ! Compute energy spectrum from 2d latitude-longitude projection for 2 layer case
     use domain_mod
+    use multi_level_mod
     implicit none
     integer                              :: d, i, ibeg, ibeg_m, iend, iend_m, j, k, l
     real(8), dimension(:,:), allocatable :: dz
@@ -331,14 +326,7 @@ contains
        end if
 
        ! Divergence at hexagon points
-       do d = 1, size(grid)
-          velo => sol(S_VELO,k)%data(d)%elts
-          divu => grid(d)%divu%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (velo, divu)
-       end do
+       call cal_divu_ml (sol(S_VELO,k))
        field2d = 0d0
        call project_array_onto_plane ("divu", l, 1d0)
        if (rank == 0) then
@@ -395,14 +383,7 @@ contains
     if (rank == 0) call spectrum_lon_lat ("barotropic_curlu")
 
     ! Divergence at hexagon points
-    do d = 1, size(grid)
-       velo => sol(S_VELO,zlevels+1)%data(d)%elts
-       divu => grid(d)%divu%elts
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (velo, divu)
-    end do
+    call cal_divu_ml (sol(S_VELO,zlevels+1))
     field2d = 0d0
     call project_array_onto_plane ("divu", l, 1d0)
     if (rank == 0) call spectrum_lon_lat ("barotropic_divu")
@@ -443,14 +424,7 @@ contains
        end if
 
        ! Divergence at hexagon points
-       do d = 1, size(grid)
-          velo => trend(S_VELO,zlevels+1)%data(d)%elts ! baroclinic velocity in current layer
-          divu => grid(d)%divu%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_divu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (velo, divu)
-       end do
+       call cal_divu_ml (trend(S_VELO,zlevels+1))
        field2d = 0d0
        call project_array_onto_plane ("divu", l, 1d0)
        if (rank == 0) then
