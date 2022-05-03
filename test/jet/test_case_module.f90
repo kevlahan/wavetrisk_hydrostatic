@@ -1174,7 +1174,7 @@ contains
     end if
 
     if (rank==0) write (6,'(/,A,i2,A,es11.4,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate height = ", z(save_zlev), " [m])"
+         " (approximate height = ", interp (z(save_zlev),z(save_zlev-1)) , " [m])"
   end subroutine set_save_level_case
 
   function z_coords_case (eta_surf, z_s)
