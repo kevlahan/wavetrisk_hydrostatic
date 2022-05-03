@@ -9,7 +9,7 @@ function vertical_slice (test_case, run_id, machine, directory, time, figure_typ
 % run_id      = run id of data to plot (e.g. 'upwelling_test')
 % machine     = remote machine where data is stored (e.g. 'if.mcmaster.ca',
 %               'niagara.computecanada.ca')
-% directory   = dirctory where data is stored on remote machine
+% directory   = directory where data is stored on remote machine
 % time        = time index of data to plot
 % figure_type = 1 (single field), 2 (all fields)
 % field       = single field to plot ('density', 'meridional', 'zonal',
@@ -27,7 +27,15 @@ elseif strcmp (test_case, 'jet')
     lat_w     = radius/4;
     
     lat_c     = 30;
-    max_depth = -4000; 
+    max_depth = -4000;
+elseif strcmp (test_case, 'seamount')
+    ref_density = 1000;
+    radius    = 6371.229/41.75;
+    lat_w     = radius/4;
+    
+    lat_c     = 43.29;
+    lon_c     = 0;
+    max_depth = -5000;
 end
 lat_w_deg = lat_w/radius * 180/pi;
 
@@ -78,6 +86,7 @@ elseif figure_type == 3
     axis([lat_c-lat_w_deg/2 lat_c+lat_w_deg/2 max_depth 0]);
     plot([lat(1:skip:end) lat(1:skip:end)], ylim, 'k-','linewidth',1.2);
     %axis([0 90 -150 0])
+    axis([min(xlat(:,2,1)) max(xlat(:,1,1)) max_depth 0])
     xlabel('latitude'); ylabel('z (m)'); hold on;
     set(gca,'fontsize',18);hold off
 end
@@ -90,12 +99,16 @@ end
         if strcmp(field,'density') % used for seamount
             m = 3;
             if strcmp (test_case, 'upwelling')
-                c1 = linspace(-3, 0, 200);
+                c1 = linspace(-3, 0, 20);
                 c2 = linspace(-3, 0, 20);
                 trans = @(rho) rho - 1027;
             elseif strcmp (test_case, 'jet')
                 c1 = linspace(24, 28, 200);
                 c2 = 24:0.5:28;
+                trans = @(rho) rho - 1000;
+            elseif strcmp (test_case, 'seamount')
+                c1 = linspace(-3, 0, 200);
+                c2 = linspace(-3, 0, 20);
                 trans = @(rho) rho - 1000;
             end
         elseif strcmp(field,'temperature')
@@ -127,6 +140,7 @@ end
         end
         
         dat = trans(lat_slice(:,:,m));
+                
         %c = linspace(min(dat(:)), max(dat(:)), 100);
         
         if strcmp(type,'interp')
@@ -197,15 +211,17 @@ end
         z = 0.5*(zlat(:,:,1) + zlat(:,:,2));
         x = repelem(0.5*(xlat(:,1)+xlat(:,2)),1,size(z,2));
         dat = trans(lat_slice(:,:,m));
-        contour(x, z, dat, c2, 'k-',  'Linewidth', 1.5);
+        %contour(x, z, dat, c2, 'k-',  'Linewidth', 1.5);
         %contour(x, z, dat, min(c2) : max(c2(c2<0)),   'k--', 'Linewidth', 1.5);
         %contour(x, z, dat, min(c2(c2>=0))  : max(c2), 'k-',  'Linewidth', 1.5);
-                
+        
+        max(xlat(:,2,1))
+        
         xlabel('latitude'); ylabel('z (m)');
         
         caxis([min(c1) max(c1)]);
-        axis([lat_c-lat_w_deg/2 lat_c+lat_w_deg/2 max_depth 0]);
-        %axis([0 90 max_depth 0])
+        axis([min(xlat(:,2,1)) max(xlat(:,1,1)) max_depth 0])
+        %axis([lat_c-lat_w_deg/2 lat_c+lat_w_deg/2 max_depth 0]);
         set(gca,'fontsize',18);
         
         hcb=colorbar;
