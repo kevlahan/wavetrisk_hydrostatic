@@ -7,7 +7,8 @@ max_level	6           ! maximum level of resolution
 zlevels         18          ! number of vertical levels
 uniform         F           ! uniform (T) or hybrid (F) vertical grid
 level_save      6           ! resolution level to interpolate to
-N               200         ! resolution of interpolated grid (N/2 latitude x N longitude)	
+N               200         ! resolution of interpolated grid (N/2 latitude x N longitude), N  <= sqrt(40*4^J)
 pressure_save   850.0       ! pressure level to save (hPa)
 lat_val         0           ! latitude value for longitude slice
-lon_val         0           ! latitude value for latitude slice	
+lon_val         0           ! latitude value for latitude slice
+zonal           F           ! compute zonal average for latitude slice

@@ -8,7 +8,7 @@ module test_case_mod
   integer :: mean_beg, mean_end, cp_2d, N
   real(8) :: npts_penal, ref_surf_press, scale
   real(8) :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
-  logical :: mean_split
+  logical :: mean_split, zonal
 
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
@@ -255,8 +255,8 @@ contains
        elseif (trim (coords) == "chebyshev") then
           a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
           do k = 1, zlevels-1
-             a_vert(k) = 0.85*(1.006 + cos ((dble(2*k-1)/dble(4*(zlevels-1))+0.5) * MATH_PI)) 
-             b_vert(k) = 0.85*(1.006 + cos ((dble(2*k-1)/dble(4*(zlevels-1))+0.5) * MATH_PI)) 
+             a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+             b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
           end do
           a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
        end if
@@ -389,6 +389,7 @@ contains
     read (fid,*) varname, press_save
     read (fid,*) varname, lat_val
     read (fid,*) varname, lon_val
+    read (fid,*) varname, zonal
     close(fid)
 
     if (rank==0) then
@@ -404,12 +405,13 @@ contains
        write (6,'(A,i3)')     "min_level              = ", min_level
        write (6,'(A,i3)')     "max_level              = ", max_level
        write (6,'(A,i3)')     "zlevels                = ", zlevels
-       write(6,'(A,L1)')      "uniform                = ", uniform
+       write (6,'(A,L1)')     "uniform                = ", uniform
        write (6,'(A,i3)')     "level_save             = ", level_save
        write (6,'(A,i5)')     "N                      = ", N
        write (6,'(A,es10.4)') "pressure_save (hPa)    = ", press_save
        write (6,'(A,es10.4)') "lat_val = ", lat_val
        write (6,'(A,es10.4)') "lon_val = ", lon_val
+       write( 6,'(A,L1)')     "zonal average          = ", zonal
        write (6,*) ' '
     end if
 

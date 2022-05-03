@@ -115,6 +115,7 @@ program flat_projection_data
      width          =    40 * KM                                ! radius of seamount
      delta          =   500 * METRE                             ! vertical decay of density
 
+     sigma_z        = .false.
      coords         = "chebyshev"
      stratification = "exponential"
   case ("upwelling")
@@ -551,7 +552,7 @@ contains
   end subroutine latlon
 
   subroutine vertical_slice
-    ! Save vertical slicse along given latitude and longitude for incompressible test cases
+    ! Save vertical slice along given latitude and longitude for incompressible test cases
     use barotropic_2d_mod
     implicit none
     integer                         :: d, i, j, k, l, idx_lat, idx_lon
@@ -559,7 +560,6 @@ contains
     real(8), dimension(0:zlevels)   :: z
     real(8), dimension(Ny(1):Ny(2)) :: bathy_lat
     real(8), dimension(Nx(1):Nx(2)) :: bathy_lon
-    logical, parameter              :: zonal = .true. ! compute zonal averages
 
     ! Find indices of latitude and longitude slices
     idx_lat = minloc (abs(lat-lat_val), DIM=1) + Ny(1) - 1
@@ -619,7 +619,7 @@ contains
        ! Temperature
        call project_field_onto_plane (sol(S_TEMP,zlevels+1), l, 0d0)
         if (zonal) then
-          lat_slice(:,k,3) = sum(field2d, 1) / size(field2d,1) 
+          lat_slice(:,k,3) = sum(field2d,1) / size(field2d,1) 
        else
           lat_slice(:,k,3) = field2d(idx_lon,:)
        end if
