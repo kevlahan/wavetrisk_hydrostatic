@@ -178,24 +178,25 @@ contains
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
-    read (fid,*) varname, level_fill
     read (fid,*) varname, zlevels
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
-    read (fid,*) varname, tol_elliptic
-    read (fid,*) varname, coarse_iter
-    read (fid,*) varname, fine_iter
-    read (fid,*) varname, log_iter
     read (fid,*) varname, tol
     read (fid,*) varname, cfl_num
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
-    read (fid,*) varname, drho
+    read (fid,*) varname, Bu
     read (fid,*) varname, stratification   
     read (fid,*) varname, coords
     close(fid)
+
+    drho    = - ref_density * (Bu * f0 * width/wave_speed)**2            ! density difference based on Burger number Bu
+    drho_dz = drho/max_depth                                             ! approximate density gradient
+    bv      = sqrt (grav_accel * drho_dz/ref_density)                    ! Brunt-Vaisala frequency
+    c1      = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
+    Rb      = bv * abs(max_depth) / (MATH_PI*f0)                         ! first baroclinic Rossby radius of deformation
 
     press_save = 0.0_8
     allocate (pressure_save(1))
@@ -612,36 +613,26 @@ contains
     implicit none
     real(8) :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
 
-    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
+    area = 4d0*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
+    dx_min = sqrt (4/sqrt(3d0) * area)         ! edge length of average triangle
 
-    area = 4*MATH_PI*radius**2/(20*4**min_level)
-    dx_max = sqrt (4/sqrt(3.0_8) * area)
+    area = 4d0*MATH_PI*radius**2/(20*4**min_level)
+    dx_max = sqrt (4/sqrt(3d0) * area)
 
     ! Initial CFL limit for time step
     dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1)
     dt_init = dt_cfl
 
-    C_sclr = 5d-3
-    C_divu = 5d-3
-    C_rotu = 5d-3
-
-    ! Diffusion time scales
-    tau_sclr = dt_cfl / C_sclr
-    tau_divu = dt_cfl / C_divu
-    tau_rotu = dt_cfl / C_rotu
-
     if (Laplace_order_init == 0) then
-       visc_sclr = 0.0_8
-       visc_divu = 0.0_8
-       visc_rotu = 0.0_8
+       visc_sclr = 0d0
+       visc_divu = 0d0
+       visc_rotu = 0d0
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
-       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
-!!$       visc_rotu = visc
-    elseif (Laplace_order_init > 2) then
-       if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
+       visc_sclr = visc
+       visc_divu = visc
+       visc_rotu = visc
+    elseif (Laplace_order_init >= 2) then
+       if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 supported)'
        stop
     end if
 

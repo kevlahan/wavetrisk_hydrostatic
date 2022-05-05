@@ -15,9 +15,6 @@ program Seamount
   call init_arch_mod 
   call init_comm_mpi_mod
 
-  ! Read test case parameters
-  call read_test_case_parameters
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
   radius_earth   = 6371.229                * KM
@@ -26,14 +23,14 @@ program Seamount
   p_top          = 0.0_8                   * hPa             ! pressure at free surface
   ref_density    = 1000                    * KG/METRE**3     ! reference density at depth (seawater)
 
-  scale          = 41.75d0                                     ! scaling factor for small planet
+  scale          = 41.75d0                                   ! scaling factor for small planet
   radius         = radius_earth/scale                        ! mean radius of the small planet
   omega          = omega_earth                               ! angular velocity (scaled for small planet to keep beta constant)
 
   ! Depth and layer parameters
-  min_depth   =   -50 * METRE                                ! minimum allowed depth (must be negative)
-  max_depth   = -5000 * METRE                                ! total depth
-  tau_0       =     0 * NEWTON/METRE**2                      ! maximum wind stress
+  min_depth      =   -50 * METRE                             ! minimum allowed depth (must be negative)
+  max_depth      = -5000 * METRE                             ! total depth
+  tau_0          =     0 * NEWTON/METRE**2                   ! maximum wind stress
   
   ! Seamount
   lat_c          = 43.29 * DEG                               ! latitude of seamount
@@ -41,9 +38,6 @@ program Seamount
   h0             =  4500 * METRE                             ! height of seamount
   width          =    40 * KM                                ! radius of seamount
   delta          =   500 * METRE                             ! vertical decay of density
-  visc           =    50 * METRE**2/SECOND                   ! viscosity for rotu
-  drag           = .false.                                   ! no bottom friction
-  vert_diffuse   = .false.
   
   ! Numerical method parameters
   match_time         = .false.                               ! avoid very small time steps when saving 
@@ -55,36 +49,37 @@ program Seamount
   adapt_dt           = .true.                                ! always adapt time steps
   remapscalar_type   = "PPR"                                 ! optimal remapping scheme
   remapvelo_type     = "PPR"                                 ! optimal remapping scheme
-  Laplace_order_init = 1                              
-  Laplace_order = Laplace_order_init
 
+
+  Laplace_order_init = 1                              
+  Laplace_order      = Laplace_order_init
+  visc               = 424 * METRE**2/SECOND                 ! viscosity
+
+  drag               = .false.                               ! no bottom friction
+  vert_diffuse       = .false.                               ! no vertical diffusion
+  
   ! Vertical level to save
   save_zlev = zlevels 
 
   ! Characteristic scales
-  wave_speed     = sqrt (grav_accel*abs(max_depth))        ! inertia-gravity wave speed 
-  f0             = 2*omega*sin(lat_c)                      ! representative Coriolis parameter
-  beta           = 2*omega*cos(lat_c) / radius             ! beta parameter at 30 degrees latitude
-  Rd             = wave_speed / f0                         ! barotropic Rossby radius of deformation                   
-  drho_dz        = drho/max_depth                          ! approximate density gradient
-  bv             = sqrt (grav_accel * drho_dz/ref_density) ! Brunt-Vaisala frequency
-  Ro             = 0.0_8                                   ! Rossby number
-  bu             = bv * abs(max_depth) / (f0 * width)      ! Burger number
-
-  c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
-
-  ! First baroclinic Rossby radius of deformation
-  Rb = bv * abs(max_depth) / (MATH_PI*f0)
+  wave_speed     = sqrt (grav_accel*abs(max_depth))          ! inertia-gravity wave speed 
+  f0             = 2d0*omega*sin(lat_c)                      ! representative Coriolis parameter
+  beta           = 2d0*omega*cos(lat_c) / radius             ! beta parameter at 30 degrees latitude
+  Rd             = wave_speed / f0                           ! barotropic Rossby radius of deformation                   
+  Ro             = 0d0                                       ! Rossby number
 
   ! Bottom friction
   bottom_friction_case = 0 / SECOND
 
   ! Dimensional scaling
-  Udim           = 1.0_8                              ! velocity scale (arbitrary)
-  Ldim           = width                              ! length scale 
-  Tdim           = Ldim/Udim                          ! time scale
-  Hdim           = abs (max_depth)                    ! vertical length scale
+  Udim           = 1d0                                       ! velocity scale (arbitrary)
+  Ldim           = width                                     ! length scale 
+  Tdim           = Ldim/Udim                                 ! time scale
+  Hdim           = abs (max_depth)                           ! vertical length scale
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  ! Read test case parameters
+  call read_test_case_parameters
   
   ! Initialize functions
   call assign_functions
@@ -92,7 +87,7 @@ program Seamount
   ! Initialize variables
   call initialize (run_id)
 
-  ! Initialize diagnostic variables
+    ! Initialize diagnostic variables
   call init_diagnostics
 
   ! Save initial conditions
@@ -104,7 +99,7 @@ program Seamount
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  total_cpu_time = 0.0_8
+  total_cpu_time = 0d0
   do while (time < time_end)
      call start_timing
      call time_step (dt_write, aligned)
