@@ -198,6 +198,9 @@ contains
     c1      = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
     Rb      = bv * abs(max_depth) / (MATH_PI*f0)                         ! first baroclinic Rossby radius of deformation
 
+    ! Vertical level to save
+    save_zlev = zlevels 
+
     press_save = 0.0_8
     allocate (pressure_save(1))
     pressure_save(1) = press_save
@@ -238,7 +241,10 @@ contains
        write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
+       write (6,'(A,es8.2)')  "theta1                         = ", theta1
+       write (6,'(A,es8.2)')  "theta2                         = ", theta2
        write (6,'(A,es10.4)') "tol_elliptic                   = ", tol_elliptic
+       write (6,'(A,es10.4)') "tol_jacobi                     = ", tol_jacobi
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
        write (6,'(a,l1)')     "log_iter                       = ", log_iter
@@ -539,6 +545,7 @@ contains
        z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * z_s)
        write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, -ref_density * buoyancy_init (z_s, p, k)
     end do
+
     write (6,'(/)')
     do k = 0, zlevels
        z = a_vert(k) * eta_surf + b_vert(k) * z_s

@@ -50,16 +50,19 @@ program Seamount
   remapscalar_type   = "PPR"                                 ! optimal remapping scheme
   remapvelo_type     = "PPR"                                 ! optimal remapping scheme
 
-
-  Laplace_order_init = 1                              
+  Laplace_order_init = 1                             
   Laplace_order      = Laplace_order_init
-  visc               = 424 * METRE**2/SECOND                 ! viscosity
+  visc               = 50d0 * METRE**2/SECOND                ! viscosity
+  
+  theta1             = 0.8d0
+  theta2             = 0.8d0
+  tol_elliptic       = 1d-9                                 ! tolerance for coarse scale bicgstab elliptic solver
+  tol_jacobi         = 1d-3                                 ! tolerance for fine scale jacobi iterations
+  coarse_iter        = 100                                  ! maximum number of coarse scale bicgstab iterations for elliptic solver
+  fine_iter          = 200                                  ! maximum number of fine scale jacobi iterations for elliptic solver
 
   drag               = .false.                               ! no bottom friction
   vert_diffuse       = .false.                               ! no vertical diffusion
-  
-  ! Vertical level to save
-  save_zlev = zlevels 
 
   ! Characteristic scales
   wave_speed     = sqrt (grav_accel*abs(max_depth))          ! inertia-gravity wave speed 
