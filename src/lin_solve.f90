@@ -778,7 +778,7 @@ contains
     p    = res0
     Ap   = Lu (p, l) 
     
-    iter = 1 
+    iter = 0
     do while (iter < max_iter)
        alph = rho / dp (Ap, res0, l)
 
