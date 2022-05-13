@@ -52,6 +52,7 @@ contains
     end do
     call comm_masks_mpi (NONE)
 
+    ! Add grid points to >= ADJZONE required for TRSK operators
     do l = level_start, level_end
        call apply_onescale (mask_node_trsk, l, z_null, 0, 1)
        call apply_onescale (mask_edge_trsk, l, z_null, 0, 0)
