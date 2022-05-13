@@ -49,6 +49,10 @@ contains
    ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
        call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
+    end do
+    call comm_masks_mpi (NONE)
+
+    do l = level_start, level_end
        call apply_onescale (mask_node_trsk, l, z_null, 0, 1)
        call apply_onescale (mask_edge_trsk, l, z_null, 0, 0)
     end do
