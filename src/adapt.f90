@@ -44,12 +44,13 @@ contains
     ! Make nodes and edges with significant wavelet coefficients active
     call update_array_bdry1 (wav_coeff, level_start, level_end, 15)
     call mask_active
-
     call comm_masks_mpi (NONE)
     
    ! Add nearest neighbour wavelets of active nodes and edges at same scale
     do l = level_start, level_end
        call apply_onescale (mask_adj_same_scale, l, z_null, 0, 1)
+       call apply_onescale (mask_node_trsk, l, z_null, 0, 1)
+       call apply_onescale (mask_edge_trsk, l, z_null, 0, 0)
     end do
     call comm_masks_mpi (NONE)
 
@@ -64,38 +65,8 @@ contains
     ! Determine whether any new patches are required
     if (refine()) call post_refine
 
-    if (perfect) then ! Apply perfect reconstruction check and exact TRiSK operators
-       ! Add neighbouring wavelets at finer scale                                                                                         
-       do l = level_end-1, level_start, -1
-          call apply_interscale (mask_adj_children, l, z_null, 0, 0)
-       end do
-       call comm_masks_mpi (NONE)
+    call complete_masks
 
-       ! Ensure consistency of adjacent zones for nodes and edges
-       do l = level_end-1, level_start+1, -1
-          call apply_interscale (prolong_node_adjzone, l, z_null, 0, 1)
-       end do
-       call comm_masks_mpi (NONE)
-
-       ! Ensure that perfect reconstruction criteria for active wavelets are satisfied                                                    
-       do l = level_end-1, level_start-1, -1
-          call apply_interscale (mask_perfect_scalar, l, z_null, 0, 0)
-          call apply_interscale (mask_perfect_velo,   l, z_null, 0, 0)
-          do d = 1, size(grid)
-             call apply_to_penta_d (mask_perfect_velo_penta, grid(d), l, z_null)
-          end do
-          call comm_masks_mpi (l)
-       end do
-    else ! Apply old wavetrisk routines
-       call complete_masks
-    end if
-
-    ! Label points required for remap as TRSK
-    do l = level_start, level_end
-       call apply_onescale (mask_node_trsk, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       call apply_onescale (mask_edge_trsk, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-    end do
-    
     ! Set insignificant wavelet coefficients to zero
     if (local_type) call compress_wavelets (wav_coeff)
   end subroutine adapt
@@ -108,8 +79,8 @@ contains
     integer :: d, k, l, v
     
     do k = 1, size(wav,2)
-       do d = 1, size (grid)
-          do l = level_start+1, level_end
+       do l = level_start+1, level_end
+          do d = 1, size (grid)
              do v = scalars(1), scalars(2)
                 wc_s => wav(v,k)%data(d)%elts
                 call apply_onescale_d (compress_scalar, grid(d), l, z_null, 0, 1)
@@ -119,8 +90,6 @@ contains
              call apply_onescale_d (compress_vector, grid(d), l, z_null, 0, 0)
              nullify (wc_u)
           end do
-          !call apply_onescale_d (compress_maxlevel_scalar, grid(d), max_level, z_null, 0, 1) ! dealiase
-          !call apply_onescale_d (compress_maxlevel_vector, grid(d), max_level, z_null, 0, 0) ! dealiase
        end do
     end do
     wav%bdry_uptodate = .false.
@@ -163,41 +132,6 @@ contains
     end do
     wav%bdry_uptodate = .false.
   end subroutine compress_wavelets_velo
-
-  subroutine compress_maxlevel_scalar (dom, i, j, zlev, offs, dims)
-    ! Dealiase by setting wavelet coefficients to zero at maximum level
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: id, id_i
-
-    id_i = idx (i, j, offs, dims) + 1
-    
-    dom%mask_n%elts(id_i) = min (ADJZONE, dom%mask_n%elts(id_i))
-    wc_s(id_i) = 0d0
-  end subroutine compress_maxlevel_scalar
-
-  subroutine compress_maxlevel_vector (dom, i, j, zlev, offs, dims)
-    ! Dealiase by setting wavelet coefficients to zero at maximum level
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: e, id, id_e
-
-    id = idx (i, j, offs, dims)
-    
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       dom%mask_e%elts(id_e) = min (ADJZONE, dom%mask_e%elts(id_e))
-       wc_u(id_e) = 0d0
-    end do
-  end subroutine compress_maxlevel_vector
 
   subroutine compress_scalar (dom, i, j, zlev, offs, dims)
     implicit none
