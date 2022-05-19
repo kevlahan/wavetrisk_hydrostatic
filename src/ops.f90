@@ -197,7 +197,7 @@ contains
          h_flux(EDGE*id+RT+1) = (scalar(idE_i) - scalar(id_i))   / dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
          h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) / dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
          h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-      elseif (itype == 2) then ! external pressure gradient flux, (H + eta^n) grad(eta^(n+1)) * edge_length, in elliptic operator
+      elseif (itype == 2) then ! external pressure gradient flux, g * (H + eta^n) grad(eta^(n+1)) * edge_length, in elliptic operator
          csq(0) = abs (dom%topo%elts(id_i))   * phi(0) + mass(id_i)
          csq(1) = abs (dom%topo%elts(idE_i))  * phi(1) + mass(idE_i)
          csq(2) = abs (dom%topo%elts(idNE_i)) * phi(2) + mass(idNE_i)

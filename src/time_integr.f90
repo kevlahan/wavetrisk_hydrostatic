@@ -333,18 +333,13 @@ contains
     implicit none        
     real(8) :: dt
 
+    call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
+
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
-    
-    call trend_ml (sol, trend)
-    
-    call u_star (dt, sol)
-    call scalar_star (dt, sol)
-    call barotropic_correction (sol)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
 
+    call RK_split (dt, sol, q1)
     call free_surface_update
-    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine Euler_split
 
   subroutine RK4_split (dt)
@@ -359,27 +354,16 @@ contains
     
     call manage_q1_mem
 
+    call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
+
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
-    call trend_ml (sol, trend)
-    call RK_split (dt/4d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
-
-    call trend_ml (q1, trend)
-    call RK_split (dt/3d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
-
-    call trend_ml (q1, trend)
-    call RK_split (dt/2d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
-
-    call trend_ml (q1, trend)
-    call RK_split (dt, sol)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
-
+    call RK_split (dt/4d0, sol, q1)
+    call RK_split (dt/3d0, q1,  q1)
+    call RK_split (dt/2d0, q1,  q1)
+    call RK_split (dt,     q1, sol)
     call free_surface_update 
-    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK4_split
   
   subroutine RK3_split (dt)
@@ -394,23 +378,15 @@ contains
     
     call manage_q1_mem
 
+    call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
+
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
-    call trend_ml (sol, trend)
-    call RK_split (dt/3d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
-
-    call trend_ml (q1, trend)
-    call RK_split (dt/2d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
-
-    call trend_ml (q1, trend)
-    call RK_split (dt, sol)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
-
+    call RK_split (dt/3d0, sol,  q1)
+    call RK_split (dt/2d0,  q1,  q1)
+    call RK_split (dt,      q1, sol)
     call free_surface_update 
-    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK3_split
 
   subroutine RK2_split (dt)
@@ -425,35 +401,40 @@ contains
     
     call manage_q1_mem
 
+    call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
+
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
-    call trend_ml (sol, trend)
-    call RK_split (dt/2d0, q1)
-    call WT_after_step (q1(:,1:zlevels), wav_coeff(:,1:zlevels))
-
-    call trend_ml (q1, trend)
-    call RK_split (dt, sol)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels))
-
+    call RK_split (dt/2d0, sol, q1)
+    call RK_split (dt,     q1, sol)
     call free_surface_update 
-    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine RK2_split
 
-  subroutine RK_split (dt, dest)
+  subroutine RK_split (dt, sol1, sol2)
     ! Explicit Euler integration of velocity and scalars used in RK4_split
     implicit none
     real(8)                           :: dt
-    type(Float_Field), dimension(:,:) :: dest
+    type(Float_Field), dimension(:,:) :: sol1
+    type(Float_Field), dimension(:,:) :: sol2
+
+    ! Ensure baroclinic free surface matches barotropic free surface
+    call barotropic_correction (sol1)
+
+    ! Compute explicit trends
+    call trend_ml (sol1, trend)
 
     ! Explicit Euler step for scalars
-    call scalar_star (dt, dest)
-
-    ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
-    call u_star (dt, dest)
+    call scalar_star (dt, sol2)
 
     ! Make layer heights and buoyancy consistent with free surface
-    call barotropic_correction (dest)
+    call barotropic_correction (sol2)
+
+    ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
+    call u_star (dt, sol2)
+    
+    ! Inverse wavelet transform onto adaptive grid
+    call WT_after_step (sol2(:,1:zlevels), wav_coeff(:,1:zlevels))
   end subroutine RK_split
 
   subroutine free_surface_update
@@ -461,17 +442,15 @@ contains
     ! (free surface correction step of RK4_split)
     implicit none
 
-    call update_array_bdry (sol(:,1:zlevels), NONE, 333)
-
     ! Backwards Euler step for new free surface, updates sol(S_MASS,zlevels+1)
     call eta_update
 
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
     call u_update
-  
-    ! Make layer heights and buoyancy consistent with free surface
-    call barotropic_correction (sol)
-end subroutine free_surface_update
+
+    ! Inverse wavelet transform onto adaptive grid
+    call WT_after_step (sol, wav_coeff, level_start-1)
+  end subroutine free_surface_update
 
   subroutine apply_penal 
     ! Apply permeability friction term to velocity as split step

@@ -177,6 +177,8 @@ contains
     integer :: k
     
     integer :: d, j, l, v
+
+    call update_vector_bdry (q(scalars(1):scalars(2),k), NONE, 29)
     
     do l = level_end, level_start, -1
        ! Compute scalar fluxes
@@ -352,7 +354,7 @@ contains
 
     integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
 
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_par = idx (i_par, j_par, offs_par, dims_par)
 
     id_chd   = idx (i_chd,   j_chd,   offs_chd, dims_chd)
     idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
@@ -552,7 +554,7 @@ contains
   end function coarse_flux
 
   subroutine cal_divu_ml (q)
-    ! Returns flux divergence of vertical integrated velocity in divF using solution q, stored in dom%divu
+    ! Returns flux divergence of velocity in divF using solution q, stored in dom%divu
     implicit none
     type(Float_Field), target :: q
     
@@ -561,7 +563,7 @@ contains
     call update_bdry (q, NONE, 50)
 
     do l = level_end, level_start, -1
-       ! Calculate vertically integrated velocity flux
+       ! Calculate velocity flux
        do d = 1, size(grid)
           h_flux => horiz_flux(S_MASS)%data(d)%elts
           velo   => q%data(d)%elts

@@ -59,25 +59,29 @@ contains
     implicit none
     type(Float_Field), dimension(:,:), target :: q
     
-    integer :: d, k, p
+    integer :: d, j, k, l, p
 
-    ! Sum mass perturbations
-    call total_height (q(S_MASS,1:zlevels), exner_fun(1))
+    call update_vector_bdry (q(S_MASS,:), NONE, 600)
 
-    do d = 1, size(grid)
-       scalar    => sol(S_MASS,zlevels+1)%data(d)%elts ! free surface perturbation
-       scalar_2d => exner_fun(1)%data(d)%elts          ! sum of mass perturbations
-       do k = 1, zlevels
-          mass   => q(S_MASS,k)%data(d)%elts
-          temp   => q(S_TEMP,k)%data(d)%elts
-          mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (cal_barotropic_correction, grid(d), p-1, k, 0, 1)
+    do l = level_end, level_start, -1
+       ! Sum mass perturbations
+       call total_height (q(S_MASS,1:zlevels), exner_fun(1))
+       do d = 1, size(grid)
+          scalar    => sol(S_MASS,zlevels+1)%data(d)%elts ! free surface perturbation
+          scalar_2d => exner_fun(1)%data(d)%elts          ! sum of mass perturbations
+          do k = 1, zlevels
+             mass   => q(S_MASS,k)%data(d)%elts
+             temp   => q(S_TEMP,k)%data(d)%elts
+             mean_m => sol_mean(S_MASS,k)%data(d)%elts
+             mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+             do p = 3, grid(d)%patch%length
+                call apply_onescale_to_patch (cal_barotropic_correction, grid(d), p-1, k, 0, 1)
+             end do
+             nullify (mass, temp, mean_m, mean_t)
           end do
-          nullify (mass, temp, mean_m, mean_t)
+          nullify (scalar, scalar_2d)
        end do
-       nullify (scalar, scalar_2d)
+       call update_vector_bdry (q(S_MASS,1:zlevels), l, 600)
     end do
     q(scalars(1):scalars(2),1:zlevels)%bdry_uptodate = .false.
   end subroutine barotropic_correction
@@ -89,24 +93,23 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-
+    
     integer :: d, id
-    real(8) :: eta, full_mass, mean_theta, theta
+    real(8) :: eta, full_mass, mean_theta, theta, dz
 
     id = idx (i, j, offs, dims) + 1
-
     if (dom%mask_n%elts(id) >= ADJZONE) then
        d = dom%id + 1
        full_mass = mean_m(id) + mass(id)
        theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
-       
+
        ! Correct mass perturbation
        eta = scalar(id) / phi_node (d, id, zlevels) ! free surface perturbation
        mass(id) = (eta - grid(d)%topo%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
 
        ! Correct mass-weighted buoyancy
        temp(id) = (mean_m(id) + mass(id)) * theta - mean_t(id)
-!!$       temp(id) = mass(id) * mean_t(id) / mean_m(id) ! assume time-independent buoyancy (e.g. no remap, constant density in each layer)
+       !       temp(id) = mass(id) * mean_t(id) / mean_m(id) ! assume time-independent buoyancy (e.g. no remap, constant density in each layer)
     end if
   end subroutine cal_barotropic_correction
 
@@ -190,6 +193,7 @@ contains
        end do
     end do
     sol(S_TEMP,zlevels+1)%bdry_uptodate = .false.
+    call update_bdry (sol(S_TEMP,zlevels+1), NONE, 100)
   end subroutine rhs_elliptic
 
   subroutine cal_rhs_elliptic (dom, i, j, zlev, offs, dims)
@@ -359,7 +363,7 @@ contains
     
     do d = 1, size(grid)
        scalar_2d => q_2d%data(d)%elts
-       q_2d%data(d)%elts = 0.0_8
+       q_2d%data(d)%elts = 0d0
        do k = 1, zlevels
           mass   => q(k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
@@ -387,7 +391,7 @@ contains
     id = idx (i, j, offs, dims) + 1
     
     if (dom%mask_n%elts(id) >= ADJZONE) then
-       dz =  (mean_m(id) + mass(id)) / porous_density (d, id, zlev)
+       dz = (mean_m(id) + mass(id)) / porous_density (d, id, zlev)
        scalar_2d(id) = scalar_2d(id) + dz
     end if
   end subroutine cal_height
@@ -434,12 +438,13 @@ contains
   subroutine grad_eta
     ! Calculates grad eta (external pressure gradient due to free surface perturbation)
     implicit none
-    integer :: d, j, k, l
+    integer :: d, j, l
 
     call update_bdry (sol(S_MASS,zlevels+1), NONE, 601)
-    
+
+    sol(S_TEMP,zlevels+1) = sol(S_MASS,zlevels+1)
+
     ! Calculate external pressure gradient
-    sol(S_TEMP,zlevels+1) = sol(S_MASS,zlevels+1) ! copy eta to avoid modification by restriction
     do l = level_end, level_start, -1 
        do d = 1, size(grid)
           h_flux => horiz_flux(S_TEMP)%data(d)%elts
