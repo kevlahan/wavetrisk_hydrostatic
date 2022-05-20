@@ -197,7 +197,7 @@ contains
          h_flux(EDGE*id+RT+1) = (scalar(idE_i) - scalar(id_i))   / dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
          h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) / dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
          h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-      elseif (itype == 2) then ! external pressure gradient flux, g * (H + eta^n) grad(eta^(n+1)) * edge_length, in elliptic operator
+      elseif (itype == 2) then ! external pressure gradient flux, (H + eta^n) grad(eta^(n+1)) * edge_length, in elliptic operator
          csq(0) = abs (dom%topo%elts(id_i))   * phi(0) + mass(id_i)
          csq(1) = abs (dom%topo%elts(idE_i))  * phi(1) + mass(idE_i)
          csq(2) = abs (dom%topo%elts(idNE_i)) * phi(2) + mass(idNE_i)
@@ -307,7 +307,7 @@ contains
          ! Kinetic energy (TRiSK formula) 
          ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
                      u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-              * dom%areas%elts(id_i)%hex_inv/4d0
+              * dom%areas%elts(id_i)%hex_inv/4
 
          ! Interpolate geopotential from interfaces to level
          Phi_k = interp (dom%geopot%elts(id_i), dom%geopot_lower%elts(id_i))
@@ -663,7 +663,12 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
+    else
+       dscalar(id_i) = 0d0
+    end if
   end subroutine scalar_trend
 
   subroutine du_source (dom, i, j, zlev, offs, dims)
@@ -679,15 +684,19 @@ contains
     real(8), dimension (3) :: Qperp_e, physics
 
     id = idx (i, j, offs, dims)
-    
-    ! Calculate Q_perp
-    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
-    ! Calculate physics
-    physics = physics_velo_source (dom, i, j, zlev, offs, dims)
+    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
+       ! Calculate Q_perp
+       Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
-    ! Trend
-    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - Qperp_e + physics * dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+       ! Calculate physics
+       physics = physics_velo_source (dom, i, j, zlev, offs, dims)
+
+       ! Trend
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - Qperp_e + physics * dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    else
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+    end if
   end subroutine du_source
 
   subroutine du_grad (dom, i, j, zlev, offs, dims)
@@ -704,33 +713,41 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    idE  = idx (i+1, j,   offs, dims) 
-    idN  = idx (i,   j+1, offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
+    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
+       idE  = idx (i+1, j,   offs, dims) 
+       idN  = idx (i,   j+1, offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
 
-    full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
-    full_temp(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
+       full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+       full_temp(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
+       
+       ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
+       ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
+       theta(0)         = full_temp(0)         / full_mass(0)
+       theta(EAST)      = full_temp(EAST)      / full_mass(EAST)
+       theta(NORTHEAST) = full_temp(NORTHEAST) / full_mass(NORTHEAST)
+       theta(NORTH)     = full_temp(NORTH)     / full_mass(NORTH)
 
-    ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
-    ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-    theta(0)         = full_temp(0)         / full_mass(0)
-    theta(EAST)      = full_temp(EAST)      / full_mass(EAST)
-    theta(NORTHEAST) = full_temp(NORTHEAST) / full_mass(NORTHEAST)
-    theta(NORTH)     = full_temp(NORTH)     / full_mass(NORTH)
+       ! Interpolate potential temperature to edges
+       theta_e(RT+1) = interp (theta(0), theta(EAST))      
+       theta_e(DG+1) = interp (theta(0), theta(NORTHEAST)) 
+       theta_e(UP+1) = interp (theta(0), theta(NORTH))     
 
-    ! Interpolate potential temperature to edges
-    theta_e(RT+1) = interp (theta(0), theta(EAST))      
-    theta_e(DG+1) = interp (theta(0), theta(NORTHEAST)) 
-    theta_e(UP+1) = interp (theta(0), theta(NORTH))     
+       ! Calculate gradients
+       gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
+       gradE = gradi_e (exner,     dom, i, j, offs, dims)
 
-    ! Calculate gradients
-    gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
-    gradE = gradi_e (exner,     dom, i, j, offs, dims)
-
-    ! Trend
-    do e = 1, EDGE
-       dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
-    end do
+       ! Trend
+       do e = 1, EDGE
+          if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
+             dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
+          else
+             dvelo(EDGE*id+e) = 0.0_8
+          end if
+       end do
+    else
+       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+    end if
   end subroutine du_grad
 
   function Qperp (dom, i, j, zlev, offs, dims)
@@ -1267,7 +1284,12 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    dscalar(id_i) = div (h_flux, dom, i, j, offs, dims)
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       dscalar(id_i) = div (h_flux, dom, i, j, offs, dims)
+    else
+       dscalar(id_i) = 0d0
+    end if
   end subroutine cal_div
 
   subroutine cal_density (dom, i, j, zlev, offs, dims)
