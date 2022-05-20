@@ -72,13 +72,6 @@ contains
 
     call complete_masks
 
-    ! Add grid points to >= ADJZONE required for TRSK operators
-    do l = level_start, level_end
-       call apply_onescale (mask_node_trsk, l, z_null, 0, 1)
-       call apply_onescale (mask_edge_trsk, l, z_null, 0, 0)
-    end do
-    call comm_masks_mpi (NONE)
-
     ! Set insignificant wavelet coefficients to zero
     if (local_type) call compress_wavelets (wav_coeff)
   end subroutine adapt

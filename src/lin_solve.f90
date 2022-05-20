@@ -39,7 +39,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
 
-    linf_loc = max (linf_loc, abs (scalar(id)))
+    if (dom%mask_n%elts(id) >= ADJZONE) linf_loc = max (linf_loc, abs (scalar(id)))
   end subroutine cal_linf_scalar
 
   real(8) function l2 (s, l)
@@ -79,7 +79,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    l2_loc = l2_loc + scalar(id_i)**2
+    if (dom%mask_n%elts(id_i) >= ADJZONE) l2_loc = l2_loc + scalar(id_i)**2
   end subroutine cal_l2_scalar
 
   subroutine cal_l2_velo (dom, i, j, zlev, offs, dims)
@@ -94,7 +94,7 @@ contains
     id = idx (i, j, offs, dims)
     do e = 1, EDGE
        id_e = EDGE*id+e
-       l2_loc = l2_loc + scalar(id_e)**2
+       if (dom%mask_e%elts(id_e) >= ADJZONE) l2_loc = l2_loc + scalar(id_e)**2
     end do
   end subroutine cal_l2_velo
 
@@ -135,7 +135,7 @@ contains
     integer :: id
 
     id = idx (i, j, offs, dims) + 1
-    dp_loc = dp_loc + scalar(id) * scalar2(id)
+    if (dom%mask_n%elts(id) >= ADJZONE) dp_loc = dp_loc + scalar(id) * scalar2(id)
   end subroutine cal_dotproduct
 
    subroutine cal_dotproduct_velo (dom, i, j, zlev, offs, dims)
@@ -150,7 +150,7 @@ contains
     id = idx (i, j, offs, dims)
     do e = 1, EDGE
        id_e = EDGE*id+e
-       dp_loc = dp_loc +  scalar(id_e) * scalar2(id_e)
+       if (dom%mask_e%elts(id_e) >= ADJZONE) dp_loc = dp_loc +  scalar(id_e) * scalar2(id_e)
     end do
   end subroutine cal_dotproduct_velo
 
@@ -216,7 +216,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    scalar3(id_i) = scalar(id_i) + mu1 * scalar2(id_i)
+    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar3(id_i) = scalar(id_i) + mu1 * scalar2(id_i)
   end subroutine cal_lc
 
   subroutine cal_lc_velo (dom, i, j, zlev, offs, dims)
@@ -231,7 +231,7 @@ contains
     id = idx (i, j, offs, dims)
     do e = 1, EDGE
        id_e = EDGE*id+e
-       scalar3(id_e) = scalar(id_e) +  mu1 * scalar2(id_e)
+       if (dom%mask_e%elts(id_e) >= ADJZONE) scalar3(id_e) = scalar(id_e) +  mu1 * scalar2(id_e)
     end do
   end subroutine cal_lc_velo
 
@@ -275,7 +275,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    scalar(id_i) = scalar(id_i) + mu1 * scalar2(id_i) + mu2*scalar3(id_i)
+    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar(id_i) = scalar(id_i) + mu1 * scalar2(id_i) + mu2*scalar3(id_i)
   end subroutine cal_lc2
   
   subroutine cal_lc2_velo (dom, i, j, zlev, offs, dims)
@@ -290,7 +290,7 @@ contains
     id = idx (i, j, offs, dims)
     do e = 1, EDGE
        id_e = EDGE*id+e
-       scalar(id_e) = scalar(id_e) + mu1 * scalar2(id_e) + mu2*scalar3(id_e)
+       if (dom%mask_e%elts(id_e) >= ADJZONE) scalar(id_e) = scalar(id_e) + mu1 * scalar2(id_e) + mu2*scalar3(id_e)
     end do
   end subroutine cal_lc2_velo
 
@@ -341,7 +341,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    scalar2(id_i) = scalar(id_i) - scalar2(id_i)
+    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar2(id_i) = scalar(id_i) - scalar2(id_i)
   end subroutine cal_res
 
   subroutine cal_res_velo (dom, i, j, zlev, offs, dims)
@@ -356,7 +356,7 @@ contains
     id = idx (i, j, offs, dims)
     do e = 1, EDGE
        id_e = EDGE*id+e
-       scalar2(id_e) = scalar(id_e) - scalar2(id_e)
+       if (dom%mask_e%elts(id_e) >= ADJZONE) scalar2(id_e) = scalar(id_e) - scalar2(id_e)
     end do
   end subroutine cal_res_velo
 
@@ -395,7 +395,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    scalar(id_i) = 0.0_8
+    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar(id_i) = 0.0_8
   end subroutine cal_set_zero
 
   subroutine cal_set_zero_velo (dom, i, j, zlev, offs, dims)
@@ -410,7 +410,7 @@ contains
     id = idx (i, j, offs, dims)
     do e = 1, EDGE
        id_e = EDGE*id+e
-       scalar(id_e) = 0.0_8
+       if (dom%mask_e%elts(id_e) >= ADJZONE) scalar(id_e) = 0.0_8
     end do
   end subroutine cal_set_zero_velo
 
@@ -437,7 +437,7 @@ contains
        ! Reconstruct scalar at finer nodes not existing at coarser grid by interpolation
        do d = 1, size(grid)
           scalar => scaling%data(d)%elts
-          call apply_interscale_d (interpolate, grid(d), coarse, z_null, -1, 1)
+          call apply_interscale_d (interpolate, grid(d), coarse, z_null, 0, 0)
           nullify (scalar)
        end do
        scaling%bdry_uptodate = .false.
@@ -508,7 +508,7 @@ contains
     scalar(idN_chd+1)  = Interp_node (dom,  idN_chd,    id_chd, id2N_chd,  id2W_chd, id2NE_chd)  
   end subroutine interpolate
 
-  subroutine interpolate_outer_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+   subroutine interpolate_outer_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Reconstruct velocity at outer fine edges not existing on coarse grid
     use wavelet_mod
     type(Domain)                   :: dom
@@ -560,38 +560,8 @@ contains
     velo(EDGE*idNE_chd+UP+1) = u_inner(6) 
   end subroutine interpolate_inner_velo
 
-  subroutine restriction (scaling, coarse)
-    ! Restrict scaling from fine scale coarse+1 to coarse scale coarse
-    use wavelet_mod
-    implicit none
-    integer                   :: coarse
-    type(Float_Field), target :: scaling
-
-    integer :: d, fine
-
-    fine = coarse + 1
-
-    ! Compute scalar wavelet coefficients
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       wc_s   => wav_coeff(S_MASS,1)%data(d)%elts
-       call apply_interscale_d (compute_scalar_wavelets, grid(d), coarse, z_null, 0, 0)
-       nullify (scalar, wc_s)
-    end do
-    wav_coeff(S_MASS,1)%bdry_uptodate = .false.
-    call update_bdry (wav_coeff(S_MASS,1), fine, 562)
-
-    ! Restrict (sub-sample and lift) to coarser grid
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       wc_s   => wav_coeff(S_MASS,1)%data(d)%elts
-       call apply_interscale_d (restrict_scalar, grid(d), coarse, z_null, 0, 1) ! +1 to include poles
-       nullify (scalar, wc_s)
-    end do
-  end subroutine restriction
-
   subroutine multiscale (u, f, Lu)
-    ! Solves linear equation L(u) = f using a simple multiscale algorithm with Scheduled Relaxation Jacobi iterations as the smoother
+    ! Solves linear equation L(u) = f using a simple multiscale algorithm with Scheduled Rexation Jacobi iterations as the smoother
     implicit none
     type(Float_Field), target :: f, u
 
@@ -643,13 +613,13 @@ contains
        if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
     end do
 
-    call jacobi (u, f, nrm_f(level_end), Lu, level_end, fine_iter, r_error(2,level_end), iter(level_end))
-    do l = level_end-1, level_start+1, -1
-       call restriction (u, l)
+    l = level_start
+    call bicgstab (u, f, nrm_f(l), Lu, l, coarse_iter, r_error(2,l), iter(l))
+    do l = level_start+1, level_end
+       call prolongation (u, l)
        call jacobi (u, f, nrm_f(l), Lu, l, fine_iter, r_error(2,l), iter(l))
     end do
-    call bicgstab (u, f, nrm_f(level_start), Lu, level_start, coarse_iter, r_error(2,level_start), iter(level_start))
-    
+
     if (log_iter) then
        do l = level_start, level_end
           if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i6, " iterations")') &
@@ -660,6 +630,7 @@ contains
     deallocate (w)
   end subroutine multiscale
 
+ 
   subroutine jacobi (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
     ! Max_iter Jacobi iterations for smoothing multigrid iterations
     ! uses Scheduled Relaxation Jacobi (SJR) iterations (Yang and Mittal JCP 274, 2014)
@@ -740,40 +711,42 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    d = dom%id + 1
-    depth = abs (dom%topo%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       d = dom%id + 1
+       depth = abs (dom%topo%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
 
-    if (.not. exact) then ! average value 
-       wgt = 2d0 * sqrt (3d0) * depth
-    else ! true local value
-       idE  = idx (i+1, j,   offs, dims) 
-       idNE = idx (i+1, j+1, offs, dims) 
-       idN  = idx (i,   j+1, offs, dims) 
-       idW  = idx (i-1, j,   offs, dims) 
-       idSW = idx (i-1, j-1, offs, dims) 
-       idS  = idx (i,   j-1, offs, dims)
+       if (.not. exact) then ! average value 
+          wgt = 2d0 * sqrt (3d0) * depth
+       else ! true local value
+          idE  = idx (i+1, j,   offs, dims) 
+          idNE = idx (i+1, j+1, offs, dims) 
+          idN  = idx (i,   j+1, offs, dims) 
+          idW  = idx (i-1, j,   offs, dims) 
+          idSW = idx (i-1, j-1, offs, dims) 
+          idS  = idx (i,   j-1, offs, dims)
+       
+          depth_e = abs (dom%topo%elts(idE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idE+1) / phi_node (d, idE+1, zlevels)
+          wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
 
-       depth_e = abs (dom%topo%elts(idE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idE+1) / phi_node (d, idE+1, zlevels)
-       wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
+          depth_e = abs (dom%topo%elts(idNE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idNE+1) / phi_node (d, idNE+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
 
-       depth_e = abs (dom%topo%elts(idNE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idNE+1) / phi_node (d, idNE+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
+          depth_e = abs (dom%topo%elts(idN+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idN+1) / phi_node (d, idN+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
 
-       depth_e = abs (dom%topo%elts(idN+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idN+1) / phi_node (d, idN+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
+          depth_e = abs (dom%topo%elts(idW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idW+1) / phi_node (d, idW+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
 
-       depth_e = abs (dom%topo%elts(idW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idW+1) / phi_node (d, idW+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
+          depth_e = abs (dom%topo%elts(idSW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idSW+1) / phi_node (d, idSW+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
 
-       depth_e = abs (dom%topo%elts(idSW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idSW+1) / phi_node (d, idSW+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
+          depth_e = abs (dom%topo%elts(idS+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idS+1) / phi_node (d, idS+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
+       end if
+       Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
 
-       depth_e = abs (dom%topo%elts(idS+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idS+1) / phi_node (d, idS+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
+       scalar(id_i) = scalar(id_i) + w(ii) * scalar2(id_i) / (theta1*theta2 * Laplace_diag - 1d0)
     end if
-    Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
-
-    scalar(id_i) = scalar(id_i) + w(ii) * scalar2(id_i) / (theta1*theta2 * Laplace_diag - 1d0)
   end subroutine cal_jacobi
 
   subroutine bicgstab (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
