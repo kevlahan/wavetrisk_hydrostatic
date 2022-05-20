@@ -307,7 +307,7 @@ contains
          ! Kinetic energy (TRiSK formula) 
          ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
                      u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-              * dom%areas%elts(id_i)%hex_inv/4d0
+              * dom%areas%elts(id_i)%hex_inv/4
 
          ! Interpolate geopotential from interfaces to level
          Phi_k = interp (dom%geopot%elts(id_i), dom%geopot_lower%elts(id_i))
@@ -664,7 +664,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id_i) >= TRSK) then
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
        dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
     else
        dscalar(id_i) = 0d0
@@ -685,7 +685,7 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= TRSK) then
+    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
        ! Calculate Q_perp
        Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
@@ -713,7 +713,7 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= TRSK) then
+    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
        idE  = idx (i+1, j,   offs, dims) 
        idN  = idx (i,   j+1, offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
@@ -739,7 +739,7 @@ contains
 
        ! Trend
        do e = 1, EDGE
-          if (dom%mask_e%elts(EDGE*id+e) >= TRSK) then
+          if (dom%mask_e%elts(EDGE*id+e) >= ADJZONE) then
              dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
           else
              dvelo(EDGE*id+e) = 0.0_8
@@ -1285,7 +1285,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id_i) >= TRSK) then 
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
        dscalar(id_i) = div (h_flux, dom, i, j, offs, dims)
     else
        dscalar(id_i) = 0d0
