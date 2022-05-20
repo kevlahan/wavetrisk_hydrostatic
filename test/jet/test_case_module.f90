@@ -274,7 +274,6 @@ contains
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
-       write (6,'(A,L1)')     "perfect                        = ", perfect
        write (6,'(A,es10.4)') "tolerance                      = ", tol
        write (6,'(a,i5)')     "iadapt                         = ", iadapt
        write (6,'(A,i1)')     "optimize_grid                  = ", optimize_grid

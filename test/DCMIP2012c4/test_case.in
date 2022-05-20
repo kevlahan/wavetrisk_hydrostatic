@@ -9,7 +9,6 @@ remapscalar_type   PPR           ! remap method for scalars  (0, 1, 2PPM, 2S, 2W
 remapvelo_type     PPR           ! remap method for velocity (0, 1, 2PPM, 2S, 2W, 4, PPR)
 iremap             2             ! remap every iremap time steps
 default_thresholds T             ! use default tolerances (T) or calculate tolerances dynamically (F)
-perfect            F             ! use perfect reconstruction criterion (T) or less conservative wavetrisk criterion (F)
 tol      	   3e-2          ! non-dimensional tolerance
 optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)

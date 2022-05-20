@@ -451,7 +451,6 @@ contains
     read (fid,*) varname, remapvelo_type
     read (fid,*) varname, iremap
     read (fid,*) varname, default_thresholds
-    read (fid,*) varname, perfect
     read (fid,*) varname, tol
     read (fid,*) varname, optimize_grid
     read (fid,*) varname, adapt_dt
@@ -537,7 +536,6 @@ contains
        write (6,'(a,a)')      "remapvelo_type      = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap              = ", iremap
        write (6,'(a,l1)')     "default_thresholds  = ", default_thresholds
-       write (6,'(a,l1)')     "perfect             = ", perfect
        write (6,'(a,es10.4)') "tolerance           = ", tol
        write (6,'(a,i1)')     "optimize_grid       = ", optimize_grid
        write (6,'(a,l1)')     "adapt_dt            = ", adapt_dt

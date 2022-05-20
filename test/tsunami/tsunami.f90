@@ -21,45 +21,68 @@ program Tsunami
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
   radius         = 6371.229d0 * KM              ! mean radius of the Earth
-  grav_accel     = 9.80616d0  * METRE/SECOND**2 ! gravitational acceleration 
-  omega          = 7.29211d-5 * RAD/SECOND      ! Earth’s angular velocity 
+  grav_accel     = 9.80616d0  * METRE/SECOND**2 ! gravitational acceleration
+  omega          = 7.29211d-5 * RAD/SECOND      ! Earth’s angular velocity
   ref_density    = 1027d0     * KG/METRE**3     ! reference density (seawater)
 
   ! Bathymetry parameters
-  min_depth      = -50d0  * METRE               ! minimum allowed depth (must be negative)
-  max_depth      = -4d0   * KM                  ! maximum allowed depth (must be negative)
+  min_depth      =  0d0 * METRE                 ! minimum allowed depth (must be negative)
+  max_depth      = -4d0 * KM                    ! maximum allowed depth (must be negative)
+  pert_radius    =  radius/6d0                    ! radius of Gaussian free surface perturbation
   etopo_res      = 4                            ! resolution of etopo data in arcminutes (if used)
-  penalize       = .true.                       ! penalize land regions 
-  etopo_coast    = .true.                       ! use etopo data for coastlines (i.e. penalization)
-  etopo_bathy    = .true.                       ! use etopo data for bathymetry
+  penalize       = .false.                      ! penalize land regions 
+  etopo_coast    = .false.                      ! use etopo data for coastlines (i.e. penalization)
+  etopo_bathy    = .false.                      ! use etopo data for bathymetry
   npts_penal     = 4d0                          ! smooth penalization mask over npts_penal grid points
   npts_topo      = 4d0                          ! smooth over topography over npts_topo grid points	
 
-  dH             =  7d0   * METRE               ! initial perturbation to the free surface
-  pert_radius    =  1d3 * KM                    ! radius of Gaussian free surface perturbation
+  dH             =  7d-3  * METRE               ! initial perturbation to the free surface
   lon_c          = -50d0  * DEG                 ! longitude location of perturbation
   lat_c          =  25d0  * DEG                 ! latitude  location of perturbation
+  f0             = 2d0 * omega * sin (lat_c)    ! Coriolis parameter
 
+  ! Inertia-gravity wave test case
+  radius         = 16d0/(2d0*MATH_PI) 
+  grav_accel     = 1d0 
+  dH             = 0.1d0          
+  omega          = 1d0/(2d0*sin(45d0*DEG))
+  k_wave         = 4d0 * MATH_PI
+  width          = 1d0/(16d0/(2d0*MATH_PI)) * 1d0
+  f0             = 1d0
+  lat_c          = 25d0  * DEG                 ! latitude  location of perturbation
+  max_depth      = -1d0                         ! maximum allowed depth (must be negative)
+  
   ! Parameters for 2D projection
   N              = 1024                         ! size of lat-lon grid in 2D projection
   lon_lat_range  = (/2d0*MATH_PI, MATH_PI/)     ! region to save in 2D projection
 
   ! Numerical parameters
-  mode_split         = .false.                  ! use explicit time step for accuracy
+  mode_split         = .true.                  ! use explicit time step for accuracy
   compressible       = .false.                  ! incompressible
   adapt_dt           = .true.                   ! adapt time step
-  remap              = .false.                  ! remap vertical layers
-  timeint_type       = "RK33"                   ! time scheme
-  cfl_num            = 1d0                      ! CFL number
-  Laplace_order_init = 2                        ! viscosity type
+  remap              = .true.                  ! remap vertical layers
+  iremap             = 4                        ! remap frequency
+  timeint_type       = "RK4"                    ! time scheme
+  Laplace_order_init = 1                        ! viscosity type
   log_mass           = .true.                   ! mass diagnostics
+
+  if (mode_split) then
+     !cfl_num = 20d0
+     cfl_num = 10d0
+  else
+     cfl_num = 1d0
+  end if
+
+  log_iter = .true.
 
   ! Dimensional scaling
   wave_speed         = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
-  Udim               = wave_speed                   ! velocity scale
-  Ldim               = 2d0 * pert_radius              ! length scale (free surface perturbation width)
-  Tdim               = Ldim/Udim                    ! time scale
-  Hdim               = abs (max_depth)              ! vertical length scale
+  Udim               = wave_speed                       ! velocity scale
+  Ldim               = 2d0 * pert_radius                ! length scale (free surface perturbation width)
+  Tdim               = Ldim/Udim                        ! time scale
+  Hdim               = abs (max_depth)                  ! vertical length scale
+
+  Udim = dH
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
@@ -73,7 +96,10 @@ program Tsunami
 
   ! Save initial conditions
   call print_test_case_parameters
+
   call write_and_export (iwrite)
+
+  iadapt = 1
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
@@ -86,6 +112,8 @@ program Tsunami
 
      call print_log
 
+     !iwrite = iwrite + 1; call write_and_export (iwrite)
+     
      if (aligned) then
         iwrite = iwrite + 1
         if (remap) call remap_vertical_coordinates
