@@ -41,17 +41,6 @@ program Tsunami
   lat_c          =  25d0  * DEG                 ! latitude  location of perturbation
   f0             = 2d0 * omega * sin (lat_c)    ! Coriolis parameter
 
-  ! Inertia-gravity wave test case
-  radius         = 16d0/(2d0*MATH_PI) 
-  grav_accel     = 1d0 
-  dH             = 0.1d0          
-  omega          = 1d0/(2d0*sin(45d0*DEG))
-  k_wave         = 4d0 * MATH_PI
-  width          = 1d0/(16d0/(2d0*MATH_PI)) * 1d0
-  f0             = 1d0
-  lat_c          = 25d0  * DEG                 ! latitude  location of perturbation
-  max_depth      = -1d0                         ! maximum allowed depth (must be negative)
-  
   ! Parameters for 2D projection
   N              = 1024                         ! size of lat-lon grid in 2D projection
   lon_lat_range  = (/2d0*MATH_PI, MATH_PI/)     ! region to save in 2D projection
@@ -60,14 +49,13 @@ program Tsunami
   mode_split         = .true.                  ! use explicit time step for accuracy
   compressible       = .false.                  ! incompressible
   adapt_dt           = .true.                   ! adapt time step
-  remap              = .true.                  ! remap vertical layers
+  remap              = .false.                  ! remap vertical layers
   iremap             = 4                        ! remap frequency
   timeint_type       = "RK4"                    ! time scheme
   Laplace_order_init = 1                        ! viscosity type
   log_mass           = .true.                   ! mass diagnostics
 
   if (mode_split) then
-     !cfl_num = 20d0
      cfl_num = 10d0
   else
      cfl_num = 1d0
