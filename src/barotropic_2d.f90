@@ -460,7 +460,6 @@ contains
 
   subroutine vertical_velocity
     ! Computes vertical velocity at nodes, stored in  trend(S_MASS,k)
-    use adapt_mod
     implicit none
     integer :: d, j, k, l, p
 
