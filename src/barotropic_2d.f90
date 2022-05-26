@@ -61,7 +61,8 @@ contains
     
     integer :: d, j, k, l, p
 
-    call update_vector_bdry (q(S_MASS,:), NONE, 600)
+    call update_bdry (sol(S_MASS,zlevels+1), NONE, 600)
+    call update_array_bdry (q(scalars(1):scalars(2),1:zlevels), NONE, 600)
 
     do l = level_end, level_start, -1
        ! Sum mass perturbations
@@ -81,7 +82,7 @@ contains
           end do
           nullify (scalar, scalar_2d)
        end do
-       call update_vector_bdry (q(S_MASS,1:zlevels), l, 600)
+       call update_array_bdry (q(scalars(1):scalars(2),1:zlevels), l, 600)
     end do
     q(scalars(1):scalars(2),1:zlevels)%bdry_uptodate = .false.
   end subroutine barotropic_correction
