@@ -1285,11 +1285,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       dscalar(id_i) = div (h_flux, dom, i, j, offs, dims)
-    else
-       dscalar(id_i) = 0d0
-    end if
+    dscalar(id_i) = div (h_flux, dom, i, j, offs, dims)
   end subroutine cal_div
 
   subroutine cal_density (dom, i, j, zlev, offs, dims)
