@@ -61,12 +61,8 @@ contains
     
     integer :: d, j, k, l, p
 
-    call update_bdry (sol(S_MASS,zlevels+1), NONE, 600)
-    call update_array_bdry (q(scalars(1):scalars(2),1:zlevels), NONE, 600)
-
     do l = level_end, level_start, -1
-       ! Sum mass perturbations
-       call total_height (q(S_MASS,1:zlevels), exner_fun(1))
+       call total_height (q(S_MASS,1:zlevels), exner_fun(1)) ! sum mass perturbations
        do d = 1, size(grid)
           scalar    => sol(S_MASS,zlevels+1)%data(d)%elts ! free surface perturbation
           scalar_2d => exner_fun(1)%data(d)%elts          ! sum of mass perturbations
@@ -82,7 +78,6 @@ contains
           end do
           nullify (scalar, scalar_2d)
        end do
-       call update_array_bdry (q(scalars(1):scalars(2),1:zlevels), l, 600)
     end do
     q(scalars(1):scalars(2),1:zlevels)%bdry_uptodate = .false.
   end subroutine barotropic_correction
