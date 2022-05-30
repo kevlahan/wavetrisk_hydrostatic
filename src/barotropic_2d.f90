@@ -62,7 +62,7 @@ contains
     integer :: d, j, k, l, p
 
     do l = level_end, level_start, -1
-       call total_height (q(S_MASS,1:zlevels), exner_fun(1)) ! sum mass perturbations
+       call total_height (q(S_MASS,1:zlevels), exner_fun(1), l) ! sum mass perturbations
        do d = 1, size(grid)
           scalar    => sol(S_MASS,zlevels+1)%data(d)%elts ! free surface perturbation
           scalar_2d => exner_fun(1)%data(d)%elts          ! sum of mass perturbations
@@ -71,15 +71,17 @@ contains
              temp   => q(S_TEMP,k)%data(d)%elts
              mean_m => sol_mean(S_MASS,k)%data(d)%elts
              mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-             do p = 3, grid(d)%patch%length
-                call apply_onescale_to_patch (cal_barotropic_correction, grid(d), p-1, k, 0, 1)
+             ! do p = 3, grid(d)%patch%length
+             !    call apply_onescale_to_patch (cal_barotropic_correction, grid(d), p-1, k, 0, 1)
+             ! end do
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_barotropic_correction, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
              nullify (mass, temp, mean_m, mean_t)
           end do
           nullify (scalar, scalar_2d)
        end do
     end do
-    q(scalars(1):scalars(2),1:zlevels)%bdry_uptodate = .false.
   end subroutine barotropic_correction
 
   subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
@@ -92,21 +94,20 @@ contains
     
     integer :: d, id
     real(8) :: eta, full_mass, mean_theta, theta, dz
-
+    
     id = idx (i, j, offs, dims) + 1
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       d = dom%id + 1
-       full_mass = mean_m(id) + mass(id)
-       theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
+    d = dom%id + 1
+    
+    full_mass = mean_m(id) + mass(id)
+    theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
 
-       ! Correct mass perturbation
-       eta = scalar(id) / phi_node (d, id, zlevels) ! free surface perturbation
-       mass(id) = (eta - grid(d)%topo%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
+    ! Correct mass perturbation
+    eta = scalar(id) / phi_node (d, id, zlevels) ! free surface perturbation
+    mass(id) = (eta - grid(d)%topo%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
 
-       ! Correct mass-weighted buoyancy
-       temp(id) = (mean_m(id) + mass(id)) * theta - mean_t(id)
-       !       temp(id) = mass(id) * mean_t(id) / mean_m(id) ! assume time-independent buoyancy (e.g. no remap, constant density in each layer)
-    end if
+    ! Correct mass-weighted buoyancy
+    temp(id) = (mean_m(id) + mass(id)) * theta - mean_t(id)
+    !       temp(id) = mass(id) * mean_t(id) / mean_m(id) ! assume time-independent buoyancy (e.g. no remap, constant density in each layer)
   end subroutine cal_barotropic_correction
 
   subroutine eta_update
@@ -349,13 +350,14 @@ contains
     end do
   end subroutine Laplacian_eta
 
-  subroutine total_height (q, q_2d)
+  subroutine total_height (q, q_2d, l)
     ! Total height q_2d computed from pseudo-densities q
     implicit none
+    integer :: l
     type(Float_Field),               target :: q_2d
     type(Float_Field), dimension(:), target :: q
 
-    integer :: d, k, p
+    integer :: d, j, k
     
     do d = 1, size(grid)
        scalar_2d => q_2d%data(d)%elts
@@ -363,8 +365,8 @@ contains
        do k = 1, zlevels
           mass   => q(k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (cal_height, grid(d), p-1, k, 0, 1)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_height, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
           end do
           nullify (mass, mean_m)
        end do
@@ -386,10 +388,8 @@ contains
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
     
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       dz = (mean_m(id) + mass(id)) / porous_density (d, id, zlev)
-       scalar_2d(id) = scalar_2d(id) + dz
-    end if
+    dz = (mean_m(id) + mass(id)) / porous_density (d, id, zlev)
+    scalar_2d(id) = scalar_2d(id) + dz
   end subroutine cal_height
 
   subroutine cpt_or_restr_eta (dom, l)
@@ -548,31 +548,29 @@ contains
     integer                        :: d, id, id_i, k
     real(8)                        :: deta_dt, rho
     real(8), dimension (0:zlevels) :: w 
-    
+
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       d = dom%id + 1
-       deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
-       
-       ! Vertical velocity at layer interfaces
-       w(0) = 0.0_8; w(zlevels) = 0.0_8 ! impose zero vertical velocity at bottom and top
-       do k = 1, zlevels-1
-          w(k) = w(k-1) - exner_fun(k)%data(d)%elts(id_i)
-       end do
+    d = dom%id + 1
+    deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
 
-       ! Interpolate to nodes and remove density
-       do k = zlevels, 1, -1
-          rho = porous_density (d, id_i, k)
-          w(k) = interp (w(k-1), w(k)) / rho
-       end do
-       
-       ! Compute vertical velocity relative to z coordinate
-       do k = 1, zlevels
-          trend(S_TEMP,k)%data(d)%elts(id_i) = w(k) + proj_vel_vertical ()
-       end do
-    end if
+    ! Vertical velocity at layer interfaces
+    w(0) = 0.0_8; w(zlevels) = 0.0_8 ! impose zero vertical velocity at bottom and top
+    do k = 1, zlevels-1
+       w(k) = w(k-1) - exner_fun(k)%data(d)%elts(id_i)
+    end do
+
+    ! Interpolate to nodes and remove density
+    do k = zlevels, 1, -1
+       rho = porous_density (d, id_i, k)
+       w(k) = interp (w(k-1), w(k)) / rho
+    end do
+
+    ! Compute vertical velocity relative to z coordinate
+    do k = 1, zlevels
+       trend(S_TEMP,k)%data(d)%elts(id_i) = w(k) + proj_vel_vertical ()
+    end do
   contains
     real(8) function proj_vel_vertical ()
       ! Computes grad_zonal(z) * u_zonal + grad_merid(z) * u_merid at hexagon centres for vertical velocity computation.
@@ -625,28 +623,26 @@ contains
     
     id_i = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       d = dom%id + 1
+    d = dom%id + 1
 
-       if (sigma_z) then
-          eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
-          z_s = dom%topo%elts(id_i)
-          z = z_coords (eta, z_s) ! set a_vert
-       end if
-
-       deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
-       
-       omega(0) = 0.0_8; omega(zlevels) = 0.0_8 ! impose zero flux at bottom and top
-       do k = 1, zlevels-1
-          omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
-       end do
-       do k = zlevels, 1, -1
-          rho = porous_density (d, id_i, k)
-          omega(k) = interp (omega(k-1), omega(k)) / rho
-       end do
-       do k = 1, zlevels
-          trend(S_TEMP,k)%data(d)%elts(id_i) = omega(k)
-       end do
+    if (sigma_z) then
+       eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+       z_s = dom%topo%elts(id_i)
+       z = z_coords (eta, z_s) ! set a_vert
     end if
+
+    deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
+
+    omega(0) = 0.0_8; omega(zlevels) = 0.0_8 ! impose zero flux at bottom and top
+    do k = 1, zlevels-1
+       omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
+    end do
+    do k = zlevels, 1, -1
+       rho = porous_density (d, id_i, k)
+       omega(k) = interp (omega(k-1), omega(k)) / rho
+    end do
+    do k = 1, zlevels
+       trend(S_TEMP,k)%data(d)%elts(id_i) = omega(k)
+    end do
   end subroutine cal_omega
 end module barotropic_2d_mod

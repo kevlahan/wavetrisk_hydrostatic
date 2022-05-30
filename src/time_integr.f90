@@ -327,23 +327,6 @@ contains
     end do
   end subroutine manage_RK_mem
 
-  subroutine Euler_split (dt)
-    ! Euler time step for barotropic mode splitting
-    ! Stable for CFL<1, first order
-    implicit none        
-    real(8) :: dt
-
-    ! Ensure baroclinic free surface matches barotropic free surface
-    call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
-    call barotropic_correction (sol)
-
-    ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
-
-    call RK_split (dt, sol, sol)
-    call free_surface_update
-  end subroutine Euler_split
-
   subroutine RK4_split (dt)
     ! Low storage four stage Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
     ! Fourth order accurate for linear equations, second order accurate for nonlinear equations.
@@ -356,7 +339,6 @@ contains
     
     call manage_q1_mem
 
-    ! Ensure baroclinic free surface matches barotropic free surface
     call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
     call barotropic_correction (sol)
 
@@ -382,7 +364,6 @@ contains
     
     call manage_q1_mem
 
-    ! Ensure baroclinic free surface matches barotropic free surface
     call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
     call barotropic_correction (sol)
 
@@ -407,7 +388,6 @@ contains
     
     call manage_q1_mem
 
-    ! Ensure baroclinic free surface matches barotropic free surface
     call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
     call barotropic_correction (sol)
 
@@ -419,6 +399,22 @@ contains
     call free_surface_update 
   end subroutine RK2_split
 
+  subroutine Euler_split (dt)
+    ! Euler time step for barotropic mode splitting
+    ! Stable for CFL<1, first order
+    implicit none        
+    real(8) :: dt
+
+    call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
+    call barotropic_correction (sol)
+
+    ! Compute flux divergence of vertically integrated velocity at previous time step
+    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+
+    call RK_split (dt, sol, sol)
+    call free_surface_update
+  end subroutine Euler_split
+
   subroutine RK_split (dt, sol1, sol2)
     ! Explicit Euler integration of velocity and scalars used in RK4_split
     implicit none
@@ -427,34 +423,30 @@ contains
     type(Float_Field), dimension(:,:) :: sol2
 
     ! Compute explicit trends
+    !call barotropic_correction (sol1)
     call trend_ml (sol1, trend)
-
+    
     ! Explicit Euler step for scalars
     call scalar_star (dt, sol2)
-
-    ! Make layer heights and buoyancy consistent with free surface
-    call barotropic_correction (sol2)
-
+    
     ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
     call u_star (dt, sol2)
-    
-    ! Inverse wavelet transform onto adaptive grid
+        
+    ! Inverse wavelet transform of solution onto adaptive grid
     call WT_after_step (sol2(:,1:zlevels), wav_coeff(:,1:zlevels))
   end subroutine RK_split
 
   subroutine free_surface_update
     ! Backwards Euler implicit calculation of new free surface and correction of velocity and scalars
-    ! (free surface correction step of RK4_split)
     implicit none
 
     ! Backwards Euler step for new free surface, updates sol(S_MASS,zlevels+1)
     call eta_update
-    call barotropic_correction (sol)
     
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
     call u_update
 
-    ! Inverse wavelet transform onto adaptive grid
+    ! Inverse wavelet transform of solution onto adaptive grid
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine free_surface_update
 
