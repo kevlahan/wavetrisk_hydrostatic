@@ -340,7 +340,6 @@ contains
     call manage_q1_mem
 
     call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
-    call barotropic_correction (sol)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
@@ -365,7 +364,6 @@ contains
     call manage_q1_mem
 
     call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
-    call barotropic_correction (sol)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
@@ -389,7 +387,6 @@ contains
     call manage_q1_mem
 
     call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
-    call barotropic_correction (sol)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
@@ -406,7 +403,6 @@ contains
     real(8) :: dt
 
     call update_array_bdry (sol(:,1:zlevels+1), NONE, 333)
-    call barotropic_correction (sol)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
@@ -423,7 +419,7 @@ contains
     type(Float_Field), dimension(:,:) :: sol2
 
     ! Compute explicit trends
-    !call barotropic_correction (sol1)
+    call barotropic_correction (sol1)
     call trend_ml (sol1, trend)
     
     ! Explicit Euler step for scalars
