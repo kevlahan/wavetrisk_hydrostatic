@@ -223,7 +223,7 @@ module shared_mod
   real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
   real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
-  real(8)                                       :: e_min, Kt_0, Kv_0, rb_0
+  real(8)                                       :: e_min, Kt_const, Kt_0, Kv_0, Kv_bottom, rb_0
   real(8)                                       :: theta1, theta2, tol_elliptic, tol_jacobi, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
@@ -395,6 +395,8 @@ contains
     e_min               = 1d-6      * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
     Kt_0                = 1.2d-5    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy diffusion
     Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
+    Kt_const            = 1d-6      * METRE**2 / SECOND           ! analytic value for eddy diffusion (tke_closure = .false.)
+    Kv_bottom           = 2d-3      * METRE**2 / SECOND           ! analytic value for eddy viscosity (tke_closure = .false.)
     lambda_1            = 5.9520d-2                               ! cabbeling coefficient in T^2
     lambda_2            = 5.4914d-4                               ! cabbeling coefficient in S^2
     max_depth           = 4d0       * KM                          ! maximum depth 

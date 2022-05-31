@@ -12,6 +12,8 @@ module vert_diffusion_mod
   !        flux_b, flux_t   (bottom and top buoyancy sources)
   !        wind_tau, wind_f (magnitude of wind stress tau and wind drag)
   !        r                (bottom friction)
+  !
+  ! Set tke_closure = .true. and Kt_const = Kv_bottom = 0 to turn off vertical diffusion, but include wind stress/bottom friction.
   use init_mod
   use utils_mod
   implicit none
@@ -19,10 +21,6 @@ module vert_diffusion_mod
   logical, parameter :: implicit     = .true. ! use backwards Euler (T) or forward Euler (F)
   logical, parameter :: surf_wave    = .true. ! use surface wave parameterization (T) or default (F)
   logical, parameter :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
-  
-  ! Parameters for analytic eddy viscosity/diffusion scheme (e_min, Kt_0, Kv_0 defaults set in shared.f90)
-  real(8), parameter :: Kv_bottom = 2d-3
-  real(8), parameter :: Kt_const  = 1d-6
 
   ! Parameters for TKE closure eddy viscosity/diffusion scheme
   real(8), parameter :: c_e      = 1d0               
