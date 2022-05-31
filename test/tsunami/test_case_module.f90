@@ -198,8 +198,51 @@ contains
     end if
 
     ! Set initial velocity field to zero
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
+    !sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
+    call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
   end subroutine init_sol
+
+  subroutine vel_fun (lon, lat, u, v)
+    ! Zonal latitude-dependent wind
+    implicit none
+    real(8) :: lon, lat, u, v
+
+    real(8) :: envelope
+
+    envelope = exp__flush (-((lat-lat_c)**2 + (lon-lon_c)**2)/width**2)
+    
+    u = dH * cos (k_wave * (lon-lon_c)) * envelope ! Zonal component
+    v = dH*f0/k_wave * sin (k_wave * (lon-lon_c)) * envelope ! Meridional velocity component
+  end subroutine vel_fun
+
+  subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
+    ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+    external                        :: vel_fun
+
+    integer      :: d, id, idE, idN, idNE
+    type (Coord) :: x_i, x_E, x_N, x_NE
+
+    d = dom%id+1
+
+    id   = idx(i,   j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+
+    x_i  = dom%node%elts(id+1)
+    x_E  = dom%node%elts(idE+1)
+    x_N  = dom%node%elts(idN+1)
+    x_NE = dom%node%elts(idNE+1)
+
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel (vel_fun, x_i,  x_E)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel (vel_fun, x_NE, x_i)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel (vel_fun, x_i,  x_N)
+  end subroutine vel2uvw
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     implicit none
@@ -241,12 +284,17 @@ contains
 
     real(8)            :: lon, lat
     real(8), parameter :: n_lat = 20d0, n_lon = 2d0
-    
+    real(8) :: envelope
+
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
-    init_free_surface = dH * exp__flush (- abs((lat-lat_c)/(pert_radius/radius))**n_lat &
-         - abs((lon-lon_c)/(pert_radius/radius/40d0))**n_lon)
+    ! init_free_surface = dH * exp__flush (- abs((lat-lat_c)/(pert_radius/radius))**n_lat &
+    !      - abs((lon-lon_c)/(pert_radius/radius/40d0))**n_lon)
+
+    envelope = exp__flush (-((lat-lat_c)**2 + (lon-lon_c)**2)/width**2)
+
+    init_free_surface = dH * cos (k_wave * (lon-lon_c)) * envelope 
   end function init_free_surface
 
   real(8) function buoyancy_init (x_i, zlev)
@@ -274,6 +322,7 @@ contains
     else
        call cal_lnorm_sol (sol, order)
        threshold_new = tol*lnorm
+       threshold_new(S_MASS,:) = wave_speed * lnorm(S_VELO,:) * tol
        ! Correct for zero velocity case
        do k = 1, zlevels
           if (threshold_new(S_MASS,k) == 0d0) threshold_new(S_MASS,k) = 1d16
@@ -295,16 +344,15 @@ contains
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
-    real(8) :: dz
 
     allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
 
-    dz = Hdim/zlevels
-
-    lnorm(S_MASS,:) = ref_density * abs(max_depth) 
+    lnorm(S_MASS,1:zlevels) = ref_density * abs(max_depth) * Udim 
     lnorm(S_TEMP,:) = 1d16
-    lnorm(S_VELO,:) = Udim
+    lnorm(S_VELO,1:zlevels) = Udim
+
+    lnorm(S_MASS,zlevels+1) = abs(max_depth) * Udim
     
     threshold_def = tol**1.5 * lnorm
   end subroutine initialize_thresholds_case
@@ -312,13 +360,13 @@ contains
   subroutine initialize_dt_viscosity_case
     ! Initializes viscosity and time step  
     implicit none
-    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
+    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr, visc
 
     area = 4d0*MATH_PI*radius**2/(20d0*4d0**max_level) ! average area of a triangle
     dx_min = sqrt (4d0/sqrt(3d0) * area)               ! edge length of average triangle
 
     ! Diffusion constants
-    C_sclr = 1d-3   ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_sclr = 5d-3   ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_divu = C_sclr    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_rotu = C_sclr / 4d0**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
 
@@ -330,6 +378,8 @@ contains
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
 
+    !visc = 1d-4 * METRE**2/SECOND
+
     if (Laplace_order_init == 0) then
        visc_sclr = 0d0
        visc_divu = 0d0
@@ -338,6 +388,9 @@ contains
        visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
        visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
        visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
+       ! visc_sclr = visc
+       ! visc_rotu = visc
+       ! visc_divu = visc
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop

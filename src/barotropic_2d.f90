@@ -7,7 +7,7 @@ module barotropic_2d_mod
   implicit none
   ! Add Laplacian diffusion to free surface perturbation eta
   real(8), parameter :: C_eta = 5d-3
-  logical, parameter :: diff_eta = .true.
+  logical, parameter :: diff_eta = .false.
 contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
@@ -71,9 +71,6 @@ contains
              temp   => q(S_TEMP,k)%data(d)%elts
              mean_m => sol_mean(S_MASS,k)%data(d)%elts
              mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-             ! do p = 3, grid(d)%patch%length
-             !    call apply_onescale_to_patch (cal_barotropic_correction, grid(d), p-1, k, 0, 1)
-             ! end do
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (cal_barotropic_correction, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
              end do
