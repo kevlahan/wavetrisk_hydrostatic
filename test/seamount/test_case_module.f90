@@ -17,7 +17,6 @@ Module test_case_mod
   real(8)                              :: radius_earth, omega_earth, scale, tau_0, tke_sea, visc
   real(8),                      target :: bottom_friction_case 
   real(4), allocatable, dimension(:,:) :: topo_data
-  logical                              :: drag
 
   character(255)                       :: coords, stratification                   
 contains
@@ -261,7 +260,6 @@ contains
        write (6,'(a,l1)')     "rebalance                      = ", rebalance
        write (6,'(A,es10.4)') "time_end [d]                   = ", time_end/DAY
        write (6,'(A,i6)')     "resume                         = ", resume_init
-       write (6,'(A,L1)')     "bottom drag                    = ", drag
 
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius                   [km]  = ", radius / KM

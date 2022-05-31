@@ -438,6 +438,7 @@ contains
 
     ! Backwards Euler step for new free surface, updates sol(S_MASS,zlevels+1)
     call eta_update
+    call barotropic_correction (sol)
     
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
     call u_update
