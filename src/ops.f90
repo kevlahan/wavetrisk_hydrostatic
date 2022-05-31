@@ -664,11 +664,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id_i) >= ZERO) then
-       dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
-    else
-       dscalar(id_i) = 0d0
-    end if
+    dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
   end subroutine scalar_trend
 
   subroutine du_source (dom, i, j, zlev, offs, dims)
@@ -685,18 +681,14 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ZERO) then
-       ! Calculate Q_perp
-       Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
+    ! Calculate Q_perp
+    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
-       ! Calculate physics
-       physics = physics_velo_source (dom, i, j, zlev, offs, dims)
+    ! Calculate physics
+    physics = physics_velo_source (dom, i, j, zlev, offs, dims)
 
-       ! Trend
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - Qperp_e + physics * dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-    else
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
-    end if
+    ! Trend
+    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - Qperp_e + physics * dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
   end subroutine du_source
 
   subroutine du_grad (dom, i, j, zlev, offs, dims)
@@ -713,41 +705,33 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ZERO) then
-       idE  = idx (i+1, j,   offs, dims) 
-       idN  = idx (i,   j+1, offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
+    idE  = idx (i+1, j,   offs, dims) 
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
-       full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
-       full_temp(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
-       
-       ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
-       ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-       theta(0)         = full_temp(0)         / full_mass(0)
-       theta(EAST)      = full_temp(EAST)      / full_mass(EAST)
-       theta(NORTHEAST) = full_temp(NORTHEAST) / full_mass(NORTHEAST)
-       theta(NORTH)     = full_temp(NORTH)     / full_mass(NORTH)
+    full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+    full_temp(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
 
-       ! Interpolate potential temperature to edges
-       theta_e(RT+1) = interp (theta(0), theta(EAST))      
-       theta_e(DG+1) = interp (theta(0), theta(NORTHEAST)) 
-       theta_e(UP+1) = interp (theta(0), theta(NORTH))     
+    ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
+    ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
+    theta(0)         = full_temp(0)         / full_mass(0)
+    theta(EAST)      = full_temp(EAST)      / full_mass(EAST)
+    theta(NORTHEAST) = full_temp(NORTHEAST) / full_mass(NORTHEAST)
+    theta(NORTH)     = full_temp(NORTH)     / full_mass(NORTH)
 
-       ! Calculate gradients
-       gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
-       gradE = gradi_e (exner,     dom, i, j, offs, dims)
+    ! Interpolate potential temperature to edges
+    theta_e(RT+1) = interp (theta(0), theta(EAST))      
+    theta_e(DG+1) = interp (theta(0), theta(NORTHEAST)) 
+    theta_e(UP+1) = interp (theta(0), theta(NORTH))     
 
-       ! Trend
-       do e = 1, EDGE
-          if (dom%mask_e%elts(EDGE*id+e) >= ZERO) then
-             dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
-          else
-             dvelo(EDGE*id+e) = 0.0_8
-          end if
-       end do
-    else
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
-    end if
+    ! Calculate gradients
+    gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
+    gradE = gradi_e (exner,     dom, i, j, offs, dims)
+
+    ! Trend
+    do e = 1, EDGE
+       dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
+    end do
   end subroutine du_grad
 
   function Qperp (dom, i, j, zlev, offs, dims)
