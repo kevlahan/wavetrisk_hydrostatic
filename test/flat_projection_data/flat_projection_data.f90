@@ -219,9 +219,6 @@ program flat_projection_data
      call initialize_stat
   end if
   
-  ! Calculate zonal average over all check points
-  if (rank == 0) write (6,'(A)') "Calculating zonal averages over all checkpoints"
-
   Nt = 0
   do cp_idx = mean_beg, mean_end
      Nt = Nt + 1

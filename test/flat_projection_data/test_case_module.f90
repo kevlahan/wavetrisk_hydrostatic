@@ -573,7 +573,7 @@ contains
     dz = z(1:zlevels) - z(0:zlevels-1)
 
     do k = 1, zmax
-       rho = porous_density (d, id, zlev)
+       rho = porous_density (d, id_i, zlev)
        if (trim (test_case) == "drake") then
           if (k == zlevels+1) then
              sol_mean(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
