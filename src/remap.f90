@@ -1168,7 +1168,7 @@ contains
 
     ! PPR and limiter type
     integer,      parameter          :: order   = 2
-    character(*), parameter          :: limiter = "weno"
+    character(*), parameter          :: limiter = "mono"
     
     integer, parameter               :: nvar = 1 ! number of variables to remap
     integer, parameter               :: ndof = 1 ! number of finite volume degrees of freedom per cell (1 for finite volume)
