@@ -212,16 +212,16 @@ end
         x = repelem(0.5*(xlat(:,1)+xlat(:,2)),1,size(z,2));
         dat = trans(lat_slice(:,:,m));
         %contour(x, z, dat, c2, 'k-',  'Linewidth', 1.5);
-        %contour(x, z, dat, min(c2) : max(c2(c2<0)),   'k--', 'Linewidth', 1.5);
-        %contour(x, z, dat, min(c2(c2>=0))  : max(c2), 'k-',  'Linewidth', 1.5);
+        contour(x, z, dat, min(c2) : max(c2(c2<0)),   'k--', 'Linewidth', 1.5);
+        contour(x, z, dat, min(c2(c2>=0))  : max(c2), 'k-',  'Linewidth', 1.5);
         
         max(xlat(:,2,1))
         
         xlabel('latitude'); ylabel('z (m)');
         
         caxis([min(c1) max(c1)]);
-        axis([min(xlat(:,2,1)) max(xlat(:,1,1)) max_depth 0])
-        %axis([lat_c-lat_w_deg/2 lat_c+lat_w_deg/2 max_depth 0]);
+        %axis([min(xlat(:,2,1)) max(xlat(:,1,1)) max_depth 0])
+        axis([lat_c-lat_w_deg/2 lat_c+lat_w_deg/2 - 0.6 max_depth 0]);
         set(gca,'fontsize',18);
         
         hcb=colorbar;
@@ -239,5 +239,11 @@ end
         
         fprintf('Minimum value of %s = %8.4e\n', field, min(min(dat)));
         fprintf('Maximum value of %s = %8.4e\n', field, max(max(dat)));
+        
+        x0=0;
+        y0=0;
+        width=1300;
+        height=1200;
+        set(gcf,'position',[x0,y0,width,height])
     end
 end
