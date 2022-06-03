@@ -710,8 +710,8 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, 1.2*dx_min/c1)
     dt_init = dt_cfl
 
-    C = 0d0 ! <= 1/2 if explicit
-    C_rotu = C / 4**Laplace_order_init
+    C = 5d-3 ! <= 1/2 if explicit
+    C_rotu = C !/ 4**Laplace_order_init
     C_divu = C
     C_mu   = C
     C_b    = C

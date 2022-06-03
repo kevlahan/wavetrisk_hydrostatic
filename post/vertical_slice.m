@@ -215,8 +215,6 @@ end
         contour(x, z, dat, min(c2) : max(c2(c2<0)),   'k--', 'Linewidth', 1.5);
         contour(x, z, dat, min(c2(c2>=0))  : max(c2), 'k-',  'Linewidth', 1.5);
         
-        max(xlat(:,2,1))
-        
         xlabel('latitude'); ylabel('z (m)');
         
         caxis([min(c1) max(c1)]);
@@ -236,14 +234,11 @@ end
         elseif strcmp(field,'vertical')
             hcb.Label.String = "Vertical velocity (m/day)";
         end
-        
+
         fprintf('Minimum value of %s = %8.4e\n', field, min(min(dat)));
         fprintf('Maximum value of %s = %8.4e\n', field, max(max(dat)));
-        
-        x0=0;
-        y0=0;
-        width=1300;
-        height=1200;
-        set(gcf,'position',[x0,y0,width,height])
     end
+width=1300; height=1200; % desktop
+width=1020; height=1000; % laptop
+set(gcf,'position',[0,0,width,height]);
 end

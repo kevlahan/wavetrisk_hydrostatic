@@ -5,9 +5,7 @@ program upwelling
   use test_case_mod
   use io_mod
   implicit none
-  integer :: it
   logical :: aligned
-  real(8) :: radius_earth
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -18,11 +16,11 @@ program upwelling
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard parameters
-  radius             = 240     * KM
-  omega              = 6d-5    * RAD/SECOND
-  grav_accel         = 9.80616 * METRE/SECOND**2     ! gravitational acceleration 
-  p_top              = 0.0_8   * hPa                 ! pressure at free surface
-  ref_density        = 1027    * KG/METRE**3         ! reference density at depth (seawater)
+  radius             = 240d0     * KM
+  omega              = 6d-5      * RAD/SECOND
+  grav_accel         = 9.80616d0 * METRE/SECOND**2   ! gravitational acceleration 
+  p_top              = 0d0       * hPa               ! pressure at free surface
+  ref_density        = 1027d0    * KG/METRE**3       ! reference density at depth (seawater)
 
   ! Numerical method parameters
   default_thresholds = .true.                        ! use default threshold
@@ -30,13 +28,8 @@ program upwelling
   match_time         = .true.                        ! avoid very small time steps when saving (if false) 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-6                         ! porosity used in penalization
+  alpha              = 1d-6                          ! porosity used in penalization
   npts_penal         = 2.5                           ! number of points to smooth over in penalization
-  !coarse_iter        = 50                            ! number of coarse scale iterations of elliptic solver
-  !fine_iter          = 20                            ! number of fine scale iterations of elliptic solver
-  !theta1             = 1d0
-  !theta2             = 1d0
-  !tol_elliptic       = 1d-6                          ! coarse scale tolerance of elliptic solver
   timeint_type       = "RK4"                         ! always use RK4
   compressible       = .false.                       ! always run with incompressible equations
   remapscalar_type   = "PPR"                         ! optimal remapping scheme
@@ -52,42 +45,40 @@ program upwelling
   ! Depth and layer parameters
   sigma_z            = .true.                        ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
   coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
-  max_depth          = -150 * METRE                  ! total depth
-  min_depth          =  -25 * METRE                  ! minimum depth
-  Tcline             =  -50 * METRE                  ! position of thermocline
+  max_depth          = -150d0 * METRE                ! total depth
+  min_depth          =  -25d0 * METRE                ! minimum depth
+  Tcline             =  -50d0 * METRE                ! position of thermocline
 
   ! Land mass parameters
-  width              = 80 * KM                       ! width of zonal channel
+  width              = 80d0 * KM                     ! width of zonal channel
   lat_width          = (width/radius)/DEG            ! width of zonal channel (in degrees)
-  lat_c              = 45                            ! centre of zonal channel (in degrees)
+  lat_c              = 45d0                          ! centre of zonal channel (in degrees)
   
   ! Bottom friction
   bottom_friction_case = 3d-4 / SECOND          
 
   ! Wind stress
-  tau_0              = 0.1_8
+  tau_0              = 0.1d0
 
   ! Equation of state variables
-  a_0                = 0.28 / CELSIUS
-  b_0                = 0.0_8
-  mu_1               = 0.0_8
-  mu_2               = 0.0_8
-  mu_1               = 0.0_8
-  mu_2               = 0.0_8
-  T_ref              = 14   * CELSIUS
+  a_0                = 0.28d0 / CELSIUS
+  b_0                = 0d0
+  mu_1               = 0d0
+  mu_2               = 0d0
+  T_ref              = 14d0   * CELSIUS
   
   ! Vertical level to save
   save_zlev          = 8
 
   ! Characteristic scales
-  wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
-  f0                 = 2*omega*sin(45*DEG)               ! representative Coriolis parameter
-  beta               = 2*omega*cos(45*DEG) / radius      ! beta parameter at 30 degrees latitude
-  Rd                 = wave_speed / f0                   ! barotropic Rossby radius of deformation                   
+  wave_speed         = sqrt (grav_accel*abs(max_depth))   ! inertia-gravity wave speed 
+  f0                 = 2d0*omega*sin(45d0*DEG)            ! representative Coriolis parameter
+  beta               = 2d0*omega*cos(45d0*DEG) / radius   ! beta parameter at 30 degrees latitude
+  Rd                 = wave_speed / f0                    ! barotropic Rossby radius of deformation                   
 
   ! Dimensional scaling
-  drho               = 2.5 * KG/METRE**3                  ! magnitude of density perturbation
-  Udim               = 0.35_8                              ! velocity scale
+  drho               = 2.5d0 * KG/METRE**3                ! magnitude of density perturbation
+  Udim               = 0.35d0 * METRE/SECOND              ! velocity scale
   Ldim               = lat_width*DEG * radius             ! length scale 
   Tdim               = Ldim/Udim                          ! time scale
   Hdim               = abs (max_depth)                    ! vertical length scale
