@@ -237,7 +237,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
-  logical :: adapt_dt, compressible, default_thresholds, fill, implicit_diff_sclr, implicit_diff_divu
+  logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_mass, match_time, mode_split, no_slip, penalize, rebalance, remap, uniform, vert_diffuse
   logical :: sigma_z, tke_closure
 contains
@@ -383,13 +383,11 @@ contains
     visc_divu           = 0d0         * METRE**2 / SECOND     ! kinematic viscosity of divergence of velocity 
     visc_rotu           = 0d0         * METRE**2 / SECOND     ! kinematic viscosity of vorticity 
 
-    kappa               = R_d/c_p                           ! heat capacity ratio
+    kappa               = R_d/c_p                             ! heat capacity ratio
 
     ! Parameters for ocean (incompressible) model
     coarse_iter         = 100                                     ! maximum number of coarse scale bicgstab iterations for elliptic solver
     fine_iter           = 200                                     ! maximum number of fine scale jacobi iterations for elliptic solver
-    a_0                 = 1.6550d-1 * KG / METRE**3 / CELSIUS     ! linear coefficient of thermal expansion for seawater 
-    b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
     c_s                 = 1500d0    * METRE / SECOND              ! sound speed for seawater
     e_min               = 1d-6      * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
@@ -397,18 +395,23 @@ contains
     Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
     Kt_const            = 1d-6      * METRE**2 / SECOND           ! analytic value for eddy diffusion (tke_closure = .false.)
     Kv_bottom           = 2d-3      * METRE**2 / SECOND           ! analytic value for eddy viscosity (tke_closure = .false.)
-    lambda_1            = 5.9520d-2                               ! cabbeling coefficient in T^2
-    lambda_2            = 5.4914d-4                               ! cabbeling coefficient in S^2
     max_depth           = 4d0       * KM                          ! maximum depth 
     min_depth           = max_depth                               ! minimum depth 
+    Q_sr                = 0d0       * WATT / METRE**2             ! penetrative part of solar short wave radiation
+    rb_0                = 4d-4      * METRE /SECOND               ! NEMO value for bottom friction
+    H_rho               = c_s**2 / grav_accel                     ! density scale height
+
+    ! Equation of state parameters for ocean model
+    eos_nl              = .false.                                 ! nonlinear equation of state if true
+    a_0                 = 1.6550d-1 * KG / METRE**3 / CELSIUS     ! linear coefficient of thermal expansion for seawater 
+    b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
+    lambda_1            = 5.9520d-2                               ! cabbeling coefficient in T^2
+    lambda_2            = 5.4914d-4                               ! cabbeling coefficient in S^2
     mu_1                = 1.4970d-4 / METRE                       ! thermobaric coefficient in temperature (pressure effect)
     mu_2                = 1.1090d-5 / METRE                       ! thermobaric coefficient in salinity (pressure effect)
     nu_0                = 2.4341d-3                               ! cabbeling coefficient in temperature S, T
-    Q_sr                = 0d0       * WATT / METRE**2             ! penetrative part of solar short wave radiation
-    rb_0                = 4d-4      * METRE /SECOND               ! NEMO value for bottom friction
     T_ref               = 10d0      * CELSIUS                     ! reference temperature
     S_ref               = 35d0      * GRAM / KG                   ! reference salinity
-    H_rho               = c_s**2 / grav_accel                     ! density scale height
 
     ! Theta parameters for barotropic-baroclinic mode splitting
     ! theta1 > 0.75 and theta2 > 0.75 stable for all wavenumbers (otherwise unstable over a small interval of small wavenumbers)

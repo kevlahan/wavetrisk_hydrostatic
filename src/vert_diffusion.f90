@@ -477,11 +477,11 @@ contains
 
     ! NEMO
     if (Ri < 0.2_8) then
-       Prandtl = 1.0_8
-    elseif (Ri >= 0.2_8 .and. Ri <= 2.0_8) then
-       Prandtl = 5 * Ri
+       Prandtl = 1d0
+    elseif (Ri >= 0.2d0 .and. Ri <= 2d0) then
+       Prandtl = 5d0 * Ri
     else
-       Prandtl = 10.0_8
+       Prandtl = 10d0
     end if
 !!$    Prandtl = max (0.1d0, Ri_c / max (Ri_c, Ri)) ! CROCO
   end function prandtl
@@ -499,7 +499,7 @@ contains
     integer :: l
 
     do l = 0, zlevels
-       l_dwn(l) = sqrt (2 * tke(l) / max (Nsq(l), Neps_sq))
+       l_dwn(l) = sqrt (2d0 * tke(l) / max (Nsq(l), Neps_sq))
     end do
     l_up = l_dwn
 
@@ -549,7 +549,7 @@ contains
     ! Analytic eddy viscosity
     real(8) :: eta, z
 
-    Kv_analytic = Kv_bottom * (1.0_8 + 4 * exp ((z - eta) / abs(max_depth) ))
+    Kv_analytic = Kv_bottom * (1d0 + 4d0 * exp ((z - eta) / abs(max_depth) ))
   end function Kv_analytic
 
   subroutine trend_vertical_diffusion (q, dq)
