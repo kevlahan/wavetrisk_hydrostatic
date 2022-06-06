@@ -238,7 +238,7 @@ end
         fprintf('Minimum value of %s = %8.4e\n', field, min(min(dat)));
         fprintf('Maximum value of %s = %8.4e\n', field, max(max(dat)));
     end
-width=1300; height=1200; % desktop
-width=1020; height=1000; % laptop
+width=1260; height=1200; % desktop
+%width=1020; height=1000; % laptop
 set(gcf,'position',[0,0,width,height]);
 end

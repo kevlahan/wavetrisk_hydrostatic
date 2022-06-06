@@ -1,6 +1,6 @@
-	**********************************************************************************************************************************
+**********************************************************************************************************************************
 *   WAVETRISK 2.2														 *
-*   2022-01-20															 *
+*   2022-06-06															 *
 *																 *
 *   User's guide and code description												 *
 *															         *
@@ -18,7 +18,8 @@
 **********************************************************************************************************************************
 *																 *
 *   Major changes compared to WAVETRISK 2.1											 *
-*   1. Addition of dynamic load balancing and checkpointing using charm++/AMPI.							 *
+*   1. Addition of dynamic load balancing and checkpointing using charm++/AMPI.	Only works on a single node due to bugs in       *
+*      pieglobals implementation of charm++/AMPI.                                                                                *
 *																 *
 *   Major changes compared to WAVETRISK 1.x											 *
 *   1. Addition of spherical harmonics test case and associated matlab m-file for computing energy spectra.			 *
@@ -228,6 +229,8 @@ where directory_name is the directory containing the checkpoint to restart from.
 
 ************************************************************
 3.2 AMPI EXAMPLES
+
+Only works on a single node due to bugs in pieglobals implementation of charm++/AMPI.                              
 
 1. Multi node runs using AMPI are launched using the charmrun command, with the following options.
 
