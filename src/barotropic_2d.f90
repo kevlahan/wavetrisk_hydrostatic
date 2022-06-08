@@ -473,7 +473,7 @@ contains
           nullify (h_flux)
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
-       if (level_start /= level_end) call update_bdry (horiz_flux(S_MASS), l, 211)
+       call update_bdry (horiz_flux(S_MASS), l, 211)
        do d = 1, size(grid)
           dscalar =>    trend(S_MASS,1)%data(d)%elts
           h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -483,7 +483,7 @@ contains
           nullify (dscalar, h_flux)
        end do
        trend(S_MASS,1)%bdry_uptodate = .false.
-       if (level_start /= level_end) call update_bdry (trend(S_MASS,1), l, 212)
+       call update_bdry (trend(S_MASS,1), l, 212)
     end do
 
     ! - Divergence of thickness flux at each vertical level, stored in exner_fun(1:zlevels)
@@ -506,7 +506,7 @@ contains
              nullify (h_flux)
           end do
           horiz_flux(S_MASS)%bdry_uptodate = .false.
-          if (level_start /= level_end) call update_bdry (horiz_flux(S_MASS), l, 211)
+          call update_bdry (horiz_flux(S_MASS), l, 211)
           do d = 1, size(grid)
              dscalar => exner_fun(k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -516,7 +516,7 @@ contains
              nullify (dscalar, h_flux)
           end do
           exner_fun(k)%bdry_uptodate = .false.
-          if (level_start /= level_end) call update_bdry (exner_fun(k), l, 212)
+          call update_bdry (exner_fun(k), l, 212)
        end do
     end do
 
@@ -543,17 +543,15 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                        :: d, id, id_i, k
-    real(8)                        :: deta_dt, rho
+    real(8)                        :: rho
     real(8), dimension (0:zlevels) :: w 
 
-    id = idx (i, j, offs, dims)
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
-
-    d = dom%id + 1
-    deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
+    d    = dom%id + 1
 
     ! Vertical velocity at layer interfaces
-    w(0) = 0.0_8; w(zlevels) = 0.0_8 ! impose zero vertical velocity at bottom and top
+    w(0) = 0d0; w(zlevels) = 0d0 ! impose zero vertical velocity at bottom and top
     do k = 1, zlevels-1
        w(k) = w(k-1) - exner_fun(k)%data(d)%elts(id_i)
     end do
@@ -574,7 +572,7 @@ contains
       ! Uses Perot formula as also used for kinetic energy:
       ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area
       implicit none
-      integer     :: idN, idE, idNE, idS, idSW, idW
+      integer :: idE, idN, idNE, idS, idSW, idW
 
       velo => sol(S_VELO,k)%data(d)%elts
       
@@ -586,22 +584,22 @@ contains
       idS  = idx (i,   j-1, offs, dims)
     
       proj_vel_vertical =  &
-           (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id  +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
-           (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6
+      (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id  +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
+      (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6d0
       
       nullify (velo)
     end function proj_vel_vertical
 
-    real(8) function vert_vel (i1, j1, i2, j2, ide)
+    real(8) function vert_vel (i1, j1, i2, j2, id_e)
       implicit none
-      integer :: i1, j1, i2, j2, ide
+      integer :: i1, j1, i2, j2, id_e
 
       real(8) :: dl, dz
 
       dz =  z_i (dom, i2, j2, k, offs, dims) - z_i (dom, i1, j1, k, offs, dims)
-      dl = dom%len%elts(ide)
+      dl = dom%len%elts(id_e)
 
-      vert_vel = dz / sqrt (dl**2 + dz**2) * velo(ide)
+      vert_vel = dz / sqrt (dl**2 + dz**2) * velo(id_e)
     end function vert_vel
   end subroutine cal_vertical_velocity
   
@@ -630,7 +628,7 @@ contains
 
     deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
 
-    omega(0) = 0.0_8; omega(zlevels) = 0.0_8 ! impose zero flux at bottom and top
+    omega(0) = 0d0; omega(zlevels) = 0d0 ! impose zero flux at bottom and top
     do k = 1, zlevels-1
        omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
     end do
