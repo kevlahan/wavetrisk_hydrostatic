@@ -75,7 +75,6 @@ contains
           if (abs (wav_coeff(v,k)%data(d)%elts(id_i)) >= p*threshold(v,k) .or. l < level_fill) active = .true.
        end do
     end do
-    if (mode_split .and. abs (wav_coeff(S_MASS,zlevels+1)%data(d)%elts(id_i)) >= p*threshold(S_MASS,zlevels+1)) active = .true.
 
     if (active) then
        dom%mask_n%elts(id_i) = TOLRNZ

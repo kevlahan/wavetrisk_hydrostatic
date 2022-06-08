@@ -700,14 +700,14 @@ contains
     implicit none
     real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, C_visc, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
-    area = 4d0*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_min = 0.891 * sqrt (4/sqrt(3.0_8) * area) ! edge length of average triangle
+    area = 4d0*MATH_PI*radius**2/(20d0*4**max_level) ! average area of a triangle
+    dx_min = 0.891d0 * sqrt (4d0/sqrt(3d0) * area) ! edge length of average triangle
 
-    area = 4d0*MATH_PI*radius**2/(20*4**min_level)
-    dx_max = sqrt (4d0/sqrt(3.0_8) * area)
+    area = 4d0*MATH_PI*radius**2/(20d0*4**min_level)
+    dx_max = sqrt (4d0/sqrt(3d0) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4*dx_min/u_wbc, 1.2*dx_min/c1)
+    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, 1.2d0*dx_min/c1)
     dt_init = dt_cfl
 
     C = 5d-3 ! <= 1/2 if explicit

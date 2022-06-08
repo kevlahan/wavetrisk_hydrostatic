@@ -57,12 +57,12 @@ program Tsunami
   lon_lat_range  = (/2d0*MATH_PI, MATH_PI/)     ! region to save in 2D projection
 
   ! Numerical parameters
-  mode_split         = .true.                  ! use explicit time step for accuracy
+  mode_split         = .true.
   compressible       = .false.                  ! incompressible
   adapt_dt           = .true.                   ! adapt time step
   remap              = .false.                  ! remap vertical layers
   iremap             = 1                        ! remap frequency
-  timeint_type       = "Euler"                    ! time scheme
+  timeint_type       = "RK4"                    ! time scheme
   Laplace_order_init = 1                       ! viscosity type
   log_mass           = .true.                   ! mass diagnostics
 
