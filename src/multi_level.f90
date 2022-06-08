@@ -171,7 +171,7 @@ contains
   end subroutine velocity_trend_grad
      
   subroutine cal_Laplacian_scalars (q, k)
-    ! Computes Laplacian of scalars q
+    ! Computes Laplacian of scalars q, div(grad q)
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
     integer :: k
@@ -250,7 +250,7 @@ contains
   end subroutine cal_Laplacian_vector_rot
   
   subroutine cal_Laplacian_divu
-    ! Computes Laplacian of divu
+    ! Computes Laplacian of divu, div(grad divu)
     implicit none
     integer :: d, j, l, v
 
