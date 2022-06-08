@@ -62,23 +62,16 @@ program Tsunami
   adapt_dt           = .true.                   ! adapt time step
   remap              = .false.                  ! remap vertical layers
   iremap             = 1                        ! remap frequency
-  timeint_type       = "RK4"                    ! time scheme
-  Laplace_order_init = 1                       ! viscosity type
+  timeint_type       = "RK3"                    ! time scheme
+  Laplace_order_init = 2                       ! viscosity type
   log_mass           = .true.                   ! mass diagnostics
-
-  !theta1 = 1d0
-  !theta2 = 1d0
-  !tol_elliptic        = 1d-9                              ! tolerance for coarse scale bicgstab elliptic solver
-  !tol_jacobi          = 1d-6                              ! tolerance for fine scale jacobi iterations
-
+  log_iter           = .false.                  ! linear solver diagnostics
+  
   if (mode_split) then
-     !cfl_num = 20d0
      cfl_num = 5d0
   else
      cfl_num = 1d0
   end if
-
-  log_iter = .true.
 
   ! Dimensional scaling
   wave_speed         = sqrt (grav_accel*abs(max_depth)) ! inertia-gravity wave speed based on maximum allowed depth
@@ -102,7 +95,7 @@ program Tsunami
   ! Save initial conditions
   call print_test_case_parameters
 
-  !call write_and_export (iwrite)
+  call write_and_export (iwrite)
 
   iadapt = 1
   
@@ -117,9 +110,8 @@ program Tsunami
 
      call print_log
 
-     !iwrite = iwrite + 1; call write_and_export (iwrite)
-     
-     if (aligned) then
+     !if (aligned) then
+     if (modulo (istep, 20) == 0) then
         iwrite = iwrite + 1
         if (remap) call remap_vertical_coordinates
 
