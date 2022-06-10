@@ -544,40 +544,34 @@ contains
     integer                        :: d, id, id_i, idE, idN, idNE, idS, idSW, idW, k
     real(8)                        :: rho
     real(8), dimension (0:zlevels) :: w 
-
+    
     id   = idx (i, j, offs, dims)
     id_i = id + 1
-    d  = dom%id + 1
-    
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       idE  = idx (i+1, j,   offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
-       idW  = idx (i-1, j,   offs, dims)
-       idSW = idx (i-1, j-1, offs, dims)
-       idS  = idx (i,   j-1, offs, dims)
+    d    = dom%id + 1
 
-       ! Vertical velocity at layer interfaces
-       w(0) = 0d0; w(zlevels) = 0d0 ! impose zero vertical velocity at bottom and top
-       do k = 1, zlevels-1
-          w(k) = w(k-1) - exner_fun(k)%data(d)%elts(id_i)
-       end do
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
 
-       ! Interpolate to nodes and remove density
-       do k = zlevels, 1, -1
-          rho = porous_density (d, id_i, k)
-          w(k) = interp (w(k-1), w(k)) / rho
-       end do
+    ! Vertical velocity at layer interfaces
+    w(0) = 0d0; w(zlevels) = 0d0 ! impose zero vertical velocity at bottom and top
+    do k = 1, zlevels-1
+       w(k) = w(k-1) - exner_fun(k)%data(d)%elts(id_i)
+    end do
 
-       ! Compute vertical velocity relative to z coordinate
-       do k = 1, zlevels
-          trend(S_TEMP,k)%data(d)%elts(id_i) = w(k) + proj_vel_vertical ()
-       end do
-    else
-       do k = 1, zlevels
-          trend(S_TEMP,k)%data(d)%elts(id_i) = 0d0
-       end do
-    end if
+    ! Interpolate to nodes and remove density
+    do k = zlevels, 1, -1
+       rho = porous_density (d, id_i, k)
+       w(k) = interp (w(k-1), w(k)) / rho
+    end do
+
+    ! Compute vertical velocity relative to z coordinate
+    do k = 1, zlevels
+       trend(S_TEMP,k)%data(d)%elts(id_i) = w(k) + proj_vel_vertical ()
+    end do
   contains
     real(8) function proj_vel_vertical ()
       ! Computes grad_zonal(z) * u_zonal + grad_merid(z) * u_merid at hexagon centres for vertical velocity computation.
@@ -623,30 +617,24 @@ contains
     id_i = idx (i, j, offs, dims) + 1
     d    = dom%id + 1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       if (sigma_z) then
-          eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
-          z_s = dom%topo%elts(id_i)
-          z = z_coords (eta, z_s) ! set a_vert
-       end if
-
-       deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
-
-       omega(0) = 0d0; omega(zlevels) = 0d0 ! impose zero flux at bottom and top
-       do k = 1, zlevels-1
-          omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
-       end do
-       do k = zlevels, 1, -1
-          rho = porous_density (d, id_i, k)
-          omega(k) = interp (omega(k-1), omega(k)) / rho
-       end do
-       do k = 1, zlevels
-          trend(S_TEMP,k)%data(d)%elts(id_i) = omega(k)
-       end do
-    else
-       do k = 1, zlevels
-          trend(S_TEMP,k)%data(d)%elts(id_i) = 0d0
-       end do
+    if (sigma_z) then
+       eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+       z_s = dom%topo%elts(id_i)
+       z = z_coords (eta, z_s) ! set a_vert
     end if
+
+    deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
+
+    omega(0) = 0d0; omega(zlevels) = 0d0 ! impose zero flux at bottom and top
+    do k = 1, zlevels-1
+       omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
+    end do
+    do k = zlevels, 1, -1
+       rho = porous_density (d, id_i, k)
+       omega(k) = interp (omega(k-1), omega(k)) / rho
+    end do
+    do k = 1, zlevels
+       trend(S_TEMP,k)%data(d)%elts(id_i) = omega(k)
+    end do
   end subroutine cal_omega
 end module barotropic_2d_mod
