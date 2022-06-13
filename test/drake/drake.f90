@@ -135,7 +135,7 @@ program Drake
   !bottom_friction_case = rb_0                                ! NEMO value 4d-4 m/s
   bottom_friction_case = beta * delta_M/4d0                  ! ensure that delta_S = delta_M/4
   
-  delta_S = bottom_friction_case / beta                      ! Stommel layer scale
+  delta_S = bottom_friction_case / (abs(max_depth) * beta)    ! Stommel layer scale
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
