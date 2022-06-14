@@ -458,7 +458,7 @@ contains
 
     call update_array_bdry (sol, NONE, 500)
 
-    ! - Divergence of vertically integrated thickness flux, stored in trend(S_MASS,1)
+    ! Divergence of vertically integrated thickness flux, stored in trend(S_MASS,1)
     do l = level_end, level_start, -1
        do d = 1, size(grid)
           h_flux => horiz_flux(S_MASS)%data(d)%elts
@@ -486,7 +486,7 @@ contains
        call update_bdry (trend(S_MASS,1), l, 212)
     end do
 
-    ! - Divergence of thickness flux at each vertical level, stored in exner_fun(1:zlevels)
+    ! Divergence of thickness flux at each vertical level, stored in exner_fun(1:zlevels)
     do k = 1, zlevels
        do l = level_end, level_start, -1
           do d = 1, size(grid)
@@ -534,16 +534,13 @@ contains
 
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)
     ! Vertical velocity
-    ! (recall that we compute -div quantities)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                        :: d, id, id_i, idE, idN, idNE, idS, idSW, idW, k
-    real(8)                        :: rho
-    real(8), dimension (0:zlevels) :: w 
+    integer  :: d, id, id_i, idE, idN, idNE, idS, idSW, idW, k
     
     id   = idx (i, j, offs, dims)
     id_i = id + 1
@@ -556,21 +553,12 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
 
-    ! Vertical velocity at layer interfaces
-    w(0) = 0d0; w(zlevels) = 0d0 ! impose zero vertical velocity at bottom and top
-    do k = 1, zlevels-1
-       w(k) = w(k-1) - exner_fun(k)%data(d)%elts(id_i)
-    end do
-
-    ! Interpolate to nodes and remove density
-    do k = zlevels, 1, -1
-       rho = porous_density (d, id_i, k)
-       w(k) = interp (w(k-1), w(k)) / rho
-    end do
+    ! Compute velocity flux across interfaces
+    call cal_omega (dom, i, j, zlev, offs, dims)
 
     ! Compute vertical velocity relative to z coordinate
     do k = 1, zlevels
-       trend(S_TEMP,k)%data(d)%elts(id_i) = w(k) + proj_vel_vertical ()
+       trend(S_TEMP,k)%data(d)%elts(id_i) = trend(S_TEMP,k)%data(d)%elts(id_i) + proj_vel_vertical ()
     end do
   contains
     real(8) function proj_vel_vertical ()
@@ -603,7 +591,6 @@ contains
   
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
     ! Velocity flux across interfaces
-    ! (recall that we compute -div quantities)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
