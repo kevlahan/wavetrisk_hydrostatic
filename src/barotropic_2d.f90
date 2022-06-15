@@ -521,15 +521,14 @@ contains
     end do
 
     ! Integrate up to find vertical velocity, stored in trend(S_TEMP,1:zlevels)
-    do l = level_end, level_start, -1
-       do d = 1, size(grid)
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_vertical_velocity, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
+    do d = 1, size(grid)
+       do p = 3, grid(d)%patch%length
+          call apply_onescale_to_patch (cal_vertical_velocity, grid(d), p-1, z_null, 0, 1)
        end do
     end do
-    trend(S_TEMP,:)%bdry_uptodate = .false.
-    call update_vector_bdry (trend(S_TEMP,:), NONE, 500)
+    
+    trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
+    call update_vector_bdry (trend(S_TEMP,1:zlevels), NONE, 500)
   end subroutine vertical_velocity
 
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)
@@ -605,14 +604,18 @@ contains
     d    = dom%id + 1
 
     if (sigma_z) then
-       eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+       if (mode_split) then
+          eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
+       else
+          eta = free_surface (dom, i, j, zlev, offs, dims)
+       end if
        z_s = dom%topo%elts(id_i)
        z = z_coords (eta, z_s) ! set a_vert
     end if
 
     deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
 
-    omega(0) = 0d0; omega(zlevels) = 0d0 ! impose zero flux at bottom and top
+    omega(0) = 0d0; omega(zlevels) = 0d0 ! impose zero mass flux at bottom and top
     do k = 1, zlevels-1
        omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
     end do
