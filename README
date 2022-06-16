@@ -210,7 +210,23 @@ ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute e
 
 1. With ARCH=mpi, to run test case Held_Suarez with input file HS.in on a local machine with shared memory 40 cores
 
-mpirun -n 40 ./Held_Suarez HS.in 
+mpirun -n 40 ./Held_Suarez HS.in
+
+Example slurm script for an mpi job (save in a file, such as up_job.sh):
+
+#!/bin/bash
+#
+#SBATCH --account=rrg-kevlahan        # user account
+#SBATCH --nodes=16                    # number of nodes: total cores used = 40 * nodes = 640 in this case
+#SBATCH --ntasks-per-node=40
+#SBATCH --contiguous
+#SBATCH --exclusive
+#SBATCH --time=00-01:00               # maximum running wall clock time (DD-HH:MM)
+#SBATCH --output=upwelling_J8J10.log  # output file name
+module load NiaEnv/.2022a gcc openmpi # modules used to compile the executable (up_J8 in this case)
+mpirun -n 640 ./up_J8 upwelling.in    # command line to run
+
+Submit using sbatch up_job.sh (where up_sh.sh is the name of the slurm script file).
 
 2. With ARCH=ampi, to run test case jet with default input file test_case.in using charm++/AMPI on a local machine with 40 cores
 using 160 virtual processors and "Refine load balancing":
@@ -230,7 +246,7 @@ where directory_name is the directory containing the checkpoint to restart from.
 ************************************************************
 3.2 AMPI EXAMPLES
 
-Only works on a single node due to bugs in pieglobals implementation of charm++/AMPI.                              
+!!! Only works on a single node due to bugs in pieglobals implementation of charm++/AMPI.  !!!                            
 
 1. Multi node runs using AMPI are launched using the charmrun command, with the following options.
 
