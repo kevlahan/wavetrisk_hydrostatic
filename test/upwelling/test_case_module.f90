@@ -7,7 +7,7 @@ Module test_case_mod
   implicit none
 
   ! Standard variables
-  integer                              :: bathy_per_deg, CP_EVERY, resume_init
+  integer                              :: bathy_per_deg, CP_EVERY, npts_penal, resume_init
   real(8)                              :: dt_cfl, tau_diffusion, total_cpu_time
   real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
 
@@ -15,7 +15,7 @@ Module test_case_mod
   real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
   real(8)                              :: r_max, r_max_loc
   real(8)                              :: n_smth_N, n_smth_S, width_N, width_S
-  real(8)                              :: npts_penal, u_wbc
+  real(8)                              :: u_wbc
   real(8)                              :: lat_c, lat_width, tau_0, Tcline, width
   real(8), target                      :: bottom_friction_case
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -228,7 +228,7 @@ contains
        write (6,'(A,L1)')     "mode_split                     = ", mode_split
        write (6,'(A,L1)')     "penalize                       = ", penalize
        write (6,'(A,L1)')     "no_slip                        = ", no_slip
-       write (6,'(A,es10.4)') "npts_penal                     = ", npts_penal
+       write (6,'(A,i3)')     "npts_penal                     = ", npts_penal
        write (6,'(A,i3)')     "min_level                      = ", min_level
        write (6,'(A,i3)')     "max_level                      = ", max_level
        write (6,'(A,i3)')     "level_fill                     = ", level_fill
@@ -361,7 +361,7 @@ contains
              end do
           end do
        end do
-    else ! need to set values over entire grid on restart
+     else ! need to set values over entire grid on restart
        do l = level_start, level_end
           call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           do k = 1, zmax
@@ -476,19 +476,19 @@ contains
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    b_vert(0) = 1.0_8 ; b_vert(zlevels) = 0d0
+    b_vert(0) = 1d0 ; b_vert(zlevels) = 0d0
     if (trim (coords) == "uniform") then
        do k = 2, zlevels-1
-          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
+          b_vert(k) = 1d0 - dble(k)/dble(zlevels)
        end do
     elseif (trim(coords) == "croco") then
-       p = (/ -5.7831,  18.9754, -24.6521,  16.1698, -5.7092, 0.9972 /)
+       p = (/ -5.7831d0,  18.9754d0, -24.6521d0,  16.1698d0, -5.7092d0, 0.9972d0 /)
        do k = 1, zlevels-1
           z = dble(k)/dble(zlevels)
           b_vert(k) = p(1)*z**5 + p(2)*z**4 + p(3)*z**3 + p(4)*z**2 + p(5)*z + p(6)
        end do
     end if
-    a_vert = 1.0_8 - b_vert
+    a_vert = 1d0 - b_vert
 
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
@@ -525,9 +525,11 @@ contains
     lat = lat / DEG
 
     if (abs(lat-lat_c) <= lat_width/2) then
-       amp = b_max / (1.0_8 - tanh (-slope*width/shift))
+       amp = b_max / (1d0 - tanh (-slope*width/shift))
        y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel                                               
-       surf_geopot_case = amp * (1.0_8 - tanh (slope * (f(y) - width/shift)))
+       !surf_geopot_case = amp * (1d0 - tanh (slope * (f(y) - width/shift)))
+       surf_geopot_case = amp * (1d0 - tanh (slope/2d0 * (f(y) - width/shift)))
+       !surf_geopot_case = max(100d0 * (1d0 - 0.14d0*slope * f(y)), 0d0)
     else
        surf_geopot_case = b_max
     end if
@@ -538,7 +540,7 @@ contains
     implicit none
     real(8) :: y
 
-    if (y <= width/2) then
+    if (y <= width/2d0) then
        f = y
     else
        f = width - y
@@ -570,14 +572,14 @@ contains
     real(8) :: z
 
     real(8)            :: hz, strat, z0, z1
-    real(8), parameter :: h0 = 150_8, hz_0 = 6.5_8, T0 = 14_8, z0_0 = -35_8, z1_0 = -75_8
+    real(8), parameter :: h0 = 150d0, hz_0 = 6.5d0, T0 = 14d0, z0_0 = -35d0, z1_0 = -75d0
 
     strat = abs(max_depth)
     hz = hz_0 * abs(max_depth/h0)
     z0 = z0_0 * abs(max_depth/h0)
     z1 = z1_0 * abs(max_depth/h0)
 
-    temp_init = T_ref + 4*tanh ((z - z0) / hz) + (z - z1) / strat
+    temp_init = T_ref + 4d0*tanh ((z - z0) / hz) + (z - z1) / strat
   end function temp_init
 
   subroutine print_density
@@ -601,7 +603,7 @@ contains
     do k = 1, zlevels
        z_k = interp (z(k-1), z(k))
        write (6, '(2x, i2, 4x, 2(es9.2, 1x), es11.5)') &
-            k, z_k, dz(k), ref_density * (1.0_8 - buoyancy_init (z_k))
+            k, z_k, dz(k), ref_density * (1d0 - buoyancy_init (z_k))
     end do
 
     write (6,'(/,a)') " Interface     z"
@@ -616,8 +618,8 @@ contains
        z_k     = interp (z(k-1), z(k))
        dz_l    = z_above - z_k
 
-       rho_above = ref_density * (1.0_8 - buoyancy_init (z_above))
-       rho  = ref_density * (1.0_8 - buoyancy_init (z_k))
+       rho_above = ref_density * (1d0 - buoyancy_init (z_above))
+       rho  = ref_density * (1d0 - buoyancy_init (z_k))
        drho = rho_above - rho
 
        bv = sqrt(- grav_accel * drho/dz_l/rho)
@@ -746,14 +748,14 @@ contains
     end if
 
     ! Penalization parameterss
-    dlat = 0.5d0*npts_penal * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+    dlat = 0.5d0*dble(npts_penal+2) * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
 
     width_S = 90d0 + (lat_c - (lat_width/2 + dlat))
     width_N = 90d0 - (lat_c + (lat_width/2 + dlat))
 
     ! Smoothing exponent for land mass
-    n_smth_S = 4d0*radius * width_S*DEG / (dx_max * npts_penal)
-    n_smth_N = 4d0*radius * width_N*DEG / (dx_max * npts_penal)
+    n_smth_S = 4d0*radius * width_S*DEG / (dx_max * dble(npts_penal+2))
+    n_smth_N = 4d0*radius * width_N*DEG / (dx_max * dble(npts_penal+2))
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -817,20 +819,18 @@ contains
 
     select case (itype)
     case ("bathymetry")
-!!$       nsmth = 2 * (l - min_level)
-       nsmth = 1
+       nsmth = 4
        dom%topo%elts(id_i) = max_depth + smooth (surf_geopot_case, p, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
-       nsmth = 0
-
-       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, nsmth)
+       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, npts_penal)
 
        q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
        q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1)
        q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
        do e = 1, EDGE
           id_e = EDGE*id + e
-          penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
+          !penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, npts_penal), smooth (mask, q(e), dx, npts_penal))
+          penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, 0), smooth (mask, q(e), dx, 0))
        end do
     end select
   end subroutine topo_upwelling
@@ -880,7 +880,7 @@ contains
       ! Radial basis function for smoothing topography
       implicit none
 
-      radial_basis_fun = exp (-(r/(npts*dx/2d0))**2)
+      radial_basis_fun = exp (-(r/(dble(npts)*dx/2d0))**2)
     end function radial_basis_fun
   end function smooth
 
@@ -892,15 +892,15 @@ contains
 
     call cart2sph (p, lon, lat)
 
-    mask = exp__flush (- abs((lat/DEG+90_8)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90_8)/width_N)**n_smth_N)
+    mask = exp__flush (- abs((lat/DEG+90d0)/width_S)**n_smth_S) + exp__flush (- abs((lat/DEG-90d0)/width_N)**n_smth_N)
   end function mask
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     implicit none
     real(8) :: lat, lon, tau_zonal, tau_merid
 
-    if (time/DAY <= 2.0_8) then
-       tau_zonal = tau_0 * sin (MATH_PI/4 * time/DAY)
+    if (time/DAY <= 2d0) then
+       tau_zonal = tau_0 * sin (MATH_PI/4d0 * time/DAY)
     else
        tau_zonal = tau_0
     end if
@@ -949,22 +949,22 @@ contains
 
     hc = min (abs(min_depth), abs(Tcline))
 
-    cff1 = 1.0_8 / sinh (theta_s)
-    cff2 = 0.5d0 / tanh (0.50 * theta_s)
+    cff1 = 1d0 / sinh (theta_s)
+    cff2 = 0.5d0 / tanh (0.5d0 * theta_s)
 
-    sc(0) = -1.0_8
-    Cs(0) = -1.0_8
+    sc(0) = -1d0
+    Cs(0) = -1d0
     cff = 1d0 / dble(zlevels)
     do k = 1, zlevels
        sc(k) = cff * dble (k - zlevels)
-       Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+       Cs(k) = (1d0 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
     end do
 
     z_coords_case(0) = z_s
     do k = 1, zlevels
        cff = hc * (sc(k) - Cs(k))
        z_0 = cff - Cs(k) * z_s
-       a_vert(k) = 1.0_8 - z_0 / z_s
+       a_vert(k) = 1d0 - z_0 / z_s
        z_coords_case(k) = eta_surf * a_vert(k) + z_0
     end do
   end function z_coords_case
@@ -1028,7 +1028,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idE, idN, idNE, idS, idSW, idW, k
+    integer :: d, id, idE, idN, idNE
     real(8) :: dz0, dz_e, r_loc
 
     id   = idx (i,   j,   offs, dims)
@@ -1037,13 +1037,9 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-
     d    = dom%id + 1
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+    if (dom%mask_n%elts(id+1) >= ADJZONE .and. penal_node(zlev)%data(d)%elts(id+1) < 1d-3) then
        dz0  = (sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)) &
             / porous_density (d, id+1, zlev)
 
@@ -1054,10 +1050,12 @@ contains
 
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idNE+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1)) &
             / porous_density (d, idNE+1, zlev)
+       r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
        r_max_loc = max (r_max_loc, r_loc)
-
+       
        dz_e = (sol(S_MASS,zlev)%data(d)%elts(idN+1)  + sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)) &
             / porous_density(d, idN+1, zlev)
+       r_loc = abs (dz0 - dz_e) / (dz0 + dz_e)
        r_max_loc = max (r_max_loc, r_loc)
     end if
   end subroutine cal_rmax_loc
@@ -1111,7 +1109,7 @@ contains
 
        rho = porous_density (d, id+1, zlevels)
 
-       wind_flux_case = tau_wind / rho  * (1 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+       wind_flux_case = tau_wind / rho  * (1d0 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
     else
        wind_flux_case = 0d0
     end if
