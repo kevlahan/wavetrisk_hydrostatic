@@ -478,7 +478,7 @@ contains
 
     b_vert(0) = 1d0 ; b_vert(zlevels) = 0d0
     if (trim (coords) == "uniform") then
-       do k = 2, zlevels-1
+       do k = 1, zlevels-1
           b_vert(k) = 1d0 - dble(k)/dble(zlevels)
        end do
     elseif (trim(coords) == "croco") then
