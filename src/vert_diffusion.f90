@@ -9,9 +9,9 @@ module vert_diffusion_mod
   ! using a TKE closure model (tke_closure=.true.).
   !
   ! User must supply the following functions in test_case_mod.f90:
-  !        flux_b, flux_t   (bottom and top buoyancy sources)
-  !        wind_tau, wind_f (magnitude of wind stress tau and wind drag)
-  !        r                (bottom friction)
+  !        bottom_buoy_flux, top_buoy_flux (bottom and top buoyancy fluxes)
+  !        wind_flux                       (magnitude of wind stress tau)
+  !        bottom_friction                 (bottom friction)
   !
   ! Set tke_closure = .true. and Kt_const = Kv_bottom = 0 to turn off vertical diffusion, but include wind stress/bottom friction.
   use init_mod
