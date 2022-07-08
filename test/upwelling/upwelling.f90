@@ -28,17 +28,14 @@ program upwelling
   match_time         = .true.                        ! avoid very small time steps when saving (if false) 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
-  alpha              = 1d-6                          ! porosity used in penalization
-  npts_penal         = 2.5                           ! number of points to smooth over in penalization
-  timeint_type       = "RK4"                         ! always use RK4
+  npts_penal         = 2                             ! number of points to smooth over in penalization
+  timeint_type       = "RK3"                         ! always use RK4
   compressible       = .false.                       ! always run with incompressible equations
   remapscalar_type   = "PPR"                         ! optimal remapping scheme
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
   
   Laplace_order_init = 1                              
   Laplace_order = Laplace_order_init
-  implicit_diff_sclr = .false.
-  implicit_diff_divu = .false.
   vert_diffuse       = .true.                        ! include vertical diffusion
   tke_closure        = .false.                       ! use analytic scheme for eddy viscosity and eddy diffusion
          
@@ -55,12 +52,12 @@ program upwelling
   lat_c              = 45d0                          ! centre of zonal channel (in degrees)
   
   ! Bottom friction
-  bottom_friction_case = 3d-4 / SECOND          
+  bottom_friction_case = 3d-4 * METRE / SECOND          
 
   ! Wind stress
   tau_0              = 0.1d0
 
-  ! Equation of state variables
+  ! Linear equation of state variables
   a_0                = 0.28d0 / CELSIUS
   b_0                = 0d0
   mu_1               = 0d0
@@ -68,7 +65,7 @@ program upwelling
   T_ref              = 14d0   * CELSIUS
   
   ! Vertical level to save
-  save_zlev          = 8
+  save_zlev          = zlevels/2
 
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))   ! inertia-gravity wave speed 

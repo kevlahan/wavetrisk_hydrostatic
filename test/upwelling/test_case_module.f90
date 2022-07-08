@@ -361,7 +361,7 @@ contains
              end do
           end do
        end do
-     else ! need to set values over entire grid on restart
+    else ! need to set values over entire grid on restart
        do l = level_start, level_end
           call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           do k = 1, zmax
@@ -517,23 +517,21 @@ contains
     implicit none
     type(Coord) :: p
 
-    real(8) :: amp, b_max, lat, lon, y
+    real(8) :: amp, b_max, lat, lon, y, w_N, w_S, ns_S, ns_N
 
     call cart2sph (p, lon, lat)
 
     b_max = abs (max_depth - min_depth)
     lat = lat / DEG
 
-    if (abs(lat-lat_c) <= lat_width/2) then
+    if (abs(lat-lat_c) <= lat_width/2d0) then
        amp = b_max / (1d0 - tanh (-slope*width/shift))
-       y = (lat - (lat_c - lat_width/2))/180 * MATH_PI*radius ! y = 0 at low latitude boundary of channel                                               
-       !surf_geopot_case = amp * (1d0 - tanh (slope * (f(y) - width/shift)))
-       surf_geopot_case = amp * (1d0 - tanh (slope/2d0 * (f(y) - width/shift)))
-       !surf_geopot_case = max(100d0 * (1d0 - 0.14d0*slope * f(y)), 0d0)
+       y = (lat - (lat_c - lat_width/2d0))/180d0 * MATH_PI*radius ! y = 0 at low latitude boundary of channel                                               
+       surf_geopot_case = amp * (1d0 - tanh (slope * (f(y) - width/shift)))
     else
        surf_geopot_case = b_max
     end if
-    surf_geopot_case = grav_accel * surf_geopot_case
+    Surf_geopot_case = grav_accel * surf_geopot_case
   end function surf_geopot_case
 
   real(8) function f (y)
@@ -713,7 +711,7 @@ contains
     dt_init = dt_cfl
 
     C = 5d-3 ! <= 1/2 if explicit
-    C_rotu = C !/ 4**Laplace_order_init
+    C_rotu = C / 4**Laplace_order_init
     C_divu = C
     C_mu   = C
     C_b    = C
@@ -801,7 +799,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer                        :: d, e, id, id_e, id_i, l, nsmth
+    integer                        :: d, e, id, id_e, id_i, l, n_coarse, nsmth
     real(8)                        :: dx
     type(Coord)                    :: p
     type(Coord), dimension(1:EDGE) :: q
@@ -813,24 +811,23 @@ contains
     p = dom%node%elts(id_i)
     l = dom%level%elts(id_i)
 
-!!$    dx = max (dx_min, maxval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))) ! local grid size
-    dx = dx_max
-!!$    dx = dx_min
-
     select case (itype)
     case ("bathymetry")
-       nsmth = 4
+       n_coarse = 8 ! ensure r_max is small enough
+       nsmth = n_coarse * 2**(l - min_level) 
+       dx    = dx_max / 2**(l - min_level) 
        dom%topo%elts(id_i) = max_depth + smooth (surf_geopot_case, p, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
-       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, npts_penal)
+       nsmth = npts_penal * 2**(l - min_level) 
+       dx    = dx_max / 2**(l - min_level) 
+       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, nsmth)
 
        q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
-       q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1)
+       q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1) 
        q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
        do e = 1, EDGE
           id_e = EDGE*id + e
-          !penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, npts_penal), smooth (mask, q(e), dx, npts_penal))
-          penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, 0), smooth (mask, q(e), dx, 0))
+          penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
        end do
     end select
   end subroutine topo_upwelling
