@@ -61,7 +61,6 @@ program Seamount
   coarse_iter        = 100                                  ! maximum number of coarse scale bicgstab iterations for elliptic solver
   fine_iter          = 200                                  ! maximum number of fine scale jacobi iterations for elliptic solver
 
-  drag               = .false.                               ! no bottom friction
   vert_diffuse       = .false.                               ! no vertical diffusion
 
   ! Characteristic scales
