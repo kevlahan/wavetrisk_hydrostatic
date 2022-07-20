@@ -449,7 +449,7 @@ contains
       real(8), dimension(1:EDGE) :: drho, dz, rho_0
       real(8), dimension(0:EDGE) :: rho
 
-      dz = dz_e (dom, i, j, k, offs, dims)
+      dz = dz_e (dom, i, j, k, offs, dims, sol)
 
       rho_0 = porous_density_edge (d, id+1, k)
 
@@ -476,7 +476,7 @@ contains
       id = idx (i, j, offs, dims)
 
       call cart2sph (dom%node%elts(id+1), lon, lat)
-      z = z_i (dom, i, j, k, offs, dims)
+      z = z_i (dom, i, j, k, offs, dims, sol)
 
       rho_i = density_init (lat/DEG, z)
     end function rho_i

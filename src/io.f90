@@ -732,6 +732,9 @@ contains
     real(8)                       :: full_mass, full_temp, total_depth, total_height
     real(4), dimension(N_VAR_OUT) :: outv
 
+    integer :: idE, idN, idNE
+    real(8) :: dz0, dze, r_max
+
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
@@ -781,11 +784,48 @@ contains
                 outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
 !!$                outv(6) = -dom%topo%elts(id_i) ! bathymetry
              else
-                outv(6) = free_surface (dom, i, j, zlev, offs, dims)
+                outv(6) = free_surface (dom, i, j, zlev, offs, dims, sol)
              end if
           end if
+          !outv(6) = dom%surf_press%elts(id_i)
+          outv(6) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
 
-          outv(7) = dom%press_lower%elts(id_i)          ! vorticity (at hexagon points)
+          idE  = idx (i+1, j,   offs, dims)
+          idNE = idx (i+1, j+1, offs, dims)
+          idN  = idx (i,   j+1, offs, dims)
+
+          r_max = 0d0
+          do k = 1, zlevels
+             dz0  = (sol(S_MASS,k)%data(d)%elts(id+1) + sol_mean(S_MASS,k)%data(d)%elts(id+1)) &
+                  / porous_density (d, id+1, k)
+
+             dze = (sol(S_MASS,k)%data(d)%elts(idE+1) + sol_mean(S_MASS,k)%data(d)%elts(idE+1)) &
+                  / porous_density (d, idE+1, k)
+             r_max  = max (r_max, abs (dz0 - dze) / (dz0 + dze))
+
+             dze = (sol(S_MASS,k)%data(d)%elts(idNE+1) + sol_mean(S_MASS,k)%data(d)%elts(idNE+1)) &
+                  / porous_density (d, idNE+1, k)
+             r_max  = max (r_max, abs (dz0 - dze) / (dz0 + dze))
+
+             dze = (sol(S_MASS,k)%data(d)%elts(idN+1)  + sol_mean(S_MASS,k)%data(d)%elts(idN+1)) &
+                  / porous_density(d, idN+1, k)
+             r_max  = max (r_max, abs (dz0 - dze) / (dz0 + dze))
+
+             dze = (sol(S_MASS,k)%data(d)%elts(idW+1) + sol_mean(S_MASS,k)%data(d)%elts(idW+1)) &
+                  / porous_density (d, idW+1, k)
+             r_max  = max (r_max, abs (dz0 - dze) / (dz0 + dze))
+
+             dze = (sol(S_MASS,k)%data(d)%elts(idSW+1) + sol_mean(S_MASS,k)%data(d)%elts(idSW+1)) &
+                  / porous_density (d, idSW+1, k)
+             r_max  = max (r_max, abs (dz0 - dze) / (dz0 + dze))
+
+             dze = (sol(S_MASS,k)%data(d)%elts(idS+1)  + sol_mean(S_MASS,k)%data(d)%elts(idS+1)) &
+                  / porous_density(d, idS+1, k)
+             r_max  = max (r_max, abs (dz0 - dze) / (dz0 + dze))
+          end do
+
+          !outv(7) = dom%press_lower%elts(id_i)          ! vorticity (at hexagon points)
+          outv(7) = r_max
 
           write (funit,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
                dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
@@ -816,7 +856,7 @@ contains
           if (mode_split) then 
              outv(9) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
           else
-             outv(9) = free_surface (dom, i, j, zlev, offs, dims)
+             outv(9) = free_surface (dom, i, j, zlev, offs, dims, sol)
           end if
 
           ! Topography

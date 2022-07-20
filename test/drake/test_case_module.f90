@@ -130,13 +130,13 @@ contains
 
     ! Layer thicknesses and velocities
     if (zlevels == 2) then
-       h1 = dz_e (dom, i, j, 1, offs, dims)
-       h2 = dz_e (dom, i, j, 2, offs, dims)
+       h1 = dz_e (dom, i, j, 1, offs, dims, sol)
+       h2 = dz_e (dom, i, j, 2, offs, dims, sol)
        
        u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
        u2 = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
     elseif (zlevels == 1) then
-        h1 = dz_e (dom, i, j, 1, offs, dims);                       h2 = h1
+        h1 = dz_e (dom, i, j, 1, offs, dims, sol);                  h2 = h1
         u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1); u2 = u1
     end if
 

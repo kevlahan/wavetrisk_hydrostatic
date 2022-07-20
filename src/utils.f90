@@ -27,13 +27,14 @@ module utils_mod
   procedure (routine_hex), pointer :: integrand_hex => null ()
   procedure (routine_tri), pointer :: integrand_tri => null ()
 contains
-  real(8) function z_i (dom, i, j, zlev, offs, dims)
+  real(8) function z_i (dom, i, j, zlev, offs, dims, q)
     ! Position of vertical level zlev at nodes
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
 
     integer :: id, k
     real(8) :: dz, dz_below, z_s
@@ -42,39 +43,41 @@ contains
 
     z_s = dom%topo%elts(id+1) 
     
-    dz_below = dz_i (dom, i, j, 1, offs, dims)
+    dz_below = dz_i (dom, i, j, 1, offs, dims, q)
     z_i = z_s + dz_below / 2
     do k = 2, zlev
-       dz = dz_i (dom, i, j, k, offs, dims)
+       dz = dz_i (dom, i, j, k, offs, dims, q)
        z_i = z_i + interp (dz, dz_below)
        dz_below = dz
     end do
   end function z_i
 
-  real(8) function dz_i (dom, i, j, zlev, offs, dims)
+  real(8) function dz_i (dom, i, j, zlev, offs, dims, q)
     ! Thickness of layer zlev at nodes
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    dz_i = (sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id)) / porous_density (d, id, zlev)
+    dz_i = (sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)) / porous_density (d, id, zlev)
   end function dz_i
   
-  function dz_e (dom, i, j, zlev, offs, dims)
+  function dz_e (dom, i, j, zlev, offs, dims, q)
     ! Thickness of layer zlev at edges
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: dz_e
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+    real(8), dimension(1:EDGE)                :: dz_e
 
     integer                    :: d, id, idE, idN, idNE
     real(8), dimension(0:EDGE) :: dz
@@ -86,29 +89,30 @@ contains
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
    
-    dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + sol(S_MASS,zlev)%data(d)%elts(id+1)) &
+    dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + q(S_MASS,zlev)%data(d)%elts(id+1)) &
          / porous_density (d, id+1, zlev)
     
-    dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)  + sol(S_MASS,zlev)%data(d)%elts(idE+1)) &
+    dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)  + q(S_MASS,zlev)%data(d)%elts(idE+1)) &
          / porous_density (d, idE+1, zlev)
     
-    dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) + sol(S_MASS,zlev)%data(d)%elts(idNE+1)) &
+    dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) + q(S_MASS,zlev)%data(d)%elts(idNE+1)) &
          / porous_density (d, idNE+1, zlev)
     
-    dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)  + sol(S_MASS,zlev)%data(d)%elts(idN+1)) &
+    dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)  + q(S_MASS,zlev)%data(d)%elts(idN+1)) &
          / porous_density (d, idN+1, zlev)
 
     dz_e = 0.5d0 * (dz(0) + dz(1:EDGE))
   end function dz_e
 
-  function dz_SW_e (dom, i, j, zlev, offs, dims)
+  function dz_SW_e (dom, i, j, zlev, offs, dims, q)
     ! Thickness of layer zlev at edges (SW edges)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: dz_SW_e
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+    real(8), dimension(1:EDGE)                :: dz_SW_e
 
     integer                    :: d, id, idW, idSW, idS
     real(8), dimension(0:EDGE) :: dz
@@ -120,29 +124,29 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
    
-    dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + sol(S_MASS,zlev)%data(d)%elts(id+1)) &
+    dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + q(S_MASS,zlev)%data(d)%elts(id+1)) &
          / porous_density (d, id+1, zlev)
     
-    dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idW+1)  + sol(S_MASS,zlev)%data(d)%elts(idW+1)) &
+    dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idW+1)  + q(S_MASS,zlev)%data(d)%elts(idW+1)) &
          / porous_density (d, idW+1, zlev)
     
-    dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idSW+1) + sol(S_MASS,zlev)%data(d)%elts(idSW+1)) &
+    dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idSW+1) + q(S_MASS,zlev)%data(d)%elts(idSW+1)) &
          / porous_density (d, idSW+1, zlev)
     
-    dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idS+1)  + sol(S_MASS,zlev)%data(d)%elts(idS+1)) &
+    dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idS+1)  + q(S_MASS,zlev)%data(d)%elts(idS+1)) &
          / porous_density (d, idS+1, zlev)
 
     dz_SW_e = 0.5d0 * (dz(0) + dz(1:EDGE))
   end function dz_SW_e
   
-  real(8) function zl_i (dom, i, j, zlev, offs, dims, l)
+  real(8) function zl_i (dom, i, j, zlev, offs, dims, q, l)
     ! Position of interface below (l=-1) or above (l=1) vertical level zlev nodes
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer                        :: l
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                              :: dom
+    integer                                   :: i, j, l, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
 
     integer :: id, k
 
@@ -150,19 +154,20 @@ contains
 
     zl_i = dom%topo%elts(id+1)
     do k = 1, zlev+l
-       zl_i = zl_i + dz_i (dom, i, j, k, offs, dims)
+       zl_i = zl_i + dz_i (dom, i, j, k, offs, dims, q)
     end do
   end function zl_i
 
-  function zl_e (dom, i, j, zlev, offs, dims, l)
+  function zl_e (dom, i, j, zlev, offs, dims, q, l)
     ! Position of interface below (l=-1) or above (l=1) vertical level zlev at edges
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer                        :: l
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: zl_e
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer                                   :: l
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+    real(8), dimension(1:EDGE)                :: zl_e
 
     integer :: id, idE, idN, idNE, k
 
@@ -175,18 +180,36 @@ contains
     zl_e(DG+1) = interp (dom%topo%elts(id+1), dom%topo%elts(idNE+1)) 
     zl_e(UP+1) = interp (dom%topo%elts(id+1), dom%topo%elts(idN+1))  
     do k = 1, zlev+l
-       zl_e = zl_e + dz_e (dom, i, j, k, offs, dims)
+       zl_e = zl_e + dz_e (dom, i, j, k, offs, dims, q)
     end do
   end function zl_e
 
-  function eta_e (dom, i, j, zlev, offs, dims)
+  real(8) function dz_l (dom, i, j, zlev, offs, dims, q)
+    ! Thickness of layer associated with interface between layers zlev and zlev+1: z_(zlev+1) - z_zlev
+    implicit none
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+    
+    real(8) :: dZ, dZ_above
+
+    dZ        = dz_i (dom, i, j, zlevels,   offs, dims, q)
+    dZ_above  = dz_i (dom, i, j, zlevels+1, offs, dims, q)
+
+    dz_l = 0.5d0 * (dZ + dZ_above)
+  end function dz_l
+
+  function eta_e (dom, i, j, zlev, offs, dims, q)
     ! Free surface perturbation at edges
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: eta_e
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+    real(8), dimension(1:EDGE)                :: eta_e
 
     integer :: d, id, idE, idN, idNE
     real(8) :: eta0
@@ -198,14 +221,14 @@ contains
     idN  = idx (i,   j+1, offs, dims)
 
     if (mode_split) then
-       eta_e(RT+1) = interp (sol(S_MASS,zlevels+1)%data(d)%elts(id+1), sol(S_MASS,zlevels+1)%data(d)%elts(idE+1))
-       eta_e(DG+1) = interp (sol(S_MASS,zlevels+1)%data(d)%elts(id+1), sol(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
-       eta_e(UP+1) = interp (sol(S_MASS,zlevels+1)%data(d)%elts(id+1), sol(S_MASS,zlevels+1)%data(d)%elts(idN+1))
+       eta_e(RT+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idE+1))
+       eta_e(DG+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
+       eta_e(UP+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idN+1))
     else
-       eta0 = free_surface (dom, i, j, zlev, offs, dims)
-       eta_e(RT+1) = interp (eta0, free_surface (dom, i+1, j,   zlev, offs, dims))
-       eta_e(DG+1) = interp (eta0, free_surface (dom, i+1, j+1, zlev, offs, dims))
-       eta_e(UP+1) = interp (eta0, free_surface (dom, i,   j+1, zlev, offs, dims))
+       eta0 = free_surface (dom, i, j, zlev, offs, dims, q)
+       eta_e(RT+1) = interp (eta0, free_surface (dom, i+1, j,   zlev, offs, dims, q))
+       eta_e(DG+1) = interp (eta0, free_surface (dom, i+1, j+1, zlev, offs, dims, q))
+       eta_e(UP+1) = interp (eta0, free_surface (dom, i,   j+1, zlev, offs, dims, q))
     end if
   end function eta_e
 
@@ -242,13 +265,14 @@ contains
     phi_edge = 1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(id_e)
   end function phi_edge
 
-  real(8) function potential_density (dom, i, j, zlev, offs, dims)
+  real(8) function potential_density (dom, i, j, zlev, offs, dims, q)
     ! Potential density at nodes (neglect free surface perturbation)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id_i
     real(8) :: z
@@ -256,18 +280,19 @@ contains
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    z = z_i (dom, i, j, zlev, offs, dims)
+    z = z_i (dom, i, j, zlev, offs, dims, q)
 
-    potential_density = density (dom, i, j, zlev, offs, dims) - ref_density * z / H_rho
+    potential_density = density (dom, i, j, zlev, offs, dims, q) - ref_density * z / H_rho
   end function potential_density
 
-   real(8) function potential_buoyancy (dom, i, j, zlev, offs, dims)
+   real(8) function potential_buoyancy (dom, i, j, zlev, offs, dims, q)
     ! Potential buoyancy at nodes (neglect free surface perturbation)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id_i
     real(8) :: z
@@ -275,18 +300,19 @@ contains
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    z = z_i (dom, i, j, zlev, offs, dims)
+    z = z_i (dom, i, j, zlev, offs, dims, q)
 
-    potential_buoyancy = buoyancy (dom, i, j, zlev, offs, dims) + z / H_rho
+    potential_buoyancy = buoyancy (dom, i, j, zlev, offs, dims, q) + z / H_rho
   end function potential_buoyancy
 
-  real(8) function buoyancy (dom, i, j, zlev, offs, dims)
+  real(8) function buoyancy (dom, i, j, zlev, offs, dims, q)
     ! at nodes
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id_i
     real(8) :: full_mass, full_theta
@@ -294,8 +320,8 @@ contains
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i)
-    full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
+    full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + q(S_MASS,zlev)%data(d)%elts(id_i)
+    full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + q(S_TEMP,zlev)%data(d)%elts(id_i)
 
     buoyancy = full_theta / full_mass
   end function buoyancy
@@ -319,24 +345,26 @@ contains
     scalar(id_i) = full_theta / full_mass
   end subroutine cal_buoyancy
 
-  real(8) function density (dom, i, j, zlev, offs, dims)
+  real(8) function density (dom, i, j, zlev, offs, dims, q)
     ! Density at nodes
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
 
-    density = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims))
+    density = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims, q))
   end function density
 
-  real(8) function free_surface (dom, i, j, zlev, offs, dims)
+  real(8) function free_surface (dom, i, j, zlev, offs, dims, q)
     ! Computes free surface perturbations
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id_i, k
     real(8) :: full_mass, total_depth
@@ -346,7 +374,7 @@ contains
     
     total_depth = 0d0
     do k = 1, zlevels
-       full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + q(S_MASS,k)%data(d)%elts(id_i)
        total_depth = total_depth + full_mass /  porous_density (d, id_i, k)
     end do
     free_surface = total_depth + dom%topo%elts(id_i)

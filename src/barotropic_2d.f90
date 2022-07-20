@@ -581,7 +581,7 @@ contains
 
       real(8) :: dl, dz
 
-      dz =  z_i (dom, i2, j2, k, offs, dims) - z_i (dom, i1, j1, k, offs, dims)
+      dz =  z_i (dom, i2, j2, k, offs, dims, sol) - z_i (dom, i1, j1, k, offs, dims, sol)
       dl = dom%len%elts(id_e)
 
       vert_vel = dz / sqrt (dl**2 + dz**2) * velo(id_e)
@@ -607,7 +607,7 @@ contains
        if (mode_split) then
           eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
        else
-          eta = free_surface (dom, i, j, zlev, offs, dims)
+          eta = free_surface (dom, i, j, zlev, offs, dims, sol)
        end if
        z_s = dom%topo%elts(id_i)
        z = z_coords (eta, z_s) ! set a_vert

@@ -82,7 +82,7 @@ contains
     real(8)                         :: eta, filt, turb, z
     real(8), dimension(0:zlevels)   :: e, l_eps, l_m, Nsq,  dudzsq
     real(8), dimension(1:zlevels)   :: dz
-    real(8), dimension(1:zlevels-1) :: dz_l, diag, rhs, S1, S2
+    real(8), dimension(1:zlevels-1) :: dzl, diag, rhs, S1, S2
     real(8), dimension(1:zlevels-2) :: diag_l, diag_u
     type(Coord)                     :: p
 
@@ -144,14 +144,14 @@ contains
        if (mode_split) then
           eta = sol(S_MASS,zlevels+1)%data(d)%elts(id)
        else
-          eta = free_surface (dom, i, j, z_null, offs, dims)
+          eta = free_surface (dom, i, j, z_null, offs, dims, sol)
        end if
        z = dom%topo%elts(id)
 
        Kt(0)%data(d)%elts(id) = Kt_analytic ()
        Kv(0)%data(d)%elts(id) = Kv_analytic (z, eta)
        do l = 1, zlevels
-          z = z + dz_i (dom, i, j, l, offs, dims)
+          z = z + dz_i (dom, i, j, l, offs, dims, sol)
           Kt(l)%data(d)%elts(id) = Kt_analytic ()
           Kv(l)%data(d)%elts(id) = Kv_analytic (z, eta)
        end do
@@ -164,11 +164,11 @@ contains
       real(8) :: Ri
 
       do k = 1, zlevels
-         dz(k) = dz_i (dom, i, j, k, offs, dims)
+         dz(k) = dz_i (dom, i, j, k, offs, dims, sol)
       end do
 
       do l = 1, zlevels-1
-         dz_l(l) = interp (dz(l), dz(l+1))
+         dzl(l) = interp (dz(l), dz(l+1))
       end do
 
       do l = 0, zlevels
@@ -219,7 +219,7 @@ contains
       implicit none
       real(8) :: dz, Kv
       
-      coeff = dt * c_e * Kv / (dz_l(l) * dz)
+      coeff = dt * c_e * Kv / (dzl(l) * dz)
     end function coeff
   end subroutine turbulence_model
 
@@ -236,7 +236,7 @@ contains
 
     real(8), dimension(0:zlevels)   :: z
     real(8), dimension(1:zlevels)   :: diag, dz, rhs
-    real(8), dimension(1:zlevels-1) :: diag_l, diag_u, dz_l
+    real(8), dimension(1:zlevels-1) :: diag_l, diag_u, dzl
 
     id = idx (i, j, offs, dims) + 1
     d = dom%id + 1
@@ -244,18 +244,18 @@ contains
     if (mode_split) then
        eta = sol(S_MASS,zlevels+1)%data(d)%elts(id)
     else
-       eta = free_surface (dom, i, j, z_null, offs, dims)
+       eta = free_surface (dom, i, j, z_null, offs, dims, sol)
     end if
 
     ! Layer thicknesses and interface positions
     z(0) = dom%topo%elts(id)
     do k = 1, zlevels
-       dz(k) = dz_i (dom, i, j, k, offs, dims)
+       dz(k) = dz_i (dom, i, j, k, offs, dims, sol)
        z(k) = z(k-1) + dz(k)
     end do
     
     do l = 1, zlevels-1
-       dz_l(l) = interp (dz(l), dz(l+1))
+       dzl(l) = interp (dz(l), dz(l+1))
     end do
 
     ! Bottom layer
@@ -294,7 +294,7 @@ contains
       integer :: kk
 
       kk = k + min (0,l)
-      coeff = dt * Kt(kk)%data(d)%elts(id) / (dz_l(kk) * dz(k))
+      coeff = dt * Kt(kk)%data(d)%elts(id) / (dzl(kk) * dz(k))
     end function coeff
     
     real(8) function b ()
@@ -324,7 +324,7 @@ contains
 
     integer                                :: d, e, id, info, k, l
     real(8), dimension(1:EDGE,1:zlevels)   :: diag, dz, rhs
-    real(8), dimension(1:EDGE,1:zlevels-1) :: diag_l, diag_u, dz_l
+    real(8), dimension(1:EDGE,1:zlevels-1) :: diag_l, diag_u, dzl
     real(8), dimension(1:zlevels)          :: dd, r
     real(8), dimension(1:zlevels-1)        :: dl, du
 
@@ -333,11 +333,11 @@ contains
 
     ! Layer thicknesses
     do k = 1, zlevels
-       dz(:,k) = dz_e (dom, i, j, k, offs, dims)
+       dz(:,k) = dz_e (dom, i, j, k, offs, dims, sol)
     end do
     
     do l = 1, zlevels-1
-       dz_l(:,l) = interp_e (dz(:,l), dz(:,l+1))
+       dzl(:,l) = interp_e (dz(:,l), dz(:,l+1))
     end do
     
     ! Bottom layer
@@ -379,7 +379,7 @@ contains
 
       kk = k + min (0, l)
 
-      coeff = dt  * Kv(kk)%data(d)%elts(id+1) / (dz_l(:,kk) * dz(:,k))
+      coeff = dt  * Kv(kk)%data(d)%elts(id+1) / (dzl(:,kk) * dz(:,k))
     end function coeff
   end subroutine backwards_euler_velo
 
@@ -417,7 +417,7 @@ contains
       integer :: l
 
       integer :: d, id
-      real(8) :: dz_l
+      real(8) :: dzl
       real(8) :: b_above, b_below ! buoyancy above and below interface l
 
       d = dom%id + 1
@@ -425,9 +425,9 @@ contains
 
       b_below = sol(S_TEMP,l)%data(d)%elts(id)   / (sol_mean(S_MASS,l)%data(d)%elts(id)   + sol(S_MASS,l)%data(d)%elts(id))
       b_above = sol(S_TEMP,l+1)%data(d)%elts(id) / (sol_mean(S_MASS,l+1)%data(d)%elts(id) + sol(S_MASS,l+1)%data(d)%elts(id))
-      dz_l = interp (dz(l), dz(l+1))
+      dzl = interp (dz(l), dz(l+1))
 
-      eval = grav_accel * (b_above - b_below) / dz_l ! - g drho/dz / rho0
+      eval = grav_accel * (b_above - b_below) / dzl ! - g drho/dz / rho0
     end function eval
   end function N_sq
 
@@ -461,7 +461,7 @@ contains
       prim_dual = dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
 
       dudz = (sol(S_VELO,l+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)) &
-           / interp_e (dz_e (dom, i, j, l, offs, dims), dz_e (dom, i, j, l+1, offs, dims))
+           / interp_e (dz_e (dom, i, j, l, offs, dims, sol), dz_e (dom, i, j, l+1, offs, dims, sol))
 
       eval = sum (dudz**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv
     end function eval
@@ -602,7 +602,7 @@ contains
       
     dmass(id_i) = 0.0_8
 
-    dz_k = dz_i (dom, i, j, zlev, offs, dims)
+    dz_k = dz_i (dom, i, j, zlev, offs, dims, sol)
     
     if (zlev > 1 .and. zlev < zlevels) then
        dtemp(id_i) = scalar_flux(1) - scalar_flux(-1)
@@ -617,8 +617,9 @@ contains
       ! Computes flux at interface below (l=-1) or above (l=1) vertical level zlev
       implicit none
       integer :: l
+      integer :: dzl
 
-      real(8) :: b_0, b_l, dz_l, mass_0, mass_l, temp_0, temp_l, visc
+      real(8) :: b_0, b_l, mass_0, mass_l, temp_0, temp_l, visc
 
       visc = Kt(zlev+min(0,l))%data(d)%elts(id_i)
 
@@ -630,9 +631,9 @@ contains
       temp_l = sol_mean(S_TEMP,zlev+l)%data(d)%elts(id_i) + sol(S_TEMP,zlev+l)%data(d)%elts(id_i)
       b_l = temp_l / mass_l
 
-      dz_l = interp (dz_k,  dz_i(dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
+      dzl = interp (dz_k,  dz_i(dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
 
-      scalar_flux = l * visc * (b_l - b_0) / dz_l
+      scalar_flux = l * visc * (b_l - b_0) / dzl
     end function scalar_flux
   end subroutine trend_scalars_vert_diffuse
 
@@ -649,7 +650,7 @@ contains
     d = dom%id + 1
     id = idx (i, j, offs, dims)
     
-    dz_k = dz_e (dom, i, j, zlev, offs, dims)
+    dz_k = dz_e (dom, i, j, zlev, offs, dims, sol)
 
     if (zlev > 1 .and. zlev < zlevels) then
        dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (velo_flux(1) - velo_flux(-1)) / dz_k
@@ -665,12 +666,12 @@ contains
       integer               :: l
       real(8), dimension(3) :: velo_flux
 
-      real(8), dimension(3) :: dz_l, visc
+      real(8), dimension(3) :: dzl, visc
 
       visc = Kv(zlev+min(0,l))%data(d)%elts(id+1)
-      dz_l = 0.5d0 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims)) ! thickness of layer centred on interface
+      dzl = 0.5d0 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
 
-      velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_l
+      velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dzl
     end function velo_flux
   end subroutine trend_velo_vert_diffuse
 end module vert_diffusion_mod
