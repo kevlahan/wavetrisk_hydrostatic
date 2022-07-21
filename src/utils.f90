@@ -44,7 +44,7 @@ contains
     z_s = dom%topo%elts(id+1) 
     
     dz_below = dz_i (dom, i, j, 1, offs, dims, q)
-    z_i = z_s + dz_below / 2
+    z_i = z_s + dz_below / 2d0
     do k = 2, zlev
        dz = dz_i (dom, i, j, k, offs, dims, q)
        z_i = z_i + interp (dz, dz_below)
@@ -185,7 +185,7 @@ contains
   end function zl_e
 
   real(8) function dz_l (dom, i, j, zlev, offs, dims, q)
-    ! Thickness of layer associated with interface between layers zlev and zlev+1: z_(zlev+1) - z_zlev
+    ! Thickness of layer associated with interface between layers zlev and zlev+1: z_(zlev+1) - z(zlev)
     implicit none
     type(Domain)                              :: dom
     integer                                   :: i, j, zlev
@@ -195,8 +195,8 @@ contains
     
     real(8) :: dZ, dZ_above
 
-    dZ        = dz_i (dom, i, j, zlevels,   offs, dims, q)
-    dZ_above  = dz_i (dom, i, j, zlevels+1, offs, dims, q)
+    dZ        = dz_i (dom, i, j, zlev,   offs, dims, q)
+    dZ_above  = dz_i (dom, i, j, zlev+1, offs, dims, q)
 
     dz_l = 0.5d0 * (dZ + dZ_above)
   end function dz_l
