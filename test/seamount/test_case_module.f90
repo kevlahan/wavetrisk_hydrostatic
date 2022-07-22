@@ -758,7 +758,6 @@ contains
        do k = 0, zlevels
           b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
        end do
-
     end if
     a_vert = 1d0 - b_vert
     
