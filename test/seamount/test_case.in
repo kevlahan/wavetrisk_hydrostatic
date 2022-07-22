@@ -12,6 +12,6 @@ time_end           40          ! final time (days)
 resume            -1             ! restart from checkpoint (negative means fresh restart)
 Bu                 3             ! Burger number
 stratification    exponential    ! stratification (linear or exponential)
-coords            chebyshev      ! vertical coordinates (unifom or chebyshev)
+coords            chebyshev      ! vertical coordinates (unifom, chebyshev_half or chebyshev)
 
 
