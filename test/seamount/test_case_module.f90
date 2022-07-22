@@ -69,8 +69,8 @@ contains
     id_i = id + 1
     d = dom%id + 1
 
-    if (Laplace_order == 0 .or. maxval (visc_sclr) == 0.0_8) then
-       physics_scalar_flux_case = 0.0_8
+    if (Laplace_order == 0 .or. maxval (visc_sclr) == 0d0) then
+       physics_scalar_flux_case = 0d0
     else
        if (.not.local_type) then ! usual flux at edges E, NE, N
           l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
@@ -200,7 +200,7 @@ contains
     ! Vertical level to save
     save_zlev = zlevels 
 
-    press_save = 0.0_8
+    press_save = 0d0
     allocate (pressure_save(1))
     pressure_save(1) = press_save
     dt_write = dt_write * DAY
@@ -374,24 +374,24 @@ contains
     z_s = dom%topo%elts(id_i)
 
     if (zlev == zlevels+1) then ! 2D barotropic mode
-       phi = 1.0_8 + (alpha - 1.0_8) * penal_node(zlevels)%data(d)%elts(id_i)
+       phi = 1d0 + (alpha - 1d0) * penal_node(zlevels)%data(d)%elts(id_i)
 
        sol(S_MASS,zlev)%data(d)%elts(id_i) = phi * eta_surf ! free surface perturbation
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
     else ! 3D layers
        dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
 
-       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+       porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
 
        if (zlev == zlevels) then
           sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta_surf
        else
-          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
+          sol(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
        end if
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
     end if
     ! Set initial velocity field to zero
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0.0_8
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
   end subroutine init_sol
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
@@ -414,17 +414,17 @@ contains
     z_s = dom%topo%elts(id_i)
 
     if (zlev == zlevels+1) then
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0.0_8
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0.0_8
+       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
+       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
     else
        dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
 
-       porous_density = ref_density * (1.0_8 + (alpha - 1.0_8) * penal_node(zlev)%data(d)%elts(id_i))
+       porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
 
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy_init (z_s, x_i, zlev)
     end if
-    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
   end subroutine init_mean
 
   subroutine update_case
@@ -487,7 +487,7 @@ contains
     implicit none
     type(Coord) :: x_i
 
-    init_free_surface = 0.0_8
+    init_free_surface = 0d0
   end function init_free_surface
 
   real(8) function buoyancy_init (z_s, x_i, zlev)
@@ -499,7 +499,7 @@ contains
     type(Coord) :: x_i
 
     real(8) :: rho, z1, z2
-    real(8) :: eta_surf = 0.0_8
+    real(8) :: eta_surf = 0d0
 
     z1 = a_vert(zlev-1) * eta_surf + b_vert(zlev-1) * z_s
     z2 = a_vert(zlev)   * eta_surf + b_vert(zlev)   * z_s
@@ -524,10 +524,12 @@ contains
   subroutine print_density_pert
     implicit none
     integer     :: k
-    real(8)     :: eta_surf, lat, lon, z, z_s
+    real(8)     :: eta_surf, lat, lon, z_k, z_s
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
     type(Coord) :: p 
 
-    eta_surf = 0.0_8
+    eta_surf = 0d0
 
 !!$    p = sph2cart (lon_c, lat_c) ! centre of seamount
 !!$    p = sph2cart (lon_c + width/radius / DEG, lat_c) ! edge of seamount
@@ -537,17 +539,26 @@ contains
 
     z_s = max_depth + surf_geopot_case (p) / grav_accel
 
-    write (6,'(a)') " Layer    z       drho"      
+    if (sigma_z) then
+       z = z_coords_case (eta_surf, z_s)
+    else
+       z = a_vert * eta_surf + b_vert * z_s
+    end if
+    dz = z(1:zlevels) - z(0:zlevels-1)
+
+
+    write (6,'(a)') " Layer      z         dz         rho "
     do k = 1, zlevels
-       z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * z_s)
-       write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, -ref_density * buoyancy_init (z_s, p, k)
+       z_k = interp (z(k-1), z(k))
+       write (6, '(2x, i2, 4x, 2(es9.2, 1x), es12.5)') &
+            k, z_k, dz(k), ref_density * (1d0 - buoyancy_init (z_s, p, k))
     end do
 
-    write (6,'(/)')
+    write (6,'(/,a)') " Interface     z"
     do k = 0, zlevels
-       z = a_vert(k) * eta_surf + b_vert(k) * z_s
-       write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z
+       write (6, '(3x, i3, 5x, es9.2)') k, z(k)
     end do
+
     write (6,'(A)') &
          '*********************************************************************&
          ************************************************************'
@@ -589,11 +600,11 @@ contains
     real(8)     :: dz, eta_surf, z
     type(Coord) :: x_i
 
-    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
+    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
 
-    x_i = Coord (radius, 0.0_8, 0.0_8)
-    eta_surf = 0.0_8
+    x_i = Coord (radius, 0d0, 0d0)
+    eta_surf = 0d0
     do k = 1, zlevels
        dz = a_vert_mass(k) * eta_surf + b_vert_mass(k) * max_depth
        z = 0.5 * ((a_vert(k)+a_vert(k-1)) * eta_surf + (b_vert(k)+b_vert(k-1)) * max_depth)
@@ -602,7 +613,7 @@ contains
 
 !!$       lnorm(S_TEMP,k) = ref_density*dz * buoyancy_init (max_depth, x_i, k)
        lnorm(S_TEMP,k) = 1d16
-       if (lnorm(S_TEMP,k) == 0.0_8) lnorm(S_TEMP,k) = 1d16
+       if (lnorm(S_TEMP,k) == 0d0) lnorm(S_TEMP,k) = 1d16
 
        lnorm(S_VELO,k) = Udim
     end do
@@ -675,8 +686,8 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    penal_node(zlev)%data(d)%elts(id_i)                      = 0.0_8
-    penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8       
+    penal_node(zlev)%data(d)%elts(id_i)                      = 0d0
+    penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0       
   end subroutine set_penal
 
   subroutine topo_seamount (dom, i, j, zlev, offs, dims, itype)
@@ -705,14 +716,14 @@ contains
 
     logical, parameter :: merid_stress = .false.
 
-    peak = (abs(lat)*180/MATH_PI - 35.0_8) / 20
+    peak = (abs(lat)*180/MATH_PI - 35d0) / 20
     tau_zonal = -tau_0 * 1.2 * exp (-peak**2) * sin (abs(lat)*6) - 5d-3*exp(-(lat*180/MATH_PI/10)**2)
 
     if (merid_stress) then
        peak = lat*180/MATH_PI / 15
        tau_merid = -tau_0 * 2.5 * exp (-peak**2) * sin (2*lat) * peak**2
     else
-       tau_merid = 0.0_8
+       tau_merid = 0d0
     end if
   end subroutine wind_stress
 
@@ -730,7 +741,7 @@ contains
   subroutine initialize_a_b_vert_case
     ! Initialize hybrid sigma-coordinate vertical grid
     implicit none
-    integer :: k
+    integer :: k, kp
 
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
@@ -738,15 +749,18 @@ contains
     if (trim (coords) == "uniform") then 
        do k = 0, zlevels
           a_vert(k) = dble(k)/dble(zlevels)
-          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
+          b_vert(k) = 1d0 - dble(k)/dble(zlevels)
        end do
     elseif (trim (coords) == "chebyshev") then
-       a_vert(0) = 0.0_8; b_vert(0) = 1.0_8
-       do k = 1, zlevels-1
-          a_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
-          b_vert(k) = (1.0_8 + cos (dble(2*k-1)/dble(2*(zlevels-1)) * MATH_PI)) / 2
+       do k = 0, zlevels
+          a_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
+          b_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
        end do
-       a_vert(zlevels) = 1.0_8; b_vert(zlevels) = 0.0_8
+    elseif (trim (coords) == "chebyshev_half") then
+       do k = 0, zlevels
+          a_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
+          b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
+       end do
     end if
 
     ! Vertical grid spacing
@@ -861,22 +875,22 @@ contains
 !!$    hc = min (abs(min_depth), abs(Tcline)) ! if specify position of thermocline
     hc = abs(min_depth)
 
-    cff1 = 1.0_8 / sinh (theta_s)
+    cff1 = 1d0 / sinh (theta_s)
     cff2 = 0.5d0 / tanh (0.50 * theta_s)
 
-    sc(0) = -1.0_8
-    Cs(0) = -1.0_8
+    sc(0) = -1d0
+    Cs(0) = -1d0
     cff = 1d0 / dble(zlevels)
     do k = 1, zlevels
        sc(k) = cff * dble (k - zlevels)
-       Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+       Cs(k) = (1d0 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
     end do
 
     z_coords_case(0) = z_s
     do k = 1, zlevels
        cff = hc * (sc(k) - Cs(k))
        z_0 = cff - Cs(k) * z_s
-       a_vert(k) = 1.0_8 - z_0 / z_s
+       a_vert(k) = 1d0 - z_0 / z_s
        z_coords_case(k) = eta_surf * a_vert(k) + z_0
     end do
   end function z_coords_case
