@@ -748,21 +748,20 @@ contains
 
     if (trim (coords) == "uniform") then 
        do k = 0, zlevels
-          a_vert(k) = dble(k)/dble(zlevels)
           b_vert(k) = 1d0 - dble(k)/dble(zlevels)
        end do
     elseif (trim (coords) == "chebyshev") then
        do k = 0, zlevels
-          a_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
           b_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
        end do
     elseif (trim (coords) == "chebyshev_half") then
        do k = 0, zlevels
-          a_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
           b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
        end do
-    end if
 
+    end if
+    a_vert = 1d0 - b_vert
+    
     ! Vertical grid spacing
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
