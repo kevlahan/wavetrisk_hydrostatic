@@ -281,8 +281,9 @@ contains
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
-       write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
-       write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
+       write (6,'(A,es11.4)') "seamount latitude       [deg]  = ", lat_c / DEG
+       write (6,'(A,es11.4)') "f0 at seamount        [rad/s]  = ", f0
+       write (6,'(A,es11.4,/)') "beta at seamount   [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
        write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
        write (6,'(A,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM

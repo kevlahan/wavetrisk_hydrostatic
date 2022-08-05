@@ -25,7 +25,8 @@ program Seamount
 
   scale          = 41.75d0                                   ! scaling factor for small planet
   radius         = radius_earth/scale                        ! mean radius of the small planet
-  omega          = omega_earth                               ! angular velocity (scaled for small planet to keep beta constant)
+  omega          = omega_earth                              ! angular velocity (scaled for small planet to keep beta constant)
+  !omega          = 1d-4/2d0                * RAD/SECOND      ! angular velocity for seamount at north pole
 
   ! Depth and layer parameters
   min_depth      =   -50 * METRE                             ! minimum allowed depth (must be negative)
@@ -34,6 +35,7 @@ program Seamount
   
   ! Seamount
   lat_c          = 43.29 * DEG                               ! latitude of seamount
+  !lat_c          = 90d0 * DEG
   lon_c          =     0 * DEG                               ! longitude
   h0             =  4500 * METRE                             ! height of seamount
   width          =    40 * KM                                ! radius of seamount
