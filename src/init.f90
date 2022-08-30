@@ -746,7 +746,7 @@ contains
          + dom%areas%elts(idN+1)%part(6)
   end subroutine cpt_triarea
 
-  subroutine coriolis (dom, i, j, zlev, offs, dims)
+  subroutine coriolis (dom, i, j, zlev, offs, dims) 
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -754,15 +754,15 @@ contains
 
     integer :: id, idN, idE, idNE
 
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
-    dom%coriolis%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)%z/radius * 2*omega * &
+    dom%coriolis%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)%z/radius * 2d0*omega * &
          (dom%areas%elts(id+1)%part(1) + dom%areas%elts(idE+1)%part(3) + dom%areas%elts(idNE+1)%part(5))
 
-    dom%coriolis%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+UPLT+1)%z/radius * 2*omega * &
+    dom%coriolis%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+UPLT+1)%z/radius * 2d0*omega * &
          (dom%areas%elts(id+1)%part(2) + dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idN+1)%part(6))
   end subroutine coriolis
 
