@@ -659,8 +659,6 @@ contains
     ! Ensure stability
     C_visc = min ((1d0/32d0)**Laplace_order_init, C_visc)
 
-    C_visc = 5d-3
-    
     C_rotu = C_visc
     C_divu = C_visc
     C_sclr = C_visc
