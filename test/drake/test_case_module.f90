@@ -38,7 +38,12 @@ contains
     update                   => update_case
     z_coords                 => z_coords_case
 
+    ! Needed for vertical diffusion
     bottom_friction  => bottom_friction_case
+    bottom_buoy_flux => bottom_buoy_flux_case
+    top_buoy_flux    => top_buoy_flux_case
+    wind_flux        => wind_flux_case
+    tau_mag          => tau_mag_case
   end subroutine assign_functions
 
   function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
@@ -127,17 +132,17 @@ contains
     idE  = idx (i+1, j,   offs, dims) 
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
-
+    
     ! Layer thicknesses and velocities
     if (zlevels == 2) then
        h1 = dz_e (dom, i, j, 1, offs, dims, sol)
        h2 = dz_e (dom, i, j, 2, offs, dims, sol)
-       
+
        u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
        u2 = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
     elseif (zlevels == 1) then
-        h1 = dz_e (dom, i, j, 1, offs, dims, sol);                  h2 = h1
-        u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1); u2 = u1
+       h1 = dz_e (dom, i, j, 1, offs, dims, sol);                  h2 = h1
+       u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1); u2 = u1
     end if
 
     ! Horizontal diffusion
@@ -158,6 +163,8 @@ contains
        end if
     elseif (zlevels == 1) then
        vert_diffusion = bottom_drag() + wind_drag()
+    else
+       vert_diffusion = 0d0
     end if
 
     ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
@@ -210,6 +217,94 @@ contains
       curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
   end function physics_velo_source_case
+
+  real(8) function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims)
+    ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, z_null
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    bottom_buoy_flux_case= 0d0
+  end function bottom_buoy_flux_case
+
+  real(8) function top_buoy_flux_case (dom, i, j, z_null, offs, dims)
+    ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, z_null
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    top_buoy_flux_case = 0d0
+  end function top_buoy_flux_case
+
+  function wind_flux_case (dom, i, j, zlev, offs, dims)
+    ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: wind_flux_case
+
+    integer                    :: d, id, idE, idN, idNE
+    real(8)                    :: rho
+    real(8), dimension(1:EDGE) :: tau_wind
+
+    id = idx (i, j, offs, dims)
+
+    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
+       d = dom%id + 1
+       idE  = idx (i+1, j,   offs, dims)
+       idN  = idx (i,   j+1, offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
+
+       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
+       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
+       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
+
+       rho = porous_density (d, id+1, zlevels)
+
+       wind_flux_case = tau_wind / rho  * (1d0 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+    else
+       wind_flux_case = 0d0
+    end if
+  end function wind_flux_case
+
+  subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
+    ! Idealized zonally and temporally averaged zonal and meridional wind stresses
+    ! (based on Figure 4 from Ferreira et al J Climate 24, 992-1012 (2011) and Figure 4 from Gille J Atmos Ocean Tech 22, 1353-1372 respectively)
+    implicit none
+    real(8) :: lat, lon, peak, tau_zonal, tau_merid
+
+    logical, parameter :: merid_stress = .false.
+
+    peak = (abs(lat)*180d0/MATH_PI - 35d0) / 20d0
+    tau_zonal = -tau_0 * 1.2d0 * exp (-peak**2) * sin (abs(lat)*6d0) - 5d-3*exp(-(lat*180d0/MATH_PI/10d0)**2)
+
+    if (merid_stress) then
+       peak = lat*180d0/MATH_PI / 15d0
+       tau_merid = -tau_0 * 2.5d0 * exp (-peak**2) * sin (2d0*lat) * peak**2
+    else
+       tau_merid = 0d0
+    end if
+  end subroutine wind_stress
+
+  real(8) function tau_mag_case (p)
+    ! Magnitude of wind stress at node p
+    implicit none
+    type(Coord) :: p
+
+    real(8) :: lat, lon, tau_zonal, tau_merid
+
+    call cart2sph (p, lon, lat)
+
+    call wind_stress (lon, lat, tau_zonal, tau_merid)
+
+    tau_mag_case = sqrt (tau_zonal**2 + tau_merid**2)
+  end function tau_mag_case
 
   subroutine read_test_case_parameters
 #ifdef MPI
@@ -336,7 +431,8 @@ contains
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay time    [d]  = ", abs(max_depth)/bottom_friction_case / DAY
-       if (zlevels == 2)  write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
+       if (zlevels == 2) write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
+       if (zlevels > 2)  write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Kv_bottom
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1d0/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
@@ -658,7 +754,7 @@ contains
 
     ! Ensure stability
     C_visc = min ((1d0/32d0)**Laplace_order_init, C_visc)
-
+    
     C_rotu = C_visc
     C_divu = C_visc
     C_sclr = C_visc
@@ -792,25 +888,6 @@ contains
        close (1086)
     end if
   end subroutine topo_drake_data
-
-  subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
-    ! Idealized zonally and temporally averaged zonal and meridional wind stresses
-    ! (based on Figure 4 from Ferreira et al J Climate 24, 992-1012 (2011) and Figure 4 from Gille J Atmos Ocean Tech 22, 1353-1372 respectively)
-    implicit none
-    real(8) :: lat, lon, peak, tau_zonal, tau_merid
-
-    logical, parameter :: merid_stress = .false.
-
-    peak = (abs(lat)*180d0/MATH_PI - 35d0) / 20d0
-    tau_zonal = -tau_0 * 1.2d0 * exp (-peak**2) * sin (abs(lat)*6d0) - 5d-3*exp(-(lat*180d0/MATH_PI/10d0)**2)
-
-    if (merid_stress) then
-       peak = lat*180d0/MATH_PI / 15d0
-       tau_merid = -tau_0 * 2.5d0 * exp (-peak**2) * sin (2d0*lat) * peak**2
-    else
-       tau_merid = 0d0
-    end if
-  end subroutine wind_stress
 
   subroutine set_save_level_case
     ! Save top layer

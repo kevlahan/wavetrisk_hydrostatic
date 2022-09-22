@@ -2,6 +2,10 @@ module CubicH_mod
   ! Computes horizontal pressure gradient using the CubicH algorithm of Shchepetkin and McWilliams (2003)
   ! and adds horizontal gradient of kinetic energy for complete gradient term
   ! (similar to prsgrd32A.F in the ROMS code)
+  !
+  ! In multi_level.f90: replace call cal_surf_press (q)             by call pressure_CubicH (q)
+  !                     replace call velocity_trend_grad (q, dq, k) by call hpg (q, dq, k)
+  ! In ops.f90:         comment out line if (.not. compressible) exner(id_i) = -Phi_k
   use utils_mod
   use ops_mod
   implicit none
