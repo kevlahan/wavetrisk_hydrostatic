@@ -90,7 +90,12 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
     BLAS   = -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_gf_ilp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl -lmkl_blas95_lp64
     FLAGS_COMP = -O$(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all -std=gnu -ffast-math -I$(SHTOOLSMODPATH) -m64 -fPIC
     LIBS  = -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm $(BLAS) $(LAPACK)
-  else 
+  else ifeq ($(MACHINE), mac)
+    SHTOOLSMODPATH = /opt/homebrew/include
+    SHTOOLSLIBPATH = /opt/homebrew/lib
+    FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
+    LIBS = -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm -lblas -llapack
+  else
     SHTOOLSMODPATH = /usr/local/include
     SHTOOLSLIBPATH = /usr/local/lib
     FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
