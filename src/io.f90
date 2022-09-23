@@ -822,8 +822,7 @@ contains
              r_max  = max (r_max, abs (dz0 - dze) / (dz0 + dze))
           end do
 
-          !outv(7) = dom%press_lower%elts(id_i)          ! vorticity (at hexagon points)
-          outv(7) = r_max
+          outv(7) = dom%press_lower%elts(id_i)          ! vorticity (at hexagon points)
 
           write (funit,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
                dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
