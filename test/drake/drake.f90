@@ -29,14 +29,6 @@ program Drake
   log_mass           = .true.                           ! do not compute mass diagnostics
   remap              = .false.                          ! do not remap
 
-  ! Multilayer cases use vertical diffusion module
-  if (zlevels > 2) then
-     vert_diffuse = .true.
-     tke_closure  = .false.
-     Kt_const     = 0d-0   * METRE**2 / SECOND     ! eddy diffusion
-     Kv_bottom    = 1.2d-4 * METRE**2 / SECOND     ! eddy viscosity
-  end if
-
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
   cfl_num            = 20d0                             ! cfl number
@@ -82,12 +74,18 @@ program Drake
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     max_depth   = -4000d0 * METRE                      ! total depth
-     halocline   = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer = -4000d0 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -8d0 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
+     vert_diffuse = .true.
+     tke_closure  = .false.
+     Kt_const     = 0d-0 * METRE**2 / SECOND             ! eddy diffusion
+     Kv_bottom    = 4d-0 * METRE**2 / SECOND             ! eddy viscosity
+     bottom_friction_case = rb_0                         ! NEMO value 4d-4 m/s
+     
+     max_depth    = -4000d0 * METRE                      ! total depth
+     halocline    = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
+     mixed_layer  = -4000d0 * METRE                      ! location of layer forced by surface wind stress
+     drho         =    -8d0 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     tau_0        =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
+     u_wbc        =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   end if
 
   ! Characteristic scales
@@ -140,12 +138,11 @@ program Drake
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Parameters that require viscosity
-  delta_M = (visc_rotu/beta)**(1d0/(2*Laplace_order_init+1)) ! Munk layer scale
-  Rey     = u_wbc * delta_I / visc_rotu                      ! Reynolds number of western boundary current
-  Ro      = u_wbc / (delta_M*f0)                             ! Rossby number (based on boundary current)
+  delta_M = (visc_rotu/beta)**(1d0/(2*Laplace_order_init+1))  ! Munk layer scale
+  Rey     = u_wbc * delta_I / visc_rotu                       ! Reynolds number of western boundary current
+  Ro      = u_wbc / (delta_M*f0)                              ! Rossby number (based on boundary current)
 
-  !bottom_friction_case = rb_0                                ! NEMO value 4d-4 m/s
-  bottom_friction_case = beta * delta_M/4d0                  ! ensure that delta_S = delta_M/4
+  if (zlevels <= 2) bottom_friction_case = beta * delta_M/4d0 ! ensure that delta_S = delta_M/4
   
   delta_S = bottom_friction_case / (abs(max_depth) * beta)    ! Stommel layer scale
 

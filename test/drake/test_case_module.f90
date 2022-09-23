@@ -432,7 +432,10 @@ contains
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay time    [d]  = ", abs(max_depth)/bottom_friction_case / DAY
        if (zlevels == 2) write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
-       if (zlevels > 2)  write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Kv_bottom
+       if (zlevels > 2)  then
+          write (6,'(A,es11.4)') "Kv_bottom             [m^2/s]  = ", Kv_bottom
+          write (6,'(A,es11.4)') "Kt_const              [m^2/s]  = ", Kt_const
+       end if
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1d0/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
