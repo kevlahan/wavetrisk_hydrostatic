@@ -787,8 +787,6 @@ contains
                 outv(6) = free_surface (dom, i, j, zlev, offs, dims, sol)
              end if
           end if
-          !outv(6) = dom%surf_press%elts(id_i)
-          outv(6) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
 
           idE  = idx (i+1, j,   offs, dims)
           idNE = idx (i+1, j+1, offs, dims)
