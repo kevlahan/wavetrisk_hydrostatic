@@ -18,6 +18,7 @@ Module test_case_mod
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: aligned, etopo_coast
+  character(255)                       :: coords
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -423,6 +424,7 @@ contains
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
        write (6,'(A,es11.4)') "halocline                 [m]  = ", abs (halocline)
        write (6,'(A,es11.4)') "mixed layer               [m]  = ", abs (mixed_layer)
+       write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
        write (6,'(A,es11.4)') "density difference   [kg/m^3]  = ", drho
        write (6,'(A,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
@@ -650,7 +652,8 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    if (zlevels /= 1 .and. z >= halocline) then
+    !if (zlevels /= 1 .and. z >= halocline) then
+    if (z >= halocline) then
        buoyancy_init = - (1d0 - z/halocline) * drho/ref_density
     else
        buoyancy_init = 0d0
@@ -914,14 +917,24 @@ contains
     if (zlevels == 2) then 
        a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
        b_vert(0) = 1d0; b_vert(1) = halocline/max_depth; b_vert(2) = 0d0
-    elseif (zlevels == 3) then
-       a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 0d0;                   a_vert(3) = 1d0 
-       b_vert(0) = 1d0; b_vert(1) = halocline/max_depth; b_vert(2) = mixed_layer/max_depth; b_vert(3) = 0d0
-    else ! uniform sigma grid: z = a_vert*eta + b_vert*z_s
-       do k = 0, zlevels
-          a_vert(k) = dble(k)/dble(zlevels)
-          b_vert(k) = 1d0 - dble(k)/dble(zlevels)
-       end do
+    else
+       if (trim (coords) == "uniform") then 
+          do k = 0, zlevels
+             b_vert(k) = 1d0 - dble(k)/dble(zlevels)
+          end do
+       elseif (trim (coords) == "chebyshev") then
+          do k = 0, zlevels
+             b_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
+          end do
+       elseif (trim (coords) == "chebyshev_half") then
+          do k = 0, zlevels
+             b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
+          end do
+       else
+          write (6,*) "Selected vertical coordinate type not supported ..."
+          call abort
+       end if
+       a_vert = 1d0 - b_vert
     end if
 
     ! Vertical grid spacing
