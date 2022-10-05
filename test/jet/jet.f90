@@ -133,9 +133,6 @@ program jet
   ! Initialize variables
   call initialize (run_id)
 
-  ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
-  iadapt = CFL_adv * nint ((dx_min/Udim) / dt_init)
-
   ! Initialize 2D projections and zonal averages
   Nproj = sqrt (20d0 * 4**min_level) ! size of 2D projection: Nproj x Nproj/2
   call initialize_projection (Nproj)

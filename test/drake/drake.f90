@@ -150,7 +150,7 @@ program Drake
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
-  iadapt    = CFL_adv * nint ((dx_min/Udim) / dt_init)
+  iadapt     = 1        ! Drake unstable with trend computation over entire grid if iadapt > 1
   irebalance = 4*iadapt ! rebalance interval using charm++/AMPI
 
   ! Save initial conditions
