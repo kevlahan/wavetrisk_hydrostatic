@@ -109,14 +109,14 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    allocate (a_vert(1:zlevels+1),    b_vert(1:zlevels+1))
+    allocate (a_vert(0:zlevels),      b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
        do k = 0, zlevels
           b_vert(k) = 1d0 - dble(k)/dble(zlevels)
        end do
-        a_vert = 1d0 - b_vert
+       a_vert = 1d0 - b_vert
     else
        if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4' .or. trim (test_case) == 'Held_Suarez') then
           if (zlevels==18) then
@@ -170,8 +170,8 @@ contains
              stop
           end if
           ! DCMIP order is opposite to ours
-          a_vert = a_vert(zlevels+1:1:-1) * p_0
-          b_vert = b_vert(zlevels+1:1:-1)
+          a_vert = a_vert(zlevels:0:-1)
+          b_vert = b_vert(zlevels:0:-1)
        elseif (trim (test_case) == 'drake') then
           if (zlevels == 2) then 
              a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
@@ -200,13 +200,6 @@ contains
           call cal_AB
        end if
     end if
-
-    ! Set pressure at infinity
-    p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
-
-    ! Set mass coefficients
-    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
-    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
   end subroutine initialize_a_b_vert_case
 
   subroutine cal_AB
@@ -460,7 +453,7 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    if (zlevels /= 1 .and. z >= halocline) then
+    if (z >= halocline) then
        buoyancy_init = - (1d0 - z/halocline) * drho/ref_density
     else
        buoyancy_init = 0d0

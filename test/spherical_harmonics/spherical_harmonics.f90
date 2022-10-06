@@ -71,7 +71,6 @@ program spherical_harmonics
      radius         = 6371.229/scale   * KM              ! mean radius of the small planet
      grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
      omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
-     p_top          = 0.0_8            * hPa             ! pressure at free surface
      ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
      
      max_depth   = -4000 * METRE
