@@ -82,6 +82,7 @@ program spherical_harmonics
      height      = (/ abs(max_depth - halocline), abs(halocline) /) ! depths of each layer
      npts_penal  = 4
 
+     coords         = "uniform"                          ! vertical coordinates
      mode_split     = .true.                             ! split barotropic mode if true
      compressible   = .false.                            ! always run with incompressible equations
      penalize       = .true.                             ! penalize land regions

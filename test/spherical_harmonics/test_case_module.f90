@@ -9,6 +9,7 @@ module test_case_mod
   real(8)        :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   character(255) :: spec_type
   logical        :: local_spec
+  character(255) :: coords
 
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
@@ -112,10 +113,10 @@ contains
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
-       do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
-          b_vert(k) = 1d0 - dble(k-1)/dble(zlevels)
+       do k = 0, zlevels
+          b_vert(k) = 1d0 - dble(k)/dble(zlevels)
        end do
+        a_vert = 1d0 - b_vert
     else
        if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4' .or. trim (test_case) == 'Held_Suarez') then
           if (zlevels==18) then
@@ -171,6 +172,29 @@ contains
           ! DCMIP order is opposite to ours
           a_vert = a_vert(zlevels+1:1:-1) * p_0
           b_vert = b_vert(zlevels+1:1:-1)
+       elseif (trim (test_case) == 'drake') then
+          if (zlevels == 2) then 
+             a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
+             b_vert(0) = 1d0; b_vert(1) = halocline/max_depth; b_vert(2) = 0d0
+          else
+             if (trim (coords) == "uniform") then 
+                do k = 0, zlevels
+                   b_vert(k) = 1d0 - dble(k)/dble(zlevels)
+                end do
+             elseif (trim (coords) == "chebyshev") then
+                do k = 0, zlevels
+                   b_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
+                end do
+             elseif (trim (coords) == "chebyshev_half") then
+                do k = 0, zlevels
+                   b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
+                end do
+             else
+                write (6,*) "Selected vertical coordinate type not supported ..."
+                call abort
+             end if
+             a_vert = 1d0 - b_vert
+          end if
        else
           ! LMDZ grid
           call cal_AB
@@ -401,7 +425,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta_surf, porous_density, z
+    real (8)    :: dz, eta_surf, rho, z
     type(Coord) :: x_i
 
     d    = dom%id+1
@@ -416,8 +440,11 @@ contains
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
        else
-          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = ref_density * height(zlev) 
-          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = (density_drake(zlev) - ref_density) * height(zlev)
+          z = 0.5d0 * (b_vert(zlev) + b_vert(zlev-1)) * dom%topo%elts(id_i)
+
+          rho = porous_density (d, id_i, zlev)
+          sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = rho * dz
+          sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy_init (x_i, z)
        end if
     else
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i)                      = 0d0
