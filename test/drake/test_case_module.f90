@@ -652,7 +652,6 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    !if (zlevels /= 1 .and. z >= halocline) then
     if (z >= halocline) then
        buoyancy_init = - (1d0 - z/halocline) * drho/ref_density
     else
@@ -914,10 +913,13 @@ contains
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    if (zlevels == 2) then 
+    if (zlevels == 1) then
+       a_vert(0) = 0d0; a_vert(1) = 1d0
+       b_vert(0) = 1d0; b_vert(1) = 0d0
+    elseif (zlevels == 2) then 
        a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
        b_vert(0) = 1d0; b_vert(1) = halocline/max_depth; b_vert(2) = 0d0
-    else
+    elseif (zlevels >= 3) then
        if (trim (coords) == "uniform") then 
           do k = 0, zlevels
              b_vert(k) = 1d0 - dble(k)/dble(zlevels)
@@ -931,7 +933,7 @@ contains
              b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
           end do
        else
-          write (6,*) "Selected vertical coordinate type not supported ..."
+          if (rank == 0) write (6,*) "Selected vertical coordinate type not supported ..."
           call abort
        end if
        a_vert = 1d0 - b_vert
