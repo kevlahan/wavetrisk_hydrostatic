@@ -206,13 +206,13 @@ contains
     ! Computes A and B coefficients for hybrid vertical grid as in LMDZ
     implicit none
 
-    integer                         :: l
-    real(8)                         :: snorm
-    real(8), dimension(1:zlevels)   :: dsig
-    real(8), dimension(1:zlevels+1) :: sig
+    integer                       :: l
+    real(8)                       :: snorm
+    real(8), dimension(1:zlevels) :: dsig
+    real(8), dimension(0:zlevels) :: sig
 
     snorm  = 0d0
-    do l = 1, zlevels
+    do l = 0, zlevels-1
        dsig(l) = 1d0 + 7 * sin (MATH_PI*(l-0.5d0)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
        snorm = snorm + dsig(l)
     end do
@@ -221,19 +221,19 @@ contains
        dsig(l) = dsig(l)/snorm
     end do
 
-    sig(zlevels+1) = 0d0
-    do l = zlevels, 1, -1
-       sig(l) = sig(l+1) + dsig(l)
+    sig(zlevels) = 0d0
+    do l = zlevels-1, 0, -1
+       sig(l) = sig(l+1) + dsig(l+1)
     end do
 
-    b_vert(zlevels+1) = 0d0
-    do  l = 1, zlevels
+    b_vert(zlevels) = 0d0
+    do  l = 1, zlevels-1
        b_vert(l) = exp (1d0 - 1/sig(l)**2)
        a_vert(l) = (sig(l) - b_vert(l)) * p_0
     end do
-    b_vert(1) = 1d0
-    a_vert(1) = 0d0
-    a_vert(zlevels+1) = (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
+    b_vert(0) = 1d0
+    a_vert(0) = 0d0
+    a_vert(zlevels) = (sig(zlevels) - b_vert(zlevels)) * p_0
   end subroutine cal_AB
 
   subroutine read_test_case_parameters
