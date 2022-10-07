@@ -17,10 +17,10 @@ module test_case_mod
   real(8) :: d2, h_0, lat_c, lon_c
   ! Drake
   integer               :: npts_penal
-  real(8)               :: drho, halocline, mixed_layer, scale
+  real(8)               :: drho, halocline, mixed_layer, radius_earth, scale
   real(8), dimension(2) :: density_drake, height
   ! Jet
-  real(8) :: beta, f0
+  real(8) :: beta, f0, Tcline
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -98,143 +98,117 @@ contains
        surf_geopot_case = c1*(c1*(-2*sn2**3*(cs2 + 1d0/3d0) + 10d0/63d0) &
             + radius*omega*(8d0/5d0*cs2**1.5*(sn2 + 2d0/3d0) - MATH_PI/4))
        ! surf_geopot_case = 0d0
+    elseif (trim (test_case) == "drake" .or. trim (test_case) == "jet") then
+       surf_geopot_case = 0d0
     else
        write(6,'(A)') "Test case not supported"
-       stop
+       call abort
     end if
   end function surf_geopot_case
 
   subroutine initialize_a_b_vert_case
     implicit none
-    integer :: k
+    integer               :: k
+    real(8)               :: z
+    real(8), dimension(6) :: p
 
     ! Allocate vertical grid parameters
     allocate (a_vert(0:zlevels),      b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    if (uniform) then
-       do k = 0, zlevels
-          b_vert(k) = 1d0 - dble(k)/dble(zlevels)
-       end do
-       a_vert = 1d0 - b_vert
-    else
-       if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4' .or. trim (test_case) == 'Held_Suarez') then
-          if (zlevels==18) then
-             a_vert=(/0.00251499d0, 0.00710361d0, 0.01904260d0, 0.04607560d0, 0.08181860d0, &
-                  0.07869805d0, 0.07463175d0, 0.06955308d0, 0.06339061d0, 0.05621774d0, 0.04815296d0, &
-                  0.03949230d0, 0.03058456d0, 0.02193336d0, 0.01403670d0, 0.007458598d0, 0.002646866d0, &
-                  0d0, 0d0 /)
-             b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0.03756984d0, 0.08652625d0, 0.1476709d0, 0.221864d0, &
-                  0.308222d0, 0.4053179d0, 0.509588d0, 0.6168328d0, 0.7209891d0, 0.816061d0, 0.8952581d0, &
-                  0.953189d0, 0.985056d0, 1d0 /)
-          elseif (zlevels==26) then
-             a_vert=(/0.002194067d0, 0.004895209d0, 0.009882418d0, 0.01805201d0, 0.02983724d0, 0.04462334d0, 0.06160587d0, &
-                  0.07851243d0, 0.07731271d0, 0.07590131d0, 0.07424086d0, 0.07228744d0, 0.06998933d0, 0.06728574d0, 0.06410509d0, &
-                  0.06036322d0, 0.05596111d0, 0.05078225d0, 0.04468960d0, 0.03752191d0, 0.02908949d0, 0.02084739d0, 0.01334443d0, &
-                  0.00708499d0, 0.00252136d0, 0d0, 0d0 /)
-             b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.01505309d0, 0.03276228d0, 0.05359622d0, &
-                  0.07810627d0, 0.1069411d0, 0.1408637d0, 0.1807720d0, 0.2277220d0, 0.2829562d0, 0.3479364d0, 0.4243822d0, &
-                  0.5143168d0, 0.6201202d0, 0.7235355d0, 0.8176768d0, 0.8962153d0, 0.9534761d0, 0.9851122d0, 1d0 /)
-          elseif (zlevels==30) then
-             a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
-                  0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
-                  0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
-                  0.155995160341263, 0.14416541159153, 0.130248308181763, 0.113875567913055, 0.0946138575673103, &
-                  0.0753444507718086, 0.0576589405536652, 0.0427346378564835, 0.0316426791250706, 0.0252212174236774, &
-                  0.0191967375576496, 0.0136180268600583, 0.00853108894079924, 0.00397881818935275, 0.0, 0.0 /)
-             b_vert = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0393548272550106, &
-                  0.0856537595391273, 0.140122056007385, 0.204201176762581, 0.279586911201477, 0.368274360895157,  &
-                  0.47261056303978, 0.576988518238068, 0.672786951065063, 0.753628432750702, 0.813710987567902, &
-                  0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
-                  0.985112190246582, 1.0 /)
-          elseif (zlevels==49) then
-             a_vert=(/0.002251865d0, 0.003983890d0, 0.006704364d0, 0.01073231d0, 0.01634233d0, 0.02367119d0, &
-                  0.03261456d0, 0.04274527d0, 0.05382610d0, 0.06512175d0, 0.07569850d0, 0.08454283d0, &
-                  0.08396310d0, 0.08334103d0, 0.08267352d0, 0.08195725d0, 0.08118866d0, 0.08036393d0, &
-                  0.07947895d0, 0.07852934d0, 0.07751036d0, 0.07641695d0, 0.07524368d0, 0.07398470d0, &
-                  0.07263375d0, 0.07118414d0, 0.06962863d0, 0.06795950d0, 0.06616846d0, 0.06424658d0, &
-                  0.06218433d0, 0.05997144d0, 0.05759690d0, 0.05504892d0, 0.05231483d0, 0.04938102d0, &
-                  0.04623292d0, 0.04285487d0, 0.03923006d0, 0.03534049d0, 0.03116681d0, 0.02668825d0, &
-                  0.02188257d0, 0.01676371d0, 0.01208171d0, 0.007959612d0, 0.004510297d0, 0.001831215d0, &
-                  0d0, 0d0 /)
-             b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, &
-                  0.006755112d0, 0.01400364d0, 0.02178164d0, 0.03012778d0, 0.03908356d0, 0.04869352d0, &
-                  0.05900542d0, 0.07007056d0, 0.08194394d0, 0.09468459d0, 0.1083559d0, 0.1230258d0, &
-                  0.1387673d0, 0.1556586d0, 0.1737837d0, 0.1932327d0, 0.2141024d0, 0.2364965d0, &
-                  0.2605264d0, 0.2863115d0, 0.3139801d0, 0.3436697d0, 0.3755280d0, 0.4097133d0, &
-                  0.4463958d0, 0.4857576d0, 0.5279946d0, 0.5733168d0, 0.6219495d0, 0.6741346d0, &
-                  0.7301315d0, 0.7897776d0, 0.8443334d0, 0.8923650d0, 0.9325572d0, 0.9637744d0, &
-                  0.9851122d0, 1d0/)
-          else
-             write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
-             stop
-          end if
-          ! DCMIP order is opposite to ours
-          a_vert = a_vert(zlevels:0:-1)
-          b_vert = b_vert(zlevels:0:-1)
-       elseif (trim (test_case) == 'drake') then
-          if (zlevels == 2) then 
-             a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
-             b_vert(0) = 1d0; b_vert(1) = halocline/max_depth; b_vert(2) = 0d0
-          else
-             if (trim (coords) == "uniform") then 
-                do k = 0, zlevels
-                   b_vert(k) = 1d0 - dble(k)/dble(zlevels)
-                end do
-             elseif (trim (coords) == "chebyshev") then
-                do k = 0, zlevels
-                   b_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
-                end do
-             elseif (trim (coords) == "chebyshev_half") then
-                do k = 0, zlevels
-                   b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
-                end do
-             else
-                write (6,*) "Selected vertical coordinate type not supported ..."
-                call abort
-             end if
-             a_vert = 1d0 - b_vert
-          end if
+    if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4' .or. trim (test_case) == 'Held_Suarez') then
+       if (zlevels==18) then
+          a_vert=(/0.00251499d0, 0.00710361d0, 0.01904260d0, 0.04607560d0, 0.08181860d0, &
+               0.07869805d0, 0.07463175d0, 0.06955308d0, 0.06339061d0, 0.05621774d0, 0.04815296d0, &
+               0.03949230d0, 0.03058456d0, 0.02193336d0, 0.01403670d0, 0.007458598d0, 0.002646866d0, &
+               0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0.03756984d0, 0.08652625d0, 0.1476709d0, 0.221864d0, &
+               0.308222d0, 0.4053179d0, 0.509588d0, 0.6168328d0, 0.7209891d0, 0.816061d0, 0.8952581d0, &
+               0.953189d0, 0.985056d0, 1d0 /)
+       elseif (zlevels==26) then
+          a_vert=(/0.002194067d0, 0.004895209d0, 0.009882418d0, 0.01805201d0, 0.02983724d0, 0.04462334d0, 0.06160587d0, &
+               0.07851243d0, 0.07731271d0, 0.07590131d0, 0.07424086d0, 0.07228744d0, 0.06998933d0, 0.06728574d0, 0.06410509d0, &
+               0.06036322d0, 0.05596111d0, 0.05078225d0, 0.04468960d0, 0.03752191d0, 0.02908949d0, 0.02084739d0, 0.01334443d0, &
+               0.00708499d0, 0.00252136d0, 0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.01505309d0, 0.03276228d0, 0.05359622d0, &
+               0.07810627d0, 0.1069411d0, 0.1408637d0, 0.1807720d0, 0.2277220d0, 0.2829562d0, 0.3479364d0, 0.4243822d0, &
+               0.5143168d0, 0.6201202d0, 0.7235355d0, 0.8176768d0, 0.8962153d0, 0.9534761d0, 0.9851122d0, 1d0 /)
+       elseif (zlevels==30) then
+          a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
+               0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
+               0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
+               0.155995160341263, 0.14416541159153, 0.130248308181763, 0.113875567913055, 0.0946138575673103, &
+               0.0753444507718086, 0.0576589405536652, 0.0427346378564835, 0.0316426791250706, 0.0252212174236774, &
+               0.0191967375576496, 0.0136180268600583, 0.00853108894079924, 0.00397881818935275, 0.0, 0.0 /)
+          b_vert = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0393548272550106, &
+               0.0856537595391273, 0.140122056007385, 0.204201176762581, 0.279586911201477, 0.368274360895157,  &
+               0.47261056303978, 0.576988518238068, 0.672786951065063, 0.753628432750702, 0.813710987567902, &
+               0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
+               0.985112190246582, 1.0 /)
+       elseif (zlevels==49) then
+          a_vert=(/0.002251865d0, 0.003983890d0, 0.006704364d0, 0.01073231d0, 0.01634233d0, 0.02367119d0, &
+               0.03261456d0, 0.04274527d0, 0.05382610d0, 0.06512175d0, 0.07569850d0, 0.08454283d0, &
+               0.08396310d0, 0.08334103d0, 0.08267352d0, 0.08195725d0, 0.08118866d0, 0.08036393d0, &
+               0.07947895d0, 0.07852934d0, 0.07751036d0, 0.07641695d0, 0.07524368d0, 0.07398470d0, &
+               0.07263375d0, 0.07118414d0, 0.06962863d0, 0.06795950d0, 0.06616846d0, 0.06424658d0, &
+               0.06218433d0, 0.05997144d0, 0.05759690d0, 0.05504892d0, 0.05231483d0, 0.04938102d0, &
+               0.04623292d0, 0.04285487d0, 0.03923006d0, 0.03534049d0, 0.03116681d0, 0.02668825d0, &
+               0.02188257d0, 0.01676371d0, 0.01208171d0, 0.007959612d0, 0.004510297d0, 0.001831215d0, &
+               0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, &
+               0.006755112d0, 0.01400364d0, 0.02178164d0, 0.03012778d0, 0.03908356d0, 0.04869352d0, &
+               0.05900542d0, 0.07007056d0, 0.08194394d0, 0.09468459d0, 0.1083559d0, 0.1230258d0, &
+               0.1387673d0, 0.1556586d0, 0.1737837d0, 0.1932327d0, 0.2141024d0, 0.2364965d0, &
+               0.2605264d0, 0.2863115d0, 0.3139801d0, 0.3436697d0, 0.3755280d0, 0.4097133d0, &
+               0.4463958d0, 0.4857576d0, 0.5279946d0, 0.5733168d0, 0.6219495d0, 0.6741346d0, &
+               0.7301315d0, 0.7897776d0, 0.8443334d0, 0.8923650d0, 0.9325572d0, 0.9637744d0, &
+               0.9851122d0, 1d0/)
        else
-          ! LMDZ grid
-          call cal_AB
+          write(0,*) "For this number of zlevels, no rule has been defined for a_vert and b_vert"
+          stop
        end if
+       ! DCMIP order is opposite to ours
+       a_vert = a_vert(zlevels:0:-1)
+       b_vert = b_vert(zlevels:0:-1)
+    elseif (trim (test_case) == 'drake') then
+       if (zlevels == 2) then 
+          a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
+          b_vert(0) = 1d0; b_vert(1) = halocline/max_depth; b_vert(2) = 0d0
+       else
+          if (trim (coords) == "uniform") then 
+             do k = 0, zlevels
+                b_vert(k) = 1d0 - dble(k)/dble(zlevels)
+             end do
+          elseif (trim (coords) == "chebyshev") then
+             do k = 0, zlevels
+                b_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
+             end do
+          elseif (trim (coords) == "chebyshev_half") then
+             do k = 0, zlevels
+                b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
+             end do
+          else
+             write (6,*) "Selected vertical coordinate type not supported ..."
+             call abort
+          end if
+          a_vert = 1d0 - b_vert
+       end if
+    elseif (trim (test_case) == 'jet') then
+       a_vert = 0d0 ; b_vert = 0d0
+       if (trim (coords) == "uniform") then
+          do k = 2, zlevels-1
+             b_vert(k) = 1d0 - dble(k)/dble(zlevels)
+          end do
+       elseif (trim(coords) == "croco") then
+          p = (/ -5.7831,  18.9754, -24.6521,  16.1698, -5.7092, 0.9972 /)
+          do k = 1, zlevels-1
+             z = dble(k)/dble(zlevels)
+             b_vert(k) = p(1)*z**5 + p(2)*z**4 + p(3)*z**3 + p(4)*z**2 + p(5)*z + p(6)
+          end do
+       end if
+       a_vert = 1d0 - b_vert
     end if
   end subroutine initialize_a_b_vert_case
-
-  subroutine cal_AB
-    ! Computes A and B coefficients for hybrid vertical grid as in LMDZ
-    implicit none
-
-    integer                       :: l
-    real(8)                       :: snorm
-    real(8), dimension(1:zlevels) :: dsig
-    real(8), dimension(0:zlevels) :: sig
-
-    snorm  = 0d0
-    do l = 0, zlevels-1
-       dsig(l) = 1d0 + 7 * sin (MATH_PI*(l-0.5d0)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
-       snorm = snorm + dsig(l)
-    end do
-
-    do l = 1, zlevels
-       dsig(l) = dsig(l)/snorm
-    end do
-
-    sig(zlevels) = 0d0
-    do l = zlevels-1, 0, -1
-       sig(l) = sig(l+1) + dsig(l+1)
-    end do
-
-    b_vert(zlevels) = 0d0
-    do  l = 1, zlevels-1
-       b_vert(l) = exp (1d0 - 1/sig(l)**2)
-       a_vert(l) = (sig(l) - b_vert(l)) * p_0
-    end do
-    b_vert(0) = 1d0
-    a_vert(0) = 0d0
-    a_vert(zlevels) = (sig(zlevels) - b_vert(zlevels)) * p_0
-  end subroutine cal_AB
 
   subroutine read_test_case_parameters
     implicit none
@@ -299,6 +273,24 @@ contains
        write (6,*) ' '
     end if
   end subroutine read_test_case_parameters
+  
+  subroutine print_density_pert
+    implicit none
+    integer     :: k
+    real(8)     :: z
+    type(Coord) :: x_i 
+
+    x_i = Coord (radius, 0d0, 0d0)
+
+    write (6,'(a)') " Layer    z       drho"      
+    do k = 1, zlevels
+       z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
+       write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, - buoyancy_init (x_i, z)*ref_density
+    end do
+    write (6,'(A)') &
+         '*********************************************************************&
+         ************************************************************'
+  end subroutine print_density_pert
 
   subroutine topo_sphere (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo 
@@ -446,7 +438,7 @@ contains
     end if
   end subroutine init_mean
 
-  real(8) function buoyancy_init (x_i, z)
+   real(8) function buoyancy_init (x_i, z)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
@@ -499,12 +491,43 @@ contains
   end subroutine load_case
 
   function z_coords_case (eta_surf, z_s)
-    ! Dummy routine
-    ! (see upwelling test case for example)
+    ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
+    ! near the free surface over strong bathymetry gradients.
+    ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
+    !
+    ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
     implicit none
     real(8)                       :: eta_surf, z_s ! free surface and bathymetry
     real(8), dimension(0:zlevels) :: z_coords_case
 
-    z_coords_case = 0d0
+    integer                       :: k
+    real(8)                       :: cff, cff1, cff2, hc, z_0
+    real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
+    real(8), dimension(0:zlevels) :: Cs, sc
+
+    if (trim (test_case) == "jet") then
+       hc = min (abs(min_depth), abs(Tcline))
+
+       cff1 = 1.0_8 / sinh (theta_s)
+       cff2 = 0.5d0 / tanh (0.50 * theta_s)
+
+       sc(0) = -1.0_8
+       Cs(0) = -1.0_8
+       cff = 1d0 / dble(zlevels)
+       do k = 1, zlevels
+          sc(k) = cff * dble (k - zlevels)
+          Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+       end do
+
+       z_coords_case(0) = z_s
+       do k = 1, zlevels
+          cff = hc * (sc(k) - Cs(k))
+          z_0 = cff - Cs(k) * z_s
+          a_vert(k) = 1.0_8 - z_0 / z_s
+          z_coords_case(k) = eta_surf * a_vert(k) + z_0
+       end do
+    else
+       z_coords_case = 0d0
+    end if
   end function z_coords_case
 end module test_case_mod

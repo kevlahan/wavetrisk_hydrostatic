@@ -8,22 +8,22 @@ program spherical_harmonics
   use io_mod
   use projection_mod
   implicit none
-  
+
   integer                                :: idata_loc, k, l, nmax
   integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
   real(8), dimension(:),   allocatable   :: data, data_loc, lat_loc, lon_loc
   character(2)                           :: var_file
   character(8)                           :: itype
   character(130)                         :: command
-
+  
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters
-
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (trim (test_case) == 'DCMIP2012c4') then
      compressible   = .true.                      ! Compressible equations
 
@@ -63,54 +63,55 @@ program spherical_harmonics
      R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
      gamma          = c_p/c_v                     ! heat capacity ratio
      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
-     
+
      u_0            = 35.0_8                      ! maximum velocity of zonal wind
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
   elseif (trim (test_case) == "drake") then
-     scale          = 6                                  ! scale factor for small planet (1/6 Earth radius)
-     radius         = 6371.229/scale   * KM              ! mean radius of the small planet
-     grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
-     omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
-     ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
-     
-     max_depth   = -4000 * METRE
-     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     density_drake = (/ ref_density, ref_density + drho/2 /)    ! densities in each layer
-     height      = (/ abs(max_depth - halocline), abs(halocline) /) ! depths of each layer
-     npts_penal  = 4
+     radius_earth   = 6371.229d0 * KM                      ! radius of Earth
+     grav_accel     = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
+     ref_density    = 1028d0     * KG/METRE**3             ! reference density at depth (seawater)
+     scale          = 6d0
+     radius         = radius_earth/scale                   ! mean radius of the small planet
 
-     coords         = "uniform"                          ! vertical coordinates
-     mode_split     = .true.                             ! split barotropic mode if true
-     compressible   = .false.                            ! always run with incompressible equations
-     penalize       = .true.                             ! penalize land regions
+     mode_split         = .true.                           ! split barotropic mode if true
+     penalize           = .true.                           ! penalize land regions
+     compressible       = .false.                          ! always run with incompressible equations
+     npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
+     if (zlevels >= 3) vert_diffuse = .true.
+     coords             = "uniform"
+
+     max_depth    = -4000d0 * METRE                        ! total depth
+     halocline    = -4000d0 * METRE                        ! location of top (less dense) layer in two layer case
+     mixed_layer  = -4000d0 * METRE                        ! location of layer forced by surface wind stress    
+     drho         =    -8d0 * KG/METRE**3                  ! density perturbation at free surface (density of top layer is rho0 + drho/2)
   elseif (trim (test_case) == "jet") then
-     radius          = 1000d0 * KM                     ! meridional width of zonal channel
-     f0              = 1d-4  / SECOND                  ! Coriolis parameter
-     omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
-     beta            = 2d0*omega*cos(lat_c*DEG)/radius ! beta parameter
+     radius          = 1000d0 * KM                       ! meridional width of zonal channel
+     f0              = 1d-4  / SECOND                    ! Coriolis parameter
+     omega           = f0 / (2d0*sin(lat_c*DEG))         ! planet rotation
+     beta            = 2d0*omega*cos(lat_c*DEG)/radius   ! beta parameter
+     Tcline          =  -100d0 * METRE                   ! thermocline
 
      mode_split     = .true.                             ! split barotropic mode if true
      compressible   = .false.                            ! always run with incompressible equations
      penalize       = .true.                             ! penalize land regions
-     vert_diffuse       = .true.                       
-     tke_closure        = .true.
+     vert_diffuse   = .true.                       
+     tke_closure    = .true.
+     sigma_z        = .true.
+     coords         = "croco"
   else
      write (6,'(A)') "Test case not supported"
      stop
   end if
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   resume = cp_beg
 
   ! Initialize functions
   call assign_functions
-
+  
   ! Initialize variables
   call initialize (run_id)
-     
+  
   do cp_idx = cp_beg, cp_end
      resume = NONE
      call restart (run_id)
