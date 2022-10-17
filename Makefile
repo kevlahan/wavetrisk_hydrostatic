@@ -84,8 +84,8 @@ LINKER = $(COMPILER)
 ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
   ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
     # module load gcc openmpi fftw mkl
-    SHTOOLSLIBPATH = /home/k/kevlahan/kevlahan/SHTOOLS-4.7.1/lib
-    SHTOOLSMODPATH = /home/k/kevlahan/kevlahan/SHTOOLS-4.7.1/include
+    SHTOOLSLIBPATH = $(HOME)/SHTOOLS-4.7.1/lib
+    SHTOOLSMODPATH = $(HOME)/SHTOOLS-4.7.1/include
     LAPACK = -lmkl_gf_ilp64 -lmkl_sequential -lmkl_core
   else ifeq ($(MACHINE), mac)
     SHTOOLSMODPATH = /opt/homebrew/include
