@@ -41,7 +41,6 @@ if ~strcmp(machine,'mac')
     unix (sprintf(scp_cmd));
 end
 %% Plot local region
-
 local      = true;
 region     = 'mid';
 run_id     = "2layer_normal";
@@ -114,51 +113,30 @@ shift   = 0;
 plot_lon_lat_data(data(1:4:end,1:4:end), lon(1:4:end), lat(1:4:end), c_scale, v_title, smooth, shift, lines);
 axis(ax);
 %% Load spectrum data
-% file_base   = [run_id '_' cp_id '_' type '_spec'];
-% remote_file = ['~/hydro/' test_case '/' file_base];
-% local_file  = ['~/hydro/' test_case '/' file_base];
-% scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
-% if ~strcmp(machine,'mac') 
-%     unix (sprintf(scp_cmd));
-% end
+cp_id       = '0005';
+run_id      = '12layer_test';
+test_case   = 'drake';
+type        = 'barotropic_curlu';
+name_type   = 'Barotropic';
+%machine     = 'if.mcmaster.ca';
+machine    = 'niagara.computecanada.ca';
 
-% Plot spectrum
-run_id      = "2layer_slow";
-scale_omega = 6;
-uwbc        = 1.5; 
-local       = false;
-average     = true;
-
-cp_id       = "0014";
-type        = "barotropic";
-%type        = "baroclinic_2";
-%type        = "total_2";
-
-p1           = -5/3; % comparison power spectrum
-range1       = [1000 10];    
-range1       = [200 5];    
-%range1       = [50 4]; 
-
-if average
-    if local
-        local_file  = run_id + "_" + type + "_local_spec"; % average
-    else
-        local_file  = run_id + "_" + type + "_spec"; % average
-    end
-else
-    if local
-        local_file  = run_id + "_" + cp_id + "_" + type + "_local_spec";
-    else
-        local_file  = run_id + "_" + cp_id + "_" + type + "_spec";
-    end
+file_base   = [run_id '_' cp_id '_' type '_spec'];
+remote_file = ['~/hydro/' test_case '/' file_base];
+local_file  = ['~/hydro/' test_case '/' file_base];
+scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
+if ~strcmp(machine,'mac') 
+    unix (sprintf(scp_cmd));
 end
 
 % Physical parameters of simulation
-scale_earth = 6;
+visc        =  0.493;
+uwbc        =  1; 
+scale_omega =  6;
+scale_earth =  6;
 theta       =  45; % latitude at which to calculate f0 and beta
 omega       =  7.29211e-5/scale_omega;
 radius      =  6371.229e3/scale_earth; 
-visc        =  3.94;
 g           =  9.80616;
 drho        = -4;
 ref_density =  1028;
@@ -171,17 +149,19 @@ r_b         =  1e-7;
 c0          =  sqrt(g*H);
 c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H);
 
-if strcmp(type,'barotropic')
-    name_type = "Barotropic";
-elseif strcmp(type,'baroclinic_1')
-    name_type = "Lower layer baroclinic";
-elseif strcmp(type,'baroclinic_2')
-    name_type = "Top layer baroclinic";
-elseif strcmp(type,'total_1')
-    name_type = "Lower layer total";
-elseif strcmp(type,'total_2')
-    name_type = "Top layer total";
-end
+%% Plot energy spectrum
+p     = -2;       % compare to power law k^p
+range = [500 30]; % range to fit power law 
+
+pspec = load(local_file);
+pspec(:,2) = pspec(:,2)./pspec(:,1).^2;                     % convert vorticity spectrum to energy spectrum integrated over shells
+scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
+
+% Power spectrum
+loglog(scales(:,1),pspec(:,2),'b-','linewidth',3,'DisplayName',name_type);hold on;grid on;
+
+% Log-law comparison
+powerlaw (scales, pspec(:,2), range, p, 'r--')
 
 % Lengthscales (km)
 lambda0    = c0/f0;             % external radius of deformation
@@ -190,16 +170,6 @@ deltaS     = r_b / beta;        % Stommel layer
 deltaSM    = uwbc/f0;           % submesoscale
 deltaI     = sqrt(uwbc/beta);   % inertial layer
 deltaM     = (visc/beta)^(1/3); % Munk layer 
-
-pspec = load(local_file);
-pspec(:,2) = pspec(:,2)./pspec(:,1).^2; % convert vorticity spectrum to energy spectrum integrated over shells
-scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
-
-% Power spectrum
-loglog(scales(:,1),pspec(:,2),'b-','linewidth',3,'DisplayName',name_type);hold on;grid on;
-
-% Log-law comparison
-powerlaw (scales, pspec(:,2), range1, p1, 'r--')
 
 axis([4e0 1e4 1e-10 1e0]);
 set (gca,'fontsize',20);
