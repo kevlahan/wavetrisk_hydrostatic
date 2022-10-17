@@ -83,24 +83,21 @@ LINKER = $(COMPILER)
 
 ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
   ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
-    # need to do:
     # module load gcc openmpi fftw mkl
     SHTOOLSLIBPATH = /home/k/kevlahan/kevlahan/SHTOOLS-4.7.1/lib
     SHTOOLSMODPATH = /home/k/kevlahan/kevlahan/SHTOOLS-4.7.1/include
-    BLAS   = -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_gf_ilp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl -lmkl_blas95_lp64
-    FLAGS_COMP = -O$(OPTIM) -J$(BUILD_DIR) -cpp -fbacktrace -fcheck=all -std=gnu -ffast-math -I$(SHTOOLSMODPATH) -m64 -fPIC
-    LIBS  = -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm $(BLAS) $(LAPACK)
+    LAPACK = -lmkl_gf_ilp64 -lmkl_sequential -lmkl_core
   else ifeq ($(MACHINE), mac)
     SHTOOLSMODPATH = /opt/homebrew/include
     SHTOOLSLIBPATH = /opt/homebrew/lib
-    FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
-    LIBS = -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm -lblas -llapack
+    LAPACK = -llapack
   else
     SHTOOLSMODPATH = /usr/local/include
     SHTOOLSLIBPATH = /usr/local/lib
-    FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
-    LIBS = -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm -lblas -llapack
+    LAPACK = -llapack
   endif
+  LIBS = -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm $(LAPACK)
+  FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
 endif
 
 SRC = $(PARAM).f90 shared.f90 sphere.f90 patch.f90 dyn_array.f90 \
