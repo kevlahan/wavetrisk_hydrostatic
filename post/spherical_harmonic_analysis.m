@@ -8,11 +8,13 @@ machine   = 'niagara.computecanada.ca';
 %run_id = '2layer_slow' ; type = 'total_2_spec';          name_type = '2 layer'; cp_id = '0031';
 %run_id = '6layer_test' ; type = 'barotropic_curlu_spec'; name_type = '6 layer'; cp_id = '0038';
 run_id = '12layer_test'; type = 'barotropic_curlu_spec'; name_type = '12 layer'; cp_id = '0008';
+avg = true;
 
-local_file = load_data(test_case, run_id, cp_id, type, machine);
+local_file = load_data(test_case, run_id, cp_id, type, machine, avg);
 
 %% Plot energy spectra
-p = -2.5; % compare to power law k^p
+col_spec  = 'b-';  % colour for energy spectrum
+col_power = 'r--'; % colour for power law
 
 % Physical parameters of simulation
 visc        =  0.493;
@@ -49,20 +51,28 @@ pspec(:,2) = pspec(:,2)./pspec(:,1).^2;                     % convert vorticity 
 scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
 % Power spectrum
-loglog(scales(:,1),pspec(:,2),'b-','linewidth',3,'DisplayName',name_type);hold on;grid on;
+loglog(scales,pspec(:,2),col_spec,'linewidth',3,'DisplayName',name_type);hold on;grid on;
 
-% Log-law comparison
-range = [deltaI deltaSM ]; % range to fit power law 
-powerlaw (scales, 1.5*pspec(:,2), range, p, 'r--')
+% Fit power law
+range = [lambda1 deltaSM ]; % range to fit power law 
+fit_indices = find(scales > range(2) & scales < range(1));
+[P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
+
+st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
+
+fprintf('\nFitted power law is %.2f +/- %.2f\n',-P(1), st_err(1));
+
+% Plot fit
+powerlaw (scales, 1.5*pspec(:,2), range, -P(1), col_power)
 
 axis([4e0 1e4 1e-10 1e0]);
 set (gca,'fontsize',20);
 xlabel("\lambda (km)");ylabel("S(\lambda)");
 set (gca,'Xdir','reverse');legend;
 %plot_scale(lambda0,"\lambda_0");
-%plot_scale(lambda1,"\lambda_1");
+plot_scale(lambda1,"\lambda_1");
 plot_scale(deltaSM,"\delta_{SM}");
-plot_scale(deltaI,"\delta_{I}");
+%plot_scale(deltaI,"\delta_{I}");
 %plot_scale(deltaS,"\delta_{S}");
 %plot_scale(deltaM,"\delta_{M}");
 %% Plot local region
@@ -155,8 +165,12 @@ set(get(get(h,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
 text(0.92*scale,10*y(1),name,"fontsize",16)
 end
 
-function [local_file] =  load_data (test_case, run_id, cp_id, type, machine)
-file_base   = [run_id '_' cp_id '_' type];
+function [local_file] =  load_data (test_case, run_id, cp_id, type, machine, avg)
+if avg % average spectrum
+    file_base = [run_id '_' type];
+else
+    file_base = [run_id '_' cp_id '_' type];
+end
 remote_file = ['~/hydro/' test_case '/' file_base];
 local_file  = ['~/hydro/' test_case '/' file_base];
 scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
