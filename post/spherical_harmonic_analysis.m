@@ -113,10 +113,9 @@ shift   = 0;
 plot_lon_lat_data(data(1:4:end,1:4:end), lon(1:4:end), lat(1:4:end), c_scale, v_title, smooth, shift, lines);
 axis(ax);
 %% Load spectrum data
-cp_id       = '0005';
-run_id      = '12layer_test';
+run_id      = '12layer_test'; type = 'barotropic_curlu'; cp_id = '0008';
+
 test_case   = 'drake';
-type        = 'barotropic_curlu';
 name_type   = 'Barotropic';
 %machine     = 'if.mcmaster.ca';
 machine    = 'niagara.computecanada.ca';
@@ -147,11 +146,20 @@ f0          =  2*omega*sin(deg2rad(theta));
 beta        =  2*omega*cos(deg2rad(theta))/radius;
 r_b         =  1e-7;
 c0          =  sqrt(g*H);
-c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H);
+%c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H); % two-layer
+c1          =  5.56; % m/s
+
+% Lengthscales (km)
+lambda0    = c0/f0/1e3;             % external radius of deformation
+lambda1    = c1/f0/1e3;             % internal radius of deformation
+deltaS     = r_b / beta/1e3;        % Stommel layer
+deltaSM    = uwbc/f0/1e3;           % submesoscale
+deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
+deltaM     = (visc/beta)^(1/3)/1e3; % Munk layer 
 
 %% Plot energy spectrum
-p     = -2;       % compare to power law k^p
-range = [500 30]; % range to fit power law 
+p     = -2.5;     % compare to power law k^p
+range = [lambda1 deltaSM ]; % range to fit power law 
 
 pspec = load(local_file);
 pspec(:,2) = pspec(:,2)./pspec(:,1).^2;                     % convert vorticity spectrum to energy spectrum integrated over shells
@@ -161,25 +169,17 @@ scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length 
 loglog(scales(:,1),pspec(:,2),'b-','linewidth',3,'DisplayName',name_type);hold on;grid on;
 
 % Log-law comparison
-powerlaw (scales, pspec(:,2), range, p, 'r--')
-
-% Lengthscales (km)
-lambda0    = c0/f0;             % external radius of deformation
-lambda1    = c1/f0;             % internal radius of deformation
-deltaS     = r_b / beta;        % Stommel layer
-deltaSM    = uwbc/f0;           % submesoscale
-deltaI     = sqrt(uwbc/beta);   % inertial layer
-deltaM     = (visc/beta)^(1/3); % Munk layer 
+powerlaw (scales, 1.5*pspec(:,2), range, p, 'r--')
 
 axis([4e0 1e4 1e-10 1e0]);
 set (gca,'fontsize',20);
 xlabel("\lambda (km)");ylabel("S(\lambda)");
 set (gca,'Xdir','reverse');legend;
-plot_scale(lambda0/1e3,"\lambda_0");
-plot_scale(lambda1/1e3,"\lambda_1");
-plot_scale(deltaSM/1e3,"\delta_{SM}");
-%plot_scale(deltaS/1e3,"\delta_{S}");
-%plot_scale(deltaM/1e3,"\delta_{M}");
+plot_scale(lambda0,"\lambda_0");
+plot_scale(lambda1,"\lambda_1");
+plot_scale(deltaSM,"\delta_{SM}");
+%plot_scale(deltaS,"\delta_{S}");
+%plot_scale(deltaM,"\delta_{M}");
 
 %%
 function powerlaw (scales, power, range, p, col)
