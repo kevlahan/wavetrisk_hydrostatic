@@ -74,7 +74,7 @@ program Drake
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     coords       = "chebyshev_half"
+     coords       = "uniform"
      vert_diffuse = .true.
      tke_closure  = .false.
      Kt_const     = 0d-0 * METRE**2 / SECOND             ! eddy diffusion
