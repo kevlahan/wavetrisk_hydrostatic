@@ -67,23 +67,28 @@ program spherical_harmonics
      u_0            = 35.0_8                      ! maximum velocity of zonal wind
      eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
   elseif (trim (test_case) == "drake") then
-     radius_earth   = 6371.229d0 * KM                      ! radius of Earth
-     grav_accel     = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
-     ref_density    = 1028d0     * KG/METRE**3             ! reference density at depth (seawater)
+     radius_earth   = 6371.229d0 * KM              ! radius of Earth
+     grav_accel     = 9.80616d0  * METRE/SECOND**2 ! gravitational acceleration 
+     ref_density    = 1028d0     * KG/METRE**3     ! reference density at depth (seawater)
      scale          = 6d0
-     radius         = radius_earth/scale                   ! mean radius of the small planet
+     radius         = radius_earth/scale           ! mean radius of the small planet
 
-     mode_split         = .true.                           ! split barotropic mode if true
-     penalize           = .true.                           ! penalize land regions
-     compressible       = .false.                          ! always run with incompressible equations
-     npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
-     if (zlevels >= 3) vert_diffuse = .true.
-     coords             = "uniform"
+     mode_split     = .true.                       ! split barotropic mode if true
+     penalize       = .true.                       ! penalize land regions
+     compressible   = .false.                      ! always run with incompressible equations
+     npts_penal     = 4.5d0                        ! smooth mask over this many grid points
 
-     max_depth    = -4000d0 * METRE                        ! total depth
-     halocline    = -4000d0 * METRE                        ! location of top (less dense) layer in two layer case
-     mixed_layer  = -4000d0 * METRE                        ! location of layer forced by surface wind stress    
-     drho         =    -8d0 * KG/METRE**3                  ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     coords         = "uniform"
+     drho           =    -8d0 * KG/METRE**3        ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     max_depth      = -4000d0 * METRE              ! total depth
+     
+     if (zlevels >= 3) then
+        vert_diffuse = .true.
+        halocline    = -4000d0 * METRE             ! location of top (less dense) layer in two layer case
+     else
+        vert_diffuse = .false.
+        halocline    = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
+      end if
   elseif (trim (test_case) == "jet") then
      radius          = 1000d0 * KM                       ! meridional width of zonal channel
      f0              = 1d-4  / SECOND                    ! Coriolis parameter
@@ -111,6 +116,8 @@ program spherical_harmonics
   
   ! Initialize variables
   call initialize (run_id)
+
+  call print_test_case_parameters
   
   do cp_idx = cp_beg, cp_end
      resume = NONE

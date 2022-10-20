@@ -17,7 +17,7 @@ module test_case_mod
   real(8) :: d2, h_0, lat_c, lon_c
   ! Drake
   integer               :: npts_penal
-  real(8)               :: drho, halocline, mixed_layer, radius_earth, scale
+  real(8)               :: drho, halocline, radius_earth, scale
   real(8), dimension(2) :: density_drake, height
   ! Jet
   real(8) :: beta, f0, Tcline
@@ -41,7 +41,6 @@ contains
     update                   => update_case
     z_coords                 => z_coords_case
   end subroutine assign_functions
-
 
   function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     ! Additional physics for the flux term of the scalar trend
@@ -208,6 +207,10 @@ contains
        end if
        a_vert = 1d0 - b_vert
     end if
+    
+    ! Vertical grid spacing
+    a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
+    b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
   end subroutine initialize_a_b_vert_case
 
   subroutine read_test_case_parameters
@@ -245,8 +248,15 @@ contains
     close(fid)
 
     if (save_zlev > zlevels) save_zlev = zlevels ! avoid incorrect choice of save_zlev
+  end subroutine read_test_case_parameters
+
+  subroutine print_test_case_parameters
+    implicit none
 
     if (rank==0) then
+       write (6,'(A)') &
+            '********************************************************** Parameters &
+            ************************************************************'
        write (6,'(A,A)')      "spec_type              = ", trim (spec_type)
        write (6,'(A,A)')      "test_case              = ", trim (test_case)
        write (6,'(A,A)')      "run_id                 = ", trim (run_id)
@@ -271,8 +281,9 @@ contains
        write (6,'(A,i3)')     "ntaper                 = ", ntaper
        write (6,'(A,i3)')     "angular_order          = ", angular_order
        write (6,*) ' '
+       call print_density_pert
     end if
-  end subroutine read_test_case_parameters
+  end subroutine print_test_case_parameters
   
   subroutine print_density_pert
     implicit none
@@ -425,6 +436,7 @@ contains
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
        else
+          dz =  b_vert_mass(zlev) * max_depth
           z = 0.5d0 * (b_vert(zlev) + b_vert(zlev-1)) * dom%topo%elts(id_i)
 
           rho = porous_density (d, id_i, zlev)
@@ -438,14 +450,14 @@ contains
     end if
   end subroutine init_mean
 
-   real(8) function buoyancy_init (x_i, z)
+  real(8) function buoyancy_init (x_i, z)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
     real(8)     :: z
     type(Coord) :: x_i
 
-    if (z >= halocline) then
+    if (zlevels /= 1 .and. z >= halocline) then
        buoyancy_init = - (1d0 - z/halocline) * drho/ref_density
     else
        buoyancy_init = 0d0
