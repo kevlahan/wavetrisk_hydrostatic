@@ -427,7 +427,7 @@ contains
        field2d = 0
        call project_array_onto_plane ("press_lower", l, 1d0)
        if (rank == 0) then
-          write (data_type, '(a11,i1)') "baroclinic_curlu_", k
+          write (data_type, '(a16,i1)') "baroclinic_curlu_", k
           call spectrum_lon_lat (data_type)
        end if
 
@@ -436,7 +436,7 @@ contains
        field2d = 0d0
        call project_array_onto_plane ("divu", l, 1d0)
        if (rank == 0) then
-          write (data_type, '(a11,i1)') "baroclinic_divu_", k
+          write (data_type, '(a16,i1)') "baroclinic_divu_", k
           call spectrum_lon_lat (data_type)
        end if
     end do
