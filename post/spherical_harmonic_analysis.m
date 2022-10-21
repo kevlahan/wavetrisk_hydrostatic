@@ -4,15 +4,15 @@ test_case = 'drake';
 %machine  = 'if.mcmaster.ca';
 machine   = 'niagara.computecanada.ca';
 
-%run_id = '1layer_slow' ; type = 'barotropic_spec';       name_type = '1 layer'; cp_id = '0031';
-%run_id = '2layer_slow' ; type = 'total_2_spec';          name_type = '2 layer'; cp_id = '0031';
-%run_id = '6layer_test' ; type = 'barotropic_curlu_spec'; name_type = '6 layer'; cp_id = '0038';
-run_id = '12layer_test'; type = 'barotropic_curlu_spec'; name_type = '12 layer'; cp_id = '0008';
-avg = true;
+%dir = '~/hydro/drake'; run_id = '1layer_slow' ; type = 'barotropic_spec'; name_type = '1 layer'; cp_id = '0031';
+dir = '~/proj/drake/new/2layer_slow/spectra/global'; run_id = '2layer_slow'; type = 'total_curlu_2_spec'; name_type = '2 layer'; cp_id = '0019';
+%dir = '~/hydro/drake'; run_id = '6layer_test' ; type = 'barotropic_curlu_spec'; name_type = '6 layer'; cp_id = '0038';
+%dir = '~/hydro/drake'; run_id = '12layer_test'; type = 'barotropic_curlu_spec'; name_type = '12 layer'; cp_id = '0009';
+avg = false;
 
-local_file = load_data(test_case, run_id, cp_id, type, machine, avg);
+local_file = load_data(test_case, dir, run_id, cp_id, type, machine, avg);
 
-%% Plot energy spectra
+% Plot energy spectra
 col_spec  = 'b-';  % colour for energy spectrum
 col_power = 'r--'; % colour for power law
 
@@ -54,7 +54,7 @@ scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length 
 loglog(scales,pspec(:,2),col_spec,'linewidth',3,'DisplayName',name_type);hold on;grid on;
 
 % Fit power law
-range = [lambda1 deltaSM ]; % range to fit power law 
+range = [lambda1 deltaSM]; % range to fit power law 
 fit_indices = find(scales > range(2) & scales < range(1));
 [P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
 
@@ -165,13 +165,13 @@ set(get(get(h,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
 text(0.92*scale,10*y(1),name,"fontsize",16)
 end
 
-function [local_file] =  load_data (test_case, run_id, cp_id, type, machine, avg)
+function [local_file] =  load_data (test_case, dir, run_id, cp_id, type, machine, avg)
 if avg % average spectrum
     file_base = [run_id '_' type];
 else
     file_base = [run_id '_' cp_id '_' type];
 end
-remote_file = ['~/hydro/' test_case '/' file_base];
+remote_file = [dir '/' file_base];
 local_file  = ['~/hydro/' test_case '/' file_base];
 scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
 if ~strcmp(machine,'mac')
