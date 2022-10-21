@@ -78,7 +78,7 @@ program Drake
      vert_diffuse = .true.
      tke_closure  = .false.
      Kt_const     = 0d-0 * METRE**2 / SECOND             ! eddy diffusion
-     Kv_bottom    = 4d-0 * METRE**2 / SECOND             ! eddy viscosity
+     Kv_bottom    = 1d-0 * METRE**2 / SECOND             ! eddy viscosity
      bottom_friction_case = rb_0                         ! NEMO value 4d-4 m/s
      
      max_depth    = -4000d0 * METRE                      ! total depth
