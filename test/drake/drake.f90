@@ -27,7 +27,6 @@ program Drake
   penalize           = .true.                           ! penalize land regions
   compressible       = .false.                          ! always run with incompressible equations
   log_mass           = .true.                           ! do not compute mass diagnostics
-  remap              = .false.                          ! do not remap
 
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
@@ -67,6 +66,7 @@ program Drake
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels == 2) then
+     remap       = .false.
      max_depth   = -4000d0 * METRE                      ! total depth
      halocline   = -1000d0 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -1000d0 * METRE                      ! location of layer forced by surface wind stress
@@ -75,10 +75,12 @@ program Drake
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
      coords       = "uniform"
+     remap        = .true.
+     iremap       = 20
      vert_diffuse = .true.
-     tke_closure  = .false.
-     Kt_const     = 0d-0 * METRE**2 / SECOND             ! eddy diffusion
-     Kv_bottom    = 1d-0 * METRE**2 / SECOND             ! eddy viscosity
+     tke_closure  = .true.
+     !Kt_const     = 0d-0 * METRE**2 / SECOND             ! eddy diffusion
+     !Kv_bottom    = 1d-0 * METRE**2 / SECOND             ! eddy viscosity
      bottom_friction_case = rb_0                         ! NEMO value 4d-4 m/s
      
      max_depth    = -4000d0 * METRE                      ! total depth
