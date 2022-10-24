@@ -27,6 +27,8 @@ program Drake
   penalize           = .true.                           ! penalize land regions
   compressible       = .false.                          ! always run with incompressible equations
   log_mass           = .true.                           ! do not compute mass diagnostics
+  remapscalar_type   = "2PPM"                             ! remapping scheme for scalars
+  remapvelo_type     = "2PPM"                             ! remapping scheme for velocity
 
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
