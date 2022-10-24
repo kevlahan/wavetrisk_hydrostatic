@@ -68,6 +68,9 @@ contains
        interp_velo => remap4
     case ("PPR")
        interp_velo => remapPPR
+    case default
+       if (rank == 0) write (6,'(a)') "Invalid remapping choice ... aborting"
+       call abort
     end select
 
     ! Ensure boundary values are up to date
