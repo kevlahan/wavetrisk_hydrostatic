@@ -2,11 +2,11 @@
 clear
 test_case = 'drake';
 %machine  = 'if.mcmaster.ca';
-machine   = 'niagara.computecanada.ca';
+machine   = 'nia-datamover1.scinet.utoronto.ca';
 
 %dir = '~/hydro/drake'; run_id = '1layer_slow' ; type = 'barotropic_spec'; name_type = '1 layer'; cp_id = '0031';
-dir = '~/proj/drake/new/2layer_slow/spectra/global'; run_id = '2layer_slow'; type = 'total_curlu_2_spec'; name_type = '2 layer'; cp_id = '0019';
-%dir = '~/hydro/drake'; run_id = '6layer_test' ; type = 'barotropic_curlu_spec'; name_type = '6 layer'; cp_id = '0038';
+%dir = '~/proj/drake/new/2layer_slow/spectra/global'; run_id = '2layer_slow'; type = 'total_curlu_2_spec'; name_type = '2 layer'; cp_id = '0019';
+dir = '~/hydro/drake'; run_id = '6layer_remap' ; type = 'barotropic_curlu_spec'; name_type = '6 layer'; cp_id = '0036';
 %dir = '~/hydro/drake'; run_id = '12layer_test'; type = 'barotropic_curlu_spec'; name_type = '12 layer'; cp_id = '0009';
 avg = false;
 
