@@ -1,13 +1,10 @@
 %% Load data
 clear
-test_case = 'drake';
 %machine  = 'if.mcmaster.ca';
 machine   = 'nia-datamover1.scinet.utoronto.ca';
 
-%dir = '~/hydro/drake'; run_id = '1layer_slow' ; type = 'barotropic_spec'; name_type = '1 layer'; cp_id = '0031';
-%dir = '~/proj/drake/new/2layer_slow/spectra/global'; run_id = '2layer_slow'; type = 'total_curlu_2_spec'; name_type = '2 layer'; cp_id = '0019';
-dir = '~/hydro/drake'; run_id = '6layer_remap' ; type = 'barotropic_curlu_spec'; name_type = '6 layer'; cp_id = '0036';
-%dir = '~/hydro/drake'; run_id = '12layer_test'; type = 'barotropic_curlu_spec'; name_type = '12 layer'; cp_id = '0009';
+%test_case = 'drake';dir = '~/hydro/drake'; run_id = '6layer_diffuse' ; type = 'barotropic_curlu_spec'; name_type = '6 layer drake'; cp_id = '0015';
+test_case = 'jet'; dir = '~/hydro/jet'; run_id = 'jet' ; type = 'barotropic_curlu_spec'; name_type = '6 layer jet'; cp_id = '0036';
 avg = false;
 
 local_file = load_data(test_case, dir, run_id, cp_id, type, machine, avg);
@@ -17,26 +14,45 @@ col_spec  = 'b-';  % colour for energy spectrum
 col_power = 'r--'; % colour for power law
 
 % Physical parameters of simulation
-visc        =  0.493;
-uwbc        =  0.8; 
-scale_omega =  6;
-scale_earth =  6;
-omega       =  7.29211e-5/scale_omega;
-radius      =  6371.229e3/scale_earth; 
-g           =  9.80616;
-drho        = -4;
-ref_density =  1028;
-H1          =  3e3;
-H2          =  1e3;
-H           =  H1 + H2;
-theta       =  45; % latitude at which to calculate f0 and beta
-f0          =  2*omega*sin(deg2rad(theta));
-beta        =  2*omega*cos(deg2rad(theta))/radius;
-%r_b         =  1.3e-8; % two-layer
-r_b         =  1e-7;
-c0          =  sqrt(g*H);
-%c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H); % two-layer
-c1          =  5.56; % m/s
+if strcmp(test_case,'drake')
+    visc        =  0.493;
+    uwbc        =  0.8;
+    scale_omega =  6;
+    scale_earth =  6;
+    omega       =  7.29211e-5/scale_omega;
+    radius      =  6371.229e3/scale_earth;
+    g           =  9.80616;
+    drho        = -4;
+    ref_density =  1028;
+    H1          =  3e3;
+    H2          =  1e3;
+    H           =  H1 + H2;
+    theta       =  45; % latitude at which to calculate f0 and beta
+    f0          =  2*omega*sin(deg2rad(theta));
+    beta        =  2*omega*cos(deg2rad(theta))/radius;
+    %r_b         =  1.3e-8; % two-layer
+    r_b         =  1e-7;
+    c0          =  sqrt(g*H);
+    %c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H); % two-layer
+    c1          =  5.56; % m/s
+    deltaM      = (visc/beta)^(1/3)/1e3; % Munk layer 
+elseif strcmp(test_case,'jet')
+    visc        =  1.63e7; % hyperviscosity
+    uwbc        =  1;
+    omega       =  1e-4;
+    radius      =  1000e3;
+    g           =  9.80616;
+    drho        = -4;
+    ref_density =  1027.8;
+    H           =  4e3;
+    theta       =  45; % latitude at which to calculate f0 and beta
+    f0          =  2*omega*sin(deg2rad(theta));
+    beta        =  2*omega*cos(deg2rad(theta))/radius;
+    r_b         =  5e-3;
+    c0          =  sqrt(g*H);
+    c1          =  3.16; % m/s
+    deltaM      = (visc/beta)^(1/5)/1e3; % Munk layer 
+end
 
 % Lengthscales (km)
 lambda0    = c0/f0/1e3;             % external radius of deformation
@@ -44,7 +60,6 @@ lambda1    = c1/f0/1e3;             % internal radius of deformation
 deltaS     = r_b / beta/1e3;        % Stommel layer
 deltaSM    = uwbc/f0/1e3;           % submesoscale
 deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
-deltaM     = (visc/beta)^(1/3)/1e3; % Munk layer 
 
 pspec = load(local_file);
 pspec(:,2) = pspec(:,2)./pspec(:,1).^2;                     % convert vorticity spectrum to energy spectrum integrated over shells
@@ -54,7 +69,12 @@ scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length 
 loglog(scales,pspec(:,2),col_spec,'linewidth',3,'DisplayName',name_type);hold on;grid on;
 
 % Fit power law
-range = [lambda1 deltaSM]; % range to fit power law 
+if strcmp(test_case,'drake')
+    range = [lambda1 deltaSM]; 
+elseif strcmp(test_case,'jet')
+    %range = [deltaI lambda1];
+    range = [60 16];
+end
 fit_indices = find(scales > range(2) & scales < range(1));
 [P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
 
@@ -69,12 +89,15 @@ axis([4e0 1e4 1e-10 1e0]);
 set (gca,'fontsize',20);
 xlabel("\lambda (km)");ylabel("S(\lambda)");
 set (gca,'Xdir','reverse');legend;
-%plot_scale(lambda0,"\lambda_0");
-plot_scale(lambda1,"\lambda_1");
-plot_scale(deltaSM,"\delta_{SM}");
-%plot_scale(deltaI,"\delta_{I}");
-%plot_scale(deltaS,"\delta_{S}");
-%plot_scale(deltaM,"\delta_{M}");
+
+if strcmp(test_case,'drake')
+    plot_scale(lambda1,"\lambda_1");
+    plot_scale(deltaSM,"\delta_{SM}");
+elseif strcmp(test_case,'jet')
+    plot_scale(deltaI,"\delta_{I}");
+    plot_scale(lambda1,"\lambda_1");
+    plot_scale(deltaSM,"\delta_{M}");
+end
 %% Plot local region
 local  = true;
 region = 'mid';
