@@ -27,8 +27,8 @@ Module test_case_mod
   real(8), dimension(2), parameter :: drho_surf = (/  0d0,  1.5d0 /) * KG/METRE**3
   real(8), dimension(2), parameter :: dz_b      = (/  3d2,  7d2   /) * METRE
   real(8), dimension(2), parameter :: z_int     = (/ -4d2, -1d3   /) * METRE
-  real(8),               parameter :: Tcline    =  -100d0 * METRE                 ! thermocline
-  real(8),               parameter :: lat_c     = 30d0                            ! centre of zonal channel (in degrees)
+  real(8),               parameter :: Tcline    = -100d0 * METRE                 ! thermocline
+  real(8),               parameter :: lat_c     = 45d0                            ! centre of zonal channel (in degrees)
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -677,11 +677,8 @@ contains
     implicit none
     real(8)     :: z
     type(Coord) :: x_i
-
-    real(8) :: lat, lon
     
     if (trim(strat_type) == "jet") then ! density profile from baroclinic jet test case
-       call cart2sph (x_i, lon, lat)
        buoyancy_init = (ref_density - density_init_jet (lat_c, z)) / ref_density
     elseif (trim(strat_type) == "linear") then
        if (z >= halocline) then
@@ -1188,7 +1185,7 @@ contains
     real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
     real(8), dimension(0:zlevels) :: Cs, sc
     
-    hc = min (abs(min_depth), abs(Tcline))
+    hc = abs (Tcline)
     
     cff1 = 1.0_8 / sinh (theta_s)
     cff2 = 0.5d0 / tanh (0.50 * theta_s)
