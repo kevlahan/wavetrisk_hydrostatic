@@ -26,18 +26,13 @@ program Drake
   mode_split         = .true.                           ! split barotropic mode if true
   penalize           = .true.                           ! penalize land regions
   compressible       = .false.                          ! always run with incompressible equations
-  log_mass           = .true.                           ! do not compute mass diagnostics
-  remapscalar_type   = "2PPM"                             ! remapping scheme for scalars
-  remapvelo_type     = "2PPM"                             ! remapping scheme for velocity
+  remapscalar_type   = "2PPM"                           ! remapping scheme for scalars
+  remapvelo_type     = "2PPM"                           ! remapping scheme for velocity
 
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
   cfl_num            = 20d0                             ! cfl number
   save_zlev          = zlevels                          ! vertical layer to save
-  
-  tol_elliptic       = 1d-8                             ! tolerance for coarse scale bicgstab elliptic solver
-  coarse_iter        = 100                              ! maximum number of coarse scale bicgstab iterations for elliptic solver
-  fine_iter          =  40                              ! maximum number of fine scale jacobi iterations for elliptic solver
 
   ! Test case parameters (bottom_friction set below, after initialize)
   Ku                 = 4d0 * METRE**2/SECOND            ! viscosity for vertical diffusion (damp internal waves)
@@ -58,7 +53,6 @@ program Drake
   npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
-  min_depth          = -50d0 * METRE                    ! minimum allowed depth (must be negative)
 
   if (zlevels == 1) then                                ! maximum allowed depth (must be negative)
      strat_type  = "linear"
@@ -81,25 +75,24 @@ program Drake
      strat_type   = "jet"
      if (trim(strat_type) == "jet") then
         ref_density = 1027.75d0 * KG/METRE**3
-        coords    = "uniform"    
+        coords      = "uniform"    
         sigma_z     = .true.                            ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
         width       = radius
         L_jet       = 0.4d0 * width
         lat_width   = (width/radius)/DEG               
      else
         coords    = "uniform"                        
+        drho         =    -8d0 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+        halocline    = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
+        mixed_layer  = -4000d0 * METRE                      ! location of layer forced by surface wind stress
      end if
      remap        = .true.
-     iremap       = 20
+     iremap       = 5
      vert_diffuse = .true.
      tke_closure  = .true.
-     bottom_friction_case = rb_0                         ! NEMO value 4d-4 m/s
-     
+     bottom_friction_case = 5d-3                        
      max_depth    = -4000d0 * METRE                      ! total depth
-     halocline    = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer  = -4000d0 * METRE                      ! location of layer forced by surface wind stress
-     drho         =    -8d0 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     tau_0        =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
+     tau_0        =   0.1d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc        =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   end if
 
@@ -132,7 +125,7 @@ program Drake
   end if
 
   ! Relaxation of buoyancy to mean profile 
-  if (remap) then
+  if (zlevels == 2 .and. remap) then
      k_T = 1d0 / (30d0 * DAY)               
   else
      k_T = 0d0

@@ -431,7 +431,6 @@ contains
        write (6,'(A,es10.4)') "grav accel            [m/s^2]  = ", grav_accel
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
-       write (6,'(A,es11.4)') "min_depth                 [m]  = ", abs (min_depth)
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
        write (6,'(A,es11.4)') "halocline                 [m]  = ", abs (halocline)
        write (6,'(A,es11.4)') "mixed layer               [m]  = ", abs (mixed_layer)
