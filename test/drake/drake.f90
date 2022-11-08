@@ -61,6 +61,7 @@ program Drake
   min_depth          = -50d0 * METRE                    ! minimum allowed depth (must be negative)
 
   if (zlevels == 1) then                                ! maximum allowed depth (must be negative)
+     strat_type  = "linear"
      max_depth   = -4000d0 * METRE                      ! total depth
      halocline   = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
      mixed_layer = -4000d0 * METRE                      ! location of layer forced by surface wind stress
@@ -68,6 +69,7 @@ program Drake
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels == 2) then
+     strat_type  = "linear"
      remap       = .false.
      max_depth   = -4000d0 * METRE                      ! total depth
      halocline   = -1000d0 * METRE                      ! location of top (less dense) layer in two layer case
@@ -76,13 +78,21 @@ program Drake
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     coords       = "uniform"
+     strat_type   = "jet"
+     if (trim(strat_type) == "jet") then
+        ref_density = 1027.75d0 * KG/METRE**3
+        coords    = "uniform"    
+        sigma_z     = .true.                            ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+        width       = radius
+        L_jet       = 0.4d0 * width
+        lat_width   = (width/radius)/DEG               
+     else
+        coords    = "uniform"                        
+     end if
      remap        = .true.
      iremap       = 20
      vert_diffuse = .true.
      tke_closure  = .true.
-     !Kt_const     = 0d-0 * METRE**2 / SECOND             ! eddy diffusion
-     !Kv_bottom    = 1d-0 * METRE**2 / SECOND             ! eddy viscosity
      bottom_friction_case = rb_0                         ! NEMO value 4d-4 m/s
      
      max_depth    = -4000d0 * METRE                      ! total depth

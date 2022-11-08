@@ -18,7 +18,17 @@ Module test_case_mod
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: aligned, etopo_coast
-  character(255)                       :: coords
+  character(255)                       :: coords, strat_type
+
+  ! Parameters for initial jet type density profile (North, South)
+  real(8) :: L_jet, lat_width, width
+  real(8),               parameter :: S_b       =             9.8d-6 * KG/METRE**4
+  real(8),               parameter :: z_surf    =            -300d0  * METRE
+  real(8), dimension(2), parameter :: drho_surf = (/  0d0,  1.5d0 /) * KG/METRE**3
+  real(8), dimension(2), parameter :: dz_b      = (/  3d2,  7d2   /) * METRE
+  real(8), dimension(2), parameter :: z_int     = (/ -4d2, -1d3   /) * METRE
+  real(8),               parameter :: Tcline    =  -100d0 * METRE                 ! thermocline
+  real(8),               parameter :: lat_c     = 30d0                            ! centre of zonal channel (in degrees)
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -393,6 +403,7 @@ contains
        write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
+       write (6,'(A,L1)')     "sigma_z                        = ", sigma_z
        write (6,'(A,es10.4)') "tol_elliptic                   = ", tol_elliptic
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
@@ -457,7 +468,7 @@ contains
             '*********************************************************************&
             ************************************************************'
 
-       call print_density_pert
+       call print_density
     end if
   end subroutine print_test_case_parameters
 
@@ -525,48 +536,55 @@ contains
     end do
 
     do l = level_start, level_end
-       do k = 1, zmax
-          call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          call apply_onescale (init_sol,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
+       call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine apply_initial_conditions_case
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
-    ! Initial perturbation to mean 
+    ! Initial scalars fors entire vertical column 
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer :: d, id, id_i
+    integer                       :: d, id, id_i, k 
+    real(8)                       :: eta, phi
+    type(Coord)                   :: x_i
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
+    eta = init_free_surface (dom%node%elts(id_i))
 
-    if (zlev == zlevels+1) then ! 2D barotropic mode
-       sol(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
-    else ! 3D layers
-       sol(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
-       sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
+    do k = 1, zlevels
+       sol(S_MASS,k)%data(d)%elts(id_i)              = 0d0
+       sol(S_TEMP,k)%data(d)%elts(id_i)              = 0d0
+       sol(S_VELO,k)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
+    end do
+
+    if (mode_split) then
+       phi = phi_node (d, id_i, zlevels)
+       sol(S_MASS,zlevels+1)%data(d)%elts(id_i)              = phi * eta ! free surface perturbation
+       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i)              = 0d0
+       sol(S_VELO,zlevels+1)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
     end if
-    ! Set initial velocity field to zero
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
   end subroutine init_sol
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
-    ! Initialize mean values
+    ! Initialize mean values for an entire vertical column
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: d, id, id_i
-    real (8)    :: dz, rho, z
+    integer                       :: d, id, id_i, k 
+    real(8)                       :: eta, phi, rho, z_k, z_s
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
+
     type(Coord) :: x_i
 
     d    = dom%id+1
@@ -574,21 +592,33 @@ contains
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
 
-    if (zlev == zlevels+1) then
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
+    eta = init_free_surface (x_i)
+    z_s = dom%topo%elts(id_i)
+    
+    if (sigma_z) then
+       z = z_coords_case (eta, z_s)
     else
-       dz =  b_vert_mass(zlev) * dom%topo%elts(id_i)
-       z = 0.5d0 * (b_vert(zlev) + b_vert(zlev-1)) * dom%topo%elts(id_i)
-
-       rho = porous_density (d, id_i, zlev)
-       sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = rho * dz
-       sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy_init (x_i, z)
+       z = a_vert * eta + b_vert * z_s
     end if
-    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+    dz = z(1:zlevels) - z(0:zlevels-1)
+
+    do k = 1, zlevels
+       rho = porous_density (d, id_i, k)
+       z_k = interp (z(k-1), z(k))
+       
+       sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = rho * dz(k)
+       sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (x_i, z_k)
+       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+    end do
+
+    if (mode_split) then
+       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i)                      = 0d0
+       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i)                      = 0d0
+       sol_mean(S_VELO,zlevels+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+    end if
   end subroutine init_mean
 
- subroutine update_case
+  subroutine update_case
     ! Update means, bathymetry and penalization mask
     use wavelet_mod
     implicit none
@@ -605,11 +635,9 @@ contains
        end do
        call barrier
 
-       do k = 1, zlevels
-          do d = 1, size(grid)
-             do p = n_patch_old(d)+1, grid(d)%patch%length
-                call apply_onescale_to_patch (init_mean, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-             end do
+       do d = 1, size(grid)
+          do p = n_patch_old(d)+1, grid(d)%patch%length
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do
     else ! need to set values over entire grid on restart
@@ -621,9 +649,7 @@ contains
        end do
 
        do l = level_start, level_end
-          do k = 1, zmax
-             call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
+          call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end if
   end subroutine update_case
@@ -652,30 +678,135 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    if (z >= halocline) then
-       buoyancy_init = - (1d0 - z/halocline) * drho/ref_density
+    real(8) :: lat, lon
+    
+    if (trim(strat_type) == "jet") then ! density profile from baroclinic jet test case
+       call cart2sph (x_i, lon, lat)
+       buoyancy_init = (ref_density - density_init_jet (lat_c, z)) / ref_density
+    elseif (trim(strat_type) == "linear") then
+       if (z >= halocline) then
+          buoyancy_init = - (1d0 - z/halocline) * drho/ref_density
+       else
+          buoyancy_init = 0d0
+       end if
     else
-       buoyancy_init = 0d0
+       if (rank == 0) write (6,*) 'Stratification type not supported ... aborting'
+       call abort
     end if
   end function buoyancy_init
 
-  subroutine print_density_pert
+  real(8) function density_init_jet (lat, z)
     implicit none
-    integer     :: k
-    real(8)     :: z
-    type(Coord) :: x_i 
+    real(8) :: lat, z
 
+    real(8) :: drho_N, drho_S, sm
+
+    drho_N = drho_NS (1)
+    drho_S = drho_NS (2)
+
+    sm = smoothing ()
+    density_init_jet = 1027.75d0 - S_b * (z - max_depth) +  sm * drho_S + (1d0 - sm) * drho_N
+  contains
+    real(8) function drho_NS (hemi)
+      implicit none
+      integer :: hemi
+
+      drho_NS = - 0.5d0 * drho_int (hemi) * (1d0 + tanh ((d_NS (hemi) - z_int(hemi))/dz_b(hemi))) &
+           - drho_surf (hemi) / (2d0*tanh(1d0)) * (1d0 + tanh ((z_surf - z) / z_surf))
+    end function drho_NS
+
+    real(8) function drho_int (hemi)
+      implicit none
+      integer :: hemi
+
+      if (hemi == 1) then
+         drho_int = 1.41d0
+      else
+         drho_int = 1.40d0
+      end if
+    end function drho_int
+
+    real(8) function d_NS (hemi)
+      implicit none
+      integer :: hemi
+
+      d_NS = z_int (hemi) + (z - z_int (hemi)) &
+           * sqrt (1d0 + 0.5d0 * ((z - z_int (hemi) + abs (z - z_int (hemi))) / (1.3d0*dz_b(hemi)))**2)
+    end function d_NS
+
+    real(8) function smoothing ()
+      implicit none
+
+      real(8) :: y
+
+      y = MATH_PI * (width/L_jet * (lat - (lat_c - lat_width/2d0)) / lat_width + 0.5d0 * (1d0 - width/L_jet))
+
+      if (y < 0d0) then
+         smoothing = 1d0
+      elseif (y > MATH_PI) then
+         smoothing = 0d0
+      else
+         smoothing = 1d0 - (y - sin (y) * cos (y)) / MATH_PI
+      end if
+    end function smoothing
+  end function density_init_jet
+
+  subroutine print_density
+    implicit none
+    integer                       :: k
+    real(8)                       :: bv, c_k, c1, drho, dz_l, eta, lat, rho, rho_above, z_k, z_s, z_above
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
+    type(Coord) :: x_i
+
+    lat = lat_c ! latitude to evaluate buoyancy
+    
+    eta = 0d0
+    z_s = max_depth
     x_i = Coord (radius, 0d0, 0d0)
+    
+    if (sigma_z) then
+       z = z_coords_case (eta, z_s)
+    else
+       z = a_vert * eta + b_vert * z_s
+    end if
+    dz = z(1:zlevels) - z(0:zlevels-1)
 
-    write (6,'(a)') " Layer    z       drho"      
+    write (6,'(a)') " Layer      z         dz         rho "
     do k = 1, zlevels
-       z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
-       write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, - buoyancy_init (x_i, z)*ref_density
+       z_k = interp (z(k-1), z(k))
+       write (6, '(2x, i2, 4x, 2(es9.2, 1x), es11.5)') &
+            k, z_k, dz(k), ref_density * (1d0 - buoyancy_init (x_i, z_k))
     end do
+    
+    write (6,'(/,a)') " Interface     z"
+    do k = 0, zlevels
+       write (6, '(3x, i3, 5x, es9.2)') k, z(k)
+    end do
+
+    write (6,'(/,a)') " Interface      V        c1      CFL_c1"
+    c1 = 0d0
+    do k = 1, zlevels-1
+       z_above = interp (z(k),   z(k+1))
+       z_k     = interp (z(k-1), z(k))
+       dz_l    = z_above - z_k
+       
+       rho_above = ref_density * (1d0 - buoyancy_init (x_i, z_above))
+       rho  = ref_density * (1d0 - buoyancy_init (x_i, z_k))
+       drho = rho_above - rho
+       
+       bv = sqrt(- grav_accel * drho/dz_l/rho)
+       c_k = bv * abs(max_depth) / MATH_PI
+       c1 = max (c1, c_k)
+       
+       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c_k*dt_init/dx_min
+    end do
+    write (6,'(/,a,es8.2)') "Maximum internal wave speed [m/s] = ", c1
+    write (6,'(a,es8.2)')   "Maximum baroclinic CFL number     = ", c1*dt_init/dx_min
     write (6,'(A)') &
          '*********************************************************************&
          ************************************************************'
-  end subroutine print_density_pert
+  end subroutine print_density
 
   subroutine set_thresholds_case
     ! Set thresholds dynamically
@@ -1043,12 +1174,39 @@ contains
   end subroutine trend_velo
 
   function z_coords_case (eta_surf, z_s)
-    ! Dummy routine
-    ! (see upwelling test case for example)
+    ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
+    ! near the free surface over strong bathymetry gradients.
+    ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
+    !
+    ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
     implicit none
     real(8)                       :: eta_surf, z_s ! free surface and bathymetry
     real(8), dimension(0:zlevels) :: z_coords_case
 
-    z_coords_case = 0d0
+    integer                       :: k
+    real(8)                       :: cff, cff1, cff2, hc, z_0
+    real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
+    real(8), dimension(0:zlevels) :: Cs, sc
+    
+    hc = min (abs(min_depth), abs(Tcline))
+    
+    cff1 = 1.0_8 / sinh (theta_s)
+    cff2 = 0.5d0 / tanh (0.50 * theta_s)
+    
+    sc(0) = -1.0_8
+    Cs(0) = -1.0_8
+    cff = 1d0 / dble(zlevels)
+    do k = 1, zlevels
+       sc(k) = cff * dble (k - zlevels)
+       Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+    end do
+
+    z_coords_case(0) = z_s
+    do k = 1, zlevels
+       cff = hc * (sc(k) - Cs(k))
+       z_0 = cff - Cs(k) * z_s
+       a_vert(k) = 1.0_8 - z_0 / z_s
+       z_coords_case(k) = eta_surf * a_vert(k) + z_0
+    end do
   end function z_coords_case
 end module test_case_mod
