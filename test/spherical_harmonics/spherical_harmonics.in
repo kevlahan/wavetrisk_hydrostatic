@@ -1,11 +1,11 @@
 spec_type      "latlon"     ! "sphere" or "latlon"
 test_case      "drake"      ! test case
 run_id         "1layer_J6"  ! run
-cp_beg	        15          ! first checkpoint
-cp_end	        17          ! last  checkpoint	
+cp_beg	        15          ! first checkpoint to analyze
+cp_end	        17          ! last  checkpoint to analyze	
 max_level	10          ! maximum level of resolution
 zlevels         1           ! number of vertical levels
-save_zlev       55          ! vertical level at which to compute energy spectra
+save_zlev       55          ! vertical level at which to compute energy spectra (if -1, compute spectra at all levels)
 uniform         F           ! uniform (T) or hybrid (F) vertical grid
 level_save      9           ! resolution level to interpolate to
 N               3200        ! resolution of interpolated grid (N/2 latitude x N longitude), N  <= sqrt(40*4^J)

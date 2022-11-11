@@ -4,7 +4,7 @@ module test_case_mod
   use utils_mod
   use init_mod
   implicit none
-  integer        :: angular_order, cp_beg, cp_end, lwin, N, ntaper
+  integer        :: angular_order, cp_beg, cp_end, lwin, N, ntaper, k_min, k_max
   real(8)        :: concentration, lat0, lon0, ref_surf_press, theta0
   real(8)        :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   character(255) :: spec_type
@@ -248,6 +248,12 @@ contains
     close(fid)
 
     if (save_zlev > zlevels) save_zlev = zlevels ! avoid incorrect choice of save_zlev
+
+    if (save_zlev == -1) then
+       k_min = 1 ; k_max = zlevels
+    else
+       k_min = save_zlev; k_max = save_zlev
+    end if
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
@@ -293,10 +299,10 @@ contains
 
     x_i = Coord (radius, 0d0, 0d0)
 
-    write (6,'(a)') " Layer    z       drho"      
+    write (6,'(a)') " Layer    z"      
     do k = 1, zlevels
        z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
-       write (6, '(2x,i2, 1x, 2(es9.2,1x))') k, z, - buoyancy_init (x_i, z)*ref_density
+       write (6, '(2x,i2, 3x, es9.2)') k, z
     end do
     write (6,'(A)') &
          '*********************************************************************&
@@ -520,22 +526,22 @@ contains
     if (trim (test_case) == "jet") then
        hc = min (abs(min_depth), abs(Tcline))
 
-       cff1 = 1.0_8 / sinh (theta_s)
-       cff2 = 0.5d0 / tanh (0.50 * theta_s)
+       cff1 = 1d0 / sinh (theta_s)
+       cff2 = 0.5d0 / tanh (0.5d0 * theta_s)
 
-       sc(0) = -1.0_8
-       Cs(0) = -1.0_8
+       sc(0) = -1d0
+       Cs(0) = -1d0
        cff = 1d0 / dble(zlevels)
        do k = 1, zlevels
           sc(k) = cff * dble (k - zlevels)
-          Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+          Cs(k) = (1d0 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
        end do
 
        z_coords_case(0) = z_s
        do k = 1, zlevels
           cff = hc * (sc(k) - Cs(k))
           z_0 = cff - Cs(k) * z_s
-          a_vert(k) = 1.0_8 - z_0 / z_s
+          a_vert(k) = 1d0 - z_0 / z_s
           z_coords_case(k) = eta_surf * a_vert(k) + z_0
        end do
     else
