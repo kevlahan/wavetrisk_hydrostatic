@@ -5,7 +5,7 @@ clear; close all;
 machine   = 'nia-datamover1.scinet.utoronto.ca';
 
 %test_case = 'drake';dir = '~/hydro/drake';                run_id = '6layer_diffuse' ; type = 'barotropic_curlu_spec'; name_type = ' 6 layer drake';cp_id = '0036';zlev='0006';
-test_case = 'jet'; dir = '~/proj/jet/6layer_jet/spectra'; run_id = 'jet'; type = 'barotropic_curlu_spec'; name_type = ' 6 layer jet';cp_id='0058';zlev='0005';
+test_case = 'jet'; dir = '~/proj/jet/6layer_jet/spectra'; run_id = 'jet'; type = 'barotropic_curlu_spec'; name_type = ' 6 layer jet';cp_id='0058';zlev='0002';
 %test_case = 'jet'; dir = '~/hydro/jet';                    run_id = 'jet';             type = 'barotropic_curlu_spec'; name_type = '12 layer jet'; cp_id = '0058';zlev='0012';
 %test_case = 'jet'; dir = '~/proj/jet/gmd_paper';  run_id = 'jet';             type = 'barotropic_curlu_spec'; name_type = '60 layer jet'; cp_id = '0271';zlev='0060';
 avg = true;
@@ -192,7 +192,7 @@ end
 
 function [local_file] =  load_data (test_case, dir, run_id, cp_id, zlev, type, machine, avg)
 if avg % average spectrum
-    file_base = [run_id '_' type];
+    file_base = [run_id '_' zlev '_' type];
 else
     file_base = [run_id '_' cp_id '_' zlev '_' type];
 end
