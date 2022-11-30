@@ -29,9 +29,14 @@ program Drake
   remapscalar_type   = "2PPM"                           ! remapping scheme for scalars
   remapvelo_type     = "2PPM"                           ! remapping scheme for velocity
 
+  coarse_iter         = 40                              ! maximum number of coarse scale bicgstab iterations for elliptic solver
+  fine_iter           = 100                             ! maximum number of fine scale jacobi iterations for elliptic solver
+  tol_elliptic        = 1d-6                            ! tolerance for coarse scale bicgstab elliptic solver
+  tol_jacobi          = 1d-3                            ! tolerance for fine scale jacobi iterations
+  
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
-  cfl_num            = 20d0                             ! cfl number
+  cfl_num            = 15d0                             ! cfl number
   save_zlev          = zlevels                          ! vertical layer to save
 
   ! Test case parameters (bottom_friction set below, after initialize)
@@ -40,7 +45,7 @@ program Drake
 
   ! Resolve Munk layer with "resolution" grid points (constant viscosity based on resolution 2.5 for scale_omega = 6)
   if (abs(scale_omega - 6d0) < 1d-2) then
-     resolution = 2.50d0                             
+     resolution = 2.50d0
   elseif (abs(scale_omega - 1d0) < 1d-2) then
      resolution = 1.37d0                           
   elseif (abs(scale_omega - 1d0/6d0) < 1d-2) then
@@ -72,28 +77,30 @@ program Drake
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     strat_type   = "jet"
-     if (trim(strat_type) == "jet") then
-        ref_density = 1027.75d0 * KG/METRE**3
-        coords      = "uniform"    
-        sigma_z     = .true.                            ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-        width       = radius
-        L_jet       = 0.4d0 * width
-        lat_width   = (width/radius)/DEG               
-     else
-        coords    = "uniform"                        
-        drho         =    -8d0 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-        halocline    = -4000d0 * METRE                      ! location of top (less dense) layer in two layer case
-        mixed_layer  = -4000d0 * METRE                      ! location of layer forced by surface wind stress
-     end if
+     strat_type  = "linear"
+     sigma_z     = .true.                              ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     coords      = "uniform"
+     max_depth   = -4000d0 * METRE                      ! total depth
+     ref_density = 1027.75d0 * KG/METRE**3
+     width       = radius
+     L_jet       = 0.4d0 * width
      remap        = .true.
      iremap       = 5
      vert_diffuse = .true.
      tke_closure  = .true.
      bottom_friction_case = 5d-3                        
-     max_depth    = -4000d0 * METRE                      ! total depth
      tau_0        =   0.1d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc        =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
+     lat_width    = (width/radius)/DEG
+     
+     if (trim(strat_type) == "jet") then
+        drho         =    -3d0 * KG/METRE**3            ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+        halocline    = -1000d0 * METRE                  ! location of top (less dense) layer in two layer case
+     else
+        drho         = -10.487d0 * KG/METRE**3            ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+        mixed_layer  =  -100d0 * METRE                  ! location of surface mixed layer
+        halocline    =  -1100d0 * METRE                  ! location less dense layer 
+     end if
   end if
 
   ! Characteristic scales

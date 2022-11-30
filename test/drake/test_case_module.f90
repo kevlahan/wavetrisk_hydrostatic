@@ -680,9 +680,11 @@ contains
     if (trim(strat_type) == "jet") then ! density profile from baroclinic jet test case
        buoyancy_init = (ref_density - density_init_jet (lat_c, z)) / ref_density
     elseif (trim(strat_type) == "linear") then
-       if (z >= halocline) then
-          buoyancy_init = - (1d0 - z/halocline) * drho/ref_density
-       else
+       if (z >= mixed_layer) then
+          buoyancy_init = - (1d0 - mixed_layer/halocline) * drho / ref_density
+       elseif (z >= halocline .and. z < mixed_layer) then
+          buoyancy_init = - (1d0 - z/halocline) * drho / ref_density
+       elseif (z < halocline) then
           buoyancy_init = 0d0
        end if
     else
