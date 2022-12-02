@@ -242,7 +242,7 @@ contains
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    ! Save old mass
+    ! Save old masses
     do k = 1, zlevels
        trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
     end do
@@ -364,12 +364,12 @@ contains
     real(8)                          :: new_mass
     real(8), dimension (zlevels+1)   :: cumul_mass, cumul_temp, new_cumul_temp
 
-    d    = dom%id + 1
-    id   = idx(i, j, offs, dims)
+    d  = dom%id + 1
+    id = idx(i, j, offs, dims)
 
     ! Calculate cumulative mass and total mass of column
-    cumul_mass(1) = 0.0_8
-    cumul_temp(1) = 0.0_8
+    cumul_mass(1) = 0d0
+    cumul_temp(1) = 0d0
     do k = 1, zlevels
        cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id+1)
        cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id+1)
@@ -377,8 +377,8 @@ contains
     column_mass = cumul_mass(zlevels+1) + p_top/grav_accel
 
     current_zlev = 1
-    exner_fun(1)%data(d)%elts(id+1) = 1.0_8
-    new_cumul_mass = 0.0_8
+    exner_fun(1)%data(d)%elts(id+1) = 1d0
+    new_cumul_mass = 0d0
     do k = 1, zlevels
        trend(S_MASS,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1)
 
@@ -433,9 +433,9 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    massflux_cumul(1,:) = 0.0_8
+    massflux_cumul(1,:) = 0d0
     do k = 1, zlevels
-       ! Interpolate old masses (stored in trend)
+       ! Interpolate old masses to edges (stored in trend)
        mass_e(RT+1) = interp (trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idE+1))
        mass_e(DG+1) = interp (trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idNE+1))
        mass_e(UP+1) = interp (trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idN+1))
@@ -447,6 +447,7 @@ contains
     end do
 
     do k = 1, zlevels+1
+       ! Interpolate new coordinates to edges
        X(RT+1) = interp (exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idE+1))
        X(DG+1) = interp (exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idNE+1))
        X(UP+1) = interp (exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idN+1))
@@ -459,7 +460,7 @@ contains
     end do
 
     do k = 1, zlevels
-       ! Interpolate new masses
+       ! Interpolate new masses to edges
        mass_e(RT+1) = interp (sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idE+1))
        mass_e(DG+1) = interp (sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idNE+1))
        mass_e(UP+1) = interp (sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idN+1))
@@ -482,7 +483,7 @@ contains
     
     integer                 :: k
     real(8)                 :: dz
-    real(8), parameter      :: Zero=0.0_8
+    real(8), parameter      :: Zero=0d0
     real(8), dimension(0:N) :: FC
     logical, parameter      :: NEUMANN = .false.
     
@@ -490,8 +491,8 @@ contains
        dz = z_new(k) - z_old(k)
        FC(k) = min (dz, Zero) * var_old(k) + max (dz, Zero) * var_old(k+1)
     end do
-    FC(0) = 0.0_8
-    FC(N) = 0.0_8
+    FC(0) = 0d0
+    FC(N) = 0d0
     
     do k = 1, N
        var_new(k) = ((z_old(k)-z_old(k-1))*var_old(k) + FC(k)-FC(k-1)) / (z_new(k)-z_new(k-1))
@@ -517,7 +518,7 @@ contains
 
     integer                 :: k, iter
     real(8)                 :: cff, cff1, dh, dL, dR, dz
-    real(8), parameter      :: Zero=0.0_8, Half=0.5_8
+    real(8), parameter      :: Zero=0d0, Half=0.5d0
     real(8), dimension(0:N) :: aL, aR, FC
     real(8), dimension(1:N) :: Hz
     logical, parameter      :: ENHANCE = .true., NEUMANN = .false. 
@@ -604,7 +605,7 @@ contains
 
     integer                 :: k, k1, k2
     real(8)                 :: alpha, cff, cffL, cffR, dL, dR, dz
-    real(8), parameter      :: Zero=0.0_8, Half=0.5_8, One=1.0_8, ThreeHalfth=1.5_8, Two=2.0_8, Three=3.0_8
+    real(8), parameter      :: Zero=0d0, Half=0.5d0, One=1d0, ThreeHalfth=1.5d0, Two=2d0, Three=3d0
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, CF, FC, FC1
     logical, parameter      :: LIMIT_INTERIOR = .false.
@@ -720,7 +721,7 @@ contains
 
     integer                 :: k
     real(8)                 :: alpha, cff, cff1, dz
-    real(8), parameter      :: Half = 0.5_8, ThreeHalfth=1.5_8, Zero = 0.0_8, One = 1.0_8, Two = 2.0_8, Three = 3.0_8
+    real(8), parameter      :: Half = 0.5d0, ThreeHalfth=1.5d0, Zero = 0d0, One = 1d0, Two = 2d0, Three = 3d0
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: dL, dR, FC, r
     character(255)          :: bc = "PARABOLIC_CONTINUATION" ! options are 'NEUMANN', 'LINEAR_CONTINUATION', 'PARABOLIC_CONTINUATION'
@@ -788,8 +789,8 @@ contains
        alpha = dz / alpha
        FC(k) = dz * (r(k) + alpha*(cff - cff1*(Three - Two*abs(alpha))))
     end do
-    FC(0) = 0.0_8
-    FC(N) = 0.0_8
+    FC(0) = 0d0
+    FC(N) = 0d0
 
     do k = 1, N
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
@@ -812,7 +813,7 @@ contains
 
     integer                 :: k
     real(8)                 :: alpha, cff, cffL, cffR, deltaL, deltaR, dz
-    real(8), parameter      :: Zero=0.0_8, Half=0.5_8, One=1.0_8, ThreeHalfth=1.5_8, Two=2.0_8, Three=3.0_8, eps = 1.0d-8
+    real(8), parameter      :: Zero=0d0, Half=0.5d0, One=1d0, ThreeHalfth=1.5d0, Two=2d0, Three=3d0, eps = 1d-8
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, dL, dR, FC, r
     logical, parameter      :: LIMIT_INTERIOR = .true.
@@ -961,9 +962,9 @@ contains
 
     integer                 :: k
     real(8)                 :: alpha, Ampl, cff, cffL, cffR, deltaL, deltaR, dz, Hdd, rr
-    real(8), parameter      :: eps=1.0d-8
-    real(8), parameter      :: Half=0.5_8, OneFifth=0.2_8, ThreeHalfth=1.5_8 
-    real(8), parameter      :: Zero=0.0_8, One=1.0_8, Two=2.0_8, Three=3.0_8, Four=4.0_8, Six=6.0_8
+    real(8), parameter      :: eps=1d-8
+    real(8), parameter      :: Half=0.5d0, OneFifth=0.2d0, ThreeHalfth=1.5d0 
+    real(8), parameter      :: Zero=0d0, One=1d0, Two=2d0, Three=3d0, Four=4d0, Six=6d0
     real(8), dimension(1:N) :: Hz
     real(8), dimension(0:N) :: aL, aR, dL, dR, d, FC, r, r1
     logical, parameter      :: NEUMANN = .false.
@@ -1151,10 +1152,10 @@ contains
           cffL  =  dL(k)
        end if
        alpha = dz / alpha
-       FC(k) = dz * (r(k) + Half*dz*d(k) + alpha**2*(cff - cffR*(0.5_8-0.25d0*alpha) + cffL*(1.0_8-alpha*(1.25_8-0.5d0*alpha))))
+       FC(k) = dz * (r(k) + Half*dz*d(k) + alpha**2*(cff - cffR*(0.5d0-0.25d0*alpha) + cffL*(1d0-alpha*(1.25d0-0.5d0*alpha))))
     end do
-    FC(0) = 0.0_8
-    FC(N) = 0.0_8
+    FC(0) = 0d0
+    FC(N) = 0d0
 
     do k = 1, N
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
