@@ -888,7 +888,7 @@ contains
 
     ! Ensure stability
     C_visc = min ((1d0/32d0)**Laplace_order_init, C_visc)
-    
+
     C_rotu = C_visc
     C_divu = C_visc
     C_sclr = C_visc
@@ -1049,11 +1049,7 @@ contains
        a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
        b_vert(0) = 1d0; b_vert(1) = halocline/max_depth; b_vert(2) = 0d0
     elseif (zlevels >= 3) then
-       if (trim (coords) == "uniform") then 
-          do k = 0, zlevels
-             b_vert(k) = 1d0 - dble(k)/dble(zlevels)
-          end do
-       elseif (trim (coords) == "chebyshev") then
+       if (trim (coords) == "chebyshev") then
           do k = 0, zlevels
              b_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
           end do
@@ -1061,9 +1057,11 @@ contains
           do k = 0, zlevels
              b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
           end do
-       else
-          if (rank == 0) write (6,*) "Selected vertical coordinate type not supported ..."
-          call abort
+       else ! default coordinates are uniform (not used if sigma_z = .true.)
+          coords = "uniform"
+          do k = 0, zlevels
+             b_vert(k) = 1d0 - dble(k)/dble(zlevels)
+          end do
        end if
        a_vert = 1d0 - b_vert
     end if

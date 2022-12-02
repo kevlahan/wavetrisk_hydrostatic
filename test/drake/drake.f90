@@ -26,8 +26,8 @@ program Drake
   mode_split         = .true.                           ! split barotropic mode if true
   penalize           = .true.                           ! penalize land regions
   compressible       = .false.                          ! always run with incompressible equations
-  remapscalar_type   = "2PPM"                           ! remapping scheme for scalars
-  remapvelo_type     = "2PPM"                           ! remapping scheme for velocity
+  remapscalar_type   = "PPR"                           ! remapping scheme for scalars
+  remapvelo_type     = "0"                           ! remapping scheme for velocity
 
   coarse_iter         = 40                              ! maximum number of coarse scale bicgstab iterations for elliptic solver
   fine_iter           = 100                             ! maximum number of fine scale jacobi iterations for elliptic solver
@@ -77,29 +77,30 @@ program Drake
      tau_0       =   0.4d0 * NEWTON/METRE**2            ! maximum wind stress
      u_wbc       =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     strat_type  = "linear"
-     sigma_z     = .true.                              ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-     coords      = "uniform"
-     max_depth   = -4000d0 * METRE                      ! total depth
-     ref_density = 1027.75d0 * KG/METRE**3
-     width       = radius
-     L_jet       = 0.4d0 * width
+     strat_type   = "linear"
+
+     sigma_z      = .true.                              ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     vert_diffuse = .true.
+     tke_closure  = .false.
      remap        = .true.
      iremap       = 5
-     vert_diffuse = .true.
-     tke_closure  = .true.
-     bottom_friction_case = 5d-3                        
-     tau_0        =   0.1d0 * NEWTON/METRE**2            ! maximum wind stress
-     u_wbc        =   1.5d0 * METRE/SECOND               ! estimated western boundary current speed
-     lat_width    = (width/radius)/DEG
+
+     tau_0                =     0.1d0 * NEWTON/METRE**2 ! maximum wind stress
+     max_depth            =   -4000d0 * METRE           ! total depth
+     ref_density          = 1027.75d0 * KG/METRE**3     ! reference density
+     bottom_friction_case =      5d-3 * METRE/SECOND    ! bottom friction                      
+     u_wbc                =     1.5d0 * METRE/SECOND    ! estimated western boundary current speed
      
      if (trim(strat_type) == "jet") then
         drho         =    -3d0 * KG/METRE**3            ! density perturbation at free surface (density of top layer is rho0 + drho/2)
         halocline    = -1000d0 * METRE                  ! location of top (less dense) layer in two layer case
+        lat_width    = (width/radius)/DEG
+        width        = radius
+        L_jet        = 0.4d0 * width
      else
-        drho         = -10.487d0 * KG/METRE**3            ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-        mixed_layer  =  -100d0 * METRE                  ! location of surface mixed layer
-        halocline    =  -1100d0 * METRE                  ! location less dense layer 
+        drho         = -10.487d0 * KG/METRE**3          ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+        mixed_layer  =   -100d0 * METRE                 ! location of surface mixed layer
+        halocline    =  -1100d0 * METRE                 ! location less dense layer 
      end if
   end if
 
