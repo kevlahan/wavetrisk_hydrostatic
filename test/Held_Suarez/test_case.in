@@ -7,12 +7,12 @@ uniform            F             ! uniform (T) or hybrid (F) vertical grid
 remap              T             ! remap vertical gr
 remapscalar_type   PPR           ! remap method for scalars  (0, 1, 2PPM, 2S, 2W, 4, PPR)
 remapvelo_type     PPR           ! remap method for velocity (0, 1, 2PPM, 2S, 2W, 4, PPR)
-iremap             4            ! remap every iremap time steps
+iremap             10            ! remap every iremap time steps
 default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
-tol      	   4e-2          ! non-dimensional tolerance
+tol      	   2e-2          ! non-dimensional tolerance
 optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
-cfl_num            1.4           ! cfl number
+cfl_num            1.0           ! cfl number
 timeint_type       RK4          ! time integration method (RK33, RK34, RK45, RK4)
 pressure_save      850           ! save vertical layer closest to this pressure (hPa)
 Laplace_order      2             ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second order Laplacian hyperdiffusion
