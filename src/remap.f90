@@ -75,6 +75,7 @@ contains
 
     ! Ensure boundary values are up to date
     call update_array_bdry (sol(:,1:zlevels), NONE, 90)
+    trend(S_MASS,:) = sol(S_MASS,:) ! save old masses
 
     ! Remap on finest level
     if (compressible) then
@@ -166,8 +167,6 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) ! save old mass
-
        full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
        full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
 
@@ -241,11 +240,6 @@ contains
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
-
-    ! Save old masses
-    do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
-    end do
 
     call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
     dz = z_new(1:zlevels) - z_new(0:zlevels-1)
