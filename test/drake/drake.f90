@@ -26,8 +26,8 @@ program Drake
   mode_split         = .true.                           ! split barotropic mode if true
   penalize           = .true.                           ! penalize land regions
   compressible       = .false.                          ! always run with incompressible equations
-  remapscalar_type   = "PPR"                           ! remapping scheme for scalars
-  remapvelo_type     = "0"                           ! remapping scheme for velocity
+  remapscalar_type   = "2PPM"                           ! remapping scheme for scalars
+  remapvelo_type     = "2PPM"                           ! remapping scheme for velocity
 
   coarse_iter         = 40                              ! maximum number of coarse scale bicgstab iterations for elliptic solver
   fine_iter           = 100                             ! maximum number of fine scale jacobi iterations for elliptic solver
