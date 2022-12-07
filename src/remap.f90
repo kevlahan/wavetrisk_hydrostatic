@@ -158,30 +158,31 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: column_mass
-    real(8), dimension (1:zlevels) :: theta_new, theta_old 
+    real(8)                        :: full_mass, full_temp
+    real(8), dimension (1:zlevels) :: rho_dz, theta_new, theta_old 
     real(8), dimension (0:zlevels) :: p_new, p_old
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    ! Save old mass
     do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i)
-    end do
-    
-    call find_coordinates (p_new, p_old, d, id_i, column_mass)
+       trend(S_MASS,k)%data(d)%elts(id_i) = sol(S_MASS,k)%data(d)%elts(id_i) ! save old mass
 
-    do k = 1, zlevels
-       theta_old(zlevels-k+1) = sol(S_TEMP,k)%data(d)%elts(id_i) / sol(S_MASS,k)%data(d)%elts(id_i)
-       sol(S_MASS,k)%data(d)%elts(id_i) = a_vert_mass(k) + b_vert_mass(k) * column_mass ! New mass
+       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
+       full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
+
+       theta_old(zlevels-k+1) = full_temp / full_mass
     end do
+
+    call find_coordinates (p_new, p_old, d, id_i)
+    rho_dz = (p_new(zlevels:1:-1) - p_new(zlevels-1:0:-1)) / grav_accel
   
     call interp_scalar (zlevels, theta_new, p_new, theta_old, p_old)
 
-    ! Mass-weighted potential temperature
+    ! Remapped values
     do k = 1, zlevels
-       sol(S_TEMP,k)%data(d)%elts(id_i) = theta_new(zlevels-k+1) * sol(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz(k) - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz(k) * theta_new(zlevels-k+1) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
   end subroutine remap_scalars
 
@@ -194,10 +195,9 @@ contains
 
     integer                        :: d, e, id, id_i, k
     integer, dimension (1:EDGE)    :: id_r
-    real(8)                        :: column_mass
-    real(8), dimension (1:zlevels) :: flux_new, flux_old 
-    real(8), dimension (0:zlevels) :: p_new, p_old
-    real(8), dimension (0:zlevels) :: p_edge_new, p_edge_old
+    real(8)                        :: full_mass
+    real(8), dimension (1:zlevels) :: flux_new, flux_old
+    real(8), dimension (0:zlevels) :: p_edge_new, p_edge_old, p_new, p_old
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims) 
@@ -207,17 +207,17 @@ contains
     id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
     id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
-    call find_coordinates (p_new, p_old, d, id_i, column_mass)
-    
+    call find_coordinates (p_new, p_old, d, id_i)
+
     do e = 1, EDGE
-       call find_coordinates (p_edge_new, p_edge_old, d, id_r(e), column_mass)
+       call find_coordinates (p_edge_new, p_edge_old, d, id_r(e))
        p_edge_new = 0.5d0 * (p_new + p_edge_new)
        p_edge_old = 0.5d0 * (p_old + p_edge_old)
        
        do k = 1, zlevels
-          flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+          flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) 
        end do
-
+       
        call interp_velo (zlevels, flux_new, p_edge_new, flux_old, p_edge_old)
 
        do k = 1, zlevels
@@ -310,21 +310,20 @@ contains
     end do
   end subroutine remap_velo_incompressible
 
-  subroutine find_coordinates (p_new, p_old, d, id_i, column_mass)
-    ! Calculates old and new pressure-based z coordinates
+  subroutine find_coordinates (p_new, p_old, d, id_i)
+    ! Calculates old and new pressure-based z coordinates from top down
     implicit none
     integer                       :: d, id_i
-    real(8)                       :: column_mass
+    real(8)                       :: full_mass
     real(8), dimension(0:zlevels) :: p_new, p_old
 
     integer :: k
 
     p_old(0) = p_top
     do k = 1, zlevels
-       p_old(k) = p_old(k-1) + grav_accel * trend(S_MASS,zlevels-k+1)%data(d)%elts(id_i)
+       full_mass = sol_mean(S_MASS,zlevels-k+1)%data(d)%elts(id_i) + trend(S_MASS,zlevels-k+1)%data(d)%elts(id_i)
+       p_old(k) = p_old(k-1) + grav_accel * full_mass 
     end do
-    column_mass = p_old(zlevels) / grav_accel
-    
     p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1) * p_old(zlevels)
   end subroutine find_coordinates
 
