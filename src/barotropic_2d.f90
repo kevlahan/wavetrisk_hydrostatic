@@ -43,7 +43,7 @@ contains
 
     do d = 1, size(grid)
        ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-       iend = q(S_VELO,1)%data(d)%length
+       iend = sol(S_VELO,1)%data(d)%length
        do k = 1, zlevels
           q(S_VELO,k)%data(d)%elts(ibeg:iend) = sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
                + dt * (trend(S_VELO,k)%data(d)%elts(ibeg:iend) + theta1 * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend))
