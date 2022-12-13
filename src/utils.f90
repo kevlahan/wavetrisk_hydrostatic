@@ -860,4 +860,40 @@ contains
 
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
+
+  subroutine zero_float_field (q, itype)
+    ! Set float field to zero
+    ! itype = S_MASS or S_VELO
+    implicit none
+    integer                   :: itype
+    type(Float_Field), target :: q
+
+    integer :: d, ibeg, iend
+
+    do d = 1, size(grid)
+       ibeg = (1+2*(POSIT(itype)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend = q%data(d)%length
+       q%data(d)%elts(ibeg:iend) = 0d0
+    end do
+    q%bdry_uptodate = .false.
+    call update_bdry (q, NONE, 34)
+  end subroutine zero_float_field
+
+  subroutine equals_float_field (q1, q2, itype)
+    ! Set elements of float field q1 = q2
+    ! itype = S_MASS or S_VELO
+    implicit none
+    integer                   :: itype
+    type(Float_Field), target :: q1, q2
+
+    integer :: d, ibeg, iend
+
+    do d = 1, size(grid)
+       ibeg = (1+2*(POSIT(itype)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+       iend = q2%data(d)%length
+       q1%data(d)%elts(ibeg:iend) = q2%data(d)%elts(ibeg:iend)
+    end do
+    q1%bdry_uptodate = .false.
+    call update_bdry (q1, NONE, 34)
+  end subroutine equals_float_field
 end module utils_mod

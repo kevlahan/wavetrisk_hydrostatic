@@ -8,9 +8,17 @@ contains
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
 
-    integer :: k, l
+    integer :: k, l, v
 
     call update_array_bdry (q(:,1:zlevels), NONE, 9)
+
+    ! Initialize trends
+    do k = 1, zlevels
+       do v = scalars(1), scalars(2)
+          call zero_float_field (trend(v,k), S_MASS)
+       end do
+       call zero_float_field (trend(S_VELO,k), S_VELO)
+    end do
 
     ! Compute surface pressure on all grids
     call cal_surf_press (q)

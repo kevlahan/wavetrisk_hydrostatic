@@ -174,6 +174,7 @@ contains
        nullify (scalar, scalar2, scalar3, mu1)
     end do
     s1%bdry_uptodate = .false.
+    call update_bdry (s1, l, 80)
   end subroutine lc
 
   function lcf (s1, a, s2, l)
@@ -204,6 +205,7 @@ contains
        nullify (scalar, scalar2, scalar3, mu1)
     end do
     lcf%bdry_uptodate = .false.
+    call update_bdry (lcf, l, 82)
   end function lcf
 
   subroutine cal_lc (dom, i, j, zlev, offs, dims)
@@ -263,6 +265,7 @@ contains
        nullify (scalar, scalar2, scalar3, mu1, mu2)
     end do
     u%bdry_uptodate = .false.
+    call update_bdry (u, l, 84)
   end subroutine lc2
 
   subroutine cal_lc2 (dom, i, j, zlev, offs, dims)
@@ -329,6 +332,7 @@ contains
        nullify (scalar, scalar2)
     end do
     residual%bdry_uptodate = .false.
+    call update_bdry (residual, l, 86)
   end function residual
 
   subroutine cal_res (dom, i, j, zlev, offs, dims)
@@ -359,60 +363,6 @@ contains
        if (dom%mask_e%elts(id_e) >= ADJZONE) scalar2(id_e) = scalar(id_e) - scalar2(id_e)
     end do
   end subroutine cal_res_velo
-
-  subroutine set_zero (s, l)
-    ! Sets scalar s to zero
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: s
-
-    integer :: d, j
-
-    do d = 1, size(grid)
-       scalar => s%data(d)%elts
-       select case (var_type)
-       case ("sclr")
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_set_zero, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-       case ("velo")
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_set_zero_velo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-          end do
-       end select
-       nullify (scalar)
-    end do
-    s%bdry_uptodate = .false.
-  end subroutine set_zero
-
-  subroutine cal_set_zero (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-
-    id_i = idx (i, j, offs, dims) + 1
-    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar(id_i) = 0.0_8
-  end subroutine cal_set_zero
-
-  subroutine cal_set_zero_velo (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: e, id, id_e
-    
-    id = idx (i, j, offs, dims)
-    do e = 1, EDGE
-       id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) scalar(id_e) = 0.0_8
-    end do
-  end subroutine cal_set_zero_velo
 
   subroutine prolongation (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
@@ -508,7 +458,7 @@ contains
     scalar(idN_chd+1)  = Interp_node (dom,  idN_chd,    id_chd, id2N_chd,  id2W_chd, id2NE_chd)  
   end subroutine interpolate
 
-   subroutine interpolate_outer_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine interpolate_outer_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Reconstruct velocity at outer fine edges not existing on coarse grid
     use wavelet_mod
     type(Domain)                   :: dom
@@ -629,7 +579,6 @@ contains
 
     deallocate (w)
   end subroutine multiscale
-
  
   subroutine jacobi (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
     ! Max_iter Jacobi iterations for smoothing multigrid iterations
@@ -651,6 +600,7 @@ contains
        end function Lu
     end interface
 
+    ! Initialize
     ii = 0
     iter = 0
     res = residual (f, u, Lu, l)
@@ -669,7 +619,7 @@ contains
        end if
        iter = iter + 1
        call lc_jacobi (u, res, l)
-       res = residual (f, u, Lu, l)
+       call equals_float_field (res, residual (f, u, Lu, l), S_MASS)
        nrm_res = l2 (res, l) / nrm_f
     end do
     u%bdry_uptodate = .false.
@@ -689,7 +639,7 @@ contains
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (scalar, scalar2, scalar3)
+       nullify (scalar, scalar2)
     end do
     s1%bdry_uptodate = .false.
   end subroutine lc_jacobi
@@ -770,26 +720,28 @@ contains
        end function Lu
     end interface
 
-    ! Initialize
+    ! Initialize float fields
     res  = residual (f, u, Lu, l)
     res0 = res
-    rho  = dp (res0, res, l)
-    
     p    = res0
-    Ap   = Lu (p, l) 
+    s    = res0
+    Ap   = Lu (p, l)
+    As   = Ap
+    
+    rho  = dp (res0, res, l)
     
     iter = 0
     do while (iter < max_iter)
        alph = rho / dp (Ap, res0, l)
 
-       s = lcf (res, -alph, Ap, l)
-       As = Lu (s, l)
+       call equals_float_field (s, lcf (res, -alph, Ap, l), S_MASS)
+       call equals_float_field (As, Lu (s, l), S_MASS)
 
        omga = dp (As, s, l) / dp (As, As, l)
        
        call lc2 (u, alph, p, omga, s, l)
        
-       res = lcf (s, -omga, As, l)
+       call equals_float_field (res, lcf (s, -omga, As, l), S_MASS)
        nrm_res = l2 (res, l) / nrm_f
        if (nrm_res <= tol_elliptic) exit
        
@@ -797,11 +749,12 @@ contains
        rho = dp (res0, res, l)
        
        b = (alph/omga) * (rho/rho_old)
-       p = lcf (res, b, lcf (p, -omga, Ap, l), l) 
-       Ap = Lu (p, l)
+       call equals_float_field (p, lcf (res, b, lcf (p, -omga, Ap, l), l), S_MASS)
+       call equals_float_field (Ap, Lu (p, l), S_MASS)
        
        iter = iter + 1
     end do
     u%bdry_uptodate = .false.
+    call update_bdry (u, l, 88)
   end subroutine bicgstab
 end module lin_solve_mod

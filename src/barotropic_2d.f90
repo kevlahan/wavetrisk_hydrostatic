@@ -116,7 +116,7 @@ contains
     call rhs_elliptic
 
     ! Solve elliptic equation
-    Laplacian_scalar(S_TEMP) = sol(S_MASS,zlevels+1) ! save old free surface height for elliptic operator
+    call equals_float_field (Laplacian_scalar(S_TEMP), sol(S_MASS,zlevels+1), S_MASS) ! save old free surface height for elliptic operator
     call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
@@ -170,6 +170,10 @@ contains
     implicit none
     integer :: d, j, l
 
+    ! Initialize variables
+    call zero_float_field (trend(S_MASS,zlevels+1), S_MASS)
+    call zero_float_field (trend(S_TEMP,zlevels+1), S_MASS)
+    
     ! Flux divergence of vertically integrated velocity u_star, stored in trend(S_MASS, zlevels+1)
     call flux_divergence (sol, trend(S_MASS,zlevels+1))
     
@@ -435,7 +439,7 @@ contains
 
     call update_bdry (sol(S_MASS,zlevels+1), NONE, 601)
 
-    sol(S_TEMP,zlevels+1) = sol(S_MASS,zlevels+1)
+    call equals_float_field (sol(S_TEMP,zlevels+1), sol(S_MASS,zlevels+1), S_MASS)
 
     ! Calculate external pressure gradient
     do l = level_end, level_start, -1 
