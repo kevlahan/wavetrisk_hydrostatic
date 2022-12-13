@@ -251,8 +251,7 @@ contains
 
     ! Old buoyancy
     do k = 1, zlevels
-       !theta_old(k) = buoyancy (dom, i, j, k, offs, dims, sol)
-       theta_old(k) = buoyancy (dom, i, j, k, offs, dims)
+       theta_old(k) = buoyancy (dom, i, j, k, offs, dims, sol)
     end do
 
     ! Remap density
