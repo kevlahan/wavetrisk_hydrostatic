@@ -4,6 +4,7 @@ module remap_mod
   use wavelet_mod
   use utils_mod
   implicit none
+  type(Float_Field), dimension(:), allocatable, target :: old_mass
   abstract interface
      subroutine interpolation (N, var_new, z_new, var_old, z_old)
        implicit none
@@ -75,8 +76,10 @@ contains
 
     ! Ensure boundary values are up to date
     call update_array_bdry (sol(:,1:zlevels), NONE, 90)
-    trend(S_MASS,:) = sol(S_MASS,:) ! save old masses
 
+    ! Save old masses
+    allocate(old_mass(1:zlevels)); old_mass = sol(S_MASS,1:zlevels)
+    
     ! Remap on finest level
     if (compressible) then
        if (remapscalar_type == "0") then
@@ -148,6 +151,8 @@ contains
     nullify (interp_scalar, interp_velo)
     sol(:,1:zlevels)%bdry_uptodate       = .false.
     wav_coeff(:,1:zlevels)%bdry_uptodate = .false.
+
+    deallocate (old_mass)
   end subroutine remap_vertical_coordinates
 
   subroutine remap_scalars (dom, i, j, z_null, offs, dims)
@@ -246,7 +251,8 @@ contains
 
     ! Old buoyancy
     do k = 1, zlevels
-       theta_old(k) = buoyancy (dom, i, j, k, offs, dims, sol)
+       !theta_old(k) = buoyancy (dom, i, j, k, offs, dims, sol)
+       theta_old(k) = buoyancy (dom, i, j, k, offs, dims)
     end do
 
     ! Remap density
@@ -315,7 +321,7 @@ contains
 
     p_old(0) = p_top
     do k = 1, zlevels
-       full_mass = sol_mean(S_MASS,zlevels-k+1)%data(d)%elts(id_i) + trend(S_MASS,zlevels-k+1)%data(d)%elts(id_i)
+       full_mass = sol_mean(S_MASS,zlevels-k+1)%data(d)%elts(id_i) + old_mass(zlevels-k+1)%data(d)%elts(id_i)
        p_old(k) = p_old(k-1) + grav_accel * full_mass 
     end do
     p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1) * p_old(zlevels)
@@ -333,7 +339,7 @@ contains
 
     z_old(0) = z_s
     do k = 1, zlevels
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + trend(S_MASS,k)%data(d)%elts(id_i)
+       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + old_mass(k)%data(d)%elts(id_i)
        z_old(k) = z_old(k-1) + full_mass / (ref_density * phi_node (d, id_i, k))
     end do
     eta_surf = z_old(zlevels) ! coordinate of free surface                                                                                                                                                                                                      
@@ -373,8 +379,6 @@ contains
     exner_fun(1)%data(d)%elts(id+1) = 1d0
     new_cumul_mass = 0d0
     do k = 1, zlevels
-       trend(S_MASS,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1)
-
        sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * column_mass
 
        cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id+1)
@@ -428,10 +432,10 @@ contains
 
     massflux_cumul(1,:) = 0d0
     do k = 1, zlevels
-       ! Interpolate old masses to edges (stored in trend)
-       mass_e(RT+1) = interp (trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idE+1))
-       mass_e(DG+1) = interp (trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idNE+1))
-       mass_e(UP+1) = interp (trend(S_MASS,k)%data(d)%elts(id+1), trend(S_MASS,k)%data(d)%elts(idN+1))
+       ! Interpolate old masses to edges 
+       mass_e(RT+1) = interp (old_mass(k)%data(d)%elts(id+1), old_mass(k)%data(d)%elts(idE+1))
+       mass_e(DG+1) = interp (old_mass(k)%data(d)%elts(id+1), old_mass(k)%data(d)%elts(idNE+1))
+       mass_e(UP+1) = interp (old_mass(k)%data(d)%elts(id+1), old_mass(k)%data(d)%elts(idN+1))
 
        do e = 1, EDGE
           massflux(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e(e)
