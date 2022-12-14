@@ -77,7 +77,7 @@ program Drake
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
      u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
   elseif (zlevels >= 3) then
-     strat_type           = "linear"
+     strat_type           = "jet"
      sigma_z              = .true.                              ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      vert_diffuse         = .true.
      tke_closure          = .false.
@@ -88,17 +88,16 @@ program Drake
      ref_density          = 1027.75d0 * KG/METRE**3     ! reference density
      bottom_friction_case =      5d-3 * METRE/SECOND    ! bottom friction                      
      u_wbc                =     1.5d0 * METRE/SECOND    ! estimated western boundary current speed
-     
      if (trim(strat_type) == "jet") then
         drho         =    -3d0 * KG/METRE**3            ! density perturbation at free surface (density of top layer is rho0 + drho/2)
         halocline    = -1000d0 * METRE                  ! location of top (less dense) layer in two layer case
-        lat_width    = (width/radius)/DEG
         width        = radius
+        lat_width    = (width/radius)/DEG
         L_jet        = 0.4d0 * width
      else
         drho         = -10.487d0 * KG/METRE**3          ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-        mixed_layer  =   -100d0 * METRE                 ! location of surface mixed layer
-        halocline    =  -1100d0 * METRE                 ! location less dense layer 
+        mixed_layer  =    -100d0 * METRE                ! location of surface mixed layer
+        halocline    =   -1100d0 * METRE                ! location less dense layer 
      end if
   end if
 
