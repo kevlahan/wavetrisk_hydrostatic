@@ -4,7 +4,8 @@ module utils_mod
   use comm_mod
   use comm_mpi_mod
   implicit none
-  real(8) :: integral
+  real(8)                         :: integral
+  real(8), dimension(:), pointer  :: val1, val2
 
   abstract interface
      real(8) function routine_hex (dom, i, j, zlev, offs, dims)
@@ -861,39 +862,108 @@ contains
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
 
-  subroutine zero_float_field (q, itype)
-    ! Set float field to zero
+  subroutine zero_float_field (q, itype, l)
+    ! Set float field to zero over 
     ! itype = S_MASS or S_VELO
     implicit none
     integer                   :: itype
+    integer, optional         :: l
     type(Float_Field), target :: q
 
-    integer :: d, ibeg, iend
+    integer :: bnd, d, ibeg, iend, j
 
-    do d = 1, size(grid)
-       ibeg = (1+2*(POSIT(itype)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-       iend = q%data(d)%length
-       q%data(d)%elts(ibeg:iend) = 0d0
-    end do
-    q%bdry_uptodate = .false.
-    call update_bdry (q, NONE, 34)
+    if (present(l)) then
+       if (itype == S_VELO) then
+          bnd = 0
+       else
+          bnd = 1
+       end if
+
+       do d = 1, size(grid)
+          val1 => q%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_zero, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, bnd)
+          end do
+          nullify (val1)
+       end do
+       q%bdry_uptodate = .false.
+       call update_bdry (q, l, 34)
+    else ! compute over entire grid
+       do d = 1, size(grid)
+          ibeg = (1+2*(POSIT(itype)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = q%data(d)%length
+          q%data(d)%elts(ibeg:iend) = 0d0
+       end do
+       q%bdry_uptodate = .false.
+       call update_bdry (q, NONE, 34)
+    end if
   end subroutine zero_float_field
 
-  subroutine equals_float_field (q1, q2, itype)
+  subroutine cal_zero (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    val1(id) = 0d0
+  end subroutine cal_zero
+
+  subroutine equals_float_field (q1, q2, itype, l)
     ! Set elements of float field q1 = q2
+    !
     ! itype = S_MASS or S_VELO
+    ! if scale l is present, compute only for scale l
     implicit none
     integer                   :: itype
+    integer, optional         :: l
     type(Float_Field), target :: q1, q2
+    
+    integer :: bnd, d, ibeg, iend, j
 
-    integer :: d, ibeg, iend
+    if (present(l)) then
+       if (itype == S_VELO) then
+          bnd = 0
+       else
+          bnd = 1
+       end if
 
-    do d = 1, size(grid)
-       ibeg = (1+2*(POSIT(itype)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-       iend = q2%data(d)%length
-       q1%data(d)%elts(ibeg:iend) = q2%data(d)%elts(ibeg:iend)
-    end do
-    q1%bdry_uptodate = .false.
-    call update_bdry (q1, NONE, 34)
+       do d = 1, size(grid)
+          val1 => q1%data(d)%elts
+          val2 => q2%data(d)%elts
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_equals, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, bnd)
+          end do
+          nullify (val1, val2)
+       end do
+       q1%bdry_uptodate = .false.
+       call update_bdry (q1, l, 36)
+    else ! compute over entire grid
+       do d = 1, size(grid)
+          ibeg = (1+2*(POSIT(itype)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          iend = q2%data(d)%length
+          q1%data(d)%elts(ibeg:iend) = q2%data(d)%elts(ibeg:iend)
+       end do
+       q1%bdry_uptodate = .false.
+       call update_bdry (q1, NONE, 36)
+    end if
   end subroutine equals_float_field
+
+  subroutine cal_equals (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    val1(id) = val2(id)
+  end subroutine cal_equals
 end module utils_mod

@@ -619,7 +619,7 @@ contains
        end if
        iter = iter + 1
        call lc_jacobi (u, res, l)
-       call equals_float_field (res, residual (f, u, Lu, l), S_MASS)
+       call equals_float_field (res, residual (f, u, Lu, l), S_MASS, l)
        nrm_res = l2 (res, l) / nrm_f
     end do
     u%bdry_uptodate = .false.
@@ -734,14 +734,14 @@ contains
     do while (iter < max_iter)
        alph = rho / dp (Ap, res0, l)
 
-       call equals_float_field (s, lcf (res, -alph, Ap, l), S_MASS)
-       call equals_float_field (As, Lu (s, l), S_MASS)
+       call equals_float_field (s, lcf (res, -alph, Ap, l), S_MASS, l)
+       call equals_float_field (As, Lu (s, l), S_MASS, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
        
        call lc2 (u, alph, p, omga, s, l)
        
-       call equals_float_field (res, lcf (s, -omga, As, l), S_MASS)
+       call equals_float_field (res, lcf (s, -omga, As, l), S_MASS, l)
        nrm_res = l2 (res, l) / nrm_f
        if (nrm_res <= tol_elliptic) exit
        
@@ -749,8 +749,8 @@ contains
        rho = dp (res0, res, l)
        
        b = (alph/omga) * (rho/rho_old)
-       call equals_float_field (p, lcf (res, b, lcf (p, -omga, Ap, l), l), S_MASS)
-       call equals_float_field (Ap, Lu (p, l), S_MASS)
+       call equals_float_field (p, lcf (res, b, lcf (p, -omga, Ap, l), l), S_MASS, l)
+       call equals_float_field (Ap, Lu (p, l), S_MASS, l)
        
        iter = iter + 1
     end do
