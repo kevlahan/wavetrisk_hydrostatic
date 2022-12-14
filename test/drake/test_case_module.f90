@@ -11,24 +11,13 @@ Module test_case_mod
   real(8)                              :: Hdim, Ldim, Tdim, Udim
 
   ! Local variables
-  real(8)                              :: beta, bv
-  real(8)                              :: delta_I, delta_M, delta_S, delta_sm, drho, drho_dz, f0, Ku, mixed_layer, Rb, Rd
-  real(8)                              :: Rey, Ro, radius_earth, omega_earth, scale, scale_omega, halocline, npts_penal, u_wbc 
-  real(8)                              :: resolution, tau_0
+  real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
+  real(8)                              :: drho, drho_dz, f0, Ku, Rb, Rd, Rey, Ro, radius_earth
+  real(8)                              :: omega_earth, scale, scale_omega, halocline, npts_penal, tau_0, thermocline, u_wbc 
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: aligned, etopo_coast
-  character(255)                       :: coords, strat_type
-
-  ! Parameters for initial jet type density profile (North, South)
-  real(8) :: L_jet, lat_width, width
-  real(8),               parameter :: S_b       =             9.8d-6 * KG/METRE**4
-  real(8),               parameter :: z_surf    =            -300d0  * METRE
-  real(8), dimension(2), parameter :: drho_surf = (/  0d0,  1.5d0 /) * KG/METRE**3
-  real(8), dimension(2), parameter :: dz_b      = (/  3d2,  7d2   /) * METRE
-  real(8), dimension(2), parameter :: z_int     = (/ -4d2, -1d3   /) * METRE
-  real(8),               parameter :: Tcline    = -100d0 * METRE                 ! thermocline
-  real(8),               parameter :: lat_c     = 45d0                            ! centre of zonal channel (in degrees)
+  character(255)                       :: coords
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -422,7 +411,6 @@ contains
        write (6,'(A,es10.4)') "time_end [d]                   = ", time_end/DAY
        write (6,'(A,i6)')     "resume                         = ", resume_init
        write (6,'(A,i3)')     "etopo_res                      = ", etopo_res
-       write (6,'(A,es10.4)') "resolution                     = ", resolution
 
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius                   [km]  = ", radius / KM
@@ -433,7 +421,7 @@ contains
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
        write (6,'(A,es11.4)') "halocline                 [m]  = ", abs (halocline)
-       write (6,'(A,es11.4)') "mixed layer               [m]  = ", abs (mixed_layer)
+       write (6,'(A,es11.4)') "thermocline               [m]  = ", abs (thermocline)
        write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
        write (6,'(A,es11.4)') "density difference   [kg/m^3]  = ", drho
        write (6,'(A,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
@@ -676,78 +664,15 @@ contains
     implicit none
     real(8)     :: z
     type(Coord) :: x_i
-    
-    if (trim(strat_type) == "jet") then ! density profile from baroclinic jet test case
-       buoyancy_init = (ref_density - density_init_jet (lat_c, z)) / ref_density
-    elseif (trim(strat_type) == "linear") then
-       if (z >= mixed_layer) then
-          buoyancy_init = - (1d0 - mixed_layer/halocline) * drho / ref_density
-       elseif (z >= halocline .and. z < mixed_layer) then
-          buoyancy_init = - (1d0 - z/halocline) * drho / ref_density
-       elseif (z < halocline) then
-          buoyancy_init = 0d0
-       end if
-    else
-       if (rank == 0) write (6,*) 'Stratification type not supported ... aborting'
-       call abort
+
+    if (z >= thermocline) then
+       buoyancy_init = - (1d0 - thermocline/halocline) * drho / ref_density
+    elseif (z >= halocline .and. z < thermocline) then
+       buoyancy_init = - (1d0 - z/halocline) * drho / ref_density
+    elseif (z < halocline) then
+       buoyancy_init = 0d0
     end if
   end function buoyancy_init
-
-  real(8) function density_init_jet (lat, z)
-    implicit none
-    real(8) :: lat, z
-
-    real(8) :: drho_N, drho_S, sm
-
-    drho_N = drho_NS (1)
-    drho_S = drho_NS (2)
-
-    sm = smoothing ()
-    density_init_jet = 1027.75d0 - S_b * (z - max_depth) +  sm * drho_S + (1d0 - sm) * drho_N
-  contains
-    real(8) function drho_NS (hemi)
-      implicit none
-      integer :: hemi
-
-      drho_NS = - 0.5d0 * drho_int (hemi) * (1d0 + tanh ((d_NS (hemi) - z_int(hemi))/dz_b(hemi))) &
-           - drho_surf (hemi) / (2d0*tanh(1d0)) * (1d0 + tanh ((z_surf - z) / z_surf))
-    end function drho_NS
-
-    real(8) function drho_int (hemi)
-      implicit none
-      integer :: hemi
-
-      if (hemi == 1) then
-         drho_int = 1.41d0
-      else
-         drho_int = 1.40d0
-      end if
-    end function drho_int
-
-    real(8) function d_NS (hemi)
-      implicit none
-      integer :: hemi
-
-      d_NS = z_int (hemi) + (z - z_int (hemi)) &
-           * sqrt (1d0 + 0.5d0 * ((z - z_int (hemi) + abs (z - z_int (hemi))) / (1.3d0*dz_b(hemi)))**2)
-    end function d_NS
-
-    real(8) function smoothing ()
-      implicit none
-
-      real(8) :: y
-
-      y = MATH_PI * (width/L_jet * (lat - (lat_c - lat_width/2d0)) / lat_width + 0.5d0 * (1d0 - width/L_jet))
-
-      if (y < 0d0) then
-         smoothing = 1d0
-      elseif (y > MATH_PI) then
-         smoothing = 0d0
-      else
-         smoothing = 1d0 - (y - sin (y) * cos (y)) / MATH_PI
-      end if
-    end function smoothing
-  end function density_init_jet
 
   subroutine print_density
     implicit none
@@ -757,7 +682,7 @@ contains
     real(8), dimension(0:zlevels) :: z
     type(Coord) :: x_i
 
-    lat = lat_c ! latitude to evaluate buoyancy
+    lat = 0d0 ! latitude to evaluate buoyancy
     
     eta = 0d0
     z_s = max_depth
@@ -879,15 +804,7 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    ! Diffusion constants
-    if (munk) then
-       C_visc = dt_cfl * beta * dx_min * resolution**(2d0*Laplace_order_init+1)                ! resolve Munk layer with "resolution" points
-    else
-       C_visc = resolution**2 * dx_min**(2*(1-Laplace_order_init)) * dt_cfl * u_wbc / delta_I  ! resolve Taylor scale with "resolution" points
-    end if
-
-    ! Ensure stability
-    C_visc = min ((1d0/32d0)**Laplace_order_init, C_visc)
+    C_visc = 5d-3
 
     C_rotu = C_visc
     C_divu = C_visc
@@ -1184,7 +1101,7 @@ contains
     real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
     real(8), dimension(0:zlevels) :: Cs, sc
     
-    hc = abs (Tcline)
+    hc = abs (thermocline)
     
     cff1 = 1.0_8 / sinh (theta_s)
     cff2 = 0.5d0 / tanh (0.50 * theta_s)
