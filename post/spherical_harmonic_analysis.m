@@ -1,22 +1,25 @@
 %% Load data
-clear; close all;
+clear; %close all;
 %figure
-%machine  = 'if.mcmaster.ca';
-machine   = 'nia-datamover1.scinet.utoronto.ca';
+%machine  = "if.mcmaster.ca";
+machine   = "nia-datamover1.scinet.utoronto.ca";
 
-%test_case = 'drake';dir = '~/hydro/drake';                run_id = '6layer_diffuse' ; type = 'barotropic_curlu_spec'; name_type = ' 6 layer drake';cp_id = '0036';zlev='0006';
-test_case = 'jet'; dir = '~/proj/jet/6layer_jet/spectra'; run_id = 'jet'; type = 'barotropic_curlu_spec'; name_type = ' 6 layer jet';cp_id='0058';zlev='0002';
-%test_case = 'jet'; dir = '~/hydro/jet';                    run_id = 'jet';             type = 'barotropic_curlu_spec'; name_type = '12 layer jet'; cp_id = '0058';zlev='0012';
-%test_case = 'jet'; dir = '~/proj/jet/gmd_paper';  run_id = 'jet';             type = 'barotropic_curlu_spec'; name_type = '60 layer jet'; cp_id = '0271';zlev='0060';
-avg = true;
+test_case = "drake";dir = "~/proj/drake/multilayer/12layer_strat/spectra"; zlev="0012"; run_id = "12layer_strat"; type = "barotropic_curlu_spec"; name_type = "Layer "+zlev;cp_id = "0079";
+%test_case = "jet"; dir = "~/proj/jet/6layer_jet/spectra"; run_id = "jet"; type = "barotropic_curlu_spec"; name_type = " 6 layer jet";cp_id="0043";zlev="0001";
+%test_case = "jet"; dir = "~/proj/jet/gmd_paper/spectra";run_id = "jet"; type = "barotropic_curlu_spec"; name_type = "60 layer jet"; cp_id = "0271";zlev="0020";
+%test_case = "jet"; dir = "~/hydro/jet";run_id = "jet"; type = "barotropic_curlu_spec"; name_type = "z = -1.25m curlu"; cp_id = "0280";zlev="0060";
 
-local_file = load_data(test_case, dir, run_id, cp_id, zlev, type, machine, avg);
+avg       = false;    % plot averaged spectrum
+power     = true;     % plot power law fit
+col_spec  = "b-";     % colour for energy spectrum
+col_power = "r-";     % colour for power law
+%range     = [80 30]; % range for power law fit
+range     = [300 20]; % range for power law fit
 
-% Plot energy spectra
-col_spec  = 'k-'; % colour for energy spectrum
+spec_file = load_data(test_case, dir, run_id, cp_id, zlev, type, machine, avg);
 
 % Physical parameters of simulation
-if strcmp(test_case,'drake')
+if strcmp(test_case,"drake")
     visc        =  0.493;
     uwbc        =  0.8;
     scale_omega =  6;
@@ -38,7 +41,7 @@ if strcmp(test_case,'drake')
     %c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H); % two-layer
     c1          =  5.56; % m/s
     deltaM      = (visc/beta)^(1/3)/1e3; % Munk layer 
-elseif strcmp(test_case,'jet')
+elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
     uwbc        =  1.4;
     omega       =  1e-4;
@@ -63,54 +66,59 @@ deltaS     = r_b / beta/1e3;        % Stommel layer
 deltaSM    = uwbc/f0/1e3;           % submesoscale
 deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
 
-pspec = load(local_file);
+% Plot energy spectra
+pspec = load(spec_file);
 pspec(:,2) = pspec(:,2)./pspec(:,1).^2;                     % convert vorticity spectrum to energy spectrum integrated over shells
 scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
 % Power spectrum
-loglog(scales,pspec(:,2),col_spec,'linewidth',3,'DisplayName',name_type);hold on;grid on;
+loglog(scales,pspec(:,2),col_spec,"linewidth",3,"DisplayName",name_type);hold on;grid on;
 
 % Fit power law
-if strcmp(test_case,'drake')
-    range = [lambda1 deltaSM]; col_power = 'r-'; % colour for power law
-elseif strcmp(test_case,'jet')
-    range = [deltaI lambda1]; col_power = 'r-'; % colour for power law
-    range = [deltaI 35]; col_power = 'r-'; % colour for power law
+if strcmp(test_case,"drake")
+    %range = [lambda1 deltaSM]; col_power = "r-"; % colour for power law
+elseif strcmp(test_case,"jet")
+    %range = [deltaI lambda1]; col_power = "r-"; % colour for power law
+    %range = [66 20]; col_power = "r-"; % colour for power law
 end
 fit_indices = find(scales > range(2) & scales < range(1));
 [P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
 
 st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
 
-fprintf('\nFitted power law is %.2f +/- %.2f\n',-P(1), st_err(1));
+fprintf("\nFitted power law is %.2f +/- %.4f\n",-P(1), st_err(1));
 
 % Plot fit
-powerlaw (scales, 1.5*pspec(:,2), range, -P(1), col_power)
+if power
+    powerlaw (scales, 1.5*pspec(:,2), range, -P(1), col_power)
+end
 
 axis([4e0 1e4 1e-10 1e0]);
-set (gca,'fontsize',20);
+set (gca,"fontsize",20);
 xlabel("\lambda (km)");ylabel("S(\lambda)");
-set (gca,'Xdir','reverse');legend;
+set (gca,"Xdir","reverse");legend;
 
-if strcmp(test_case,'drake')
+if strcmp(test_case,"drake")
     plot_scale(lambda1,"\lambda_1");
     plot_scale(deltaSM,"\delta_{SM}");
-elseif strcmp(test_case,'jet')
+elseif strcmp(test_case,"jet")
     plot_scale(deltaI,"\delta_{I}");
     plot_scale(lambda1,"\lambda_1");
     plot_scale(deltaSM,"\delta_{M}");
 end
 %% Plot local region
-local  = true;
-region = 'mid';
+local     = false;
+region    = "mid";
+type      = "barotropic_divu";
+data_file = load_data(test_case, dir, run_id, cp_id, zlev, type, machine, false);
 
-fid = fopen(local_file);
-data = fread(fid,'double'); 
+fid = fopen(data_file);
+data = fread(fid,"double"); 
 N = round(-3/2 + sqrt(2*(numel(data)+1)));
 data = reshape (data, N+1, N/2+1)';
 dmin = min(min(data)); dmax = max(max(data));
-fprintf('Minimum value of data = %8.4e\n', dmin);
-fprintf('Maximum value of data = %8.4e\n', dmax);
+fprintf("Minimum value of data = %8.4e\n", dmin);
+fprintf("Maximum value of data = %8.4e\n", dmax);
 
 lon  = (-N/2:N/2) * 360/N;
 lat  = (-N/4:N/4) * 360/N;
@@ -118,19 +126,19 @@ lat  = (-N/4:N/4) * 360/N;
 % Target area for local spectral analysis
 
 if local
-    if strcmp(region,'southern') % Vortical region at southern edge of land mass
+    if strcmp(region,"southern") % Vortical region at southern edge of land mass
         lat0   = -40;
         lon0   =  20;
         theta0 =  30;
-    elseif strcmp(region,'equator') % Vortical region at equator
+    elseif strcmp(region,"equator") % Vortical region at equator
         lat0   = 0;
         lon0   = 35;
         theta0 = 20;
-    elseif strcmp(region,'mid') % Vortical region at 45 N
+    elseif strcmp(region,"mid") % Vortical region at 45 N
         lat0   =  45;
         lon0   =  35;
         theta0 =  20;
-    elseif strcmp(region,'laminar') % Laminar region
+    elseif strcmp(region,"laminar") % Laminar region
         lat0   =  0;
         lon0   = -100;
         theta0 =  20;
@@ -156,11 +164,7 @@ data(data < -vort_limit) = -vort_limit;
 
 c_scale = linspace(-vort_limit, vort_limit, 100); 
 
-if strcmp(type,"barotropic")
-    v_title = 'Barotropic vorticity';
-elseif strcmp(type,"baroclinic")
-    v_title = 'Baroclinic vorticity';
-end
+v_title = "Barotropic vorticity";
 smooth  = 0;
 lines   = 0;
 shift   = 0;
@@ -174,32 +178,33 @@ function powerlaw (scales, power, range, p, col)
 if abs(p+5/3) < 1e-2
     str = "k^{"+ "-"+ 5 +"/" + 3 +"}";
 elseif mod(p,1) ~= 0
-    str = "k^{" + compose("%1.1f",p) + "}";
+    str = "k^{" + compose("%1.2f",p) + "}";
 else
     str = "k^{" + compose("%1.0f",p) + "}";
 end
 
-loglog(scales(k1:k2),scales(k1:k2).^(-p) * power(knorm)/scales(knorm)^(-p),col,'linewidth',3,'DisplayName',str);
+loglog(scales(k1:k2),scales(k1:k2).^(-p) * power(knorm)/scales(knorm)^(-p),col,"linewidth",3,"DisplayName",str);
 end
 
 function plot_scale (scale,name)
 y = ylim;
 x = scale;
-h=loglog([x x], y, 'k','linewidth',1.5);
-set(get(get(h,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+h=loglog([x x], y, "k","linewidth",1.5);
+set(get(get(h,"Annotation"),"LegendInformation"),"IconDisplayStyle","off");
 text(0.92*scale,10*y(1),name,"fontsize",16)
 end
 
 function [local_file] =  load_data (test_case, dir, run_id, cp_id, zlev, type, machine, avg)
 if avg % average spectrum
-    file_base = [run_id '_' zlev '_' type];
+    file_base = run_id+"_"+zlev+"_"+type;
 else
-    file_base = [run_id '_' cp_id '_' zlev '_' type];
+    file_base = run_id+"_"+cp_id+"_" +zlev+"_"+type;
 end
-remote_file = [dir '/' file_base];
-local_file  = ['~/hydro/' test_case '/' file_base];
-scp_cmd     = ['scp ' machine ':' remote_file ' ' local_file];
-if ~strcmp(machine,'mac')
+
+remote_file = dir+"/"+file_base;
+local_file  = "~/hydro/"+test_case+"/"+file_base;
+scp_cmd     = "scp "+machine+":"+remote_file+" "+local_file;
+if ~strcmp(machine,"mac")
     unix (sprintf(scp_cmd));
 end
 end
