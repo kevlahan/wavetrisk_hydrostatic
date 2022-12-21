@@ -4,12 +4,12 @@ clear; %close all;
 %machine  = "if.mcmaster.ca";
 machine   = "nia-datamover1.scinet.utoronto.ca";
 
-test_case = "drake";dir = "~/proj/drake/multilayer/12layer_strat/spectra"; zlev="0012"; run_id = "12layer_strat"; type = "barotropic_curlu_spec"; name_type = "Layer "+zlev;cp_id = "0079";
+test_case = "drake";dir = "~/proj/drake/multilayer/12layer_strat/spectra"; zlev="0012"; run_id = "12layer_strat"; type = "barotropic_divu_spec"; name_type = "Layer "+zlev;cp_id = "0079";
 %test_case = "jet"; dir = "~/proj/jet/6layer_jet/spectra"; run_id = "jet"; type = "barotropic_curlu_spec"; name_type = " 6 layer jet";cp_id="0043";zlev="0001";
 %test_case = "jet"; dir = "~/proj/jet/gmd_paper/spectra";run_id = "jet"; type = "barotropic_curlu_spec"; name_type = "60 layer jet"; cp_id = "0271";zlev="0020";
 %test_case = "jet"; dir = "~/hydro/jet";run_id = "jet"; type = "barotropic_curlu_spec"; name_type = "z = -1.25m curlu"; cp_id = "0280";zlev="0060";
 
-avg       = false;    % plot averaged spectrum
+avg       = true;    % plot averaged spectrum
 power     = true;     % plot power law fit
 col_spec  = "b-";     % colour for energy spectrum
 col_power = "r-";     % colour for power law
@@ -109,7 +109,16 @@ end
 %% Plot local region
 local     = false;
 region    = "mid";
-type      = "barotropic_divu";
+field     = "curl";
+%field     = "div";
+
+if strcmp(field,"curl")
+    type      = "barotropic_curlu";
+    v_title   = "curl{\bf u}";
+else
+    type      = "barotropic_divu";
+    v_title   = "div{\bf u}";
+end
 data_file = load_data(test_case, dir, run_id, cp_id, zlev, type, machine, false);
 
 fid = fopen(data_file);
@@ -163,8 +172,6 @@ data(data > vort_limit)  =  vort_limit;
 data(data < -vort_limit) = -vort_limit;
 
 c_scale = linspace(-vort_limit, vort_limit, 100); 
-
-v_title = "Barotropic vorticity";
 smooth  = 0;
 lines   = 0;
 shift   = 0;
