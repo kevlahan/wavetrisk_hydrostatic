@@ -4,19 +4,20 @@ clear; %close all;
 %machine  = "if.mcmaster.ca";
 machine   = "nia-datamover1.scinet.utoronto.ca";
 
-test_case = "drake";dir = "~/proj/drake/multilayer/12layer_strat/spectra"; zlev="0012"; run_id = "12layer_strat"; type = "barotropic_divu_spec"; name_type = "Layer "+zlev;cp_id = "0079";
-%test_case = "jet"; dir = "~/proj/jet/6layer_jet/spectra"; run_id = "jet"; type = "barotropic_curlu_spec"; name_type = " 6 layer jet";cp_id="0043";zlev="0001";
-%test_case = "jet"; dir = "~/proj/jet/gmd_paper/spectra";run_id = "jet"; type = "barotropic_curlu_spec"; name_type = "60 layer jet"; cp_id = "0271";zlev="0020";
-%test_case = "jet"; dir = "~/hydro/jet";run_id = "jet"; type = "barotropic_curlu_spec"; name_type = "z = -1.25m curlu"; cp_id = "0280";zlev="0060";
+zlev=6; cp_id=79; type="div"; test_case="drake"; run_id="12layer_strat"; dir="~/proj/drake/multilayer/12layer_strat/spectra"; 
 
 avg       = true;    % plot averaged spectrum
 power     = true;     % plot power law fit
 col_spec  = "b-";     % colour for energy spectrum
 col_power = "r-";     % colour for power law
 %range     = [80 30]; % range for power law fit
-range     = [300 20]; % range for power law fit
+range     = [200 20]; % range for power law fit
 
-spec_file = load_data(test_case, dir, run_id, cp_id, zlev, type, machine, avg);
+name_type = "Layer "+zlev;
+cp_id     = compose("%04d",cp_id);
+zlev      = compose("%04d",zlev);
+type      = "barotropic_"+type;
+spec_file = load_data(test_case, dir, run_id, cp_id, zlev, type+"u_spec", machine, avg);
 
 % Physical parameters of simulation
 if strcmp(test_case,"drake")
@@ -109,17 +110,7 @@ end
 %% Plot local region
 local     = false;
 region    = "mid";
-field     = "curl";
-%field     = "div";
-
-if strcmp(field,"curl")
-    type      = "barotropic_curlu";
-    v_title   = "curl{\bf u}";
-else
-    type      = "barotropic_divu";
-    v_title   = "div{\bf u}";
-end
-data_file = load_data(test_case, dir, run_id, cp_id, zlev, type, machine, false);
+data_file = load_data(test_case, dir, run_id, cp_id, zlev, type+"u", machine, false);
 
 fid = fopen(data_file);
 data = fread(fid,"double"); 
@@ -133,7 +124,6 @@ lon  = (-N/2:N/2) * 360/N;
 lat  = (-N/4:N/4) * 360/N;
 
 % Target area for local spectral analysis
-
 if local
     if strcmp(region,"southern") % Vortical region at southern edge of land mass
         lat0   = -40;
@@ -175,6 +165,7 @@ c_scale = linspace(-vort_limit, vort_limit, 100);
 smooth  = 0;
 lines   = 0;
 shift   = 0;
+v_title = replace(type,"barotropic_","")+" \bfu";
 plot_lon_lat_data(data(1:4:end,1:4:end), lon(1:4:end), lat(1:4:end), c_scale, v_title, smooth, shift, lines);
 axis(ax);
 %%
