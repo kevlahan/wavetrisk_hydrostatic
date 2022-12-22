@@ -4,20 +4,19 @@ clear; %close all;
 %machine  = "if.mcmaster.ca";
 machine   = "nia-datamover1.scinet.utoronto.ca";
 
-zlev=6; cp_id=79; type="div"; test_case="drake"; run_id="12layer_strat"; dir="~/proj/drake/multilayer/12layer_strat/spectra"; 
+zlev=60; cp_id=20; type="u"; test_case="drake"; run_id="60layer_strat"; dir="~/hydro/drake"; 
 
-avg       = true;    % plot averaged spectrum
+avg       = false;    % plot averaged spectrum
 power     = true;     % plot power law fit
 col_spec  = "b-";     % colour for energy spectrum
 col_power = "r-";     % colour for power law
 %range     = [80 30]; % range for power law fit
-range     = [200 20]; % range for power law fit
+%range     = [200 20]; % range for power law fit
 
 name_type = "Layer "+zlev;
 cp_id     = compose("%04d",cp_id);
 zlev      = compose("%04d",zlev);
-type      = "barotropic_"+type;
-spec_file = load_data(test_case, dir, run_id, cp_id, zlev, type+"u_spec", machine, avg);
+spec_file = load_data(test_case, dir, run_id, cp_id, zlev, type+"_spec", machine, avg);
 
 % Physical parameters of simulation
 if strcmp(test_case,"drake")
@@ -69,7 +68,11 @@ deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
 
 % Plot energy spectra
 pspec = load(spec_file);
-pspec(:,2) = pspec(:,2)./pspec(:,1).^2;                     % convert vorticity spectrum to energy spectrum integrated over shells
+if strcmp(type,"u") % velocity spectrum
+    pspec(:,2) = pspec(:,2);
+else               % convert vorticity spectrum to energy spectrum integrated over shells
+    pspec(:,2) = pspec(:,2)./pspec(:,1).^2;                
+end
 scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
 % Power spectrum
@@ -77,7 +80,7 @@ loglog(scales,pspec(:,2),col_spec,"linewidth",3,"DisplayName",name_type);hold on
 
 % Fit power law
 if strcmp(test_case,"drake")
-    %range = [lambda1 deltaSM]; col_power = "r-"; % colour for power law
+    range = [lambda1 deltaSM]; col_power = "r-"; % colour for power law
 elseif strcmp(test_case,"jet")
     %range = [deltaI lambda1]; col_power = "r-"; % colour for power law
     %range = [66 20]; col_power = "r-"; % colour for power law
@@ -110,7 +113,7 @@ end
 %% Plot local region
 local     = false;
 region    = "mid";
-data_file = load_data(test_case, dir, run_id, cp_id, zlev, type+"u", machine, false);
+data_file = load_data(test_case, dir, run_id, cp_id, zlev, type, machine, false);
 
 fid = fopen(data_file);
 data = fread(fid,"double"); 
@@ -155,17 +158,17 @@ else
 end
 ax = [lon_min lon_max lat_min lat_max];
 
-vort_limit = 3e-5;
+field_limit = max(abs(dmin),abs(dmax));
 
 % Color vorticity beyond vort_limit to maximum colors
-data(data > vort_limit)  =  vort_limit;
-data(data < -vort_limit) = -vort_limit;
+data(data > field_limit)  =  field_limit;
+data(data < -field_limit) = -field_limit;
 
-c_scale = linspace(-vort_limit, vort_limit, 100); 
+c_scale = linspace(-field_limit, field_limit, 100); 
 smooth  = 0;
 lines   = 0;
 shift   = 0;
-v_title = replace(type,"barotropic_","")+" \bfu";
+v_title = strip(type,'right','u')+" \bfu";
 plot_lon_lat_data(data(1:4:end,1:4:end), lon(1:4:end), lat(1:4:end), c_scale, v_title, smooth, shift, lines);
 axis(ax);
 %%

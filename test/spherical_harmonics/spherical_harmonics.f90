@@ -137,22 +137,30 @@ program spherical_harmonics
 
   ! Compute and save averages
   if (cp_end /= cp_beg .and. rank == 0) then
-     call avg_spec ('barotropic_curlu')
-     call avg_spec ('barotropic_divu')
-     if (zlevels == 2) then
+     if (zlevels /= 2) then
+        call avg_spec ('curlu')
+        call avg_spec ('divu')
+        call avg_spec ('u')
+     else
+        call avg_spec ('barotropic_curlu')
+        call avg_spec ('barotropic_divu')
         call avg_spec ('baroclinic_curlu_1')
         call avg_spec ('baroclinic_curlu_2')
         call avg_spec ('baroclinic_divu_1')
         call avg_spec ('baroclinic_divu_2')
         call avg_spec ('total_curlu_1')
         call avg_spec ('total_curlu_2')
-        call avg_spec ('total_divu_1')
+        call avg_spec ('total_divu_1')  
         call avg_spec ('total_divu_2')
      end if
      if (local_spec) then
-        call avg_local_spec ('barotropic_curlu_local')
-        call avg_local_spec ('barotropic_divu_local')
-        if (zlevels == 2) then
+        if (zlevels /= 2) then
+           call avg_spec ('curlu_local')
+           call avg_spec ('divu_local')
+           call avg_spec ('u_local')
+        else
+           call avg_local_spec ('barotropic_curlu_local')
+           call avg_local_spec ('barotropic_divu_local')
            call avg_local_spec ('baroclinic_curlu_1_local')
            call avg_local_spec ('baroclinic_curlu_2_local')
            call avg_local_spec ('baroclinic_divu_1_local')
@@ -286,13 +294,19 @@ contains
        end do
        field2d = 0d0
        call project_array_onto_plane ("press_lower", l, 1d0)
-       if (rank == 0) call spectrum_lon_lat ("barotropic_curlu", k)
+       if (rank == 0) call spectrum_lon_lat ("curlu", k)
 
        ! Divergence at hexagon points
        call cal_divu_ml (sol(S_VELO,k))
        field2d = 0d0
        call project_array_onto_plane ("divu", l, 1d0)
-       if (rank == 0) call spectrum_lon_lat ("barotropic_divu", k)
+       if (rank == 0) call spectrum_lon_lat ("divu", k)
+
+       ! Velocity magnitude at hexagon points
+       call umag (sol(S_VELO,k))
+       field2d = 0d0
+       call project_array_onto_plane ("ke", l, 1d0)
+       if (rank == 0) call spectrum_lon_lat ("u", k)
     end do
     deallocate (field2d)
   end subroutine spec_latlon_1layer
@@ -507,9 +521,8 @@ contains
 
     open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
          form="FORMATTED", status="REPLACE")
-    area = 4*MATH_PI*radius**2
+    area = 4d0*MATH_PI*radius**2
     do j = 1, lmax + 1
-       !write (6, '(i4,1x,es10.4)') j, pspectrum(j) * area
        write (10,'(i4,1x,es10.4)') j, pspectrum(j) * area
     end do
     close (10)
@@ -560,7 +573,6 @@ contains
     ! Save data
     area = 2d0*MATH_PI*radius**2 * (1d0 - cos(theta0*DEG))
     do j = 1, lmax - lwin + 1
-       !write (6, '(i4,1x,2(es10.4,1x))') j, mtse(j) * area, sd(j) * area
        write (10,'(i4,1x,2(es10.4,1x))') j, mtse(j) * area, sd(j) * area
     end do
     close (10)
