@@ -396,12 +396,15 @@ contains
           call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end do
-
+    
     do l = level_end, level_start, -1
        call apply_onescale (init_mean,    l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        call apply_onescale (init_scalars, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       do k = 1, zlevels
+          call apply_onescale (init_tke, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
     end do
-    
+
     ! Initial velocity is given by thermal wind geostrophic balance with density
     do k = 1, zlevels
        call thermal_wind (k)
