@@ -18,9 +18,8 @@ module vert_diffusion_mod
   use utils_mod
   implicit none
 
-  logical, parameter :: implicit     = .true. ! use backwards Euler (T) or forward Euler (F)
-  logical, parameter :: surf_wave    = .true. ! use surface wave parameterization (T) or default (F)
-  logical, parameter :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
+  logical, parameter :: implicit     = .true.  ! use backwards Euler (T) or forward Euler (F)
+  logical            :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
 
   ! Parameters for TKE closure eddy viscosity/diffusion scheme
   real(8), parameter :: c_e      = 1d0               
