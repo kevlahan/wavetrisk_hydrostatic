@@ -20,6 +20,9 @@ module vert_diffusion_mod
 
   logical, parameter :: implicit     = .true.  ! use backwards Euler (T) or forward Euler (F)
   logical            :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
+  logical            :: patankar     = .true.  ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
+                                               ! or enforce minimum value e_0 of TKE (F)
+                                               ! (Patankar trick can produce noisy solutions if velocity is very small)
 
   ! Parameters for TKE closure eddy viscosity/diffusion scheme
   real(8), parameter :: c_e      = 1d0               
@@ -27,7 +30,7 @@ module vert_diffusion_mod
   real(8), parameter :: C_l      = 2d5                 ! Charnock constant
   real(8), parameter :: c_m      = 1d-1                ! coefficient for eddy viscosity
   real(8), parameter :: C_sfc    = 67.83d0
-  real(8), parameter :: e_0      = 1d-6/sqrt(2.0d0)    ! botom boundary condition for TKE
+  real(8), parameter :: e_0      = 1d-6/sqrt(2d0)      ! bottom boundary condition for TKE
   real(8), parameter :: e_sfc_0  = 1d-4                ! minimum TKE at free surface
   real(8), parameter :: eps_s    = 1d-20               
   real(8), parameter :: kappa_VK = 4d-1                ! von Karman constant
@@ -94,18 +97,18 @@ contains
        
        ! RHS terms
        do l = 1, zlevels-1
-          if (e(l) == 0.0_8) then
-             turb = 0.0_8
+          if (e(l) == 0d0) then
+             turb = 0d0
           else
              turb = c_eps * sqrt (e(l)) / l_eps(l)
           end if
           
           S1(l) = Kv(l)%data(d)%elts(id) * dudzsq(l) - Kt(l)%data(d)%elts(id) * Nsq(l)
-          if (S1(l) <= 0.0_8) then ! Patankar "trick"
+          if (patankar .and. S1(l) <= 0d0) then ! Patankar "trick"
              S1(l) = Kv(l)%data(d)%elts(id) * dudzsq(l)
-             S2(l) = - (turb + Kt(l)%data(d)%elts(id) * Nsq(l) / e(l))
+             S2(l) = - turb - Kt(l)%data(d)%elts(id) * Nsq(l) / e(l)
           else
-             S2(l) = - turb
+             S2(l) = - turb 
           end if
        end do
 
@@ -134,7 +137,8 @@ contains
        ! Backwards Euler step
        e(0) = e_0
        do l = 1, zlevels-1
-          e(l) = rhs(l)
+           e(l) = rhs(l)
+          if (.not. patankar) e(l) = min (rhs(l), 0d0) ! ensure TKE is non-negative
        end do
        e(zlevels) = max (C_sfc * tau_mag (p) / ref_density, e_sfc_0) ! free surface
        
@@ -599,7 +603,7 @@ contains
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
       
-    dmass(id_i) = 0.0_8
+    dmass(id_i) = 0d0
 
     dz_k = dz_i (dom, i, j, zlev, offs, dims, sol)
     
