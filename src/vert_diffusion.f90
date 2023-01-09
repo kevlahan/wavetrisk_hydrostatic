@@ -516,7 +516,7 @@ contains
        l_dwn(l) = min (l_dwn(l-1) + dz(l), l_dwn(l))
     end do
 
-    l_up(zlevels) = kappa_VK * C_l / (ref_density * grav_accel) * tau
+    l_up(zlevels) = max (l_0, kappa_VK * C_l / (ref_density * grav_accel) * tau)
     do l = zlevels-1, 0, -1
        l_up(l) = min (l_up(l+1) + dz(l+1), l_up(l)) 
     end do
