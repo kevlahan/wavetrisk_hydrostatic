@@ -484,7 +484,7 @@ contains
     real(8) :: Ri
 
     ! NEMO
-    if (Ri < 0.2_8) then
+    if (Ri < 0.2d0) then
        Prandtl = 1d0
     elseif (Ri >= 0.2d0 .and. Ri <= 2d0) then
        Prandtl = 5d0 * Ri
