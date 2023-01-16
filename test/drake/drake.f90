@@ -3,7 +3,8 @@ program Drake
   ! (inspired by Ferreira, Marshall and Rose 2011, J Climate 24, 992-1012)
   use main_mod
   use test_case_mod
-  use io_mod  
+  use io_mod
+  use vert_diffusion_mod
   implicit none
 
   ! Initialize mpi, shared variables and domains
@@ -18,7 +19,7 @@ program Drake
   radius_earth   = 6371.229d0 * KM                      ! radius of Earth
   omega_earth    = 7.29211d-5 * RAD/SECOND              ! rotation rate of Earth
   grav_accel     = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
-  ref_density    = 1028d0     * KG/METRE**3             ! reference density at depth (seawater)
+  ref_density    = 1030d0     * KG/METRE**3             ! reference density at depth (seawater)
   
   ! Numerical method parameters
   timeint_type       = "RK3"                            ! time scheme
@@ -26,8 +27,8 @@ program Drake
   mode_split         = .true.                           ! split barotropic mode if true
   penalize           = .true.                           ! penalize land regions
   compressible       = .false.                          ! always run with incompressible equations
-  remapscalar_type   = "PPR"                           ! remapping scheme for scalars
-  remapvelo_type     = "PPR"                           ! remapping scheme for velocity
+  remapscalar_type   = "PPR"                            ! remapping scheme for scalars
+  remapvelo_type     = "PPR"                            ! remapping scheme for velocity
 
   coarse_iter         = 40                              ! maximum number of coarse scale bicgstab iterations for elliptic solver
   fine_iter           = 100                             ! maximum number of fine scale jacobi iterations for elliptic solver
@@ -47,7 +48,7 @@ program Drake
      max_depth            = -4000d0 * METRE             ! total depth
      halocline            = -4000d0 * METRE             ! location of top (less dense) layer in two layer case
      thermocline          = -4000d0 * METRE             ! location of layer forced by surface wind stress
-     drho                 =     0d0 * KG/METRE**3       ! density perturbation at free surface 
+     drho                 =     0d0 * KG/METRE**3       ! density perturbation at free surface
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
      bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction   
      u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
@@ -57,7 +58,7 @@ program Drake
      max_depth            = -4000d0 * METRE             ! total depth
      thermocline          = -1000d0 * METRE             ! location of layer forced by surface wind stress
      halocline            = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
-     drho                 =    -8d0 * KG/METRE**3       ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     drho                 =    -4d0 * KG/METRE**3       ! density perturbation in top layer
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
      bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
@@ -65,16 +66,19 @@ program Drake
   elseif (zlevels >= 3) then
      sigma_z              = .true.                      ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      vert_diffuse         = .true.
-     tke_closure          = .false.
+     tke_closure          = .true.
+     patankar             = .false.                     ! avoid noise with zero initial velocity
+     enhance_diff         = .false.
      remap                = .true.
      iremap               =   5
-     thermocline          =    -100d0 * METRE           ! location of surface mixed layer
-     halocline            =   -1100d0 * METRE           ! location less dense layer 
-     drho                 = -10.481d0 * KG/METRE**3     ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     tau_0                =     0.4d0 * NEWTON/METRE**2 ! maximum wind stress
      max_depth            =   -4000d0 * METRE           ! total depth
-     ref_density          = 1027.75d0 * KG/METRE**3     ! reference density
-     bottom_friction_case =      5d-3 * METRE/SECOND    ! bottom friction                      
+     thermocline          =       0d0 * METRE           ! location of surface mixed layer
+     halocline            =   -4000d0 * METRE           ! location less dense layer
+     ref_density          =    1030d0 * KG/METRE**3     ! reference density
+     drho                 =      -3d0 * KG/METRE**3     ! density perturbation at free surface at poles
+     drho2                =      -1d0 * KG/METRE**3     ! additional latitude dependent density perturbation
+     tau_0                =     0.1d0 * NEWTON/METRE**2 ! maximum wind stress
+     bottom_friction_case =       rb_0                  ! bottom friction                      
      u_wbc                =       1d0 * METRE/SECOND    ! estimated western boundary current speed
   end if
 
@@ -92,7 +96,7 @@ program Drake
 
   ! Baroclinic wave speed
   if (zlevels == 2) then
-     c1 = sqrt (grav_accel*abs(drho)/2d0/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
+     c1 = sqrt (grav_accel*abs(drho)/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
   elseif (zlevels >= 3) then
      c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   endif

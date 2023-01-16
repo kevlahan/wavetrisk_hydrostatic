@@ -3,6 +3,7 @@ Module test_case_mod
   use comm_mpi_mod
   use utils_mod
   use init_mod
+  use vert_diffusion_mod
   implicit none
 
   ! Standard variables
@@ -12,7 +13,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
-  real(8)                              :: drho, drho_dz, f0, Ku, Rb, Rd, Rey, Ro, radius_earth
+  real(8)                              :: drho, drho2, drho_dz, f0, Ku, Rb, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, halocline, npts_penal, tau_0, thermocline, u_wbc 
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -423,7 +424,8 @@ contains
        write (6,'(A,es11.4)') "halocline                 [m]  = ", abs (halocline)
        write (6,'(A,es11.4)') "thermocline               [m]  = ", abs (thermocline)
        write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
-       write (6,'(A,es11.4)') "density difference   [kg/m^3]  = ", drho
+       write (6,'(A,es11.4)') "density perturbation [kg/m^3]  = ", drho
+       write (6,'(A,es11.4)') "add density pert     [kg/m^3]  = ", drho2
        write (6,'(A,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
@@ -433,6 +435,9 @@ contains
        write (6,'(A,es11.4)') "bottom drag decay time    [d]  = ", abs(max_depth)/bottom_friction_case / DAY
        if (zlevels == 2) write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
        if (zlevels > 2)  then
+          write (6,'(a,l1)')     "tke_closure                    = ", tke_closure
+          write (6,'(a,l1)')     "patankar                       = ", patankar
+          write (6,'(a,l1)')     "enhance_diff                   = ", enhance_diff
           write (6,'(A,es11.4)') "Kv_bottom             [m^2/s]  = ", Kv_bottom
           write (6,'(A,es11.4)') "Kt_const              [m^2/s]  = ", Kt_const
        end if
@@ -525,6 +530,9 @@ contains
     do l = level_start, level_end
        call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       do k = 1, zlevels
+          call apply_onescale (init_tke,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
     end do
   end subroutine apply_initial_conditions_case
 
@@ -658,6 +666,22 @@ contains
     init_free_surface = 0d0
   end function init_free_surface
 
+  subroutine init_tke (dom, i, j, zlev, offs, dims)
+    ! Initialize TKE
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer  :: d, id
+
+    d  = dom%id+1
+    id = idx (i, j, offs, dims) + 1
+
+    tke(zlev)%data(d)%elts(id) = e_min
+  end subroutine init_tke
+
   real(8) function buoyancy_init (x_i, z)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
@@ -665,12 +689,31 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    if (z >= thermocline) then
-       buoyancy_init = - (1d0 - thermocline/halocline) * drho / ref_density
-    elseif (z >= halocline .and. z < thermocline) then
-       buoyancy_init = - (1d0 - z/halocline) * drho / ref_density
-    elseif (z < halocline) then
+    real(8) :: drho_tot, eps_rho, lat, lon, z_decay
+
+    call cart2sph (x_i, lon, lat)
+    
+    if (zlevels == 1) then
        buoyancy_init = 0d0
+    elseif (zlevels == 2) then
+       if (z >= halocline) then
+          buoyancy_init = - drho / ref_density
+       else
+          buoyancy_init = 0d0
+       end if
+    elseif (zlevels >= 3) then
+       if (z >= thermocline) then ! constant stratification near surface
+          drho_tot = drho * (1d0 + drho2/drho * cos (lat)**4)
+          buoyancy_init = - drho_tot / ref_density
+       elseif (z >= halocline .and. z < thermocline) then ! linear stratification
+          z_decay = exp (3d0 * (z-thermocline) / abs(halocline - thermocline))
+
+          drho_tot = drho * (1d0 + drho2/drho * cos (lat)**4 * z_decay)
+
+          buoyancy_init = - (1d0 - z/halocline) * drho_tot / ref_density
+       elseif (z < halocline) then ! constant density at depth
+          buoyancy_init = 0d0
+       end if
     end if
   end function buoyancy_init
 
@@ -686,7 +729,8 @@ contains
     
     eta = 0d0
     z_s = max_depth
-    x_i = Coord (radius, 0d0, 0d0)
+    !x_i = Coord (radius, 0d0, 0d0)
+    x_i = sph2cart (0d0, 0d0)
     
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -695,11 +739,11 @@ contains
     end if
     dz = z(1:zlevels) - z(0:zlevels-1)
 
-    write (6,'(a)') " Layer      z         dz         rho "
+    write (6,'(a)') " Layer      z         dz         drho "
     do k = 1, zlevels
        z_k = interp (z(k-1), z(k))
-       write (6, '(2x, i2, 4x, 2(es9.2, 1x), es11.5)') &
-            k, z_k, dz(k), ref_density * (1d0 - buoyancy_init (x_i, z_k))
+       write (6, '(2x, i2, 4x, 2(es9.2, 1x), es12.5)') &
+            k, z_k, dz(k), -ref_density * buoyancy_init (x_i, z_k)
     end do
     
     write (6,'(/,a)') " Interface     z"
@@ -718,7 +762,7 @@ contains
        rho  = ref_density * (1d0 - buoyancy_init (x_i, z_k))
        drho = rho_above - rho
        
-       bv = sqrt(- grav_accel * drho/dz_l/rho)
+       bv = sqrt(grav_accel * abs(drho)/dz_l/rho)
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
        
