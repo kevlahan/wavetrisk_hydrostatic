@@ -69,6 +69,8 @@ program Drake
      tke_closure          = .true.
      patankar             = .false.                     ! avoid noise with zero initial velocity
      enhance_diff         = .false.
+     Kv_0                 = 2d-2 * METRE**2 / SECOND    ! minimum/initial eddy viscosity
+     Kt_max               = 1d-4 * METRE**2 / SECOND    ! maximum eddy diffusivity
      remap                = .true.
      iremap               =   5
      max_depth            =   -4000d0 * METRE           ! total depth

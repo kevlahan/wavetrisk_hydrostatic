@@ -18,13 +18,15 @@ module vert_diffusion_mod
   use utils_mod
   implicit none
 
-  logical, parameter :: implicit     = .true.  ! use backwards Euler (T) or forward Euler (F)
+  ! Modifiable parameters for 
+  real(8)            :: Kt_max       = 1d2     ! maximum eddy diffusion
   logical            :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
   logical            :: patankar     = .true.  ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
                                                ! or enforce minimum value e_0 of TKE (F)
                                                ! (Patankar trick can produce noisy solutions if velocity is very small)
 
   ! Parameters for TKE closure eddy viscosity/diffusion scheme
+  logical, parameter :: implicit     = .true.  ! use backwards Euler (T) or forward Euler (F)
   real(8), parameter :: c_e      = 1d0               
   real(8), parameter :: c_eps    = 7d-1                ! factor in Ekman depth equation
   real(8), parameter :: C_l      = 2d5                 ! Charnock constant
@@ -34,8 +36,8 @@ module vert_diffusion_mod
   real(8), parameter :: e_sfc_0  = 1d-4                ! minimum TKE at free surface
   real(8), parameter :: eps_s    = 1d-20               
   real(8), parameter :: kappa_VK = 4d-1                ! von Karman constant
-  real(8), parameter :: Kt_enh   = 1d2                 ! enhanced vertical diffusion
-  real(8), parameter :: Kv_enh   = 1d2                 ! enhanced vertical diffusion
+  real(8), parameter :: Kt_enh   = 1d2                 ! enhanced eddy diffusion
+  real(8), parameter :: Kv_enh   = 1d2                 ! enhanced eddy viscosity
   real(8), parameter :: l_0      = 4d-2                ! default turbulent length scale
   real(8), parameter :: Neps_sq  = 1d-20               ! background shear
   real(8), parameter :: Nsq_min  = 1d-12               ! threshold for enhanced diffusion
@@ -138,7 +140,7 @@ contains
        e(0) = e_0
        do l = 1, zlevels-1
            e(l) = rhs(l)
-          if (.not. patankar) e(l) = min (rhs(l), 0d0) ! ensure TKE is non-negative
+          if (.not. patankar) e(l) = min (rhs(l), e_min) ! ensure TKE is non-negative
        end do
        e(zlevels) = max (C_sfc * tau_mag (p) / ref_density, e_sfc_0) ! free surface
        
@@ -190,8 +192,8 @@ contains
       if (istep == 1) then
          do l = 0, zlevels
             Ri = Richardson (Nsq(l), dudzsq(l))
-            Kv(l)%data(d)%elts(id) = Kv_tke (l_m(l), e(l), Nsq(l))
-            Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Ri, Nsq(l))
+            Kv(l)%data(d)%elts(id) = Kv_tke (e(l), l_m(l), Nsq(l))
+            Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Nsq(l), Ri)
          end do
       end if
     end subroutine init_diffuse
@@ -207,8 +209,8 @@ contains
       ! Eddy viscosity and eddy diffusivity at interfaces
       do l = 0, zlevels
          Ri = Richardson (Nsq(l), dudzsq(l))
-         Kv(l)%data(d)%elts(id) = Kv_tke (l_m(l), e(l), Nsq(l))
-         Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Ri, Nsq(l))
+         Kv(l)%data(d)%elts(id) = Kv_tke (e(l), l_m(l), Nsq(l))
+         Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Nsq(l), Ri)
       end do
 
       ! Assign tke
@@ -526,22 +528,22 @@ contains
     l_m   = min (l_up, l_dwn)
   end subroutine l_scales
     
-  real(8) function Kt_tke (Kv, Ri, Nsq)
+  real(8) function Kt_tke (Kv, Nsq, Ri)
     ! TKE closure eddy diffusivity
     implicit none
     real(8) :: Kv, Nsq, Ri
 
-    Kt_tke = max (Kv/Prandtl(Ri), Kt_0)
+    Kt_tke = min (Kt_max, max (Kv/Prandtl(Ri), Kt_0))
 
     if (enhance_diff .and. Nsq <= Nsq_min) Kt_tke = Kt_enh ! enhanced vertical diffusion
   end function Kt_tke
 
-  real(8) function Kv_tke (l_m, tke, Nsq)
+  real(8) function Kv_tke (e, l_m, Nsq)
     ! TKE closure eddy viscosity
     implicit none
-    real(8) :: l_m, Nsq, tke
+    real(8) :: e, l_m, Nsq
 
-    Kv_tke = max (c_m * l_m * sqrt(tke), Kv_0)
+    Kv_tke = max (c_m * l_m * sqrt(e), Kv_0)
     
     if (enhance_diff .and. Nsq <= Nsq_min) Kv_tke = Kv_enh ! enhanced vertical diffusion
   end function Kv_tke
