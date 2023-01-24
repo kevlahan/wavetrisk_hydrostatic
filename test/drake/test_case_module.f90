@@ -1148,27 +1148,29 @@ contains
 
     integer                       :: k
     real(8)                       :: cff, cff1, cff2, hc, z_0
-    real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
     real(8), dimension(0:zlevels) :: Cs, sc
+
+    real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
+    real(8), parameter            :: hc_min = -200d0 * METRE ! minimum depth of uniform layer region
     
-    hc = abs (thermocline)
+    hc = abs (min (thermocline, hc_min)) 
     
-    cff1 = 1.0_8 / sinh (theta_s)
-    cff2 = 0.5d0 / tanh (0.50 * theta_s)
+    cff1 = 1d0 / sinh (theta_s)
+    cff2 = 0.5d0 / tanh (0.5d0 * theta_s)
     
-    sc(0) = -1.0_8
-    Cs(0) = -1.0_8
+    sc(0) = -1d0
+    Cs(0) = -1d0
     cff = 1d0 / dble(zlevels)
     do k = 1, zlevels
        sc(k) = cff * dble (k - zlevels)
-       Cs(k) = (1.0_8 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+       Cs(k) = (1d0 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
     end do
 
     z_coords_case(0) = z_s
     do k = 1, zlevels
        cff = hc * (sc(k) - Cs(k))
        z_0 = cff - Cs(k) * z_s
-       a_vert(k) = 1.0_8 - z_0 / z_s
+       a_vert(k) = 1d0 - z_0 / z_s
        z_coords_case(k) = eta_surf * a_vert(k) + z_0
     end do
   end function z_coords_case
