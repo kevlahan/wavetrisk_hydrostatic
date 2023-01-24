@@ -1,17 +1,17 @@
 %% Load data
-clear; %close all;
+clear; close all;
 %figure
 %machine  = "if.mcmaster.ca";
 machine   = "nia-datamover1.scinet.utoronto.ca";
 
-zlev=60; cp_id=20; type="u"; test_case="drake"; run_id="60layer_strat"; dir="~/hydro/drake"; 
+zlev=11; cp_id=61; type="curlu"; test_case="drake"; run_id="12layer_linear_strat"; dir="~/hydro/drake"; 
 
 avg       = false;    % plot averaged spectrum
 power     = true;     % plot power law fit
 col_spec  = "b-";     % colour for energy spectrum
 col_power = "r-";     % colour for power law
 %range     = [80 30]; % range for power law fit
-%range     = [200 20]; % range for power law fit
+range     = [260 80]; % range for power law fit
 
 name_type = "Layer "+zlev;
 cp_id     = compose("%04d",cp_id);
@@ -20,15 +20,15 @@ spec_file = load_data(test_case, dir, run_id, cp_id, zlev, type+"_spec", machine
 
 % Physical parameters of simulation
 if strcmp(test_case,"drake")
-    visc        =  0.493;
-    uwbc        =  0.8;
+    visc        =  99;
+    uwbc        =  1.5;
     scale_omega =  6;
     scale_earth =  6;
     omega       =  7.29211e-5/scale_omega;
     radius      =  6371.229e3/scale_earth;
     g           =  9.80616;
     drho        = -4;
-    ref_density =  1028;
+    ref_density =  1030;
     H1          =  3e3;
     H2          =  1e3;
     H           =  H1 + H2;
@@ -36,10 +36,10 @@ if strcmp(test_case,"drake")
     f0          =  2*omega*sin(deg2rad(theta));
     beta        =  2*omega*cos(deg2rad(theta))/radius;
     %r_b         =  1.3e-8; % two-layer
-    r_b         =  1e-7;
+    r_b         =  4e-4;
     c0          =  sqrt(g*H);
     %c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H); % two-layer
-    c1          =  5.56; % m/s
+    c1          =  4.8; % m/s
     deltaM      = (visc/beta)^(1/3)/1e3; % Munk layer 
 elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
@@ -62,7 +62,7 @@ end
 % Lengthscales (km)
 lambda0    = c0/f0/1e3;             % external radius of deformation
 lambda1    = c1/f0/1e3;             % internal radius of deformation
-deltaS     = r_b / beta/1e3;        % Stommel layer
+deltaS     = r_b/beta/1e3;        % Stommel layer
 deltaSM    = uwbc/f0/1e3;           % submesoscale
 deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
 
@@ -79,12 +79,14 @@ scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length 
 loglog(scales,pspec(:,2),col_spec,"linewidth",3,"DisplayName",name_type);hold on;grid on;
 
 % Fit power law
-if strcmp(test_case,"drake")
-    range = [lambda1 deltaSM]; col_power = "r-"; % colour for power law
-elseif strcmp(test_case,"jet")
-    %range = [deltaI lambda1]; col_power = "r-"; % colour for power law
-    %range = [66 20]; col_power = "r-"; % colour for power law
+if ~exist('range','var') % use default range
+    if strcmp(test_case,"drake")
+        range = [lambda1 deltaSM]; col_power = "r-"; % colour for power law
+    elseif strcmp(test_case,"jet")
+        range = [deltaI lambda1]; col_power = "r-"; % colour for power law
+    end
 end
+
 fit_indices = find(scales > range(2) & scales < range(1));
 [P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
 
