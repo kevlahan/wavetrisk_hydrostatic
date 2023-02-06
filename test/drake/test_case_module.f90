@@ -536,9 +536,11 @@ contains
     do l = level_start, level_end
        call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       do k = 1, zlevels
-          call apply_onescale (init_tke,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
+       if (vert_diffuse) then
+          do k = 1, zlevels
+             call apply_onescale (init_tke,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+          end do
+       end if
     end do
   end subroutine apply_initial_conditions_case
 
