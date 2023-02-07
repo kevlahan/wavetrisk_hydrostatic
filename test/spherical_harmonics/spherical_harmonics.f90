@@ -144,14 +144,10 @@ program spherical_harmonics
      else
         call avg_spec ('barotropic_curlu')
         call avg_spec ('barotropic_divu')
-        call avg_spec ('baroclinic_curlu_1')
-        call avg_spec ('baroclinic_curlu_2')
-        call avg_spec ('baroclinic_divu_1')
-        call avg_spec ('baroclinic_divu_2')
-        call avg_spec ('total_curlu_1')
-        call avg_spec ('total_curlu_2')
-        call avg_spec ('total_divu_1')  
-        call avg_spec ('total_divu_2')
+        call avg_spec ('baroclinic_curlu')
+        call avg_spec ('baroclinic_divu')
+        call avg_spec ('total_curlu')
+        call avg_spec ('total_divu')  
      end if
      if (local_spec) then
         if (zlevels /= 2) then
@@ -161,14 +157,10 @@ program spherical_harmonics
         else
            call avg_local_spec ('barotropic_curlu_local')
            call avg_local_spec ('barotropic_divu_local')
-           call avg_local_spec ('baroclinic_curlu_1_local')
-           call avg_local_spec ('baroclinic_curlu_2_local')
-           call avg_local_spec ('baroclinic_divu_1_local')
-           call avg_local_spec ('baroclinic_divu_2_local')
-           call avg_local_spec ('total_curlu_1_local')
-           call avg_local_spec ('total_curlu_2_local')
-           call avg_local_spec ('total_divu_1_local')
-           call avg_local_spec ('total_divu_2_local')
+           call avg_local_spec ('baroclinic_curlu_local')
+           call avg_local_spec ('baroclinic_divu_local')
+           call avg_local_spec ('total_curlu_local')
+           call avg_local_spec ('total_divu_local')
         end if
      end if
   end if
@@ -183,16 +175,14 @@ contains
     character(4)                       :: var_file1, var_file2
     
     lmax = N/4 - 1
-
+    
     allocate (pspec(lmax+1), pspec_av(lmax+1))
 
-    do k = k_min, k_max
+    if (index (data_type, "barotropic") /= 0) then
        pspec = 0d0; pspec_av = 0d0
-       write (var_file2, '(i4.4)') k
        do cp = cp_beg, cp_end
           write (var_file1, '(i4.4)') cp
-          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-               form="FORMATTED", status="OLD")
+          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type)//'_spec', form="FORMATTED", status="OLD")
           do j = 1, lmax + 1
              read (10,*) jj, pspec(j)
           end do
@@ -201,13 +191,35 @@ contains
        end do
        pspec_av = pspec_av / (cp_end - cp_beg + 1)
 
-       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-            form="FORMATTED", status="REPLACE")
+       open (unit=10, file=trim(run_id)//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
        do j = 1, lmax + 1
           write (10,'(i4,1x,es10.4)') j, pspec_av(j)
        end do
        close (10)
-    end do
+    else
+       do k = k_min, k_max
+          pspec = 0d0; pspec_av = 0d0
+          write (var_file2, '(i4.4)') k
+          do cp = cp_beg, cp_end
+             write (var_file1, '(i4.4)') cp
+             open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
+                 form="FORMATTED", status="OLD")
+             do j = 1, lmax + 1
+                read (10,*) jj, pspec(j)
+             end do
+             close (10)
+             pspec_av = pspec_av + pspec
+          end do
+          pspec_av = pspec_av / (cp_end - cp_beg + 1)
+
+          open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', &
+               form="FORMATTED", status="REPLACE")
+          do j = 1, lmax + 1
+             write (10,'(i4,1x,es10.4)') j, pspec_av(j)
+          end do
+          close (10)
+       end do
+    end if
     
     deallocate (pspec, pspec_av)
   end subroutine avg_spec
@@ -224,15 +236,13 @@ contains
     
     allocate (mtse(lmax-lwin+1),    sd(lmax-lwin+1))
     allocate (mtse_av(lmax-lwin+1), sd_av(lmax-lwin+1))
-
-
-    do k = k_min, k_max
-       write (var_file2, '(i4.4)') k
+    
+    
+    if (index (data_type, "barotropic") /= 0) then
        mtse = 0d0; mtse_av = 0d0; sd = 0d0; sd_av = 0d0
        do cp = cp_beg, cp_end
           write (var_file1, '(i4.4)') cp
-          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-          form="FORMATTED", status="OLD")
+          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type)//'_spec', form="FORMATTED", status="OLD")
           do j = 1, lmax - lwin + 1
              read (10,*) jj, mtse(j), sd(j)
           end do
@@ -243,13 +253,37 @@ contains
        mtse_av = mtse_av / (cp_end - cp_beg + 1)
        sd_av   = sd_av   / (cp_end - cp_beg + 1)
 
-       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-       form="FORMATTED", status="REPLACE")
+       open (unit=10, file=trim(run_id)//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
        do j = 1, lmax - lwin + 1
           write (10,'(i4,1x,2(es10.4,1x))') j, mtse_av(j), sd_av(j)
        end do
        close (10)
-    end do
+    else
+       do k = k_min, k_max
+          write (var_file2, '(i4.4)') k
+          mtse = 0d0; mtse_av = 0d0; sd = 0d0; sd_av = 0d0
+          do cp = cp_beg, cp_end
+             write (var_file1, '(i4.4)') cp
+             open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
+                  form="FORMATTED", status="OLD")
+             do j = 1, lmax - lwin + 1
+                read (10,*) jj, mtse(j), sd(j)
+             end do
+             close (10)
+             mtse_av = mtse_av + mtse
+             sd_av = sd_av + sd
+          end do
+          mtse_av = mtse_av / (cp_end - cp_beg + 1)
+          sd_av   = sd_av   / (cp_end - cp_beg + 1)
+
+          open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', &
+               form="FORMATTED", status="REPLACE")
+          do j = 1, lmax - lwin + 1
+             write (10,'(i4,1x,2(es10.4,1x))') j, mtse_av(j), sd_av(j)
+          end do
+          close (10)
+       end do
+    end if
 
     deallocate (mtse, mtse_av, sd, sd_av)
   end subroutine avg_local_spec
@@ -499,8 +533,13 @@ contains
 
     ! Save latlon data
     if (rank == 0) then
-       open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type), access="STREAM", &
-            form="UNFORMATTED", status="REPLACE")
+       if (k /= 0) then
+          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type), access="STREAM", &
+               form="UNFORMATTED", status="REPLACE")
+       else
+          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type), access="STREAM", &
+               form="UNFORMATTED", status="REPLACE")
+       end if
        do i = Ny(1), Ny(2)
           write (10) field2d(:,i)
        end do
@@ -519,8 +558,13 @@ contains
     call SHPowerSpectrum (cilm, lmax, pspectrum, exitstatus=ierr)
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHPowerSpectrum"
 
-    open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-         form="FORMATTED", status="REPLACE")
+    if (k /= 0) then
+       open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
+            form="FORMATTED", status="REPLACE")
+    else
+        open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type)//'_spec', &
+            form="FORMATTED", status="REPLACE")
+    end if
     area = 4d0*MATH_PI*radius**2
     do j = 1, lmax + 1
        write (10,'(i4,1x,es10.4)') j, pspectrum(j) * area
@@ -528,8 +572,13 @@ contains
     close (10)
 
     if (local_spec) then
-       open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_local_spec', &
-            form="FORMATTED", status="REPLACE")
+       if (k /= 0) then
+          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_local_spec', &
+               form="FORMATTED", status="REPLACE")
+       else
+          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type)//'_local_spec', &
+               form="FORMATTED", status="REPLACE")
+       end if
 
        ! Determine the spherical-harmonic bandwidth needed to achieve specified concentration factor
        lwin = SHFindLWin (theta0*DEG, angular_order, concentration)
