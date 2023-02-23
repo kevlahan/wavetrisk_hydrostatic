@@ -6,14 +6,14 @@ machine   = "nia-datamover1.scinet.utoronto.ca";
 
 type="curlu"; test_case="drake"; run_id="60layer"; dir="~/hydro/drake";
 
-cp_min    = 18;
-cp_max    = 18;
-zmin      = 1;
-zmax      = 60;
-plot_spec = false;     % plot spectrum
-power     = false;     % plot power law fit
+cp_min    = 19;
+cp_max    = 19;
+zmin      = 59;
+zmax      = 59;
+plot_spec = true;     % plot spectrum
+power     = true;     % plot power law fit
 avg       = false;    % plot averaged spectrum
-% col_spec  = "b-";     % colour for energy spectrum
+col_spec  = "b-";     % colour for energy spectrum
 col_power = "r-";     % colour for power law
 %range     = [200 55]; % range for power law fit
 %range     = [430 150]; % range for power law fit
