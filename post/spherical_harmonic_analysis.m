@@ -4,10 +4,11 @@ clear
 %machine  = "if.mcmaster.ca";
 machine   = "nia-datamover1.scinet.utoronto.ca";
 
-dir = "~/hydro/drake";
+dir_remote = "~/hydro/drake";                dir_local = "~/hydro/drake";
+%dir_remote = "~/proj/jet/gmd_paper/spectra"; dir_local = "~/hydro/jet";
 
 % Transfer all spectrum files at once
-scp_cmd = "scp "+machine+":"""+dir+"/*spec"" "+dir;
+scp_cmd = "scp "+machine+":"""+dir_remote+"/*spec"" "+dir_local;
 if ~strcmp(machine,"mac")
     unix (sprintf(scp_cmd));
 end
@@ -16,14 +17,19 @@ end
 type      = "curlu"; 
 test_case = "drake"; 
 run_id    = "60layer";
+
+% type      = "barotropic_curlu";
+% test_case = "jet"; 
+% run_id    = "jet";
+
 zlevels   = 60;
 
 cp_min    = 22;
 cp_max    = 31;
-zmin      = 59;
-zmax      = 59;
+zmin      = 1;
+zmax      = 60;
 
-plot_spec = true;     % plot spectrum
+plot_spec = false;     % plot spectrum
 power     = true;     % plot power law fit
 avg       = false;    % plot averaged spectrum
 col_spec  = "b-";     % colour for energy spectrum
