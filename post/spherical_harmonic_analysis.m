@@ -34,6 +34,7 @@ col_power = "r-";     % colour for power law
 % Set physical parameters
 [H, lambda0,lambda1, deltaS, deltaSM, deltaI, radius] = params(test_case);
 
+pow_law = zeros(cp_max-cp_min+1,zlevels);
 for cp_id = cp_min:cp_max
     for zlev = zmin:zmax
         % Load spectrum data
