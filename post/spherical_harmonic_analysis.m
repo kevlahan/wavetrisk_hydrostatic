@@ -1,16 +1,25 @@
 %% Load data
-clear; %close all;
+clear
 %figure
 %machine  = "if.mcmaster.ca";
 machine   = "nia-datamover1.scinet.utoronto.ca";
 
-type="curlu"; test_case="drake"; run_id="60layer"; dir="~/hydro/drake";
+test_case="drake"; dir="~/hydro/drake";
 
-cp_min    = 19;
-cp_max    = 19;
+% Transfer all spectrum files at once
+scp_cmd = "scp "+machine+":"""+dir+"/*spec"" "+dir;
+if ~strcmp(machine,"mac")
+    unix (sprintf(scp_cmd));
+end
+
+%% Analyze spectrum data
+type      = "curlu"; 
+run_id    = "60layer";
+cp_min    = 30;
+cp_max    = 30;
 zmin      = 59;
 zmax      = 59;
-plot_spec = true;     % plot spectrum
+plot_spec = false;     % plot spectrum
 power     = true;     % plot power law fit
 avg       = false;    % plot averaged spectrum
 col_spec  = "b-";     % colour for energy spectrum
@@ -18,66 +27,28 @@ col_power = "r-";     % colour for power law
 %range     = [200 55]; % range for power law fit
 %range     = [430 150]; % range for power law fit
 
+% Set physical parameters
+[lambda0,lambda1, deltaS, deltaSM, deltaI, radius] = params(test_case)
+
 for cp_id = cp_min:cp_max
     for zlev = zmin:zmax
         name_type = "Layer "+zlev;
         cp        = compose("%04d",cp_id);
         k         = compose("%04d",zlev);
-        spec_file = load_data(test_case, dir, run_id, cp, k, type+"_spec", machine, avg);
 
-        % Physical parameters of simulation
-        if strcmp(test_case,"drake")
-            visc        =  99;
-            uwbc        =  1.5;
-            scale_omega =  6;
-            scale_earth =  6;
-            omega       =  7.29211e-5/scale_omega;
-            radius      =  6371.229e3/scale_earth;
-            g           =  9.80616;
-            drho        = -4;
-            ref_density =  1030;
-            H1          =  3e3;
-            H2          =  1e3;
-            H           =  H1 + H2;
-            theta       =  45; % latitude at which to calculate f0 and beta
-            f0          =  2*omega*sin(deg2rad(theta));
-            beta        =  2*omega*cos(deg2rad(theta))/radius;
-            %r_b         =  1.3e-8; % two-layer
-            r_b         =  4e-4;
-            c0          =  sqrt(g*H);
-            %c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H); % two-layer
-            c1          =  4.8; % m/s
-            deltaM      = (visc/beta)^(1/3)/1e3; % Munk layer
-        elseif strcmp(test_case,"jet")
-            visc        =  1.63e7; % hyperviscosity
-            uwbc        =  1.4;
-            omega       =  1e-4;
-            radius      =  1000e3;
-            g           =  9.80616;
-            drho        = -4;
-            ref_density =  1027.8;
-            H           =  4e3;
-            theta       =  45; % latitude at which to calculate f0 and beta
-            f0          =  2*omega*sin(deg2rad(theta));
-            beta        =  2*omega*cos(deg2rad(theta))/radius;
-            r_b         =  5e-3;
-            c0          =  sqrt(g*H);
-            c1          =  3.16; % m/s
-            deltaM      = (visc/beta)^(1/5)/1e3; % Munk layer
+        % Load spectrum data
+        if avg % average spectrum
+            file_base = run_id+"_"+k+"_"+type;
+        else
+            file_base = run_id+"_"+cp+"_" +k+"_"+type;
         end
-
-        % Lengthscales (km)
-        lambda0    = c0/f0/1e3;             % external radius of deformation
-        lambda1    = c1/f0/1e3;             % internal radius of deformation
-        deltaS     = r_b/beta/1e3;        % Stommel layer
-        deltaSM    = uwbc/f0/1e3;           % submesoscale
-        deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
+        spec_file  = "~/hydro/"+test_case+"/"+file_base+"_spec";
+        pspec = load(spec_file);
 
         % Plot energy spectra
-        pspec = load(spec_file);
         if strcmp(type,"u") % velocity spectrum
             pspec(:,2) = pspec(:,2);
-        else               % convert vorticity spectrum to energy spectrum integrated over shells
+        else                % convert vorticity spectrum to energy spectrum integrated over shells
             pspec(:,2) = pspec(:,2)./pspec(:,1).^2;
         end
         scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
@@ -209,19 +180,56 @@ set(get(get(h,"Annotation"),"LegendInformation"),"IconDisplayStyle","off");
 text(0.92*scale,10*y(1),name,"fontsize",16)
 end
 
-function [local_file] =  load_data (test_case, dir, run_id, cp_id, zlev, type, machine, avg)
-if avg % average spectrum
-    file_base = run_id+"_"+zlev+"_"+type;
-else
-    file_base = run_id+"_"+cp_id+"_" +zlev+"_"+type;
+function [lambda0,lambda1, deltaS, deltaSM, deltaI, radius] = params(test_case)
+% Physical parameters of simulation
+
+if strcmp(test_case,"drake")
+    visc        =  99;
+    uwbc        =  1.5;
+    scale_omega =  6;
+    scale_earth =  6;
+    omega       =  7.29211e-5/scale_omega;
+    radius      =  6371.229e3/scale_earth;
+    g           =  9.80616;
+    drho        = -4;
+    ref_density =  1030;
+    H1          =  3e3;
+    H2          =  1e3;
+    H           =  H1 + H2;
+    theta       =  45; % latitude at which to calculate f0 and beta
+    f0          =  2*omega*sin(deg2rad(theta));
+    beta        =  2*omega*cos(deg2rad(theta))/radius;
+    %r_b         =  1.3e-8; % two-layer
+    r_b         =  4e-4;
+    c0          =  sqrt(g*H);
+    %c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H); % two-layer
+    c1          =  4.8; % m/s
+    deltaM      = (visc/beta)^(1/3)/1e3; % Munk layer
+elseif strcmp(test_case,"jet")
+    visc        =  1.63e7; % hyperviscosity
+    uwbc        =  1.4;
+    omega       =  1e-4;
+    radius      =  1000e3;
+    g           =  9.80616;
+    drho        = -4;
+    ref_density =  1027.8;
+    H           =  4e3;
+    theta       =  45; % latitude at which to calculate f0 and beta
+    f0          =  2*omega*sin(deg2rad(theta));
+    beta        =  2*omega*cos(deg2rad(theta))/radius;
+    r_b         =  5e-3;
+    c0          =  sqrt(g*H);
+    c1          =  3.16; % m/s
+    deltaM      = (visc/beta)^(1/5)/1e3; % Munk layer
 end
 
-remote_file = dir+"/"+file_base;
-local_file  = "~/hydro/"+test_case+"/"+file_base;
-scp_cmd     = "scp -q "+machine+":"+remote_file+" "+local_file;
-if ~strcmp(machine,"mac")
-    unix (sprintf(scp_cmd));
+% Lengthscales (km)
+lambda0    = c0/f0/1e3;             % external radius of deformation
+lambda1    = c1/f0/1e3;             % internal radius of deformation
+deltaS     = r_b/beta/1e3;        % Stommel layer
+deltaSM    = uwbc/f0/1e3;           % submesoscale
+deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
 end
-end
+
 
 
