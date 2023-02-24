@@ -4,7 +4,7 @@ clear
 %machine  = "if.mcmaster.ca";
 machine   = "nia-datamover1.scinet.utoronto.ca";
 
-test_case="drake"; dir="~/hydro/drake";
+dir = "~/hydro/drake";
 
 % Transfer all spectrum files at once
 scp_cmd = "scp "+machine+":"""+dir+"/*spec"" "+dir;
@@ -14,12 +14,16 @@ end
 
 %% Analyze spectrum data
 type      = "curlu"; 
+test_case = "drake"; 
 run_id    = "60layer";
-cp_min    = 30;
-cp_max    = 30;
+zlevels   = 60;
+
+cp_min    = 22;
+cp_max    = 31;
 zmin      = 59;
 zmax      = 59;
-plot_spec = false;     % plot spectrum
+
+plot_spec = true;     % plot spectrum
 power     = true;     % plot power law fit
 avg       = false;    % plot averaged spectrum
 col_spec  = "b-";     % colour for energy spectrum
@@ -28,22 +32,27 @@ col_power = "r-";     % colour for power law
 %range     = [430 150]; % range for power law fit
 
 % Set physical parameters
-[lambda0,lambda1, deltaS, deltaSM, deltaI, radius] = params(test_case)
+[H, lambda0,lambda1, deltaS, deltaSM, deltaI, radius] = params(test_case);
 
 for cp_id = cp_min:cp_max
     for zlev = zmin:zmax
+        % Load spectrum data
         name_type = "Layer "+zlev;
         cp        = compose("%04d",cp_id);
         k         = compose("%04d",zlev);
-
-        % Load spectrum data
         if avg % average spectrum
             file_base = run_id+"_"+k+"_"+type;
         else
-            file_base = run_id+"_"+cp+"_" +k+"_"+type;
+            file_base = run_id+"_"+cp+"_"+k+"_"+type;
         end
-        spec_file  = "~/hydro/"+test_case+"/"+file_base+"_spec";
-        pspec = load(spec_file);
+        spec_file = "~/hydro/"+test_case+"/"+file_base+"_spec";
+        try
+            pspec = load(spec_file);
+        catch ME
+            fprintf('\n File %s not present ... continuing\n',spec_file)
+            pause
+            continue
+        end
 
         % Plot energy spectra
         if strcmp(type,"u") % velocity spectrum
@@ -61,12 +70,10 @@ for cp_id = cp_min:cp_max
                 range = [deltaI lambda1]; col_power = "r-"; % colour for power law
             end
         end
-
         fit_indices = find(scales > range(2) & scales < range(1));
         [P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
-
         st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
-
+        
         fprintf("\nFitted power law for checkpoint %d at zlevel %d is %.2f +/- %.2f\n",...
             cp_id, zlev, -P(1), st_err(1));
 
@@ -95,6 +102,12 @@ for cp_id = cp_min:cp_max
         end
     end
 end
+%% Plot power law profile with depth
+cp1 = 22; cp2 = 31;
+plot(mean(pow_law(cp1:cp2,:),1),(zlevels:-1:1)*(-H/zlevels),'ro-','linewidth',2);grid on;hold on;
+axis([-3.5 -2 -H 0])
+xlabel('$k$','interpreter','latex');ylabel('z [m]');set(gca,'fontsize',18)
+
 %% Plot local region
 local     = false;
 region    = "mid";
@@ -180,7 +193,7 @@ set(get(get(h,"Annotation"),"LegendInformation"),"IconDisplayStyle","off");
 text(0.92*scale,10*y(1),name,"fontsize",16)
 end
 
-function [lambda0,lambda1, deltaS, deltaSM, deltaI, radius] = params(test_case)
+function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, radius] = params(test_case)
 % Physical parameters of simulation
 
 if strcmp(test_case,"drake")
