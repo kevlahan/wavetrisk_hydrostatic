@@ -1087,13 +1087,16 @@ contains
     do k = 1, zlevels
        ! Scalars
        do d = 1, size(grid)
-          temp  =>  q(S_TEMP,k)%data(d)%elts
-          dmass => dq(S_MASS,k)%data(d)%elts
-          dtemp => dq(S_TEMP,k)%data(d)%elts
+          mass   =>  q(S_MASS,k)%data(d)%elts
+          temp   =>  q(S_TEMP,k)%data(d)%elts
+          mean_m =>  sol_mean(S_MASS,k)%data(d)%elts
+          mean_t =>  sol_mean(S_TEMP,k)%data(d)%elts
+          dmass  => dq(S_MASS,k)%data(d)%elts
+          dtemp  => dq(S_TEMP,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
           end do
-          nullify (dmass, dscalar, temp)
+          nullify (dmass, dscalar, mass, temp, mean_m, mean_t)
        end do
 
        ! Velocity and mass 
@@ -1121,7 +1124,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     dmass(id_i) = 0d0
-    dtemp(id_i) = - temp(id_i) * k_T
+    dtemp(id_i) = - k_T * (temp(id_i) - mass(id_i)/mean_m(id_i) * mean_t(id_i))
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
