@@ -52,6 +52,7 @@ program Drake
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
      bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction   
      u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
+     k_T                  =     0d0                     ! relaxation to mean buoyancy profile
   elseif (zlevels == 2) then
      remap                = .true.
      iremap               = 10
@@ -63,6 +64,7 @@ program Drake
      bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
      u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
+     k_T                  =     1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   elseif (zlevels >= 3) then
      sigma_z              = .true.                      ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      vert_diffuse         = .true.
@@ -80,6 +82,8 @@ program Drake
      tau_0                =     0.1d0 * NEWTON/METRE**2 ! maximum wind stress
      bottom_friction_case =       rb_0                  ! bottom friction                      
      u_wbc                =       1d0 * METRE/SECOND    ! estimated western boundary current speed
+     k_T                  =     1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
+  elseif (zlevels >= 3) then
   end if
 
   ! Characteristic scales
@@ -108,13 +112,6 @@ program Drake
      Rb = c1 / f0                                 
   else
      Rb = bv * abs(max_depth) / (MATH_PI*f0)
-  end if
-
-  ! Relaxation of buoyancy to mean profile 
-  if (zlevels == 2 .and. remap) then
-     k_T = 1d0 / (30d0 * DAY)               
-  else
-     k_T = 0d0
   end if
 
   ! Dimensional scaling
