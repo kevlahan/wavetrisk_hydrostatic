@@ -59,9 +59,9 @@ program Drake
      remap                = .true.
      iremap               = 10
      max_depth            = -4000d0 * METRE             ! total depth
-     thermocline          = -1000d0 * METRE             ! location of layer forced by surface wind stress
+     thermocline          =  -500d0 * METRE             ! location of layer forced by surface wind stress
      halocline            = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
-     drho                 =    -4d0 * KG/METRE**3       ! density perturbation in top layer
+     drho                 =    -2d0 * KG/METRE**3       ! density perturbation in top layer
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
      bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
@@ -107,6 +107,8 @@ program Drake
   elseif (zlevels >= 3) then
      c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   endif
+  lambda0        = wave_speed / f0                              ! external scale
+  lambda1        = c1 / f0                                      ! mesoscale
 
   ! First baroclinic Rossby radius of deformation
   if (zlevels == 1) then

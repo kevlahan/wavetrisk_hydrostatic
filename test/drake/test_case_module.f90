@@ -13,7 +13,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
-  real(8)                              :: drho, drho2, drho_dz, f0, Ku, Rb, Rd, Rey, Ro, radius_earth
+  real(8)                              :: drho, drho2, drho_dz, f0, Ku, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, halocline, npts_penal, tau_0, thermocline, u_wbc 
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -452,6 +452,8 @@ contains
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
        write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
+       write (6,'(A,es11.4)') "External scale l0        [km]  = ", lambda0  / KM
+       write (6,'(A,es11.4)') "Internal scale l1        [km]  = ", lambda1  / KM
        write (6,'(A,es11.4)') "Inertial layer           [km]  = ", delta_I  / KM
        write (6,'(A,es11.4)') "Munk layer               [km]  = ", delta_M  / KM
        write (6,'(A,es11.4)') "Stommel layer            [km]  = ", delta_S  / KM
