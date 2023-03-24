@@ -843,8 +843,7 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8)            :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
-    logical, parameter :: munk = .true.
+    real(8) :: area, C_divu, C_mass, C_temp, C_rotu, C_visc, tau_divu, tau_mass, tau_rotu, tau_temp
 
     area = 4d0*MATH_PI*radius**2/(20d0*4d0**max_level) ! average area of a triangle
     dx_min = sqrt (4d0/sqrt(3d0) * area)               ! edge length of average triangle
@@ -856,14 +855,16 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    C_visc = 5d-3
+    C_visc = 2d-3
 
+    C_mass = C_visc
+    C_temp = C_visc
     C_rotu = C_visc
-    C_divu = C_visc
-    C_sclr = C_visc
+    C_divu = C_visc 
 
     ! Diffusion time scales
-    tau_sclr = dt_cfl / C_sclr
+    tau_mass = dt_cfl / C_mass
+    tau_temp = dt_cfl / C_temp
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
 
@@ -872,21 +873,20 @@ contains
        visc_divu = 0d0
        visc_rotu = 0d0
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_rotu = dx_min**(2d0*Laplace_order_init) / tau_rotu
-       visc_divu = dx_min**(2d0*Laplace_order_init) / tau_divu
+       visc_sclr(S_MASS) = dx_min**(2d0*Laplace_order_init) / tau_mass
+       visc_sclr(S_TEMP) = dx_min**(2d0*Laplace_order_init) / tau_temp
+       visc_rotu         = dx_min**(2d0*Laplace_order_init) / tau_rotu
+       visc_divu         = dx_min**(2d0*Laplace_order_init) / tau_divu
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
 
     if (rank == 0) then
-       write (6,'(/,4(a,es8.2),a,/)') &
-            "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
-       write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
-       write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
-            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
+       write (6,'(/,3(a,es8.2),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]" 
+       write (6,'(4(a,es8.2),/)') "C_mass = ", C_mass, "C_temp = ", C_temp, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
+       write (6,'(4(a,es8.2),/)') &
+            " Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
 
@@ -1087,13 +1087,16 @@ contains
     do k = 1, zlevels
        ! Scalars
        do d = 1, size(grid)
-          temp  =>  q(S_TEMP,k)%data(d)%elts
-          dmass => dq(S_MASS,k)%data(d)%elts
-          dtemp => dq(S_TEMP,k)%data(d)%elts
+          mass   =>  q(S_MASS,k)%data(d)%elts
+          temp   =>  q(S_TEMP,k)%data(d)%elts
+          mean_m =>  sol_mean(S_MASS,k)%data(d)%elts
+          mean_t =>  sol_mean(S_TEMP,k)%data(d)%elts
+          dmass  => dq(S_MASS,k)%data(d)%elts
+          dtemp  => dq(S_TEMP,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (trend_scalars, grid(d), p-1, k, 0, 1)
           end do
-          nullify (dmass, dscalar, temp)
+          nullify (dmass, dscalar, mass, temp, mean_m, mean_t)
        end do
 
        ! Velocity and mass 
@@ -1121,7 +1124,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     dmass(id_i) = 0d0
-    dtemp(id_i) = - temp(id_i) * k_T
+    dtemp(id_i) = - k_T * (temp(id_i) - mass(id_i)/mean_m(id_i) * mean_t(id_i))
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)

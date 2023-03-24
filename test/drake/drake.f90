@@ -44,7 +44,8 @@ program Drake
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
 
-  if (zlevels == 1) then                                ! maximum allowed depth (must be negative)
+  if (zlevels == 1) then
+     coords               = "uniform"
      max_depth            = -4000d0 * METRE             ! total depth
      halocline            = -4000d0 * METRE             ! location of top (less dense) layer in two layer case
      thermocline          = -4000d0 * METRE             ! location of layer forced by surface wind stress
@@ -52,7 +53,9 @@ program Drake
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
      bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction   
      u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
+     k_T                  =     0d0                     ! relaxation to mean buoyancy profile
   elseif (zlevels == 2) then
+     coords               = "uniform"
      remap                = .true.
      iremap               = 10
      max_depth            = -4000d0 * METRE             ! total depth
@@ -63,7 +66,9 @@ program Drake
      bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
      u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
+     k_T                  =     1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   elseif (zlevels >= 3) then
+     coords               = "uniform"
      sigma_z              = .true.                      ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      vert_diffuse         = .true.
      tke_closure          = .true.
@@ -80,6 +85,8 @@ program Drake
      tau_0                =     0.1d0 * NEWTON/METRE**2 ! maximum wind stress
      bottom_friction_case =       rb_0                  ! bottom friction                      
      u_wbc                =       1d0 * METRE/SECOND    ! estimated western boundary current speed
+     k_T                  =       1d0 / (30d0 * DAY)    ! relaxation to mean buoyancy profile
+  elseif (zlevels >= 3) then
   end if
 
   ! Characteristic scales
@@ -108,13 +115,6 @@ program Drake
      Rb = c1 / f0                                 
   else
      Rb = bv * abs(max_depth) / (MATH_PI*f0)
-  end if
-
-  ! Relaxation of buoyancy to mean profile 
-  if (zlevels == 2 .and. remap) then
-     k_T = 1d0 / (30d0 * DAY)               
-  else
-     k_T = 0d0
   end if
 
   ! Dimensional scaling
