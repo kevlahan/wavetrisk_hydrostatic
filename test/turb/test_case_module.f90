@@ -405,7 +405,7 @@ contains
           velo1 => grid(d)%u_zonal%elts
           velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_edge_node,    grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             call apply_onescale_to_patch (interp_UVW_latlon,    grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              call apply_onescale_to_patch (geostrophic_balance, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
           nullify (velo, velo1, velo2)
@@ -611,7 +611,7 @@ contains
     d  = dom%id+1
     id = idx (i, j,offs, dims)
 
-    call interp_node_edge (dom, i, j, z_null, offs, dims, sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+    call interp_latlon_UVW (dom, i, j, z_null, offs, dims, sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   end subroutine init_velo
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
@@ -1263,7 +1263,7 @@ contains
           velo1  => grid(d)%u_zonal%elts
           velo2  => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (interp_edge_node, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
+             call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(l)%elts(j), z_null,  0, 1)
           end do
           nullify (velo, velo1, velo2)
        end do

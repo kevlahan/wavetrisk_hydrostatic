@@ -418,7 +418,7 @@ contains
     u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv)
   end function u_mag
 
-  subroutine interp_node_edge (dom, i, j, zlev, offs, dims, uvw)
+  subroutine interp_latlon_UVW (dom, i, j, zlev, offs, dims, uvw)
     ! Interpolate from zonal, meridional velocity components at nodes to U, V, W velocity components at edges
     ! (assumes that dom%u_zonal and dom%v_merid have been set over all grid points)
     implicit none
@@ -429,65 +429,54 @@ contains
     real(8), dimension (1:EDGE)     :: uvw
 
     integer     :: id, idE, idN, idNE
-    real(8)     :: u_zonal, v_merid
-    type(Coord) :: x_e, x_i
+    type(Coord) :: vel0
 
     id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
-    
-    x_i = dom%node%elts(id+1)
 
-    x_e = dom%node%elts(idE+1)
-    u_zonal = interp (dom%u_zonal%elts(id+1), dom%u_zonal%elts(idE+1))
-    v_merid = interp (dom%v_merid%elts(id+1), dom%v_merid%elts(idE+1))
-    uvw(RT+1) = proj_edge ()
+    vel0 = vel (id)
 
-    x_e = dom%node%elts(idNE+1)
-    u_zonal = interp (dom%u_zonal%elts(id+1), dom%u_zonal%elts(idNE+1))
-    v_merid = interp (dom%v_merid%elts(id+1), dom%v_merid%elts(idNE+1))
-    uvw(DG+1) = - proj_edge ()
-
-    x_e = dom%node%elts(idN+1)
-    u_zonal = interp (dom%u_zonal%elts(id+1), dom%u_zonal%elts(idN+1))
-    v_merid = interp (dom%v_merid%elts(id+1), dom%v_merid%elts(idN+1))
-    uvw(UP+1) = proj_edge ()
+    uvw(RT+1) = inner (direction(dom%node%elts(id+1),   dom%node%elts(idE+1)), vec_interp(vel0, vel(idE)))
+    uvw(DG+1) = inner (direction(dom%node%elts(idNE+1), dom%node%elts(id+1)),  vec_interp(vel0, vel(idNE)))
+    uvw(UP+1) = inner (direction(dom%node%elts(idN+1),  dom%node%elts(idN+1)), vec_interp(vel0, vel(idN)))
   contains
-    real(8) function proj_edge ()
-      implicit none
-      real(8)     :: lon, lat
-      type(Coord) :: co, e_merid, e_zonal, uvw_dir, vel
+    type(Coord) function vel (id)
+      ! Computes velocity at node id from its latitude and longitude components
+      integer :: id
 
-      ! Find longitude and latitude coordinates
-      co = mid_pt (x_i, x_e)
-      call cart2sph (co, lon, lat)
-      e_zonal = Coord (-sin(lon),           cos(lon),               0d0) ! Zonal direction
-      e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
+      real(8)     :: lat, lon
+      type(Coord) :: e_merid, e_zonal
 
-      ! Velocity vector in Cartesian coordinates
-      vel = vec_plus (vec_scale (u_zonal, e_zonal), vec_scale (v_merid, e_merid))
+      call cart2sph (dom%node%elts(id+1), lon, lat)
 
-      ! Project velocity vector on direction given by points ep1, ep2
-      uvw_dir = direction (x_i, x_e)
-      proj_edge = inner (uvw_dir, vel)
-    end function proj_edge
-  end subroutine interp_node_edge
+      e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
+      e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
 
-  subroutine interp_edge_node (dom, i, j, zlev, offs, dims)
+      vel = vec_plus (vec_scale(dom%u_zonal%elts(id+1), e_zonal), vec_scale(dom%v_merid%elts(id+1), e_merid))
+    end function vel
+  end subroutine interp_latlon_UVW
+
+  subroutine interp_UVW_latlon (dom, i, j, zlev, offs, dims)
     ! Interpolate velocity from U, V, W velocity components at edges to zonal, meridional velocity components at nodes
-    ! (uses Perot formula as also used for kinetic energy: 
-    ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area)
+    ! Perot reconstruction based on Gauss theorem:
+    !
+    ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_centroid) ) / cell_area
+    !
+    ! also used for kinetic energy
+    !
+    ! Output is in pointer arrays velo1 (u_zonal) and velo2 (u_merid)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    type(Coord) :: vel, x_e, x_i
-    type(Coord) :: e_zonal, e_merid
+    
     integer     :: id, idN, idE, idNE, idS, idSW, idW
     real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
+    type(Coord) :: cent, e_zonal, e_merid, vel
 
     id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
@@ -506,41 +495,32 @@ contains
     u_dual_DG_SW =  velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
     u_dual_UP_S  = -velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
 
+    ! Compute hexagon centroid from its vertices
+    cent = centroid (                                                                 &
+         (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1),   &
+            dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
+            dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /), 6)
+
+    ! Velocity at node from Perot formula
+    vel =                vec_scale (u_dual_RT   , vec_minus (dom%midpt%elts(EDGE*id+RT+1),   cent))
+    vel = vec_plus (vel, vec_scale (u_dual_DG   , vec_minus (dom%midpt%elts(EDGE*id+DG+1),   cent)))
+    vel = vec_plus (vel, vec_scale (u_dual_UP   , vec_minus (dom%midpt%elts(EDGE*id+UP+1),   cent)))
+    vel = vec_plus (vel, vec_scale (u_dual_RT_W , vec_minus (dom%midpt%elts(EDGE*idW+RT+1),  cent)))
+    vel = vec_plus (vel, vec_scale (u_dual_DG_SW, vec_minus (dom%midpt%elts(EDGE*idSW+DG+1), cent)))
+    vel = vec_plus (vel, vec_scale (u_dual_UP_S , vec_minus (dom%midpt%elts(EDGE*idS+UP+1),  cent)))
+    vel = vec_scale (dom%areas%elts(id+1)%hex_inv, vel)
+
     ! Coordinate of hexagon centre (circumcentre)
-    x_i = dom%node%elts(id+1)
+    call cart2sph (dom%node%elts(id+1), lon, lat)
 
-    ! Sum over 6 hexagon edges
-    vel = Coord (0d0, 0d0, 0d0)
-
-    x_e = dom%midpt%elts(EDGE*id+RT+1)
-    vel = vec_plus (vel, vec_scale (u_dual_RT,    vec_minus(x_e, x_i)))
-
-    x_e = dom%midpt%elts(EDGE*idW+RT+1)
-    vel = vec_plus (vel, vec_scale (u_dual_RT_W,  vec_minus(x_e, x_i)))
-
-    x_e = dom%midpt%elts(EDGE*id+DG+1)
-    vel = vec_plus (vel, vec_scale (u_dual_DG,    vec_minus(x_e, x_i)))
-
-    x_e = dom%midpt%elts(EDGE*idSW+DG+1)
-    vel = vec_plus (vel, vec_scale (u_dual_DG_SW, vec_minus(x_e, x_i)))
-
-    x_e = dom%midpt%elts(EDGE*id+UP+1)
-    vel = vec_plus (vel, vec_scale (u_dual_UP,    vec_minus(x_e, x_i)))
-
-    x_e = dom%midpt%elts(EDGE*idS+UP+1)
-    vel = vec_plus (vel, vec_scale (u_dual_UP_S,  vec_minus(x_e, x_i)))
-
-    vel = vec_scale (dom%areas%elts(id+1)%hex_inv, vel) ! construct velocity at hexagonal node
-
-    ! Project velocity onto zonal and meridional directions
-    call cart2sph (x_i, lon, lat)
-
-    e_zonal = Coord (-sin(lon),           cos(lon),               0d0) ! Zonal direction
-    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
-
+    ! Zonal and meridional directions
+    e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
+    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
+    
+    ! Project velocity at node onto zonal and meridional directions
     velo1(id+1) = inner (vel, e_zonal)
     velo2(id+1) = inner (vel, e_merid)
-  end subroutine interp_edge_node
+  end subroutine interp_UVW_latlon
 
   subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
     ! Approximate vorticity at hexagon points

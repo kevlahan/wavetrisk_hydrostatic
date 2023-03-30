@@ -33,6 +33,13 @@ contains
     vec_plus = Coord (v1%x+v2%x, v1%y+v2%y, v1%z+v2%z)
   end function vec_plus
 
+  type(Coord) function vec_interp (v1, v2)
+    implicit none
+    type(Coord) :: v1, v2
+
+    vec_interp = Coord (0.5d0*(v1%x+v2%x), 0.5d0*(v1%y+v2%y), 0.5d0*(v1%z+v2%z))
+  end function vec_interp
+
   type(Coord) function vec_plus3 (v1, v2, v3)
     implicit none
     type(Coord) :: v1, v2, v3
