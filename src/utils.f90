@@ -440,7 +440,7 @@ contains
 
     uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5d0*(vel0 + vel(idE)))
     uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)) ,  0.5d0*(vel0 + vel(idNE)))
-    uvw(UP+1) = inner (direction (dom%node%elts(idN+1),  dom%node%elts(idN+1)),  0.5d0*(vel0 + vel(idN)))
+    uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5d0*(vel0 + vel(idN)))
   contains
     type(Coord) function vel (id)
       ! Computes velocity at node id from its latitude and longitude components
