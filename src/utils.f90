@@ -4,8 +4,8 @@ module utils_mod
   use comm_mod
   use comm_mpi_mod
   implicit none
-  real(8)                         :: integral
-  real(8), dimension(:), pointer  :: val1, val2
+  real(8)                        :: integral
+  real(8), dimension(:), pointer :: val1, val2
 
   abstract interface
      real(8) function routine_hex (dom, i, j, zlev, offs, dims)
@@ -244,8 +244,8 @@ contains
   function porous_density_edge (d, id, zlev)
     ! Porous density at edges
     implicit none
-    integer                        :: d, id, zlev
-    real(8), dimension(1:EDGE)     :: porous_density_edge
+    integer                    :: d, id, zlev
+    real(8), dimension(1:EDGE) :: porous_density_edge
     
     porous_density_edge = ref_density * (1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   end function porous_density_edge
@@ -438,9 +438,9 @@ contains
 
     vel0 = vel (id)
 
-    uvw(RT+1) = inner (direction(dom%node%elts(id+1),   dom%node%elts(idE+1)), vec_interp(vel0, vel(idE)))
-    uvw(DG+1) = inner (direction(dom%node%elts(idNE+1), dom%node%elts(id+1)),  vec_interp(vel0, vel(idNE)))
-    uvw(UP+1) = inner (direction(dom%node%elts(idN+1),  dom%node%elts(idN+1)), vec_interp(vel0, vel(idN)))
+    uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5d0*(vel0 + vel(idE)))
+    uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)) ,  0.5d0*(vel0 + vel(idNE)))
+    uvw(UP+1) = inner (direction (dom%node%elts(idN+1),  dom%node%elts(idN+1)),  0.5d0*(vel0 + vel(idN)))
   contains
     type(Coord) function vel (id)
       ! Computes velocity at node id from its latitude and longitude components
@@ -454,7 +454,7 @@ contains
       e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
       e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
 
-      vel = vec_plus (vec_scale(dom%u_zonal%elts(id+1), e_zonal), vec_scale(dom%v_merid%elts(id+1), e_merid))
+      vel = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
     end function vel
   end subroutine interp_latlon_UVW
 
@@ -502,13 +502,13 @@ contains
             dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /), 6)
 
     ! Velocity at node from Perot formula
-    vel =                vec_scale (u_dual_RT   , vec_minus (dom%midpt%elts(EDGE*id+RT+1),   cent))
-    vel = vec_plus (vel, vec_scale (u_dual_DG   , vec_minus (dom%midpt%elts(EDGE*id+DG+1),   cent)))
-    vel = vec_plus (vel, vec_scale (u_dual_UP   , vec_minus (dom%midpt%elts(EDGE*id+UP+1),   cent)))
-    vel = vec_plus (vel, vec_scale (u_dual_RT_W , vec_minus (dom%midpt%elts(EDGE*idW+RT+1),  cent)))
-    vel = vec_plus (vel, vec_scale (u_dual_DG_SW, vec_minus (dom%midpt%elts(EDGE*idSW+DG+1), cent)))
-    vel = vec_plus (vel, vec_scale (u_dual_UP_S , vec_minus (dom%midpt%elts(EDGE*idS+UP+1),  cent)))
-    vel = vec_scale (dom%areas%elts(id+1)%hex_inv, vel)
+    vel = dom%areas%elts(id+1)%hex_inv * ( &
+         u_dual_RT    * (dom%midpt%elts(EDGE*id+RT+1)   - cent) + &
+         u_dual_DG    * (dom%midpt%elts(EDGE*id+DG+1)   - cent) + &
+         u_dual_UP    * (dom%midpt%elts(EDGE*id+UP+1)   - cent) + &
+         u_dual_RT_W  * (dom%midpt%elts(EDGE*idW+RT+1)  - cent) + &
+         u_dual_DG_SW * (dom%midpt%elts(EDGE*idSW+DG+1) - cent) + &
+         u_dual_UP_S  * (dom%midpt%elts(EDGE*idS+UP+1)  - cent))
 
     ! Coordinate of hexagon centre (circumcentre)
     call cart2sph (dom%node%elts(id+1), lon, lat)

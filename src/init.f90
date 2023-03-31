@@ -88,7 +88,6 @@ contains
     logical :: initialized = .false.
     
     if (initialized) return ! initialize only once
-    call init_sphere_mod
     call init_domain_mod
     call init_arch_mod
     initialized = .true.

@@ -106,7 +106,6 @@ contains
     if (initialized) return ! initialize only once
 
     call init_shared_mod
-    call init_sphere_mod
     call init_patch_mod
     call init_arch_mod
 

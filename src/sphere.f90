@@ -1,23 +1,9 @@
 module geom_mod
   use param_mod
   use shared_mod
+  use coord_arithmetic_mod
   implicit none
-
-  type Coord
-     real(8) :: x, y, z
-  end type Coord
-
-  type Areas
-     real(8), dimension(6) :: part
-     real(8)               :: hex_inv
-  end type Areas
-
-  type(Coord), parameter :: ORIGIN = Coord (0d0, 0d0, 0d0)
 contains
-  subroutine init_sphere_mod
-    ! if needed in future
-  end subroutine init_sphere_mod
-
   type(Coord) function direction (init, term)
     implicit none
     type(Coord) :: init, term, v
@@ -25,42 +11,6 @@ contains
     v = vector (init, term)
     direction = normalize_Coord (v)
   end function direction
-
-  type(Coord) function vec_plus (v1, v2)
-    implicit none
-    type(Coord) :: v1, v2
-
-    vec_plus = Coord (v1%x+v2%x, v1%y+v2%y, v1%z+v2%z)
-  end function vec_plus
-
-  type(Coord) function vec_interp (v1, v2)
-    implicit none
-    type(Coord) :: v1, v2
-
-    vec_interp = Coord (0.5d0*(v1%x+v2%x), 0.5d0*(v1%y+v2%y), 0.5d0*(v1%z+v2%z))
-  end function vec_interp
-
-  type(Coord) function vec_plus3 (v1, v2, v3)
-    implicit none
-    type(Coord) :: v1, v2, v3
-
-    vec_plus3 = Coord (v1%x+v2%x+v3%x, v1%y+v2%y+v3%y, v1%z+v2%z+v3%z)
-  end function vec_plus3
-
-  type(Coord) function vec_minus (v1, v2)
-    implicit none
-    type(Coord) :: v1, v2
-
-    vec_minus = Coord (v1%x-v2%x, v1%y-v2%y, v1%z-v2%z)
-  end function vec_minus
-
-  type(Coord) function vec_scale (alpha, v)
-    implicit none
-    real(8)     :: alpha
-    type(Coord) :: v
-
-    vec_scale = Coord (alpha*v%x, alpha*v%y, alpha*v%z)
-  end function vec_scale
 
   real(8) function dist (p, q)
     implicit none
@@ -75,13 +25,6 @@ contains
     
     sph2cart = Coord (cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat))
   end function sph2cart
-
-  type(Coord) function cross(u, v)
-    implicit none
-    type(Coord) :: u, v
-
-    cross = Coord (u%y*v%z - u%z*v%y, u%z*v%x - u%x*v%z, u%x*v%y - u%y*v%x)
-  end function cross
 
   type(Coord) function project_on_sphere (p)
     implicit none
@@ -109,7 +52,7 @@ contains
     if (norm(vector(arc1_no2, arc2_no2)) < eps()) return
 
     normal1 = cross (arc1_no1, arc1_no2)
-    inpr = inner (normal1, arc2_no1)*inner(normal1, arc2_no2)
+    inpr = inner (normal1, arc2_no1) * inner(normal1, arc2_no2)
     if (inpr > 0d0) then
        if (inpr < (eps()*radius**2)**2) troubles = .true.
        does_inters = .false.
@@ -125,8 +68,8 @@ contains
        return
     end if
 
-    inters_pt = project_on_sphere(cross(normal1, normal2))
-    call init_Coord(neg_int_pt, -inters_pt%x, -inters_pt%y, -inters_pt%z)
+    inters_pt = project_on_sphere (cross(normal1, normal2))
+    call init_Coord (neg_int_pt, -inters_pt%x, -inters_pt%y, -inters_pt%z)
 
     if (norm(vector(neg_int_pt, arc1_no1)) < norm (vector (inters_pt, arc1_no1))) then
        inters_pt = neg_int_pt
@@ -141,13 +84,20 @@ contains
 
     vector = Coord (term%x - init%x, term%y - init%y, term%z - init%z)
   end function vector
-
+  
   real(8) function inner (u, v)
     implicit none
     type(Coord) :: u, v
 
     inner = u%x*v%x + u%y*v%y + u%z*v%z
   end function inner
+
+  type(Coord) function cross(u, v)
+    implicit none
+    type(Coord) :: u, v
+
+    cross = Coord (u%y*v%z - u%z*v%y, u%z*v%x - u%x*v%z, u%x*v%y - u%y*v%x)
+  end function cross
 
   real(8) function triarea (A, B, C)
     implicit none
@@ -224,17 +174,17 @@ contains
     ! Arithmetic mean used as center
     cc = points(1)
     do i = 2, n
-       cc = vec_plus(cc, points(i))
+       cc = cc + points(i)
     end do
-    cc = vec_scale(1d0/6d0, cc)
+    cc = cc / 6d0
     
     centroid = ORIGIN
     do i = 1, n
        j = mod(i,n)+1
        area = triarea (cc, points(i), points(j))
-       centroid = vec_plus(centroid, vec_scale(area, vec_plus3(cc, points(i), points(j))))
+       centroid = centroid + area * (cc + points(i) + points(j))
     end do
-    centroid = project_on_sphere(vec_scale(1d0/6d0, centroid))
+    centroid = project_on_sphere (centroid/6d0)
   end function centroid
 
   real(8) function norm (c)
@@ -312,7 +262,7 @@ contains
     type(Coord) :: co, e_zonal, e_merid, vel
     real(8)     :: lon, lat, u_zonal, v_merid
 
-    co = mid_pt(ep1, ep2)
+    co = mid_pt (ep1, ep2)
 
     ! Find longitude and latitude coordinates of point co
     call cart2sph(co, lon, lat)
@@ -321,35 +271,15 @@ contains
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
     ! Function returning zonal and meridional velocities given longitude and latitude
-    call vel_fun(lon, lat, u_zonal, v_merid)
+    call vel_fun (lon, lat, u_zonal, v_merid)
 
     ! Velocity vector in Cartesian coordinates
-    vel = vec_plus(vec_scale(u_zonal,e_zonal), vec_scale(v_merid,e_merid))
+    vel = u_zonal * e_zonal + v_merid * e_merid
 
     ! Project velocity vector on direction given by points ep1, ep2
-    proj_vel = inner(direction(ep1, ep2), vel)
+    proj_vel = inner (direction (ep1, ep2), vel)
   end function proj_vel
-
-  real(8) function proj_vel_eta (vel_fun, ep1, ep2, eta_z)
-    ! Extension of proj_vel that allows for another parameter eta_z to be passed in vel_fun
-    implicit none
-    external    :: vel_fun
-    type(Coord) :: co, ep1, ep2
-    real(8)     :: eta_z
-
-    real(8)               :: lon, lat, u, v
-    real(8), dimension(3) :: e_lat, e_lon, vel
-
-    co = mid_pt (ep1, ep2)
-
-    call cart2sph (co, lon, lat)
-
-    e_lat = (/-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)/)
-    e_lon = (/-sin(lon), cos(lon), 0d0/)
-
-    call vel_fun (lon, lat, u, v, eta_z)
-
-    vel = e_lat * v + e_lon * u
-    proj_vel_eta = inner (direction (ep1, ep2), Coord(vel(1), vel(2), vel(3)))
-  end function proj_vel_eta
 end module geom_mod
+
+
+

@@ -2,6 +2,17 @@ module shared_mod
   use param_mod
   implicit none
 
+  type Coord
+     real(8) :: x, y, z
+  end type Coord
+
+  type Areas
+     real(8), dimension(6) :: part
+     real(8)               :: hex_inv
+  end type Areas
+
+  type(Coord), parameter :: ORIGIN = Coord (0d0, 0d0, 0d0)
+
   ! Numbers of triangles and edges per grid element
   integer, parameter :: TRIAG = 2, EDGE = 3
 

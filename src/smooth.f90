@@ -14,7 +14,6 @@ contains
 
     if (initialized) return ! initialize only once
     call init_shared_mod
-    call init_sphere_mod
     call init_domain_mod
     initialized = .True.
   end subroutine init_smooth_mod
@@ -30,7 +29,7 @@ contains
     real(8)     :: alpha, beta, cosalpha, cosbeta, t
     type(Coord) :: s, p_i, p_ip, p_im, p_j, v, v1, v2
     
-    call init_Coord (s, 0.0_8, 0.0_8, 0.0_8)
+    call init_Coord (s, 0d0, 0d0, 0d0)
 
     p_i = dom%node%elts(idx(i, j, offs, dims) + 1)
 
@@ -47,14 +46,14 @@ contains
             offs, dims) + 1)
        v1 = vector(p_im, p_j)
        v2 = vector(p_im, p_i)
-       cosalpha = inner(v1, v2)/(norm(v1)*norm(v2))
+       cosalpha = inner (v1, v2) / (norm(v1) * norm(v2))
        v1 = vector(p_ip, p_j)
        v2 = vector(p_ip, p_i)
-       cosbeta = inner(v1, v2)/(norm(v1)*norm(v2))
-       alpha = acos(cosalpha)
-       beta = acos(cosbeta)
-       v = vector(p_j, p_i)
-       t = 1.0_8/tan(alpha) + (1.0_8/tan(beta))
+       cosbeta = inner (v1, v2) / (norm(v1) * norm(v2))
+       alpha = acos (cosalpha)
+       beta = acos (cosbeta)
+       v = vector (p_j, p_i)
+       t = 1d0/tan(alpha) + (1d0/tan(beta))
        s%x = s%x + v%x*t
        s%y = s%y + v%y*t
        s%z = s%z + v%z*t
@@ -73,8 +72,8 @@ contains
     call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
     call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
 
-    maxerror = 0.0_8
-    l2error  = 0.0_8
+    maxerror = 0d0
+    l2error  = 0d0
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
 
     l2error = sqrt (sum_real (l2error))
@@ -89,9 +88,9 @@ contains
     allocate (sums(maxval(grid(:)%node%length), size(grid)))
 
     k = 0
-    maxerror = 2.0_8*tol
+    maxerror = 2d0*tol
     do while(maxerror > tol)
-       maxerror = 0.0_8
+       maxerror = 0d0
        call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
        call apply_onescale (Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
@@ -112,8 +111,8 @@ contains
     call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
     call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
 
-    maxerror = 0.0_8
-    l2error = 0.0_8
+    maxerror = 0d0
+    l2error = 0d0
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
     l2error = sqrt (sum_real (l2error))
     maxerror = sync_max_real (maxerror)
