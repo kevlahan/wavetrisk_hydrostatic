@@ -133,18 +133,6 @@ contains
     idE  = idx (i+1, j,   offs, dims) 
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
-    
-    ! Layer thicknesses and velocities
-    if (zlevels == 2) then
-       h1 = dz_e (dom, i, j, 1, offs, dims, sol)
-       h2 = dz_e (dom, i, j, 2, offs, dims, sol)
-
-       u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-       u2 = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-    elseif (zlevels == 1) then
-       h1 = dz_e (dom, i, j, 1, offs, dims, sol);                  h2 = h1
-       u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1); u2 = u1
-    end if
 
     ! Horizontal diffusion
     if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4d0*dx_max)**2 < 1d0) then ! increase diffusion near poles to remove noise at these lower accuracy points
@@ -154,18 +142,33 @@ contains
     else
        horiz_diffusion = (-1d0)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
     end if
-    
+
     ! Vertical diffusion
-    if (zlevels == 2) then
-       if (zlev == 1) then
-          vert_diffusion = - Ku / (h1 * (h1 + h2)/2d0) * (u1 - u2) + bottom_drag()
-       elseif (zlev == 2) then
-          vert_diffusion = - Ku / (h2 * (h1 + h2)/2d0) * (u2 - u1) + wind_drag()
-       end if
-    elseif (zlevels == 1) then
-       vert_diffusion = bottom_drag() + wind_drag()
-    else
+    if (vert_diffuse) then ! using vertical diffusion module
        vert_diffusion = 0d0
+    else
+       ! Layer thicknesses and velocities
+       if (zlevels == 2) then
+          h1 = dz_e (dom, i, j, 1, offs, dims, sol)
+          h2 = dz_e (dom, i, j, 2, offs, dims, sol)
+
+          u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+          u2 = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+       elseif (zlevels == 1) then
+          h1 = dz_e (dom, i, j, 1, offs, dims, sol);                  h2 = h1
+          u1 = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1); u2 = u1
+       end if
+
+       ! Vertical diffusion
+       if (zlevels == 2) then
+          if (zlev == 1) then
+             vert_diffusion = - Ku / (h1 * (h1 + h2)/2d0) * (u1 - u2) + bottom_drag()
+          elseif (zlev == 2) then
+             vert_diffusion = - Ku / (h2 * (h1 + h2)/2d0) * (u2 - u1) + wind_drag()
+          end if
+       elseif (zlevels == 1) then
+          vert_diffusion = bottom_drag() + wind_drag()
+       end if
     end if
 
     ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
@@ -406,6 +409,8 @@ contains
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
        write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
+       write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
+       write (6,'(A,L1)')     "tke_closure                    = ", tke_closure
        write (6,'(A,es10.4)') "dt_write [d]                   = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY                       = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance                      = ", rebalance
@@ -857,12 +862,12 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    C_visc = 2d-3
+    C_visc = 5d-3
 
-    C_mass = C_visc
-    C_temp = C_visc
+    C_mass = 0d0!C_visc
+    C_temp = 0d0!C_visc
     C_rotu = C_visc
-    C_divu = C_visc 
+    C_divu = 0d0!C_visc 
 
     ! Diffusion time scales
     tau_mass = dt_cfl / C_mass
@@ -886,9 +891,9 @@ contains
 
     if (rank == 0) then
        write (6,'(/,3(a,es8.2),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]" 
-       write (6,'(4(a,es8.2),/)') "C_mass = ", C_mass, "C_temp = ", C_temp, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
+       write (6,'(4(a,es8.2),/)') "C_mass = ", C_mass, " C_temp = ", C_temp, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') &
-            " Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
+            "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
 
@@ -1126,7 +1131,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     dmass(id_i) = 0d0
-    dtemp(id_i) = - k_T * (temp(id_i) - mass(id_i)/mean_m(id_i) * mean_t(id_i))
+    dtemp(id_i) = - k_T * (temp(id_i) - mass(id_i) * mean_t(id_i)/mean_m(id_i)) * (1d0 + mass(id_i)/mean_m(id_i))
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)

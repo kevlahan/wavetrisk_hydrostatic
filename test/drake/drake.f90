@@ -30,14 +30,12 @@ program Drake
   remapscalar_type   = "PPR"                            ! remapping scheme for scalars
   remapvelo_type     = "PPR"                            ! remapping scheme for velocity
 
-  coarse_iter         = 40                              ! maximum number of coarse scale bicgstab iterations for elliptic solver
-  fine_iter           = 100                             ! maximum number of fine scale jacobi iterations for elliptic solver
   tol_elliptic        = 1d-6                            ! tolerance for coarse scale bicgstab elliptic solver
   tol_jacobi          = 1d-3                            ! tolerance for fine scale jacobi iterations
   
   Laplace_order_init = 1                                ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
-  cfl_num            = 25d0                             ! cfl number
+  cfl_num            = 15d0                             ! cfl number
   save_zlev          = zlevels                          ! vertical layer to save
 
   npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
@@ -45,6 +43,7 @@ program Drake
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
 
   if (zlevels == 1) then
+     vert_diffuse         = .false.
      coords               = "uniform"
      max_depth            = -4000d0 * METRE             ! total depth
      halocline            = -4000d0 * METRE             ! location of top (less dense) layer in two layer case
@@ -58,19 +57,22 @@ program Drake
      coords               = "uniform"
      remap                = .true.
      iremap               = 10
+     vert_diffuse         = .true.
+     Kt_const            = 1d-6     * METRE**2 / SECOND ! analytic value for eddy diffusion 
+     Kv_bottom           = 2d-3     * METRE**2 / SECOND ! analytic value for eddy viscosity 
      max_depth            = -4000d0 * METRE             ! total depth
-     thermocline          =  -500d0 * METRE             ! location of layer forced by surface wind stress
+     thermocline          = -1000d0 * METRE             ! location of layer forced by surface wind stress
      halocline            = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
-     drho                 =    -2d0 * KG/METRE**3       ! density perturbation in top layer
-     tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
+     drho                 =    -4d0 * KG/METRE**3       ! density perturbation in top layer
+     tau_0                =   0.1d0 * NEWTON/METRE**2   ! maximum wind stress
      bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
-     u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
+     u_wbc                =     0.1d0 * METRE/SECOND      ! estimated western boundary current speed
      k_T                  =     1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   elseif (zlevels >= 3) then
+     vert_diffuse         = .true.
      coords               = "uniform"
      sigma_z              = .true.                      ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-     vert_diffuse         = .true.
      tke_closure          = .true.
      patankar             = .false.                     ! avoid noise with zero initial velocity
      enhance_diff         = .false.
