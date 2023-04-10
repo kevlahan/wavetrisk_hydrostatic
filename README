@@ -241,7 +241,8 @@ To restart from a saved checkpoint
 
 ./charmrun +p 60 ./jet_J6 test_case.in +vp 160 +balancer RefineLB +LBDebug 1 +restart directory_name
 
-where directory_name is the directory containing the checkpoint to restart from.
+where directory_name is the directory containing the checkpoint to restart from. If you get a segmentation fault, check that parameters 
+DOMAIN_LEVEL and MIN_LEVEL and flag vert_diffuse are the same as in the run that generated the checkpoint.
 
 ************************************************************
 3.2 AMPI EXAMPLES
