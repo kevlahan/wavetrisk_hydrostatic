@@ -92,16 +92,17 @@ program Drake
   end if
 
   ! Characteristic scales
-  radius         = radius_earth/scale                           ! mean radius of the small planet
-  omega          = omega_earth/scale_omega                      ! angular velocity (scaled for small planet to keep beta constant)
-  wave_speed     = sqrt (grav_accel*abs(max_depth))             ! inertia-gravity wave speed 
-  f0             = 2d0*omega*sin(45d0*DEG)                      ! representative Coriolis parameter
-  beta           = 2d0*omega*cos(45d0*DEG) / radius             ! beta parameter at 45 degrees latitude
-  Rd             = wave_speed / f0                              ! barotropic Rossby radius of deformation                   
-  drho_dz        = drho / halocline                             ! density gradient
-  bv             = sqrt (grav_accel * abs(drho_dz)/ref_density) ! Brunt-Vaisala frequency
-  delta_I        = sqrt (u_wbc/beta)                            ! inertial layer
-  delta_sm       = u_wbc / f0                                   ! barotropic submesoscale
+  radius         = radius_earth/scale                             ! mean radius of the small planet
+  omega          = omega_earth/scale_omega                        ! angular velocity (scaled for small planet to keep beta constant)
+  wave_speed     = sqrt (grav_accel*abs(max_depth))               ! inertia-gravity wave speed 
+  f0             = 2d0*omega*sin(45d0*DEG)                        ! representative Coriolis parameter
+  beta           = 2d0*omega*cos(45d0*DEG) / radius               ! beta parameter at 45 degrees latitude
+  Rd             = wave_speed / f0                                ! barotropic Rossby radius of deformation                   
+  drho_dz        = drho / halocline                               ! density gradient
+  bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)   ! Brunt-Vaisala frequency
+  delta_I        = sqrt (u_wbc/beta)                              ! inertial layer
+  delta_sm       = u_wbc / f0                                     ! barotropic submesoscale
+  delta_S       = bottom_friction_case / (abs(max_depth) * beta)  ! Stommel layer scale
 
   ! Baroclinic wave speed
   if (zlevels == 2) then
@@ -139,10 +140,6 @@ program Drake
   delta_M = (visc_rotu/beta)**(1d0/(2*Laplace_order_init+1))  ! Munk layer scale
   Rey     = u_wbc * delta_I / visc_rotu                       ! Reynolds number of western boundary current
   Ro      = u_wbc / (delta_M*f0)                              ! Rossby number (based on boundary current)
-
-  if (zlevels <= 2) bottom_friction_case = beta * delta_M/4d0 ! ensure that delta_S = delta_M/4
-  
-  delta_S = bottom_friction_case / (abs(max_depth) * beta)    ! Stommel layer scale
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
