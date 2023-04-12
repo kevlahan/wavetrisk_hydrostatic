@@ -1131,7 +1131,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     dmass(id_i) = 0d0
-    dtemp(id_i) = - k_T * (temp(id_i) - mass(id_i) * mean_t(id_i)/mean_m(id_i)) * (1d0 + mass(id_i)/mean_m(id_i))
+    dtemp(id_i) = - k_T * (temp(id_i) - mass(id_i) * mean_t(id_i)/mean_m(id_i))
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
