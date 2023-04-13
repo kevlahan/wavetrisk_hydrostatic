@@ -126,6 +126,8 @@ contains
     real(8)                    :: dx, visc
     real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, u1, u2, vert_diffusion
 
+    logical, parameter :: pole_diffuse = .false.
+
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
@@ -133,12 +135,13 @@ contains
     idE  = idx (i+1, j,   offs, dims) 
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
-
+    
     ! Horizontal diffusion
-    if ((dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4d0*dx_max)**2 < 1d0) then ! increase diffusion near poles to remove noise at these lower accuracy points
+    if (pole_diffuse .and. (dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4d0*dx_max)**2 < 1d0) then
+       ! Increase diffusion near poles to remove noise at these lower accuracy points
        dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
-       visc = dx**2/dt/32d0
-       horiz_diffusion = (-1d0)**(Laplace_order-1) * visc * (grad_divu() - curl_rotu())
+       visc = dx_min**(2d0*Laplace_order_init)/dt * 1.5d-2
+       horiz_diffusion = (-1d0)**(Laplace_order-1) * visc * (grad_divu() - 0.25d0 * curl_rotu())
     else
        horiz_diffusion = (-1d0)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
     end if
@@ -862,13 +865,13 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    C_visc = 5d-3
+    C_visc = 5d-4 
 
-    C_mass = 0d0!C_visc
-    C_temp = 0d0!C_visc
-    C_rotu = C_visc
-    C_divu = 0d0!C_visc 
-
+    C_mass = C_visc ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2  = 2.8e-2 due to non-uniform grid)
+    C_temp = C_visc ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2  = 2.8e-2 due to non-uniform grid)
+    C_divu = C_visc ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2  = 2.8e-2 due to non-uniform grid)
+    C_rotu = C_visc ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
+    
     ! Diffusion time scales
     tau_mass = dt_cfl / C_mass
     tau_temp = dt_cfl / C_temp
