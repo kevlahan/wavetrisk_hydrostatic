@@ -223,6 +223,8 @@ contains
              nullify (dscalar, h_flux)
           end do
        end do
+       Laplacian_scalar%bdry_uptodate = .false.
+       call update_vector_bdry (Laplacian_scalar, l, 12)
     end do
   end subroutine cal_Laplacian_scalars
 
@@ -237,12 +239,10 @@ contains
        vort      => grid(d)%vort%elts
        Laplacian => Laplacian_vector(S_ROTU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
        nullify (vort, Laplacian)
     end do
-    Laplacian_vector%bdry_uptodate = .false.
-    call update_vector_bdry (Laplacian_vector, l, 92)
     
     ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
     !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
@@ -255,6 +255,7 @@ contains
        call apply_to_penta_d (post_vort, grid(d), l, z_null)
        nullify (velo, vort)
     end do
+    Laplacian_vector(S_ROTU)%bdry_uptodate = .false.
   end subroutine cal_Laplacian_vector_rot
   
   subroutine cal_Laplacian_divu
@@ -291,6 +292,8 @@ contains
           end do
           nullify (dscalar, h_flux)
        end do
+       Laplacian_vector(S_DIVU)%bdry_uptodate = .false.
+       call update_bdry (Laplacian_vector(S_DIVU), l, 13)
     end do
   end subroutine cal_Laplacian_divu
  
