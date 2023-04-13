@@ -68,7 +68,6 @@ contains
        exner     => exner_fun(k)%data(d)%elts
        bernoulli => grid(d)%bernoulli%elts
        ke        => grid(d)%ke%elts
-       divu      => grid(d)%divu%elts
        vort      => grid(d)%vort%elts
        qe        => grid(d)%qe%elts
        
@@ -78,7 +77,7 @@ contains
           call step1 (dq, q, grid(d), grid(d)%lev(l)%elts(j), k, 0)
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
-       nullify (mass, velo, temp, mean_m, mean_t, divu, ke, qe, vort)
+       nullify (mass, velo, temp, mean_m, mean_t, ke, qe, vort)
 
        ! Compute or restrict Bernoulli, Exner and fluxes
        if (l < level_end) then
