@@ -510,17 +510,18 @@ contains
     beta_divu    = sync_max_real (beta_divu_loc)
     beta_rotu    = sync_max_real (beta_rotu_loc)
     
-    ! Check Klemp (2018) diffusion stability limits are satisfied
+    ! Check diffusion stability limits are satisfied
+    ! [Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]
     if (rank == 0) then
-       if (beta_sclr > 0.5d0**Laplace_order_init .and. .not. implicit_diff_sclr) &
+       if (beta_sclr > (1d0/6d0)**Laplace_order_init .and. .not. implicit_diff_sclr) &
             write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &
-            " is larger than ",  0.5d0**Laplace_order_init
-       if (beta_divu > 0.5d0**Laplace_order_init .and. .not. implicit_diff_divu) &
+            " is larger than ",  (1d0/6d0)**Laplace_order_init
+       if (beta_divu > (1d0/6d0)**Laplace_order_init .and. .not. implicit_diff_divu) &
             write (6,'(2(a,es8.2))') "WARNING: divu diffusion coefficient = ", beta_divu, &
-            " is larger than ",  0.5d0**Laplace_order_init
-       if (beta_rotu > (0.5d0/4d0)**Laplace_order_init) &
+            " is larger than ",  (1d0/6d0)**Laplace_order_init
+       if (beta_rotu > (1d0/24d0)**Laplace_order_init) &
             write (6,'(2(a,es8.2))') "WARNING: rotu diffusion coefficient = ", beta_rotu, &
-            " is larger than ",  (0.5d0/4d0)**Laplace_order_init
+            " is larger than ",  (1d0/24d0)**Laplace_order_init
     end if
   end function cpt_min_mass
 
