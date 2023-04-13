@@ -307,7 +307,7 @@ contains
          ! Kinetic energy (TRiSK formula) 
          ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
                      u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-              * dom%areas%elts(id_i)%hex_inv/4
+              * dom%areas%elts(id_i)%hex_inv/4d0
 
          ! Interpolate geopotential from interfaces to level
          Phi_k = interp (dom%geopot%elts(id_i), dom%geopot_lower%elts(id_i))
