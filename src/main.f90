@@ -606,7 +606,7 @@ contains
           if (sigma_z) then
              z = z_coords (0d0, z_s)
           else
-             z = b_vert * z_s
+             z = b_vert * z_s ! assumes zero free surface perturbation initial condition
           end if
           dz = z(1:zlevels) - z(0:zlevels-1)
           do k = 1, zlevels
