@@ -745,7 +745,8 @@ contains
          + dom%areas%elts(idN+1)%part(6)
   end subroutine cpt_triarea
 
-  subroutine coriolis (dom, i, j, zlev, offs, dims) 
+  subroutine coriolis (dom, i, j, zlev, offs, dims)
+    implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
