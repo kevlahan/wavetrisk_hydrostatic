@@ -62,6 +62,7 @@ contains
     logical, optional                                    :: type
 
     integer                    :: id_i
+    real(8)                    :: visc
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -96,8 +97,11 @@ contains
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
 
-       ! Complete scalar diffusion
-       physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
+       ! Scale aware viscosity
+       visc = C_visc * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+
+       ! Flux on lhs of scalar equation (hence negative)
+       physics_scalar_flux_case = visc * (-1d0)**Laplace_order * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -123,10 +127,8 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: d, id, id_i, idE, idN, idNE
-    real(8)                    :: dx, visc
+    real(8)                    :: visc
     real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, u1, u2, vert_diffusion
-
-    logical, parameter :: pole_diffuse = .false.
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -135,16 +137,12 @@ contains
     idE  = idx (i+1, j,   offs, dims) 
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
-    
-    ! Horizontal diffusion
-    if (pole_diffuse .and. (dom%node%elts(id_i)%x**2 + dom%node%elts(id_i)%y**2)/(4d0*dx_max)**2 < 1d0) then
-       ! Increase diffusion near poles to remove noise at these lower accuracy points
-       dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
-       visc = dx_min**(2d0*Laplace_order_init)/dt * 1.5d-2
-       horiz_diffusion = (-1d0)**(Laplace_order-1) * visc * (grad_divu() - 0.25d0 * curl_rotu())
-    else
-       horiz_diffusion = (-1d0)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
-    end if
+
+    ! Scale aware viscosity
+    visc = C_visc * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+
+    ! Only diffuse rotu
+    horiz_diffusion = visc * (-1d0)**Laplace_order * (curl_rotu () - grad_divu ())
 
     ! Vertical diffusion
     if (vert_diffuse) then ! using vertical diffusion module
@@ -233,7 +231,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    bottom_buoy_flux_case= 0d0
+    bottom_buoy_flux_case = 0d0
   end function bottom_buoy_flux_case
 
   real(8) function top_buoy_flux_case (dom, i, j, z_null, offs, dims)
@@ -853,7 +851,7 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: area, C_divu, C_mass, C_temp, C_rotu, C_visc, tau_divu, tau_mass, tau_rotu, tau_temp
+    real(8) :: area
 
     area = 4d0*MATH_PI*radius**2/(20d0*4d0**max_level) ! average area of a triangle
     dx_min = sqrt (4d0/sqrt(3d0) * area)               ! edge length of average triangle
@@ -865,28 +863,18 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
+    ! Dimensionless diffusion coefficient 
     C_visc = 5d-4 
 
-    C_mass = C_visc ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2  = 2.8e-2 due to non-uniform grid)
-    C_temp = C_visc ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2  = 2.8e-2 due to non-uniform grid)
-    C_divu = C_visc ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2  = 2.8e-2 due to non-uniform grid)
-    C_rotu = C_visc ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
+    ! Do not diffuse scalars or divu
+    !visc_sclr = 0d0
+    visc_divu = 0d0
     
-    ! Diffusion time scales
-    tau_mass = dt_cfl / C_mass
-    tau_temp = dt_cfl / C_temp
-    tau_divu = dt_cfl / C_divu
-    tau_rotu = dt_cfl / C_rotu
-
     if (Laplace_order_init == 0) then
-       visc_sclr = 0d0
-       visc_divu = 0d0
        visc_rotu = 0d0
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr(S_MASS) = dx_min**(2d0*Laplace_order_init) / tau_mass
-       visc_sclr(S_TEMP) = dx_min**(2d0*Laplace_order_init) / tau_temp
-       visc_rotu         = dx_min**(2d0*Laplace_order_init) / tau_rotu
-       visc_divu         = dx_min**(2d0*Laplace_order_init) / tau_divu
+       visc_rotu = C_visc * dx_min**(2d0*Laplace_order_init) / dt_cfl ! viscosity at finest scale
+       visc_sclr = visc_rotu
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -894,10 +882,7 @@ contains
 
     if (rank == 0) then
        write (6,'(/,3(a,es8.2),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]" 
-       write (6,'(4(a,es8.2),/)') "C_mass = ", C_mass, " C_temp = ", C_temp, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
-       write (6,'(4(a,es8.2),/)') &
-            "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
-            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
+       write (6,'(4(a,es8.2),/)') "C_visc = ", C_visc
     end if
 
     Laplace_order = Laplace_order_init

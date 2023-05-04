@@ -25,19 +25,20 @@ program Drake
   timeint_type       = "RK3"                            ! time scheme
   match_time         = .true.                           ! avoid very small time steps when saving 
   mode_split         = .true.                           ! split barotropic mode if true
-  penalize           = .true.                           ! penalize land regions
   compressible       = .false.                          ! always run with incompressible equations
+  cfl_num            = 20d0                             ! cfl number (<=0.8 for explicit)
+
+  penalize           = .true.                           ! penalize land regions
   remapscalar_type   = "PPR"                            ! remapping scheme for scalars
   remapvelo_type     = "PPR"                            ! remapping scheme for velocity
 
   tol_elliptic        = 1d-6                            ! tolerance for coarse scale bicgstab elliptic solver
   tol_jacobi          = 1d-3                            ! tolerance for fine scale jacobi iterations
-  
-  Laplace_order_init = 1                                ! use Laplacian viscosity
+    
+  Laplace_order_init = 2                               ! use Laplacian viscosity
   nstep_init         = 10                               ! take nstep_init small steps on restart
-  cfl_num            = 15d0                             ! cfl number
-  save_zlev          = zlevels                          ! vertical layer to save
 
+  save_zlev          = zlevels                          ! vertical layer to save
   npts_penal         = 4.5d0                            ! smooth mask over this many grid points 
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
@@ -50,25 +51,25 @@ program Drake
      thermocline          = -4000d0 * METRE             ! location of layer forced by surface wind stress
      drho                 =     0d0 * KG/METRE**3       ! density perturbation at free surface
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
-     bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction   
+     bottom_friction_case =    rb_0                     ! bottom friction   
      u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
      k_T                  =     0d0                     ! relaxation to mean buoyancy profile
   elseif (zlevels == 2) then
      coords               = "uniform"
      remap                = .true.
      iremap               = 10
-     vert_diffuse         = .true.
+     vert_diffuse         = .false.
      Kt_const            = 1d-6     * METRE**2 / SECOND ! analytic value for eddy diffusion 
      Kv_bottom           = 2d-3     * METRE**2 / SECOND ! analytic value for eddy viscosity 
      max_depth            = -4000d0 * METRE             ! total depth
      thermocline          = -1000d0 * METRE             ! location of layer forced by surface wind stress
      halocline            = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
      drho                 =    -4d0 * KG/METRE**3       ! density perturbation in top layer
-     tau_0                =   0.1d0 * NEWTON/METRE**2   ! maximum wind stress
-     bottom_friction_case =    5d-3 * METRE/SECOND      ! bottom friction
+     tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
+     bottom_friction_case =    rb_0                     ! bottom friction
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
-     u_wbc                =     0.1d0 * METRE/SECOND      ! estimated western boundary current speed
-     k_T                  =     1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
+     u_wbc                =     1.5d0 * METRE/SECOND      ! estimated western boundary current speed
+     k_T                  =     0d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   elseif (zlevels >= 3) then
      vert_diffuse         = .true.
      coords               = "uniform"
@@ -88,7 +89,6 @@ program Drake
      bottom_friction_case =       rb_0                  ! bottom friction                      
      u_wbc                =       1d0 * METRE/SECOND    ! estimated western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)    ! relaxation to mean buoyancy profile
-  elseif (zlevels >= 3) then
   end if
 
   ! Characteristic scales
