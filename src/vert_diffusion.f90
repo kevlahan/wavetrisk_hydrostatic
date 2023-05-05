@@ -13,7 +13,7 @@ module vert_diffusion_mod
   !        wind_flux                       (magnitude of wind stress tau)
   !        bottom_friction                 (bottom friction)
   !
-  ! Set tke_closure = .true. and Kt_const = Kv_bottom = 0 to turn off vertical diffusion, but include wind stress/bottom friction.
+  ! Set tke_closure = .false. and Kt_const = Kv_bottom = 0 to turn off vertical diffusion, but include wind stress/bottom friction.
   use init_mod
   use utils_mod
   implicit none
