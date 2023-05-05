@@ -889,6 +889,7 @@ contains
                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
                outv, dom%mask_n%elts(id_i), outl
        else
+          ! Density perturbation
           outv(1) = -ref_density * full_temp / full_mass
 
           ! Barotropic velocity
