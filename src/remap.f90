@@ -248,7 +248,7 @@ contains
 
     eta = penal_node(zlevels)%data(d)%elts(id_i) 
 
-    if (eta < 5d-2) then ! do not remap inside solid regions
+    !if (eta < 5d-2) then ! do not remap inside solid regions
        call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
        dz = z_new(1:zlevels) - z_new(0:zlevels-1)
 
@@ -271,7 +271,7 @@ contains
           ! New mass-weighted buoyancy
           sol(S_TEMP,k)%data(d)%elts(id_i) = full_mass * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i) 
        end do
-    end if
+    !end if
   end subroutine remap_scalars_incompressible
 
   subroutine remap_velo_incompressible (dom, i, j, z_null, offs, dims)
@@ -293,7 +293,7 @@ contains
 
     eta = penal_node(zlevels)%data(d)%elts(id_i) 
 
-    if (eta < 5d-2) then ! do not remap inside solid regions
+    !if (eta < 5d-2) then ! do not remap inside solid regions
        id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
        id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
        id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
@@ -315,7 +315,7 @@ contains
              sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k)
           end do
        end do
-    end if
+    !end if
   end subroutine remap_velo_incompressible
 
   subroutine find_coordinates (p_new, p_old, d, id_i)
