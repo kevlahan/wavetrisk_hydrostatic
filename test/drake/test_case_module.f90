@@ -866,23 +866,27 @@ contains
     ! Dimensionless diffusion coefficient 
     C_visc = 5d-4 
 
-    ! Do not diffuse scalars or divu
-    !visc_sclr = 0d0
-    visc_divu = 0d0
+    ! Do not diffuse inertial mass 
+    visc_sclr(S_MASS) = 0d0
     
     if (Laplace_order_init == 0) then
        visc_rotu = 0d0
     elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
        visc_rotu = C_visc * dx_min**(2d0*Laplace_order_init) / dt_cfl ! viscosity at finest scale
-       visc_sclr = visc_rotu
+       visc_divu = visc_rotu
+       visc_sclr(S_TEMP) = visc_rotu
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
 
     if (rank == 0) then
-       write (6,'(/,3(a,es8.2),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]" 
-       write (6,'(4(a,es8.2),/)') "C_visc = ", C_visc
+       write (6,'(/,3(a,es8.2),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
+       write (6,'(a,/)') "Scale-aware horizontal diffusion"
+       write (6,'(a,es8.2,a,i1,a/)') "C_visc = ", C_visc, " [m^",2*laplace_order_init, "/s]"
+       write (6,'(a,es8.2,/)') "Viscosity at finest scale = ", visc_rotu
+       write (6,'(4(a,l1,/))') "Diffuse S_MASS = ", visc_sclr(S_MASS)/=0d0, "Diffuse S_TEMP = ", visc_sclr(S_TEMP)/=0d0, &
+            "Diffuse DIVU = ", visc_divu/=0d0, "Diffuse ROTU = ", visc_rotu/=0d0
     end if
 
     Laplace_order = Laplace_order_init
