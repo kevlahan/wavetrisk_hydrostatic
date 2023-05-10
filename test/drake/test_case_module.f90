@@ -439,19 +439,20 @@ contains
        write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay time    [d]  = ", abs(max_depth)/bottom_friction_case / DAY
-       if (zlevels == 2) write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
-       if (zlevels > 2)  then
-          write (6,'(a,l1)')     "tke_closure                    = ", tke_closure
-          write (6,'(a,l1)')     "patankar                       = ", patankar
-          write (6,'(a,l1)')     "enhance_diff                   = ", enhance_diff
+       if (vert_diffuse)  then
           if (tke_closure) then
              write (6,'(A,es11.4)') "Kv_0                  [m^2/s]  = ", Kv_0
              write (6,'(A,es11.4)') "Kt_0                  [m^2/s]  = ", Kt_0
              write (6,'(A,es11.4)') "Kt_max                [m^2/s]  = ", Kt_max
+             write (6,'(a,l1)')     "tke_closure                    = ", tke_closure
+             write (6,'(a,l1)')     "patankar                       = ", patankar
+             write (6,'(a,l1)')     "enhance_diff                   = ", enhance_diff
           else
              write (6,'(A,es11.4)') "Kv_bottom             [m^2/s]  = ", Kv_bottom
              write (6,'(A,es11.4)') "Kt_const              [m^2/s]  = ", Kt_const
           end if
+       elseif (zlevels == 2) then
+          write (6,'(A,es11.4)') "Ku                    [m^2/s]  = ", Ku
        end if
        write (6,'(A,es11.4)') "buoyancy relaxation       [d]  = ", 1d0/k_T / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
