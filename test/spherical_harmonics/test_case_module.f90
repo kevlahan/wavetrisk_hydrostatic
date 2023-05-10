@@ -234,6 +234,7 @@ contains
     read (fid,*) varname, cp_end
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
+    read (fid,*) varname, vert_diffuse
     read (fid,*) varname, save_zlev
     read (fid,*) varname, uniform
     read (fid,*) varname, level_fill
@@ -275,11 +276,12 @@ contains
        write (6,'(A,i3)')     "min_level              = ", min_level
        write (6,'(A,i3)')     "max_level              = ", max_level
        write (6,'(A,i3)')     "zlevels                = ", zlevels
+       write (6,'(A,l1)')     "vert_diffuse           = ", vert_diffuse
        write (6,'(A,i3)')     "save_zlev              = ", save_zlev
-       write(6,'(A,L1)')      "uniform                = ", uniform
+       write(6,'(A,l1)')      "uniform                = ", uniform
        write (6,'(A,i3)')     "level_fill             = ", level_fill
        write (6,'(A,i5)')     "N                      = ", N
-       write (6,'(a,L1)')     "local_spec             = ", local_spec
+       write (6,'(a,l1)')     "local_spec             = ", local_spec
        write (6,'(A,es11.4)') "lat0                   = ", lat0
        write (6,'(A,es11.4)') "lon0                   = ", lon0
        write (6,'(A,es10.4)') "theta0                 = ", theta0

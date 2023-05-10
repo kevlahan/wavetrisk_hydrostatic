@@ -83,12 +83,10 @@ program spherical_harmonics
      drho           =    -8d0 * KG/METRE**3        ! density perturbation at free surface (density of top layer is rho0 + drho/2)
      max_depth      = -4000d0 * METRE              ! total depth
      
-     if (zlevels >= 3) then
-        vert_diffuse = .true.
-        halocline    = -4000d0 * METRE             ! location of top (less dense) layer in two layer case
+     if (zlevels >= 3) then                        ! location of top (less dense) layer 
+        halocline    = -4000d0 * METRE             
      else
-        vert_diffuse = .false.
-        halocline    = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
+        halocline    = -1000d0 * METRE             
       end if
   elseif (trim (test_case) == "jet") then
      radius          = 1000d0 * KM                       ! meridional width of zonal channel
@@ -100,7 +98,6 @@ program spherical_harmonics
      mode_split     = .true.                             ! split barotropic mode if true
      compressible   = .false.                            ! always run with incompressible equations
      penalize       = .true.                             ! penalize land regions
-     vert_diffuse   = .true.                       
      tke_closure    = .true.
      sigma_z        = .true.
      coords         = "croco"
