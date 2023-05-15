@@ -75,7 +75,7 @@ contains
     id_i = id + 1
     d = dom%id + 1
 
-    if (Laplace_order == 0 .or. maxval (visc_sclr) == 0d0) then
+    if (Laplace_order == 0) then
        physics_scalar_flux_case = 0d0
     else
        if (.not.local_type) then ! usual flux at edges E, NE, N
