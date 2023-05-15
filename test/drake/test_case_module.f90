@@ -98,7 +98,7 @@ contains
        end if
 
        ! Scale aware viscosity
-       visc = C_visc * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+       visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
 
        ! Flux on lhs of scalar equation (hence negative)
        physics_scalar_flux_case = visc * (-1d0)**Laplace_order * grad * l_e
@@ -139,7 +139,7 @@ contains
     idN  = idx (i,   j+1, offs, dims)
 
     ! Scale aware viscosity
-    visc = C_visc * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+    visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
 
     ! Only diffuse rotu
     horiz_diffusion = visc * (-1d0)**Laplace_order * (curl_rotu () - grad_divu ())
@@ -854,6 +854,8 @@ contains
     implicit none
     real(8) :: area
 
+    Laplace_order = Laplace_order_init
+
     area = 4d0*MATH_PI*radius**2/(20d0*4d0**max_level) ! average area of a triangle
     dx_min = sqrt (4d0/sqrt(3d0) * area)               ! edge length of average triangle
 
@@ -864,33 +866,25 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    ! Dimensionless diffusion coefficient 
-    C_visc = 5d-4 
-
-    ! Do not diffuse inertial mass 
-    visc_sclr(S_MASS) = 0d0
-    
-    if (Laplace_order_init == 0) then
-       visc_rotu = 0d0
-    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_rotu = C_visc * dx_min**(2d0*Laplace_order_init) / dt_cfl ! viscosity at finest scale
-       visc_divu = visc_rotu
-       visc_sclr(S_TEMP) = visc_rotu
-    elseif (Laplace_order_init > 2) then
-       if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
-       stop
-    end if
+    ! Dimensionless diffusion coefficients
+    C_visc(S_MASS) = 0d0
+    C_visc(S_TEMP) = 5d-3
+    C_visc(S_VELO) = 5d-4 
 
     if (rank == 0) then
-       write (6,'(/,3(a,es8.2),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
+       write (6,'(/,3(a,es7.1),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
+       
        write (6,'(a,/)') "Scale-aware horizontal diffusion"
-       write (6,'(a,es8.2,a,i1,a/)') "C_visc = ", C_visc, " [m^",2*laplace_order_init, "/s]"
-       write (6,'(a,es8.2,/)') "Viscosity at finest scale = ", visc_rotu
-       write (6,'(4(a,l1,/))') "Diffuse S_MASS = ", visc_sclr(S_MASS)/=0d0, "Diffuse S_TEMP = ", visc_sclr(S_TEMP)/=0d0, &
-            "Diffuse DIVU = ", visc_divu/=0d0, "Diffuse ROTU = ", visc_rotu/=0d0
+       write (6,'(3(a,es8.2,a,i1,a,/))') &
+            "C_visc(S_MASS) = ", C_visc(S_MASS), " [m^",2*laplace_order, "/s]", &
+            "C_visc(S_TEMP) = ", C_visc(S_TEMP), " [m^",2*laplace_order, "/s]", &
+            "C_visc(S_VELO) = ", C_visc(S_VELO), " [m^",2*laplace_order, "/s]"
+       
+       write (6,'(a,/,a,/,/,a,/,a,/)') "Stability limits:", &
+            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
+            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
+            "                   C_visc(S_VELO) < (1/24)**Laplace_order"
     end if
-
-    Laplace_order = Laplace_order_init
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)

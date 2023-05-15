@@ -231,14 +231,14 @@ module shared_mod
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
 
   real(8)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
-  real(8)                                       :: C_visc, dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
+  real(8)                                       :: dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
   real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
   real(8)                                       :: e_min, Kt_const, Kt_0, Kv_0, Kv_bottom, rb_0
   real(8)                                       :: theta1, theta2, tol_elliptic, tol_jacobi, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
-  real(8), dimension(:),         allocatable    :: bounds, pressure_save, visc_sclr
+  real(8), dimension(:),         allocatable    :: bounds, C_visc, pressure_save, visc_sclr
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
   real(8), dimension(:,:),       allocatable    :: lnorm, threshold, threshold_def
   real(8), dimension(:,:,:),     allocatable    :: zonal_avg, zonal_avg_glo
@@ -265,6 +265,7 @@ contains
     scalars = (/ N_VECTOR+1, N_VARIABLE /)
     allocate (MULT(1:N_VARIABLE), POSIT(1:N_VARIABLE))
     allocate (visc_sclr(scalars(1):scalars(2)))
+    allocate (C_visc(1:N_VARIABLE))
        
     ! Specify the multiplicity per grid element of each quantity
     MULT(S_VELO) = EDGE
@@ -362,7 +363,7 @@ contains
     cfl_adv             = 1.4d0                             ! advective CFL number in mode split case
     cfl_bar             = 1d0                               ! baroclinic CFL number in mode split case
     cfl_num             = 1d0                               ! CFL number (barotropic CFL in mode split case)
-    C_visc              = 1d-2                              ! dimensionless diffusion coefficient
+    C_visc              = 0d0                               ! dimensionless diffusion coefficients
     iadapt              = 1                                 ! adapt horizontal grid every iadapt time step
     irebalance          = 5                                 ! interval for checking rebalance (only active if using AMPI)
     iremap              = 10                                ! remap every iremap time steps

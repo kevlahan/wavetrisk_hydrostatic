@@ -494,35 +494,16 @@ contains
   end function cpt_dt
 
   real(8) function cpt_min_mass ()
-    ! Calculates minimum relative mass and checks diffusion stability limits
+    ! Calculates minimum relative mass
     implicit none
     integer :: ierror, l
-    real(8) :: beta_sclr, beta_divu, beta_rotu
 
     min_mass_loc = 1d16
-    beta_sclr_loc = -1d16; beta_divu_loc = -1d16; beta_rotu_loc = -1d16
     do l = level_start, level_end
        call apply_onescale (cal_min_mass, l, z_null, 0, 0)
     end do
 
     cpt_min_mass = sync_min_real (min_mass_loc)
-    beta_sclr    = sync_max_real (beta_sclr_loc)
-    beta_divu    = sync_max_real (beta_divu_loc)
-    beta_rotu    = sync_max_real (beta_rotu_loc)
-    
-    ! Check diffusion stability limits are satisfied
-    ! [Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]
-    if (rank == 0) then
-       if (beta_sclr > (1d0/6d0)**Laplace_order_init .and. .not. implicit_diff_sclr) &
-            write (6,'(2(a,es8.2))') "WARNING: scalar diffusion coefficient = ", beta_sclr, &
-            " is larger than ",  (1d0/6d0)**Laplace_order_init
-       if (beta_divu > (1d0/6d0)**Laplace_order_init .and. .not. implicit_diff_divu) &
-            write (6,'(2(a,es8.2))') "WARNING: divu diffusion coefficient = ", beta_divu, &
-            " is larger than ",  (1d0/6d0)**Laplace_order_init
-       if (beta_rotu > (1d0/24d0)**Laplace_order_init) &
-            write (6,'(2(a,es8.2))') "WARNING: rotu diffusion coefficient = ", beta_rotu, &
-            " is larger than ",  (1d0/24d0)**Laplace_order_init
-    end if
   end function cpt_min_mass
 
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
@@ -616,18 +597,6 @@ contains
              min_mass_loc = min (min_mass_loc, full_mass/init_mass)
           end do
        end if
-
-       ! Check diffusion stability
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-          if (dom%mask_e%elts(id_e) >= ADJZONE) then
-             d_e = dom%len%elts(id_e) ! triangle edge length
-             fac = dt/d_e**(2*Laplace_order)
-             beta_sclr_loc = max (beta_sclr_loc, maxval(visc_sclr) * fac)
-             beta_divu_loc = max (beta_divu_loc, visc_divu * fac)
-             beta_rotu_loc = max (beta_rotu_loc, visc_rotu * fac)
-          end if
-       end do
     end if
   end subroutine cal_min_mass
   
