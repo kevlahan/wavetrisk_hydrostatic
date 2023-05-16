@@ -216,17 +216,17 @@ contains
     else
        select case (timeint_type)
        case ("Euler")
-          call Euler (sol, wav_coeff, trend_ml, dt)
+          call Euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
        case ("RK33")
-          call RK33_opt (sol, wav_coeff, trend_ml, dt)
+          call RK33_opt (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
        case ("RK34")
-          call RK34_opt (sol, wav_coeff, trend_ml, dt)
+          call RK34_opt (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
        case ("RK45")
-          call RK45_opt (sol, wav_coeff, trend_ml, dt)
+          call RK45_opt (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
        case ("RK3")
-          call RK3 (sol, wav_coeff, trend_ml, dt)
+          call RK3 (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
        case ("RK4")
-          call RK4 (sol, wav_coeff, trend_ml, dt)
+          call RK4 (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
        case default
           if (rank == 0) write (6,'(a)') "Invalid timestepping choice ... aborting"
           call abort

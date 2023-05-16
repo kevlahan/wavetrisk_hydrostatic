@@ -6,11 +6,11 @@ contains
   subroutine trend_ml (q, dq)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
 
     integer :: k, l, v
 
-    call update_array_bdry (q(:,1:zlevels), NONE, 9)
+    call update_array_bdry (q, NONE, 9)
 
     ! Initialize trends
     do k = 1, zlevels
@@ -54,8 +54,8 @@ contains
   subroutine basic_operators (q, dq, k, l)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
-    integer                                                   :: k, l
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    integer                                                      :: k, l
 
     integer :: d, j, v
 
@@ -100,8 +100,8 @@ contains
   subroutine cal_scalar_trend (q, dq, k, l)
     ! Evaluate scalar trends at level l
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
-    integer                                                   :: k, l
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    integer                                                      :: k, l
 
     integer :: d, j, v
     
@@ -121,7 +121,7 @@ contains
   subroutine velocity_trend_source (q, dq, k, l)
     ! Evaluate source part of velocity trends at level l
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
     integer :: k, l
 
     integer :: d, j
@@ -156,8 +156,8 @@ contains
   subroutine velocity_trend_grad (q, dq, k)
     ! Evaluate complete velocity trend by adding gradient terms to previously calculated source terms on entire grid
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
-    integer                                                   :: k
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    integer                                                      :: k
 
     integer :: d, j, p
     
@@ -180,7 +180,7 @@ contains
   subroutine cal_Laplacian_scalars (q, k)
     ! Computes Laplacian of scalars q, div(grad q)
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
     integer :: k
     
     integer :: d, j, l, v
