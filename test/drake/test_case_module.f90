@@ -875,10 +875,8 @@ contains
        write (6,'(/,3(a,es7.1),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
        
        write (6,'(a,/)') "Scale-aware horizontal diffusion"
-       write (6,'(3(a,es8.2,a,i1,a,/))') &
-            "C_visc(S_MASS) = ", C_visc(S_MASS), " [m^",2*laplace_order, "/s]", &
-            "C_visc(S_TEMP) = ", C_visc(S_TEMP), " [m^",2*laplace_order, "/s]", &
-            "C_visc(S_VELO) = ", C_visc(S_VELO), " [m^",2*laplace_order, "/s]"
+       write (6,'(3(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
+            "C_visc(S_VELO) = ", C_visc(S_VELO)
        
        write (6,'(a,/,a,/,/,a,/,a,/)') "Stability limits:", &
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
