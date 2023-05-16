@@ -363,7 +363,7 @@ contains
     cfl_adv             = 1.4d0                             ! advective CFL number in mode split case
     cfl_bar             = 1d0                               ! baroclinic CFL number in mode split case
     cfl_num             = 1d0                               ! CFL number (barotropic CFL in mode split case)
-    C_visc              = 0d0                               ! dimensionless diffusion coefficients
+    C_visc              = 5d-4                              ! dimensionless diffusion coefficients
     iadapt              = 1                                 ! adapt horizontal grid every iadapt time step
     irebalance          = 5                                 ! interval for checking rebalance (only active if using AMPI)
     iremap              = 10                                ! remap every iremap time steps

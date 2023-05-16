@@ -627,7 +627,7 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: area, C_divu, C_sclr, C_rotu, C_visc, tau_divu, tau_rotu, tau_sclr
+    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
     area = 4d0*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
     dx_min = sqrt (4/sqrt(3d0) * area)         ! edge length of average triangle
