@@ -402,7 +402,7 @@ contains
     fine_iter           = 200                                     ! maximum number of fine scale jacobi iterations for elliptic solver
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
     c_s                 = 1500d0    * METRE / SECOND              ! sound speed for seawater
-    e_min               = 1d-6      * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
+    e_min               = 0d0       * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
     Kt_0                = 1.2d-5    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy diffusion
     Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
     Kt_const            = 1d-6      * METRE**2 / SECOND           ! analytic value for eddy diffusion (tke_closure = .false.)
