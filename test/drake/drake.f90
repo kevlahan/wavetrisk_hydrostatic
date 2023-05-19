@@ -34,12 +34,16 @@ program Drake
 
   tol_elliptic        = 1d-6                            ! tolerance for coarse scale bicgstab elliptic solver
   tol_jacobi          = 1d-3                            ! tolerance for fine scale jacobi iterations
-    
-  Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
+  
   nstep_init         = 10                               ! take nstep_init small steps on restart
+  
+  Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
+  C_visc(S_MASS)     = 0d0                              ! dimensionless viscosity of S_MASS
+  C_visc(S_TEMP)     = 0d0                              ! dimensionless viscosity of S_TEMP
+  C_visc(S_VELO)     = 5d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
 
   save_zlev          = zlevels                          ! vertical layer to save
-  npts_penal         = 6d0!4.5d0                            ! smooth mask over this many grid points 
+  npts_penal         = 6d0                              ! smooth mask over this many grid points 
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
 
@@ -58,23 +62,24 @@ program Drake
      coords               = "uniform"
      remap                = .true.
      iremap               = 10
-     vert_diffuse         = .true.
-     Kt_const            = 4d-4     * METRE**2 / SECOND ! analytic value for eddy diffusion 
-     Kv_bottom           = 8d-1     * METRE**2 / SECOND ! analytic value for eddy viscosity 
      max_depth            = -4000d0 * METRE             ! total depth
      thermocline          = -1000d0 * METRE             ! location of layer forced by surface wind stress
      halocline            = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
      drho                 =    -4d0 * KG/METRE**3       ! density perturbation in top layer
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
+     vert_diffuse         = .true.
+!     Kt_const            =     4d-4 * METRE**2 / SECOND ! analytic value for eddy diffusion 
+     Kv_bottom           =     2d-3!8d-1 * METRE**2 / SECOND ! analytic value for eddy viscosity 
      bottom_friction_case =    rb_0                     ! bottom friction
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
      u_wbc                =     1d0 * METRE/SECOND      ! estimated western boundary current speed
-     k_T                  =     1d0 / (10d0 * DAY)      ! relaxation to mean buoyancy profile
+     k_T                  =     1d0 / (50d0 * DAY)      ! relaxation to mean buoyancy profile
   elseif (zlevels >= 3) then
      vert_diffuse         = .true.
      coords               = "uniform"
      sigma_z              = .true.                      ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      tke_closure          = .true.
+     e_min                = 0d0                         ! minimum TKE
      patankar             = .false.                     ! avoid noise with zero initial velocity
      enhance_diff         = .false.
      remap                = .true.
@@ -83,9 +88,9 @@ program Drake
      thermocline          =       0d0 * METRE           ! location of surface mixed layer
      halocline            =   -4000d0 * METRE           ! location less dense layer
      ref_density          =    1030d0 * KG/METRE**3     ! reference density
-     drho                 =      -3d0 * KG/METRE**3     ! density perturbation at free surface at poles
-     drho2                =      -1d0 * KG/METRE**3     ! additional latitude dependent density perturbation
-     tau_0                =     0.1d0 * NEWTON/METRE**2 ! maximum wind stress
+     drho                 =      -4d0 * KG/METRE**3     ! density perturbation at free surface at poles
+     drho2                =      -0d0 * KG/METRE**3     ! additional latitude dependent density perturbation
+     tau_0                =     0.4d0 * NEWTON/METRE**2 ! maximum wind stress
      bottom_friction_case =       rb_0                  ! bottom friction                      
      u_wbc                =       1d0 * METRE/SECOND    ! estimated western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)    ! relaxation to mean buoyancy profile

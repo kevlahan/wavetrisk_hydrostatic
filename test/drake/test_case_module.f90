@@ -409,6 +409,13 @@ contains
        write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
        write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
+       write (6,'(/,a,/)') "Scale-aware horizontal diffusion"
+       write (6,'(3(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
+            "C_visc(S_VELO) = ", C_visc(S_VELO)
+       write (6,'(a,/,a,/,/,a,/,a,/)') "Stability limits:", &
+            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
+            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
+            "                   C_visc(S_VELO) < (1/24)**Laplace_order"
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
        write (6,'(A,L1)')     "tke_closure                    = ", tke_closure
@@ -850,7 +857,8 @@ contains
   end subroutine initialize_thresholds_case
 
   subroutine initialize_dt_viscosity_case 
-    ! Initializes viscosity, time step and penalization parameter eta
+    ! Initializes time step and penalization parameter eta
+    ! (this test case uses scale-aware horizontal diffusion)
     implicit none
     real(8) :: area
 
@@ -866,23 +874,8 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
-    ! Dimensionless diffusion coefficients
-    C_visc(S_MASS) = 0d0
-    C_visc(S_TEMP) = 5d-3
-    C_visc(S_VELO) = 5d-4 
-
-    if (rank == 0) then
-       write (6,'(/,3(a,es7.1),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
-       
-       write (6,'(a,/)') "Scale-aware horizontal diffusion"
-       write (6,'(3(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
-            "C_visc(S_VELO) = ", C_visc(S_VELO)
-       
-       write (6,'(a,/,a,/,/,a,/,a,/)') "Stability limits:", &
-            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
-            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
-            "                   C_visc(S_VELO) < (1/24)**Laplace_order"
-    end if
+    if (rank == 0) &
+         write (6,'(/,3(a,es7.1),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
