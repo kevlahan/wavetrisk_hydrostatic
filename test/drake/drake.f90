@@ -33,14 +33,14 @@ program Drake
   remapvelo_type     = "PPR"                            ! remapping scheme for velocity
 
   tol_elliptic        = 1d-6                            ! tolerance for coarse scale bicgstab elliptic solver
-  tol_jacobi          = 1d-3                            ! tolerance for fine scale jacobi iterations
+  tol_jacobi          = 5d-4                            ! tolerance for fine scale jacobi iterations
   
   nstep_init         = 10                               ! take nstep_init small steps on restart
   
   Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
   C_visc(S_MASS)     = 0d0                              ! dimensionless viscosity of S_MASS
   C_visc(S_TEMP)     = 0d0                              ! dimensionless viscosity of S_TEMP
-  C_visc(S_VELO)     = 5d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
+  C_visc(S_VELO)     = 1d-3                             ! dimensionless viscosity of S_VELO (rotu, divu)
 
   save_zlev          = zlevels                          ! vertical layer to save
   npts_penal         = 6d0                              ! smooth mask over this many grid points 
@@ -107,7 +107,8 @@ program Drake
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)   ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                              ! inertial layer
   delta_sm       = u_wbc / f0                                     ! barotropic submesoscale
-  delta_S       = bottom_friction_case / (abs(max_depth) * beta)  ! Stommel layer scale
+  delta_S        = bottom_friction_case / (abs(max_depth) * beta) ! Stommel layer scale
+  Fr             = u_wbc / (bv*abs(max_depth))                    ! Froude number
 
   ! Baroclinic wave speed
   if (zlevels == 2) then

@@ -13,7 +13,7 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
-  real(8)                              :: drho, drho2, drho_dz, f0, Ku, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
+  real(8)                              :: drho, drho2, drho_dz, f0, Fr, Ku, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, halocline, npts_penal, tau_0, thermocline, u_wbc 
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
@@ -475,6 +475,7 @@ contains
        write (6,'(A,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM
        write (6,'(A,es11.4,/)') "baroclinic Rossby radius [km]  = ", Rb / KM
        write (6,'(A,es11.4)') "Rossby number                  = ", Ro
+       write (6,'(A,es11.4)') "Froude number                  = ", Fr
        write (6,'(A,es11.4)') "Re (delta_I u_wbc / nu)        = ", Rey 
        write (6,'(A,es11.4)') "Resolution of Munk layer       = ", delta_M / dx_min
        write (6,'(A,es11.4)') "Resolution of Taylor scale     = ", delta_I / sqrt(Rey) / dx_min
@@ -874,6 +875,9 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
     dt_init = dt_cfl
 
+    ! Viscosity at smallest horizontal scale
+    visc_rotu = C_visc(S_VELO) * dx**(2d0*Laplace_order)/dt_cfl
+    
     if (rank == 0) &
          write (6,'(/,3(a,es7.1),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
   end subroutine initialize_dt_viscosity_case
