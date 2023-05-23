@@ -15,32 +15,32 @@ if ~strcmp(machine,"mac")
 end
 
 %% Analyze spectrum data
-clear
+clear; clc
 drake = true;
 figure;
 if drake
     test_case = "drake";
-    run_id    = "2layer";
-    cp_min    =  45; cp_max = 45;
-    type      = "total_curlu";
+    run_id    = "6layer";
+    cp_min    =  120; cp_max = 120;
+    type      = "curlu";
 else
-    type      = "total_curlu";
+    type      = "curlu";
     test_case = "jet";
     run_id    = "jet";
     cp_min    = 271; cp_max = 271;
 end
 
-zlevels   = 2;
-zmin      = 2;
-zmax      = 2;
+zlevels   = 6;
+zmin      = 3;
+zmax      = 3;
 
 plot_spec = true;     % plot spectrum
 power     = true;     % plot power law fit
-avg       = false;    % plot averaged spectrum
+avg       = true;    % plot averaged spectrum
 col_spec  = "b-";     % colour for energy spectrum
 col_power = "r-";     % colour for power law
-%range     = [120 60]; % range for power law fit
-%range     = [28 10]; % range for power law fit
+%range     = [200 75]; % range for power law fit
+%range     = [50 20]; % range for power law fit
 
 % Set physical parameters
 [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
@@ -225,10 +225,14 @@ function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(
 % Physical parameters of simulation
 
 if strcmp(test_case,"drake")
-    visc        =  19.8;
-    uwbc        =  1.5;
-    scale_omega =  6;
-    scale_earth =  1;
+    Laplace     =  2;    % 1 = Laplacian, 2 = bi-Laplacian
+    C_visc      =  5e-4; % non-dimensional viscosity
+    dx          =  5e3;  % minimum grid size
+    dt          =  450;  % time step
+    visc        =  C_visc * dx^(2*Laplace)/dt;
+    uwbc        =  0.5;  % velocity scale
+    scale_omega =  1;
+    scale_earth =  6;
     omega       =  7.29211e-5/scale_omega;
     radius      =  6371.229e3/scale_earth;
     g           =  9.80616;
@@ -240,12 +244,10 @@ if strcmp(test_case,"drake")
     theta       =  45; % latitude at which to calculate f0 and beta
     f0          =  2*omega*sin(deg2rad(theta));
     beta        =  2*omega*cos(deg2rad(theta))/radius;
-    %r_b         =  1.3e-8; % two-layer
-    r_b         =  5e-3;
+    r_b         =  4e-4; % bottom friction
     c0          =  sqrt(g*H);
-    %c1          =  sqrt (g*abs(drho)/ref_density * H2*(H-H2)/H); % two-layer
-    c1          =  5.3; % m/s
-    deltaM      = (visc/beta)^(1/3)/1e3; % Munk layer
+    c1          =  3.9; % internal wave speed
+    deltaM      = (visc/beta)^(1/(2*Laplace+1))/1e3; % Munk layer
 elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
     uwbc        =  1.4;
@@ -270,6 +272,9 @@ lambda1    = c1/f0/1e3;             % internal radius of deformation
 deltaS     = r_b/beta/1e3;          % Stommel layer
 deltaSM    = uwbc/f0/1e3;           % submesoscale
 deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
+fprintf('\nlambda0 = %2.0f km lambda1 = %2.0f km\n',lambda0,lambda1)
+fprintf('\ndeltaS = %2.0f km deltaI = %2.0f km deltaM = %2.0f km deltaSM = %2.0f km\n',...
+    deltaS,deltaI,deltaM,deltaSM)
 end
 
 
