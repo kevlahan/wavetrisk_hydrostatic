@@ -419,12 +419,14 @@ grid is based on bisections of the icosahedron.
 The variables are stored in a Float_Array (see below) sol, with components S_MASS, S_TEMP and S_VELO.  The code solves the
 hydrostatic Boussinesq equations in compressible (i.e. atmosphere) or incompressible (i.e. ocean) form.
 
-S_MASS contains mu = ref_density * dz (i.e. kinemetic/inert pseudo density).
+S_MASS contains the kinemetic/inert pseudo density mu = ref_density * dz.
 
-S_TEMP contains the mass-weighted potential temperature mu * potential temperature in the compressible case or mu *
-density/ref_density = density * dz (i.e. gravitational mass) in the incompressible case. The variable theta is defined to be
-S_TEMP/S_MASS, so theta is the potential temperature in the compressible case, and theta is the normalized total density in the
-incompressible case (i.e. buoyancy = grav_accel * (1 - theta)).
+S_TEMP contains the mass-weighted thermodynamic variable theta, Phi = mu * theta. 
+
+  theta = potential temperature in the compressible case
+
+  theta = buoyancy/g in the incompressible case, where buoyancy = - g (density - ref_density)/ref_density = -g drho/g.
+  Total density is therefore ref_density * (sol(S_MASS) - sol(S_TEMP)) / sol(S_MASS).
 
 S_VELO contains the three velocity components U, V, W at edges RT, DG and UP respectively (see below).
 
