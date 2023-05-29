@@ -13,12 +13,18 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
-  real(8)                              :: drho, drho2, drho_dz, f0, Fr, Ku, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
+  real(8)                              :: drho, drho_dz, f0, Fr, Ku, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, halocline, npts_penal, tau_0, thermocline, u_wbc 
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: aligned, etopo_coast
   character(255)                       :: coords
+
+  ! Mixed layer parameters
+  real(8), parameter                   :: By    = 1.0d-7 / SECOND**2
+  real(8), parameter                   :: Ni_sq = 6.7d-5 / SECOND**2
+  real(8), parameter                   :: Lf    = 5.0d1  * KM
+  real(8), parameter                   :: y0    = 4.5d1  * DEG
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -75,7 +81,7 @@ contains
     id_i = id + 1
     d = dom%id + 1
 
-    if (Laplace_order == 0) then
+    if (Laplace_order == 0 .or. maxval (C_visc(scalars(1):scalars(2))) == 0d0) then
        physics_scalar_flux_case = 0d0
     else
        if (.not.local_type) then ! usual flux at edges E, NE, N
@@ -438,7 +444,6 @@ contains
        write (6,'(A,es11.4)') "thermocline               [m]  = ", abs (thermocline)
        write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
        write (6,'(A,es11.4)') "density perturbation [kg/m^3]  = ", drho
-       write (6,'(A,es11.4)') "add density pert     [kg/m^3]  = ", drho2
        write (6,'(A,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
@@ -714,7 +719,7 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    real(8) :: drho_tot, eps_rho, lat, lon, z_decay
+    real(8) :: lat, lon, r, s
 
     call cart2sph (x_i, lon, lat)
     
@@ -727,18 +732,16 @@ contains
           buoyancy_init = 0d0
        end if
     elseif (zlevels >= 3) then
+       s = radius * (lat-y0) / Lf
        if (z >= thermocline) then ! constant stratification near surface
-          drho_tot = drho * (1d0 + drho2/drho * cos (lat)**4)
-          buoyancy_init = - drho_tot / ref_density
-       elseif (z >= halocline .and. z < thermocline) then ! linear stratification
-          z_decay = exp (3d0 * (z-thermocline) / abs(halocline - thermocline))
-
-          drho_tot = drho * (1d0 + drho2/drho * cos (lat)**4 * z_decay)
-
-          buoyancy_init = - (1d0 - z/halocline) * drho_tot / ref_density
-       elseif (z < halocline) then ! constant density at depth
-          buoyancy_init = 0d0
+          buoyancy_init = (Ni_sq * (thermocline - max_depth) + Lf * By * 0.5d0 * (1d0 + tanh (s))) / grav_accel
+       else
+          buoyancy_init = (Ni_sq * (z           - max_depth) + Lf * By * 0.5d0 * (1d0 + tanh (s))) / grav_accel
        end if
+
+       ! Add random noise
+       !call random_number (r)
+       !buoyancy_init = buoyancy_init + 4d-9 * (r - 0.5d0)
     end if
   end function buoyancy_init
 
@@ -872,11 +875,11 @@ contains
     dx_max = sqrt (4d0/sqrt(3d0) * area)
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, dx_min/c1)
+    dt_cfl = cfl_num * dx_min / wave_speed
     dt_init = dt_cfl
 
     ! Viscosity at smallest horizontal scale
-    visc_rotu = C_visc(S_VELO) * dx**(2d0*Laplace_order)/dt_cfl
+    visc_rotu = C_visc(S_VELO) * dx_min**(2d0*Laplace_order)/dt_cfl
     
     if (rank == 0) &
          write (6,'(/,3(a,es7.1),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
