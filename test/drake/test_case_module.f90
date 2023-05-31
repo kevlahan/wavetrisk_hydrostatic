@@ -14,17 +14,11 @@ Module test_case_mod
   ! Local variables
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
   real(8)                              :: drho, drho_dz, f0, Fr, Ku, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
-  real(8)                              :: omega_earth, scale, scale_omega, halocline, npts_penal, tau_0, thermocline, u_wbc 
+  real(8)                              :: omega_earth, scale, scale_omega, mixed_layer, npts_penal, tau_0, thermocline, u_wbc 
   real(8),                      target :: bottom_friction_case  
   real(4), allocatable, dimension(:,:) :: topo_data
   logical                              :: aligned, etopo_coast
   character(255)                       :: coords
-
-  ! Mixed layer parameters
-  real(8), parameter                   :: By    = 1.0d-7 / SECOND**2
-  real(8), parameter                   :: Ni_sq = 6.7d-5 / SECOND**2
-  real(8), parameter                   :: Lf    = 5.0d1  * KM
-  real(8), parameter                   :: y0    = 4.5d1  * DEG
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -145,7 +139,7 @@ contains
     idN  = idx (i,   j+1, offs, dims)
 
     ! Scale aware viscosity
-    visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+    visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order)/dt
 
     ! Only diffuse rotu
     horiz_diffusion = visc * (-1d0)**Laplace_order * (curl_rotu () - grad_divu ())
@@ -440,7 +434,7 @@ contains
 
        write (6,'(/,A)')      "TEST CASE PARAMETERS"
        write (6,'(A,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
-       write (6,'(A,es11.4)') "halocline                 [m]  = ", abs (halocline)
+       write (6,'(A,es11.4)') "mixed_layer               [m]  = ", abs (mixed_layer)
        write (6,'(A,es11.4)') "thermocline               [m]  = ", abs (thermocline)
        write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
        write (6,'(A,es11.4)') "density perturbation [kg/m^3]  = ", drho
@@ -471,6 +465,7 @@ contains
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
        write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
+       write (6,'(A,es11.4)') "dt_cfl                   [s]   = ", dt_cfl
        write (6,'(A,es11.4)') "External scale l0        [km]  = ", lambda0  / KM
        write (6,'(A,es11.4)') "Internal scale l1        [km]  = ", lambda1  / KM
        write (6,'(A,es11.4)') "Inertial layer           [km]  = ", delta_I  / KM
@@ -575,7 +570,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, phi
+    real(8)                       :: eta, phi, r
     type(Coord)                   :: x_i
 
     d    = dom%id+1
@@ -583,10 +578,14 @@ contains
     id_i = id + 1
     eta = init_free_surface (dom%node%elts(id_i))
 
+    ! Add random noise
+    r = 0.5d0
+    call random_number (r)
+
     do k = 1, zlevels
        sol(S_MASS,k)%data(d)%elts(id_i)              = 0d0
        sol(S_TEMP,k)%data(d)%elts(id_i)              = 0d0
-       sol(S_VELO,k)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
+       sol(S_VELO,k)%data(d)%elts(EDGE*id:EDGE*id_i) = 1d-6 * (r - 0.5d0)
     end do
 
     if (mode_split) then
@@ -719,29 +718,26 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    real(8) :: lat, lon, r, s
+    real(8) :: eps_rho, lat, lon
 
     call cart2sph (x_i, lon, lat)
     
     if (zlevels == 1) then
        buoyancy_init = 0d0
     elseif (zlevels == 2) then
-       if (z >= halocline) then
+       if (z >= mixed_layer) then
           buoyancy_init = - drho / ref_density
        else
           buoyancy_init = 0d0
        end if
     elseif (zlevels >= 3) then
-       s = radius * (lat-y0) / Lf
-       if (z >= thermocline) then ! constant stratification near surface
-          buoyancy_init = (Ni_sq * (thermocline - max_depth) + Lf * By * 0.5d0 * (1d0 + tanh (s))) / grav_accel
-       else
-          buoyancy_init = (Ni_sq * (z           - max_depth) + Lf * By * 0.5d0 * (1d0 + tanh (s))) / grav_accel
+       if (z >= mixed_layer) then                           ! constant density perturbation near surface
+          buoyancy_init = - drho / ref_density
+       elseif (z <= mixed_layer .and. z > thermocline) then ! linear stratification
+          buoyancy_init = - (z - thermocline)/(mixed_layer - thermocline) * drho / ref_density
+       elseif (z <= thermocline) then                       ! zero density perturbation at depth
+          buoyancy_init = 0d0
        end if
-
-       ! Add random noise
-       !call random_number (r)
-       !buoyancy_init = buoyancy_init + 4d-9 * (r - 0.5d0)
     end if
   end function buoyancy_init
 
@@ -861,28 +857,7 @@ contains
   end subroutine initialize_thresholds_case
 
   subroutine initialize_dt_viscosity_case 
-    ! Initializes time step and penalization parameter eta
-    ! (this test case uses scale-aware horizontal diffusion)
-    implicit none
-    real(8) :: area
-
-    Laplace_order = Laplace_order_init
-
-    area = 4d0*MATH_PI*radius**2/(20d0*4d0**max_level) ! average area of a triangle
-    dx_min = sqrt (4d0/sqrt(3d0) * area)               ! edge length of average triangle
-
-    area = 4d0*MATH_PI*radius**2/(20d0*4d0**min_level)
-    dx_max = sqrt (4d0/sqrt(3d0) * area)
-
-    ! Initial CFL limit for time step
-    dt_cfl = cfl_num * dx_min / wave_speed
-    dt_init = dt_cfl
-
-    ! Viscosity at smallest horizontal scale
-    visc_rotu = C_visc(S_VELO) * dx_min**(2d0*Laplace_order)/dt_cfl
-    
-    if (rank == 0) &
-         write (6,'(/,3(a,es7.1),a,/)') "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s]"
+    ! Not used
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -1008,7 +983,7 @@ contains
        b_vert(0) = 1d0; b_vert(1) = 0d0
     elseif (zlevels == 2) then 
        a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
-       b_vert(0) = 1d0; b_vert(1) = halocline/max_depth; b_vert(2) = 0d0
+       b_vert(0) = 1d0; b_vert(1) = mixed_layer/max_depth; b_vert(2) = 0d0
     elseif (zlevels >= 3) then
        if (trim (coords) == "chebyshev") then
           do k = 0, zlevels
@@ -1150,7 +1125,7 @@ contains
     real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
     real(8), parameter            :: hc_min = -200d0 * METRE ! minimum depth of uniform layer region
     
-    hc = abs (min (thermocline, hc_min)) 
+    hc = abs (min (mixed_layer, hc_min)) 
     
     cff1 = 1d0 / sinh (theta_s)
     cff2 = 0.5d0 / tanh (0.5d0 * theta_s)

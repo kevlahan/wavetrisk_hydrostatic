@@ -20,11 +20,9 @@ program Drake
   omega_earth    = 7.29211d-5 * RAD/SECOND              ! rotation rate of Earth
   grav_accel     = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
   ref_density    = 1030d0     * KG/METRE**3             ! reference density at depth (seawater)
-  radius         = radius_earth/scale                   ! mean radius of the small planet
-  wave_speed     = sqrt (grav_accel*abs(max_depth))     ! inertia-gravity wave speed
-  
-  ! Scaled parameters
-  omega          = omega_earth/scale_omega              ! angular velocity (scaled for small planet to keep beta constant)
+
+  radius         = radius_earth / scale                 ! mean radius of the small planet
+  omega          = omega_earth / scale_omega            ! angular velocity (scaled for small planet to keep beta constant)
   f0             = 2d0*omega*sin(45d0*DEG)              ! representative Coriolis parameter
   beta           = 2d0*omega*cos(45d0*DEG) / radius     ! beta parameter at 45 degrees latitude
   
@@ -40,27 +38,25 @@ program Drake
   remapvelo_type     = "PPR"                            ! remapping scheme for velocity
 
   nstep_init         = 10                               ! take nstep_init small steps on restart
-  
-  Laplace_order_init = 1                                ! Laplacian if 1, bi-Laplacian if 2
-  C_visc(S_MASS)     = 0d0                              ! dimensionless viscosity of S_MASS
-  C_visc(S_TEMP)     = 0d0                              ! dimensionless viscosity of S_TEMP
-  C_visc(S_VELO)     = 1d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
-
+ 
   save_zlev          = zlevels                          ! vertical layer to save
   npts_penal         = 6d0                              ! smooth mask over this many grid points 
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
 
-  call initialize_dt_viscosity_case
+  dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
+  dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
 
-  ! Set bottom friction so lateral viscosity dominates
-  bottom_friction_case = 0.25d0 * (visc_rotu*beta**(2d0*Laplace_order))**(1d0/(2d0*Laplace_order+1d0))
+  Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
+  C_visc(S_MASS)     = 0d0                              ! dimensionless viscosity of S_MASS
+  C_visc(S_TEMP)     = 0d0                              ! dimensionless viscosity of S_TEMP
+  C_visc(S_VELO)     = 5d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
 
   if (zlevels == 1) then
      vert_diffuse         = .false.
      coords               = "uniform"
      max_depth            = -4000d0 * METRE             ! total depth
-     halocline            = -4000d0 * METRE             ! location of top (less dense) layer in two layer case
+     mixed_layer            = -4000d0 * METRE             ! location of top (less dense) layer in two layer case
      thermocline          = -4000d0 * METRE             ! location of layer forced by surface wind stress
      drho                 =     0d0 * KG/METRE**3       ! density perturbation at free surface
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
@@ -72,49 +68,61 @@ program Drake
      iremap               = 10
      max_depth            = -4000d0 * METRE             ! total depth
      thermocline          = -1000d0 * METRE             ! location of layer forced by surface wind stress
-     halocline            = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
+     mixed_layer            = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
      drho                 =    -4d0 * KG/METRE**3       ! density perturbation in top layer
      tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
      vert_diffuse         = .true.
-!     Kt_const            =     4d-4 * METRE**2 / SECOND ! analytic value for eddy diffusion 
-     Kv_bottom           =     2d-3!8d-1 * METRE**2 / SECOND ! analytic value for eddy viscosity 
      Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
      u_wbc                =     1d0 * METRE/SECOND      ! estimated western boundary current speed
      k_T                  =     1d0 / (50d0 * DAY)      ! relaxation to mean buoyancy profile
   elseif (zlevels >= 3) then
+     remap                = .true.
+     iremap               =   5
+     max_depth            =   -4000d0 * METRE            ! total depth, constant density at depth > thermocline
+     thermocline          =   -4000d0 * METRE            ! linear stratification region between thermocline and mixed_layer
+     mixed_layer            =  -200d0 * METRE            ! constant density at depth < mixed_layer
+     
      vert_diffuse         = .true.
      coords               = "uniform"
-     sigma_z              = .false.                      ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     sigma_z              = .true.                      ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      tke_closure          = .false.
-     Kt_const            = 0d-3      * METRE**2 / SECOND ! analytic value for eddy diffusion (tke_closure = .false.)
-     Kv_bottom           = 2d-2    * METRE**2 / SECOND ! 5d-3 * (dz/(5*METRE))**2
      e_min                = 0d0                         ! minimum TKE
      patankar             = .false.                     ! avoid noise with zero initial velocity
      enhance_diff         = .false.
-     remap                = .true. 
-     iremap               =   5
-     max_depth            =    -300d0 * METRE           ! total depth
-     thermocline          =    -200d0 * METRE           ! location of surface mixed layer
-     halocline            =    max_depth                ! constant density at depth < halocline
-     ref_density          =    1030d0 * KG/METRE**3     ! reference density
-     drho                 =      -4d0 * KG/METRE**3     ! density perturbation at free surface at poles
+     
+     drho                 =      -2d0 * KG/METRE**3     ! density perturbation at free surface at poles
      tau_0                =     0.4d0 * NEWTON/METRE**2 ! maximum wind stress
      u_wbc                =       1d0 * METRE/SECOND    ! estimated western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)    ! relaxation to mean buoyancy profile
   end if
-
+  
   ! Characteristic scales
-  Rd             = wave_speed / f0                                ! barotropic Rossby radius of deformation             
-  drho_dz        = drho / halocline                               ! density gradient
-  bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)   ! Brunt-Vaisala frequency
-  delta_I        = sqrt (u_wbc/beta)                              ! inertial layer
-  delta_sm       = u_wbc / f0                                     ! barotropic submesoscale
-  delta_S        = bottom_friction_case / (abs(max_depth) * beta) ! Stommel layer scale
-  Fr             = u_wbc / (bv*abs(max_depth))                    ! Froude number
+  wave_speed         = sqrt (grav_accel*abs(max_depth))            ! inertia-gravity wave speed
+  dt_cfl             = cfl_num * dx_min / wave_speed
+  dt_init            = dt_cfl
+
+  visc_sclr(S_MASS)  = C_visc(S_MASS) * dx_min**(2d0*Laplace_order_init)/dt_cfl 
+  visc_sclr(S_TEMP)  = C_visc(S_TEMP) * dx_min**(2d0*Laplace_order_init)/dt_cfl 
+  visc_divu          = C_visc(S_VELO) * dx_min**(2d0*Laplace_order_init)/dt_cfl 
+  visc_rotu          = C_visc(S_VELO) * dx_min**(2d0*Laplace_order_init)/dt_cfl 
+
+  ! Set bottom friction so lateral viscosity dominates
+  bottom_friction_case = 0.25d0 * (visc_rotu * beta**(2d0*Laplace_order_init))**(1d0/(2d0*Laplace_order_init+1d0))
+
+  Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
+  drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
+  bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)       ! Brunt-Vaisala frequency
+  delta_I        = sqrt (u_wbc/beta)                                  ! inertial layer
+  delta_M        = (visc_rotu/beta)**(1d0/(2d0*Laplace_order_init+1)) ! Munk layer scale
+  delta_sm       = u_wbc / f0                                         ! barotropic submesoscale
+  delta_S        = bottom_friction_case / (abs(max_depth) * beta)     ! Stommel layer scale
+  Fr             = u_wbc / (bv*abs(max_depth))                        ! Froude number
+  Rey            = u_wbc * delta_I / visc_rotu                        ! Reynolds number of western boundary current
+  Ro             = u_wbc / (delta_M*f0)                               ! Rossby number (based on boundary current)
 
   ! Baroclinic wave speed
   if (zlevels == 2) then
-     c1 = sqrt (grav_accel*abs(drho)/ref_density*halocline*(max_depth-halocline)/abs(max_depth)) ! two-layer internal wave speed
+     c1 = sqrt (grav_accel*abs(drho)/ref_density*mixed_layer*(max_depth-mixed_layer)/abs(max_depth)) ! two-layer internal wave speed
   elseif (zlevels >= 3) then
      c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   endif
@@ -129,14 +137,15 @@ program Drake
   else
      Rb = bv * abs(max_depth) / (MATH_PI*f0)
   end if
-
+  
   ! Dimensional scaling
   Udim           = u_wbc                              ! velocity scale
   Ldim           = delta_I                            ! length scale 
   Tdim           = Ldim/Udim                          ! time scale
   Hdim           = abs (max_depth)                    ! vertical length scale
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+  
   ! Initialize functions
   call assign_functions
   
@@ -145,12 +154,6 @@ program Drake
 
   ! Initialize random numbers
   call random_seed
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Parameters that require viscosity
-  delta_M = (visc_rotu/beta)**(1d0/(2*Laplace_order_init+1))  ! Munk layer scale
-  Rey     = u_wbc * delta_I / visc_rotu                       ! Reynolds number of western boundary current
-  Ro      = u_wbc / (delta_M*f0)                              ! Rossby number (based on boundary current)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
