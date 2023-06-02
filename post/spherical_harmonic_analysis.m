@@ -15,13 +15,13 @@ if ~strcmp(machine,"mac")
 end
 
 %% Analyze spectrum data
-clear; clc
+clear; clc; close all
 drake = true;
 figure;
 if drake
     test_case = "drake";
     run_id    = "6layer";
-    cp_min    =  120; cp_max = 120;
+    cp_min    =  61; cp_max = 61;
     type      = "curlu";
 else
     type      = "curlu";
@@ -30,20 +30,21 @@ else
     cp_min    = 271; cp_max = 271;
 end
 
+% Set physical parameters
+KM = 1e-3;
+[H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
+
 zlevels   = 6;
 zmin      = 3;
 zmax      = 3;
 
 plot_spec = true;     % plot spectrum
 power     = true;     % plot power law fit
-avg       = true;    % plot averaged spectrum
+avg       = false;    % plot averaged spectrum
 col_spec  = "b-";     % colour for energy spectrum
 col_power = "r-";     % colour for power law
-%range     = [200 75]; % range for power law fit
-%range     = [50 20]; % range for power law fit
-
-% Set physical parameters
-[H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
+range     = [deltaI*KM deltaSM*KM]; % range for power law fit
+%range     = [deltaSM*KM 25]; % range for power law fit
 
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 for cp_id = cp_min:cp_max
@@ -96,20 +97,20 @@ for cp_id = cp_min:cp_max
         if plot_spec
             loglog(scales,pspec(:,2),col_spec,"linewidth",3,"DisplayName",name_type);hold on;grid on;
 
-            axis([1e1 1e5 1e-10 1e0]);
+            axis([1e0 1e4 1e-10 1e1]);
             set (gca,"fontsize",20);
             xlabel("\lambda (km)");ylabel("S(\lambda)");
             set (gca,"Xdir","reverse");legend;
 
             if strcmp(test_case,"drake")
-                plot_scale(lambda1,"\lambda_1");
-                plot_scale(deltaSM,"\delta_{SM}");
-                plot_scale(deltaI,"\delta_{I}");
-                plot_scale(deltaM,"\delta_{M}");
+                plot_scale(lambda1*KM,"\lambda_1");
+                plot_scale(deltaSM*KM,"\delta_{SM}");
+                plot_scale(deltaI*KM,"\delta_{I}");
+                plot_scale(deltaM*KM,"\delta_{M}");
             elseif strcmp(test_case,"jet")
-                plot_scale(deltaI,"\delta_{I}");
-                plot_scale(lambda1,"\lambda_1");
-                plot_scale(deltaSM,"\delta_{M}");
+                plot_scale(deltaI*KM,"\delta_{I}");
+                plot_scale(lambda1*KM,"\lambda_1");
+                plot_scale(deltaSM*KM,"\delta_{M}");
             end
             % Plot fit
             if power
@@ -226,17 +227,17 @@ function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(
 
 if strcmp(test_case,"drake")
     Laplace     =  2;    % 1 = Laplacian, 2 = bi-Laplacian
-    C_visc      =  5e-4; % non-dimensional viscosity
-    dx          =  5e3;  % minimum grid size
-    dt          =  450;  % time step
+    C_visc      =  1e-3; % non-dimensional viscosity
+    dx          =  2.5e3;  % minimum grid size
+    dt          =  225;  % time step
     visc        =  C_visc * dx^(2*Laplace)/dt;
-    uwbc        =  0.5;  % velocity scale
-    scale_omega =  1;
+    uwbc        =  2;  % velocity scale
+    scale_omega =  6;
     scale_earth =  6;
     omega       =  7.29211e-5/scale_omega;
     radius      =  6371.229e3/scale_earth;
     g           =  9.80616;
-    drho        = -4;
+    drho        = -2;
     ref_density =  1030;
     H1          =  3e3;
     H2          =  1e3;
@@ -244,10 +245,10 @@ if strcmp(test_case,"drake")
     theta       =  45; % latitude at which to calculate f0 and beta
     f0          =  2*omega*sin(deg2rad(theta));
     beta        =  2*omega*cos(deg2rad(theta))/radius;
-    r_b         =  4e-4; % bottom friction
+    r_b         =  2.6e-8; % bottom friction
     c0          =  sqrt(g*H);
-    c1          =  3.9; % internal wave speed
-    deltaM      = (visc/beta)^(1/(2*Laplace+1))/1e3; % Munk layer
+    c1          =  2.5; % internal wave speed
+    deltaM      = (visc/beta)^(1/(2*Laplace+1)); % Munk layer
 elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
     uwbc        =  1.4;
@@ -266,15 +267,20 @@ elseif strcmp(test_case,"jet")
     deltaM      = (visc/beta)^(1/5)/1e3; % Munk layer
 end
 
-% Lengthscales (km)
-lambda0    = c0/f0/1e3;             % external radius of deformation
-lambda1    = c1/f0/1e3;             % internal radius of deformation
-deltaS     = r_b/beta/1e3;          % Stommel layer
-deltaSM    = uwbc/f0/1e3;           % submesoscale
-deltaI     = sqrt(uwbc/beta)/1e3;   % inertial layer
-fprintf('\nlambda0 = %2.0f km lambda1 = %2.0f km\n',lambda0,lambda1)
-fprintf('\ndeltaS = %2.0f km deltaI = %2.0f km deltaM = %2.0f km deltaSM = %2.0f km\n',...
-    deltaS,deltaI,deltaM,deltaSM)
+% Lengthscales
+KM = 1e-3;
+lambda0    = c0/f0;             % external radius of deformation
+lambda1    = c1/f0;             % internal radius of deformation
+deltaS     = r_b/beta;          % Stommel layer
+deltaSM    = uwbc/f0;           % submesoscale
+deltaI     = sqrt(uwbc/beta);   % inertial layer
+Rey    = uwbc*deltaSM^(2*Laplace-1)/visc;
+
+fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n',lambda0*KM,lambda1*KM)
+fprintf('\ndeltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n',...
+    deltaS*KM, deltaI*KM, deltaM*KM, deltaSM*KM)
+fprintf('\nRey = %2.2e\n', Rey)
+visc^(1/(2*Laplace+1)) * KM
 end
 
 
