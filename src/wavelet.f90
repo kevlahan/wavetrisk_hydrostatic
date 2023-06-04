@@ -995,7 +995,7 @@ contains
 
     call init_Float_Field (wav_topography, AT_NODE)
     
-    do k = 1, zmax
+    do k = zmin, zmax
        do v = 1, N_VARIABLE
           call init_Float_Field (wav_coeff(v,k), POSIT(v))
        end do
@@ -1024,7 +1024,7 @@ contains
 
        call init (wav_topography%data(d), num)
 
-       do k = 1, zmax
+       do k = zmin, zmax
           do v = scalars(1), scalars(2)
              call init (wav_coeff(v,k)%data(d), num)
           end do

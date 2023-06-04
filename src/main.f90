@@ -104,7 +104,7 @@ contains
 
           ! Check whether there are any active nodes or edges at this scale
           n_active = 0
-          do k = 1, zmax
+          do k = zmin, zmax
              do d = 1, size(grid)
                 do v = scalars(1), scalars(2)
                    wc_s => wav_coeff(v,k)%data(d)%elts
@@ -364,9 +364,9 @@ contains
     if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [d] = ', time/DAY, &
-            '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
-            ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &
-            ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
+            '  mass threshold = ', sum (threshold(S_MASS,:))/size(threshold,2), &
+            ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
+            ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
             ' Jmax = ', level_end, &
             '  dof = ', sum (n_active)
        write (6,'(A)') &

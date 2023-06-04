@@ -82,12 +82,12 @@ contains
 
     if (initialgo) then
        initotalmass = 0d0
-       do k = 1, zlevels
+       do k = zmin, zmax
           initotalmass = initotalmass + integrate_hex (full_mass, k, .true.)
        end do
     else
        totalmass = 0d0
-       do k = 1, zlevels
+       do k = zmin, zmax
           totalmass = totalmass + integrate_hex (full_mass, k, .true.)
        end do
        mass_error = abs (totalmass - initotalmass) / initotalmass
@@ -1257,7 +1257,7 @@ contains
        p_par = 1
        call apply_to_pole_d (read_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
 
-       do k = 1, zmax
+       do k = zmin, zmax
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -1284,7 +1284,7 @@ contains
           old_n_patch = grid(d)%patch%length
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
-             do k = 1, zmax
+             do k = zmin, zmax
                 do v = 1, N_VARIABLE
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1

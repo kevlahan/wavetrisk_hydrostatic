@@ -61,7 +61,7 @@ contains
    
     ! Scalars
     active = .false.
-    do k = 1, zlevels
+    do k = zmin, zlevels
        do v = scalars(1), scalars(2)
           if (abs (wav_coeff(v,k)%data(d)%elts(id_i)) >= threshold(v,k) .or. l < level_fill) active = .true.
        end do
@@ -78,7 +78,7 @@ contains
        id_e = EDGE*id + e
 
        active = .false.
-       do k = 1, zlevels
+       do k = zmin, zlevels
           if (abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k) .or. l < level_fill) active = .true.
        end do
 
