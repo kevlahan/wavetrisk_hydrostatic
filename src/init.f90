@@ -445,7 +445,7 @@ contains
        end do
        
        call init (topography%data(d), grid(d)%node%length)
-       do k = 1, zmax
+       do k = zmin, zmax
           call init (penal_node(k)%data(d),      grid(d)%node%length)
           call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)
           call init (exner_fun(k)%data(d),       grid(d)%node%length)

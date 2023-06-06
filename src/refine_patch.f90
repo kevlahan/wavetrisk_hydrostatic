@@ -167,7 +167,7 @@ contains
     call extend (topography%data(d),     num, max_depth)
     call extend (wav_topography%data(d), num, 0d0)
     
-    do k = 1, zmax
+    do k = zmin, zmax
        call extend (penal_node(k)%data(d),      num, 0d0)
        call extend (penal_edge(k)%data(d), EDGE*num, 0d0)
        call extend (exner_fun(k)%data(d), num, 0d0)
