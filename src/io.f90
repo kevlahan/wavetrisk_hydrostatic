@@ -1575,7 +1575,7 @@ contains
     call pre_levelout
 
     ! Compute surface pressure
-    call cal_surf_press (sol)
+    call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
 
     do l = level_start, level_end
        minv = 1.0d63; maxv = -1.0d63

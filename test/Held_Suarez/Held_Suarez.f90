@@ -41,6 +41,8 @@ program Held_Suarez
 
   sigma_b        = 0.7_8                          ! normalized tropopause pressure height
   sigma_c        = 1.0_8-sigma_b
+
+  init_cond_rand = .FALSE.                        ! logical flag add randomization to inital velocity (T)
   
   ! Local test case parameters (Jablonowski and Williamson 2006 zonally symmetric initial conditions)
   u_0            = 35       * METRE/SECOND        ! maximum velocity of zonal wind

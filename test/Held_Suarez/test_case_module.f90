@@ -12,6 +12,7 @@ module test_case_mod
   ! Test case variables
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
+  logical :: init_cond_rand
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -284,8 +285,10 @@ contains
     real(8) :: lon, lat, u, v
 
     real(8) :: r
-
-    call random_number (r)
+    r = 0.0_8
+    if (init_cond_rand) then 
+        call random_number (r)
+    end if
 
     u = u_0 * cos (sigma_v)**1.5 * sin (2*lat)**2 + r ! Zonal velocity component
     !    u = 0.0_8 ! Uniform
