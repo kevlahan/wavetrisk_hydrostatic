@@ -127,7 +127,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: id
-    real(8), dimension(1:EDGE) :: diffusion
+    real(8), dimension(1:EDGE) :: diffusion, penal
 
     id = idx (i, j, offs, dims)
 
@@ -137,8 +137,11 @@ contains
     else
        diffusion = (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
     end if
+    
+    ! Penalization 
+    penal = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
 
-    physics_velo_source_case = diffusion 
+    physics_velo_source_case = diffusion + penal
   contains
     function grad_divu()
       implicit none
@@ -190,7 +193,6 @@ contains
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
-    read (fid,*) varname, no_slip
     read (fid,*) varname, remap
     read (fid,*) varname, iremap
     read (fid,*) varname, log_iter
@@ -227,7 +229,6 @@ contains
        write (6,'(A,L1)')     "compressible                   = ", compressible
        write (6,'(A,L1)')     "mode_split                     = ", mode_split
        write (6,'(A,L1)')     "penalize                       = ", penalize
-       write (6,'(A,L1)')     "no_slip                        = ", no_slip
        write (6,'(A,i3)')     "npts_penal                     = ", npts_penal
        write (6,'(A,i3)')     "min_level                      = ", min_level
        write (6,'(A,i3)')     "max_level                      = ", max_level

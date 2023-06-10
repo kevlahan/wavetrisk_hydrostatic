@@ -2,7 +2,6 @@ test_case          turb          ! name of test case
 run_id             turb          ! name of run (for saved data)
 max_level	   7             ! maximum level of resolution
 zlevels           20             ! number of vertical levels
-no_slip            T  	      	 ! use no slip (T) or free slip	boundary conditions
 remap              T             ! remap vertical grid
 iremap             5             ! remap every iremap time steps
 log_iter           T             ! print elliptic solver relative residual error

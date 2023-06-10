@@ -400,10 +400,9 @@ similar to that in NEMO, tke_diffuse = .false. uses a simple depth-based eddy-vi
 5.3 SOLID BOUNDARIES
 
 In ocean test cases solid lateral boundaries are modelled using Brinkman volume penalization (see Kevlahan, Dubos & Aechtner 2015,
-Geosci Model Dev 8).  The permeability parameter is fixed equal to dt and the porosity parameter alpha is set by the user
-(e.g. alpha = 0.01). The permeability friction term -1/eta u in the velocity equation is applied as a separate split step after the
-main time step, as in Rassmussen, Cottet & Walther (J Comput Phys 230, 2011).
-
+Geosci Model Dev 8).  The permeability parameter eta is set equal to dt (Rassmussen, Cottet & Walther J Comput Phys 230, 2011)
+and the porosity parameter alpha is set by the user (default value alpha = 0.01). The penalization term is added to the velocity
+source term in physics_velo_source_case for the test case.
 
 **********************************************************************************************************************************
 6. MODEL DETAILS 

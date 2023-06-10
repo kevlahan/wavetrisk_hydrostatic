@@ -258,9 +258,6 @@ contains
     end if
 
     call update
-
-    ! Apply velocity penalization (no slip boundary condition)
-    if (penalize) call apply_penal
     
     if (log_mass) call sum_total_mass (.false.)
 
@@ -349,9 +346,6 @@ contains
 
     ! Initialize topography, mean values, ...
     call update
-
-     ! Apply velocity penalization
-    if (penalize) call apply_penal
 
     ! Initialize total mass value
     if (log_mass) call sum_total_mass (.true.)

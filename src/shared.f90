@@ -249,7 +249,7 @@ module shared_mod
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
-  logical :: log_iter, log_mass, match_time, mode_split, no_slip, penalize, rebalance, remap, uniform, vert_diffuse
+  logical :: log_iter, log_mass, match_time, mode_split, penalize, rebalance, remap, uniform, vert_diffuse
   logical :: sigma_z, tke_closure
 contains
   subroutine init_shared_mod
@@ -349,7 +349,6 @@ contains
     log_mass            = .true.                            ! compute minimum mass and mass conservation, relatively expensive (T)
     match_time          = .false.                           ! match time exactly for data saving (T)
     mode_split          = .false.                           ! calculate barotropic free surface mode separately (T)
-    no_slip             = .true.                            ! impose no-slip boundary conditions if (T) or free slip (F)
     penalize            = .false.                           ! include penalization of topography (T)
     rebalance           = .true.                            ! rebalance computational load at each checkpoint if T
     sigma_z             = .false.                           ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)

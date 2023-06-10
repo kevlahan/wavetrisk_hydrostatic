@@ -446,32 +446,4 @@ contains
     ! Inverse wavelet transform of solution onto adaptive grid
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine free_surface_update
-
-  subroutine apply_penal 
-    ! Apply permeability friction term to velocity as split step
-    use domain_mod
-    use adapt_mod
-    implicit none
-    integer :: d, ibeg, iend, ii, k
-    real(8) :: eta
-    
-    do d = 1, size(grid)
-       ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-       iend = sol(S_VELO,1)%data(d)%length
-       if (no_slip) then
-          do k = 1, zlevels
-             sol(S_VELO,k)%data(d)%elts(ibeg:iend) = (1d0 - penal_edge(k)%data(d)%elts(ibeg:iend)) &
-                  * sol(S_VELO,k)%data(d)%elts(ibeg:iend)
-          end do
-       else ! free slip: damp velocity away from boundary
-          do k = 1, zlevels
-             do ii = ibeg, iend
-                eta = penal_edge(k)%data(d)%elts(ii)
-                if (eta > 0.9_8) sol(S_VELO,k)%data(d)%elts(ii) = (1d0 - eta) * sol(S_VELO,k)%data(d)%elts(ii)
-             end do
-          end do
-       end if
-    end do
-    sol(S_VELO,1:zlevels)%bdry_uptodate = .false.
-  end subroutine apply_penal
 end module time_integr_mod

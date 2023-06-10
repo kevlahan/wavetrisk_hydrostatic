@@ -40,7 +40,7 @@ program Drake
   nstep_init         = 10                               ! take nstep_init small steps on restart
  
   save_zlev          = zlevels                          ! vertical layer to save
-  npts_penal         = 6d0                              ! smooth mask over this many grid points 
+  npts_penal         = 4d0                              ! smooth mask over this many grid points 
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
 
@@ -48,52 +48,63 @@ program Drake
   dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
 
   Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
-  C_visc(S_MASS)     = 0d0                              ! dimensionless viscosity of S_MASS
-  C_visc(S_TEMP)     = 0d0                              ! dimensionless viscosity of S_TEMP
-  C_visc(S_VELO)     = 5d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
+  C_visc(S_MASS)     = 0d-3                             ! dimensionless viscosity of S_MASS
+  C_visc(S_TEMP)     = 0d-3                              ! dimensionless viscosity of S_TEMP
+  C_visc(S_VELO)     = 1d-3                             ! dimensionless viscosity of S_VELO (rotu, divu)
 
   if (zlevels == 1) then
      vert_diffuse         = .false.
      coords               = "uniform"
-     max_depth            = -4000d0 * METRE             ! total depth
-     mixed_layer            = -4000d0 * METRE             ! location of top (less dense) layer in two layer case
-     thermocline          = -4000d0 * METRE             ! location of layer forced by surface wind stress
-     drho                 =     0d0 * KG/METRE**3       ! density perturbation at free surface
-     tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
-     u_wbc                =   1.5d0 * METRE/SECOND      ! estimated western boundary current speed
-     k_T                  =     0d0                     ! relaxation to mean buoyancy profile
+     max_depth            = -4000d0 * METRE               ! total depth
+     mixed_layer          = -4000d0 * METRE               ! location of top (less dense) layer in two layer case
+     thermocline          = -4000d0 * METRE               ! location of layer forced by surface wind stress
+     drho                 =     0d0 * KG/METRE**3         ! density perturbation at free surface
+     tau_0                =   0.4d0 * NEWTON/METRE**2     ! maximum wind stress
+     u_wbc                =   1.5d0 * METRE/SECOND        ! estimated western boundary current speed
+     k_T                  =     0d0                       ! relaxation to mean buoyancy profile
   elseif (zlevels == 2) then
      coords               = "uniform"
+
      remap                = .true.
-     iremap               = 10
-     max_depth            = -4000d0 * METRE             ! total depth
-     thermocline          = -1000d0 * METRE             ! location of layer forced by surface wind stress
-     mixed_layer            = -1000d0 * METRE             ! location of top (less dense) layer in two layer case
-     drho                 =    -4d0 * KG/METRE**3       ! density perturbation in top layer
-     tau_0                =   0.4d0 * NEWTON/METRE**2   ! maximum wind stress
+     iremap               = 5
+     
      vert_diffuse         = .true.
-     Ku                   =     4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
-     u_wbc                =     1d0 * METRE/SECOND      ! estimated western boundary current speed
-     k_T                  =     1d0 / (50d0 * DAY)      ! relaxation to mean buoyancy profile
+     Kt_const             =   0d0     * METRE**2 / SECOND ! analytic value for eddy diffusion (tke_closure = .false.)
+     Kv_bottom            =   4d0     * METRE**2 / SECOND ! analytic value for eddy viscosity (tke_closure = .false.)
+
+     max_depth            =   -4000d0 * METRE             ! total depth
+     thermocline          =   -4000d0 * METRE             ! location of layer forced by surface wind stress
+     mixed_layer          =    -200d0 * METRE             ! location of top (less dense) layer in two layer case
+
+     drho                 =      -2d0 * KG/METRE**3       ! density perturbation in top layer
+     tau_0                =     0.4d0 * NEWTON/METRE**2   ! maximum wind stress
+     Ku                   =       4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
+     u_wbc                =       1d0 * METRE/SECOND      ! estimated western boundary current speed
+     k_T                  =       1d0 / (50d0 * DAY)      ! relaxation to mean buoyancy profile
   elseif (zlevels >= 3) then
+     coords               = "uniform"
+     sigma_z              = .true.                        ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     thermocline          =   -4000d0 * METRE             ! linear stratification region between thermocline and mixed_layer
+     mixed_layer          =    -200d0 * METRE             ! constant density at depth < mixed_layer
+
      remap                = .true.
      iremap               =   5
-     max_depth            =   -4000d0 * METRE            ! total depth, constant density at depth > thermocline
-     thermocline          =   -4000d0 * METRE            ! linear stratification region between thermocline and mixed_layer
-     mixed_layer            =  -200d0 * METRE            ! constant density at depth < mixed_layer
+     max_depth            =   -4000d0 * METRE             ! total depth, constant density at depth > thermocline
      
      vert_diffuse         = .true.
-     coords               = "uniform"
-     sigma_z              = .true.                      ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      tke_closure          = .false.
-     e_min                = 0d0                         ! minimum TKE
-     patankar             = .false.                     ! avoid noise with zero initial velocity
+     if (.not. remap) then ! increase vertical viscosity of velocity
+        Kt_const          =   0d0     * METRE**2 / SECOND ! analytic value for eddy diffusion (tke_closure = .false.)
+        Kv_bottom         =   4d0     * METRE**2 / SECOND ! analytic value for eddy viscosity (tke_closure = .false.)
+     end if
+     e_min                =  0d0                          ! minimum TKE
+     patankar             = .false.                       ! avoid noise with zero initial velocity
      enhance_diff         = .false.
      
-     drho                 =      -2d0 * KG/METRE**3     ! density perturbation at free surface at poles
-     tau_0                =     0.4d0 * NEWTON/METRE**2 ! maximum wind stress
-     u_wbc                =       1d0 * METRE/SECOND    ! estimated western boundary current speed
-     k_T                  =       1d0 / (30d0 * DAY)    ! relaxation to mean buoyancy profile
+     drho                 =      -2d0 * KG/METRE**3       ! density perturbation at free surface at poles
+     tau_0                =     0.1d0 * NEWTON/METRE**2   ! maximum wind stress
+     u_wbc                =       1d0 * METRE/SECOND      ! estimated western boundary current speed
+     k_T                  =       1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   end if
   
   ! Characteristic scales
@@ -117,7 +128,7 @@ program Drake
   delta_sm       = u_wbc / f0                                         ! barotropic submesoscale
   delta_S        = bottom_friction_case / (abs(max_depth) * beta)     ! Stommel layer scale
   Fr             = u_wbc / (bv*abs(max_depth))                        ! Froude number
-  Rey            = u_wbc * delta_I / visc_rotu                        ! Reynolds number of western boundary current
+  Rey            = u_wbc * delta_sm**(2d0*Laplace_order_init-1d0) / visc_rotu ! Reynolds number of western boundary current
   Ro             = u_wbc / (delta_M*f0)                               ! Rossby number (based on boundary current)
 
   ! Baroclinic wave speed

@@ -2,7 +2,6 @@ test_case          upwelling     ! name of test case
 run_id             upwelling     ! name of run (for saved data)
 max_level	   8             ! maximum level of resolution
 zlevels           16             ! number of vertical levels
-no_slip            T  	      	 ! use no slip (T) or free slip	boundary conditions
 remap              T             ! remap vertical grid
 iremap             20            ! remap every iremap time steps
 log_iter           F             ! print elliptic solver relative residual error

@@ -138,7 +138,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: id
-    real(8), dimension(1:EDGE) :: diffusion
+    real(8), dimension(1:EDGE) :: diffusion, penal
 
     id = idx (i, j, offs, dims)
 
@@ -149,7 +149,10 @@ contains
        diffusion = (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
     end if
 
-    physics_velo_source_case = diffusion 
+    ! Penalization 
+    penal = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+    
+    physics_velo_source_case = diffusion + penal
   contains
     function grad_divu()
       implicit none
@@ -205,7 +208,6 @@ contains
        read (fid,*) varname, run_id
        read (fid,*) varname, max_level
        read (fid,*) varname, zlevels
-       read (fid,*) varname, no_slip
        read (fid,*) varname, remap
        read (fid,*) varname, iremap
        read (fid,*) varname, log_iter
@@ -222,7 +224,6 @@ contains
     call MPI_Bcast (run_id,    255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
     call MPI_Bcast (max_level,   1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (zlevels,     1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (no_slip,     1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (remap,       1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (iremap,      1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (log_iter,    1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
@@ -258,7 +259,6 @@ contains
        write (6,'(A,A)')      "run_id                         = ", trim (run_id)
        write (6,'(A,L1)')     "compressible                   = ", compressible
        write (6,'(A,L1)')     "penalize                       = ", penalize
-       write (6,'(A,L1)')     "no_slip                        = ", no_slip
        write (6,'(A,i3)')     "min_level                      = ", min_level
        write (6,'(A,i3)')     "max_level                      = ", max_level
        write (6,'(A,i3)')     "level_fill                     = ", level_fill

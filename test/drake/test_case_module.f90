@@ -128,7 +128,7 @@ contains
 
     integer                    :: d, id, id_i, idE, idN, idNE
     real(8)                    :: visc
-    real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, u1, u2, vert_diffusion
+    real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, penal, u1, u2, vert_diffusion
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -172,11 +172,14 @@ contains
        end if
     end if
 
+    ! Penalization 
+    penal = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+
     ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
     if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
-       physics_velo_source_case = horiz_diffusion + vert_diffusion
+       physics_velo_source_case = horiz_diffusion + vert_diffusion + penal
     else
-       physics_velo_source_case = horiz_diffusion
+       physics_velo_source_case = horiz_diffusion + penal
     end if
   contains
     function bottom_drag ()
@@ -393,6 +396,7 @@ contains
        write (6,'(A,i5)')     "DOMAIN_LEVEL                   = ", DOMAIN_LEVEL
        write (6,'(A,i5)')     "PATCH_LEVEL                    = ", PATCH_LEVEL
        write (6,'(A,i3)')     "zlevels                        = ", zlevels
+       write (6,'(A,i3)')     "save_zlev                      = ", save_zlev
        write (6,'(A,L1)')     "remap                          = ", remap
        write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
@@ -931,7 +935,7 @@ contains
        penal_node(zlev)%data(d)%elts(id_i) = mask
        do e = 1, EDGE
           id_e = EDGE*id + e
-          penal_edge(zlev)%data(d)%elts(id_e) = max (penal_edge(zlev)%data(d)%elts(id_e), mask)
+          penal_edge(zlev)%data(d)%elts(id_e) = max (penal_edge(zlev)%data(d)%elts(id_e), mask) 
        end do
     end select
   end subroutine topo_drake
