@@ -33,6 +33,14 @@ module init_mod
        integer, dimension(2,N_BDRY+1) :: dims
        real(8), dimension(1:EDGE)     :: fun4
      end function fun4
+     subroutine sub4 (dom, i, j, z_lev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, z_lev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end subroutine sub4
      function fun5 (q, dom, id, idE, idNE, idN, v, zlev, type)
        use domain_mod
        implicit none
@@ -62,6 +70,9 @@ module init_mod
        real(8), dimension(0:zlevels) :: zcoords_fun
      end function zcoords_fun
   end interface
+
+  ! General procedure pointers
+  procedure (sub4),        pointer :: u_source                 => null ()
 
   ! Pointers to variables and procedures that may be defined in test cases
   real(8),                 pointer :: bottom_friction

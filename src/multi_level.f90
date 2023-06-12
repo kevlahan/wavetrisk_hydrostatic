@@ -81,7 +81,14 @@ contains
 
        ! Compute or restrict Bernoulli, Exner and fluxes
        if (l < level_end) then
-          call cpt_or_restr_Bernoulli_Exner (grid(d), l)
+          scalar => grid(d)%bernoulli%elts
+          call cpt_or_restr_scalar (grid(d), l)
+          nullify (scalar)
+
+          scalar => exner_fun(k)%data(d)%elts
+          call cpt_or_restr_scalar (grid(d), l)
+          nullify (scalar)
+          
           do v = scalars(1), scalars(2)
              dscalar => dq(v,k)%data(d)%elts
              h_flux  => horiz_flux(v)%data(d)%elts
@@ -126,6 +133,8 @@ contains
 
     integer :: d, j
 
+    u_source => du_source
+   
     do d = 1, size(grid)
        mass    => q(S_MASS,k)%data(d)%elts
        velo    => q(S_VELO,k)%data(d)%elts
@@ -142,15 +151,17 @@ contains
        end if
 
        if (l < level_end) then
-          call cpt_or_restr_du_source (grid(d), k, l)
+          call cpt_or_restr_u_source (grid(d), k, l)
        else
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
+             call apply_onescale_to_patch (u_source, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
           end do
        end if
        nullify (mass, velo, mean_m, dvelo, h_mflux, divu, ke, qe, vort)
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
+
+    nullify (u_source)
   end subroutine velocity_trend_source
 
   subroutine velocity_trend_grad (q, dq, k)
@@ -296,7 +307,8 @@ contains
     end do
   end subroutine cal_Laplacian_divu
  
-  subroutine cpt_or_restr_Bernoulli_Exner (dom, l)
+  subroutine cpt_or_restr_scalar (dom, l)
+    ! Restrict scalar if possible for grad(scalar) computation
     implicit none
     type(Domain) :: dom
     integer      :: l
@@ -313,14 +325,13 @@ contains
        end do
        do c = 1, N_CHDRN
           if (restrict(c)) then
-             call apply_interscale_to_patch3 (Bernoulli_Exner_cpt_restr, dom, p_par, c, z_null, 0, 1)
+             call apply_interscale_to_patch3 (scalar_cpt_restr, dom, p_par, c, z_null, 0, 1)
           end if
        end do
     end do
-  end subroutine cpt_or_restr_Bernoulli_Exner
+  end subroutine cpt_or_restr_scalar
 
-  subroutine Bernoulli_Exner_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Compute or restrict Bernoulli and Exner functions
+  subroutine scalar_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     implicit none
     type(Domain)                   :: dom
     integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
@@ -332,13 +343,12 @@ contains
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
     id_par = idx (i_par, j_par, offs_par, dims_par)
 
-    if (dom%mask_n%elts(id_par+1) >= RESTRCT) then
-       bernoulli(id_par+1) = bernoulli(id_chd+1)
-       exner(id_par+1)     = exner(id_chd+1)
-    end if
-  end subroutine Bernoulli_Exner_cpt_restr
+    if (dom%mask_n%elts(id_par+1) >= RESTRCT) scalar(id_par+1) = scalar(id_chd+1)
+  end subroutine scalar_cpt_restr
 
-  subroutine cpt_or_restr_du_source (dom, zlev, l)
+  subroutine cpt_or_restr_u_source (dom, zlev, l)
+    ! Restrict velocity source if possible term u_source(velo)
+    ! u_source is a pointer function
     implicit none
     type(Domain) :: dom
     integer      :: zlev, l
@@ -349,13 +359,13 @@ contains
        p_par = dom%lev(l)%elts(j)
        do c = 1, N_CHDRN
           p_chd = dom%patch%elts(p_par+1)%children(c)
-          if (p_chd == 0) call apply_onescale_to_patch (du_source, dom, p_par, zlev, 0, 0)
+          if (p_chd == 0) call apply_onescale_to_patch (u_source, dom, p_par, zlev, 0, 0)
        end do
-       call apply_interscale_to_patch (du_source_cpt_restr, dom, dom%lev(l)%elts(j), zlev, 0, 0)
+       call apply_interscale_to_patch (u_source_cpt_restr, dom, dom%lev(l)%elts(j), zlev, 0, 0)
     end do
-  end subroutine cpt_or_restr_du_source
+  end subroutine cpt_or_restr_u_source
 
-  subroutine du_source_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine u_source_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     implicit none
     type(Domain)                     :: dom
     integer                          :: i_par, j_par, i_chd, j_chd, zlev
@@ -372,7 +382,7 @@ contains
     idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
 
     if (minval(dom%mask_e%elts(EDGE*id_chd+RT+1:EDGE*id_chd+UP+1)) < ADJZONE) &
-         call du_source (dom, i_par, j_par, zlev, offs_par, dims_par)
+         call u_source (dom, i_par, j_par, zlev, offs_par, dims_par)
 
     if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) &
          dvelo(EDGE*id_par+RT+1) = dvelo(EDGE*id_chd+RT+1) + dvelo(EDGE*idE_chd+RT+1)
@@ -382,9 +392,11 @@ contains
 
     if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) &
          dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
-  end subroutine du_source_cpt_restr
+  end subroutine u_source_cpt_restr
 
   subroutine cpt_or_restr_flux (dom, l)
+    ! Restrict flux if possible for dscalar = div(h_flux) computation
+    ! requires dscalar = div(h_flux) in addition to h_flux
     implicit none
     type(Domain) :: dom
     integer      :: l
@@ -406,7 +418,7 @@ contains
   end subroutine cpt_or_restr_flux
 
   subroutine flux_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Compute flux restriction of mass and potential temperature by summing coarse, corrective and small fluxes
+    ! Compute flux restriction by summing coarse, corrective and small fluxes
     implicit none
     type(Domain)                   :: dom
     integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev

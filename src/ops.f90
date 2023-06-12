@@ -671,10 +671,10 @@ contains
     ! Edge integrated source (non gradient) terms in velocity trend
     ! [Aechtner thesis page 56, Kevlahan, Dubos and Aechtner (2015)]
     implicit none
-    type(Domain),                   intent(in) :: dom
-    integer,                        intent(in) :: i, j, zlev
-    integer, dimension(N_BDRY+1),   intent(in) :: offs
-    integer, dimension(2,N_BDRY+1), intent(in) :: dims
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     integer                :: e, id
     real(8), dimension (3) :: Qperp_e, physics
