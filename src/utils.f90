@@ -255,22 +255,7 @@ contains
     implicit none
     integer :: d, id_i, zlev
 
-    real(8) :: lat, lon, lat0, lat_width, mask, n_lat, n_lon
-    real(8), parameter :: lat_max = 60d0, lat_min = -35d0, lon_width = 15d0, npts = 0.1d0
-
-    ! Analytic land mass with smoothing
-    call cart2sph (grid(d)%node%elts(id_i), lon, lat)
-    
-    lat_width = (lat_max - lat_min) / 2d0
-    lat0 = lat_max - lat_width
-
-    n_lat = 4d0*radius * lat_width*DEG / (dx_max * npts)
-    n_lon = 4d0*radius * lon_width*DEG / (dx_max * npts)
-
-    mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
-
-    !phi_node = 1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i)
-    phi_node = 1d0 + (alpha - 1d0) * mask
+    phi_node = 1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i)
   end function phi_node
 
   function phi_edge (d, id, zlev)
