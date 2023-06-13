@@ -238,7 +238,7 @@ contains
     implicit none
     integer :: d, id_i, zlev
     
-    porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
+    porous_density = ref_density * phi_node (d, id_i, zlev)
   end function porous_density
 
   function porous_density_edge (d, id, zlev)
@@ -247,7 +247,7 @@ contains
     integer                    :: d, id, zlev
     real(8), dimension(1:EDGE) :: porous_density_edge
     
-    porous_density_edge = ref_density * (1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+    porous_density_edge = ref_density * phi_edge (d, id, zlev)
   end function porous_density_edge
 
   real(8) function phi_node (d, id_i, zlev)
@@ -255,15 +255,31 @@ contains
     implicit none
     integer :: d, id_i, zlev
 
-    phi_node = 1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i)
+    real(8) :: lat, lon, lat0, lat_width, mask, n_lat, n_lon
+    real(8), parameter :: lat_max = 60d0, lat_min = -35d0, lon_width = 15d0, npts = 0.1d0
+
+    ! Analytic land mass with smoothing
+    call cart2sph (grid(d)%node%elts(id_i), lon, lat)
+    
+    lat_width = (lat_max - lat_min) / 2d0
+    lat0 = lat_max - lat_width
+
+    n_lat = 4d0*radius * lat_width*DEG / (dx_max * npts)
+    n_lon = 4d0*radius * lon_width*DEG / (dx_max * npts)
+
+    mask = exp__flush (- abs((lat/DEG-lat0)/lat_width)**n_lat - abs(lon/DEG/(lon_width))**n_lon) ! constant longitude width
+
+    !phi_node = 1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i)
+    phi_node = 1d0 + (alpha - 1d0) * mask
   end function phi_node
 
-  real(8) function phi_edge (d, id_e, zlev)
-    ! Returns porosity at edge given by (d, id_e, zlev)
+  function phi_edge (d, id, zlev)
+    ! Returns porosity at edges associated to node given by (d, id_i, zlev)
     implicit none
-    integer :: d, id_e, zlev
+    integer                    :: d, id, zlev
+    real(8), dimension(1:EDGE) :: phi_edge
 
-    phi_edge = 1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(id_e)
+    phi_edge = 1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
   end function phi_edge
 
   real(8) function potential_density (dom, i, j, zlev, offs, dims, q)
