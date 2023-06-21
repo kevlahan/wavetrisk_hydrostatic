@@ -172,10 +172,10 @@ contains
        call extend (penal_edge(k)%data(d), EDGE*num, 0d0)
        call extend (exner_fun(k)%data(d), num, 0d0)
        do v = scalars(1), scalars(2)
-          call extend (trend(v,k)%data(d),     num, 0d0)
+          if (k > 0) call extend (trend(v,k)%data(d),     num, 0d0)
           call extend (wav_coeff(v,k)%data(d), num, 0d0)
        end do
-       call extend (trend(S_VELO,k)%data(d),     EDGE*num, 0d0)
+       if (k > 0) call extend (trend(S_VELO,k)%data(d),     EDGE*num, 0d0)
        call extend (wav_coeff(S_VELO,k)%data(d), EDGE*num, 0d0)
     end do
     call extend (exner_fun(zmax+1)%data(d), num, 0d0)

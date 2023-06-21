@@ -105,7 +105,7 @@ contains
 
     allocate (grid(n_domain(rank+1)))
     allocate (sol(1:N_VARIABLE,zmin:zmax), sol_mean(1:N_VARIABLE,zmin:zmax))
-    allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,zmin:zmax))
+    allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zmax))
     allocate (wav_coeff(1:N_VARIABLE,zmin:zmax))
     allocate (exner_fun(zmin:zmax+1))
     allocate (penal_node(zmin:zmax), penal_edge(zmin:zmax))
@@ -123,7 +123,7 @@ contains
        do v = 1, N_VARIABLE
           call init_Float_Field (sol(v,k),      POSIT(v))
           call init_Float_Field (sol_mean(v,k), POSIT(v))
-          call init_Float_Field (trend(v,k),    POSIT(v))
+          if (k > 0) call init_Float_Field (trend(v,k),    POSIT(v))
        end do
     end do
     call init_Float_Field (exner_fun(zmax+1), AT_NODE)
@@ -449,10 +449,12 @@ contains
           call init (penal_node(k)%data(d),      grid(d)%node%length)
           call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)
           call init (exner_fun(k)%data(d),       grid(d)%node%length)
-          do v = scalars(1), scalars(2)
-             call init (trend(v,k)%data(d), grid(d)%node%length)
-          end do
-          call init (trend(S_VELO,k)%data(d), EDGE*grid(d)%node%length)
+          if (k > 0) then
+             do v = scalars(1), scalars(2)
+                call init (trend(v,k)%data(d), grid(d)%node%length)
+             end do
+             call init (trend(S_VELO,k)%data(d), EDGE*grid(d)%node%length)
+          end if
        end do
        call init (exner_fun(zmax+1)%data(d),  grid(d)%node%length)
     end do
