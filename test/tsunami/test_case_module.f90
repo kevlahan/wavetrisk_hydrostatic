@@ -11,8 +11,7 @@ Module test_case_mod
 
   ! Local variables
   integer                              :: bathy_per_deg, etopo_res, npts_penal, npts_topo
-  real(8)                              :: dt_cfl, dH, f0, lon_c, lat_c, pert_radius
-  real(8)                              :: k_wave, width
+  real(8)                              :: dt_cfl, dH, lon_c, lat_c, pert_radius
   real(4), allocatable, dimension(:,:) :: topo_data
   real(8), parameter                   :: theta0 = 0.01d0
   logical                              :: etopo_bathy, etopo_coast
@@ -53,6 +52,7 @@ contains
     logical, optional                                    :: type
 
     integer                    :: id_i
+    real(8)                    :: visc
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -87,8 +87,11 @@ contains
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
 
-       ! Complete scalar diffusion
-       physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
+       ! Scale aware viscosity
+       visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+
+       ! Flux on lhs of scalar equation (hence negative)
+       physics_scalar_flux_case = visc * (-1d0)**Laplace_order * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -114,38 +117,41 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: d, id, id_i
-    real(8), dimension(1:EDGE) :: diffusion
+    real(8)                    :: visc
+    real(8), dimension(1:EDGE) :: horiz_diffusion, penal
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    if (Laplace_order == 0) then
-       diffusion = 0d0
-    else
-       ! Calculate Laplacian of velocity
-       diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
-    end if
+    ! Scale aware viscosity
+    visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order)/dt
 
-    ! Total physics for source term of velocity trend including volume penalization
-    physics_velo_source_case = diffusion 
+    ! Only diffuse rotu
+    horiz_diffusion = visc * (-1d0)**Laplace_order * (curl_rotu () - grad_divu ())
+    
+    ! Penalization 
+    penal = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+
+    ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
+    physics_velo_source_case = horiz_diffusion + penal
   contains
-    function grad_divu ()
+    function grad_divu()
       implicit none
       real(8), dimension(3) :: grad_divu
 
       integer :: idE, idN, idNE
 
       idE  = idx (i+1, j,   offs, dims)
-      idNE = idx (i+1, j+1, offs, dims)
       idN  = idx (i,   j+1, offs, dims)
+      idNE = idx (i+1, j+1, offs, dims)
 
-      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))  /dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))  /dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
-    function curl_rotu ()
+    function curl_rotu()
       implicit none
       real(8), dimension(3) :: curl_rotu
 
@@ -154,9 +160,9 @@ contains
       idS  = idx (i,   j-1, offs, dims)
       idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
   end function physics_velo_source_case
 
@@ -198,51 +204,8 @@ contains
     end if
 
     ! Set initial velocity field to zero
-    !sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
-    call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
   end subroutine init_sol
-
-  subroutine vel_fun (lon, lat, u, v)
-    ! Zonal latitude-dependent wind
-    implicit none
-    real(8) :: lon, lat, u, v
-
-    real(8) :: envelope
-
-    envelope = exp__flush (-((lat-lat_c)**2 + (lon-lon_c)**2)/width**2)
-    
-    u = dH * cos (k_wave * (lon-lon_c)) * envelope ! Zonal component
-    v = dH*f0/k_wave * sin (k_wave * (lon-lon_c)) * envelope ! Meridional velocity component
-  end subroutine vel_fun
-
-  subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
-    ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-    external                        :: vel_fun
-
-    integer      :: d, id, idE, idN, idNE
-    type (Coord) :: x_i, x_E, x_N, x_NE
-
-    d = dom%id+1
-
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-
-    x_i  = dom%node%elts(id+1)
-    x_E  = dom%node%elts(idE+1)
-    x_N  = dom%node%elts(idN+1)
-    x_NE = dom%node%elts(idNE+1)
-
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel (vel_fun, x_i,  x_E)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel (vel_fun, x_NE, x_i)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel (vel_fun, x_i,  x_N)
-  end subroutine vel2uvw
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     implicit none
@@ -264,7 +227,7 @@ contains
     dz = - dom%topo%elts(id_i) / zlevels
     z = - (zlevels - zlev + 0.5d0) * dz
 
-    sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz 
+    sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz ! add a small amount of noise to stabilize split case
     sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0 !sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy (x_i, zlev)
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id:EDGE*id_i) = 0d0
   end subroutine init_mean
@@ -284,17 +247,12 @@ contains
 
     real(8)            :: lon, lat
     real(8), parameter :: n_lat = 20d0, n_lon = 2d0
-    real(8) :: envelope
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
-    ! init_free_surface = dH * exp__flush (- abs((lat-lat_c)/(pert_radius/radius))**n_lat &
-    !      - abs((lon-lon_c)/(pert_radius/radius/40d0))**n_lon)
-
-    envelope = exp__flush (-((lat-lat_c)**2 + (lon-lon_c)**2)/width**2)
-
-    init_free_surface = dH * cos (k_wave * (lon-lon_c)) * envelope 
+    init_free_surface = dH * exp__flush (- abs((lat-lat_c)/(pert_radius/radius))**n_lat &
+         - abs((lon-lon_c)/(pert_radius/radius/40d0))**n_lon) 
   end function init_free_surface
 
   real(8) function buoyancy_init (x_i, zlev)
@@ -322,7 +280,6 @@ contains
     else
        call cal_lnorm_sol (sol, order)
        threshold_new = tol*lnorm
-       threshold_new(S_MASS,:) = wave_speed * lnorm(S_VELO,:) * tol
        ! Correct for zero velocity case
        do k = 1, zlevels
           if (threshold_new(S_MASS,k) == 0d0) threshold_new(S_MASS,k) = 1d16
@@ -330,44 +287,41 @@ contains
           if (threshold_new(S_VELO,k) == 0d0) threshold_new(S_VELO,k) = 1d16
        end do
     end if
-    threshold_new(S_TEMP,:) = 1d16
 
     if (istep >= 10) then
-!       threshold = 0.01d0*threshold_new + 0.99d0*threshold
-       threshold = 0.1d0*threshold_new + 0.9d0*threshold
+       threshold = 0.01d0*threshold_new + 0.99d0*threshold
     else
        threshold = threshold_new
     end if
-    threshold = threshold_new
   end subroutine set_thresholds_case
 
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
+    real(8) :: dz
 
     allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
 
-    lnorm(S_MASS,1:zlevels) = ref_density * abs(max_depth) * Udim 
-    lnorm(S_TEMP,:) = 1d16
-    lnorm(S_VELO,1:zlevels) = Udim
+    dz = Hdim/zlevels
 
-    lnorm(S_MASS,zlevels+1) = abs(max_depth) * Udim
-    
-    threshold_def = tol**1.5 * lnorm
+    lnorm(S_MASS,:) = ref_density * dz
+    lnorm(S_TEMP,:) = ref_density * dz
+    lnorm(S_VELO,:) = Udim
+    threshold_def = tol * lnorm
   end subroutine initialize_thresholds_case
 
   subroutine initialize_dt_viscosity_case
     ! Initializes viscosity and time step  
     implicit none
-    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr, visc
+    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
     area = 4d0*MATH_PI*radius**2/(20d0*4d0**max_level) ! average area of a triangle
     dx_min = sqrt (4d0/sqrt(3d0) * area)               ! edge length of average triangle
 
     ! Diffusion constants
-    C_sclr = 5d-4   ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_divu = C_sclr    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_sclr = 4d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
+    C_divu = 4d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_rotu = C_sclr / 4d0**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
 
     ! CFL limit for time step
@@ -378,8 +332,6 @@ contains
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
 
-    !visc = 1d-4 * METRE**2/SECOND
-
     if (Laplace_order_init == 0) then
        visc_sclr = 0d0
        visc_divu = 0d0
@@ -388,9 +340,6 @@ contains
        visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
        visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
        visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
-       ! visc_sclr = visc
-       ! visc_rotu = visc
-       ! visc_divu = visc
     elseif (Laplace_order_init > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -412,6 +361,11 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_i
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
 
     ! Set bathymetry
     if (etopo_bathy) then ! set bathymetry coordinates using etopo data
@@ -499,7 +453,7 @@ contains
     character(*)                   :: itype
 
     integer               :: d, e, id, id_e, id_i, idW, idSW, idS, ii, is0, it0, jj, k, s, t
-    real(8)               :: dx_local, dx_smooth, lat, lon, mask, M_topo, r, s0, t0, sw_topo, topo_sum, wgt
+    real(8)               :: dx, lat, lon, mask, M_topo, r, s0, t0, sw_topo, topo_sum, wgt
     real(8), dimension(3) :: dx_primal, dx_dual
     type(Coord)           :: p, q
 
@@ -513,8 +467,8 @@ contains
        dx_primal(e) = dom%len%elts(id_e)
        dx_dual(e)   = dom%pedlen%elts(id_e)
     end do
-    dx_local = max (maxval(dx_primal), maxval(dx_dual))
-    if (dx_local == 0d0) dx_local = dx_min
+    dx = max (maxval(dx_primal), maxval(dx_dual))
+    if (dx == 0d0) dx = dx_min
 
     ! Find longitude and latitude coordinates
     call cart2sph (dom%node%elts(id_i), lon, lat)
@@ -531,10 +485,10 @@ contains
        do ii = -npts, npts
           do jj = -npts, npts
              s = is0+ii ; t = it0+jj
-             call wrap_lonlat (s, t)
+             call wrap_lonlat
              q = proj_lon_lat (dble(s), dble(t))
              r = norm (vector(p, q))
-             wgt = radial_basis_fun (r, npts, dx_local)
+             wgt = radial_basis_fun ()
 
              M_topo = topo_value (s, t, itype)
              topo_sum = topo_sum + wgt * M_topo
@@ -547,7 +501,7 @@ contains
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = mask
-       topography%data(d)%elts(id_i) = mask
+       !       topography%data(d)%elts(id_i) = mask
     case ("penalize")
        penal_node(zlev)%data(d)%elts(id_i) = mask
 
@@ -555,6 +509,28 @@ contains
        penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1))
        penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1))
     end select
+  contains
+    real(8) function radial_basis_fun ()
+      ! Radial basis function for smoothing topography
+      implicit none
+
+      real(8) :: alph
+
+      alph = 1d0 / (npts/2d0 * dx)
+
+      radial_basis_fun = exp (-(alph*r)**2)
+    end function radial_basis_fun
+
+    subroutine wrap_lonlat 
+      ! Longitude: wraparound allows for values outside [-180,180]
+      ! Latitude: works only if there is no cost at the pole
+      implicit none
+
+      if (t < lbound (topo_data,2)) t = lbound (topo_data,2) ! pole
+      if (t > ubound (topo_data,2)) t = ubound (topo_data,2) ! pole
+      if (s < lbound (topo_data,1)) s = s + 360 * BATHY_PER_DEG
+      if (s > ubound (topo_data,1)) s = s - 360 * BATHY_PER_DEG
+    end subroutine wrap_lonlat
   end subroutine etopo_topography
 
   real(8) function topo_value (s, t, itype)
@@ -577,31 +553,6 @@ contains
        end if
     end select
   end function topo_value
-
-  real(8) function radial_basis_fun (r, npts, dx)
-    ! Radial basis function for smoothing topography
-    implicit none
-    integer :: npts
-    real(8) :: r, dx
-
-    real(8) :: alph
-
-    alph = 1d0 / (npts/2d0 * dx)
-
-    radial_basis_fun = exp (-(alph*r)**2)
-  end function radial_basis_fun
-
-  subroutine wrap_lonlat (s, t)
-    ! Longitude: wraparound allows for values outside [-180,180]
-    ! Latitude: works only if there is no cost at the pole
-    implicit none
-    integer :: s, t
-
-    if (t < lbound (topo_data,2)) t = lbound (topo_data,2) ! pole
-    if (t > ubound (topo_data,2)) t = ubound (topo_data,2) ! pole
-    if (s < lbound (topo_data,1)) s = s + 360 * BATHY_PER_DEG
-    if (s > ubound (topo_data,1)) s = s - 360 * BATHY_PER_DEG
-  end subroutine wrap_lonlat
 
   type(Coord) function proj_lon_lat (s, t)
     implicit none
@@ -641,8 +592,8 @@ contains
     close(fid)
 
     call set_save_level_case
-    !dt_write = dt_write * MINUTE
-    !time_end = time_end * HOUR
+    dt_write = dt_write * MINUTE
+    time_end = time_end * HOUR
     resume   = resume_init
     Laplace_order = Laplace_order_init
     bathy_per_deg = 60d0/etopo_res
@@ -732,8 +683,7 @@ contains
 
     if (rank == 0) then
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i9,4(a,es9.2,1x))') &
-!            'time [h] = ', time/HOUR, &
-            'time  = ', time, &
+            'time [h] = ', time/HOUR, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,:))/zmax, &
             ' temp tol = ', minval (threshold(S_TEMP,1:zlevels)), &
