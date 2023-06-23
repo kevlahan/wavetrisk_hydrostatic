@@ -20,6 +20,7 @@ Module test_case_mod
   real(8),                      target :: bottom_friction_case
   logical                              :: etopo_bathy, etopo_coast
   logical                              :: aligned
+  logical                              :: normalized
   character(255)                       :: coords
 
   real(8)                              :: dH, lon_c, lat_c, pert_radius

@@ -22,25 +22,24 @@ program Drake
   g_earth        = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
   ref_density    =     1030d0 * KG/METRE**3             ! reference density at depth (seawater)
 
-  ! Normalizing parameters
-  L_norm = radius_earth
-  H_norm = H_earth
-  U_norm = sqrt (g_earth * H_earth)
-  T_norm = L_norm/U_norm
-  ! L_norm = 1d0 
-  ! H_norm = 1d0 
-  ! U_norm = 1d0
-  ! T_norm = 1d0
+  ! Earth scaling factors
+  L_norm         = radius_earth
+  H_norm         = H_earth
+  U_norm         = sqrt (g_earth * H_earth)
+  T_norm         = L_norm / U_norm
 
-  ! Scaled Earth
-  radius     = radius_earth / L_norm                     ! normalized Earth radius
-  omega      =  omega_earth * L_norm/U_norm
-  grav_accel =      g_earth * H_norm/U_norm**2
+  ! Use normalized equation
+  normalized = .false.
 
-  ! Default
-  radius         = radius_earth / scale                  ! mean radius of the small planet
-  omega          = omega_earth / scale_omega             ! angular velocity (scaled for small planet to keep beta constant)
-  grav_accel     = g_earth
+  if (normalized) then
+     radius      = radius_earth / L_norm                     
+     omega       =  omega_earth * T_norm
+     grav_accel  =      g_earth * H_norm / U_norm**2
+  else
+     radius      = radius_earth / scale                  ! mean radius of the small planet
+     omega       =  omega_earth / scale_omega            ! angular velocity (scaled for small planet to keep beta constant)
+     grav_accel  = g_earth
+  end if
   
   f0             = 2d0*omega*sin(45d0*DEG)               ! representative Coriolis parameter
   beta           = 2d0*omega*cos(45d0*DEG) / radius      ! beta parameter at 45 degrees latitude
@@ -77,8 +76,9 @@ program Drake
  
   save_zlev          = zlevels                          ! vertical layer to save
 
+  ! Topography
   penalize           = .true.                           ! penalize land regions
-  alpha              = 1d-1                             ! porosity
+  alpha              = 1d-4                             ! porosity
   npts_penal         = 4                                ! number of smoothing points
   etopo_bathy        = .false.                          ! etopo data for bathymetry
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
