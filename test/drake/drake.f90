@@ -191,9 +191,8 @@ program Drake
   end if
   
   ! Dimensional scaling
-!  Udim           = u_wbc                              ! velocity scale
-  Udim           = wave_speed                             ! velocity scale
-  Ldim           = L_norm!delta_I                            ! length scale 
+  Udim           = u_wbc                              ! velocity scale
+  Ldim           = delta_I                            ! length scale 
   Tdim           = Ldim/Udim                          ! time scale
   Hdim           = abs (max_depth)                    ! vertical length scale
   
