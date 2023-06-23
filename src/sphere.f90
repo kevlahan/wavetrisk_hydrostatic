@@ -252,6 +252,26 @@ contains
     geodesic = radius * acos (sin (lat) * sin (lat1) + cos (lat) * cos (lat1) * cos (lon1-lon))
   end function geodesic
 
+  subroutine wrap_lonlat (lat, lon)
+    ! Wraps longitude and latitude onto [-pi,pi] and [-pi/2,pi/2]
+    implicit none
+    real(8) :: lat, lon
+
+    if (lat > MATH_PI/2d0) then
+       lat =  MATH_PI/2d0 - mod (lat, MATH_PI/2d0)
+       lon = lon + MATH_PI
+    elseif (lat < -MATH_PI/2d0) then 
+       lat = -MATH_PI/2d0 - mod (lat, MATH_PI/2d0)
+       lon = lon + MATH_PI
+    end if
+
+    if (lon > MATH_PI) then
+       lon = -MATH_PI + mod (lon, MATH_PI)
+    elseif (lon < - MATH_PI) then
+       lon =  MATH_PI + mod (lon, MATH_PI)
+    end if
+  end subroutine wrap_lonlat
+
   real(8) function proj_vel (vel_fun, ep1, ep2)
     ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
     ! given a function for zonal u and meridional v velocities as a function of longitude and latitude

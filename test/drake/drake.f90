@@ -15,49 +15,90 @@ program Drake
   call read_test_case_parameters
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Standard parameters
+  ! Earth parameters
   radius_earth   = 6371.229d0 * KM                      ! radius of Earth
   omega_earth    = 7.29211d-5 * RAD/SECOND              ! rotation rate of Earth
-  grav_accel     = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
-  ref_density    = 1030d0     * KG/METRE**3             ! reference density at depth (seawater)
+  H_earth        =        4d0 * KM                      ! mean ocean depth of Earth
+  g_earth        = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
+  ref_density    =     1030d0 * KG/METRE**3             ! reference density at depth (seawater)
 
-  radius         = radius_earth / scale                 ! mean radius of the small planet
-  omega          = omega_earth / scale_omega            ! angular velocity (scaled for small planet to keep beta constant)
-  f0             = 2d0*omega*sin(45d0*DEG)              ! representative Coriolis parameter
-  beta           = 2d0*omega*cos(45d0*DEG) / radius     ! beta parameter at 45 degrees latitude
+  ! Normalizing parameters
+  L_norm = radius_earth
+  H_norm = H_earth
+  U_norm = sqrt (g_earth * H_earth)
+  T_norm = L_norm/U_norm
+  ! L_norm = 1d0 
+  ! H_norm = 1d0 
+  ! U_norm = 1d0
+  ! T_norm = 1d0
+
+  ! Scaled Earth
+  radius     = radius_earth / L_norm                     ! normalized Earth radius
+  omega      =  omega_earth * L_norm/U_norm
+  grav_accel =      g_earth * H_norm/U_norm**2
+
+  ! Default
+  radius         = radius_earth / scale                  ! mean radius of the small planet
+  omega          = omega_earth / scale_omega             ! angular velocity (scaled for small planet to keep beta constant)
+  grav_accel     = g_earth
+  
+  f0             = 2d0*omega*sin(45d0*DEG)               ! representative Coriolis parameter
+  beta           = 2d0*omega*cos(45d0*DEG) / radius      ! beta parameter at 45 degrees latitude
+
+  ! Free surface perturbation parameters
+  dH             =   0d0  * METRE / H_norm               ! initial perturbation to the free surface
+  !dH             =   7d0  * METRE / H_norm               ! initial perturbation to the free surface
+  pert_radius    =   1d3  * KM    / L_norm               ! radius of Gaussian free surface perturbation
+  lon_c          = -50d0  * DEG                          ! longitude location of perturbation
+  lat_c          =  25d0  * DEG                          ! latitude  location of perturbation
+
+  min_depth      = -50d0  * METRE / H_norm               ! minimum allowed depth (must be negative)
   
   ! Numerical method parameters
-  timeint_type       = "RK3"                            ! time scheme
-  match_time         = .true.                           ! avoid very small time steps when saving 
-  mode_split         = .true.                           ! split barotropic mode if true
-  compressible       = .false.                          ! always run with incompressible equations
-  cfl_num            = 20d0                             ! cfl number (<=0.8 for explicit)
+  default_thresholds = .true.
 
-  penalize           = .true.                           ! penalize land regions
+  mode_split         = .true.                            ! split barotropic mode if true
+  if (mode_split) then
+     cfl_num         = 20d0
+     timeint_type    = "RK3"                         
+  else
+     cfl_num         = 0.3d0                             
+     timeint_type    = "RK45"                         
+  end if
+  
+  match_time         = .true.                           ! avoid very small time steps when saving 
+  compressible       = .false.                          ! always run with incompressible equations
+
   remapscalar_type   = "PPR"                            ! remapping scheme for scalars
   remapvelo_type     = "PPR"                            ! remapping scheme for velocity
 
   nstep_init         = 10                               ! take nstep_init small steps on restart
+  adapt_dt           = .true.
  
   save_zlev          = zlevels                          ! vertical layer to save
-  npts_penal         = 4d0                              ! smooth mask over this many grid points 
+
+  penalize           = .true.                           ! penalize land regions
+  alpha              = 1d-1                             ! porosity
+  npts_penal         = 4                                ! number of smoothing points
+  etopo_bathy        = .false.                          ! etopo data for bathymetry
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
 
   dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
   dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
 
-  Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
+  Laplace_order_init = 2                               ! Laplacian if 1, bi-Laplacian if 2
   C_visc(S_MASS)     = 0d-3                             ! dimensionless viscosity of S_MASS
-  C_visc(S_TEMP)     = 0d-3                              ! dimensionless viscosity of S_TEMP
+  C_visc(S_TEMP)     = 0d-3                             ! dimensionless viscosity of S_TEMP
   C_visc(S_VELO)     = 1d-3                             ! dimensionless viscosity of S_VELO (rotu, divu)
 
   if (zlevels == 1) then
+     sigma_z              = .false.
      vert_diffuse         = .false.
+     max_depth            = - H_earth
      coords               = "uniform"
-     max_depth            = -4000d0 * METRE               ! total depth
-     mixed_layer          = -4000d0 * METRE               ! location of top (less dense) layer in two layer case
-     thermocline          = -4000d0 * METRE               ! location of layer forced by surface wind stress
+     mixed_layer          = max_depth                     ! location of top (less dense) layer in two layer case
+     thermocline          = max_depth                     ! location of layer forced by surface wind stress
      drho                 =     0d0 * KG/METRE**3         ! density perturbation at free surface
      tau_0                =   0.4d0 * NEWTON/METRE**2     ! maximum wind stress
      u_wbc                =   1.5d0 * METRE/SECOND        ! estimated western boundary current speed
@@ -150,11 +191,13 @@ program Drake
   end if
   
   ! Dimensional scaling
-  Udim           = u_wbc                              ! velocity scale
-  Ldim           = delta_I                            ! length scale 
+!  Udim           = u_wbc                              ! velocity scale
+  Udim           = wave_speed                             ! velocity scale
+  Ldim           = L_norm!delta_I                            ! length scale 
   Tdim           = Ldim/Udim                          ! time scale
   Hdim           = abs (max_depth)                    ! vertical length scale
   
+  if (etopo_bathy .or. etopo_coast) call read_bathymetry_data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   ! Initialize functions

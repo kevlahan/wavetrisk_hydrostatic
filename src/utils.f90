@@ -261,10 +261,13 @@ contains
   function phi_edge (d, id, zlev)
     ! Returns porosity at edges associated to node given by (d, id_i, zlev)
     implicit none
-    integer                    :: d, id, zlev
+    integer                    :: d, e, id, id_e, zlev
     real(8), dimension(1:EDGE) :: phi_edge
 
-    phi_edge = 1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    do e = 1, EDGE
+       id_e = EDGE*id+e
+       phi_edge(e) = 1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(id_e)
+    end do
   end function phi_edge
 
   real(8) function potential_density (dom, i, j, zlev, offs, dims, q)
@@ -947,4 +950,95 @@ contains
 
     val1(id) = val2(id)
   end subroutine cal_equals
+  
+  real(8) function smoothing_rbf (dom, i, j, zlev, offs, dims, topo_value)
+    ! Smooths topography over neighbouring region using radial basis functions
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer, parameter :: npts = 2 ! smooth over region of size [-npts, npts]^2 dx
+    integer :: e, id, ii, jj, ntheta
+    real(8) :: dtheta, dx, lat, lat0, lon, lon0, mask, M_topo, r, rand, rho, sw_topo, theta, topo_sum, wgt
+    real(8), dimension(EDGE) :: dx_primal, dx_dual
+    type(Coord)        :: p    
+
+    interface
+       real(8) function topo_value (lat, lon)
+         ! Value of topography (1 or 0 for land)
+         real(8) :: lat, lon
+       end function topo_value
+    end interface
+
+    id = idx (i, j, offs, dims)
+
+    p = dom%node%elts(id+1)
+    call cart2sph (p, lon0, lat0)
+
+    !dx = sqrt (2d0 / (sqrt(3d0)*dom%areas%elts(id+1)%hex_inv))
+    !dx = dx_max
+
+    do e = 1, 3
+       dx_primal(e) = dom%len%elts(EDGE*id+e)
+       dx_dual(e) = dom%pedlen%elts(EDGE*id+e)
+    end do
+    dx = max(maxval(dx_primal), maxval(dx_dual))
+    if (dx == 0d0) dx = dx_min
+    
+    dtheta = dx / radius
+
+    sw_topo  = 0d0
+    topo_sum = 0d0
+    
+    do ii = -npts, npts
+       do jj = -npts, npts
+          lat = lat0 + dble(ii) * dtheta
+          lon = lon0 + dble(jj) * dtheta
+
+          r = geodesic (p, lat, lon)
+
+          wgt = radial_basis_fun ()
+
+          M_topo = topo_value (lat, lon)
+
+          topo_sum = topo_sum + wgt * M_topo
+          sw_topo  = sw_topo  + wgt
+       end do
+    end do
+    
+    ! do ii = 1, npts
+    !    rho = dble(ii) * dtheta 
+    !    ntheta = 6*ii
+    !    do jj = 1, ntheta
+    !       theta = dble(jj-1) * 2d0*MATH_PI/dble(ntheta)
+
+    !       lat = lat0 + rho * sin (theta)
+    !       lon = lon0 + rho * cos (theta)
+
+    !       call wrap_lonlat (lat, lon)
+
+    !       r = geodesic (p, lat, lon)
+
+    !       wgt = radial_basis_fun ()
+
+    !       M_topo = topo_value (lat, lon)
+
+    !       topo_sum = topo_sum + wgt * M_topo
+    !       sw_topo  = sw_topo  + wgt
+    !    end do
+    ! end do
+    smoothing_rbf = topo_sum / sw_topo
+  contains
+    real(8) function radial_basis_fun ()
+      ! Radial basis function for smoothing topography
+      implicit none
+      real(8) :: alph
+
+      alph = 1d0 / (dble(npts)/2d0 * dx)
+
+      radial_basis_fun =  exp__flush (-(alph*r)**2)
+    end function radial_basis_fun
+  end function smoothing_rbf
 end module utils_mod
