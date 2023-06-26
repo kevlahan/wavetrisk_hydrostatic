@@ -693,6 +693,7 @@ contains
       !Dynamics
       use main_mod, ONLY : dt_new
       implicit none
+      character(255) :: command, param_file
 
       !Set physics function pointers (if using) ! it is here where I use soil_mod flag to set soil
       read_paramr_plugin => read_paramr
@@ -700,12 +701,17 @@ contains
       read_paramb_plugin => read_paramb
 
       !write physics read in parameters to file
-      call write_physics_params(47)
+      write(param_file, '(A,I4.4)') trim(run_id)//'.physics_params.', rank
+      call write_physics_params(9*rank,param_file)
 
       !Call initialization of physics parameters
-      open(unit=47, file=trim(run_id)//'.physics_params', form="FORMATTED", action='READ')
+      open(unit=9*rank, file=trim(param_file), form="FORMATTED", action='READ')
       call iniphyparam(dt_new,  DAY, radius, grav_accel, R_d, c_p)
-      close(47)
+      close(9*rank)
+
+      !Delete extra files
+      write(command, '(A,A)') '\rm ', trim(param_file)
+      call system(command)
 
       ! physics single column module extra levels initialization (as needs soil flag set in iniphyparam)
       call initialize_extra_levels(Nsoil+1)
@@ -786,7 +792,7 @@ contains
       !
       !   Description: Physics plugin to read reals from a file
       !
-      !   Assumption: File is already open with unit number: 47
+      !   Assumption: File is already open with unit number: 9*rank
       !
       !   Author: Gabrielle Ching-Johnson
       !
@@ -799,7 +805,7 @@ contains
       character :: equal_sign
 
       ! read line from input file
-      read(47,*) param_name, equal_sign, val
+      read(9*rank,*) param_name, equal_sign, val
 
       if (trim(param_name) .ne. trim(name)) val = defval
 
@@ -810,7 +816,7 @@ contains
       !
       !   Description: Physics plugin to read integers from a file
       !
-      !   Assumption: File is already open with unit number: 47
+      !   Assumption: File is already open with unit number: 9*rank
       !
       !   Author: Gabrielle Ching-Johnson
       !
@@ -823,7 +829,7 @@ contains
       character :: equal_sign
 
       ! read line from input file
-      read(47,*) param_name, equal_sign, val
+      read(9*rank,*) param_name, equal_sign, val
 
       if (trim(param_name) .ne. trim(name)) val = defval
 
@@ -834,7 +840,7 @@ contains
       !
       !   Description: Physics plugin to read logicals from a file
       !
-      !   Assumption: File is already open with unit number: 47
+      !   Assumption: File is already open with unit number: 9*rank
       !
       !   Author: Gabrielle Ching-Johnson
       !
@@ -847,25 +853,28 @@ contains
       character :: equal_sign
 
       ! read line from input file
-      read(47,*) param_name, equal_sign, val
+      read(9*rank,*) param_name, equal_sign, val
 
       if (trim(param_name) .ne. trim(name)) val = defval
 
    end subroutine
 
-   subroutine write_physics_params(file_unit)
+   subroutine write_physics_params(file_unit,file_params)
       integer :: file_unit
+      character(*) :: file_params
       !-----------------------------------------------------------------------------------
       !
       !   Description: Write desired physics parameters to a file.
       !
-      !   Assumption: File is already open with unit number: file_unit
+      !   Notest: Takes into account if mpi is being used, so file_params contains 
+      !           the file name
       !
       !   Author: Gabrielle Ching-Johnson
       !
       !-----------------------------------------------------------------------------------
 
-      open(unit=47, file=trim(run_id)//'.physics_params', form="FORMATTED", action='WRITE', status='REPLACE')
+      open(unit=file_unit, file=trim(file_params), form="FORMATTED", action='WRITE', status='REPLACE')
+
       !write the desired physics parameters
       write(file_unit,*) "planet_rat = ", radius
       write(file_unit,*) "g = ", grav_accel
@@ -876,7 +885,7 @@ contains
       write(file_unit,*) "periheli = ", 150
       write(file_unit,*) "aphelie = ", 150
       write(file_unit,*) "peri_day = ", 0.
-      write(file_unit,*) "obliquit = ", 23
+      write(file_unit,*) "obliquit = ", 0
       write(file_unit,*) "Cd_mer = ", 0.01_8
       write(file_unit,*) "Cd_ter = ", 0.01_8
       write(file_unit,*) "I_mer = ", 3000.
@@ -893,12 +902,12 @@ contains
       write(file_unit,*) "calldifv = ", .true.
       write(file_unit,*) "calladj = ", .true.
       write(file_unit,*) "callsoil = ", soil_mod
-      write(file_unit,*) "season = ", .true.
+      write(file_unit,*) "season = ", .false.
       write(file_unit,*) "diurnal = ", .true.
       write(file_unit,*) "lverbose = ", .true.
       write(file_unit,*) "period_sort = ", 1.
 
-      close(47)
+      close(file_unit)
    end subroutine write_physics_params
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
