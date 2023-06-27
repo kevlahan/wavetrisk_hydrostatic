@@ -866,7 +866,7 @@ contains
       !
       !   Description: Write desired physics parameters to a file.
       !
-      !   Notest: Takes into account if mpi is being used, so file_params contains 
+      !   Notes: Takes into account if mpi is being used, so file_params contains
       !           the file name
       !
       !   Author: Gabrielle Ching-Johnson
@@ -1352,7 +1352,8 @@ contains
 
       integer                       :: k
       real(8)                       :: area
-      real(8), dimension(1:zlevels) :: dz, T_avg, Total_Tavg, Pressure_avg, Geopot_avg, Zonal_vel_avg, Meridional_avg
+      real(8), dimension(1:zlevels) :: dz, T_avg, Total_Tavg, Pressure_avg, Geopot_avg, Zonal_vel_avg, Meridional_avg, &
+         Zonal_KE_avg, Merid_KE_avg
       real(8), dimension(1:zlevels) ::  z
       character(4)                  :: s_time
 
@@ -1368,6 +1369,8 @@ contains
          Geopot_avg(k) = integrate_hex (geopot_fun, k, .true.)
          Zonal_vel_avg(k) = integrate_hex(zonal_fun, k, .true.)
          Meridional_avg(k) = integrate_hex(merid_fun, k, .true.)
+         Zonal_KE_avg(k) = integrate_hex(zonal_KE, k, .true.)
+         Merid_KE_avg(k) = integrate_hex(merid_KE, k, .true.)
       end do
 
       if (rank == 0) then
@@ -1377,23 +1380,27 @@ contains
          Geopot_avg = Geopot_avg / area
          Zonal_vel_avg = Zonal_vel_avg / area
          Meridional_avg = Meridional_avg / area
+         Zonal_KE_avg = 0.5 * Zonal_KE_avg / area
+         Merid_KE_avg = 0.5 * Merid_KE_avg / area
 
          ! Write values to terminal and file
          write (s_time, '(i4.4)') iwrt
          open (unit=20, file=trim(run_id)//'.6.'//s_time, form="FORMATTED", action='WRITE', status='REPLACE')
 
          write (6,'(a, f4.1, a)') "Temperature profile at time ", time/HOUR, " h"
-         write (6,'(a)') "Level    z_k     pres_k     geopot_k    T(z_k)    u(z_k)    v(z_k)"
+         write (6,'(a)') 'Level    z_k     pres_k     geopot_k     T(z_k)       u(z_k)       v(z_k)        1/2u(z_k)^2 '// &
+            '  1/2v(z_k)^2 '
 
          write(20,*) time ! write the time
          do k = 1, zlevels
             z(k) = log(Pressure_avg(k)/p_0)*(-R_d*Total_Tavg(k)/grav_accel)
-            write (6,'(i3, 3x, f9.2, 1x, f9.2, 1x, f9.2, 3(1x, es13.4))') &
-               k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), Zonal_vel_avg(k), Meridional_avg(k)
+            write (6,'(i3, 3x, f9.2, 1x, f9.2, 1x, f9.2, 6(1x, es13.4))') &
+               k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), Zonal_vel_avg(k), Meridional_avg(k),&
+               Zonal_KE_avg(k), Merid_KE_avg(k)
             ! write (20,'(i3, 1x, 6(es13.6,1x))') k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), &
             !    Zonal_vel_avg(k), Meridional_avg(k)
             write (20,*) k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), &
-               Zonal_vel_avg(k), Meridional_avg(k)
+               Zonal_vel_avg(k), Meridional_avg(k), Zonal_KE_avg(k), Merid_KE_avg(k)
          end do
          close (20)
       end if
@@ -1446,6 +1453,24 @@ contains
          nullify (velo, velo1, velo2)
       end function zonal_fun
 
+      real(8) function zonal_KE(dom, i, j, zlev, offs, dims)
+         ! Calculates the Zonal Kinetic energy of an element at the center of a zlev layer in a domain
+         ! Assumes that the velocity was already calculated and stored in dom%u_zonal, from zonal veliocity call
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+
+         integer :: d, id_i
+
+         d = dom%id + 1
+         id_i = idx (i, j, offs, dims) + 1
+
+         zonal_KE = (dom%u_zonal%elts(id_i))**2
+
+      end function zonal_KE
+
       real(8) function merid_fun(dom, i, j, zlev, offs, dims)
          ! Calculates the meridional velocity of an element at the center of a zlev layer in a domain
          ! Assumes that the velocity was already calculated and stored in dom%v_merid, from zonal veliocity call
@@ -1462,6 +1487,23 @@ contains
          merid_fun = dom%v_merid%elts(id_i)
 
       end function merid_fun
+
+      real(8) function merid_KE(dom, i, j, zlev, offs, dims)
+         ! Calculates the Meridional kinetic energy of an element at the center of a zlev layer in a domain
+         ! Assumes that the velocity was already calculated and stored in dom%v_merid, from zonal veliocity call
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+
+         integer :: id_i
+
+         id_i = idx (i, j, offs, dims) + 1
+
+         merid_KE = (dom%v_merid%elts(id_i))**2
+
+      end function merid_KE
 
       real(8) function pressure_fun (dom, i, j, zlev, offs, dims)
          ! Calculates the pressure of an element at the center of a zlev layer in a domain
