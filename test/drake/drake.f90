@@ -72,14 +72,13 @@ program Drake
   remapvelo_type     = "PPR"                            ! remapping scheme for velocity
 
   nstep_init         = 10                               ! take nstep_init small steps on restart
-  adapt_dt           = .true.
+  adapt_dt           = .false.
  
   save_zlev          = zlevels                          ! vertical layer to save
 
-  ! Topography
+  ! Topography (etopo smoothing not yet implemented)
   penalize           = .true.                           ! penalize land regions
-  alpha              = 1d-4                             ! porosity
-  npts_penal         = 4                                ! number of smoothing points
+  alpha              = 1d-3                             ! porosity
   etopo_bathy        = .false.                          ! etopo data for bathymetry
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo data in arcminutes
@@ -87,7 +86,7 @@ program Drake
   dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
   dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
 
-  Laplace_order_init = 2                               ! Laplacian if 1, bi-Laplacian if 2
+  Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
   C_visc(S_MASS)     = 0d-3                             ! dimensionless viscosity of S_MASS
   C_visc(S_TEMP)     = 0d-3                             ! dimensionless viscosity of S_TEMP
   C_visc(S_VELO)     = 1d-3                             ! dimensionless viscosity of S_VELO (rotu, divu)

@@ -12,7 +12,7 @@ Module test_case_mod
   real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
-  integer                              :: bathy_per_deg, etopo_res, npts_penal
+  integer                              :: bathy_per_deg, etopo_res
   real(4), allocatable, dimension(:,:) :: topo_data
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
   real(8)                              :: drho, drho_dz, f0, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
@@ -103,7 +103,7 @@ contains
     press_save = 0d0
     allocate (pressure_save(1))
     pressure_save(1) = press_save
-    dt_write = dt_write * MINUTE
+    dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
   end subroutine read_test_case_parameters
@@ -637,6 +637,7 @@ contains
   end subroutine set_penal
 
   subroutine analytic_topography (dom, i, j, zlev, offs, dims, itype)
+    ! Only sets penal_node
     use utils_mod
     implicit none
     type(Domain)                   :: dom
@@ -657,23 +658,13 @@ contains
 
     p = dom%node%elts(id_i)
     
-    mask = 0d0
-
     select case (itype)
     case ("bathymetry")
        dom%topo%elts(id_i) = max_depth + surf_geopot_case (p) / grav_accel
        topography%data(d)%elts(id_i) = max_depth + surf_geopot_case (p) / grav_accel
     case ("penalize")
        call cart2sph (p, lon, lat)
-       width = 3d0*dx_min / radius
-
-       mask = profile2d ()
-       
-       penal_node(zlev)%data(d)%elts(id_i) = mask
-       
-       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1) = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1))
+       width = 1.5d0*dx_max / radius; penal_node(zlev)%data(d)%elts(id_i) = profile2d ()
     end select
   contains
     real(8) function profile2d ()
@@ -681,7 +672,7 @@ contains
 
       profile2d = profile1d (lat, lat_min, lat_max) * profile1d (lon, lon_min, lon_max)
     end function profile2d
-    
+
     real(8) function profile1d (x, xmin, xmax)
       implicit none
       real(8) :: x, xmin, xmax
@@ -695,9 +686,10 @@ contains
 
       prof = 0.5d0 * (1d0 - tanh((x - x0)/width))
     end function prof
+
   end subroutine analytic_topography
 
-  real(8) function drake_land (lat, lon)
+  real(8) function drake_land (lon, lat)
     implicit none
     real(8) :: lat, lon
 
@@ -735,51 +727,20 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer               :: d, e, id, id_e, id_i, idW, idSW, idS, ii, is0, it0, jj, k, s, t
-    real(8)               :: dx, lat, lat0, lon, lon0, mask, M_topo, r, sw_topo, topo_sum, wgt
-    real(8), dimension(3) :: dx_primal, dx_dual
-    type(Coord)           :: p, q
+    integer :: d, id, id_i, is0, it0, s, t
+    real(8) :: lat, lon, mask, s0, t0
 
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
+    d    = dom%id + 1
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
-
-    ! Determine effective grid size
-    do e = 1, EDGE
-       id_e = id*EDGE + e
-       dx_primal(e) = dom%len%elts(id_e)
-       dx_dual(e)   = dom%pedlen%elts(id_e)
-    end do
-    dx = max (maxval(dx_primal), maxval(dx_dual))
-    if (dx == 0d0) dx = dx_min
 
     ! Find longitude and latitude coordinates
     call cart2sph (dom%node%elts(id_i), lon, lat)
-    lon0 = lon/DEG * dble (BATHY_PER_DEG)
-    lat0 = lat/DEG * dble (BATHY_PER_DEG)
-    is0 = nint (lon0); it0 = nint (lat0)
-    p = proj_lon_lat (lon0, lat0)
+    s0 = lon/DEG * BATHY_PER_DEG
+    t0 = lat/DEG * BATHY_PER_DEG
+    is0 = nint (s0); it0 = nint (t0)
 
-    if (npts_penal == 0) then ! no smoothing
-       mask = etopo_value (is0, it0, itype)
-    else ! smoothing
-       sw_topo  = 0d0
-       topo_sum = 0d0
-       do ii = -npts_penal, npts_penal
-          do jj = -npts_penal, npts_penal
-             s = is0+ii ; t = it0+jj
-             call wrap_lonlat
-             q = proj_lon_lat (dble(s), dble(t))
-             r = norm (vector(p, q))
-             wgt = radial_basis_fun ()
-
-             M_topo = etopo_value (s, t, itype)
-             topo_sum = topo_sum + wgt * M_topo
-             sw_topo  = sw_topo  + wgt
-          end do
-       end do
-       mask = topo_sum / sw_topo
-    end if
+    mask = topo_value (is0, it0, itype)
 
     select case (itype)
     case ("bathymetry")
@@ -787,36 +748,10 @@ contains
        !       topography%data(d)%elts(id_i) = mask
     case ("penalize")
        penal_node(zlev)%data(d)%elts(id_i) = mask
-
-       penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1))
-       penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1)   = max (mask, penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1))
     end select
-  contains
-    real(8) function radial_basis_fun ()
-      ! Radial basis function for smoothing topography
-      implicit none
-
-      real(8) :: alph
-
-      alph = 1d0 / (dble(npts_penal)/2d0 * dx)
-
-      radial_basis_fun = exp (-(alph*r)**2)
-    end function radial_basis_fun
-
-    subroutine wrap_lonlat 
-      ! Longitude: wraparound allows for values outside [-180,180]
-      ! Latitude: works only if there is no cost at the pole
-      implicit none
-
-      if (t < lbound (topo_data,2)) t = lbound (topo_data,2) ! pole
-      if (t > ubound (topo_data,2)) t = ubound (topo_data,2) ! pole
-      if (s < lbound (topo_data,1)) s = s + 360 * BATHY_PER_DEG
-      if (s > ubound (topo_data,1)) s = s - 360 * BATHY_PER_DEG
-    end subroutine wrap_lonlat
   end subroutine etopo_topography
 
-  real(8) function etopo_value (s, t, itype)
+  real(8) function topo_value (s, t, itype)
     implicit none
     integer      :: s, t
     character(*) :: itype
@@ -824,28 +759,18 @@ contains
     select case (itype)
     case ("bathymetry")
        if (topo_data(s, t) > 0d0) then ! land
-          etopo_value = min_depth
+          topo_value = min_depth
        else ! sea: topography is less than zero
-          etopo_value = max (min (topo_data(s, t), min_depth), max_depth)
+          topo_value = max (min (topo_data(s, t), min_depth), max_depth)
        end if
     case ("penalize")
        if (topo_data(s, t) > 0d0) then ! land
-          etopo_value = 1d0
+          topo_value = 1d0
        else ! sea: topography is less than zero
-          etopo_value = 0d0
+          topo_value = 0d0
        end if
     end select
-  end function etopo_value
-
-  type(Coord) function proj_lon_lat (s, t)
-    implicit none
-    real(8) :: s, t
-    real(8) :: lon, lat
-
-    lon = s * DEG / dble (BATHY_PER_DEG)
-    lat = t * DEG / dble (BATHY_PER_DEG)
-    proj_lon_lat = project_on_sphere (sph2cart(lon, lat))
-  end function proj_lon_lat
+  end function topo_value
 
   subroutine apply_initial_conditions_case
     implicit none
@@ -978,7 +903,7 @@ contains
     read (fid) threshold
   end subroutine load_case
 
-    subroutine trend_relax (q, dq)
+  subroutine trend_relax (q, dq)
     ! Trend relaxation to mean buoyancy
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
@@ -1178,7 +1103,7 @@ contains
     visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order)/dt
 
     ! Only diffuse rotu
-    horiz_diffusion = visc * (-1d0)**Laplace_order * (curl_rotu () - grad_divu ())
+    horiz_diffusion = visc * (-1d0)**Laplace_order * (curl_rot () - grad_div ())
 
     ! Vertical diffusion
     if (vert_diffuse) then ! using vertical diffusion module
@@ -1199,26 +1124,19 @@ contains
        ! Vertical diffusion
        if (zlevels == 2) then
           if (zlev == 1) then
-             vert_diffusion = - Ku / (h1 * (h1 + h2)/2d0) * (u1 - u2) + bottom_drag()
+             vert_diffusion = - Ku / (h1 * (h1 + h2)/2d0) * (u1 - u2) + bottom_drag ()
           elseif (zlev == 2) then
-             vert_diffusion = - Ku / (h2 * (h1 + h2)/2d0) * (u2 - u1) + wind_drag()
+             vert_diffusion = - Ku / (h2 * (h1 + h2)/2d0) * (u2 - u1) + wind_drag ()
           end if
        elseif (zlevels == 1) then
-          vert_diffusion = bottom_drag() + wind_drag()
+          vert_diffusion = bottom_drag () + wind_drag ()
        end if
     end if
 
     ! Penalization 
-    penal = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+    penal = - penal_node(zlev)%data(d)%elts(id_i)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
 
-    ! Complete source term for velocity trend (do not include drag and wind stress in solid regions)
-    ! if (penal_node(zlevels)%data(d)%elts(id_i) < 1d-3) then
-    !    physics_velo_source_case = horiz_diffusion + vert_diffusion + penal
-    ! else
-    !    physics_velo_source_case = horiz_diffusion + penal
-    ! end if
-
-    physics_velo_source_case = horiz_diffusion + penal
+    physics_velo_source_case = horiz_diffusion + vert_diffusion + penal
   contains
     function bottom_drag ()
       implicit none
@@ -1240,28 +1158,28 @@ contains
       wind_drag = tau_wind / (ref_density * h2)
     end function wind_drag
     
-    function grad_divu ()
+    function grad_div ()
       implicit none
-      real(8), dimension(3) :: grad_divu
+      real(8), dimension(3) :: grad_div
 
-      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
-    end function grad_divu
+      grad_div(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
+      grad_div(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      grad_div(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+    end function grad_div
 
-    function curl_rotu()
+    function curl_rot ()
       implicit none
-      real(8), dimension(3) :: curl_rotu
+      real(8), dimension(3) :: curl_rot
 
       integer :: idS, idW
 
       idS = idx (i,   j-1, offs, dims)
       idW = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
-    end function curl_rotu
+      curl_rot(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rot(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rot(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+    end function curl_rot
   end function physics_velo_source_case
 
   real(8) function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims)
