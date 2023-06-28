@@ -1287,16 +1287,16 @@ contains
       istep       = istep+1
       istep_cumul = istep_cumul+1
 
-      !dt = dt_new
-      dt = 1200.0_8 !hard_coded case
+      dt = dt_new
+      !dt = 1200.0_8 !hard_coded case
 
       !  Check to see if need to write checkpoint
       idt    = nint (dt*time_mult, 8)
       ialign = nint (align_time*time_mult, 8)
       if (ialign > 0 .and. istep > 20) then
-         !aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
+         aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
          ! For case when dt is exact divisor of align_time:
-         aligned = modulo(time + dt, align_time) < modulo(time,align_time)      !real(8) case
+         !aligned = modulo(time + dt, align_time) < modulo(time,align_time)      !real(8) case
       else
          aligned = .false.
       end if
