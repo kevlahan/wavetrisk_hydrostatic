@@ -79,6 +79,7 @@ contains
           nullify (scalar, scalar_2d)
        end do
     end do
+    q(S_MASS:S_TEMP,:)%bdry_uptodate = .false.
   end subroutine barotropic_correction
 
   subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
@@ -158,8 +159,8 @@ contains
        ibeg = (1+2*(POSIT(S_VELO)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
        iend = sol(S_VELO,1)%data(d)%length
        do k = 1, zlevels
-          sol(S_VELO,k)%data(d)%elts(ibeg:iend) = (sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
-               - theta1 * dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)) 
+          sol(S_VELO,k)%data(d)%elts(ibeg:iend) = sol(S_VELO,k)%data(d)%elts(ibeg:iend) &
+               - theta1 * dt * horiz_flux(S_TEMP)%data(d)%elts(ibeg:iend)
        end do
     end do
     sol(S_VELO,1:zlevels)%bdry_uptodate = .false.
