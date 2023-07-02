@@ -1351,18 +1351,34 @@ contains
       integer :: iwrt
 
       integer                       :: k
-      real(8)                       :: area
+      real(8)                       :: area, high_lat_area, mid_lat_area, low_lat_area, low_lat_upper_lim, high_lat_lower_lim
       real(8), dimension(1:zlevels) :: dz, T_avg, Total_Tavg, Pressure_avg, Geopot_avg, Zonal_vel_avg, Meridional_avg, &
-         Zonal_KE_avg, Merid_KE_avg
+         Zonal_KE_avg, Merid_KE_avg, Low_Lat_avg, Mid_lat_avg, High_lat_avg
       real(8), dimension(1:zlevels) ::  z
+      real(8), dimension(2) :: mid_lat_range
       character(4)                  :: s_time
 
+      ! Set the ranges
+      low_lat_upper_lim = (23.5*MATH_PI/180)
+      mid_lat_range = (/(23.5*MATH_PI/180), (66.5*MATH_PI/180)/)
+      high_lat_lower_lim = (66.5*MATH_PI/180)
+
+      !Set latatide averages and area to zero
+      Low_Lat_avg = 0
+      Mid_lat_avg = 0
+      High_lat_avg = 0
+      high_lat_area = 0
+      mid_lat_area = 0
+      low_lat_area = 0
 
       ! Calculate surface pressure, as pressure is calculated in temp_fun to get temperature
       call cal_surf_press_phys(sol(1:N_VARIABLE,1:zmax))
 
       !Calculate Sums of temp, geopotential, and velocities
       area = integrate_hex (area_fun, 1, .true.)
+      high_lat_area = sum_real(high_lat_area)
+      mid_lat_area = sum_real(mid_lat_area)
+      low_lat_area = sum_real(low_lat_area)
       do k = 1, zlevels
          T_avg(k)  = integrate_hex (temp_fun, k, .true.) ! This will take care if mpi is used
          Pressure_avg(k) = integrate_hex(pressure_fun, k, .true.)
@@ -1371,6 +1387,9 @@ contains
          Meridional_avg(k) = integrate_hex(merid_fun, k, .true.)
          Zonal_KE_avg(k) = integrate_hex(zonal_KE, k, .true.)
          Merid_KE_avg(k) = integrate_hex(merid_KE, k, .true.)
+         High_lat_avg(k) = sum_real(High_lat_avg(k))
+         Mid_lat_avg(k) = sum_real(Mid_lat_avg(k))
+         Low_Lat_avg(k) = sum_real(Low_Lat_avg(k))
       end do
 
       if (rank == 0) then
@@ -1382,6 +1401,9 @@ contains
          Meridional_avg = Meridional_avg / area
          Zonal_KE_avg = 0.5 * Zonal_KE_avg / area
          Merid_KE_avg = 0.5 * Merid_KE_avg / area
+         Low_Lat_avg = Low_Lat_avg / low_lat_area
+         Mid_lat_avg = Mid_lat_avg / mid_lat_area
+         High_lat_avg = High_lat_avg / high_lat_area
 
          ! Write values to terminal and file
          write (s_time, '(i4.4)') iwrt
@@ -1389,18 +1411,19 @@ contains
 
          write (6,'(a, f4.1, a)') "Temperature profile at time ", time/HOUR, " h"
          write (6,'(a)') 'Level    z_k     pres_k     geopot_k     T(z_k)       u(z_k)       v(z_k)        1/2u(z_k)^2 '// &
-            '  1/2v(z_k)^2 '
+            '  1/2v(z_k)^2  Low_lat_T(z_k) Mid_lat_T(z_k) High_lat_T(z_k)'
 
          write(20,*) time ! write the time
          do k = 1, zlevels
             z(k) = log(Pressure_avg(k)/p_0)*(-R_d*Total_Tavg(k)/grav_accel)
-            write (6,'(i3, 3x, f9.2, 1x, f9.2, 1x, f9.2, 6(1x, es13.4))') &
+            write (6,'(i3, 3x, f9.2, 1x, f9.2, 1x, f9.2, 9(1x, es13.4))') &
                k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), Zonal_vel_avg(k), Meridional_avg(k),&
-               Zonal_KE_avg(k), Merid_KE_avg(k)
+               Zonal_KE_avg(k), Merid_KE_avg(k), Low_Lat_avg(k), Mid_lat_avg(k), High_lat_avg(k)
             ! write (20,'(i3, 1x, 6(es13.6,1x))') k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), &
             !    Zonal_vel_avg(k), Meridional_avg(k)
             write (20,*) k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), &
-               Zonal_vel_avg(k), Meridional_avg(k), Zonal_KE_avg(k), Merid_KE_avg(k)
+               Zonal_vel_avg(k), Meridional_avg(k), Zonal_KE_avg(k), Merid_KE_avg(k), Low_Lat_avg(k), Mid_lat_avg(k),&
+               High_lat_avg(k)
          end do
          close (20)
       end if
@@ -1414,10 +1437,12 @@ contains
          integer, dimension(2,N_BDRY+1) :: dims
 
          integer :: d, id_i
-         real(8) :: full_mass, full_theta, potential_temp
+         real(8) :: full_mass, full_theta, potential_temp, temperature, lat, long
 
          d = dom%id + 1
          id_i = idx (i, j, offs, dims) + 1
+         call cart2sph(dom%node%elts(id_i), long, lat)
+         lat = abs(lat)
 
          ! Calculate the pressure
          call cal_press_geopot_layer(dom, i, j, zlev, offs, dims)
@@ -1427,7 +1452,15 @@ contains
          potential_temp = full_theta/full_mass
 
          ! Calculate the temperature at the center of zlayer
-         temp_fun = potential_temp * ((dom%press%elts(id_i)/dom%surf_press%elts(id_i))**kappa)
+         temperature = potential_temp * ((dom%press%elts(id_i)/dom%surf_press%elts(id_i))**kappa)
+
+         if (lat .ge. mid_lat_range(1) .and. lat .le. mid_lat_range(2)) then
+            Mid_lat_avg(zlev) = Mid_lat_avg(zlev) + (temperature/dom%areas%elts(id_i)%hex_inv)
+         end if
+         if (lat .ge. high_lat_lower_lim) High_lat_avg(zlev) = High_lat_avg(zlev) + (temperature/dom%areas%elts(id_i)%hex_inv)
+         if (lat .le. low_lat_upper_lim) Low_Lat_avg(zlev) = Low_lat_avg(zlev) + (temperature/dom%areas%elts(id_i)%hex_inv)
+
+         temp_fun = temperature
 
       end function temp_fun
 
@@ -1547,12 +1580,22 @@ contains
          integer, dimension(2,N_BDRY+1) :: dims
 
          integer :: id_i
+         real(8) :: lat, long
 
          id_i = idx (i, j, offs, dims) + 1
+         call cart2sph(dom%node%elts(id_i), long, lat)
+         lat = abs(lat)
+
+         if (lat .ge. mid_lat_range(1) .and. lat .le. mid_lat_range(2)) then
+            mid_lat_area = mid_lat_area + (1/dom%areas%elts(id_i)%hex_inv)
+         end if
+         if (lat .ge. high_lat_lower_lim) high_lat_area = high_lat_area + (1/dom%areas%elts(id_i)%hex_inv)
+         if (lat .le. low_lat_upper_lim) low_lat_area = low_lat_area + (1/dom%areas%elts(id_i)%hex_inv)
 
          area_fun = 1.0_8
 
       end function area_fun
+
    end subroutine mean_values
 
    subroutine get_coordinates()
