@@ -117,7 +117,7 @@ program Simple_Physics
       end if
    end do
 
-
+   call mean_values(INT(time_end))
    if (rank == 0) then
       close (12)
       write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
