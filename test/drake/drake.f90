@@ -77,11 +77,11 @@ program Drake
   save_zlev          = zlevels                          ! vertical layer to save
 
   ! Topography (etopo smoothing not yet implemented)
+  alpha              = 5d-1
   penalize           = .true.                           ! penalize land regions
-  alpha              = 1d-3                             ! porosity
   etopo_bathy        = .false.                          ! etopo data for bathymetry
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
-  etopo_res          = 4                                ! resolution of etopo data in arcminutes
+  etopo_res          = 4                                ! resolution of etopo or analytic data in arcminutes
 
   dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
   dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
@@ -100,7 +100,7 @@ program Drake
      thermocline          = max_depth                     ! location of layer forced by surface wind stress
      drho                 =     0d0 * KG/METRE**3         ! density perturbation at free surface
      tau_0                =   0.4d0 * NEWTON/METRE**2     ! maximum wind stress
-     u_wbc                =   1.5d0 * METRE/SECOND        ! estimated western boundary current speed
+     u_wbc                =     1d0 * METRE/SECOND        ! estimated western boundary current speed
      k_T                  =     0d0                       ! relaxation to mean buoyancy profile
   elseif (zlevels == 2) then
      coords               = "uniform"
@@ -195,7 +195,8 @@ program Drake
   Tdim           = Ldim/Udim                          ! time scale
   Hdim           = abs (max_depth)                    ! vertical length scale
   
-  if (etopo_bathy .or. etopo_coast) call read_bathymetry_data
+  if (etopo_bathy .or. etopo_coast) call read_etopo_data
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   ! Initialize functions

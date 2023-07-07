@@ -358,7 +358,7 @@ contains
     vert_diffuse        = .false.                           ! include vertical diffusion in ocean models (T)
 
     ! Default numerical method values
-    alpha               = 1d-2                              ! porosity
+    alpha               = 1d0                               ! porosity
     cfl_adv             = 1.4d0                             ! advective CFL number in mode split case
     cfl_bar             = 1d0                               ! baroclinic CFL number in mode split case
     cfl_num             = 1d0                               ! CFL number (barotropic CFL in mode split case)

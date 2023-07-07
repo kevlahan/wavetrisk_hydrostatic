@@ -951,94 +951,127 @@ contains
     val1(id) = val2(id)
   end subroutine cal_equals
   
-  real(8) function smoothing_rbf (dom, i, j, zlev, offs, dims, topo_value)
-    ! Smooths topography over neighbouring region using radial basis functions
+  subroutine smoothing_rbf (dx, npts, nsmth, data)
+    ! Smooths data(lon,lat) over neighbouring region using radial basis functions
     implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    integer                 :: npts, nsmth
+    real(8)                 :: dx
+    real(8), dimension(:,:) :: data
 
-    integer, parameter :: npts = 2 ! smooth over region of size [-npts, npts]^2 dx
-    integer :: e, id, ii, jj, ntheta
-    real(8) :: dtheta, dx, lat, lat0, lon, lon0, mask, M_topo, r, rand, rho, sw_topo, theta, topo_sum, wgt
-    real(8), dimension(EDGE) :: dx_primal, dx_dual
-    type(Coord)        :: p    
+    integer                              :: i, ismth, i0, ii, j, j0, jj, nx, ny
+    real(8)                              :: r, M_topo, sw_topo, topo_sum, wgt
+    real(8), allocatable, dimension(:,:) :: data_old
 
-    interface
-       real(8) function topo_value (lat, lon)
-         ! Value of topography (1 or 0 for land)
-         real(8) :: lat, lon
-       end function topo_value
-    end interface
+    nx = size(data,1); ny = size(data,2)
+    allocate (data_old(nx,ny))
 
-    id = idx (i, j, offs, dims)
+    data_old = data
 
-    p = dom%node%elts(id+1)
-    call cart2sph (p, lon0, lat0)
+    do ismth = 1, nsmth
+       do i = 1, nx
+          do j = 1, ny
+             sw_topo  = 0d0
+             topo_sum = 0d0
+             do ii = -npts, npts
+                do jj = -npts, npts
 
-    !dx = sqrt (2d0 / (sqrt(3d0)*dom%areas%elts(id+1)%hex_inv))
-    !dx = dx_max
+                   r = sqrt (dble(ii**2 + jj**2)) * MATH_PI * radius / dble (ny)
 
-    do e = 1, 3
-       dx_primal(e) = dom%len%elts(EDGE*id+e)
-       dx_dual(e) = dom%pedlen%elts(EDGE*id+e)
-    end do
-    dx = max(maxval(dx_primal), maxval(dx_dual))
-    if (dx == 0d0) dx = dx_min
-    
-    dtheta = dx / radius
+                   wgt = radial_basis_fun (dx, npts, r)
 
-    sw_topo  = 0d0
-    topo_sum = 0d0
-    
-    do ii = -npts, npts
-       do jj = -npts, npts
-          lat = lat0 + dble(ii) * dtheta
-          lon = lon0 + dble(jj) * dtheta
+                   call wrapij (i+ii, j+jj, nx, ny, i0, j0)
 
-          r = geodesic (p, lat, lon)
+                   M_topo = data_old(i0, j0)
 
-          wgt = radial_basis_fun ()
-
-          M_topo = topo_value (lat, lon)
-
-          topo_sum = topo_sum + wgt * M_topo
-          sw_topo  = sw_topo  + wgt
+                   topo_sum = topo_sum + wgt * M_topo
+                   sw_topo  = sw_topo  + wgt
+                end do
+             end do
+             data(i,j) = topo_sum / sw_topo
+          end do
        end do
+       data_old = data
+    end do
+    deallocate (data_old)
+  contains
+    
+  end subroutine smoothing_rbf
+
+  subroutine smoothing_shapiro (nsmth, data)
+    ! Smooths data(lon,lat) over neighbouring region using shapiro (diffusion) filter
+    implicit none
+    integer                 :: nsmth
+    real(8), dimension(:,:) :: data
+
+    integer                              :: i, ii, ismth, jj, nx, ny
+    real(8), allocatable, dimension(:,:) :: data_old
+
+    nx = size(data,1); ny = size(data,2)
+    allocate (data_old(nx,ny))
+
+    data_old = data
+
+    do ismth = 1, nsmth
+       ! Smooth in x-direction
+       do jj = 1, ny
+          data(1,jj) = 0.25d0 * data_old(nx,jj) + 0.5d0 * data_old(1,jj) + 0.25d0 * data_old(2,jj)
+          do ii = 2, nx-1
+             data(ii,jj) = 0.25d0 * data_old(ii-1,jj) + 0.5d0 * data_old(ii,jj) + 0.25d0 * data_old(ii+1,jj)
+          end do
+          data(nx,jj) = 0.25d0 * data_old(nx-1,jj) + 0.5d0 * data_old(nx,jj) + 0.25d0 * data_old(1,jj)
+       end do
+       data_old = data
+       
+       ! Smooth in y-direction
+       do ii = 1, nx
+          i = ii + int(dble(ny)/dble(2))
+          if (i > nx) i = mod(i,nx)
+          data(ii,1) = 0.25d0*data_old(i,1) + 0.5d0*data_old(i,1) + 0.25d0*data_old(i,2)
+          do jj = 2, ny-1
+             data(ii,jj) = 0.25d0*data_old(ii,jj-1) + 0.5d0*data_old(ii,jj) + 0.25d0*data_old(ii,jj+1)
+          end do
+          i = ii + int(dble(ny)/dble(2))
+          if (i > nx) i = mod(i,nx)
+          data(ii,ny) = 0.25d0*data_old(i,ny-1) + 0.5d0*data_old(i,ny) + 0.25d0*data_old(i,ny)
+       end do
+       data_old = data
     end do
     
-    ! do ii = 1, npts
-    !    rho = dble(ii) * dtheta 
-    !    ntheta = 6*ii
-    !    do jj = 1, ntheta
-    !       theta = dble(jj-1) * 2d0*MATH_PI/dble(ntheta)
+    deallocate (data_old)
+  end subroutine smoothing_shapiro
 
-    !       lat = lat0 + rho * sin (theta)
-    !       lon = lon0 + rho * cos (theta)
+  subroutine wrapij (i, j, nx, ny, i0, j0)
+    implicit none
+    integer :: i, i0, j, j0, nx, ny
 
-    !       call wrap_lonlat (lat, lon)
+    if (j > ny) then
+       j = ny - mod (j, ny)
+       i = i + int (dble(nx)/dble(2))
+    elseif (j < 1) then 
+       j = 1 - j
+       i = i + int (dble(ny)/dble(2))
+    end if
+    
+    if (i > nx) then
+       i = mod (i, nx)
+    elseif (i < 1) then
+       i = nx + mod (i, nx)
+    end if
 
-    !       r = geodesic (p, lat, lon)
+    i0 = i
+    j0 = j
+  end subroutine wrapij
 
-    !       wgt = radial_basis_fun ()
+  real(8) function radial_basis_fun (dx, npts, r)
+    ! Radial basis function for smoothing topography
+    implicit none
+    integer :: npts
+    real(8) :: dx, r
 
-    !       M_topo = topo_value (lat, lon)
+    real(8) :: alph
 
-    !       topo_sum = topo_sum + wgt * M_topo
-    !       sw_topo  = sw_topo  + wgt
-    !    end do
-    ! end do
-    smoothing_rbf = topo_sum / sw_topo
-  contains
-    real(8) function radial_basis_fun ()
-      ! Radial basis function for smoothing topography
-      implicit none
-      real(8) :: alph
+    alph = 1d0/(dx_max * dble(npts))
 
-      alph = 1d0 / (dble(npts)/2d0 * dx)
-
-      radial_basis_fun =  exp__flush (-(alph*r)**2)
-    end function radial_basis_fun
-  end function smoothing_rbf
+    radial_basis_fun = exp__flush (-(alph*r)**2)
+  end function radial_basis_fun
 end module utils_mod

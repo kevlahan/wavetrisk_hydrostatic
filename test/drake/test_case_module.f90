@@ -13,7 +13,7 @@ Module test_case_mod
 
   ! Local variables
   integer                              :: bathy_per_deg, etopo_res
-  real(4), allocatable, dimension(:,:) :: topo_data
+  real(4), allocatable, dimension(:,:) :: etopo_data
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
   real(8)                              :: drho, drho_dz, f0, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, mixed_layer, tau_0, thermocline, u_wbc 
@@ -24,6 +24,10 @@ Module test_case_mod
   character(255)                       :: coords
 
   real(8)                              :: dH, lon_c, lat_c, pert_radius
+  real(8), allocatable, dimension(:,:) :: analytic_data
+
+  ! Drake land boundaries
+  real(8),                   parameter :: lat_max = 60d0*DEG, lat_min = -35d0*DEG, lon_min = -15*DEG, lon_max = 15d0*DEG
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -336,24 +340,53 @@ contains
     end if
   end subroutine print_log
 
-  subroutine read_bathymetry_data
+  subroutine read_etopo_data
     ! Read in etopo bathymetry data
     implicit none
     integer :: k
 
-    bathy_per_deg = 60/etopo_res
+    bathy_per_deg  = 60/etopo_res                     ! bathymetry data poin
     
     if (rank == 0) write(6,'(a)') 'Reading bathymetry data ...'
     
-    allocate (topo_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
+    allocate (etopo_data(-180*bathy_per_deg:180*bathy_per_deg, -90*bathy_per_deg:90*bathy_per_deg))
     
     open (unit=1086,file='bathymetry')
     
-    do k = ubound (topo_data,2), lbound (topo_data,2), -1 ! north to south (as read from file)
-       read (1086,*) topo_data(:,k)
+    do k = ubound (etopo_data,2), lbound (etopo_data,2), -1 ! north to south (as read from file)
+       read (1086,*) etopo_data(:,k)
     end do
     close (1086)
-  end subroutine read_bathymetry_data
+  end subroutine read_etopo_data
+
+  subroutine analytic_topo_data
+    implicit none
+    integer            :: ii, jj, nlat, nlon
+    integer, parameter :: npts = 1, nsmth = 22 ! yes, but internal grid refinement
+    !integer, parameter :: npts = 2, nsmth = 12 ! yes, but internal grid refinement 
+    !integer, parameter :: npts = 3, nsmth = 8 ! yes
+    !integer, parameter :: nsmth = 20 ! shapiro
+    real(8)            :: lat, lon
+
+    bathy_per_deg  = 60/etopo_res ! topography data per degree
+
+    ! Set up land data
+    nlat = 180 * BATHY_PER_DEG
+    nlon = 360 * BATHY_PER_DEG
+
+    allocate (analytic_data(nlon,nlat))
+
+    do jj = 1, nlat
+       lat = -90d0 + dble (jj-1) / dble (BATHY_PER_DEG)
+       do ii = 1, nlon
+          lon = -180d0 + dble (ii-1) / dble (BATHY_PER_DEG)
+
+          analytic_data(ii,jj) = drake_land (lon*DEG, lat*DEG)
+       end do
+    end do
+
+    call smoothing_rbf (dx_max, npts, nsmth, analytic_data)
+  end subroutine analytic_topo_data
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Initialize mean values for an entire vertical column
@@ -391,10 +424,12 @@ contains
 
        if (k == zlevels) then
           sol(S_MASS,k)%data(d)%elts(id_i) = rho * eta
+          !sol(S_MASS,k)%data(d)%elts(id_i) = rho * (eta + dz(k))
        else
           sol(S_MASS,k)%data(d)%elts(id_i) = 0d0
+          !sol(S_MASS,k)%data(d)%elts(id_i) = rho * dz(k)
        end if
-       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (x_i, z_k)!0d0
+       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (x_i, z_k)
        sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
 
@@ -440,6 +475,7 @@ contains
        z_k = interp (z(k-1), z(k))
        
        sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = rho * dz(k)
+       !sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = 0d0
        sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (x_i, z_k)
        sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
@@ -568,17 +604,18 @@ contains
        dz = b_vert_mass(k) * max_depth
        z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
 
-       if (dH == 0d0) then
-          lnorm(S_MASS,k) = ref_density*dz
-       else
-          lnorm(S_MASS,k) = ref_density*dH
-       end if
+       ! if (dH == 0d0) then
+       !    lnorm(S_MASS,k) = ref_density*dz
+       ! else
+       !    lnorm(S_MASS,k) = ref_density*dH
+       ! end if
        
        lnorm(S_TEMP,k) = ref_density*dz * abs(buoyancy_init (x_i, z))
-       if (lnorm(S_TEMP,k) == 0d0) lnorm(S_TEMP,k) = 1d16
+       if (lnorm(S_TEMP,k) == 0d0) lnorm(S_TEMP,k) = 1d20
 
        lnorm(S_VELO,k) = Udim
     end do
+    lnorm(S_MASS,:) = 1d20
 
     if (mode_split) lnorm(:,zlevels+1) = lnorm(:,zlevels) ! not used
 
@@ -646,11 +683,9 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer            :: d, e, id, id_i, id_e
-    real(8)            :: land_radius, lat, lon, mask, r, rgrc, width
-    real(8), parameter :: lon_land = 0d0, lat_land = 12d0
-    real(8), parameter :: lat_max = 60d0*DEG, lat_min = -35d0*DEG, lon_min = -15*DEG, lon_max = 15d0*DEG
-    type(Coord)        :: p
+    integer     :: d, e, id, id_i, id_e
+    real(8)     :: dx, land_radius, lat, lon, mask, r, rgrc, shift, width
+    type(Coord) :: p
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -664,13 +699,24 @@ contains
        topography%data(d)%elts(id_i) = max_depth + surf_geopot_case (p) / grav_accel
     case ("penalize")
        call cart2sph (p, lon, lat)
-       width = 1.5d0*dx_max / radius; penal_node(zlev)%data(d)%elts(id_i) = profile2d ()
+
+       ! Non-smoothed
+       penal_node(zlev)%data(d)%elts(id_i) = drake_land (lon, lat)
+
+       ! Smoothed
+       !width = dx_max
+       !shift = 4d0*width/radius
+       !penal_node(zlev)%data(d)%elts(id_i) = profile2d ()
+
+       ! i = min (int ((lon/DEG + 180d0) * BATHY_PER_DEG) + 1, size(analytic_data,1))
+       ! j = min (int ((lat/DEG + 90D0 ) * BATHY_PER_DEG) + 1, size(analytic_data,2))
+       ! penal_node(zlev)%data(d)%elts(id_i) = analytic_data(i,j)
     end select
   contains
     real(8) function profile2d ()
       implicit none
 
-      profile2d = profile1d (lat, lat_min, lat_max) * profile1d (lon, lon_min, lon_max)
+      profile2d = profile1d (lat, lat_min+shift, lat_max-shift) * profile1d (lon, lon_min+shift, lon_max-shift)
     end function profile2d
 
     real(8) function profile1d (x, xmin, xmax)
@@ -684,16 +730,13 @@ contains
       implicit none
       real(8) :: x, x0
 
-      prof = 0.5d0 * (1d0 - tanh((x - x0)/width))
+      prof = 0.5d0 * (1d0 - tanh ((x - x0)/(width/radius)))
     end function prof
-
   end subroutine analytic_topography
 
   real(8) function drake_land (lon, lat)
     implicit none
-    real(8) :: lat, lon
-
-    real(8), parameter :: lat_max = 60d0*DEG, lat_min = -35d0*DEG, lon_min = -15*DEG, lon_max = 15d0*DEG
+    real(8)           :: lat, lon
 
     if ((lat<lat_max .and. lat>lat_min) .and. (lon<lon_max .and. lon>lon_min)) then
        drake_land = 1d0
@@ -701,21 +744,6 @@ contains
        drake_land = 0d0
     end if
   end function drake_land
-
-  real(8) function disk_land (lat, lon)
-    real(8) :: lat, lon
-
-    real(8)            :: rgrc
-    real(8), parameter :: lat_land = 0d0*DEG, lon_land = 0d0*DEG
-
-    rgrc = radius * acos(sin(lat_land)*sin(lat) + cos(lat_land)*cos(lat)*cos(lon-lon_land))
-
-    if (rgrc <= radius) then
-       disk_land = 1d0
-    else
-       disk_land = 0d0
-    end if
-  end function disk_land
 
   subroutine etopo_topography (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo using etopo data 
@@ -758,19 +786,30 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       if (topo_data(s, t) > 0d0) then ! land
+       if (etopo_data(s, t) > 0d0) then ! land
           topo_value = min_depth
        else ! sea: topography is less than zero
-          topo_value = max (min (topo_data(s, t), min_depth), max_depth)
+          topo_value = max (min (etopo_data(s, t), min_depth), max_depth)
        end if
     case ("penalize")
-       if (topo_data(s, t) > 0d0) then ! land
+       if (etopo_data(s, t) > 0d0) then ! land
           topo_value = 1d0
        else ! sea: topography is less than zero
           topo_value = 0d0
        end if
     end select
   end function topo_value
+
+  type(Coord) function proj_lon_lat (i, j)
+    integer :: i, j
+    
+    real(8) :: lon, lat
+
+    lon = dble(i) * (BATHY_PER_DEG * DEG)
+    lat = dble(j) * (BATHY_PER_DEG * DEG)
+
+    proj_lon_lat = project_on_sphere (sph2cart (lon, lat))
+  end function proj_lon_lat 
 
   subroutine apply_initial_conditions_case
     implicit none
@@ -827,7 +866,7 @@ contains
        do l = level_start, level_end
           call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
-    end if
+   end if
   end subroutine update_case
 
   subroutine update_diagnostics
@@ -1088,7 +1127,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: d, id, id_i, idE, idN, idNE
-    real(8)                    :: visc
+    real(8)                    :: lat, lon, visc
     real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, penal, u1, u2, vert_diffusion
 
     d    = dom%id + 1
@@ -1133,8 +1172,9 @@ contains
        end if
     end if
 
-    ! Penalization 
-    penal = - penal_node(zlev)%data(d)%elts(id_i)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+    ! Penalization (non-smoothed)
+    call cart2sph (dom%node%elts(id_i), lon, lat)
+    penal = - drake_land (lon, lat)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
 
     physics_velo_source_case = horiz_diffusion + vert_diffusion + penal
   contains
