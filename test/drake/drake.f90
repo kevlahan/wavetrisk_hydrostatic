@@ -77,7 +77,7 @@ program Drake
   save_zlev          = zlevels                          ! vertical layer to save
 
   ! Topography (etopo smoothing not yet implemented)
-  alpha              = 5d-1
+  alpha              = 1d-1
   penalize           = .true.                           ! penalize land regions
   etopo_bathy        = .false.                          ! etopo data for bathymetry
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
@@ -142,7 +142,7 @@ program Drake
      enhance_diff         = .false.
      
      drho                 =      -2d0 * KG/METRE**3       ! density perturbation at free surface at poles
-     tau_0                =     0.1d0 * NEWTON/METRE**2   ! maximum wind stress
+     tau_0                =     0.4d0 * NEWTON/METRE**2   ! maximum wind stress
      u_wbc                =       1d0 * METRE/SECOND      ! estimated western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   end if

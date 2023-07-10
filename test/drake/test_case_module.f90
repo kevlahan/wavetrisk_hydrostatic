@@ -424,12 +424,10 @@ contains
 
        if (k == zlevels) then
           sol(S_MASS,k)%data(d)%elts(id_i) = rho * eta
-          !sol(S_MASS,k)%data(d)%elts(id_i) = rho * (eta + dz(k))
        else
           sol(S_MASS,k)%data(d)%elts(id_i) = 0d0
-          !sol(S_MASS,k)%data(d)%elts(id_i) = rho * dz(k)
        end if
-       sol(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (x_i, z_k)
+       sol(S_TEMP,k)%data(d)%elts(id_i)                      = 0d0
        sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
 
@@ -475,7 +473,6 @@ contains
        z_k = interp (z(k-1), z(k))
        
        sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = rho * dz(k)
-       !sol_mean(S_MASS,k)%data(d)%elts(id_i)                      = 0d0
        sol_mean(S_TEMP,k)%data(d)%elts(id_i)                      = rho * dz(k) * buoyancy_init (x_i, z_k)
        sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
@@ -700,17 +697,16 @@ contains
     case ("penalize")
        call cart2sph (p, lon, lat)
 
-       ! Non-smoothed
-       penal_node(zlev)%data(d)%elts(id_i) = drake_land (lon, lat)
+       ! Porosity smoothed with tanh profile
+       width = dx_max
+       shift = 4d0*width/radius
+       penal_node(zlev)%data(d)%elts(id_i) = profile2d ()
 
-       ! Smoothed
-       !width = dx_max
-       !shift = 4d0*width/radius
-       !penal_node(zlev)%data(d)%elts(id_i) = profile2d ()
-
-       ! i = min (int ((lon/DEG + 180d0) * BATHY_PER_DEG) + 1, size(analytic_data,1))
-       ! j = min (int ((lat/DEG + 90D0 ) * BATHY_PER_DEG) + 1, size(analytic_data,2))
-       ! penal_node(zlev)%data(d)%elts(id_i) = analytic_data(i,j)
+       ! Permeability not smoothed 
+       do e = 1, EDGE
+          id_e = EDGE*id + e
+          penal_edge(zlev)%data(d)%elts(id_e) = drake_land (lon, lat)
+       end do
     end select
   contains
     real(8) function profile2d ()
@@ -1174,7 +1170,7 @@ contains
 
     ! Penalization (non-smoothed)
     call cart2sph (dom%node%elts(id_i), lon, lat)
-    penal = - drake_land (lon, lat)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
+    penal = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
 
     physics_velo_source_case = horiz_diffusion + vert_diffusion + penal
   contains
