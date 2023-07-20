@@ -56,6 +56,7 @@ USER'S GUIDE
 CONTENTS
 
 1. TEST CASES
+   1.1 Simple Physics Test Case
 
 2. COMPILING
    2.1 PARALLEL AND SERIAL VERSIONS
@@ -102,6 +103,13 @@ Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suare
    defines and reads/prints parameters for this test case).
 3. An example input parameter file test_case.in.
 
+************************************************************
+1.1 SIMPLE PHYSICS TEST CASE
+The simple physics testcase has an extra manual file and a folder called include. This folder contains the physics package .mod files and the library "libphyparam.a", containing the compiled object files, needed to run the physics package as a test case. 
+
+To compile this test case, follow the compiling instructions below. No extra argruments are needed as the make file will add the library and its path to the compile command (therefore the LIBS argument is used) .
+
+The physics package has different parameters that the user can change, see the manual under test/Simple_Physics for more on how to use the package and this test case. 
 
 **********************************************************************************************************************************
 2. COMPILING
