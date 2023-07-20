@@ -862,6 +862,7 @@ contains
    subroutine write_physics_params(file_unit,file_params)
       integer :: file_unit
       character(*) :: file_params
+      logical :: physics_write
       !-----------------------------------------------------------------------------------
       !
       !   Description: Write desired physics parameters to a file.
@@ -872,6 +873,12 @@ contains
       !   Author: Gabrielle Ching-Johnson
       !
       !-----------------------------------------------------------------------------------
+
+      if (rank == 0) then
+         physics_write = .true.
+      else
+         physics_write = .false.
+      end if
 
       open(unit=file_unit, file=trim(file_params), form="FORMATTED", action='WRITE', status='REPLACE')
 
@@ -904,7 +911,7 @@ contains
       write(file_unit,*) "callsoil = ", soil_mod
       write(file_unit,*) "season = ", .false.
       write(file_unit,*) "diurnal = ", .true.
-      write(file_unit,*) "lverbose = ", .true.
+      write(file_unit,*) "lverbose = ", physics_write
       write(file_unit,*) "period_sort = ", 1.
 
       close(file_unit)
