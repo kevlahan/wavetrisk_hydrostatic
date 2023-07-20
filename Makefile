@@ -101,8 +101,10 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
 endif
 
 ifeq ($(TEST_CASE), Simple_Physics)
-  SIMPLEPHYSMODPATH = include
+  SIMPLEPHYSMODPATH = test/Simple_Physics/include
   FLAGS_COMP += -I$(SIMPLEPHYSMODPATH)
+  PHYSLIB_PATH = test/Simple_Physics/include
+  LIBS= -L$(PHYSLIB_PATH) -lphyparam
 endif
 
 SRC = $(PARAM).f90 shared.f90 coord_arithmetic.f90 sphere.f90  patch.f90 dyn_array.f90 \
