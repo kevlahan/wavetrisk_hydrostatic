@@ -1363,6 +1363,7 @@ contains
          Zonal_KE_avg, Merid_KE_avg, Low_Lat_avg, Mid_lat_avg, High_lat_avg
       real(8), dimension(1:zlevels) ::  z
       real(8), dimension(2) :: mid_lat_range
+      real(8), dimension(0:Nsoil) :: tsurf_soil_avg
       character(4)                  :: s_time
 
       ! Set the ranges
@@ -1377,11 +1378,12 @@ contains
       high_lat_area = 0
       mid_lat_area = 0
       low_lat_area = 0
+      tsurf_soil_avg = 0
 
       ! Calculate surface pressure, as pressure is calculated in temp_fun to get temperature
       call cal_surf_press_phys(sol(1:N_VARIABLE,1:zmax))
 
-      !Calculate Sums of temp, geopotential, and velocities
+      !Calculate Sums of temp, geopotential, and velocities, Kinetic Energies, Temp of Latitude zones
       area = integrate_hex (area_fun, 1, .true.)
       high_lat_area = sum_real(high_lat_area)
       mid_lat_area = sum_real(mid_lat_area)
@@ -1394,9 +1396,14 @@ contains
          Meridional_avg(k) = integrate_hex(merid_fun, k, .true.)
          Zonal_KE_avg(k) = integrate_hex(zonal_KE, k, .true.)
          Merid_KE_avg(k) = integrate_hex(merid_KE, k, .true.)
-         High_lat_avg(k) = sum_real(High_lat_avg(k))
-         Mid_lat_avg(k) = sum_real(Mid_lat_avg(k))
-         Low_Lat_avg(k) = sum_real(Low_Lat_avg(k))
+         ! Temps of zones on each rank summed in temp_fun call for T_avg
+         High_lat_avg(k) = sum_real(High_lat_avg(k)) ! Get temp of high lat zones from all ranks
+         Mid_lat_avg(k) = sum_real(Mid_lat_avg(k)) ! Get temp of mid lat zones from all ranks
+         Low_Lat_avg(k) = sum_real(Low_Lat_avg(k)) ! Get temp of low lat zones from all ranks
+      end do
+      ! Calculate sums of the surface temp and soil temps
+      do k = 0,zmin,-1
+         tsurf_soil_avg(abs(k)) = integrate_hex(surf_soil_temp_fun,k,.true.)
       end do
 
       if (rank == 0) then
@@ -1411,6 +1418,7 @@ contains
          Low_Lat_avg = Low_Lat_avg / low_lat_area
          Mid_lat_avg = Mid_lat_avg / mid_lat_area
          High_lat_avg = High_lat_avg / high_lat_area
+         tsurf_soil_avg = tsurf_soil_avg / area
 
          ! Write values to terminal and file
          write (s_time, '(i4.4)') iwrt
@@ -1432,6 +1440,11 @@ contains
                Zonal_vel_avg(k), Meridional_avg(k), Zonal_KE_avg(k), Merid_KE_avg(k), Low_Lat_avg(k), Mid_lat_avg(k),&
                High_lat_avg(k)
          end do
+         ! Write the surface temperature and soil temp (if soil included)
+         do k = 0,zmin,-1
+            write(20,*) k, tsurf_soil_avg(abs(k))
+         end do
+
          close (20)
       end if
    contains
@@ -1602,6 +1615,23 @@ contains
          area_fun = 1.0_8
 
       end function area_fun
+
+      real(8) function surf_soil_temp_fun(dom, i, j, zlev, offs, dims)
+         ! Get the temperature of the surface or the soil at zlev
+         implicit none
+         type(Domain)                   :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+
+         integer :: id_i,d
+
+         id_i = idx (i, j, offs, dims) + 1
+         d = dom%id + 1
+
+         surf_soil_temp_fun = sol(S_TEMP,zlev)%data(d)%elts(id_i)
+
+      end function surf_soil_temp_fun
 
    end subroutine mean_values
 
