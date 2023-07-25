@@ -116,8 +116,9 @@ program Simple_Physics
          call mean_values(iwrite)
       end if
    end do
-
-   call mean_values(INT(time_end))
+   
+   call write_checkpoint (run_id, rebalance) ! checkpoint after final day
+   call mean_values(INT(time_end)) ! save means of final day
    if (rank == 0) then
       close (12)
       write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
