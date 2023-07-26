@@ -1474,12 +1474,17 @@ contains
          ! Calculate the temperature at the center of zlayer
          temperature = potential_temp * ((dom%press%elts(id_i)/dom%surf_press%elts(id_i))**kappa)
 
+         ! Gather the zonal lat temps
          if (lat .ge. mid_lat_range(1) .and. lat .le. mid_lat_range(2)) then
             Mid_lat_avg(zlev) = Mid_lat_avg(zlev) + (temperature/dom%areas%elts(id_i)%hex_inv)
          end if
          if (lat .ge. high_lat_lower_lim) High_lat_avg(zlev) = High_lat_avg(zlev) + (temperature/dom%areas%elts(id_i)%hex_inv)
          if (lat .le. low_lat_upper_lim) Low_Lat_avg(zlev) = Low_lat_avg(zlev) + (temperature/dom%areas%elts(id_i)%hex_inv)
 
+         ! Save density in Ke dom arg for KE
+         dom%ke%elts(id_i) = dom%press%elts(id_i)/(temperature*R_d)
+         
+         !Return temp
          temp_fun = temperature
 
       end function temp_fun
@@ -1508,7 +1513,8 @@ contains
 
       real(8) function zonal_KE(dom, i, j, zlev, offs, dims)
          ! Calculates the Zonal Kinetic energy of an element at the center of a zlev layer in a domain
-         ! Assumes that the velocity was already calculated and stored in dom%u_zonal, from zonal veliocity call
+         ! Assumes that the velocity was already calculated and stored in dom%u_zonal, from zonal velocity call
+         ! Assumes that the density was already calculated and stored in dom%ke, from the temp call
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1520,13 +1526,13 @@ contains
          d = dom%id + 1
          id_i = idx (i, j, offs, dims) + 1
 
-         zonal_KE = (dom%u_zonal%elts(id_i))**2
+         zonal_KE = dom%ke%elts(id_i)*((dom%u_zonal%elts(id_i))**2)
 
       end function zonal_KE
 
       real(8) function merid_fun(dom, i, j, zlev, offs, dims)
          ! Calculates the meridional velocity of an element at the center of a zlev layer in a domain
-         ! Assumes that the velocity was already calculated and stored in dom%v_merid, from zonal veliocity call
+         ! Assumes that the velocity was already calculated and stored in dom%v_merid, from zonal velocity call
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1543,7 +1549,8 @@ contains
 
       real(8) function merid_KE(dom, i, j, zlev, offs, dims)
          ! Calculates the Meridional kinetic energy of an element at the center of a zlev layer in a domain
-         ! Assumes that the velocity was already calculated and stored in dom%v_merid, from zonal veliocity call
+         ! Assumes that the velocity was already calculated and stored in dom%v_merid, from zonal velocity call
+         ! Assumes that the density was already calculated and stored in dom%ke, from the temp call
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1554,7 +1561,7 @@ contains
 
          id_i = idx (i, j, offs, dims) + 1
 
-         merid_KE = (dom%v_merid%elts(id_i))**2
+         merid_KE = dom%ke%elts(id_i)*((dom%v_merid%elts(id_i))**2)
 
       end function merid_KE
 
