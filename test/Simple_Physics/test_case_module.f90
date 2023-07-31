@@ -787,6 +787,39 @@ contains
 
    end subroutine init_soil_grid
 
+   subroutine physics_checkpoint_restart
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Initialize physics cases for when checkpointing is used. Only to be
+      !                called when cp_idx > 0.
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
+      ! Physics use cases
+      use phyparam_mod, ONLY : alloc, precompute, zday_last, icount
+
+      ! local variables
+      real(8) :: day_fraction, nth_day
+
+      ! set flag for first call to physics false (thus the soil levels will get updated)
+      physics_firstcall_flag = .false.
+
+      !call allocation for physics call (usually done on the physics first call)
+      call alloc(1, zlevels)
+
+      !call precompute for physics call(usually done on the physics first call)
+      call precompute()
+
+      !set the previous day in physics
+      day_fraction = (time-dt)/DAY
+      nth_day = FLOOR(day_fraction)
+      day_fraction = day_fraction-nth_day
+
+      zday_last = nth_day + day_fraction - dt/DAY
+
+   end subroutine physics_checkpoint_restart
+
    subroutine read_paramr(name, defval, val, comment)
       !-----------------------------------------------------------------------------------
       !
@@ -1483,7 +1516,7 @@ contains
 
          ! Save density in Ke dom arg for KE
          dom%ke%elts(id_i) = dom%press%elts(id_i)/(temperature*R_d)
-         
+
          !Return temp
          temp_fun = temperature
 

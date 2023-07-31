@@ -41,7 +41,7 @@ program Simple_Physics
    T_0            = 250      * KELVIN              ! reference temperature
    u_0            = 30       * METRE/SECOND        ! geostrophic wind speed
    e_thick        = 10       * KM                  ! Eckman Layer Thickness in meters
-   soil_mod       = .FALSE.                         ! (T) soil module is on
+   soil_mod       = .TRUE.                         ! (T) soil module is on
    Nsoil          = 10                             ! Number of soil layers
 
    ! Dimensions for scaling tendencies
@@ -71,10 +71,12 @@ program Simple_Physics
 
    ! Initialize variables
    call initialize (run_id)
-   !Forcing of dt -> Only in the physics only case for testing
-   !dt_new = 1200.0_8
+
    ! Initialize the physics and physics function pointers
    call init_physics
+
+   ! Physics call initializations if checkpointing
+   if (cp_idx > 0) call physics_checkpoint_restart
 
    ! Save initial conditions
    call print_test_case_parameters
@@ -90,8 +92,7 @@ program Simple_Physics
    do while (time < time_end)
       call start_timing
       call time_step (dt_write, aligned)
-      !When no dynamics called
-      !call timestep_placeholder(dt_write, aligned)
+      !When no dynamics called use : call timestep_placeholder(dt_write, aligned)
       if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
       call euler (sol(1:N_VARIABLE,1:ZLEVELS), wav_coeff(1:N_VARIABLE,1:ZLEVELS), trend_physics, dt)
       call stop_timing
@@ -116,7 +117,7 @@ program Simple_Physics
          call mean_values(iwrite)
       end if
    end do
-   
+
    call write_checkpoint (run_id, rebalance) ! checkpoint after final day
    call mean_values(INT(time_end)) ! save means of final day
    if (rank == 0) then
