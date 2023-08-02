@@ -195,7 +195,21 @@ program flat_projection_data
 
      alpha          = 1d-2    ! porosity
      npts_penal     = 4.5d0
-  case default
+   case ("Simple_Physics")
+      radius         = 6400      * KM                 ! mean radius of the Earth
+      grav_accel     = 9.8       * METRE/SECOND**2    ! gravitational acceleration
+      p_0            = 1000      * hPa                ! reference pressure (mean surface pressure) in Pascals
+      p_top          = 0.01       * Pa                 ! pressure at the top in Pascals
+      c_p            = 1004.0_8  * JOULE/(KG*KELVIN)  ! specific heat at constant pressure in joules per kilogram Kelvin
+      R_d            = 287 * JOULE/(KG*KELVIN)         ! ideal gas constant for dry air in joules per kilogram Kelvin
+      c_v            = c_p - R_d * JOULE/(KG*KELVIN)  ! specific heat at constant volume c_v = c_p - R_d
+      ref_density    = 1.204     * KM                  ! Reference density (km/m^3)
+
+      kappa          = R_d/c_p                    ! kappa
+      gamma          = c_p/c_v  
+      zmin = -10
+      ref_surf_press = p_0
+   case default
      if (rank == 0) write (6,'(a)') "Case not supported ... aborting"
      call abort
   end select

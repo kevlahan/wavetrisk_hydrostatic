@@ -287,6 +287,13 @@ contains
        ! Vertical grid spacing
        a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
+    else 
+         do k = 1, zlevels+1
+            a_vert(k) = dble(k-1)/dble(zlevels) * p_top
+            b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
+         end do
+       a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
+       b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1) 
     end if
   end subroutine initialize_a_b_vert_case
 
