@@ -6,12 +6,12 @@ program flat_projection_data
   use projection_mod
   implicit none
   
-  integer                                :: k, l, nt, Ncumul
+  integer                                :: k, l, nt, Ncumul, p, d
   integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
   real(8)                                :: area1, area2
   real(8), dimension(:),     allocatable :: eta_lat, eta_lon
   real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy
-  real(8), dimension(:,:,:), allocatable :: field2d_save, lat_slice, lon_slice, zonal_av, zcoord_lat, zcoord_lon
+  real(8), dimension(:,:,:), allocatable :: field2d_save, lat_slice, lon_slice, zonal_av, zcoord_lat, zcoord_lon, field2d_simplephys
   
   character(2)                           :: var_file
   character(8)                           :: itype
@@ -209,6 +209,7 @@ program flat_projection_data
       gamma          = c_p/c_v  
       zmin = -10
       ref_surf_press = p_0
+      climatology = .true.
    case default
      if (rank == 0) write (6,'(a)') "Case not supported ... aborting"
      call abort
@@ -230,6 +231,7 @@ program flat_projection_data
   elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
      call initialize_stat_vertical
   else
+     if (trim(test_case) == "Simple_Physics" .and. climatology) call init_physics_climatology
      call initialize_stat
   end if
   
@@ -263,6 +265,38 @@ program flat_projection_data
      elseif  (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
         call vertical_slice
         if (rank == 0) call write_slice
+     elseif (trim (test_case) == "Simple_Physics") then
+         if (climatology) then
+            call cal_surf_press (sol)
+            ! Add each temp & KE for each checkpoint for the climatology
+            do k = 1, zmax
+               do d = 1, size(grid)
+                  temp   => sol(S_TEMP,k)%data(d)%elts
+                  mass   => sol(S_MASS,k)%data(d)%elts
+                  mean_m => sol_mean(S_MASS,k)%data(d)%elts
+                  mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+                  velo   => sol(S_VELO,k)%data(d)%elts
+                  velo1  => grid(d)%u_zonal%elts
+                  velo2  => grid(d)%v_merid%elts
+                  do p = 3, grid(d)%patch%length
+                     call apply_onescale_to_patch (climatology_add_temp, grid(d), p-1, k, 0, 1)
+                     call apply_onescale_to_patch(climatology_add_KEs, grid(d), p-1, k, 0, 0)
+                     if (cp_idx==cp_2d) then
+                         call apply_onescale_to_patch (climatology_temp_mean, grid(d), p-1, k, 0, 1)
+                         call apply_onescale_to_patch (climatology_KE_mean, grid(d), p-1, k, 0, 1)
+                     end if
+                  end do
+                  nullify(temp, mass, mean_m, mean_t, velo, velo1, velo2)
+               end do
+            end do
+            ! do I need to update the boundaries?
+         end if 
+         if (welford) then
+            call cal_zonal_av
+         else
+            call cal_zonal_average
+         end if
+         if (cp_idx == cp_2d) call latlon
      else
         if (welford) then
            call cal_zonal_av
@@ -559,6 +593,24 @@ contains
        ! Surface pressure
        call project_array_onto_plane ("surf_press", level_save, 1d0)
        field2d_save(:,:,6+k-1) = field2d
+
+       ! Save climatology for simple Physics
+       if (trim(test_case)=="Simple_Physics" .and. climatology) then
+         ! update the boundarys
+         simple_phys_temp%bdry_uptodate = .false.
+         call update_vector_bdry (simple_phys_temp, NONE, 44)
+         simple_phys_zonal%bdry_uptodate = .false.
+         call update_vector_bdry (simple_phys_zonal, NONE, 44)
+         simple_phys_merid%bdry_uptodate = .false.
+         call update_vector_bdry (simple_phys_merid, NONE, 44)
+         ! save 2D projections
+         call project_field_onto_plane(simple_phys_temp(k-1), level_save, 0.0_8)
+         field2d_simplephys(:,:,1+k-1) = field2d
+         call project_field_onto_plane(simple_phys_zonal(k-1), level_save, 0.0_8)
+         field2d_simplephys(:,:,2+k-1) = field2d
+         call project_field_onto_plane(simple_phys_merid(k-1), level_save, 0.0_8)
+         field2d_simplephys(:,:,3+k-1) = field2d
+       end if
     end do
   end subroutine latlon
 
@@ -1111,6 +1163,17 @@ contains
        close (funit)
     end do
 
+    if (trim(test_case)=="Simple_Physics" .and. climatology) then
+      do v = 1, 3*save_levels
+         write (var_file, '(i2)') v+30
+         open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+         do i = Ny(1), Ny(2)
+            write (funit) field2d_simplephys(:,i,v)
+         end do
+         close (funit)
+      end do
+    end if
+
     ! Zonal average of solution over all vertical levels
     do v = 1, nvar_zonal
        write (var_file, '(i2)') v+10
@@ -1326,6 +1389,7 @@ contains
 
     allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
+    if (trim(test_case)=="Simple_Physics" .and. climatology) allocate (field2d_simplephys(Nx(1):Nx(2),Ny(1):Ny(2),3*save_levels))
     zonal_av = 0d0
   end subroutine initialize_stat
 
@@ -1400,6 +1464,14 @@ contains
           sol_save(S_VELO,kk)%data(d)%elts(EDGE*id+e) = sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e)  + &
                dpressure * (sol(S_VELO,k)%data(d)%elts(EDGE*id+e) - sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e))
        end do
+       if (trim(test_case)=="Simple_Physics" .and. climatology) then
+         simple_phys_temp(kk-1)%data(d)%elts(id+1) = simple_phys_temp(k+1)%data(d)%elts(id+1) + &
+            dpressure * (simple_phys_temp(k)%data(d)%elts(id+1) - simple_phys_temp(k+1)%data(d)%elts(id+1))
+         simple_phys_zonal(kk-1)%data(d)%elts(id+1) = simple_phys_zonal(k+1)%data(d)%elts(id+1) + &
+            dpressure * (simple_phys_zonal(k)%data(d)%elts(id+1) - simple_phys_zonal(k+1)%data(d)%elts(id+1))
+         simple_phys_merid(kk-1)%data(d)%elts(id+1) = simple_phys_merid(k+1)%data(d)%elts(id+1) + &
+            dpressure * (simple_phys_merid(k)%data(d)%elts(id+1) - simple_phys_merid(k+1)%data(d)%elts(id+1))
+       end if
     end do
   end subroutine interp_save
 end program
