@@ -590,7 +590,7 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer     :: k
-    real(8)     :: dz, z
+    real(8)     :: dz, theta, z
     type(Coord) :: x_i
 
     allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
@@ -601,22 +601,25 @@ contains
        dz = b_vert_mass(k) * max_depth
        z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
 
-       ! if (dH == 0d0) then
-       !    lnorm(S_MASS,k) = ref_density*dz
-       ! else
-       !    lnorm(S_MASS,k) = ref_density*dH
-       ! end if
-       
-       lnorm(S_TEMP,k) = ref_density*dz * abs(buoyancy_init (x_i, z))
+       theta = abs (buoyancy_init (x_i, z)) 
+
+       if (theta < 1d-16) then
+          lnorm(S_MASS,k) = ref_density * Udim**2 / grav_accel
+       else
+          lnorm(S_MASS,k) = ref_density * Udim**2 / (grav_accel * theta)
+       end if
+    
+       lnorm(S_TEMP,k) = ref_density * dz * theta
        if (lnorm(S_TEMP,k) == 0d0) lnorm(S_TEMP,k) = 1d20
 
        lnorm(S_VELO,k) = Udim
     end do
-    lnorm(S_MASS,:) = 1d20
 
     if (mode_split) lnorm(:,zlevels+1) = lnorm(:,zlevels) ! not used
 
-    threshold_def = tol * lnorm  
+    threshold_def(S_MASS,:) = tol**1.5d0 * lnorm(S_MASS,:)
+    threshold_def(S_TEMP,:) = tol        * lnorm(S_TEMP,:)
+    threshold_def(S_VELO,:) = tol        * lnorm(S_VELO,:)
   end subroutine initialize_thresholds_case
   
   subroutine initialize_dt_viscosity_case 
@@ -699,7 +702,7 @@ contains
 
        ! Porosity smoothed with tanh profile
        width = dx_max
-       shift = 4d0*width/radius
+       shift = 2.5d0 * width / radius
        penal_node(zlev)%data(d)%elts(id_i) = profile2d ()
 
        ! Permeability not smoothed 
