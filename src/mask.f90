@@ -50,7 +50,6 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer            :: d, e, id, id_e, id_i, k, l, v
-    real(8)            :: tolu
     logical            :: active
     logical, parameter :: penta_adjust = .false.
 
@@ -81,8 +80,7 @@ contains
 
        active = .false.
        do k = 1, zlevels
-          tolu = threshold(S_VELO,k) / phi_node (d, id_i, k) ! scaled for penalization 
-          if (abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= tolu .or. l < level_fill) active = .true.
+          if (abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e)) >= threshold(S_VELO,k) .or. l < level_fill) active = .true.
        end do
 
        if (active) then
