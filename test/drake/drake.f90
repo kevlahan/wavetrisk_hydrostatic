@@ -89,7 +89,7 @@ program Drake
   Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
   C_visc(S_MASS)     = 0d-3                             ! dimensionless viscosity of S_MASS
   C_visc(S_TEMP)     = 0d-3                             ! dimensionless viscosity of S_TEMP
-  C_visc(S_VELO)     = 1d-3                             ! dimensionless viscosity of S_VELO (rotu, divu)
+  C_visc(S_VELO)     = 1d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
 
   if (zlevels == 1) then
      sigma_z              = .false.
