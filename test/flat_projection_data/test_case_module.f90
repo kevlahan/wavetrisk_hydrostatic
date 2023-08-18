@@ -30,7 +30,7 @@ module test_case_mod
   logical :: soufflet
   ! Simple Physics
   logical :: climatology
-  type(Float_Field), dimension(:), allocatable, target :: simple_phys_temp, simple_phys_vels !, simple_phys_density!simple_phys_zonal, simple_phys_merid
+  type(Float_Field), dimension(:), allocatable, target :: simple_phys_temp, simple_phys_zonal, simple_phys_merid, simple_phys_vels
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -744,16 +744,19 @@ contains
    ! allocate climatology summation arrays
    allocate(simple_phys_temp(0:zlevels))
    allocate(simple_phys_vels(0:zlevels))
-   !allocate(simple_phys_density(0:zlevels))
+   allocate(simple_phys_zonal(0:zlevels))
+   allocate(simple_phys_merid(0:zlevels))
 
    !Initialize arrays to zero ! Column 0 is for the sol_save, since simple_phys always has atlest zlevels 0:zmax in S_Temp
    simple_phys_temp = sol(S_TEMP, 0:zlevels)
    simple_phys_vels = sol(S_VELO, 0:zlevels)
-   !simple_phys_density = sol(S_VELO, 0:zlevels)
+   simple_phys_zonal = sol(S_TEMP, 0:zlevels)
+   simple_phys_merid = sol(S_TEMP, 0:zlevels)
    do k = 0, zlevels
       call zero_float_field (simple_phys_temp(k), S_TEMP)
       call zero_float_field (simple_phys_vels(k), S_VELO)
-      !call zero_float_field (simple_phys_density(k), S_TEMP)
+      call zero_float_field (simple_phys_zonal(k), S_TEMP)
+      call zero_float_field (simple_phys_merid(k), S_TEMP)
    end do
 
   end subroutine init_physics_climatology
@@ -801,20 +804,33 @@ contains
    id = idx (i, j, offs, dims)
    d = dom%id + 1
 
-   !Calculate the zonal and meridional velocities
-   !call interp_UVW_latlon(dom, i, j, zlev, offs, dims)
-
    !update the velocities
    do e = RT,UP
-      velo1(EDGE*id+e+1) = velo1(EDGE*id+e+1) + velo(EDGE*id+e+1)
+      velo_2d(EDGE*id+e+1) = velo_2d(EDGE*id+e+1) + velo(EDGE*id+e+1)
    end do
-   !simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)+(velo1(id_i))
-   !simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)+(velo2(id_i))
+  end subroutine climatology_add_velocities
+
+  subroutine climatology_add_KE(dom, i, j, zlev, offs, dims)
+   implicit none
+   type (Domain)                  :: dom
+   integer                        :: i, j, zlev
+   integer, dimension(N_BDRY+1)   :: offs
+   integer, dimension(2,N_BDRY+1) :: dims
+
+   integer :: id_i, d, e
+
+   ! Get id of column and domain
+   id_i = idx (i, j, offs, dims) + 1
+   d = dom%id + 1
+
+   !Calculate the zonal and meridional velocities
+   call interp_UVW_latlon(dom, i, j, zlev, offs, dims)
+   
 
    ! !update the KE's
-   ! simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo1(id_i)**2))
-   ! simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo2(id_i)**2))
-  end subroutine climatology_add_velocities
+    simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo1(id_i)**2))
+    simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo2(id_i)**2))
+  end subroutine climatology_add_KE
 
   subroutine climatology_temp_mean(dom, i, j, zlev, offs, dims)
    implicit none
@@ -847,34 +863,28 @@ contains
    d = dom%id + 1
 
    do e = RT,UP
-      velo1(EDGE*id+e+1) = velo1(EDGE*id+e+1)/(mean_end-mean_beg+1)
+      velo_2d(EDGE*id+e+1) = velo_2d(EDGE*id+e+1)/(mean_end-mean_beg+1)
    end do
-
-   !simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)/(mean_end-mean_beg+1)
-   !simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)/(mean_end-mean_beg+1)
 
   end subroutine climatology_velocity_mean
 
-  subroutine climatology_calc_KE(dom, i, j, zlev, offs, dims)
-   ! Save zonal KE in dom%ke and meridional%ke in dom%vort
+  subroutine climatology_KE_mean(dom, i, j, zlev, offs, dims)
    implicit none
    type (Domain)                  :: dom
    integer                        :: i, j, zlev
    integer, dimension(N_BDRY+1)   :: offs
    integer, dimension(2,N_BDRY+1) :: dims
 
-   integer :: id_i
-   real(8) :: dens
+   integer :: id_i, d, e
 
    ! Get id of column and domain
-   id_i = idx (i, j, offs, dims) +1
+   id_i = idx (i, j, offs, dims) + 1
+   d = dom%id + 1
 
-   dens = pressure_save(1)/(temp(id_i)*R_d)
+   simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)/(mean_end-mean_beg+1)
+   simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)/(mean_end-mean_beg+1)
 
-   dom%ke%elts(id_i) = 0.5 * dens * (dom%u_zonal%elts(id_i))**2
-   dom%vort%elts(id_i) = 0.5 * dens * (dom%v_merid%elts(id_i))**2
-
-  end subroutine climatology_calc_KE
+  end subroutine climatology_KE_mean
 
   subroutine check_climatology_mean_beg_2D
    implicit none

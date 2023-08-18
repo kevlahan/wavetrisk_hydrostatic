@@ -269,6 +269,9 @@ program flat_projection_data
          if (climatology) then
             call cal_surf_press(sol(1:N_VARIABLE,1:zmax))
             ! Add each temp & KE for each checkpoint for the climatology
+            !Update the boundary for the velocities
+            sol%bdry_uptodate = .false.
+            call update_array_bdry (sol, NONE, 26)
             do k = 1, zlevels
                do d = 1, size(grid)
                   temp   => sol(S_TEMP,k)%data(d)%elts
@@ -277,20 +280,22 @@ program flat_projection_data
                   mean_m => sol_mean(S_MASS,k)%data(d)%elts
                   mean_t => sol_mean(S_TEMP,k)%data(d)%elts
                   velo   => sol(S_VELO,k)%data(d)%elts
-                  velo1  => simple_phys_vels(k)%data(d)%elts!grid(d)%u_zonal%elts
-                  !velo2  => grid(d)%v_merid%elts
+                  velo_2d  => simple_phys_vels(k)%data(d)%elts
+                  velo1  => grid(d)%u_zonal%elts
+                  velo2  => grid(d)%v_merid%elts
                   do p = 3, grid(d)%patch%length
                      call apply_onescale_to_patch (climatology_add_temp, grid(d), p-1, k, 0, 1)
                      call apply_onescale_to_patch(climatology_add_velocities, grid(d), p-1, k, 0, 0)
+                     call apply_onescale_to_patch (climatology_add_KE, grid(d), p-1, k, 0, 1)
                      if (cp_idx==cp_2d) then
                          call apply_onescale_to_patch (climatology_temp_mean, grid(d), p-1, k, 0, 1)
                          call apply_onescale_to_patch (climatology_velocity_mean, grid(d), p-1, k, 0, 0)
+                         call apply_onescale_to_patch (climatology_KE_mean, grid(d), p-1, k, 0, 1)
                      end if
                   end do
-                  nullify(temp, temp1, mass, mean_m, mean_t, velo, velo1)
+                  nullify(temp, temp1, mass, mean_m, mean_t, velo, velo_2d, velo1, velo2)
                end do
             end do
-            ! do I need to update the boundaries?
          end if 
          if (welford) then
             call cal_zonal_av
@@ -600,18 +605,18 @@ contains
          ! update the boundarys
          simple_phys_temp%bdry_uptodate = .false.
          call update_vector_bdry (simple_phys_temp, NONE, 44)
-         ! simple_phys_zonal%bdry_uptodate = .false.
-         ! call update_vector_bdry (simple_phys_zonal, NONE, 44)
-         ! simple_phys_merid%bdry_uptodate = .false.
-         ! call update_vector_bdry (simple_phys_merid, NONE, 44)
+         simple_phys_zonal%bdry_uptodate = .false.
+         call update_vector_bdry (simple_phys_zonal, NONE, 44)
+         simple_phys_merid%bdry_uptodate = .false.
+         call update_vector_bdry (simple_phys_merid, NONE, 44)
 
          ! save 2D projections
          call project_field_onto_plane(simple_phys_temp(k-1), level_save, 0.0_8)
          field2d_simplephys(:,:,1+k-1) = field2d
-         ! call project_field_onto_plane(simple_phys_zonal(k-1), level_save, 0.0_8)
-         ! field2d_simplephys(:,:,2+k-1) = field2d
-         ! call project_field_onto_plane(simple_phys_merid(k-1), level_save, 0.0_8)
-         ! field2d_simplephys(:,:,3+k-1) = field2d
+         call project_field_onto_plane(simple_phys_zonal(k-1), level_save, 0.0_8)
+         field2d_simplephys(:,:,4+k-1) = field2d
+         call project_field_onto_plane(simple_phys_merid(k-1), level_save, 0.0_8)
+         field2d_simplephys(:,:,5+k-1) = field2d
 
          simple_phys_vels%bdry_uptodate= .false.
          call update_vector_bdry(simple_phys_vels,NONE,27)
@@ -623,7 +628,6 @@ contains
             velo2 => grid(d)%v_merid%elts
             do j = 1, grid(d)%lev(level_save)%length
                call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
-               call apply_onescale_to_patch (climatology_calc_KE, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
             end do
             nullify (temp,velo, velo1, velo2)
          end do
@@ -636,15 +640,6 @@ contains
          call project_array_onto_plane ("v_merid", level_save, 0d0)
          field2d_simplephys(:,:,3+k-1) = field2d
 
-         ! Zonal KE
-         !call project_array_onto_plane ("u_zonal", level_save, 0d0)
-         call project_array_onto_plane ("ke", level_save, 0d0)
-         field2d_simplephys(:,:,4+k-1) = field2d
-         
-         ! Meridional KE
-         !call project_array_onto_plane ("v_merid", level_save, 0d0)
-         call project_array_onto_plane ("vort", level_save, 0d0)
-         field2d_simplephys(:,:,5+k-1) = field2d
        end if
     end do
   end subroutine latlon
@@ -1502,12 +1497,14 @@ contains
        if (trim(test_case)=="Simple_Physics" .and. climatology) then
          simple_phys_temp(kk-1)%data(d)%elts(id+1) = simple_phys_temp(k+1)%data(d)%elts(id+1) + &
             dpressure * (simple_phys_temp(k)%data(d)%elts(id+1) - simple_phys_temp(k+1)%data(d)%elts(id+1))
+         simple_phys_zonal(kk-1)%data(d)%elts(id+1) = simple_phys_zonal(k+1)%data(d)%elts(id+1) + &
+            dpressure * (simple_phys_zonal(k)%data(d)%elts(id+1) - simple_phys_zonal(k+1)%data(d)%elts(id+1))
+         simple_phys_merid(kk-1)%data(d)%elts(id+1) = simple_phys_merid(k+1)%data(d)%elts(id+1) + &
+            dpressure * (simple_phys_merid(k)%data(d)%elts(id+1) - simple_phys_merid(k+1)%data(d)%elts(id+1))
          do e = 1, EDGE
             simple_phys_vels(kk-1)%data(d)%elts(EDGE*id+e) = simple_phys_vels(k+1)%data(d)%elts(EDGE*id+e) + &
                dpressure * (simple_phys_vels(k)%data(d)%elts(EDGE*id+e) - simple_phys_vels(k+1)%data(d)%elts(EDGE*id+e))
          end do
-         ! simple_phys_merid(kk-1)%data(d)%elts(EDGE*id+e) = simple_phys_merid(k+1)%data(d)%elts(EDGE*id+e) + &
-         !    dpressure * (simple_phys_merid(k)%data(d)%elts(EDGE*id+e) - simple_phys_merid(k+1)%data(d)%elts(EDGE*id+e))
        end if
     end do
   end subroutine interp_save
