@@ -895,4 +895,47 @@ contains
    end if
   end subroutine check_climatology_mean_beg_2D
 
+  subroutine cal_temp_dens (dom, i, j, zlev, offs, dims)
+   ! Compute temperature in compressible case
+   implicit none
+   type(Domain)                   :: dom
+   integer                        :: i, j, zlev
+   integer, dimension(N_BDRY+1)   :: offs
+   integer, dimension(2,N_BDRY+1) :: dims
+
+   integer :: id, d, k
+   real(8), dimension(1:zlevels) :: p
+
+   d = dom%id + 1
+   id = idx(i, j, offs, dims)
+
+   ! Integrate the pressure upwards
+   p(1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
+   do k = 2, zlevels
+      p(k) = p(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
+   end do
+
+   ! Temperature at all vertical levels (saved in exner_fun) and density (saved in penal_node)
+   do k = 1, zlevels
+      exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * (p(k)/p_0)**kappa
+      penal_node(k)%data(d)%elts(id+1) = p(k) / (exner_fun(k)%data(d)%elts(id+1) * R_d)
+   end do
+
+   ! temperature at save levels (saved in trend)
+   do k = 1, save_levels
+      trend(1,k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
+           (pressure_save(k)/p_0)**kappa
+   end do
+
+ end subroutine cal_temp_dens
+
+ subroutine deallocate_climatology
+   ! Deallocated extra structures
+   implicit NONE
+   deallocate(simple_phys_temp)
+   deallocate(simple_phys_vels)
+   deallocate(simple_phys_zonal)
+   deallocate(simple_phys_merid)
+ end subroutine deallocate_climatology
+
 end module test_case_mod

@@ -6,7 +6,7 @@ program flat_projection_data
   use projection_mod
   implicit none
   
-  integer                                :: k, l, nt, Ncumul, p, d
+  integer                                :: k, l, nt, Ncumul, p, d, nvar_total
   integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
   real(8)                                :: area1, area2
   real(8), dimension(:),     allocatable :: eta_lat, eta_lon
@@ -22,7 +22,9 @@ program flat_projection_data
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
-  
+
+  ! Set the zonal nvar total - need 2 extra for simple physics
+  nvar_total = nvar_zonal
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters
@@ -209,7 +211,8 @@ program flat_projection_data
       gamma          = c_p/c_v  
       zmin = -10
       ref_surf_press = p_0
-      climatology = .true.
+      climatology = .false.
+      nvar_total = nvar_zonal + 3
    case default
      if (rank == 0) write (6,'(a)') "Case not supported ... aborting"
      call abort
@@ -325,6 +328,7 @@ program flat_projection_data
      if (.not. welford) then
         zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
         zonal_av(:,:,3:5) = zonal_av(:,:,3:5) / Ncumul
+        if (trim (test_case) == "Simple_Physics") zonal_av(:,:,10:12) = zonal_av(:,:,10:12) / Ncumul
         call barrier
 
         do cp_idx = mean_beg, mean_end
@@ -350,15 +354,22 @@ contains
     implicit none
     
     integer                                       :: d, ix, j, k
-    real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
-    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
+    real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new, uKEprime,&
+                                                      vKEprime, rho_prime
+    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj, Dproj
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level_save
     call fill_up_grid_and_IWT (level_save)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun)
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
-    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    if (trim (test_case) == "Simple_Physics") then
+      call apply_onescale (cal_temp_dens, level_save, z_null, 0, 1)
+      penal_node%bdry_uptodate = .false.
+      call update_vector_bdry (penal_node, NONE, 42)
+    else
+      call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    end if
     exner_fun%bdry_uptodate = .false.
     call update_vector_bdry (exner_fun, NONE, 41)
 
@@ -367,6 +378,12 @@ contains
        ! Temperature
        call project_field_onto_plane (exner_fun(k), level_save, 1d0)
        Tproj = field2d
+
+       ! Simple phys Density for KEs
+       if (trim (test_case) == "Simple_Physics") then
+         call project_field_onto_plane(penal_node(k), level_save, 1.0_8)
+         Dproj = field2d
+       end if
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
@@ -397,6 +414,15 @@ contains
           zonal_av(k,:,4) = zonal_av(k,:,4) + Vprime/Ncumul
           zonal_av(k,:,5) = zonal_av(k,:,5) +  0.5 * (Uprime**2 + Vprime**2)/Ncumul
 
+          if (trim (test_case) == "Simple_Physics") then
+            uKEprime = (0.5 * Dproj(ix,:)*Uproj(ix,:)**2) - zonal_av(k,:,10)
+            vKEprime = (0.5 * Dproj(ix,:)*Vproj(ix,:)**2) - zonal_av(k,:,11)
+            rho_prime = Dproj(ix,:) - zonal_av(k,:,12)
+            zonal_av(k,:,10) = zonal_av(k,:,10) + uKEprime/Ncumul
+            zonal_av(k,:,11) = zonal_av(k,:,11) + vKEprime/Ncumul
+            zonal_av(k,:,12) = zonal_av(k,:,12) + rho_prime/Ncumul
+          end if
+
           Tprime_new = Tproj(ix,:) - zonal_av(k,:,1)
           Uprime_new = Uproj(ix,:) - zonal_av(k,:,3)
           Vprime_new = Vproj(ix,:) - zonal_av(k,:,4)
@@ -425,14 +451,20 @@ contains
     implicit none
     
     integer                                       :: d, ix, j, k
-    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
+    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj, Dproj
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun)
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
-    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    if (trim (test_case) == "Simple_Physics") then
+      call apply_onescale (cal_temp_dens, level_save, z_null, 0, 1)
+      penal_node%bdry_uptodate = .false.
+      call update_vector_bdry (penal_node, NONE, 42)
+    else
+      call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    end if
     exner_fun%bdry_uptodate = .false.
     call update_vector_bdry (exner_fun, NONE, 42)
 
@@ -457,6 +489,11 @@ contains
        call project_array_onto_plane ("v_merid", level_save, 0d0)
        Vproj = field2d
 
+       if (trim (test_case) == "Simple_Physics") then
+         call project_field_onto_plane(penal_node(k), level_save, 1.0_8)
+         Dproj = field2d
+       end if
+
        ! Update means
        do ix = Nx(1), Nx(2)
           Ncumul = (Nt-1)*(Nx(2)-Nx(1)+1) + ix-Nx(1)+1
@@ -465,6 +502,11 @@ contains
           zonal_av(k,:,3) = zonal_av(k,:,3) + Uproj(ix,:)
           zonal_av(k,:,4) = zonal_av(k,:,4) + Vproj(ix,:)
           zonal_av(k,:,5) = zonal_av(k,:,5) +  0.5 * (Uproj(ix,:)**2 + Vproj(ix,:)**2)
+          if (trim (test_case) == "Simple_Physics") then
+            zonal_av(k,:,10) = zonal_av(k,:,10) + 0.5 * Dproj(ix,:) * (Uproj(ix,:)**2)
+            zonal_av(k,:,11) = zonal_av(k,:,11) + 0.5 * Dproj(ix,:) * (Vproj(ix,:)**2)
+            zonal_av(k,:,12) = zonal_av(k,:,12) + Dproj(ix,:)
+          end if
        end do
     end do
   end subroutine cal_zonal_average
@@ -496,10 +538,12 @@ contains
        ! Zonal and meridional velocities
        do d = 1, size(grid)
           velo => sol(S_VELO,k)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(level_save)%length
              call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
-          nullify (velo)
+          nullify (velo, velo1, velo2)
        end do
        call project_array_onto_plane ("u_zonal", level_save, 0d0)
        Uproj = field2d
@@ -1202,6 +1246,19 @@ contains
          end do
          close (funit)
       end do
+      call deallocate_climatology
+    end if
+
+    !Save KE zonal averages for simple Physics (50 and 51)
+    if (trim(test_case)=="Simple_Physics")then
+      do v = 10,12
+         write (var_file, '(i2)') v+40
+         open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+         do k = zlevels,1,-1
+            write (funit) zonal_av(k,:,v)
+         end do
+         close (funit)
+         end do
     end if
 
     ! Zonal average of solution over all vertical levels
@@ -1417,7 +1474,7 @@ contains
   subroutine initialize_stat
     implicit none
 
-    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
+    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_total))
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
     if (trim(test_case)=="Simple_Physics" .and. climatology) allocate (field2d_simplephys(Nx(1):Nx(2),Ny(1):Ny(2),5*save_levels))
     zonal_av = 0d0
