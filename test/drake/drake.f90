@@ -37,7 +37,7 @@ program Drake
      grav_accel  =      g_earth * H_norm / U_norm**2
   else
      radius      = radius_earth / scale                  ! mean radius of the small planet
-     omega       = omega_earth / scale_omega            ! angular velocity (scaled for small planet to keep beta constant)
+     omega       = omega_earth  / scale_omega            ! angular velocity (scaled for small planet to keep beta constant)
      grav_accel  = g_earth
   end if
   
@@ -46,7 +46,6 @@ program Drake
 
   ! Free surface perturbation parameters
   dH             =   0d0  * METRE / H_norm               ! initial perturbation to the free surface
-  !dH             =   7d0  * METRE / H_norm               ! initial perturbation to the free surface
   pert_radius    =   1d3  * KM    / L_norm               ! radius of Gaussian free surface perturbation
   lon_c          = -50d0  * DEG                          ! longitude location of perturbation
   lat_c          =  25d0  * DEG                          ! latitude  location of perturbation
@@ -73,8 +72,6 @@ program Drake
 
   nstep_init         = 10                               ! take nstep_init small steps on restart
   adapt_dt           = .false.
- 
-  save_zlev          = zlevels                          ! vertical layer to save
 
   ! Topography (etopo smoothing not yet implemented)
   alpha              = 1d-1
@@ -89,12 +86,12 @@ program Drake
   Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
   C_visc(S_MASS)     = 0d-3                             ! dimensionless viscosity of S_MASS
   C_visc(S_TEMP)     = 0d-3                             ! dimensionless viscosity of S_TEMP
-  C_visc(S_VELO)     = 1d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
+  C_visc(S_VELO)     = 1d-3                             ! dimensionless viscosity of S_VELO (rotu, divu)
 
   if (zlevels == 1) then
      sigma_z              = .false.
      vert_diffuse         = .false.
-     max_depth            = - H_earth
+     max_depth            = -H_earth
      coords               = "uniform"
      mixed_layer          = max_depth                     ! location of top (less dense) layer in two layer case
      thermocline          = max_depth                     ! location of layer forced by surface wind stress
@@ -102,40 +99,21 @@ program Drake
      tau_0                =   0.4d0 * NEWTON/METRE**2     ! maximum wind stress
      u_wbc                =     1d0 * METRE/SECOND        ! estimated western boundary current speed
      k_T                  =     0d0                       ! relaxation to mean buoyancy profile
-  elseif (zlevels == 2) then
-     coords               = "uniform"
-
-     remap                = .true.
-     iremap               = 5
-     
-     vert_diffuse         = .true.
-     Kt_const             =   0d0     * METRE**2 / SECOND ! analytic value for eddy diffusion (tke_closure = .false.)
-     Kv_bottom            =   4d0     * METRE**2 / SECOND ! analytic value for eddy viscosity (tke_closure = .false.)
-
-     max_depth            =   -4000d0 * METRE             ! total depth
-     thermocline          =   -4000d0 * METRE             ! location of layer forced by surface wind stress
-     mixed_layer          =    -200d0 * METRE             ! location of top (less dense) layer in two layer case
-
-     drho                 =      -2d0 * KG/METRE**3       ! density perturbation in top layer
-     tau_0                =     0.4d0 * NEWTON/METRE**2   ! maximum wind stress
-     Ku                   =       4d0 * METRE**2/SECOND   ! viscosity for vertical diffusion
-     u_wbc                =       1d0 * METRE/SECOND      ! estimated western boundary current speed
-     k_T                  =       1d0 / (50d0 * DAY)      ! relaxation to mean buoyancy profile
-  elseif (zlevels >= 3) then
+  elseif (zlevels >= 2) then
      coords               = "uniform"
      sigma_z              = .true.                        ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     max_depth            =   -4000d0 * METRE             ! total depth, constant density at depth > thermocline
      thermocline          =   -4000d0 * METRE             ! linear stratification region between thermocline and mixed_layer
      mixed_layer          =    -200d0 * METRE             ! constant density at depth < mixed_layer
 
      remap                = .true.
      iremap               =   5
-     max_depth            =   -4000d0 * METRE             ! total depth, constant density at depth > thermocline
      
      vert_diffuse         = .true.
      tke_closure          = .false.
-     if (.not. remap) then ! increase vertical viscosity of velocity
-        Kt_const          =   0d0     * METRE**2 / SECOND ! analytic value for eddy diffusion (tke_closure = .false.)
-        Kv_bottom         =   4d0     * METRE**2 / SECOND ! analytic value for eddy viscosity (tke_closure = .false.)
+     if (zlevels == 2) then
+        Kt_const         =  0d0 * METRE**2 / SECOND       ! eddy diffusion
+        Kv_bottom         = 4d0 * METRE**2 / SECOND       ! eddy viscosity
      end if
      e_min                =  0d0                          ! minimum TKE
      patankar             = .false.                       ! avoid noise with zero initial velocity
@@ -148,7 +126,7 @@ program Drake
   end if
   
   ! Characteristic scales
-  wave_speed         = sqrt (grav_accel*abs(max_depth))            ! inertia-gravity wave speed
+  wave_speed         = sqrt (grav_accel*abs(max_depth))   ! inertia-gravity wave speed
   dt_cfl             = cfl_num * dx_min / wave_speed
   dt_init            = dt_cfl
 
