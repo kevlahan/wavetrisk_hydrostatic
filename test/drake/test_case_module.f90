@@ -82,6 +82,7 @@ contains
        read (fid,*) varname, scale_omega
        read (fid,*) varname, max_level
        read (fid,*) varname, zlevels
+       read (fid,*) varname, save_zlev
        read (fid,*) varname, tol
        read (fid,*) varname, dt_write
        read (fid,*) varname, CP_EVERY
@@ -97,6 +98,7 @@ contains
     call MPI_Bcast (scale_omega,        1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (max_level,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (zlevels,            1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (save_zlev,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (tol,                1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (dt_write,           1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (CP_EVERY,           1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
@@ -881,7 +883,7 @@ contains
   end subroutine init_diagnostics
 
   subroutine set_save_level_case
-    ! Set in drake.f90
+    ! Read from input file
   end subroutine set_save_level_case
 
   subroutine initialize_a_b_vert_case

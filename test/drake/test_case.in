@@ -4,6 +4,7 @@ scale       	   6             ! scaling factor for radius: radius = radius_earth
 scale_omega        1             ! scaling factor for omega: omega = omega_earth/scale	
 max_level	   9             ! maximum level of resolution
 zlevels            2             ! number of vertical levels
+save_zlev          2             ! vertical level to save
 tol      	   5e-4          ! non-dimensional tolerance
 dt_write           5             ! save interval (days)
 CP_EVERY           1             ! checkpoint every CP_EVERY saves
