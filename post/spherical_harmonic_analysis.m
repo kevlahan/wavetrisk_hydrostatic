@@ -20,8 +20,8 @@ drake = true;
 figure;
 if drake
     test_case = "drake";
-    run_id    = "6layer";
-    cp_min    =  61; cp_max = 61;
+    run_id    = "12layer";
+    cp_min    =  41; cp_max = 41;
     type      = "curlu";
 else
     type      = "curlu";
@@ -34,17 +34,20 @@ end
 KM = 1e-3;
 [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
 
-zlevels   = 6;
-zmin      = 3;
-zmax      = 3;
+zlevels   = 12;
+zmin      = 7;
+zmax      = 7;
 
 plot_spec = true;     % plot spectrum
 power     = true;     % plot power law fit
 avg       = false;    % plot averaged spectrum
 col_spec  = "b-";     % colour for energy spectrum
 col_power = "r-";     % colour for power law
-range     = [deltaI*KM deltaSM*KM]; % range for power law fit
-%range     = [deltaSM*KM 25]; % range for power law fit
+
+range     = [deltaI*KM lambda1*KM]; % range for power law fit
+%range     = [lambda1*KM deltaSM*KM]; % range for power law fit
+
+%range     = [28 8]; % range for power law fit
 
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 for cp_id = cp_min:cp_max
@@ -228,11 +231,11 @@ function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(
 if strcmp(test_case,"drake")
     Laplace     =  2;    % 1 = Laplacian, 2 = bi-Laplacian
     C_visc      =  1e-3; % non-dimensional viscosity
-    dx          =  2.5e3;  % minimum grid size
-    dt          =  225;  % time step
+    dx          =  1.25e3;  % minimum grid size
+    dt          =  126;  % time step
     visc        =  C_visc * dx^(2*Laplace)/dt;
-    uwbc        =  2;  % velocity scale
-    scale_omega =  6;
+    uwbc        =  0.8;  % velocity scale
+    scale_omega =  1;
     scale_earth =  6;
     omega       =  7.29211e-5/scale_omega;
     radius      =  6371.229e3/scale_earth;
@@ -242,12 +245,12 @@ if strcmp(test_case,"drake")
     H1          =  3e3;
     H2          =  1e3;
     H           =  H1 + H2;
-    theta       =  45; % latitude at which to calculate f0 and beta
+    theta       =  40; % latitude at which to calculate f0 and beta
     f0          =  2*omega*sin(deg2rad(theta));
     beta        =  2*omega*cos(deg2rad(theta))/radius;
-    r_b         =  2.6e-8; % bottom friction
+    r_b         =  7e-8; % bottom friction
     c0          =  sqrt(g*H);
-    c1          =  2.5; % internal wave speed
+    c1          =  2.85; % internal wave speed
     deltaM      = (visc/beta)^(1/(2*Laplace+1)); % Munk layer
 elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
