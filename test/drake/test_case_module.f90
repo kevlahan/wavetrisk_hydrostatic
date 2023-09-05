@@ -881,9 +881,7 @@ contains
   end subroutine init_diagnostics
 
   subroutine set_save_level_case
-    implicit none
-
-    save_zlev = zlevels
+    ! Set in drake.f90
   end subroutine set_save_level_case
 
   subroutine initialize_a_b_vert_case
@@ -898,7 +896,7 @@ contains
        a_vert(0) = 0d0; a_vert(1) = 1d0
        b_vert(0) = 1d0; b_vert(1) = 0d0
     elseif (zlevels == 2) then 
-       a_vert(0) = 0d0; a_vert(1) = 0d0;                 a_vert(2) = 1d0
+       a_vert(0) = 0d0; a_vert(1) = 0d0;                   a_vert(2) = 1d0
        b_vert(0) = 1d0; b_vert(1) = mixed_layer/max_depth; b_vert(2) = 0d0
     elseif (zlevels >= 3) then
        if (trim (coords) == "chebyshev") then
