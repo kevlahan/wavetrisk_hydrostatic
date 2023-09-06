@@ -379,33 +379,7 @@ contains
          end if
       end if
   end subroutine
-
-  subroutine write_and_export(k)
-      integer l, k
-      integer u, i
-      call trend_ml(sol, trend)
-      call pre_levelout()
-      do l = level_start, level_end
-          minv = 1.d63;
-          maxv = -1.d63;
-          u = 100000+100*k
-          call write_level_mpi(write_primal, u+l, l, .True.)
-          do i = 1, N_VAR_OUT
-              minv(i) = -sync_max_d(-minv(i))
-              maxv(i) = sync_max_d(maxv(i))
-          end do
-          if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
-                  "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-          if (rank .eq. 0) write(u,'(A, 4(E15.5E2, 1X), I3)') &
-                  "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
-          u = 200000+100*k
-          ! call write_level_mpi(write_dual, u+l, l, .False.)
-      end do
-      call post_levelout()
-      call barrier
-      if (rank .eq. 0) call compress_files(k) 
-  end subroutine
-
+  
   subroutine cart2sph2(cin, cout)
       type(Coord) cin
       real(8), intent(out) :: cout(2)

@@ -34,12 +34,14 @@ contains
     character(*) :: run_id
 
     integer, parameter :: funit = 300
+    character(3)       :: layer
     character(7)       :: var_file
     character(255)     :: filename
     
-    write (var_file, '(I7)')  fid
+    write (var_file, '(i7)')  fid
     filename = trim(run_id)//'.'//var_file
-    open (unit=funit, file=filename, status='REPLACE')
+    
+    open (unit=funit, file=filename, status='replace')
     if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .false.)
     call apply_onescale__int (out_rout, l, zlev, 0, 0, funit)
     close (funit)

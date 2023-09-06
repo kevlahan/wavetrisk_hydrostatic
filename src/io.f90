@@ -467,7 +467,7 @@ contains
        ! Approximate Coriolis term
        f = dom%coriolis%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1)
        ! Total vorticity
-       w = dom%press_lower%elts(id_i)  + f
+       w = dom%ke%elts(id_i)  + f
        ! Height
        if (zlev == 3) then ! barotropic
           h = (sol_mean(S_MASS,1)%data(d)%elts(id_i) + sol(S_MASS,1)%data(d)%elts(id_i) + &
@@ -881,7 +881,7 @@ contains
              r_max  = max (r_max, abs (dz0 - dze) / (dz0 + dze))
           end do
 
-          outv(7) = dom%press_lower%elts(id_i)          ! vorticity (at hexagon points)
+          outv(7) = dom%ke%elts(id_i)          ! vorticity (at hexagon points)
 
           write (funit,'(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
                dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
@@ -904,7 +904,7 @@ contains
           outv(6) = dom%geopot_lower%elts(id_i)
 
           ! Barotropic vorticity at hexagon points
-          outv(7) = dom%press_lower%elts(id_i)
+          outv(7) = dom%ke%elts(id_i)
 
           ! Baroclinic eta
           outv(8) = sol(S_MASS,1)%data(d)%elts(id_i) / (ref_density * phi_node (d, id_i, zlev))
@@ -1564,8 +1564,19 @@ contains
     implicit none
     integer :: isave
 
-    integer      :: d, i, j, k, l, p, u
-    character(7) :: var_file
+    integer        :: d, i, j, k, k1, k2, l, p, u1, u2
+    character(3)   :: layer
+    character(7)   :: var_file
+    character(255) :: prefix
+
+    u1 = 1000000 + 100*isave
+    u2 = 2000000 + 100*isave
+
+    if (save_zlev < 0) then ! save all layers
+       k1 = 1; k2 = zlevels 
+    else
+       k1 = save_zlev; k2 = save_zlev
+    end if
 
     if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', isave
 
@@ -1576,58 +1587,75 @@ contains
 
     ! Compute surface pressure
     call cal_surf_press (sol)
-
+    
     do l = level_start, level_end
-       minv = 1.0d63; maxv = -1.0d63
-       u = 1000000+100*isave
-
+       minv = 1d63; maxv = -1d63
        if (compressible .or. zlevels /= 2 .or. .not. mode_split) then
-          if (compressible) then ! pressure, exner and geopotential at vertical level save_zlev and scale l
-             do k = 1, save_zlev
-                do d = 1, size(grid)
-                   mass    => sol(S_MASS,k)%data(d)%elts
-                   mean_m  => sol_mean(S_MASS,k)%data(d)%elts
-                   temp    => sol(S_TEMP,k)%data(d)%elts
-                   mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
-                   exner   => exner_fun(k)%data(d)%elts
-                   do j = 1, grid(d)%lev(l)%length
-                      call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-                   end do
-                   nullify (mass, mean_m, temp, mean_t, exner)
+          do k = 1, k2
+             ! Compute pressure, exner and geopotential
+             do d = 1, size(grid)
+                mass    => sol(S_MASS,k)%data(d)%elts
+                mean_m  => sol_mean(S_MASS,k)%data(d)%elts
+                temp    => sol(S_TEMP,k)%data(d)%elts
+                mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
+                exner   => exner_fun(k)%data(d)%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
                 end do
+                nullify (mass, mean_m, temp, mean_t, exner)
              end do
-          end if
 
-          ! Zonal and meridional velocities for vertical level save_zlev
-          do d = 1, size(grid)
-             velo  => sol(S_VELO,save_zlev)%data(d)%elts
-             velo1 => grid(d)%u_zonal%elts
-             velo2 => grid(d)%v_merid%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-             end do
-             nullify (velo, velo1, velo2)
-          end do
+             if (save_zlev < 0 .or. k == k2) then ! Compute zonal/meridional velocities and vorticity
+                ! Zonal and meridional velocities 
+                do d = 1, size(grid)
+                   velo  => sol(S_VELO,k)%data(d)%elts
+                   velo1 => grid(d)%u_zonal%elts
+                   velo2 => grid(d)%v_merid%elts
+                   do j = 1, grid(d)%lev(l)%length
+                      call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                   end do
+                   nullify (velo, velo1, velo2)
+                end do
 
-          ! Vorticity
-          do d = 1, size(grid)
-             velo  => sol(S_VELO,save_zlev)%data(d)%elts
-             vort  => grid(d)%vort%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
-             end do
-             call apply_to_penta_d (post_vort, grid(d), l, z_null)
-             nullify (velo, vort)
-          end do
+                ! Vorticity
+                do d = 1, size(grid)
+                   velo  => sol(S_VELO,k)%data(d)%elts
+                   vort  => grid(d)%vort%elts
+                   do j = 1, grid(d)%lev(l)%length
+                      call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+                   end do
+                   call apply_to_penta_d (post_vort, grid(d), l, z_null)
+                   nullify (velo, vort)
+                end do
 
-          ! Calculate vorticity at hexagon points (stored in press_lower)
-          do d = 1, size(grid)
-             vort => grid(d)%press_lower%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-             end do
-             nullify (vort)
-          end do
+                ! Calculate vorticity at hexagon points (stored in ke)
+                do d = 1, size(grid)
+                   vort => grid(d)%ke%elts
+                   do j = 1, grid(d)%lev(l)%length
+                      call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                   end do
+                   nullify (vort)
+                end do
+                
+                ! Save fields
+                write (layer, '(i3.3)') k
+                prefix = trim(run_id)//'_'//layer
+
+                call write_level_mpi (write_primal, u1+l, l, k, .true., prefix)
+                do i = 1, N_VAR_OUT
+                   minv(i) = -sync_max_real (-minv(i))
+                   maxv(i) =  sync_max_real ( maxv(i))
+                end do
+                if (rank == 0) then
+                   write (var_file, '(i7)') u1
+                   open (unit=50, file=trim(prefix)//'.'//var_file, status='replace')
+                   write (50,'(a, 7(e15.5e2, 1x), i3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+                   write (50,'(a, 7(e15.5e2, 1x), i3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+                   close (50)
+                end if
+                call write_level_mpi (write_dual, u2+l, l, k, .false., prefix)
+             end if
+           end do
        else
           ! Barotropic velocity
           do d = 1, size(grid)
@@ -1660,7 +1688,7 @@ contains
 
           ! Calculate barotropic vorticity at hexagon points 
           do d = 1, size(grid)
-             vort => grid(d)%press_lower%elts
+             vort => grid(d)%ke%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
@@ -1706,34 +1734,34 @@ contains
              end do
              nullify (vort)
           end do
-       end if
 
-       call write_level_mpi (write_primal, u+l, l, save_zlev, .true., run_id)
-
-       do i = 1, N_VAR_OUT
-          minv(i) = -sync_max_real (-minv(i))
-          maxv(i) =  sync_max_real ( maxv(i))
-       end do
-
-       if (rank == 0) then
-          write (var_file, '(i7)') u
-          open(unit=50, file=trim(run_id)//'.'//var_file, status='REPLACE')
-          if (compressible .or. zlevels /= 2) then
-             write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-             write(50,'(A, 7(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
-          else
-             write(50,'(A, 11(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
-             write(50,'(A, 11(E15.5E2, 1X), I3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+          ! Save fields
+          prefix = trim(run_id)
+          call write_level_mpi (write_primal, u1+l, l, z_null, .true., prefix)
+          do i = 1, N_VAR_OUT
+             minv(i) = -sync_max_real (-minv(i))
+             maxv(i) =  sync_max_real ( maxv(i))
+          end do
+          if (rank == 0) then
+             write (var_file, '(i7)') u1
+             open (unit=50, file=trim(prefix)//'.'//var_file, status='replace')
+             write (50,'(a, 11(e15.5e2, 1x), i3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", minv, l
+             write (50,'(a, 11(e15.5e2, 1x), i3)') "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ", maxv, l
+             close (50)
           end if
-          close(50)
+          call write_level_mpi (write_dual, u2+l, l, z_null, .false., prefix)
        end if
-       u = 2000000+100*isave
-       call write_level_mpi (write_dual, u+l, l, save_zlev, .False., run_id)
     end do
-
     call post_levelout
     call barrier
-    if (rank == 0) call compress_files (isave, run_id)
+    
+    if (rank == 0) then
+       do k = k1, k2
+          write (layer, '(i3.3)') k
+          prefix = trim(run_id)//'_'//layer
+          call compress_files (isave, prefix)
+       end do
+    end if
     call barrier
   end subroutine write_and_export
 

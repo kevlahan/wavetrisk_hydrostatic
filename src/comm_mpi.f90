@@ -120,21 +120,23 @@ contains
 
     integer            :: r
     integer, parameter :: funit = 300
+    character(3)       :: layer
     character(7)       :: var_file
     character(255)     :: filename
         
     do r = 1, n_process
-       if (r /= rank+1) then ! Write only if our turn, otherwise only wait at barrier
+       if (r /= rank+1) then ! write only if our turn, otherwise only wait at barrier
           call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
 
-       write (var_file, '(I7)')  fid
+       write (var_file, '(i7)') fid
        filename = trim(run_id)//'.'//var_file
+
        if (r == 1) then ! first process opens without append to delete old file if existing
-          open (unit=funit, file=filename, status='REPLACE')
+          open (unit=funit, file=filename, status='replace')
        else
-          open (unit=funit, file=filename, access='APPEND', status='OLD')
+          open (unit=funit, file=filename, access='append', status='old')
        end if
 
        if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .true.)
