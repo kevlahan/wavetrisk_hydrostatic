@@ -6,7 +6,7 @@ machine   = "nia-datamover1.scinet.utoronto.ca";
 
 dir_remote = "~/hydro/drake";                dir_local = "~/hydro/drake";
 %dir_remote = "~/proj/jet/gmd_paper/spectra"; dir_local = "~/hydro/jet";
-%dir_remote = "~/proj/drake/old/J6/2layer_mix_slow"; dir_local = "~/hydro/drake";
+%dir_remote = "~/proj/drake/new/2layer_normal/spectra/global"; dir_local = "~/hydro/drake";
 
 % Transfer all spectrum files at once
 scp_cmd = "scp "+machine+":"""+dir_remote+"/*spec"" "+dir_local;
@@ -34,20 +34,23 @@ end
 KM = 1e-3;
 [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
 
-zlevels   = 12;
-zmin      = 7;
-zmax      = 7;
+zlevels     = 12;
+zmin        = 6;
+zmax        = 6;
 
-plot_spec = true;     % plot spectrum
-power     = true;     % plot power law fit
-avg       = false;    % plot averaged spectrum
-col_spec  = "b-";     % colour for energy spectrum
-col_power = "r-";     % colour for power law
+plot_spec   = true;     % plot spectrum
+plot_scales = true ;    % plot length scales
+power       = true;     % plot power law fit
+avg         = false;    % plot averaged spectrum
 
-range     = [deltaI*KM lambda1*KM]; % range for power law fit
+col_spec    = "b-";     % colour for energy spectrum
+col_power   = "r-";     % colour for power law
+
+range       = [deltaI*KM lambda1*KM]; % range for power law fit 
 %range     = [lambda1*KM deltaSM*KM]; % range for power law fit
+%range     = [deltaI*KM deltaSM*KM];
 
-%range     = [28 8]; % range for power law fit
+%range     = [180 35]; % range for power law fit
 
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 for cp_id = cp_min:cp_max
@@ -58,6 +61,7 @@ for cp_id = cp_min:cp_max
         k         = compose("%04d",zlev);
         if avg % average spectrum
             file_base = run_id+"_"+k+"_"+type;
+            %file_base = run_id+"_"+type;
         else
             file_base = run_id+"_"+cp+"_"+k+"_"+type;
             %file_base = run_id+"_"+cp+"_"+type;
@@ -103,17 +107,19 @@ for cp_id = cp_min:cp_max
             axis([1e0 1e4 1e-10 1e1]);
             set (gca,"fontsize",20);
             xlabel("\lambda (km)");ylabel("S(\lambda)");
-            set (gca,"Xdir","reverse");legend;
+            set (gca,"Xdir","reverse");%legend;
 
-            if strcmp(test_case,"drake")
-                plot_scale(lambda1*KM,"\lambda_1");
-                plot_scale(deltaSM*KM,"\delta_{SM}");
-                plot_scale(deltaI*KM,"\delta_{I}");
-                plot_scale(deltaM*KM,"\delta_{M}");
-            elseif strcmp(test_case,"jet")
-                plot_scale(deltaI*KM,"\delta_{I}");
-                plot_scale(lambda1*KM,"\lambda_1");
-                plot_scale(deltaSM*KM,"\delta_{M}");
+            if plot_scales
+                if strcmp(test_case,"drake")
+                    plot_scale(lambda1*KM,"\lambda_1");
+                    plot_scale(deltaSM*KM,"\delta_{SM}");
+                    plot_scale(deltaI*KM,"\delta_{I}");
+                    plot_scale(deltaM*KM,"\delta_{M}");
+                elseif strcmp(test_case,"jet")
+                    plot_scale(deltaI*KM,"\delta_{I}");
+                    plot_scale(lambda1*KM,"\lambda_1");
+                    plot_scale(deltaSM*KM,"\delta_{M}");
+                end
             end
             % Plot fit
             if power
