@@ -79,7 +79,7 @@ program trisk2vtk
      write (6,'("tend      = ", i4.4)') tend
      write (6,'("jmin      = ", i2.2)') jmin
      write (6,'("jmax      = ", i2.2)') jmax
-     write (6,'("zmin      = ", i4.3)') zmin
+     write (6,'("zmin      = ", i3.3)') zmin
      if (zmin >= 0) write (6,'("zmax      = ", i3.3)') zmax
      write (6,'("file_vtk  = ", a)') file_vtk
 
