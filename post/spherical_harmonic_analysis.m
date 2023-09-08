@@ -15,13 +15,12 @@ if ~strcmp(machine,"mac")
 end
 
 %% Analyze spectrum data
-clear; clc; close all
+clear; clc; 
 drake = true;
-figure;
 if drake
     test_case = "drake";
     run_id    = "12layer";
-    cp_min    =  41; cp_max = 41;
+    cp_min    =  48; cp_max = 48;
     type      = "curlu";
 else
     type      = "curlu";
@@ -35,8 +34,8 @@ KM = 1e-3;
 [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
 
 zlevels     = 12;
-zmin        = 6;
-zmax        = 6;
+zmin        = 3;
+zmax        = 3;
 
 plot_spec   = true;     % plot spectrum
 plot_scales = true ;    % plot length scales
@@ -46,11 +45,13 @@ avg         = false;    % plot averaged spectrum
 col_spec    = "b-";     % colour for energy spectrum
 col_power   = "r-";     % colour for power law
 
-range       = [deltaI*KM lambda1*KM]; % range for power law fit 
-%range     = [lambda1*KM deltaSM*KM]; % range for power law fit
-%range     = [deltaI*KM deltaSM*KM];
+% range for power law fit 
+range       = [deltaI lambda1] * KM; 
+%range     = [lambda1 deltaSM] * KM; 
+%range     = [deltaI  deltaSM] * KM;
 
-%range     = [180 35]; % range for power law fit
+%range     = [deltaI 1.5*deltaSM] * KM; % range for power law fit
+%range     = 2/3 * [deltaI lambda1] * KM; % range for power law fit
 
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 for cp_id = cp_min:cp_max
@@ -283,7 +284,7 @@ lambda1    = c1/f0;             % internal radius of deformation
 deltaS     = r_b/beta;          % Stommel layer
 deltaSM    = uwbc/f0;           % submesoscale
 deltaI     = sqrt(uwbc/beta);   % inertial layer
-Rey    = uwbc*deltaSM^(2*Laplace-1)/visc;
+Rey        = uwbc*deltaSM^(2*Laplace-1)/visc;
 
 fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n',lambda0*KM,lambda1*KM)
 fprintf('\ndeltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n',...
