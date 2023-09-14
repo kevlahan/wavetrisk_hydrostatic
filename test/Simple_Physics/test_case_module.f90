@@ -690,6 +690,7 @@ contains
       use iniphyparam_mod, ONLY : iniphyparam
       use single_column_mod, ONLY : initialize_extra_levels
       use read_param_mod
+      use logging
       !Dynamics
       use main_mod, ONLY : dt_new
       implicit none
@@ -699,6 +700,7 @@ contains
       read_paramr_plugin => read_paramr
       read_parami_plugin => read_parami
       read_paramb_plugin => read_paramb
+      flush_plugin => flush_log_phys
 
       !write physics read in parameters to file
       write(param_file, '(A,I4.4)') trim(run_id)//'.physics_params.', rank
@@ -820,6 +822,8 @@ contains
 
    end subroutine physics_checkpoint_restart
 
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Plugins !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
    subroutine read_paramr(name, defval, val, comment)
       !-----------------------------------------------------------------------------------
       !
@@ -891,6 +895,27 @@ contains
       if (trim(param_name) .ne. trim(name)) val = defval
 
    end subroutine
+
+   subroutine flush_log_phys(lev, taglen, tag, buflen, bufsize, buf) BIND(C)
+      use logging, ONLY : dbtag
+      USE, INTRINSIC :: iso_c_binding, ONLY : c_char, c_null_char, c_int
+      INTEGER(c_int), INTENT(IN), VALUE :: lev, taglen, buflen, bufsize
+      CHARACTER(KIND=c_char), INTENT(IN) :: tag(taglen), buf(buflen, bufsize)
+
+      CHARACTER(buflen+1) :: line
+      CHARACTER(100) :: prefix
+      INTEGER :: i
+
+      if (rank == 0) then
+         write(prefix,*) '[', dbtag(lev), ' ', tag, ']'
+         do i=1, bufsize
+            write(line,*) buf(:,i)
+            write(*,*) TRIM(prefix), TRIM(line)
+         end do
+      end if
+   end subroutine flush_log_phys
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
    subroutine write_physics_params(file_unit,file_params)
       integer :: file_unit
