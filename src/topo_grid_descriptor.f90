@@ -1,4 +1,7 @@
 module topo_grid_descriptor_mod
+  use comm_mpi_mod
+  use utils_mod
+  use init_mod
   implicit none
 #  include "netcdf.inc"
   !
@@ -6,68 +9,104 @@ module topo_grid_descriptor_mod
   !  DESCRIPTION:  This program creates a grid descriptior file for ESMF/SCRIP software in NetCDF file format.
   !
   !  Author: Peter Hjort Lauritzen (pel@ucar.edu)
+  !  Modified for inclusion WAVETRISK by Nicholas Kevlahan (kevlahan@mcmaster.ca) 2023-09-27
   !
-  ! dimensions for regular lat-lon grid
-  !
+  integer                             :: i_node, grid_size
+  integer, parameter                  :: grid_corners = 6   ! hexagons
+  integer, dimension(:),  allocatable :: grid_imask         ! not used
 
-  !        integer, parameter :: im = 2160       !10 min
-  !        integer, parameter :: jm = 1080       !10 min
-  !        logical, parameter :: lpole=.FALSE.   !10 min
-
-  !        integer, parameter :: im = 576       !FV 0.47x0.63
-  !        integer, parameter :: jm = 384       !FV 0.47x0.63
-  !        logical, parameter :: lpole=.TRUE.   !FV 0.47x0.63
-
-  !        integer, parameter :: im = 288       !0.9x1.25 CAM-FV
-  !        integer, parameter :: jm = 192       !0.9x1.25 CAM-FV 
-  !        logical, parameter :: lpole=.TRUE.   !CAM-FV setting is lpole=.TRUE.
-
-  !        integer, parameter :: im = 360       !1x1 CAM-FV
-  !        integer, parameter :: jm = 181       !1x1 CAM-FV 
-  !        logical, parameter :: lpole=.TRUE.   !CAM-FV setting is lpole=.TRUE.
-
-  !        integer, parameter :: im = 128       
-  !        integer, parameter :: jm = 64       
-  !        logical, parameter :: lpole=.TRUE.   
-
-  !        integer, parameter :: im = 144       !CAM-FV 2 degree
-  !        integer, parameter :: jm = 96        !CAM-FV 2 degree
-  !        logical, parameter :: lpole=.TRUE.   !CAM-FV 2 degree
-
-  integer, parameter :: im = 72        !CAM-FV 10x15
-  integer, parameter :: jm = 46        !CAM-FV 10x15
-  logical, parameter :: lpole=.TRUE.   !CAM-FV 10x15
-
-  !        integer, parameter :: im = 24        !CAM-FV 10x15
-  !        integer, parameter :: jm = 19        !CAM-FV 10x15
-  !        logical, parameter :: lpole=.TRUE.   !CAM-FV 10x15
-
-
-  !        integer, parameter :: im = 1152       !0.23x0.31 CAM-FV
-  !        integer, parameter :: jm =768         !0.23x0.31 CAM-FV 
-  !        logical, parameter :: lpole=.TRUE.    !CAM-FV setting is
-
-
-  !        integer, parameter :: im = 2160       !USGS 10 min data setting
-  !        integer, parameter :: jm = 1080       !USGS 10 min data setting
-  !        logical, parameter :: lpole=.TRUE.    !CAM-FV setting is
-
-
-  !        integer, parameter :: im = 288       !NASA
-  !        integer, parameter :: jm = 181       !NASA
-  !        logical, parameter :: lpole=.TRUE.   !CAM-FV setting is lpole=.TRUE.
-
-  !        integer, parameter :: im = 43200     !USGS 30sec data
-  !        integer, parameter :: jm = 21600     !USGS 30sec data
-  !        logical, parameter :: lpole=.FALSE.   !USGS 30sec data
-  !  
+  real (8), dimension(:),   allocatable :: grid_area        ! hexagon area on unit sphere
+  real (8), dimension(:),   allocatable :: grid_center_lat  ! lat/lon coordinates
+  real (8), dimension(:),   allocatable :: grid_center_lon  ! each grid centre in radians
+  real (8), dimension(:,:), allocatable :: grid_corner_lat  ! lat/lon coordinates 
+  real (8), dimension(:,:), allocatable :: grid_corner_lon  ! each grid corner in radians
 contains
-  subroutine make_rll_grd_descriptor_file
+
+  subroutine write_grid_coords
+    ! Find grid coordinates on each domain at coarsest level over entire grid
+    ! saves results to netcdf coordinate file
     implicit none
-    character(35), parameter :: grid_name = 'regular lat-lon'
+    integer        :: d, i, l
+    character(255) :: grid_name
+
+    l = min_level ! coarsest level
+
+    grid_size = 0
+    call apply_onescale (count_nodes, l, z_null, 0, 1)
+
+    allocate (grid_imask(1:grid_size)); grid_imask = 1
+    allocate (grid_area(1:grid_size), grid_center_lat(1:grid_size), grid_center_lon(1:grid_size))
+    allocate (grid_corner_lat(1:grid_corners,1:grid_size), grid_corner_lon(1:grid_corners,1:grid_size))
+
+    i_node = 0
+    call apply_onescale (grid_coords, l, z_null, 0, 1) ! need to add poles
+
+    write (grid_name, '(a,a,i3.3)') trim (run_id), "_topo_grid_", rank+1
+    call wrt_esmf_rll (grid_name)
+  end subroutine write_grid_coords
+
+  subroutine count_nodes (dom, i, j, zlev, offs, dims)
+    ! Count number of nodes
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    grid_size = grid_size + 1
+  end subroutine count_nodes
+
+  subroutine grid_coords (dom, i, j, zlev, offs, dims)
+    ! Set grid coordinates
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_i, idS, idSW, idW
+    real(8) :: lat, lon
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
     
-    call wrt_esmf_rll (im, jm, grid_name, lpole)
-  end subroutine make_rll_grd_descriptor_file
+    i_node = i_node + 1
+
+    grid_area(i_node) = 1d0/dom%areas%elts(id_i)%hex_inv/radius**2 ! hexagon area (unit sphere)
+    call cart2sph (dom%node%elts(id_i), lon, lat) ! longitude and latitude coordinates of node in radians
+    grid_center_lat(i_node) = lat
+    grid_center_lon(i_node) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*id+LORT+1), lon, lat)    
+    grid_corner_lat(1,i_node) = lat
+    grid_corner_lon(1,i_node) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*id+UPLT+1), lon, lat)    
+    grid_corner_lat(2,i_node) = lat
+    grid_corner_lon(2,i_node) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*idW+LORT+1), lon, lat)    
+    grid_corner_lat(3,i_node) = lat
+    grid_corner_lon(3,i_node) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*idSW+UPLT+1), lon, lat)    
+    grid_corner_lat(4,i_node) = lat
+    grid_corner_lon(4,i_node) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*idSW+LORT+1), lon, lat)    
+    grid_corner_lat(5,i_node) = lat
+    grid_corner_lon(5,i_node) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*idS+UPLT+1), lon, lat)    
+    grid_corner_lat(6,i_node) = lat
+    grid_corner_lon(6,i_node) = lon
+
+
+  end subroutine grid_coords
   
   !************************************************************************
   !handle_err
@@ -92,45 +131,25 @@ contains
   !
   ! write netCDF grid descriptor file for ESMF remapping
   ! 
-  subroutine wrt_esmf_rll (im,jm,grid_name,lpole)
+  subroutine wrt_esmf_rll (grid_name)
     implicit none
-    !
-    ! Dummy arguments
-    !
-    integer      , intent(in) :: im,jm 
     character(35), intent(in) :: grid_name
-    logical      , intent(in) :: lpole
-    !
-    ! Local variables
-    !
-    real(8) :: dx, dy
-    real(8),dimension(im) :: lonar       ! longitude array
-    real(8),dimension(im) :: latar       ! latitude array
-
+    
     !-----------------------------------------------------------------------
     !
     !     grid coordinates and masks
     !
     !-----------------------------------------------------------------------
-
-    integer, dimension(im*jm)   :: grid_imask
-
-    real (8), dimension(im*jm) :: grid_center_lat  ! lat/lon coordinates for
-    real (8), dimension(im*jm) :: grid_center_lon  ! each grid center in degrees
-
-    real (8), dimension(4,im*jm) :: grid_corner_lat  ! lat/lon coordinates for
-    real (8), dimension(4,im*jm) :: grid_corner_lon   ! each grid corner in degrees
-
-
     integer  :: ncstat             ! general netCDF status variable
     integer  :: nc_grid_id         ! netCDF grid dataset id
     integer  :: nc_lon_id          ! netCDF grid dataset id
     integer  :: nc_lat_id          ! netCDF grid dataset id
-    integer  :: nc_pole_id          ! netCDF grid dataset id
+    integer  :: nc_pole_id         ! netCDF grid dataset id
     integer  :: nc_gridsize_id     ! netCDF grid size dim id
     integer  :: nc_gridcorn_id     ! netCDF grid corner dim id
     integer  :: nc_gridrank_id     ! netCDF grid rank dim id
     integer  :: nc_griddims_id     ! netCDF grid dimension size id
+    integer  :: nc_grdarea_id      ! netCDF grid area id
     integer  :: nc_grdcntrlat_id   ! netCDF grid center lat id
     integer  :: nc_grdcntrlon_id   ! netCDF grid center lon id
     integer  :: nc_grdcrnrlat_id   ! netCDF grid corner lat id
@@ -139,202 +158,111 @@ contains
 
     integer, dimension(2) :: nc_dims2_id ! netCDF dim id array for 2-d arrays
     integer, dimension(2) :: grid_dims
-
-    !        integer , dimension(2) ::
-    !       &        nc_dims2_id        ! netCDF dim id array for 2-d arrays
-
-    character(20), parameter :: grid_file_out = 'rll.nc'
-    !     &             grid_name = 'Lat/lon 1 degree Grid',             
-
-    character (len=32) :: fout       ! NetCDF output file
-    integer            :: foutid     ! Output file id
-    integer            :: lonid, lonvid
-    integer            :: latid, latvid
-    integer            :: status    ! return value for error control of netcdf routin
-    integer            :: i,j
-    character (len=8)  :: datestring
-
-
-    integer :: atm_add
-    real(8) :: centerlon,centerlat,minlat,minlon,maxlat,maxlon
-
-    dx = 360.0D0/real(im)
-    if (lpole) then
-       dy = 180.0D0/real(jm-1)
-    else
-       dy = 180.0D0/real(jm)
-    end if
-    grid_dims(1) = im
-    grid_dims(2) = jm
-    grid_imask = 1
-
-    !
-    ! Fill lat and lon arrays
-    !  
-    do i = 1,im
-       !          lonar(i)=  dx * (i-0.5)  !this line must be uncommented to
-       !          match 10 min data
-       lonar(i)=  dx * DBLE((i-1)) !CAM-FV grid
-    enddo
-    if (lpole) THEN
-       do j = 1,jm
-          latar(j)= -90.0D0 + dy * DBLE(j-1)
-       enddo
-    else
-       do j = 1,jm
-          latar(j)= -90.0D0 + dy * (DBLE(j)-0.5D0)
-       enddo
-    end if
-
-
-    do j=1,jm
-       centerlat = latar(j)
-       IF (lpole.AND.j==1) THEN
-          minlat = centerlat
-       ELSE
-          minlat = centerlat - 0.5D0*dy
-       END IF
-       IF (lpole.AND.j==jm) THEN
-          maxlat = centerlat 
-       ELSE
-          maxlat = centerlat + 0.5D0*dy
-       END IF
-
-       do i=1,im
-          centerlon = lonar(i)
-          minlon = centerlon - 0.5D0*dx
-          maxlon = centerlon + 0.5D0*dx
-
-          atm_add = (j-1)*im + i
-
-          grid_center_lat(atm_add  ) = centerlat
-          grid_corner_lat(1,atm_add) = minlat
-          grid_corner_lat(2,atm_add) = minlat
-          grid_corner_lat(3,atm_add) = maxlat
-          grid_corner_lat(4,atm_add) = maxlat
-
-          grid_center_lon(atm_add  ) = centerlon
-          grid_corner_lon(1,atm_add) = minlon
-          grid_corner_lon(2,atm_add) = maxlon
-          grid_corner_lon(3,atm_add) = maxlon
-          grid_corner_lon(4,atm_add) = minlon
-       end do
-    end do
+    integer               :: status      ! return value for error control of netcdf routine
+    
+    character (len=255)   :: file_out
 
     !-----------------------------------------------------------------------
     !
     !     set up attributes for netCDF file
     !
     !-----------------------------------------------------------------------
-
     !***
     !*** create netCDF dataset for this grid
     !***
+    ncstat = nf_create (trim(grid_name)//".nc", NF_CLOBBER, nc_grid_id)
+    call handle_err (ncstat)
 
-    ncstat = nf_create (grid_file_out, NF_CLOBBER,nc_grid_id)
-    call handle_err(ncstat)
-
-    ncstat = nf_put_att_text (nc_grid_id, NF_GLOBAL, 'title',len_trim(grid_name), grid_name)
-    call handle_err(ncstat)
+    ncstat = nf_put_att_text (nc_grid_id, NF_GLOBAL, 'title', len_trim(grid_name), grid_name)
+    call handle_err (ncstat)
 
     !***
     !*** define grid size dimension
     !***
-    ncstat = nf_def_dim (nc_grid_id, 'nlon', im, nc_lon_id)
-    call handle_err(ncstat)        
-
-    ncstat = nf_def_dim (nc_grid_id, 'nlat', jm, nc_lat_id)
-    call handle_err(ncstat)        
-
-    ncstat = nf_def_dim (nc_grid_id, 'lpole', 1, nc_lat_id)
-    call handle_err(ncstat)        
-
-
-
-    ncstat = nf_def_dim (nc_grid_id, 'grid_size', im*jm, nc_gridsize_id)
-    call handle_err(ncstat)
+    ncstat = nf_def_dim (nc_grid_id, 'grid_size', grid_size, nc_gridsize_id)
+    call handle_err (ncstat)
 
     !***
     !*** define grid corner dimension
     !***
-
-    ncstat = nf_def_dim (nc_grid_id, 'grid_corners', 4, nc_gridcorn_id)
-    call handle_err(ncstat)
+    ncstat = nf_def_dim (nc_grid_id, 'grid_corners', grid_corners, nc_gridcorn_id)
+    call handle_err (ncstat)
 
     !***
     !*** define grid rank dimension
     !***
-
-    ncstat = nf_def_dim (nc_grid_id, 'grid_rank', 2, nc_gridrank_id)
-    call handle_err(ncstat)
+    ncstat = nf_def_dim (nc_grid_id, 'grid_rank', 1, nc_gridrank_id)
+    call handle_err (ncstat)
 
     !***
     !*** define grid dimension size array
     !***
+    ncstat = nf_def_var (nc_grid_id, 'grid_dims', NF_INT, 1, nc_gridrank_id, nc_griddims_id)
+    call handle_err (ncstat)
 
-    ncstat = nf_def_var (nc_grid_id, 'grid_dims', NF_INT,1, nc_gridrank_id, nc_griddims_id)
-    call handle_err(ncstat)
+    !***
+    !*** define grid area array
+    !***
+    ncstat = nf_def_var (nc_grid_id, 'grid_area', NF_DOUBLE, 1, nc_gridsize_id, nc_grdarea_id)
+    call handle_err (ncstat)
 
+    ncstat = nf_put_att_text (nc_grid_id, nc_grdarea_id, 'units', 9, 'radians^2')
+    call handle_err (ncstat)
+    
     !***
     !*** define grid center latitude array
     !***
+    ncstat = nf_def_var (nc_grid_id, 'grid_center_lat', NF_DOUBLE, 1, nc_gridsize_id, nc_grdcntrlat_id)
+    call handle_err (ncstat)
 
-    ncstat = nf_def_var (nc_grid_id, 'grid_center_lat', NF_DOUBLE,1, nc_gridsize_id, nc_grdcntrlat_id)
-    call handle_err(ncstat)
-
-    ncstat = nf_put_att_text (nc_grid_id, nc_grdcntrlat_id, 'units',7, 'degrees')
-    call handle_err(ncstat)
+    ncstat = nf_put_att_text (nc_grid_id, nc_grdcntrlat_id, 'units', 7, 'radians')
+    call handle_err (ncstat)
 
     !***
     !*** define grid center longitude array
     !***
+    ncstat = nf_def_var (nc_grid_id, 'grid_center_lon', NF_DOUBLE, 1, nc_gridsize_id, nc_grdcntrlon_id)
+    call handle_err (ncstat)
 
-    ncstat = nf_def_var (nc_grid_id, 'grid_center_lon', NF_DOUBLE,1, nc_gridsize_id, nc_grdcntrlon_id)
-    call handle_err(ncstat)
-
-    ncstat = nf_put_att_text (nc_grid_id, nc_grdcntrlon_id, 'units',7, 'degrees')
-    call handle_err(ncstat)
-
+    ncstat = nf_put_att_text (nc_grid_id, nc_grdcntrlon_id, 'units', 7, 'radians')
+    call handle_err (ncstat)
 
     !***
     !*** define grid mask
     !***
+    ncstat = nf_def_var (nc_grid_id, 'grid_imask', NF_INT, 1, nc_gridsize_id, nc_grdimask_id)
+    call handle_err (ncstat)
 
-    ncstat = nf_def_var (nc_grid_id, 'grid_imask', NF_INT,1, nc_gridsize_id, nc_grdimask_id)
-    call handle_err(ncstat)
-
-    ncstat = nf_put_att_text (nc_grid_id, nc_grdimask_id, 'units',8, 'unitless')
-    call handle_err(ncstat)
+    ncstat = nf_put_att_text (nc_grid_id, nc_grdimask_id, 'units', 8, 'unitless')
+    call handle_err (ncstat)
 
     !***
     !*** define grid corner latitude array
     !***
-
     nc_dims2_id(1) = nc_gridcorn_id
     nc_dims2_id(2) = nc_gridsize_id
 
-    ncstat = nf_def_var (nc_grid_id, 'grid_corner_lat', NF_DOUBLE,2, nc_dims2_id(1), nc_grdcrnrlat_id)
+    ncstat = nf_def_var (nc_grid_id, 'grid_corner_lat', NF_DOUBLE, 2, nc_dims2_id(1), nc_grdcrnrlat_id)
     call handle_err(ncstat)
 
-    ncstat = nf_put_att_text (nc_grid_id, nc_grdcrnrlat_id, 'units',7, 'degrees')
-    call handle_err(ncstat)
+    ncstat = nf_put_att_text (nc_grid_id, nc_grdcrnrlat_id, 'units', 7, 'radians')
+    call handle_err (ncstat)
 
     !***
     !*** define grid corner longitude array
     !***
+    ncstat = nf_def_var (nc_grid_id, 'grid_corner_lon', NF_DOUBLE, 2, nc_dims2_id(1), nc_grdcrnrlon_id)
+    call handle_err (ncstat)
 
-    ncstat = nf_def_var (nc_grid_id, 'grid_corner_lon', NF_DOUBLE,2, nc_dims2_id(1), nc_grdcrnrlon_id)
-    call handle_err(ncstat)
-
-    ncstat = nf_put_att_text (nc_grid_id, nc_grdcrnrlon_id, 'units',7, 'degrees')
-    call handle_err(ncstat)
+    ncstat = nf_put_att_text (nc_grid_id, nc_grdcrnrlon_id, 'units', 7, 'radians')
+    call handle_err (ncstat)
 
     !***
     !*** end definition stage
     !***
 
-    ncstat = nf_enddef(nc_grid_id)
-    call handle_err(ncstat)
+    ncstat = nf_enddef (nc_grid_id)
+    call handle_err (ncstat)
 
     !-----------------------------------------------------------------------
     !
@@ -342,28 +270,33 @@ contains
     !
     !-----------------------------------------------------------------------
 
-    ncstat = nf_put_var_int(nc_grid_id, nc_griddims_id, grid_dims)
-    call handle_err(ncstat)
+    ncstat = nf_put_var_int (nc_grid_id, nc_griddims_id, grid_dims)
+    call handle_err (ncstat)
 
-    ncstat = nf_put_var_int(nc_grid_id, nc_grdimask_id, grid_imask)
-    call handle_err(ncstat)
+    ncstat = nf_put_var_int (nc_grid_id, nc_grdimask_id, grid_imask)
+    call handle_err (ncstat)
 
-    ncstat = nf_put_var_double(nc_grid_id, nc_grdcntrlat_id, grid_center_lat)
-    call handle_err(ncstat)
+    ncstat = nf_put_var_double (nc_grid_id, nc_grdarea_id, grid_area)
+    call handle_err (ncstat)
 
-    ncstat = nf_put_var_double(nc_grid_id, nc_grdcntrlon_id, grid_center_lon)
-    call handle_err(ncstat)
+    ncstat = nf_put_var_double (nc_grid_id, nc_grdcntrlat_id, grid_center_lat)
+    call handle_err (ncstat)
 
-    ncstat = nf_put_var_double(nc_grid_id, nc_grdcrnrlat_id, grid_corner_lat)
-    call handle_err(ncstat)
+    ncstat = nf_put_var_double (nc_grid_id, nc_grdcntrlon_id, grid_center_lon)
+    call handle_err (ncstat)
 
-    ncstat = nf_put_var_double(nc_grid_id, nc_grdcrnrlon_id, grid_corner_lon)
-    call handle_err(ncstat)
+    ncstat = nf_put_var_double (nc_grid_id, nc_grdcrnrlat_id, grid_corner_lat)
+    call handle_err (ncstat)
+
+    ncstat = nf_put_var_double (nc_grid_id, nc_grdcrnrlon_id, grid_corner_lon)
+    call handle_err (ncstat)
 
     !
     ! Close output file
     !        
     ncstat = nf_close(nc_grid_id)
-    call handle_err(ncstat)
+    call handle_err (ncstat)
+
+    deallocate (grid_imask, grid_area, grid_center_lat, grid_center_lon, grid_corner_lat, grid_corner_lon)
   end subroutine wrt_esmf_rll
 end module topo_grid_descriptor_mod

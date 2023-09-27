@@ -57,7 +57,7 @@ program Drake
 
   mode_split         = .true.                            ! split barotropic mode if true
   if (mode_split) then
-     cfl_num         = 20d0
+     cfl_num         = 10d0
      timeint_type    = "RK3"                         
   else
      cfl_num         = 0.3d0                             
