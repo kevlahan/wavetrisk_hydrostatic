@@ -606,11 +606,9 @@ contains
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                 :: exact_iter, iter, l
-    real(8)                 :: nrm_f, nrm_res
-
-    integer,      parameter :: vcycle_iter = 4
-    character(6), parameter :: type = "FMG"
+    integer             :: exact_iter, iter, l
+    real(8)             :: nrm_f, nrm_res
+    integer,  parameter :: vcycle_iter = 4
     
     interface
        function Lu (u, l)
@@ -629,25 +627,24 @@ contains
     call update_bdry (f, NONE, 55)
     nrm_f = l2 (f, level_end)
 
+    ! Restrict rhs using multigrid restriction for faster convergence
+    do l = level_end, level_start, -1
+       call restrict (f, l)
+    end do
+
     if (log_iter) then
        nrm_res = l2 (residual (f, u, Lu, level_end), level_end) / nrm_f
        if (rank == 0) write (6,'(/,a,es8.2)') "Initial residual = ", nrm_res
     end if
 
-    select case (type)
-    case ("Vcycle") ! basic V-cycles
+    ! Full multigrid
+    call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, nrm_res, exact_iter)
+    do l = level_start+1, level_end
+       u = prolong (u, l)
        do iter = 1, vcycle_iter
-          call v_cycle (u, f, Lu, level_start, level_end)
+          call v_cycle (u, f, Lu, level_start, l)
        end do
-    case ("FMG")    ! full multigrid
-       call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, nrm_res, exact_iter)
-       do l = level_start+1, level_end
-          u = prolong (u, l)
-          do iter = 1, vcycle_iter
-             call v_cycle (u, f, Lu, level_start, l)
-          end do
-       end do
-    end select
+    end do
     
     if (log_iter) then
        nrm_res = l2 (residual(f,u,Lu,level_end), level_end) / nrm_f
@@ -682,7 +679,7 @@ contains
     nrm_f = l2 (f, jmax)
     corr = f
 
-    ! Pre-solve to reduce zero eigenvalue error mode
+    ! Pre-smooth to reduce zero eigenvalue error mode
     call Jacobi (u, f, Lu, jmax, pre_iter)
 
     ! Down V-cycle
@@ -708,7 +705,7 @@ contains
     ! V-cycle correction to solution
     u = lcf (u, 1d0, corr, level_end)
 
-    ! Pre-solve to reduce zero eigenvalue error mode
+    ! Post-smooth to reduce zero eigenvalue error mode
     call Jacobi (u, f, Lu, jmax, pre_iter)
   end subroutine v_cycle
 
