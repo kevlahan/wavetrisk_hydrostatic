@@ -606,9 +606,10 @@ contains
     implicit none
     type(Float_Field), target :: f, u
 
-    integer             :: exact_iter, iter, l
-    real(8)             :: nrm_f, nrm_res
-    integer,  parameter :: vcycle_iter = 4
+    integer               :: exact_iter, iter, l
+    real(8)               :: nrm_f
+    real(8), dimension(2) :: nrm_res
+    integer,  parameter   :: vcycle_iter = 4
     
     interface
        function Lu (u, l)
@@ -625,20 +626,17 @@ contains
     allocate (w(1)); ii = 1; w = 1d0 ! constant damping factor for Jacobi
 
     call update_bdry (f, NONE, 55)
-    nrm_f = l2 (f, level_end)
+    nrm_f = l2 (f, level_end); if (nrm_f < tol_elliptic) nrm_f = 1d0
 
     ! Restrict rhs using multigrid restriction for faster convergence
     do l = level_end, level_start, -1
        call restrict (f, l)
     end do
 
-    if (log_iter) then
-       nrm_res = l2 (residual (f, u, Lu, level_end), level_end) / nrm_f
-       if (rank == 0) write (6,'(/,a,es8.2)') "Initial residual = ", nrm_res
-    end if
+    if (log_iter) nrm_res = l2 (residual (f, u, Lu, level_end), level_end) / nrm_f
 
     ! Full multigrid
-    call bicgstab (u, f, nrm_f, Lu, level_start, coarse_iter, nrm_res, exact_iter)
+    call bicgstab (u, f, Lu, level_start, coarse_iter)
     do l = level_start+1, level_end
        u = prolong (u, l)
        do iter = 1, vcycle_iter
@@ -647,8 +645,8 @@ contains
     end do
     
     if (log_iter) then
-       nrm_res = l2 (residual(f,u,Lu,level_end), level_end) / nrm_f
-       if (rank == 0) write (6,'(a,es8.2,/)') "Final residual   = ", nrm_res
+       nrm_res(2) = l2 (residual(f,u,Lu,level_end), level_end) / nrm_f
+       if (rank == 0) write (6,'(2(a,es8.2),/)') "Initial residual   = ", nrm_res(1), " final residual   = ", nrm_res(2)
     end if
     
     deallocate (w)
@@ -660,8 +658,7 @@ contains
     integer                   :: jmin, jmax
     type(Float_Field), target :: u, f
 
-    integer                   :: exact_iter, j
-    real(8)                   :: nrm_f, nrm_res
+    integer                   :: j
     type(Float_Field), target :: corr, res
 
     integer, parameter :: pre_iter = 2, down_iter = 2, up_iter = 2
@@ -676,7 +673,6 @@ contains
        end function Lu
     end interface
 
-    nrm_f = l2 (f, jmax)
     corr = f
 
     ! Pre-smooth to reduce zero eigenvalue error mode
@@ -694,7 +690,7 @@ contains
 
     ! Exact solution on coarsest grid
     call zero_float_field (corr, S_MASS, jmin)
-    call bicgstab (corr, res, nrm_f, Lu, jmin, coarse_iter, nrm_res, exact_iter)
+    call bicgstab (corr, res, Lu, jmin, coarse_iter)
 
     ! Up V-cycle
     do j = jmin+1, jmax
@@ -765,7 +761,7 @@ contains
     end do
 
     l = level_start
-    call bicgstab (u, f, nrm_f(l), Lu, l, coarse_iter, r_error(2,l), iter(l))
+    call bicgstab (u, f, Lu, l, coarse_iter, r_error(2,l), iter(l))
     do l = level_start+1, level_end
        call prolongation (u, l)
        call SJR (u, f, nrm_f(l), Lu, l, fine_iter, r_error(2,l), iter(l))
@@ -925,16 +921,16 @@ contains
     end if
   end subroutine cal_jacobi
 
-  subroutine bicgstab (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
+  subroutine bicgstab (u, f,  Lu, l, max_iter, nrm_res, total_iter)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
     integer                   :: iter, l, max_iter
-    real(8)                   :: nrm_f, nrm_res
+    integer, optional         :: total_iter
+    real(8), optional         :: nrm_res
     type(Float_Field), target :: f, u
     
-    integer                   :: i
-    real(8)                   :: alph, b, nrm_res0, omga, rho, rho_old
+    real(8)                   :: alph, b, nrm_f, nrm_res0, omga, rho, rho_old
     type(Float_Field), target :: Ap, As, res, res0, p, s
 
     interface
@@ -945,6 +941,8 @@ contains
          type(Float_Field), target :: Lu, u
        end function Lu
     end interface
+
+    nrm_f = l2 (f, l); if (nrm_f < tol_elliptic) nrm_f = 1d0
 
     ! Initialize float fields
     res  = residual (f, u, Lu, l)
@@ -968,8 +966,8 @@ contains
        call lc2 (u, alph, p, omga, s, l)
        
        call equals_float_field (res, lcf (s, -omga, As, l), S_MASS, l)
-       nrm_res = l2 (res, l) / nrm_f
-       if (nrm_res <= tol_elliptic) exit
+       
+       if (l2 (res,l)/nrm_f <= tol_elliptic) exit
        
        rho_old = rho
        rho = dp (res0, res, l)
@@ -982,5 +980,8 @@ contains
     end do
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 88)
+
+    if (present(total_iter)) total_iter = iter
+    if (present(nrm_res))    nrm_res = l2 (res,l)/nrm_f 
   end subroutine bicgstab
 end module lin_solve_mod
