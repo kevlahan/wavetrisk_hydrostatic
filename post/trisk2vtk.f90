@@ -1,8 +1,8 @@
 program trisk2vtk
   ! Converts standard ASCII trisk data files from wavetrisk code to BINARY .vtk format for paraview
   !
-  ! Usage: trisk2vtk file_base file_type tstart tend jmin jmax zlev file_vtk
-  ! Example: trisk2vtk drake primal 0 1 5 7 3 4 drake
+  ! Usage: trisk2vtk file_base file_type tstart tend jmin jmax zlev 
+  ! Example: trisk2vtk drake primal 0 1 5 7 3 4
   !
   ! Reads files drake_003.1.0001.tgz, drake_004.1.0001.tgz, drake_003.1.0002.tgz, drake_004.1.0002.tgz
   ! for scale 5 to 7.
@@ -17,7 +17,6 @@ program trisk2vtk
   ! jmax      = maximum scale
   ! zmin      = min vertical layer
   ! zmax      = max vertical layer
-  ! file_vtk  = file for vtk data
 
   implicit none
   integer :: fid, i, icell, icoord, ipts, itime, itype, ivert, k, n_cells, n_vertices, tstart, tend, u
@@ -32,7 +31,7 @@ program trisk2vtk
   character(4)   :: s_time
   character(12)  :: str1, str2
   character(6)   :: file_type
-  character(255)  :: file_vtk, arg, command, filename_in, filename_out, file_base
+  character(255) :: arg, command, filename_in, filename_out, file_base
   character(1), parameter :: lf=char(10) ! line feed character
 
   real(4), dimension (:,:),   allocatable :: tmp_outv, outv
@@ -54,7 +53,6 @@ program trisk2vtk
   call get_command_argument(6, arg); read (arg,'(I12)') jmax
   call get_command_argument(7, arg); read (arg,'(I12)') zmin
   call get_command_argument(8, arg); read (arg,'(I12)') zmax
-  call get_command_argument(9, arg); file_vtk = trim(arg)
 
   if (file_type == " ") then
      write (6,'(/,a,/)') "Usage: trisk2vtk file_base file_type tbegin tend jmin jmax file_vtk"
@@ -70,7 +68,6 @@ program trisk2vtk
      write (6,'(a)') "jmax      = maximum scale to save"
      write (6,'(a)') "zmin      = minimum vertical layer to save (-1 for no layer suffix)"
      write (6,'(a)') "zmax      = maximum vertical layer to save"
-     write (6,'(a)') "file_vtk  = file name for vtk data (without extension)"
      stop
   else
      write (6,'(/,"file_base = ", a)') trim(file_base)
@@ -81,7 +78,6 @@ program trisk2vtk
      write (6,'("jmax      = ", i2.2)') jmax
      write (6,'("zmin      = ", i4.3)') zmin
      if (zmin >= 0) write (6,'("zmax      = ", i3.3)') zmax
-     write (6,'("file_vtk  = ", a)') file_vtk
 
      if (trim(file_type) == "primal") then
         itype      = 1 
