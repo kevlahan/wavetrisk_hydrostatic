@@ -16,7 +16,7 @@ module topo_grid_descriptor_mod
   !  the float field topography, which must have the same size as the WAVETRISK grid that generated the data.
   !
   !  Author: Peter Hjort Lauritzen (pel@ucar.edu)
-  !  Modified for inclusion WAVETRISK by Nicholas Kevlahan (kevlahan@mcmaster.ca) 2023-09-27
+  !  Modified for inclusion WAVETRISK by Nicholas Kevlahan (kevlahan@mcmaster.ca) 2023-10
   !
   integer                               :: i_node
   integer                               :: grid_size          ! number of nodes
@@ -29,23 +29,21 @@ module topo_grid_descriptor_mod
   real (8), dimension(:,:), allocatable :: grid_corner_lat  ! lat/lon coordinates 
   real (8), dimension(:,:), allocatable :: grid_corner_lon  ! each grid corner in radians
 
-  real(8), dimension(:),  allocatable :: phis               ! geopotential 
+  real(8), dimension(:),  allocatable   :: phi_s            ! geopotential 
 contains
 
   subroutine write_grid_coords
-    ! Find grid coordinates on each domain at coarsest level over entire grid
+    ! Find grid coordinates on each domain at finest level over entire grid
     ! saves results to netcdf coordinate file
     implicit none
-    integer        :: d, i, l, p
+    integer        :: d, i, l
     character(255) :: grid_name
 
-    l = min_level ! coarsest level
+    l = max_level ! finest level
 
     grid_size = 0
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (count_nodes, grid(d), p-1, z_null, 0, 1)
-       end do
+    do d = 1, size (grid)
+       call apply_onescale_d (count_nodes, grid(d), l, z_null, 0, 1)
     end do
 
     allocate (grid_imask(1:grid_size)); grid_imask = 1
@@ -53,10 +51,8 @@ contains
     allocate (grid_corner_lat(1:grid_corners,1:grid_size), grid_corner_lon(1:grid_corners,1:grid_size))
 
     i_node = 0
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (grid_coords, grid(d), p-1, z_null, 0, 1)
-       end do
+    do d = 1, size (grid)
+       call apply_onescale_d (grid_coords, grid(d), l, z_null, 0, 1)
     end do
 
     write (grid_name, '(a,i2.2,a)') "J", max_level, "_topo_grid"
@@ -95,7 +91,7 @@ contains
     !
     !********************************************
 
-    allocate ( phis(1:ncol), stat=alloc_error )
+    allocate ( phi_s(1:ncol), stat=alloc_error )
     if ( alloc_error /= 0 ) then
        write (6,'(a)') 'Could not allocate space for geopotential data ... aborting.'
        stop
@@ -104,21 +100,19 @@ contains
     status = NF_INQ_VARID (ncid, 'PHIS', phisid)
     if (status /= NF_NOERR) call handle_err (status)
 
-    status = NF_GET_VAR_DOUBLE (ncid, phisid, phis)
+    status = NF_GET_VAR_DOUBLE (ncid, phisid, phi_s)
     if (status /= NF_NOERR) call handle_err (status)
 
-    write (6,'(a)') 'Done reading in data from netCDF file'
+    write (6,'(a)') 'Done reading in data from netCDF file.'
 
     write (6,'(a)') 'Writing geopotential data to wavelet file ...'
 
     i_node = 0
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (assign_height, grid(d), p-1, z_null, 0, 1)
-       end do
+    do d = 1, size (grid)
+       call apply_onescale_d (assign_height, grid(d), max_level, z_null, 0, 1)
     end do
     write (6,'(a)') '...done writing geopotential data to wavelet file.'
-    deallocate (phis)
+    deallocate (phi_s)
   end subroutine read_geopotential
 
   subroutine count_nodes (dom, i, j, zlev, offs, dims)
@@ -196,7 +190,7 @@ contains
     id_i   = id + 1
     i_node = i_node + 1
 
-    topography%data(dom%id+1)%elts(id_i) =  phis(i_node)/grav_accel
+    topography%data(dom%id+1)%elts(id_i) =  phi_s(i_node)/grav_accel
   end subroutine assign_height
   
   !************************************************************************
@@ -359,7 +353,9 @@ contains
     !     write grid data
     !
     !-----------------------------------------------------------------------
-
+    
+    write (6,'(a,a,a)') "Writing topography grid descriptor data file ", trim(grid_name)//".nc", " for netcdf ..."
+    
     ncstat = nf_put_var_int (nc_grid_id, nc_griddims_id, grid_dims)
     call handle_err (ncstat)
 
@@ -386,6 +382,8 @@ contains
     !        
     ncstat = nf_close(nc_grid_id)
     call handle_err (ncstat)
+
+    write (6, '(a)') "... finished writing file descriptor data file."
 
     deallocate (grid_imask, grid_area, grid_center_lat, grid_center_lon, grid_corner_lat, grid_corner_lon)
   end subroutine wrt_esmf_rll
