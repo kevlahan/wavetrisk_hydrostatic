@@ -610,6 +610,8 @@ contains
     real(8)               :: nrm_f
     real(8), dimension(2) :: nrm_res
     integer,  parameter   :: vcycle_iter = 4
+
+    character(*), parameter  :: type = "FMG" ! "FMG" or "V-cycle"
     
     interface
        function Lu (u, l)
@@ -634,19 +636,25 @@ contains
     end do
 
     if (log_iter) nrm_res = l2 (residual (f, u, Lu, level_end), level_end) / nrm_f
-
-    ! Full multigrid
-    call bicgstab (u, f, Lu, level_start, coarse_iter)
-    do l = level_start+1, level_end
-       u = prolong (u, l)
-       do iter = 1, vcycle_iter
-          call v_cycle (u, f, Lu, level_start, l)
+    
+    select case (type)
+    case ("FMG") ! Full multigrid
+       call bicgstab (u, f, Lu, level_start, coarse_iter)
+       do l = level_start+1, level_end
+          u = prolong (u, l)
+          do iter = 1, vcycle_iter
+             call v_cycle (u, f, Lu, level_start, l)
+          end do
        end do
-    end do
+    case ("V-cycle") ! V-cycle
+       do iter = 1, vcycle_iter
+          call v_cycle (u, f, Lu, level_start, level_end)
+       end do
+    end select
     
     if (log_iter) then
        nrm_res(2) = l2 (residual(f,u,Lu,level_end), level_end) / nrm_f
-       if (rank == 0) write (6,'(2(a,es8.2),/)') "Initial residual   = ", nrm_res(1), " final residual   = ", nrm_res(2)
+       if (rank == 0) write (6,'(2(a,es8.2),/)') "Initial residual = ", nrm_res(1), " final residual = ", nrm_res(2)
     end if
     
     deallocate (w)
