@@ -354,7 +354,7 @@ contains
     !
     !-----------------------------------------------------------------------
     
-    write (6,'(a,a,a)') "Writing topography grid descriptor data file ", trim(grid_name)//".nc", " for netcdf ..."
+    write (6,'(/,a,a,a)',advance="no") "Writing topography grid descriptor data file ", trim(grid_name)//".nc", " for netcdf ..."
     
     ncstat = nf_put_var_int (nc_grid_id, nc_griddims_id, grid_dims)
     call handle_err (ncstat)
@@ -383,7 +383,7 @@ contains
     ncstat = nf_close(nc_grid_id)
     call handle_err (ncstat)
 
-    write (6, '(a)') "... finished writing file descriptor data file."
+    write (6, '(a,/)') " finished writing file descriptor data file."
 
     deallocate (grid_imask, grid_area, grid_center_lat, grid_center_lon, grid_corner_lat, grid_corner_lon)
   end subroutine wrt_esmf_rll
