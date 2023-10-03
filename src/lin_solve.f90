@@ -699,7 +699,7 @@ contains
     end do
 
     ! V-cycle correction to solution
-    u = lcf (u, 1d0, corr, level_end)
+    u = lcf (u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
     call Jacobi (u, f, Lu, jmax, pre_iter)
