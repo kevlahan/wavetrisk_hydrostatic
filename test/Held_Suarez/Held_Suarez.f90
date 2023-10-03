@@ -5,10 +5,13 @@ program Held_Suarez
   use ops_mod
   use test_case_mod
   use io_mod
+  use topo_grid_descriptor_mod
   implicit none
 
   logical        :: aligned
   character(256) :: input_file
+
+  character(255) :: topo_operation
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -64,7 +67,7 @@ program Held_Suarez
   Tdim           = 1  * DAY                    ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters
   call read_test_case_parameters
@@ -74,43 +77,54 @@ program Held_Suarez
 
   ! Initialize variables
   call initialize (run_id)
+  call print_test_case_parameters
+
+  ! Generate topography data
+  topo_operation = "read"
+  select case (topo_operation)
+  case ("write") ! write out file descriptor for topography
+     call write_grid_coords
+  case ("read") ! read in geopotential
+     call read_geopotential ("J08_gmted2010_modis_bedmachine_nc3000_NoAniso_Laplace0030_20231002.nc")
+     call forward_scalar_transform (topography, wav_topography)
+     call inverse_scalar_transform (wav_topography, topography, level_start-1)
+  end select
 
   ! Save initial conditions
-  call print_test_case_parameters
   call write_and_export (iwrite)
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  if (rank == 0) write (6,'(A,/)') &
-       '----------------------------------------------------- Start simulation run &
-       ------------------------------------------------------'
-  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  total_cpu_time = 0.0_8
-  do while (time < time_end)
-     call start_timing
-     call time_step (dt_write, aligned)
-     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
-     call euler (sol, wav_coeff, trend_cooling, dt)
-     call stop_timing
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! if (rank == 0) write (6,'(A,/)') &
+  !      '----------------------------------------------------- Start simulation run &
+  !      ------------------------------------------------------'
+  ! open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  ! total_cpu_time = 0.0_8
+  ! do while (time < time_end)
+  !    call start_timing
+  !    call time_step (dt_write, aligned)
+  !    if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+  !    call euler (sol, wav_coeff, trend_cooling, dt)
+  !    call stop_timing
 
-     call sum_total_mass (.false.)
-     call print_log
+  !    call sum_total_mass (.false.)
+  !    call print_log
 
-     if (aligned) then
-        iwrite = iwrite+1
-        if (remap) call remap_vertical_coordinates
+  !    if (aligned) then
+  !       iwrite = iwrite+1
+  !       if (remap) call remap_vertical_coordinates
 
-        if (modulo (iwrite, CP_EVERY) == 0) then
-           call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
+  !       if (modulo (iwrite, CP_EVERY) == 0) then
+  !          call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
 
-           ! Save statistics
-           call combine_stats
-           if (rank == 0) call write_out_stats
-        end if
+  !          ! Save statistics
+  !          call combine_stats
+  !          if (rank == 0) call write_out_stats
+  !       end if
 
-        ! Save fields
-        call write_and_export (iwrite)
-     end if
-  end do
+  !       ! Save fields
+  !       call write_and_export (iwrite)
+  !    end if
+  ! end do
 
   if (rank == 0) then
      close (12)

@@ -4,6 +4,18 @@ module wavelet_mod
   use utils_mod
   implicit none
   real(8), dimension(9) :: Iu_Base_Wgt
+
+  interface forward_scalar_transform
+     procedure forward_scalar_transform_0, forward_scalar_transform_1
+  end interface forward_scalar_transform
+
+  interface inverse_scalar_transform
+     procedure inverse_scalar_transform_0, inverse_scalar_transform_1
+  end interface inverse_scalar_transform
+
+  interface inverse_velo_transform
+     procedure inverse_velo_transform_0, inverse_velo_transform_1
+  end interface inverse_velo_transform
 contains
   subroutine forward_wavelet_transform (scaling, wavelet)
     ! Forward wavelet transform
@@ -64,7 +76,38 @@ contains
     wavelet(S_VELO,:)%bdry_uptodate = .false.
   end subroutine forward_wavelet_transform
 
-  subroutine forward_scalar_transform (scaling, wavelet)
+  subroutine forward_scalar_transform_0 (scaling, wavelet)
+    ! Forward scalar wavelet transform
+    implicit none
+    type(Float_Field), target :: scaling, wavelet
+
+    integer :: k, l, d
+
+    do l = level_end-1, level_start-1, -1
+       call update_bdry (scaling, l+1, 61)
+
+       ! Compute scalar wavelet coefficients
+       do d = 1, size(grid)
+          scalar => scaling%data(d)%elts
+          wc_s   => wavelet%data(d)%elts
+          call apply_interscale_d (Compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+          nullify (scalar, wc_s)
+       end do
+       call update_bdry (wavelet, l+1, 62)
+
+       ! Restrict scalars (sub-sample and lift) to coarser grid
+       do d = 1, size(grid)
+          scalar => scaling%data(d)%elts
+          wc_s   => wavelet%data(d)%elts
+          call apply_interscale_d (Restrict_scalar, grid(d), l, z_null, 0, 1) ! +1 to include poles
+          nullify (scalar, wc_s)
+       end do
+       scaling%bdry_uptodate = .false.
+       wavelet%bdry_uptodate = .false.
+    end do
+  end subroutine forward_scalar_transform_0
+
+  subroutine forward_scalar_transform_1 (scaling, wavelet)
     ! Forward scalar wavelet transform
     implicit none
     type(Float_Field), dimension(:), target :: scaling, wavelet
@@ -97,7 +140,7 @@ contains
        scaling%bdry_uptodate = .false.
        wavelet%bdry_uptodate = .false.
     end do
-  end subroutine forward_scalar_transform
+  end subroutine forward_scalar_transform_1
 
   subroutine inverse_wavelet_transform (wavelet, scaling, l_start0)
     ! Inverse wavelet transform
@@ -179,7 +222,47 @@ contains
     end do
   end subroutine inverse_wavelet_transform
 
-  subroutine inverse_scalar_transform (wavelet, scaling, l_start0)
+   subroutine inverse_scalar_transform_0 (wavelet, scaling, l_start0)
+    ! Inverse scalar wavelet transform
+    implicit none
+    type(Float_Field), target :: scaling, wavelet
+    integer, optional         :: l_start0
+
+    integer :: l, d, k, l_start
+
+    if (present(l_start0)) then
+       l_start = l_start0
+    else
+       l_start = level_start
+    end if
+
+    call update_bdry1 (wavelet, level_start, level_end, 64)
+    call update_bdry1 (scaling, l_start,     level_end, 65)
+
+    scaling%bdry_uptodate = .false.
+
+    do l = l_start, level_end-1
+       ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
+       do d = 1, size(grid)
+          scalar => scaling%data(d)%elts
+          wc_s   => wavelet%data(d)%elts
+          call apply_interscale_d2 (Prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
+          nullify (scalar, wc_s)
+       end do
+       call update_bdry (scaling, l+1, 66)
+
+       ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
+       do d = 1, size(grid)
+          scalar => scaling%data(d)%elts
+          wc_s   => wavelet%data(d)%elts
+          call apply_interscale_d (Reconstruct_scalar, grid(d), l, z_null, 0, 0)
+          nullify (scalar, wc_s)
+       end do
+       scaling%bdry_uptodate = .false.
+    end do
+  end subroutine inverse_scalar_transform_0
+
+  subroutine inverse_scalar_transform_1 (wavelet, scaling, l_start0)
     ! Inverse scalar wavelet transform
     implicit none
     type(Float_Field), dimension(:), target :: scaling, wavelet
@@ -221,9 +304,56 @@ contains
        end do
        scaling%bdry_uptodate = .false.
     end do
-  end subroutine inverse_scalar_transform
+  end subroutine inverse_scalar_transform_1
+  
+  subroutine inverse_velo_transform_0 (wavelet, scaling, l_start0)
+    ! Inverse velocity wavelet transform
+    implicit none
+    type(Float_Field), target :: scaling, wavelet
+    integer, optional         :: l_start0
 
-  subroutine inverse_velo_transform (wavelet, scaling, l_start0)
+    integer :: l, d, k, l_start
+
+    if (.not. present(l_start0)) then
+       l_start = level_start
+    else
+       l_start = l_start0
+    end if
+
+    call update_bdry1 (wavelet, level_start, level_end, 4)
+    call update_bdry1 (scaling, l_start,     level_end, 5)
+
+    scaling%bdry_uptodate = .false.
+
+    do l = l_start, level_end-1
+       if (l > l_start) call update_bdry__finish (scaling, l) ! for next outer velocity
+
+       ! Prolong outer velocities at finer edges (interpolate and add wavelet coefficients)
+       do d = 1, size(grid)
+          velo => scaling%data(d)%elts
+          wc_u => wavelet%data(d)%elts
+          call apply_interscale_d2 (Reconstruct_outer_velo, grid(d), l, z_null, 0, 1) ! needs val
+          call apply_to_penta_d (Reconstruct_velo_penta, grid(d), l, z_null)
+          nullify (velo, wc_u)
+       end do
+
+       call update_bdry (scaling, l+1, 33)
+
+       ! Prolong inner velocities at finer edges (interpolate and add wavelet coefficients)
+       do d = 1, size(grid)
+          velo => scaling%data(d)%elts
+          wc_u => wavelet%data(d)%elts
+          call apply_interscale_d (Reconstruct_inner_velo, grid(d), l, z_null, 0, 0)
+          nullify (velo, wc_u)
+       end do
+
+       if (l < level_end-1) call update_bdry__start (scaling, l+1) ! for next outer velocity
+
+       scaling%bdry_uptodate = .false.
+    end do
+  end subroutine inverse_velo_transform_0
+  
+  subroutine inverse_velo_transform_1 (wavelet, scaling, l_start0)
     ! Inverse velocity wavelet transform
     implicit none
     type(Float_Field), dimension(:), target :: scaling, wavelet
@@ -272,7 +402,7 @@ contains
 
        scaling%bdry_uptodate = .false.
     end do
-  end subroutine inverse_velo_transform
+  end subroutine inverse_velo_transform_1
 
   subroutine Restrict_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Restrict both scalar and potential temperature

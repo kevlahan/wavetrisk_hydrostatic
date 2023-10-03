@@ -164,7 +164,7 @@ contains
     call extend (dom%qe,      EDGE*num, 0d0)
     call extend (dom%vort,   TRIAG*num, 0d0)
 
-    call extend (topography%data(d),     num, max_depth)
+    call extend (topography%data(d),     num, 0d0)
     call extend (wav_topography%data(d), num, 0d0)
     
     do k = 1, zmax

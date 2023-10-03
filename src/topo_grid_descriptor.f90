@@ -73,7 +73,7 @@ contains
     !
     !****************************************************
     !
-    write (6,'(a)') "Opening file ",trim (fname)
+    write (6,'(/,a,a,/)') "Opening netcdf topography file:  ",trim (fname)
     status = nf_open(TRIM(fname), 0, ncid)
     if (STATUS /= NF_NOERR) call handle_err (status) 
 
@@ -82,7 +82,7 @@ contains
     status = NF_INQ_DIMLEN (ncid, dimid, ncol)
     if (status /=  NF_NOERR) call handle_err (status)
 
-    write (6,'(a,i7)') "grid dimension = ", ncol
+    write (6,'(a,i7,/)') "Grid dimension = ", ncol
 
     !********************************************
     !
@@ -103,15 +103,15 @@ contains
     status = NF_GET_VAR_DOUBLE (ncid, phisid, phi_s)
     if (status /= NF_NOERR) call handle_err (status)
 
-    write (6,'(a)') 'Done reading in data from netCDF file.'
+    write (6,'(a,/)') 'Done reading in data from netCDF file.'
 
-    write (6,'(a)') 'Writing geopotential data to wavelet file ...'
+    write (6,'(a)', advance="no") 'Writing geopotential data to wavelet file ...'
 
     i_node = 0
     do d = 1, size (grid)
        call apply_onescale_d (assign_height, grid(d), max_level, z_null, 0, 1)
     end do
-    write (6,'(a)') '...done writing geopotential data to wavelet file.'
+    write (6,'(a,/)') ' done writing geopotential data to wavelet file.'
     deallocate (phi_s)
   end subroutine read_geopotential
 
