@@ -8,6 +8,8 @@ program Held_Suarez
   use topo_grid_descriptor_mod
   implicit none
 
+  integer        :: l
+  real(8)        :: fine_mass
   logical        :: aligned
   character(256) :: input_file
 
@@ -85,9 +87,16 @@ program Held_Suarez
   case ("write") ! write out file descriptor for topography
      call write_grid_coords
   case ("read") ! read in geopotential
-     call read_geopotential ("J08_gmted2010_modis_bedmachine_nc3000_NoAniso_Laplace0030_20231002.nc")
+     call read_geopotential ("J06_gmted2010_modis_bedmachine_nc3000_NoAniso_Laplace0120_20231003.nc")
      call forward_topo_transform (topography, wav_topography)
      call inverse_topo_transform (wav_topography, topography)
+
+     ! Check mass conservation
+     fine_mass = integrate_hex (topo, z_null, level_end)
+     do l = level_end-1, level_start, -1
+        write (6,'(a,i2,a,es10.4)') &
+             "Relative mass error at level ", l, " = ", abs (integrate_hex (topo, z_null, l) - fine_mass)/fine_mass
+     end do
   end select
 
   ! Save initial conditions
@@ -95,36 +104,36 @@ program Held_Suarez
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! if (rank == 0) write (6,'(A,/)') &
-  !      '----------------------------------------------------- Start simulation run &
-  !      ------------------------------------------------------'
-  ! open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  ! total_cpu_time = 0.0_8
-  ! do while (time < time_end)
-  !    call start_timing
-  !    call time_step (dt_write, aligned)
-  !    if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
-  !    call euler (sol, wav_coeff, trend_cooling, dt)
-  !    call stop_timing
+       '----------------------------------------------------- Start simulation run &
+       ------------------------------------------------------'
+  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  total_cpu_time = 0.0_8
+  do while (time < time_end)
+     call start_timing
+     call time_step (dt_write, aligned)
+     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+     call euler (sol, wav_coeff, trend_cooling, dt)
+     call stop_timing
 
-  !    call sum_total_mass (.false.)
-  !    call print_log
+     call sum_total_mass (.false.)
+     call print_log
 
-  !    if (aligned) then
-  !       iwrite = iwrite+1
-  !       if (remap) call remap_vertical_coordinates
+     if (aligned) then
+        iwrite = iwrite+1
+        if (remap) call remap_vertical_coordinates
 
-  !       if (modulo (iwrite, CP_EVERY) == 0) then
-  !          call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
+        if (modulo (iwrite, CP_EVERY) == 0) then
+           call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
 
-  !          ! Save statistics
-  !          call combine_stats
-  !          if (rank == 0) call write_out_stats
-  !       end if
+           ! Save statistics
+           call combine_stats
+           if (rank == 0) call write_out_stats
+        end if
 
-  !       ! Save fields
-  !       call write_and_export (iwrite)
-  !    end if
-  ! end do
+        ! Save fields
+        call write_and_export (iwrite)
+     end if
+  end do
 
   if (rank == 0) then
      close (12)
