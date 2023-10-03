@@ -86,8 +86,8 @@ program Held_Suarez
      call write_grid_coords
   case ("read") ! read in geopotential
      call read_geopotential ("J08_gmted2010_modis_bedmachine_nc3000_NoAniso_Laplace0030_20231002.nc")
-     call forward_scalar_transform (topography, wav_topography)
-     call inverse_scalar_transform (wav_topography, topography, level_start-1)
+     call forward_topo_transform (topography, wav_topography)
+     call inverse_topo_transform (wav_topography, topography)
   end select
 
   ! Save initial conditions
