@@ -254,7 +254,7 @@ contains
        if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
             call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
        call adapt (set_thresholds)
-       call inverse_wavelet_transform (wav_coeff, sol, jmin=level_start)
+       call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
     end if
 
     call update
@@ -338,8 +338,8 @@ contains
     call barrier
 
     call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
-    call inverse_wavelet_transform (wav_coeff, sol, jmin=level_start-1)
-    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin=level_start-1)
+    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
+    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
