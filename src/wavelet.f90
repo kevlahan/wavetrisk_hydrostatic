@@ -17,14 +17,32 @@ module wavelet_mod
      procedure inverse_velo_transform_0, inverse_velo_transform_1
   end interface inverse_velo_transform
 contains
-  subroutine forward_wavelet_transform (scaling, wavelet)
+  subroutine forward_wavelet_transform (scaling, wavelet, jmin_in, jmax_in)
     ! Forward wavelet transform
     implicit none
+    integer, optional                         :: jmin_in, jmax_in
     type(Float_Field), dimension(:,:), target :: scaling, wavelet
 
-    integer :: k, l, d, v
+    integer :: d, jmin, jmax, k, l, v
 
-    do l = level_end-1, level_start-1, -1
+    if (present(jmin_in)) then
+       jmin = jmin_in
+    else
+       jmin = level_start
+    end if
+    
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    do l = jmax-1, jmin-1, -1
        ! Compute scalar wavelet coefficients
        call update_array_bdry (scaling(scalars(1):scalars(2),:), l+1, 1)
 
@@ -62,7 +80,7 @@ contains
     call update_vector_bdry (scaling(S_VELO,:), NONE, 3)
 
     ! Compute vector wavelet coefficients
-    do l = level_end-1, level_start-1, -1
+    do l = jmax-1, jmin-1, -1
        do k = 1, size(scaling,2)
           do d = 1, size(grid)
              wc_u => wavelet(S_VELO,k)%data(d)%elts
@@ -76,14 +94,32 @@ contains
     wavelet(S_VELO,:)%bdry_uptodate = .false.
   end subroutine forward_wavelet_transform
 
-  subroutine forward_scalar_transform_0 (scaling, wavelet)
+  subroutine forward_scalar_transform_0 (scaling, wavelet, jmin_in, jmax_in)
     ! Forward scalar wavelet transform
     implicit none
+    integer, optional         :: jmin_in, jmax_in
     type(Float_Field), target :: scaling, wavelet
+    
+    integer :: d, jmin, jmax, k, l
 
-    integer :: k, l, d
+    if (present(jmin_in)) then
+       jmin = jmin_in
+    else
+       jmin = level_start
+    end if
 
-    do l = level_end-1, level_start-1, -1
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    do l = jmax-1, jmin-1, -1
        call update_bdry (scaling, l+1, 61)
 
        ! Compute scalar wavelet coefficients
@@ -107,14 +143,32 @@ contains
     end do
   end subroutine forward_scalar_transform_0
 
-  subroutine forward_scalar_transform_1 (scaling, wavelet)
+  subroutine forward_scalar_transform_1 (scaling, wavelet, jmin_in, jmax_in)
     ! Forward scalar wavelet transform
     implicit none
+    integer, optional                       :: jmin_in, jmax_in
     type(Float_Field), dimension(:), target :: scaling, wavelet
 
-    integer :: k, l, d
+    integer :: d, jmin, jmax, k, l
 
-    do l = level_end-1, level_start-1, -1
+    if (present(jmin_in)) then
+       jmin = jmin_in
+    else
+       jmin = level_start
+    end if
+
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    do l = jmax-1, jmin-1, -1
        call update_vector_bdry (scaling, l+1, 61)
 
        ! Compute scalar wavelet coefficients
@@ -142,26 +196,37 @@ contains
     end do
   end subroutine forward_scalar_transform_1
 
-  subroutine inverse_wavelet_transform (wavelet, scaling, l_start0)
+  subroutine inverse_wavelet_transform (wavelet, scaling, jmin_in, jmax_in)
     ! Inverse wavelet transform
     implicit none
+    integer, optional                         :: jmin_in, jmax_in
     type(Float_Field), dimension(:,:), target :: scaling, wavelet
-    integer, optional                         :: l_start0
 
-    integer :: l, d, k, l_start, v
+    integer :: d, jmin, jmax, k, l, v
 
-    if (.not. present(l_start0)) then
-       l_start = level_start
+    if (present(jmin_in)) then
+       jmin = jmin_in
     else
-       l_start = l_start0
+       jmin = level_start
     end if
 
-    call update_array_bdry1 (wavelet, level_start, level_end, 4)
-    call update_array_bdry1 (scaling, l_start,     level_end, 5)
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    call update_array_bdry1 (wavelet, max (jmin, level_start), jmax, 4)
+    call update_array_bdry1 (scaling, jmin,                    jmax, 5)
 
     scaling%bdry_uptodate = .false.
 
-    do l = l_start, level_end-1
+    do l = jmin, jmax-1
        ! Prolong scalars to finer nodes existing at coarser grid (undo lifting)
        do k = 1, size(scaling,2)
           do d = 1, size(grid)
@@ -174,7 +239,7 @@ contains
           end do
        end do
 
-       if (l > l_start) call update_vector_bdry__finish (scaling(S_VELO,:), l) ! for next outer velocity
+       if (l > jmin) call update_vector_bdry__finish (scaling(S_VELO,:), l) ! for next outer velocity
 
        call update_array_bdry__start (scaling(scalars(1):scalars(2),:), l+1)
 
@@ -190,7 +255,7 @@ contains
        end do
 
        call update_array_bdry__finish (scaling(scalars(1):scalars(2),:), l+1)
-       call update_vector_bdry__start (scaling(S_VELO,:), l+1)
+       call update_vector_bdry__start (scaling(S_VELO,:),                l+1)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do k = 1, size(scaling,2)
@@ -216,32 +281,43 @@ contains
           end do
        end do
 
-       if (l < level_end-1) call update_vector_bdry__start (scaling(S_VELO,:), l+1) ! for next outer velocity
+       if (l < jmax-1) call update_vector_bdry__start (scaling(S_VELO,:), l+1) ! for next outer velocity
 
        scaling%bdry_uptodate = .false.
     end do
   end subroutine inverse_wavelet_transform
 
-  subroutine inverse_scalar_transform_0 (wavelet, scaling, l_start0)
+  subroutine inverse_scalar_transform_0 (wavelet, scaling, jmin_in, jmax_in)
     ! Inverse scalar wavelet transform
     implicit none
+    integer, optional         :: jmin_in, jmax_in
     type(Float_Field), target :: scaling, wavelet
-    integer, optional         :: l_start0
+    
+    integer :: d, jmin, jmax, l
 
-    integer :: l, d, k, l_start
-
-    if (present(l_start0)) then
-       l_start = l_start0
+    if (present(jmin_in)) then
+       jmin = jmin_in
     else
-       l_start = level_start
+       jmin = level_start
     end if
 
-    call update_bdry1 (wavelet, level_start, level_end, 64)
-    call update_bdry1 (scaling, l_start,     level_end, 65)
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 64)
+    call update_bdry1 (scaling, jmin,                    jmax, 65)
 
     scaling%bdry_uptodate = .false.
 
-    do l = l_start, level_end-1
+    do l = jmin, jmax-1
        ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
        do d = 1, size(grid)
           scalar => scaling%data(d)%elts
@@ -262,26 +338,37 @@ contains
     end do
   end subroutine inverse_scalar_transform_0
 
-  subroutine inverse_scalar_transform_1 (wavelet, scaling, l_start0)
+  subroutine inverse_scalar_transform_1 (wavelet, scaling, jmin_in, jmax_in)
     ! Inverse scalar wavelet transform
     implicit none
+    integer, optional                       :: jmin_in, jmax_in
     type(Float_Field), dimension(:), target :: scaling, wavelet
-    integer, optional                       :: l_start0
+    
+    integer :: d, jmin, jmax, k, l
 
-    integer :: l, d, k, l_start
-
-    if (present(l_start0)) then
-       l_start = l_start0
+    if (present(jmin_in)) then
+       jmin = jmin_in
     else
-       l_start = level_start
+       jmin = level_start
     end if
 
-    call update_vector_bdry1 (wavelet, level_start, level_end, 64)
-    call update_vector_bdry1 (scaling, l_start,     level_end, 65)
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax, 64)
+    call update_vector_bdry1 (scaling, jmin,                    jmax, 65)
 
     scaling%bdry_uptodate = .false.
     
-    do l = l_start, level_end-1
+    do l = jmin, jmax-1
        ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
        do k = 1, size(scaling)
           do d = 1, size(grid)
@@ -306,27 +393,38 @@ contains
     end do
   end subroutine inverse_scalar_transform_1
   
-  subroutine inverse_velo_transform_0 (wavelet, scaling, l_start0)
+  subroutine inverse_velo_transform_0 (wavelet, scaling, jmin_in, jmax_in)
     ! Inverse velocity wavelet transform
     implicit none
+    integer, optional         :: jmin_in, jmax_in
     type(Float_Field), target :: scaling, wavelet
-    integer, optional         :: l_start0
+    
+    integer :: d, jmin, jmax, l
 
-    integer :: l, d, k, l_start
-
-    if (.not. present(l_start0)) then
-       l_start = level_start
+    if (present(jmin_in)) then
+       jmin = jmin_in
     else
-       l_start = l_start0
+       jmin = level_start
     end if
 
-    call update_bdry1 (wavelet, level_start, level_end, 4)
-    call update_bdry1 (scaling, l_start,     level_end, 5)
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 4)
+    call update_bdry1 (scaling, jmin,                    jmax, 5)
 
     scaling%bdry_uptodate = .false.
 
-    do l = l_start, level_end-1
-       if (l > l_start) call update_bdry__finish (scaling, l) ! for next outer velocity
+    do l = jmin, jmax-1
+       if (l > jmin) call update_bdry__finish (scaling, l) ! for next outer velocity
 
        ! Prolong outer velocities at finer edges (interpolate and add wavelet coefficients)
        do d = 1, size(grid)
@@ -347,33 +445,44 @@ contains
           nullify (velo, wc_u)
        end do
 
-       if (l < level_end-1) call update_bdry__start (scaling, l+1) ! for next outer velocity
+       if (l < jmax-1) call update_bdry__start (scaling, l+1) ! for next outer velocity
 
        scaling%bdry_uptodate = .false.
     end do
   end subroutine inverse_velo_transform_0
   
-  subroutine inverse_velo_transform_1 (wavelet, scaling, l_start0)
+  subroutine inverse_velo_transform_1 (wavelet, scaling, jmin_in, jmax_in)
     ! Inverse velocity wavelet transform
     implicit none
+    integer, optional                       :: jmin_in, jmax_in
     type(Float_Field), dimension(:), target :: scaling, wavelet
-    integer, optional                       :: l_start0
 
-    integer :: l, d, k, l_start
+    integer :: d, jmin, jmax, k, l
 
-    if (.not. present(l_start0)) then
-       l_start = level_start
+    if (present(jmin_in)) then
+       jmin = jmin_in
     else
-       l_start = l_start0
+       jmin = level_start
     end if
 
-    call update_vector_bdry1 (wavelet, level_start, level_end, 4)
-    call update_vector_bdry1 (scaling, l_start,     level_end, 5)
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax, 4)
+    call update_vector_bdry1 (scaling, jmin,                    jmax, 5)
 
     scaling%bdry_uptodate = .false.
 
-    do l = l_start, level_end-1
-       if (l > l_start) call update_vector_bdry__finish (scaling, l) ! for next outer velocity
+    do l = jmin, jmax-1
+       if (l > jmin) call update_vector_bdry__finish (scaling, l) ! for next outer velocity
 
        ! Prolong outer velocities at finer edges (interpolate and add wavelet coefficients)
        do k = 1, size(scaling)
@@ -398,20 +507,38 @@ contains
           end do
        end do
 
-       if (l < level_end-1) call update_vector_bdry__start (scaling, l+1) ! for next outer velocity
+       if (l < jmax-1) call update_vector_bdry__start (scaling, l+1) ! for next outer velocity
 
        scaling%bdry_uptodate = .false.
     end do
   end subroutine inverse_velo_transform_1
 
-  subroutine forward_topo_transform (scaling, wavelet)
+  subroutine forward_topo_transform (scaling, wavelet, jmin_in, jmax_in)
     ! Forward scalar wavelet transform
     implicit none
+    integer, optional         :: jmin_in, jmax_in
     type(Float_Field), target :: scaling, wavelet
 
-    integer :: k, l, d
+    integer :: d, jmin, jmax, l
 
-    do l = level_end-1, level_start-1, -1
+    if (present(jmin_in)) then
+       jmin = jmin_in
+    else
+       jmin = level_start
+    end if
+
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    do l = jmax-1, level_start-1, -1
        call update_bdry (scaling, l+1, 61)
 
        ! Compute scalar wavelet coefficients
@@ -435,26 +562,37 @@ contains
     end do
   end subroutine forward_topo_transform
 
-  subroutine inverse_topo_transform (wavelet, scaling, l_start0)
+  subroutine inverse_topo_transform (wavelet, scaling, jmin_in, jmax_in)
     ! Inverse scalar wavelet transform
     implicit none
+    integer, optional         :: jmin_in, jmax_in
     type(Float_Field), target :: scaling, wavelet
-    integer, optional         :: l_start0
 
-    integer :: l, d, k, l_start
+    integer :: d, jmin, jmax, l
 
-    if (present(l_start0)) then
-       l_start = l_start0
+    if (present(jmin_in)) then
+       jmin = jmin_in
     else
-       l_start = level_start
+       jmin = level_start
     end if
 
-    call update_bdry1 (wavelet, level_start, level_end, 64)
-    call update_bdry1 (scaling, l_start,     level_end, 65)
+    if (present(jmax_in)) then
+       jmax = jmax_in
+    else
+       jmax = level_end
+    end if
+
+    if (jmax < jmin) then
+       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       call abort
+    end if
+
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 64)
+    call update_bdry1 (scaling, jmin,                    jmax, 65)
 
     scaling%bdry_uptodate = .false.
 
-    do l = l_start, level_end-1
+    do l = jmin, jmax-1
        ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
        do d = 1, size(grid)
           scalar => scaling%data(d)%elts

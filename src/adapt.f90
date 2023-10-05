@@ -376,7 +376,7 @@ contains
        if (rank == 0) write(6,'(a,i2)') 'Filling up level ', level_start+1
        call fill_up_level
     end do
-    call inverse_wavelet_transform (wav_coeff, sol, old_level_start)
+    call inverse_wavelet_transform (wav_coeff, sol, jmin=old_level_start)
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE, 17)
   end subroutine fill_up_grid_and_IWT
