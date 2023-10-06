@@ -38,7 +38,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -115,7 +115,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -164,7 +164,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -217,7 +217,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -308,7 +308,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -359,7 +359,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -414,7 +414,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -472,7 +472,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -534,7 +534,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
@@ -583,7 +583,7 @@ contains
     end if
 
     if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmin < jmax in wavelet routine .. abort"
+       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
 
