@@ -595,7 +595,6 @@ contains
     if (scale_in > scale_out) then     ! restriction
        call forward_scalar_transform (scaling, wavelet, scale_out, scale_in)
     elseif (scale_in < scale_out) then ! prolongation
-       call forward_scalar_transform (scaling, wavelet, scale_in, scale_out)
        call inverse_scalar_transform (wavelet, scaling, scale_in, scale_out)
     else                               ! do nothing
     end if
@@ -613,7 +612,6 @@ contains
     if (scale_in > scale_out) then     ! restriction
        call forward_scalar_transform (wlt_int, wavelet, scale_out, scale_in)
     elseif (scale_in < scale_out) then ! prolongation
-       call forward_scalar_transform (wlt_int, wavelet, scale_in, scale_out)
        call inverse_scalar_transform (wavelet, wlt_int, scale_in, scale_out)
     else                               ! do nothing
     end if
@@ -749,7 +747,7 @@ contains
     integer                   :: j
     type(Float_Field), target :: corr, res
 
-    integer, parameter :: pre_iter = 10, down_iter = 2, up_iter = 2
+    integer, parameter :: pre_iter = 2, down_iter = 2, up_iter = 2
     
     interface
        function Lu (u, l)
@@ -762,10 +760,10 @@ contains
     end interface
 
     corr = f
-
+    
     ! Pre-smooth
     call Jacobi (u, f, Lu, jmax, pre_iter)
-           
+
     ! Down V-cycle
     res = residual (f, u, Lu, jmax)
     do j = jmax, jmin+1, -1
@@ -782,7 +780,8 @@ contains
 
     ! Up V-cycle
     do j = jmin+1, jmax
-       corr = lcf (corr, 1d0, wlt_int (corr, wav_tke(3), j-1, j), j)
+       !corr = lcf (corr, 1d0, wlt_int (corr, wav_tke(3), j-1, j), j)
+       corr = lcf (corr, 1d0, prolong (corr, j), j)
        call Jacobi (corr, res, Lu, j, up_iter)
     end do
 
