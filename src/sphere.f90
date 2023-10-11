@@ -13,13 +13,29 @@ contains
   end function direction
 
   real(8) function dist (p, q)
+    ! Geodesic distance between points on the sphere with coordinates p and q
     implicit none
     type(Coord) :: p, q
 
-    dist = asin (sqrt ((p%y*q%z - p%z*q%y)**2 + (p%z*q%x - p%x*q%z)**2 + (p%x*q%y - p%y*q%x)**2)/radius**2)*radius
+    dist = radius * asin (sqrt ((p%y * q%z - p%z * q%y)**2 + (p%z * q%x - p%x * q%z)**2 + (p%x * q%y - p%y * q%x)**2)/radius**2)
   end function dist
 
+  real(8) function dist_sph (lon1, lat1, lon2, lat2)
+    ! Geodesic distance between points on the sphere angular coordinates (lat1, lon1) and (lat2, lon2)
+    implicit none
+
+    real(8) :: lat1, lat2, lon1, lon2
+
+    type(Coord) :: x1, x2
+    
+    x1 = radius * sph2cart (lon1, lat1)
+    x2 = radius * sph2cart (lon2, lat2)
+
+    dist_sph = dist (x1, x2)
+  end function dist_sph
+
   type(Coord) function sph2cart (lon, lat)
+    ! Cartesian coordinates of point with longitude lon and latitude lat on the unit sphere
     implicit none
     real(8) :: lon, lat
     

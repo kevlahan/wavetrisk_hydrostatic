@@ -532,9 +532,9 @@ contains
 
     eta_surf = 0d0
 
-!!$    p = sph2cart (lon_c, lat_c) ! centre of seamount
-!!$    p = sph2cart (lon_c + width/radius / DEG, lat_c) ! edge of seamount
-    p = sph2cart (lon_c + width/radius / DEG, lat_c + width/radius / DEG) ! mid ocean
+!!$    p = radius*sph2cart (lon_c, lat_c) ! centre of seamount
+!!$    p = radius*sph2cart (lon_c + width/radius / DEG, lat_c) ! edge of seamount
+    p = radius*sph2cart (lon_c + width/radius / DEG, lat_c + width/radius / DEG) ! mid ocean
 
     p%x = radius * p%x ; p%y = radius * p%y ; p%z = radius * p%z  
 
