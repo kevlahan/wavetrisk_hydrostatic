@@ -1106,7 +1106,7 @@ contains
           do jj = -npts, npts
              lon = lon0 + dtheta * jj
 
-             q = project_on_sphere (sph2cart(lon, lat))
+             q = sph2cart(lon, lat)
              r = norm (vector(p, q))
              wgt = radial_basis_fun ()
 

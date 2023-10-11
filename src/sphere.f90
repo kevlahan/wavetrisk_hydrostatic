@@ -28,18 +28,28 @@ contains
 
     type(Coord) :: x1, x2
     
-    x1 = radius * sph2cart (lon1, lat1)
-    x2 = radius * sph2cart (lon2, lat2)
+    x1 = sph2cart (lon1, lat1)
+    x2 = sph2cart (lon2, lat2)
 
     dist_sph = dist (x1, x2)
   end function dist_sph
 
+  subroutine cart2sph (c, lon, lat)
+    ! Angular coordinates (in radians) of a point with coordinates c on the sphere
+    implicit none
+    type(Coord) :: c
+    real(8)     :: lat, lon
+
+    lat = asin (c%z/radius)
+    lon = atan2 (c%y, c%x)
+  end subroutine cart2sph
+
   type(Coord) function sph2cart (lon, lat)
-    ! Cartesian coordinates of point with longitude lon and latitude lat on the unit sphere
+    ! Cartesian coordinates of point with longitude lon and latitude lat on the sphere
     implicit none
     real(8) :: lon, lat
     
-    sph2cart = Coord (cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat))
+    sph2cart = radius * Coord (cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat))
   end function sph2cart
 
   type(Coord) function project_on_sphere (p)
@@ -151,15 +161,6 @@ contains
     end if
     distn = asin (sindist)
   end function distn
-
-  subroutine cart2sph (c, lon, lat)
-    implicit none
-    type(Coord) :: c
-    real(8)     :: lat, lon
-
-    lat = asin (c%z/radius)
-    lon = atan2 (c%y, c%x)
-  end subroutine cart2sph
 
   type(Coord) function circumcentre (A, B, C)
     implicit none

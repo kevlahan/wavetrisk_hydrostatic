@@ -224,10 +224,10 @@ contains
        do jj = 1, 5
           loz = 5*ii - 5 + (jj-1)
 
-          ne = sph2cart(lon(modulo(ii + 2*jj - 2, 10) + 1), lat(ii+1))
-          se = sph2cart(lon(ii+2*jj-2),                     lat(ii)  )
-          sw = sph2cart(lon(modulo(ii + 2*jj - 4, 10) + 1), lat(ii+1))
-          nw = sph2cart(lon(ii+2*jj-2),                     lat(ii+2))
+          ne = sph2cart (lon(modulo(ii + 2*jj - 2, 10) + 1), lat(ii+1)) / radius
+          se = sph2cart (lon(ii+2*jj-2),                     lat(ii)  ) / radius
+          sw = sph2cart (lon(modulo(ii + 2*jj - 4, 10) + 1), lat(ii+1)) / radius
+          nw = sph2cart (lon(ii+2*jj-2),                     lat(ii+2)) / radius
 
           call yrotate (nw, cnr(1,2), YANGLE); call yrotate (ne, cnr(2,2), YANGLE)
           call yrotate (sw, cnr(1,1), YANGLE); call yrotate (se, cnr(2,1), YANGLE)

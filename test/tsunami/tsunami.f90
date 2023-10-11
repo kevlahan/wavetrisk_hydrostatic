@@ -306,7 +306,7 @@ contains
     
     lon = s*MATH_PI/dble(180*BATHY_PER_DEG)
     lat = t*MATH_PI/dble(180*BATHY_PER_DEG)
-    proj_lon_lat = project_on_sphere(sph2cart(lon, lat))
+    proj_lon_lat = sph2cart(lon, lat)
   end function proj_lon_lat 
 
   real(8) function radial_basis_fun(r, npts, dx_local)
@@ -575,7 +575,7 @@ program tsunami
         do j_gauge = 1, n_gauge
            last_gauge_dist = 1E16_8
            cur_gauge = 1E3_8
-           gauge_coord = project_on_sphere(sph2cart(station_coord(j_gauge,2), station_coord(j_gauge,1)))
+           gauge_coord = sph2cart(station_coord(j_gauge,2), station_coord(j_gauge,1))
            call apply_onescale(tide_gauge, 9, 0, 0)
            glo_gauge_dist = - sync_max_d( -last_gauge_dist ) 
            if (glo_gauge_dist .eq. last_gauge_dist) tide_record(j_gauge) = cur_gauge 

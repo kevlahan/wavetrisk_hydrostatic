@@ -561,7 +561,7 @@ contains
 
     lon = s * DEG / BATHY_PER_DEG
     lat = t * DEG / BATHY_PER_DEG
-    proj_lon_lat = project_on_sphere (sph2cart(lon, lat))
+    proj_lon_lat = sph2cart(lon, lat)
   end function proj_lon_lat
 
   subroutine read_test_case_parameters
