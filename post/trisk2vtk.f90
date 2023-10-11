@@ -53,21 +53,22 @@ program trisk2vtk
   call get_command_argument(6, arg); read (arg,'(I12)') jmax
   call get_command_argument(7, arg); read (arg,'(I12)') zmin
   call get_command_argument(8, arg); read (arg,'(I12)') zmax
-
+  
   if (file_type == " ") then
-     write (6,'(/,a,/)') "Usage: trisk2vtk file_base file_type tbegin tend jmin jmax file_vtk"
-     write (6,'(a,/)') "Example: trisk2vtk drake primal 0 1 5 7 3 4 drake"
-     write (6,'(a,/)') "         reads files of form drake_003.1.0001.tgz"
-     write (6,'(a,/)') "         trisk2vtk drake primal 0 1 5 7 -1 4 drake"
-     write (6,'(a,/)') "         reads files of form drake.1.0001.tgz"
-     write (6,'(a)') "file_base = base file name for files"
-     write (6,'(a)') "file_type = primal (hexagons) or dual (triangles) or 2layer (incompressible 2 layer)"
-     write (6,'(a)') "tstart    = number of first file to read"
-     write (6,'(a)') "tend      = number of last file to read"
-     write (6,'(a)') "jmin      = minimum scale to save"
-     write (6,'(a)') "jmax      = maximum scale to save"
-     write (6,'(a)') "zmin      = minimum vertical layer to save (-1 for no layer suffix)"
-     write (6,'(a)') "zmax      = maximum vertical layer to save"
+     write (6,'(/,a)') "Converts standard ASCII trisk data files from wavetrisk code to BINARY .vtk format for paraview"
+     write (6,'(/,a)')"Usage: trisk2vtk file_base file_type tstart tend jmin jmax zlev"
+     write (6,'(/,a)')"Example: ./trisk2vtk drake primal 0 1 5 7 3 4"
+     write (6,'(/,a)')"Reads files drake_003.1.0001.tgz, drake_004.1.0001.tgz, drake_003.1.0002.tgz, drake_004.1.0002.tgz"
+     write (6,'(a,/)')"for scale 5 to 7."
+     write (6,'(a,/)') "If zmin < 0 there is no layer label (for backwards compatibility)."
+     write (6,'(a)') "file_base = name of file"
+     write (6,'(a)') "file_type = primal (hexagons) or dual (triangles)"
+     write (6,'(a)') "tstart    = first file to read"
+     write (6,'(a)') "tend      = last file to read"
+     write (6,'(a)') "jmin      = minimum scale"
+     write (6,'(a)') "jmax      = maximum scale"
+     write (6,'(a)') "zmin      = min vertical layer"
+     write (6,'(a,/)') "zmax      = max vertical layer"
      stop
   else
      write (6,'(/,"file_base = ", a)') trim(file_base)
