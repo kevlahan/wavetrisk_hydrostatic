@@ -118,7 +118,8 @@ contains
 
     ! Solve elliptic equation
     call equals_float_field (Laplacian_scalar(S_TEMP), sol(S_MASS,zlevels+1), S_MASS) ! save old free surface height for elliptic operator
-    call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo)
+    call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag) 
+    !call multigrid (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
     if (diff_eta) then
@@ -258,6 +259,79 @@ contains
     elliptic_lo%bdry_uptodate = .false.
   end function elliptic_lo
 
+  function elliptic_diag (q, l)
+    ! Local approximation of diagonal of elliptic operator
+    ! (Laplacian_scalar(S_TEMP) is the old free surface perturbation)
+    ! ** using exact value of diagonal of Laplacian typically does NOT improve results **
+    implicit none
+    integer                   :: l
+    type(Float_Field), target :: elliptic_diag, q
+
+    integer :: d, j
+
+    elliptic_diag = q
+    call zero_float_field (elliptic_diag, S_MASS, l)
+    
+    do d = 1, size(grid)
+       scalar => elliptic_diag%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_elliptic_diag, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar)
+    end do
+  end function elliptic_diag
+
+  subroutine cal_elliptic_diag  (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer            :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
+    real(8)            :: depth, depth_e, Laplace_diag, wgt
+    logical, parameter :: exact = .false.
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       d = dom%id + 1
+       depth = abs (dom%topo%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
+
+       if (.not. exact) then ! average value 
+          wgt = 2d0 * sqrt (3d0) * depth
+       else ! true local value
+          idE  = idx (i+1, j,   offs, dims) 
+          idNE = idx (i+1, j+1, offs, dims) 
+          idN  = idx (i,   j+1, offs, dims) 
+          idW  = idx (i-1, j,   offs, dims) 
+          idSW = idx (i-1, j-1, offs, dims) 
+          idS  = idx (i,   j-1, offs, dims)
+       
+          depth_e = abs (dom%topo%elts(idE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idE+1) / phi_node (d, idE+1, zlevels)
+          wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
+
+          depth_e = abs (dom%topo%elts(idNE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idNE+1) / phi_node (d, idNE+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
+
+          depth_e = abs (dom%topo%elts(idN+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idN+1) / phi_node (d, idN+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
+
+          depth_e = abs (dom%topo%elts(idW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idW+1) / phi_node (d, idW+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
+
+          depth_e = abs (dom%topo%elts(idSW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idSW+1) / phi_node (d, idSW+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
+
+          depth_e = abs (dom%topo%elts(idS+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idS+1) / phi_node (d, idS+1, zlevels)
+          wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
+       end if
+
+       Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
+       scalar(id_i) = theta1*theta2 * Laplace_diag - 1d0
+    end if
+  end subroutine cal_elliptic_diag
+  
   subroutine complete_elliptic_lo (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom

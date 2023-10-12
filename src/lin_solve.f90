@@ -501,7 +501,7 @@ contains
     if (dom%mask_n%elts(id_par+1) < RESTRCT) scalar(id_par) = scalar2(id_par)
   end subroutine residual_cpt
 
-  subroutine multigrid (u, f, Lu)
+  subroutine multigrid (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the standard multigrid algorithm with V-cycles
     implicit none
     type(Float_Field), target :: f, u
@@ -522,9 +522,14 @@ contains
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
+       function Lu_diag (u, l)
+         ! Returns diagonal of linear operator applied to u at scale l
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu_diag, u
+       end function Lu_diag
     end interface
-
-    allocate (w(1:1)); w = 1d0; ii = 1
 
     log_iter = .true.
    
@@ -534,7 +539,7 @@ contains
     if (log_iter) then
        allocate (nrm_f(level_start:level_end), nrm_res(level_start:level_end,1:2))
        do j = level_start, level_end
-          nrm_f(j) = l2 (f, j); if (nrm_f(j) < tol_elliptic) nrm_f(j) = 1d0
+          nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
           nrm_res(j,1) = l2 (residual (f, u, Lu, j), j) / nrm_f(j)
        end do
     end if
@@ -545,12 +550,12 @@ contains
        do j = level_start+1, level_end
           call prolong (u, j)
           do iter = 1, vcycle_iter
-             call v_cycle (u, f, Lu, level_start, j, vtype)
+             call v_cycle (u, f, Lu, Lu_diag, level_start, j, vtype)
           end do
        end do
     case ("V-cycle") ! V-cycle
        do iter = 1, vcycle_iter
-          call v_cycle (u, f, Lu, level_start, level_end, vtype)
+          call v_cycle (u, f, Lu, Lu_diag, level_start, level_end, vtype)
        end do
     end select
     
@@ -562,11 +567,9 @@ contains
        end do
        deallocate (nrm_res, nrm_f)
     end if
-    
-    deallocate (w)
   end subroutine multigrid
 
-  subroutine v_cycle (u, f, Lu, jmin, jmax, vtype)
+  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax, vtype)
     ! Solves linear equation L(u) = f using the standard multigrid algorithm with V-cycles
     implicit none
     integer                   :: vtype, jmin, jmax
@@ -574,6 +577,7 @@ contains
 
     integer                       :: j
     integer, parameter            :: pre_iter = 2, down_iter = 2, up_iter = 2
+    real(8), parameter            :: omega = 1d0
     
     type(Float_Field), target     :: corr, res
     
@@ -585,59 +589,48 @@ contains
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
+       function Lu_diag (u, l)
+         ! Returns diagonal of linear operator applied to u at scale l
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu_diag, u
+       end function Lu_diag
     end interface
 
     ! Pre-smooth
-    call Jacobi (u, f, Lu, jmax, pre_iter)
+    call Jacobi (u, f, 1d0, Lu, Lu_diag, jmax, pre_iter)
     
-    if (vtype == 0) then
-       corr = u
+    corr = u
 
-       ! Down V-cycle
-       res = residual (f, u, Lu, jmax)
-       do j = jmax, jmin+1, -1
-          call zero_float_field (corr, S_MASS, j)
-          call Jacobi (corr, res, Lu, j, down_iter)
+    ! Down V-cycle
+    res = residual (f, u, Lu, jmax)
+    do j = jmax, jmin+1, -1
+       call zero_float_field (corr, S_MASS, j)
+       call Jacobi (corr, res, omega, Lu, Lu_diag, j, down_iter)
 
-          res = residual (res, corr, Lu, j)
-          call restrict (res, j-1)
-       end do
+       res = residual (res, corr, Lu, j)
+       call restrict (res, j-1)
+    end do
 
-       ! Exact solution on coarsest grid
-       call zero_float_field (corr, S_MASS, jmin)
-       call bicgstab (corr, res, Lu, jmin, coarse_iter)
+    ! Exact solution on coarsest grid
+    call zero_float_field (corr, S_MASS, jmin)
+    call bicgstab (corr, res, Lu, jmin, coarse_iter)
 
-       ! Up V-cycle
-       do j = jmin+1, jmax
-          corr = lcf (1d0, corr, 1d0, prolong_fun(corr,j), j)
-          call Jacobi (corr, res, Lu, j, up_iter)
-       end do
+    ! Up V-cycle
+    do j = jmin+1, jmax
+       corr = lcf (1d0, corr, 1d0, prolong_fun(corr,j), j)
+       call Jacobi (corr, res, omega, Lu, Lu_diag, j, up_iter)
+    end do
 
-       ! V-cycle correction to solution
-       u = lcf (1d0, u, 1d0, corr, jmax)
-    else
-       ! Down V-cycle
-       do j = jmax, jmin+1, -1
-          call Jacobi (u, f, Lu, j, down_iter)
-          call restrict (u, j-1)
-       end do
-
-       ! Exact solution on coarsest grid
-       call bicgstab (u, f, Lu, jmin, coarse_iter)
-
-       ! Up V-cycle
-       do j = jmin+1, jmax
-          call prolong (u, j)
-          call prolong (f, j)
-          call Jacobi (u, f, Lu, j, up_iter)
-       end do
-    end if
+    ! V-cycle correction to solution
+    u = lcf (1d0, u, 1d0, corr, jmax)
     
     ! Post-smooth to reduce zero eigenvalue error mode
-    call Jacobi (u, f, Lu, jmax, pre_iter)
+    call Jacobi (u, f, omega, Lu, Lu_diag, jmax, pre_iter)
   end subroutine v_cycle
 
-  subroutine multiscale (u, f, Lu)
+  subroutine multiscale (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with Scheduled Rexation Jacobi iterations as the smoother
     implicit none
     type(Float_Field), target :: f, u
@@ -651,12 +644,19 @@ contains
 
     interface
        function Lu (u, l)
-         ! Returns result of linear operator applied to u at scale l
+         ! Returns result of linear operator Lu applied to u at scale l
          use domain_mod
          implicit none
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
+       function Lu_diag (u, l)
+         ! Returns diagonal of linear operator Lu applied to u at scale l
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu_diag, u
+       end function Lu_diag
     end interface
 
     log_iter = .true.
@@ -694,7 +694,7 @@ contains
     call bicgstab (u, f, Lu, l, coarse_iter, r_error(2,l), iter(l))
     do l = level_start+1, level_end
        call prolong (u, l)
-       call SJR (u, f, nrm_f(l), Lu, l, fine_iter, r_error(2,l), iter(l))
+       call SJR (u, f, nrm_f(l), Lu, Lu_diag, l, fine_iter, r_error(2,l), iter(l))
     end do
 
     if (log_iter) then
@@ -707,35 +707,7 @@ contains
     deallocate (w)
   end subroutine multiscale
 
-  subroutine Jacobi (u, f, Lu, l, max_iter)
-    ! Damped Jacobi iterations
-    implicit none
-    integer                   :: l, max_iter
-    type(Float_Field), target :: f, u
-
-    integer                   :: iter
-    type(Float_Field), target :: res
-    
-    interface
-       function Lu (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-    end interface
-
-    call update_bdry (f, l, 50)
-    call update_bdry (u, l, 50)
-    
-    do iter = 1, max_iter
-       res = residual (f, u, Lu, l)
-       call lc_jacobi (u, res, l)
-    end do
-    u%bdry_uptodate = .false.
-  end subroutine Jacobi
-
-  subroutine SJR (u, f, nrm_f, Lu, l, max_iter, nrm_res, iter)
+  subroutine SJR (u, f, nrm_f, Lu, Lu_diag, l, max_iter, nrm_res, iter)
     ! Max_iter Jacobi iterations for smoothing multigrid iterations
     ! uses Scheduled Relaxation Jacobi (SJR) iterations (Yang and Mittal JCP 274, 2014)
     implicit none
@@ -745,14 +717,22 @@ contains
 
     integer                   :: i
     type(Float_Field), target :: res
-    
+
     interface
        function Lu (u, l)
+         ! Returns result of linear operator Lu applied to u at scale l
          use domain_mod
          implicit none
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
+       function Lu_diag (u, l)
+         ! Returns diagonal of linear operator Lu applied to u at scale l
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu_diag, u
+       end function Lu_diag
     end interface
 
     ! Initialize
@@ -773,85 +753,101 @@ contains
           end if
        end if
        iter = iter + 1
-       call lc_jacobi (u, res, l)
-       call equals_float_field (res, residual (f, u, Lu, l), S_MASS, l)
+       call Jacobi_iteration (u, f, w(ii), Lu, Lu_diag, res, l)
+       res = residual (f, u, Lu, l)
        nrm_res = l2 (res, l) / nrm_f
     end do
     u%bdry_uptodate = .false.
   end subroutine SJR
 
-  subroutine lc_jacobi (s1, s2, l)
-    ! Jacobi iteration
+  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, max_iter)
+    ! Damped Jacobi iterations
+    implicit none
+    integer                   :: l, max_iter
+    real(8)                   :: omega
+    type(Float_Field), target :: f, u
+
+    integer                   :: iter
+    type(Float_Field), target :: res
+
+    interface
+       function Lu (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu, u
+       end function Lu
+       function Lu_diag (u, l)
+         ! Returns diagonal of linear operator Lu applied to u at scale l
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu_diag, u
+       end function Lu_diag
+    end interface
+
+    call update_bdry (f, l, 50)
+    call update_bdry (u, l, 50)
+
+    res = residual (f, u, Lu, l)
+    do iter = 1, max_iter
+       call Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
+    end do
+    u%bdry_uptodate = .false.
+  end subroutine Jacobi
+
+  subroutine Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
+    ! Performs a single weighted Jacobi iteration for equation Lu(u) = f
     implicit none
     integer                   :: l
-    type(Float_Field), target :: s1, s2
+    real(8), target           :: omega ! weight
+    type(Float_Field), target :: u, f, res
 
-    integer :: d, j
+    integer                   :: d, j
+    type(Float_Field), target :: diag
+
+    interface
+       function Lu (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu, u
+       end function Lu
+       function Lu_diag (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu_diag, u
+       end function Lu_diag
+    end interface
+
+    diag = Lu_diag (u, l)
 
     do d = 1, size(grid)
-       scalar  => s1%data(d)%elts
-       scalar2 => s2%data(d)%elts
+       mu1     => omega
+       scalar  => u%data(d)%elts
+       scalar2 => res%data(d)%elts
+       scalar3 => diag%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (scalar, scalar2)
+       nullify (mu1, scalar, scalar2, scalar3)
     end do
-    s1%bdry_uptodate = .false.
-  end subroutine lc_jacobi
 
+    res = residual (f, u, Lu, l)
+  end subroutine Jacobi_iteration
+  
   subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
-    ! Jacobi iteration using local approximation of diagonal of elliptic operator
-    ! (Laplacian_scalar(S_TEMP) is the old free surface perturbation)
-    ! ** using exact value of diagonal of Laplacian typically does NOT improve results **
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer            :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
-    real(8)            :: depth, depth_e, Laplace_diag, wgt
-    logical, parameter :: exact = .false.
+    integer :: id
 
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       d = dom%id + 1
-       depth = abs (dom%topo%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
-
-       if (.not. exact) then ! average value 
-          wgt = 2d0 * sqrt (3d0) * depth
-       else ! true local value
-          idE  = idx (i+1, j,   offs, dims) 
-          idNE = idx (i+1, j+1, offs, dims) 
-          idN  = idx (i,   j+1, offs, dims) 
-          idW  = idx (i-1, j,   offs, dims) 
-          idSW = idx (i-1, j-1, offs, dims) 
-          idS  = idx (i,   j-1, offs, dims)
-       
-          depth_e = abs (dom%topo%elts(idE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idE+1) / phi_node (d, idE+1, zlevels)
-          wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idNE+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idNE+1) / phi_node (d, idNE+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idN+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idN+1) / phi_node (d, idN+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idW+1) / phi_node (d, idW+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idSW+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idSW+1) / phi_node (d, idSW+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
-
-          depth_e = abs (dom%topo%elts(idS+1)) + Laplacian_scalar(S_TEMP)%data(d)%elts(idS+1) / phi_node (d, idS+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
-       end if
-       Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
-
-       scalar(id_i) = scalar(id_i) + w(ii) * scalar2(id_i) / (theta1*theta2 * Laplace_diag - 1d0)
-    end if
+    id = idx (i, j, offs, dims) + 1
+    scalar(id) = scalar(id) + mu1 * scalar2(id) / scalar3(id)
   end subroutine cal_jacobi
 
   subroutine bicgstab (u, f,  Lu, l, max_iter, nrm_res, total_iter)
@@ -875,10 +871,7 @@ contains
        end function Lu
     end interface
 
-    !call update_bdry (f, l, 50)
-    !call update_bdry (u, l, 50)
-
-    nrm_f = l2 (f, l); if (nrm_f < tol_elliptic) nrm_f = 1d0
+    nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
     ! Initialize float fields
     res  = residual (f, u, Lu, l)
@@ -920,4 +913,140 @@ contains
     if (present(total_iter)) total_iter = iter
     if (present(nrm_res))    nrm_res = l2 (res,l)/nrm_f 
   end subroutine bicgstab
+
+  function elliptic_fun (u, l)
+    ! Computes Laplacian(u) + u at scale l
+    use ops_mod
+    implicit none
+    integer                   :: l
+    type(Float_Field), target :: elliptic_fun, u
+
+    integer :: d, j
+    real(8) :: sigma
+
+    call update_bdry (u, l, 50)
+
+    elliptic_fun = u
+    call zero_float_field (elliptic_fun, S_MASS, l)
+
+    ! Compute scalar fluxes
+    do d = 1, size(grid)
+       scalar => u%data(d)%elts
+       h_flux => horiz_flux(S_MASS)%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=1)
+       end do
+       nullify (scalar, h_flux)
+    end do
+    horiz_flux%bdry_uptodate = .false.
+    call update_bdry (horiz_flux(S_MASS), l, 11)
+
+    ! Compute divergence of fluxes
+    do d = 1, size(grid)
+       dscalar => elliptic_fun%data(d)%elts
+       h_flux  => horiz_flux(S_MASS)%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (dscalar, h_flux)
+    end do
+
+    ! Add constant term
+    sigma = radius/4d0
+    elliptic_fun = lcf (1d0, elliptic_fun, 4d0/sigma**2, u, l)
+    
+    elliptic_fun%bdry_uptodate = .false.
+    call update_bdry (elliptic_fun, l, 12)
+  end function elliptic_fun
+
+  function elliptic_fun_diag (q, l)
+    ! Local approximation of diagonal of elliptic operator
+    implicit none
+    integer                   :: l
+    type(Float_Field), target :: elliptic_fun_diag, q
+
+    integer :: d, j
+
+    elliptic_fun_diag = q
+    call zero_float_field (elliptic_fun_diag, S_MASS, l)
+    
+    do d = 1, size(grid)
+       scalar => elliptic_fun_diag%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_elliptic_fun_diag, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar)
+    end do
+  end function elliptic_fun_diag
+
+  subroutine cal_elliptic_fun_diag  (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, id_i
+    real(8) :: sigma
+  
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    sigma = radius/4d0
+
+    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar(id_i) = 2d0 * sqrt (3d0) * dom%areas%elts(id_i)%hex_inv - 4d0/sigma**2
+  end subroutine cal_elliptic_fun_diag
+
+  real(8) function relative_error (u, l)
+    implicit none
+    integer                   :: l
+    type(Float_Field), target :: u
+
+    integer                   :: d, j
+    real(8)                   :: nrm_err, nrm_sol
+    type(Float_Field), target :: err
+
+    err = u
+    call zero_float_field (err, S_MASS, l)
+
+    ! Compute absolute error
+    do d = 1, size(grid)
+       scalar  => err%data(d)%elts
+       scalar2 => u%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_err, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar, scalar2)
+    end do
+
+    ! Compute relative error
+    nrm_sol = l2 (u,   l)
+    nrm_err = l2 (err, l)
+    relative_error = nrm_err / nrm_sol
+  end function relative_error
+
+  subroutine cal_err (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) 
+    if (dom%mask_n%elts(id+1) >= ADJZONE) scalar(id+1) = abs (scalar2(id+1) -  exact_sol (dom%node%elts(id+1)))
+  end subroutine cal_err
+
+  real(8) function exact_sol (p)
+    implicit none
+    type (Coord) :: p
+
+    real(8) :: r, sigma
+
+    sigma = radius/4d0
+
+    r = dist (p, sph2cart (0d0, 0d0))
+    
+    exact_sol = exp (-(r/sigma)**2) 
+  end function exact_sol
 end module lin_solve_mod
