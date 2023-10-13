@@ -506,7 +506,7 @@ contains
     implicit none
     type(Float_Field), target :: f, u
 
-    integer,  parameter                  :: vtype = 1, vcycle_iter = 10
+    integer,  parameter                  :: vcycle_iter = 4
     integer                              :: iter, j
     real(8), allocatable, dimension(:)   :: nrm_f
     real(8), allocatable, dimension(:,:) :: nrm_res
@@ -550,12 +550,12 @@ contains
        do j = level_start+1, level_end
           call prolong (u, j)
           do iter = 1, vcycle_iter
-             call v_cycle (u, f, Lu, Lu_diag, level_start, j, vtype)
+             call v_cycle (u, f, Lu, Lu_diag, level_start, j)
           end do
        end do
     case ("V-cycle") ! V-cycle
        do iter = 1, vcycle_iter
-          call v_cycle (u, f, Lu, Lu_diag, level_start, level_end, vtype)
+          call v_cycle (u, f, Lu, Lu_diag, level_start, level_end)
        end do
     end select
     
@@ -569,15 +569,15 @@ contains
     end if
   end subroutine multigrid
 
-  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax, vtype)
+  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax)
     ! Solves linear equation L(u) = f using the standard multigrid algorithm with V-cycles
     implicit none
-    integer                   :: vtype, jmin, jmax
+    integer                   :: jmin, jmax
     type(Float_Field), target :: u, f
 
     integer                       :: j
     integer, parameter            :: pre_iter = 2, down_iter = 2, up_iter = 2
-    real(8), parameter            :: omega = 1d0
+    real(8)                       :: omega = 0.7d0
     
     type(Float_Field), target     :: corr, res
     
@@ -598,17 +598,17 @@ contains
        end function Lu_diag
     end interface
 
-    ! Pre-smooth
-    call Jacobi (u, f, 1d0, Lu, Lu_diag, jmax, pre_iter)
-    
     corr = u
-
+    
+    ! Pre-smooth
+    call Jacobi (u, f, omega, Lu, Lu_diag, jmax, pre_iter)
+    
     ! Down V-cycle
     res = residual (f, u, Lu, jmax)
     do j = jmax, jmin+1, -1
        call zero_float_field (corr, S_MASS, j)
        call Jacobi (corr, res, omega, Lu, Lu_diag, j, down_iter)
-
+    
        res = residual (res, corr, Lu, j)
        call restrict (res, j-1)
     end do
@@ -760,14 +760,17 @@ contains
     u%bdry_uptodate = .false.
   end subroutine SJR
 
-  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, max_iter)
+  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, max_iter, err, total_iter)
     ! Damped Jacobi iterations
     implicit none
     integer                   :: l, max_iter
+    integer, optional         :: total_iter
+    real(8), optional         :: err
     real(8)                   :: omega
     type(Float_Field), target :: f, u
 
     integer                   :: iter
+    real(8)                   :: nrm_f
     type(Float_Field), target :: res
 
     interface
@@ -789,11 +792,17 @@ contains
     call update_bdry (f, l, 50)
     call update_bdry (u, l, 50)
 
+    nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
+
     res = residual (f, u, Lu, l)
     do iter = 1, max_iter
        call Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
+       if (l2 (res, l) / nrm_f <= tol_jacobi) exit
     end do
     u%bdry_uptodate = .false.
+    
+    if (present(total_iter)) total_iter = iter
+    if (present(err))        err = l2 (res, l) / nrm_f
   end subroutine Jacobi
 
   subroutine Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
@@ -825,8 +834,8 @@ contains
 
     do d = 1, size(grid)
        mu1     => omega
-       scalar  => u%data(d)%elts
-       scalar2 => res%data(d)%elts
+       scalar  =>    u%data(d)%elts
+       scalar2 =>  res%data(d)%elts
        scalar3 => diag%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
@@ -848,15 +857,16 @@ contains
 
     id = idx (i, j, offs, dims) + 1
     scalar(id) = scalar(id) + mu1 * scalar2(id) / scalar3(id)
+    !scalar(id) = scalar(id) + scalar2(id) / (2d0*sqrt(3d0) * dom%areas%elts(id)%hex_inv + 4d0/(radius/4d0)**2)
   end subroutine cal_jacobi
 
-  subroutine bicgstab (u, f,  Lu, l, max_iter, nrm_res, total_iter)
+  subroutine bicgstab (u, f,  Lu, l, max_iter, err, total_iter)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
     integer                   :: iter, l, max_iter
     integer, optional         :: total_iter
-    real(8), optional         :: nrm_res
+    real(8), optional         :: err
     type(Float_Field), target :: f, u
     
     real(8)                   :: alph, b, nrm_f, nrm_res0, omga, rho, rho_old
@@ -882,7 +892,7 @@ contains
     As   = Ap
     
     rho  = dp (res0, res, l)
-    
+
     iter = 0
     do while (iter < max_iter)
        alph = rho / dp (Ap, res0, l)
@@ -895,8 +905,8 @@ contains
        call lc2 (u, alph, p, omga, s, l)
        
        call equals_float_field (res, lcf (1d0, s, -omga, As, l), S_MASS, l)
-       
-       if (l2 (res,l)/nrm_f <= tol_elliptic) exit
+
+       if (l2 (res, l) / nrm_f <= tol_elliptic) exit
        
        rho_old = rho
        rho = dp (res0, res, l)
@@ -911,7 +921,7 @@ contains
     call update_bdry (u, l, 88)
 
     if (present(total_iter)) total_iter = iter
-    if (present(nrm_res))    nrm_res = l2 (res,l)/nrm_f 
+    if (present(err))        err = l2 (res,l)/nrm_f
   end subroutine bicgstab
 
   function elliptic_fun (u, l)
@@ -985,7 +995,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, id_i
+    integer            :: id, id_i, idE, idNE, idN, idW, idSW, idS
+    real(8)            :: wgt
+    logical, parameter :: exact = .true.
+
     real(8) :: sigma
   
     id = idx (i, j, offs, dims)
@@ -993,11 +1006,30 @@ contains
 
     sigma = radius/4d0
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar(id_i) = 2d0 * sqrt (3d0) * dom%areas%elts(id_i)%hex_inv - 4d0/sigma**2
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       if (exact) then ! true local value
+          idE  = idx (i+1, j,   offs, dims) 
+          idNE = idx (i+1, j+1, offs, dims) 
+          idN  = idx (i,   j+1, offs, dims) 
+          idW  = idx (i-1, j,   offs, dims) 
+          idSW = idx (i-1, j-1, offs, dims) 
+          idS  = idx (i,   j-1, offs, dims)
+          wgt = &
+               dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)   + &
+               dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)   + &
+               dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)   + &
+               dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)  + &
+               dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
+               dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
+       else ! average value (error less than about 5%)
+          wgt = 2d0 * sqrt (3d0)
+       end if
+       scalar(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv + 4d0/sigma**2
+    end if
   end subroutine cal_elliptic_fun_diag
 
-  real(8) function relative_error (u, l)
-    implicit none
+     real(8) function relative_error (u, l)
+       implicit none
     integer                   :: l
     type(Float_Field), target :: u
 
