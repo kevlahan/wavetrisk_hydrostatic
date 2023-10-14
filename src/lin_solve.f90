@@ -125,7 +125,7 @@ contains
     integer :: id
 
     id = idx (i, j, offs, dims) + 1
-    if (dom%mask_n%elts(id) >= ADJZONE) dp_loc = dp_loc + scalar(id) * scalar2(id)
+    dp_loc = dp_loc + scalar(id) * scalar2(id)
   end subroutine cal_dotproduct
 
   subroutine lc (a1, s1, a2, s2, s3, l)
@@ -187,7 +187,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar3(id_i) = mu1*scalar(id_i) + mu2 * scalar2(id_i)
+    scalar3(id_i) = mu1*scalar(id_i) + mu2 * scalar2(id_i)
   end subroutine cal_lc
 
   subroutine lc2 (u, alpha, p, omega, s, l)
@@ -224,7 +224,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar(id_i) = scalar(id_i) + mu1 * scalar2(id_i) + mu2*scalar3(id_i)
+    scalar(id_i) = scalar(id_i) + mu1 * scalar2(id_i) + mu2*scalar3(id_i)
   end subroutine cal_lc2
 
   function residual (f, u, Lu, l)
@@ -256,7 +256,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    if (dom%mask_n%elts(id_i) >= ADJZONE) scalar2(id_i) = scalar(id_i) - scalar2(id_i)
+    scalar2(id_i) = scalar(id_i) - scalar2(id_i)
   end subroutine cal_res
 
   subroutine restrict (scaling, coarse)
@@ -269,7 +269,6 @@ contains
 
     do d = 1, size(grid)
        scalar => scaling%data(d)%elts
-       !call apply_interscale_d (cal_restriction, grid(d), coarse, z_null, 0, 1) ! +1 to include poles
        call apply_interscale_d (Restrict_full_weighting, grid(d), coarse, z_null, 0, 1) ! +1 to include poles
        nullify (scalar)
     end do
@@ -350,7 +349,6 @@ contains
        call apply_interscale_d (interpolate, grid(d), fine-1, z_null, 0, 0)
        nullify (scalar)
     end do
-
     scaling%bdry_uptodate = .false.
   end subroutine prolong
 
@@ -446,61 +444,6 @@ contains
     end if
   end function wlt_int
 
-  subroutine cpt_residual (f, u, Lu, res, l)
-    ! Restrict residual from scale l+1 if possible, otherwise compute at scale l
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: f, res, u
-
-    integer                     :: d, j, p_par, c, p_chd
-    logical, dimension(N_CHDRN) :: restrict
-
-    interface
-       function Lu (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-    end interface
-
-    float_var = residual (f, u, Lu, l)
-
-    ! Determine which residual values can be obtained by scalar restriction
-    do d = 1, size(grid)
-       scalar  => res%data(d)%elts       ! residual from level l+1 (restricted values only)
-       scalar2 => float_var%data(d)%elts ! residual computed at level l
-       do j = 1, grid(d)%lev(l)%length
-          p_par = grid(d)%lev(l)%elts(j)
-          restrict = .false.
-          do c = 1, N_CHDRN
-             p_chd = grid(d)%patch%elts(p_par+1)%children(c)
-             if (p_chd > 0) restrict(c) = .true.
-          end do
-          do c = 1, N_CHDRN
-             if (restrict(c)) then
-                call apply_interscale_to_patch3 (residual_cpt, grid(d), p_par, c, z_null, 0, 1)
-             end if
-          end do
-       end do
-       nullify (scalar, scalar2)
-    end do
-  end subroutine cpt_residual
-
-  subroutine residual_cpt (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer ::  id_par
-
-    id_par = idx (i_par, j_par, offs_par, dims_par)
-
-    if (dom%mask_n%elts(id_par+1) < RESTRCT) scalar(id_par) = scalar2(id_par)
-  end subroutine residual_cpt
-
   subroutine multigrid (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the full multigrid algorithm with V-cycles
     implicit none
@@ -508,8 +451,8 @@ contains
 
     integer                              :: iter, j
     integer, allocatable, dimension(:)   :: iterations
-    integer, parameter                   :: max_vcycle = 5
-    real(8), parameter                   :: tol_vcycle = 1d-6
+    integer, parameter                   :: max_vcycle = 6
+    real(8), parameter                   :: tol_vcycle = 1d-3
     real(8)                              :: err
     real(8), allocatable, dimension(:)   :: nrm_f
     real(8), allocatable, dimension(:,:) :: nrm_res
@@ -533,7 +476,7 @@ contains
 
     log_iter = .true.
 
-    tol_elliptic = 1d-9; coarse_iter = 500
+    tol_elliptic = 1d-6; coarse_iter = 500
 
     allocate (iterations(level_start+1:level_end)); iterations = 0
 
@@ -576,10 +519,10 @@ contains
     type(Float_Field), target :: u, f
 
     integer                   :: j
-    integer, parameter        :: pre_iter = 10, down_iter = 2, up_iter = 2
+    integer, parameter        :: pre_iter = 2, down_iter = 2, up_iter = 2
     real(8)                   :: omega = 1d0
 
-    type(Float_Field), target :: corr, res, v
+    type(Float_Field), target :: corr, res
 
     interface
        function Lu (u, l)
@@ -599,10 +542,6 @@ contains
     end interface
 
     corr = u
-    v = u
-
-    ! Pre-smooth
-    call Jacobi (u, f, omega, Lu, Lu_diag, jmax, pre_iter)
 
     ! ! Down V-cycle
     res = residual (f, u, Lu, jmax)
@@ -620,7 +559,7 @@ contains
 
     ! Up V-cycle
     do j = jmin+1, jmax
-       corr = lcf (1d0, corr, 0.15d0, prolong_fun (corr, j), j)
+       corr = lcf (1d0, corr, 1d0, prolong_fun (corr, j), j)
        call Jacobi (corr, res, omega, Lu, Lu_diag, j, up_iter)
     end do
 
@@ -803,7 +742,6 @@ contains
        call Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
        if (l2 (res, l) / nrm_f <= tol_jacobi) exit
     end do
-    u%bdry_uptodate = .false.
 
     if (present(total_iter)) total_iter = iter
     if (present(err))        err = l2 (res, l) / nrm_f
@@ -846,7 +784,9 @@ contains
        end do
        nullify (mu1, scalar, scalar2, scalar3)
     end do
-
+    u%bdry_uptodate = .false.
+    call update_bdry (u, l, 50)
+    
     res = residual (f, u, Lu, l)
   end subroutine Jacobi_iteration
 
@@ -860,7 +800,6 @@ contains
     integer :: id
 
     id = idx (i, j, offs, dims) + 1
-    
     if (dom%mask_n%elts(id) >= ADJZONE) scalar(id) = scalar(id) + mu1 * scalar2(id) / scalar3(id)
   end subroutine cal_jacobi
 
@@ -886,6 +825,9 @@ contains
     end interface
 
     nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
+
+    call update_bdry (f, l, 88)
+    call update_bdry (u, l, 88)
 
     ! Initialize float fields
     res  = residual (f, u, Lu, l)
@@ -1010,26 +952,24 @@ contains
 
     sigma = radius/4d0
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       if (exact) then ! true local value
-          idE  = idx (i+1, j,   offs, dims) 
-          idNE = idx (i+1, j+1, offs, dims) 
-          idN  = idx (i,   j+1, offs, dims) 
-          idW  = idx (i-1, j,   offs, dims) 
-          idSW = idx (i-1, j-1, offs, dims) 
-          idS  = idx (i,   j-1, offs, dims)
-          wgt = &
-               dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)   + &
-               dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)   + &
-               dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)   + &
-               dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)  + &
-               dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
-               dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
-       else ! average value (error less than about 5%)
-          wgt = 2d0 * sqrt (3d0)
-       end if
-       scalar(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv + 4d0/sigma**2
+    if (exact) then ! true local value
+       idE  = idx (i+1, j,   offs, dims) 
+       idNE = idx (i+1, j+1, offs, dims) 
+       idN  = idx (i,   j+1, offs, dims) 
+       idW  = idx (i-1, j,   offs, dims) 
+       idSW = idx (i-1, j-1, offs, dims) 
+       idS  = idx (i,   j-1, offs, dims)
+       wgt = &
+            dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)   + &
+            dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)   + &
+            dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)   + &
+            dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)  + &
+            dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
+            dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
+    else ! average value (error less than about 5%)
+       wgt = 2d0 * sqrt (3d0)
     end if
+    scalar(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv + 4d0/sigma**2
   end subroutine cal_elliptic_fun_diag
 
   real(8) function relative_error (u, l)
