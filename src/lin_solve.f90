@@ -40,7 +40,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id) >= ZERO) linf_loc = max (linf_loc, abs (scalar(id)))
+    if (dom%mask_n%elts(id) >= ADJZONE) linf_loc = max (linf_loc, abs (scalar(id)))
   end subroutine cal_linf_scalar
 
   real(8) function l2 (s, l)
@@ -187,7 +187,7 @@ contains
     integer :: id_i
 
     id_i = idx (i, j, offs, dims) + 1
-    scalar3(id_i) = mu1*scalar(id_i) + mu2 * scalar2(id_i)
+    scalar3(id_i) = mu1 * scalar(id_i) + mu2 * scalar2(id_i)
   end subroutine cal_lc
 
   subroutine lc2 (u, alpha, p, omega, s, l)
@@ -245,19 +245,6 @@ contains
     residual = lcf (1d0, f, -1d0, Lu (u, l), l)
     residual%bdry_uptodate = .false.
   end function residual
-
-  subroutine cal_res (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-
-    id_i = idx (i, j, offs, dims) + 1
-    scalar2(id_i) = scalar(id_i) - scalar2(id_i)
-  end subroutine cal_res
 
   subroutine restrict (scaling, coarse)
     ! Restriction operator for scalars
@@ -451,7 +438,7 @@ contains
 
     integer                              :: iter, j
     integer, allocatable, dimension(:)   :: iterations
-    integer, parameter                   :: max_vcycle = 6
+    integer, parameter                   :: max_vcycle = 5
     real(8), parameter                   :: tol_vcycle = 1d-3
     real(8)                              :: err
     real(8), allocatable, dimension(:)   :: nrm_f
@@ -476,15 +463,15 @@ contains
 
     log_iter = .true.
 
-    tol_elliptic = 1d-6; coarse_iter = 500
+    tol_elliptic = 1d-6
+    tol_jacobi = tol_vcycle
 
-    allocate (iterations(level_start+1:level_end)); iterations = 0
-
+    allocate (iterations(level_start:level_end), nrm_f(level_start:level_end), nrm_res(level_start:level_end,1:2))
+    
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
 
     if (log_iter) then
-       allocate (nrm_f(level_start:level_end), nrm_res(level_start:level_end,1:2))
        do j = level_start, level_end
           nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
           nrm_res(j,1) = l2 (residual (f, u, Lu, j), j) / nrm_f(j)
@@ -493,34 +480,34 @@ contains
 
     call bicgstab (u, f, Lu, level_start, coarse_iter, nrm_res(level_start,2), iterations(level_start))
     do j = level_start+1, level_end
+       if (nrm_res(j,1) <= tol_elliptic) exit
        call prolong (u, j)
        do iter = 1, max_vcycle
-          call v_cycle (u, f, Lu, Lu_diag, level_start, j, err)
+          call v_cycle (u, f, Lu, Lu_diag, level_start, j, tol_vcycle, err)
           nrm_res(j,2) = err; iterations(j) = iter
           if (err < tol_vcycle) exit
        end do
     end do
 
     if (log_iter) then
-       if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    iterations"
+       if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
        do j = level_start, level_end
           if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), iterations(j)
        end do
-       deallocate (nrm_res, nrm_f)
     end if
-    deallocate (iterations)
+    deallocate (iterations, nrm_f, nrm_res)
   end subroutine multigrid
 
-  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax, err)
+  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax, tol_vcycle, err)
     ! Solves linear equation L(u) = f using the standard multigrid algorithm with V-cycles
     implicit none
     integer                   :: jmin, jmax
-    real(8)                   :: err
+    real(8)                   :: err, tol_vcycle
     type(Float_Field), target :: u, f
 
-    integer                   :: j
-    integer, parameter        :: pre_iter = 2, down_iter = 2, up_iter = 2
-    real(8)                   :: omega = 1d0
+    integer :: j, out_iter
+    integer :: down_iter = 2, up_iter = 2, pre_iter = 1000
+    real(8) :: omega = 1d0
 
     type(Float_Field), target :: corr, res
 
@@ -543,12 +530,11 @@ contains
 
     corr = u
 
-    ! ! Down V-cycle
+    ! Down V-cycle
     res = residual (f, u, Lu, jmax)
     do j = jmax, jmin+1, -1
        call zero_float_field (corr, S_MASS, j)
        call Jacobi (corr, res, omega, Lu, Lu_diag, j, down_iter)
-
        res = residual (res, corr, Lu, j)
        call restrict (res, j-1)
     end do
@@ -567,7 +553,7 @@ contains
     u = lcf (1d0, u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
-    call Jacobi (u, f, omega, Lu, Lu_diag, jmax, pre_iter)
+    call Jacobi (u, f, omega, Lu, Lu_diag, jmax, pre_iter, tol_iter=tol_vcycle, total_iter=out_iter)
 
     ! Relative error at finest scale
     err = l2 (residual (f, u, Lu, jmax), jmax) / l2 (f, jmax)
@@ -703,17 +689,17 @@ contains
     u%bdry_uptodate = .false.
   end subroutine SJR
 
-  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, max_iter, err, total_iter)
+  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, max_iter, tol_iter, err, total_iter)
     ! Damped Jacobi iterations
     implicit none
     integer                   :: l, max_iter
     integer, optional         :: total_iter
-    real(8), optional         :: err
+    real(8), optional         :: err, tol_iter
     real(8)                   :: omega
     type(Float_Field), target :: f, u
 
     integer                   :: iter
-    real(8)                   :: nrm_f
+    real(8)                   :: nrm_f, tol
     type(Float_Field), target :: res
 
     interface
@@ -732,6 +718,12 @@ contains
        end function Lu_diag
     end interface
 
+    if (present(tol_iter)) then
+       tol = tol_iter
+    else
+       tol = tol_jacobi
+    end if
+
     call update_bdry (f, l, 50)
     call update_bdry (u, l, 50)
 
@@ -740,7 +732,7 @@ contains
     res = residual (f, u, Lu, l)
     do iter = 1, max_iter
        call Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
-       if (l2 (res, l) / nrm_f <= tol_jacobi) exit
+       if (l2 (res, l) / nrm_f <= tol) exit
     end do
 
     if (present(total_iter)) total_iter = iter
@@ -803,16 +795,17 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) scalar(id) = scalar(id) + mu1 * scalar2(id) / scalar3(id)
   end subroutine cal_jacobi
 
-  subroutine bicgstab (u, f,  Lu, l, max_iter, err, total_iter)
+  subroutine bicgstab (u, f,  Lu, l, max_iter, err_iter, total_iter)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
-    integer                   :: iter, l, max_iter
+    integer                   :: l, max_iter
     integer, optional         :: total_iter
-    real(8), optional         :: err
+    real(8), optional         :: err_iter
     type(Float_Field), target :: f, u
 
-    real(8)                   :: alph, b, nrm_f, nrm_res0, omga, rho, rho_old
+    integer                   :: iter
+    real(8)                   :: alph, b, err, nrm_f, nrm_res0, omga, rho, rho_old
     type(Float_Field), target :: Ap, As, res, res0, p, s
 
     interface
@@ -839,8 +832,7 @@ contains
 
     rho  = dp (res0, res, l)
 
-    iter = 0
-    do while (iter < max_iter)
+    do iter = 1, max_iter
        alph = rho / dp (Ap, res0, l)
 
        call equals_float_field (s, lcf (1d0, res, -alph, Ap, l), S_MASS, l)
@@ -852,7 +844,8 @@ contains
 
        call equals_float_field (res, lcf (1d0, s, -omga, As, l), S_MASS, l)
 
-       if (l2 (res, l) / nrm_f <= tol_elliptic) exit
+       err = l2 (res, l) / nrm_f
+       if (err <= tol_elliptic) exit
 
        rho_old = rho
        rho = dp (res0, res, l)
@@ -860,17 +853,16 @@ contains
        b = (alph/omga) * (rho/rho_old)
        call equals_float_field (p, lcf (1d0, res, b, lcf (1d0, p, -omga, Ap, l), l), S_MASS, l)
        call equals_float_field (Ap, Lu (p, l), S_MASS, l)
-
-       iter = iter + 1
     end do
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 88)
 
     if (present(total_iter)) total_iter = iter
-    if (present(err))        err = l2 (res,l)/nrm_f
+    if (present(err_iter))   err_iter = l2 (res,l)/nrm_f
   end subroutine bicgstab
 
   function elliptic_fun (u, l)
+    ! Test elliptic equation
     ! Computes Laplacian(u) + u at scale l
     use ops_mod
     implicit none
