@@ -723,7 +723,7 @@ contains
   subroutine write_out_stats
     ! Writes out zonal average statistics
     implicit none
-    integer            :: ibin, k, v
+    integer            :: ibin, info, k, v
     integer, parameter :: funit = 400
     character(2)       :: var_file
     character(130)     :: bash_cmd, command
@@ -775,10 +775,14 @@ contains
     command = 'ls -1 '//trim(run_id)//'.3.?? > tmp'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
-    
+
     command = 'gtar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (bash_cmd, info)
+    if (info /= 0) then
+       if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+       call abort
+    end if
   end subroutine write_out_stats
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, funit)
@@ -1827,6 +1831,7 @@ contains
     integer      :: isave
     character(*) :: run_id
 
+    integer        :: info
     character(4)   :: s_time
     character(130) :: bash_cmd, command
 
@@ -1838,14 +1843,18 @@ contains
 
     command = 'gtar cfz '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (bash_cmd, info)
+    if (info /= 0) then
+       if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+       call abort
+    end if
 
     command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (bash_cmd, info)
 
     command = 'gtar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (bash_cmd, info)
   end subroutine compress_files
 end module io_mod
