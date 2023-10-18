@@ -1177,9 +1177,11 @@ contains
     
     ! Compress files
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
     command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
 
     ! Write out kinetic energies
     open (unit=funit, file=trim(run_id)//'_kinetic_energy', form="FORMATTED", status="REPLACE")
@@ -1229,9 +1231,11 @@ contains
 
     ! Compress files
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
     command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
 
     ! Write out kinetic energies
     open (unit=funit, file=trim(run_id)//'_kinetic_energy', form="FORMATTED", status="REPLACE")
@@ -1304,9 +1308,11 @@ contains
     ! Compress files
     write (s_time, '(i4.4)') cp_idx
     command = 'ls -1 '//trim(run_id)//'.5.?? > tmp' 
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
     command = 'tar czf '//trim(run_id)//'.5.'//s_time//'.tgz -T tmp --remove-files &'
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
   end subroutine write_slice
 
   subroutine initialize_stat

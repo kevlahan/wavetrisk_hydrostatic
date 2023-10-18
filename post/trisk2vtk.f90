@@ -31,7 +31,7 @@ program trisk2vtk
   character(4)   :: s_time
   character(12)  :: str1, str2
   character(6)   :: file_type
-  character(255) :: arg, command, filename_in, filename_out, file_base
+  character(255) :: arg, bash_cmd, command, filename_in, filename_out, file_base
   character(1), parameter :: lf=char(10) ! line feed character
 
   real(4), dimension (:,:),   allocatable :: tmp_outv, outv
@@ -122,12 +122,14 @@ program trisk2vtk
         inquire (FILE=trim(filename_in)//'.tgz', EXIST=compressed_file_exists)
         if (compressed_file_exists) then 
            command = 'tar xzf '//trim(filename_in)//'.tgz'
-           CALL system (command)
+           write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+           call system (bash_cmd)
 
            ! Delete un-needed file
            if (trim(file_type) == "primal" .or. trim(file_type) == "2layer") then
               command = '\rm ' // trim(filename_in) // '00'
-              CALL system (command)
+              write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+              call system (bash_cmd)
            end if
         end if
         write (6,'("Reading from file ",a)') trim(filename_in)
@@ -217,7 +219,8 @@ program trisk2vtk
            ! Delete uncompressed file
            if (compressed_file_exists) then
               command = '\rm ' // trim(filename_in)//j_lev
-              CALL system (command)
+              write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+              call system (bash_cmd)
            end if
         end do
 
