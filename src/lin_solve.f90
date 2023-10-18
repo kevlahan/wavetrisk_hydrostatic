@@ -1,6 +1,5 @@
 module lin_solve_mod
   use ops_mod
-  use adapt_mod
   use comm_mpi_mod
   use wavelet_mod
   implicit none
@@ -10,6 +9,31 @@ module lin_solve_mod
   real(8), dimension(:), pointer     :: scalar2, scalar3
   real(8), dimension(:), allocatable :: w
   type(Float_Field), target          :: float_var
+
+  abstract interface
+     subroutine smth (u, f, Lu, Lu_diag, l, iter, err_out)
+       use ops_mod
+       implicit none
+       integer                   :: iter, l      
+       real(8), optional         :: err_out  
+       type(Float_Field), target :: f, u
+       interface
+          function Lu (u, l)
+            use domain_mod
+            implicit none
+            integer                   :: l
+            type(Float_Field), target :: Lu, u
+          end function Lu
+          function Lu_diag (u, l)
+            use domain_mod
+            implicit none
+            integer                   :: l
+            type(Float_Field), target :: Lu_diag, u
+          end function Lu_diag
+       end interface
+     end subroutine smth
+  end interface
+  procedure (smth), pointer :: smoother => null ()
 contains
   real(8) function linf (s, l)
     ! Returns l_inf norm of scalar s at scale l
@@ -191,43 +215,7 @@ contains
     scalar3(id_i) = mu1 * scalar(id_i) + mu2 * scalar2(id_i)
   end subroutine cal_lc
 
-  subroutine lc2 (u, alpha, p, omega, s, l)
-    ! Calculates linear combination of scalars u = u + alpha*p + omega*s at scale l
-    implicit none
-    integer                   :: l
-    real(8), target           :: alpha, omega
-    type(Float_Field), target :: u, p, s
 
-    integer :: d, j
-
-    do d = 1, size(grid)
-       scalar  => u%data(d)%elts
-       scalar2 => p%data(d)%elts
-       scalar3 => s%data(d)%elts
-       mu1     => alpha
-       mu2     => omega
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_lc2, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-       end do
-       nullify (scalar, scalar2, scalar3, mu1, mu2)
-    end do
-    u%bdry_uptodate = .false.
-    call update_bdry (u, l, 84)
-  end subroutine lc2
-
-  subroutine cal_lc2 (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-
-    id_i = idx (i, j, offs, dims) + 1
-    scalar(id_i) = scalar(id_i) + mu1 * scalar2(id_i) + mu2*scalar3(id_i)
-  end subroutine cal_lc2
-  
   function divide (v, w, l)
     ! Divides float fields, divide = v / w at scale l
     implicit none
@@ -396,7 +384,7 @@ contains
 
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) + 1
 
-    !if (dom%mask_n%elts(id_chd) == 0) return
+    if (dom%mask_n%elts(id_chd) == 0) return
 
     id_par = idx (i_par, j_par, offs_par, dims_par) + 1
 
@@ -428,7 +416,6 @@ contains
          scalar(id2SW)  * dom%overl_areas%elts(id2SW)%a(3)  + &
          scalar(idSE)   * dom%overl_areas%elts(idSE )%a(4) ) * dom%areas%elts(id_par)%hex_inv
   end subroutine cal_restriction
-
 
   subroutine prolong (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
@@ -558,7 +545,7 @@ contains
 
     integer                              :: iter, j, l
     integer, allocatable, dimension(:)   :: iterations
-    integer, parameter                   :: max_vcycle = 5
+    integer, parameter                   :: max_vcycle = 4
     real(8), parameter                   :: tol_vcycle = 1d-3
     real(8)                              :: err
     real(8), allocatable, dimension(:)   :: nrm_f
@@ -566,14 +553,14 @@ contains
 
     interface
        function Lu (u, l)
-         ! Returns result of linear operator applied to u at scale l
+         ! Linear operator applied to u at scale l
          use domain_mod
          implicit none
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
        function Lu_diag (u, l)
-         ! Returns diagonal of linear operator applied to u at scale l
+         ! Diagonal of linear operator applied to u at scale l
          use domain_mod
          implicit none
          integer                   :: l
@@ -583,19 +570,18 @@ contains
 
     log_iter = .true.
 
-    fine_tol    = tol_vcycle
-    coarse_tol  = 1d-6
+    fine_tol   = tol_vcycle
+    coarse_tol = 1d-6
+    coarse_iter = 50
 
+    smoother => GMRES ! Jacobi or GMRES
+    
     allocate (iterations(level_start:level_end), nrm_f(level_start:level_end), nrm_res(level_start:level_end,1:2))
     nrm_res = 0d0; iterations = 0
     
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
-
-    do j = level_end, level_start+1, -1
-       call restrict (f, j-1)
-    end do
-
+ 
     if (log_iter) then
        do j = level_start, level_end
           nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
@@ -603,8 +589,7 @@ contains
        end do
     end if
 
-    !call bicgstab (u, f, Lu, level_start, coarse_tol, coarse_iter, nrm_res(level_start,2), iterations(level_start))
-    call gmres (u, f, Lu, Lu_diag, coarse_iter, level_start, nrm_res(level_start,2))
+    call bicgstab (u, f, Lu, level_start, coarse_tol, coarse_iter, nrm_res(level_start,2), iterations(level_start))
     do j = level_start+1, level_end
        if (nrm_res(j,1) == 0d0) exit
        call prolong (u, j)
@@ -631,11 +616,10 @@ contains
     real(8)                   :: err, tol_vcycle
     type(Float_Field), target :: u, f
 
-    integer :: j, out_iter
-    integer :: down_iter = 2, up_iter = 2, pre_iter = 2
-    real(8) :: omega = 1d0
+    integer :: j
+    integer :: down_iter = 2, up_iter = 2, pre_iter = 6
 
-    type(Float_Field), target :: corr, res, corr_old
+    type(Float_Field), target :: corr, res
 
     interface
        function Lu (u, l)
@@ -660,7 +644,7 @@ contains
     res = residual (f, u, Lu, jmax)
     do j = jmax, jmin+1, -1
        call zero_float_field (corr, S_MASS, j)
-       call Jacobi (corr, res, omega, Lu, Lu_diag, j, fine_tol, down_iter)
+       call smoother (corr, res, Lu, Lu_diag, j, up_iter)
        res = residual (res, corr, Lu, j)
        call restrict (res, j-1)
     end do
@@ -668,22 +652,18 @@ contains
     ! Exact solution on coarsest grid
     call zero_float_field (corr, S_MASS, jmin)
     call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter)
-    !call gmres (corr, res, Lu, Lu_diag, coarse_iter, jmin)
 
     ! Up V-cycle
     do j = jmin+1, jmax
-       corr = lcf (1d0, corr, 0.15d0, prolong_fun (corr, j), j)
-       call Jacobi (corr, res, omega, Lu, Lu_diag, j, fine_tol, up_iter)
+       corr = lcf (1d0, corr, 0.2d0, prolong_fun (corr, j), j)
+       call smoother (corr, res, Lu, Lu_diag, j, down_iter)
     end do
 
     ! V-cycle correction to solution
     u = lcf (1d0, u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
-    call gmres (u, f, Lu, Lu_diag, pre_iter, jmax)
-
-    ! Relative error at finest scale
-    err = l2 (residual (f, u, Lu, jmax), jmax) / l2 (f, jmax)
+    call smoother (u, f, Lu, Lu_diag, jmax, pre_iter, err)
   end subroutine v_cycle
 
   subroutine multiscale (u, f, Lu, Lu_diag)
@@ -714,8 +694,6 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-
-    fine_iter = 200 ! maximum number of fine iterations
 
     log_iter = .true.
 
@@ -749,7 +727,7 @@ contains
     end do
 
     l = level_start
-    call gmres (u, f, Lu, Lu_diag, coarse_iter, level_start, r_error(2,l)); iter(l) = coarse_iter
+    call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, r_error(2,l), iter(l))
     do l = level_start+1, level_end
        call prolong (u, l)
        call SJR (u, f, nrm_f(l), Lu, Lu_diag, l, fine_iter, r_error(2,l), iter(l))
@@ -818,17 +796,17 @@ contains
     u%bdry_uptodate = .false.
   end subroutine SJR
 
-  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, tol, iter_max, err_out, iter_out)
+  subroutine Jacobi (u, f, Lu, Lu_diag, l, iter_max, err_out)
     ! Damped Jacobi iterations
     implicit none
     integer                   :: l, iter_max
-    integer, optional         :: iter_out
     real(8), optional         :: err_out
-    real(8)                   :: omega, tol
+
     type(Float_Field), target :: f, u
 
     integer                   :: iter
     real(8)                   :: nrm_f
+    real(8), parameter        :: omega = 1d0
     type(Float_Field), target :: res
 
     interface
@@ -855,11 +833,9 @@ contains
     res = residual (f, u, Lu, l)
     do iter = 1, iter_max
        call Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
-       if (l2 (res, l) / nrm_f <= tol) exit
     end do
 
     if (present(err_out))  err_out = l2 (res, l) / nrm_f
-    if (present(iter_out)) iter_out = iter
   end subroutine Jacobi
 
   subroutine Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
@@ -941,10 +917,10 @@ contains
        end function Lu
     end interface
 
-    nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
-
     call update_bdry (f, l, 88)
     call update_bdry (u, l, 88)
+
+    nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
     ! Initialize float fields
     res  = residual (f, u, Lu, l)
@@ -955,18 +931,18 @@ contains
     As   = Ap
 
     rho  = dp (res0, res, l)
-
+    
     do iter = 1, iter_max
        alph = rho / dp (Ap, res0, l)
 
-       call equals_float_field (s, lcf (1d0, res, -alph, Ap, l), S_MASS, l)
-       call equals_float_field (As, Lu (s, l), S_MASS, l)
+       s = lcf (1d0, res, -alph, Ap, l)
+       As = Lu (s, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
-       call lc2 (u, alph, p, omga, s, l)
+       u = lcf (1d0, u, 1d0, lcf (alph, p, omga, s, l), l)
 
-       call equals_float_field (res, lcf (1d0, s, -omga, As, l), S_MASS, l)
+       res = lcf (1d0, s, -omga, As, l)
 
        err = l2 (res, l) / nrm_f
        if (err <= tol) exit
@@ -975,17 +951,17 @@ contains
        rho = dp (res0, res, l)
 
        b = (alph/omga) * (rho/rho_old)
-       call equals_float_field (p, lcf (1d0, res, b, lcf (1d0, p, -omga, Ap, l), l), S_MASS, l)
-       call equals_float_field (Ap, Lu (p, l), S_MASS, l)
+       p = lcf (1d0, res, b, lcf (1d0, p, -omga, Ap, l), l)
+       Ap = Lu (p, l)
     end do
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 88)
 
-    if (present(err_out))  err_out  = l2 (res,l)/nrm_f
+    if (present(err_out))  err_out  = err
     if (present(iter_out)) iter_out = iter
   end subroutine bicgstab
 
-  subroutine gmres (u, f, Lu, Lu_diag, kry, l, err_out)
+  subroutine GMRES (u, f, Lu, Lu_diag, l, kry, err_out)
     ! GMRES iterative solution for linear system Lu(u) = f
     implicit none
     integer                   :: kry      ! maximum Krylov subspace dimension
@@ -1062,7 +1038,7 @@ contains
     deallocate (e1, hess, work, v)
     
     if (present(err_out)) err_out = l2 (residual (f, u, Lu, l), l) / l2 (f, l)
-  end subroutine gmres
+  end subroutine GMRES
 
   function elliptic_fun (u, l)
     ! Test elliptic equation
