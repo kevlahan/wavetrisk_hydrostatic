@@ -726,7 +726,7 @@ contains
     integer            :: ibin, k, v
     integer, parameter :: funit = 400
     character(2)       :: var_file
-    character(130)     :: command
+    character(130)     :: bash_cmd, command
 
     write (6,'(a)') 'Saving statistics'
 
@@ -772,10 +772,13 @@ contains
     close (funit)
 
     ! Compress files
-    command = 'ls -1 '//trim(run_id)//'.3.?? > tmp' 
-    call system (command)
+    command = 'ls -1 '//trim(run_id)//'.3.?? > tmp'
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
+    
     command = 'gtar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
   end subroutine write_out_stats
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, funit)
@@ -817,7 +820,8 @@ contains
              outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i) / full_mass * (dom%press%elts(id_i)/p_0)**kappa
           else
 !!$             outv(1) = ref_density * (1.0_8 - full_temp / full_mass) ! density
-             outv(1) = -ref_density * full_temp / full_mass  ! density perturbation
+             !outv(1) = -ref_density * full_temp / full_mass  ! density perturbation
+             outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i)
           end if
 
           outv(2) = dom%u_zonal%elts(id_i) * phi_node (d, id_i, zlev)  ! zonal velocity
@@ -825,8 +829,9 @@ contains
 
           if (compressible) then ! geopotential height at level zlev
              outv(4) = dom%geopot%elts(id_i)/grav_accel
-          else ! topography
-             outv(4) = -dom%topo%elts(id_i) ! bathymetry
+          else ! topography 
+             outv(4) = sol(S_MASS,zlev)%data(d)%elts(id_i)
+             !outv(4) = -dom%topo%elts(id_i) ! bathymetry
 !!$             outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
           end if
 
@@ -1823,21 +1828,24 @@ contains
     character(*) :: run_id
 
     character(4)   :: s_time
-    character(130) :: command
+    character(130) :: bash_cmd, command
 
     write (s_time, '(i4.4)') isave
 
     command = 'ls -1 '//trim(run_id)//'.1'//s_time//'?? > tmp1'
-
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
 
     command = 'gtar cfz '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files'
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
 
-    command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2' 
-    call system (command)
+    command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2'
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
 
     command = 'gtar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
   end subroutine compress_files
 end module io_mod

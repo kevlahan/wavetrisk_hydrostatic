@@ -15,7 +15,7 @@ program flat_projection_data
   
   character(2)                           :: var_file
   character(8)                           :: itype
-  character(130)                         :: command
+  character(130)                         :: bash_cmd, command
 
   logical, parameter                     :: welford = .true. ! use Welford's one-pass algorithm or naive two-pass algorithm
   
@@ -1128,10 +1128,12 @@ contains
     close (funit)
 
     ! Compress files
-    command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
-    call system (command)
+    command = 'ls -1 '//trim(run_id)//'.4.?? > tmp'
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
     command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    call system (command)
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
   end subroutine write_out
 
   subroutine write_out_drake

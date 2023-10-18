@@ -288,7 +288,7 @@ contains
     character(*) :: run_id
 
     integer        :: l    
-    character(255) :: cmd_archive, cmd_files, command
+    character(255) :: bash_cmd, cmd_archive, cmd_files, command
 
     if (rank == 0) then
        write (6,'(A,/)') &
@@ -313,10 +313,11 @@ contains
     if (rank == 0) then
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (6,'(A,A,/)') 'Loading file ', trim (cmd_archive)
-       write (command, '(A,A)') 'tar xzf ', trim (cmd_archive)
-       call system (command)
+       write (command, '(a,a)') 'tar xzf ', trim (cmd_archive)
+       write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+       call system (bash_cmd)
     end if
-    call barrier ! Make sure all archive files have been uncompressed
+    call barrier ! make sure all archive files have been uncompressed
 
     ! Rebalance adaptive grid and re-initialize structures
     call init_structures (run_id)
@@ -333,7 +334,8 @@ contains
        write (cmd_files, '(A,A,I4.4,A,A,A,I4.4)') &
             trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
        write (command, '(A,A)') '\rm ', trim (cmd_files)
-       call system (command)
+       write (bash_cmd, '(a,a,a)') 'bash -c "', trim (command), '"' 
+       call system (bash_cmd)
     end if
     call barrier
 
@@ -380,7 +382,7 @@ contains
     character(*) :: run_id
     logical      :: rebal
 
-    character(255) :: cmd_archive, cmd_files, command
+    character(255) :: bash_cmd, cmd_archive, cmd_files, command
     
     cp_idx = cp_idx + 1 
 
@@ -408,7 +410,8 @@ contains
             trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (command, '(A,A,A,A,A)') 'tar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
-       call system (command)
+       write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+       call system (bash_cmd)
     end if
     call barrier ! make sure data is archived before restarting
     
