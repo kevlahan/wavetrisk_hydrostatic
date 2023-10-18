@@ -205,6 +205,8 @@ If running with bathymetry data (e.g. incompressible tsunami test case) you need
 
 ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute etopo topography data)
 
+5. Ensure that gtar is installed (required for file tar-ing and compression).
+
 ************************************************************
 3.1 MPI EXAMPLES
 
