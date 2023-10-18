@@ -49,12 +49,6 @@ ifeq ($(F90),ifort)
 else
   FLAGS_COMP = -O$(OPTIM) -c -J$(BUILD_DIR) -cpp
   FLAGS_LINK = -O$(OPTIM) -J $(BUILD_DIR)
-
-# Deal with bug in argument checking 
-  GCC_VERSION := $(shell gcc -dumpversion)
-  BUG_VERSION := 10
-  GCC_MAJOR := $(shell echo $(GCC_VERSION) | cut -f1 -d.)
-  MIN_VERSION := $(shell expr "$(GCC_MAJOR)" ">=" "$(BUG_VERSION)")
 endif
 
 ifeq ($(OPTIM),0)
