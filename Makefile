@@ -55,9 +55,6 @@ else
   BUG_VERSION := 10
   GCC_MAJOR := $(shell echo $(GCC_VERSION) | cut -f1 -d.)
   MIN_VERSION := $(shell expr "$(GCC_MAJOR)" ">=" "$(BUG_VERSION)")
-  ifeq "$(MIN_VERSION)" "1"
-    FLAGS_COMP += -fallow-argument-mismatch
-  endif 
 endif
 
 ifeq ($(OPTIM),0)
