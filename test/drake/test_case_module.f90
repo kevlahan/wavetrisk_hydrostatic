@@ -145,7 +145,7 @@ contains
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
        write (6,'(A,L1)')     "sigma_z                        = ", sigma_z
-       write (6,'(A,es10.4)') "tol_elliptic                   = ", tol_elliptic
+       write (6,'(A,es10.4)') "coarse_tol                     = ", coarse_tol
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
        write (6,'(a,l1)')     "log_iter                       = ", log_iter
@@ -246,7 +246,6 @@ contains
     
     eta = 0d0
     z_s = max_depth
-    !x_i = Coord (radius, 0d0, 0d0)
     x_i = sph2cart (0d0, 0d0)
     
     if (sigma_z) then
@@ -404,6 +403,9 @@ contains
     real(8), dimension(0:zlevels) :: z
 
     type(Coord) :: x_i
+    
+    real(8) :: h0, r, sigma, lat, lat_c, lon, lon_c
+    logical, parameter :: test_elliptic = .false.
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
@@ -412,7 +414,7 @@ contains
 
     eta = init_free_surface (x_i)
     z_s = dom%topo%elts(id_i)
-    
+
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -420,23 +422,32 @@ contains
     end if
     dz = z(1:zlevels) - z(0:zlevels-1)
 
-    do k = 1, zlevels
-       rho = porous_density (d, id_i, k)
-       z_k = interp (z(k-1), z(k))
-
-       if (k == zlevels) then
-          sol(S_MASS,k)%data(d)%elts(id_i) = rho * eta
-       else
+    if (test_elliptic) then
+       r = geodesic (x_i, sph2cart (0d0, 0d0)); sigma = radius/4d0
+       do k = 1, zlevels
           sol(S_MASS,k)%data(d)%elts(id_i) = 0d0
-       end if
-       sol(S_TEMP,k)%data(d)%elts(id_i)                      = 0d0
-       sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
-    end do
+          sol(S_TEMP,k)%data(d)%elts(id_i) = 4d0 * (r/sigma)**2 * exp (-(r/sigma)**2)
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+       end do
+    else
+       do k = 1, zlevels
+          rho = porous_density (d, id_i, k)
+          z_k = interp (z(k-1), z(k))
 
-    if (mode_split) then
-       sol(S_MASS,zlevels+1)%data(d)%elts(id_i)                      = eta
-       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i)                      = 0d0
-       sol(S_VELO,zlevels+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+          if (k == zlevels) then
+             sol(S_MASS,k)%data(d)%elts(id_i) = rho * eta
+          else
+             sol(S_MASS,k)%data(d)%elts(id_i) = 0d0
+          end if
+          sol(S_TEMP,k)%data(d)%elts(id_i)                      = 0d0
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+       end do
+
+       if (mode_split) then
+          sol(S_MASS,zlevels+1)%data(d)%elts(id_i)                      = eta
+          sol(S_TEMP,zlevels+1)%data(d)%elts(id_i)                      = 0d0
+          sol(S_VELO,zlevels+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+       end if
     end if
   end subroutine init_sol
 
@@ -809,7 +820,7 @@ contains
     lon = dble(i) * (BATHY_PER_DEG * DEG)
     lat = dble(j) * (BATHY_PER_DEG * DEG)
 
-    proj_lon_lat = project_on_sphere (sph2cart (lon, lat))
+    proj_lon_lat = sph2cart (lon, lat)
   end function proj_lon_lat 
 
   subroutine apply_initial_conditions_case

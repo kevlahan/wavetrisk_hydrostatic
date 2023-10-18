@@ -451,7 +451,7 @@ contains
     integer            :: k, v
     integer, parameter :: fid = 500, funit = 400
     real(8)            :: press_save
-    character(255)     :: command, filename, varname
+    character(255)     :: bash_cmd, command, filename, varname
     character(2)       :: var_file
     logical            :: file_exists
 
@@ -511,7 +511,8 @@ contains
        inquire (file = trim(run_id)//'.3.tgz', exist = file_exists)
        if (file_exists) then
           command = 'tar xzf '//trim(run_id)//'.3.tgz'
-          call system (command)
+          write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+          call system (bash_cmd)
 
           write (var_file, '(i2.2)') 00
           open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='READ')

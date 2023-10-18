@@ -6,6 +6,14 @@ module adapt_mod
   integer, parameter :: DOF_PER_PATCH = PATCH_SIZE*PATCH_SIZE*(EDGE+1)
   integer, parameter :: FILLED_AND_FROZEN = DOF_PER_PATCH + 1
   logical            :: max_level_exceeded
+
+  interface compress_wavelets_scalar
+     procedure :: compress_wavelets_scalar_0, compress_wavelets_scalar_1
+  end interface compress_wavelets_scalar
+  
+  interface WT_after_scalar
+     procedure :: WT_after_scalar_0, WT_after_scalar_1
+  end interface WT_after_scalar 
 contains
   subroutine init_adapt_mod
     implicit none
@@ -100,7 +108,24 @@ contains
     wav%bdry_uptodate = .false.
   end subroutine compress_wavelets
 
-  subroutine compress_wavelets_scalar (wav)
+  subroutine compress_wavelets_scalar_0 (wav)
+    ! Sets scalar wavelets associated with inactive grid points to zero
+    implicit none
+    type(Float_Field), target :: wav
+
+    integer :: d, k, l
+
+    do d = 1, size (grid)
+       do l = level_start+1, level_end
+          wc_s => wav%data(d)%elts
+          call apply_onescale_d (compress_scalar, grid(d), l, z_null, 0, 1)
+          nullify (wc_s)
+       end do
+    end do
+    wav%bdry_uptodate = .false.
+  end subroutine compress_wavelets_scalar_0
+
+  subroutine compress_wavelets_scalar_1 (wav)
     ! Sets scalar wavelets associated with inactive grid points to zero
     implicit none
     type(Float_Field), dimension(:), target :: wav
@@ -117,7 +142,7 @@ contains
        end do
     end do
     wav%bdry_uptodate = .false.
-  end subroutine compress_wavelets_scalar
+  end subroutine compress_wavelets_scalar_1
 
   subroutine compress_wavelets_velo (wav)
     ! Sets wavelets associated with inactive grid points to zero
@@ -216,7 +241,39 @@ contains
     call inverse_wavelet_transform (wavelet, scaling)
   end subroutine WT_after_step
 
-  subroutine WT_after_scalar (scaling, wavelet, l_start0)
+  subroutine WT_after_scalar_0 (scaling, wavelet, l_start0)
+    !  Everything needed in terms of forward and backward scalar wavelet transform
+    !  after one time step for a vector of scalars
+    !    A) compute wavelets and perform backwards transform to conserve mass
+    !    B) interpolate values onto adapted grid for next step
+    implicit none
+    type(Float_Field), target :: scaling, wavelet
+    integer, optional         :: l_start0
+
+    integer :: d, j, k, l, l_start
+
+    if (.not. present(l_start0)) then
+       l_start = level_start
+    else
+       l_start = l_start0
+    end if
+
+    call update_bdry (scaling, NONE, 16)
+
+    do l = l_start, level_end-1
+       do d = 1, size(grid)
+          scalar => scaling%data(d)%elts
+          wc_s   => wavelet%data(d)%elts
+          call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+          nullify (scalar, wc_s)
+       end do
+       wavelet%bdry_uptodate = .false.
+    end do
+    call compress_wavelets_scalar (wavelet)
+    call inverse_scalar_transform (wavelet, scaling)
+  end subroutine WT_after_scalar_0
+  
+  subroutine WT_after_scalar_1 (scaling, wavelet, l_start0)
     !  Everything needed in terms of forward and backward scalar wavelet transform
     !  after one time step for a vector of scalars
     !    A) compute wavelets and perform backwards transform to conserve mass
@@ -248,7 +305,7 @@ contains
     end do
     call compress_wavelets_scalar (wavelet)
     call inverse_scalar_transform (wavelet, scaling)
-  end subroutine WT_after_scalar
+  end subroutine WT_after_scalar_1
 
   subroutine WT_after_velo (scaling, wavelet, l_start0)
     !  Everything needed in terms of forward and backward velocity wavelet transform

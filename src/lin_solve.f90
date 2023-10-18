@@ -1,5 +1,6 @@
 module lin_solve_mod
   use ops_mod
+  use adapt_mod
   use comm_mpi_mod
   use wavelet_mod
   implicit none
@@ -226,6 +227,124 @@ contains
     id_i = idx (i, j, offs, dims) + 1
     scalar(id_i) = scalar(id_i) + mu1 * scalar2(id_i) + mu2*scalar3(id_i)
   end subroutine cal_lc2
+  
+  function divide (v, w, l)
+    ! Divides float fields, divide = v / w at scale l
+    implicit none
+    integer                   :: l
+    type(Float_Field), target :: divide, v, w
+
+    integer :: d, j
+
+    divide = v
+    do d = 1, size(grid)
+       scalar  => divide%data(d)%elts
+       scalar2 => v%data(d)%elts
+       scalar3 => w%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_divide, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar, scalar2, scalar3)
+    end do
+    divide%bdry_uptodate = .false.
+    call update_bdry (divide, l, 84)
+  end function divide
+
+  subroutine cal_divide (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+    if (scalar3(id_i) /= 0d0) then
+       scalar(id_i) = scalar2(id_i) / scalar3(id_i)
+    else
+       scalar(id_i) = 0d0
+    end if
+  end subroutine cal_divide
+
+  function divide_scalar (u, a, l)
+    ! Divides float field by real, divide = u / alpha at scale l
+    implicit none
+    integer                   :: l
+    real(8),           target :: a
+    type(Float_Field), target :: divide_scalar, u
+
+    integer :: d, j
+
+    divide_scalar = u
+
+    do d = 1, size(grid)
+       scalar  => divide_scalar%data(d)%elts
+       scalar2 => u%data(d)%elts
+       mu1     => a
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_divide_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar, scalar2, mu1)
+    end do
+    divide_scalar%bdry_uptodate = .false.
+    call update_bdry (divide_scalar, l, 84)
+  end function divide_scalar
+
+  subroutine cal_divide_scalar (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+    scalar(id_i) = scalar2(id_i) / mu1
+  end subroutine cal_divide_scalar
+
+  function dp_float_scalar (u, a, l)
+    ! Dot product of a float field vector and a real vector, dp_float_scalar = sum (a(i)*u(i), i = 1, size(a)) at scale l
+    implicit none
+    integer                                 :: l, n
+    real(8),           dimension(:), target :: a
+    type(Float_Field),               target :: dp_float_scalar
+    type(Float_Field), dimension(:), target :: u
+
+    integer :: i, d, j
+
+    dp_float_scalar= u(1)
+    call zero_float_field (dp_float_scalar, S_MASS, l) 
+    do d = 1, size(grid)
+       scalar => dp_float_scalar%data(d)%elts
+       do i = 1, size(a)
+          scalar2 => u(i)%data(d)%elts
+          mu1     => a(i)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (cal_dp_float_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
+          nullify (scalar2, mu1)
+       end do
+       nullify (scalar)
+    end do
+
+    dp_float_scalar%bdry_uptodate = .false.
+    call update_bdry (dp_float_scalar, l, 84)
+  end function dp_float_scalar
+
+  subroutine cal_dp_float_scalar (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+    scalar(id_i) = scalar(id_i) + mu1 * scalar2(id_i)
+  end subroutine cal_dp_float_scalar
 
   function residual (f, u, Lu, l)
     ! Calculates f - Lu(u) at scale l
@@ -277,7 +396,7 @@ contains
 
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) + 1
 
-    if (dom%mask_n%elts(id_chd) == 0) return
+    !if (dom%mask_n%elts(id_chd) == 0) return
 
     id_par = idx (i_par, j_par, offs_par, dims_par) + 1
 
@@ -309,6 +428,7 @@ contains
          scalar(id2SW)  * dom%overl_areas%elts(id2SW)%a(3)  + &
          scalar(idSE)   * dom%overl_areas%elts(idSE )%a(4) ) * dom%areas%elts(id_par)%hex_inv
   end subroutine cal_restriction
+
 
   subroutine prolong (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
@@ -436,10 +556,11 @@ contains
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                              :: iter, j
+    integer                              :: iter, j, l
     integer, allocatable, dimension(:)   :: iterations
+    integer, parameter                   :: kry = 50
     integer, parameter                   :: max_vcycle = 5
-    real(8), parameter                   :: tol_vcycle = 1d-3
+    real(8), parameter                   :: tol_vcycle = 1d-4
     real(8)                              :: err
     real(8), allocatable, dimension(:)   :: nrm_f
     real(8), allocatable, dimension(:,:) :: nrm_res
@@ -463,13 +584,18 @@ contains
 
     log_iter = .true.
 
-    tol_elliptic = 1d-6
-    tol_jacobi = tol_vcycle
+    fine_tol   = tol_vcycle
+    coarse_tol = 1d-9
 
     allocate (iterations(level_start:level_end), nrm_f(level_start:level_end), nrm_res(level_start:level_end,1:2))
+    nrm_res = 0d0
     
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
+
+    do j = level_end, level_start+1, -1
+       call restrict (f, j-1)
+    end do
 
     if (log_iter) then
        do j = level_start, level_end
@@ -478,17 +604,19 @@ contains
        end do
     end if
 
-    call bicgstab (u, f, Lu, level_start, coarse_iter, nrm_res(level_start,2), iterations(level_start))
+    !call bicgstab (u, f, Lu, level_start, coarse_tol, coarse_iter, nrm_res(level_start,2), iterations(level_start))
+    call gmres (u, f, Lu, Lu_diag, kry, coarse_tol, level_start, nrm_res(level_start,2))
+    
     do j = level_start+1, level_end
-       if (nrm_res(j,1) <= tol_elliptic) exit
+       if (nrm_res(j,1) == 0d0) exit
        call prolong (u, j)
        do iter = 1, max_vcycle
           call v_cycle (u, f, Lu, Lu_diag, level_start, j, tol_vcycle, err)
           nrm_res(j,2) = err; iterations(j) = iter
-          if (err < tol_vcycle) exit
+!          if (err < tol_vcycle) exit
        end do
     end do
-
+    
     if (log_iter) then
        if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
        do j = level_start, level_end
@@ -506,10 +634,10 @@ contains
     type(Float_Field), target :: u, f
 
     integer :: j, out_iter
-    integer :: down_iter = 2, up_iter = 2, pre_iter = 1000
+    integer :: down_iter = 2, up_iter = 2, pre_iter = 10
     real(8) :: omega = 1d0
 
-    type(Float_Field), target :: corr, res
+    type(Float_Field), target :: corr, res, corr_old
 
     interface
        function Lu (u, l)
@@ -534,26 +662,26 @@ contains
     res = residual (f, u, Lu, jmax)
     do j = jmax, jmin+1, -1
        call zero_float_field (corr, S_MASS, j)
-       call Jacobi (corr, res, omega, Lu, Lu_diag, j, down_iter)
+       call Jacobi (corr, res, omega, Lu, Lu_diag, j, fine_tol, down_iter)
        res = residual (res, corr, Lu, j)
        call restrict (res, j-1)
     end do
 
     ! Exact solution on coarsest grid
     call zero_float_field (corr, S_MASS, jmin)
-    call bicgstab (corr, res, Lu, jmin, coarse_iter)
+    call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter)
 
     ! Up V-cycle
     do j = jmin+1, jmax
        corr = lcf (1d0, corr, 1d0, prolong_fun (corr, j), j)
-       call Jacobi (corr, res, omega, Lu, Lu_diag, j, up_iter)
+       call Jacobi (corr, res, omega, Lu, Lu_diag, j, fine_tol, up_iter)
     end do
 
     ! V-cycle correction to solution
     u = lcf (1d0, u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
-    call Jacobi (u, f, omega, Lu, Lu_diag, jmax, pre_iter, tol_iter=tol_vcycle, total_iter=out_iter)
+    call Jacobi (u, f, omega, Lu, Lu_diag, jmax, tol_vcycle, pre_iter)
 
     ! Relative error at finest scale
     err = l2 (residual (f, u, Lu, jmax), jmax) / l2 (f, jmax)
@@ -595,7 +723,7 @@ contains
     k_max = 1.8d0
 
     ! Values for k_min optimized for J5J9
-    if (tol_jacobi <= 1d-5) then
+    if (fine_tol <= 1d-5) then
        k_min = 1d-2
     else
        k_min = 3d-2
@@ -615,12 +743,12 @@ contains
 
     do l = level_start, level_end
        nrm_f(l) = l2 (f, l)
-       if (nrm_f(l) < tol_elliptic) nrm_f(l) = 1d0
+       if (nrm_f(l) < coarse_tol) nrm_f(l) = 1d0
        if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
     end do
 
     l = level_start
-    call bicgstab (u, f, Lu, l, coarse_iter, r_error(2,l), iter(l))
+    call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, r_error(2,l), iter(l))
     do l = level_start+1, level_end
        call prolong (u, l)
        call SJR (u, f, nrm_f(l), Lu, Lu_diag, l, fine_iter, r_error(2,l), iter(l))
@@ -671,11 +799,11 @@ contains
     nrm_res = l2 (res, l) / nrm_f
 
     do while (iter < max_iter)
-       if (nrm_res <= tol_jacobi) exit
+       if (nrm_res <= fine_tol) exit
 
        ii = ii + 1
        if (ii > m) then
-          if (nrm_res < 2d0 * tol_jacobi) then ! avoid starting a new SRJ cycle if error is small enough
+          if (nrm_res < 2d0 * fine_tol) then ! avoid starting a new SRJ cycle if error is small enough
              exit
           else
              ii = 1
@@ -689,17 +817,17 @@ contains
     u%bdry_uptodate = .false.
   end subroutine SJR
 
-  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, max_iter, tol_iter, err, total_iter)
+  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, tol, max_iter, err, total_iter)
     ! Damped Jacobi iterations
     implicit none
     integer                   :: l, max_iter
     integer, optional         :: total_iter
-    real(8), optional         :: err, tol_iter
-    real(8)                   :: omega
+    real(8), optional         :: err
+    real(8)                   :: omega, tol
     type(Float_Field), target :: f, u
 
     integer                   :: iter
-    real(8)                   :: nrm_f, tol
+    real(8)                   :: nrm_f
     type(Float_Field), target :: res
 
     interface
@@ -717,12 +845,6 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-
-    if (present(tol_iter)) then
-       tol = tol_iter
-    else
-       tol = tol_jacobi
-    end if
 
     call update_bdry (f, l, 50)
     call update_bdry (u, l, 50)
@@ -795,12 +917,13 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) scalar(id) = scalar(id) + mu1 * scalar2(id) / scalar3(id)
   end subroutine cal_jacobi
 
-  subroutine bicgstab (u, f,  Lu, l, max_iter, err_iter, total_iter)
+  subroutine bicgstab (u, f,  Lu, l, tol, max_iter, err_iter, total_iter)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
     integer                   :: l, max_iter
     integer, optional         :: total_iter
+    real(8)                   :: tol
     real(8), optional         :: err_iter
     type(Float_Field), target :: f, u
 
@@ -845,7 +968,7 @@ contains
        call equals_float_field (res, lcf (1d0, s, -omga, As, l), S_MASS, l)
 
        err = l2 (res, l) / nrm_f
-       if (err <= tol_elliptic) exit
+       if (err <= tol) exit
 
        rho_old = rho
        rho = dp (res0, res, l)
@@ -860,6 +983,86 @@ contains
     if (present(total_iter)) total_iter = iter
     if (present(err_iter))   err_iter = l2 (res,l)/nrm_f
   end subroutine bicgstab
+
+  subroutine gmres (u, f, Lu, Lu_diag, kry, tol, l, err)
+    ! GMRES iterative solution for linear system Lu(u) = f
+    implicit none
+    integer                   :: kry  ! maximum Krylov subspace dimension
+    integer                   :: l    ! scale
+    real(8)                   :: tol  ! relative tolerance
+    real(8)                   :: err  ! normalized residual error
+    type(Float_Field), target :: f, u
+
+    integer                                              :: i, info, j, kryh
+    real(8)                                              :: beta, nrm_f
+    real(8), allocatable, dimension(:)                   :: e1, work
+    real(8), allocatable, dimension(:,:)                 :: hess
+    type(Float_Field), allocatable, dimension(:), target :: v
+    type(Float_Field),                            target :: res, w
+
+    interface
+       function Lu (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu, u
+       end function Lu
+       function Lu_diag (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu_diag, u
+       end function Lu_diag
+    end interface
+
+    allocate (e1(kry+1), hess(kry+1,kry), work(kry+(kry+1)*32), v(kry+1))
+
+    call update_bdry (f, l, 50); nrm_f = l2 (f, l)
+    call update_bdry (u, l, 50)
+
+    kryh = kry
+
+    res  = divide (residual (f, u, Lu, l), Lu_diag (u, l), l)
+
+    beta = sqrt (dp (res, res, l))
+    e1(1) = beta; e1(2:kry+1) = 0d0
+    
+    v(1) = divide_scalar (res, beta, l)
+    do i = 2, kry+1
+       v(i) = u; call zero_float_field (v(i), S_MASS, l)
+    end do
+
+    w = u; call zero_float_field (w, S_MASS, l)
+
+    j = 1 
+    hess = 0d0
+    do while (j <= kryh)
+       w = divide (Lu (v(j), l),  Lu_diag (v(j), l), l)
+
+       do i = 1, j
+          hess (i,j) = dp (v(i), w, l) 
+          w = lcf (1d0, w, -hess(i,j),  v(i), l)
+       end do
+       hess(j+1,j) = sqrt (dp (w, w, l))
+
+       if (hess(j+1,j) > tol * nrm_f)  then
+          v(j+1) = divide_scalar (w, hess(j+1,j), l)
+       else
+          call zero_float_field (v(j+1), S_MASS, l) 
+          kryh = j
+       end if
+       j = j+1
+    end do
+
+    call dgels ('N', kryh+1, kryh, 1, hess, kry+1, e1, kry+1, work, kry+(kry+1)*32, info)
+    if (rank == 0 .and. info /= 0) write (6,'(a,i3)') "dgels error ", info
+
+    u = lcf (1d0, u, 1d0, dp_float_scalar (v(1:kry), e1(1:kry), l), l)
+
+    err = l2 (residual (f, u, Lu, l), l) / l2 (f, l)
+
+    deallocate (e1, hess, work, v)
+  end subroutine gmres
 
   function elliptic_fun (u, l)
     ! Test elliptic equation

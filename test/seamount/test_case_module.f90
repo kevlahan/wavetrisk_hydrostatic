@@ -242,8 +242,8 @@ contains
        write (6,'(a,i3)')     "iremap                         = ", iremap
        write (6,'(A,es8.2)')  "theta1                         = ", theta1
        write (6,'(A,es8.2)')  "theta2                         = ", theta2
-       write (6,'(A,es10.4)') "tol_elliptic                   = ", tol_elliptic
-       write (6,'(A,es10.4)') "tol_jacobi                     = ", tol_jacobi
+       write (6,'(A,es10.4)') "coarse_tol                     = ", coarse_tol
+       write (6,'(A,es10.4)') "fine_tol                       = ", fine_tol
        write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
        write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
        write (6,'(a,l1)')     "log_iter                       = ", log_iter

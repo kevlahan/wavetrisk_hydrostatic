@@ -235,7 +235,7 @@ module shared_mod
   real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
   real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
   real(8)                                       :: e_min, Kt_const, Kt_0, Kv_0, Kv_bottom, rb_0
-  real(8)                                       :: theta1, theta2, tol_elliptic, tol_jacobi, visc_divu, visc_rotu
+  real(8)                                       :: theta1, theta2, coarse_tol, fine_tol, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8), dimension(:),         allocatable    :: bounds, C_visc, pressure_save, visc_sclr
@@ -375,8 +375,8 @@ contains
     save_levels         = 1                                 ! vertical level to save
     timeint_type        = "RK45"                            ! time integration scheme (RK3 is default for incompressible case)
     tol                 = 5d-3                              ! relative tolerance for adaptivity
-    tol_elliptic        = 1d-9                              ! tolerance for coarse scale bicgstab elliptic solver
-    tol_jacobi          = 1d-3                              ! tolerance for fine scale jacobi iterations
+    coarse_tol          = 1d-9                              ! tolerance for coarse scale bicgstab elliptic solver
+    fine_tol            = 1d-3                              ! tolerance for fine scale jacobi iterations
     zlevels             = 20                                ! number of vertical levels
     
     ! Default physical parameters

@@ -6,11 +6,11 @@ module wavelet_mod
   real(8), dimension(9) :: Iu_Base_Wgt
 
   interface forward_scalar_transform
-     procedure forward_scalar_transform_0, forward_scalar_transform_1
+     procedure :: forward_scalar_transform_0, forward_scalar_transform_1
   end interface forward_scalar_transform
 
   interface inverse_scalar_transform
-     procedure inverse_scalar_transform_0, inverse_scalar_transform_1
+     procedure :: inverse_scalar_transform_0, inverse_scalar_transform_1
   end interface inverse_scalar_transform
 
   interface inverse_velo_transform
