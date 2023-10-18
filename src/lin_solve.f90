@@ -558,9 +558,8 @@ contains
 
     integer                              :: iter, j, l
     integer, allocatable, dimension(:)   :: iterations
-    integer, parameter                   :: kry = 50
     integer, parameter                   :: max_vcycle = 5
-    real(8), parameter                   :: tol_vcycle = 1d-4
+    real(8), parameter                   :: tol_vcycle = 1d-3
     real(8)                              :: err
     real(8), allocatable, dimension(:)   :: nrm_f
     real(8), allocatable, dimension(:,:) :: nrm_res
@@ -584,11 +583,11 @@ contains
 
     log_iter = .true.
 
-    fine_tol   = tol_vcycle
-    coarse_tol = 1d-9
+    fine_tol    = tol_vcycle
+    coarse_tol  = 1d-6
 
     allocate (iterations(level_start:level_end), nrm_f(level_start:level_end), nrm_res(level_start:level_end,1:2))
-    nrm_res = 0d0
+    nrm_res = 0d0; iterations = 0
     
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
@@ -605,15 +604,14 @@ contains
     end if
 
     !call bicgstab (u, f, Lu, level_start, coarse_tol, coarse_iter, nrm_res(level_start,2), iterations(level_start))
-    call gmres (u, f, Lu, Lu_diag, kry, coarse_tol, level_start, nrm_res(level_start,2))
-    
+    call gmres (u, f, Lu, Lu_diag, coarse_iter, level_start, nrm_res(level_start,2))
     do j = level_start+1, level_end
        if (nrm_res(j,1) == 0d0) exit
        call prolong (u, j)
        do iter = 1, max_vcycle
           call v_cycle (u, f, Lu, Lu_diag, level_start, j, tol_vcycle, err)
           nrm_res(j,2) = err; iterations(j) = iter
-!          if (err < tol_vcycle) exit
+          if (err < tol_vcycle) exit
        end do
     end do
     
@@ -634,7 +632,7 @@ contains
     type(Float_Field), target :: u, f
 
     integer :: j, out_iter
-    integer :: down_iter = 2, up_iter = 2, pre_iter = 10
+    integer :: down_iter = 2, up_iter = 2, pre_iter = 2
     real(8) :: omega = 1d0
 
     type(Float_Field), target :: corr, res, corr_old
@@ -670,10 +668,11 @@ contains
     ! Exact solution on coarsest grid
     call zero_float_field (corr, S_MASS, jmin)
     call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter)
+    !call gmres (corr, res, Lu, Lu_diag, coarse_iter, jmin)
 
     ! Up V-cycle
     do j = jmin+1, jmax
-       corr = lcf (1d0, corr, 1d0, prolong_fun (corr, j), j)
+       corr = lcf (1d0, corr, 0.15d0, prolong_fun (corr, j), j)
        call Jacobi (corr, res, omega, Lu, Lu_diag, j, fine_tol, up_iter)
     end do
 
@@ -681,7 +680,7 @@ contains
     u = lcf (1d0, u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
-    call Jacobi (u, f, omega, Lu, Lu_diag, jmax, tol_vcycle, pre_iter)
+    call gmres (u, f, Lu, Lu_diag, pre_iter, jmax)
 
     ! Relative error at finest scale
     err = l2 (residual (f, u, Lu, jmax), jmax) / l2 (f, jmax)
@@ -716,6 +715,8 @@ contains
        end function Lu_diag
     end interface
 
+    fine_iter = 200 ! maximum number of fine iterations
+
     log_iter = .true.
 
     ! Optimal Scheduled Relaxation Jacobi parameters (Adsuara, et al J Comput Phys v 332, 2016)
@@ -748,7 +749,7 @@ contains
     end do
 
     l = level_start
-    call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, r_error(2,l), iter(l))
+    call gmres (u, f, Lu, Lu_diag, coarse_iter, level_start, r_error(2,l)); iter(l) = coarse_iter
     do l = level_start+1, level_end
        call prolong (u, l)
        call SJR (u, f, nrm_f(l), Lu, Lu_diag, l, fine_iter, r_error(2,l), iter(l))
@@ -817,12 +818,12 @@ contains
     u%bdry_uptodate = .false.
   end subroutine SJR
 
-  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, tol, max_iter, err, total_iter)
+  subroutine Jacobi (u, f, omega, Lu, Lu_diag, l, tol, iter_max, err_out, iter_out)
     ! Damped Jacobi iterations
     implicit none
-    integer                   :: l, max_iter
-    integer, optional         :: total_iter
-    real(8), optional         :: err
+    integer                   :: l, iter_max
+    integer, optional         :: iter_out
+    real(8), optional         :: err_out
     real(8)                   :: omega, tol
     type(Float_Field), target :: f, u
 
@@ -852,13 +853,13 @@ contains
     nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
     res = residual (f, u, Lu, l)
-    do iter = 1, max_iter
+    do iter = 1, iter_max
        call Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
        if (l2 (res, l) / nrm_f <= tol) exit
     end do
 
-    if (present(total_iter)) total_iter = iter
-    if (present(err))        err = l2 (res, l) / nrm_f
+    if (present(err_out))  err_out = l2 (res, l) / nrm_f
+    if (present(iter_out)) iter_out = iter
   end subroutine Jacobi
 
   subroutine Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
@@ -917,14 +918,14 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) scalar(id) = scalar(id) + mu1 * scalar2(id) / scalar3(id)
   end subroutine cal_jacobi
 
-  subroutine bicgstab (u, f,  Lu, l, tol, max_iter, err_iter, total_iter)
+  subroutine bicgstab (u, f,  Lu, l, tol, iter_max, err_out, iter_out)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
-    integer                   :: l, max_iter
-    integer, optional         :: total_iter
+    integer                   :: l, iter_max
+    integer, optional         :: iter_out
     real(8)                   :: tol
-    real(8), optional         :: err_iter
+    real(8), optional         :: err_out
     type(Float_Field), target :: f, u
 
     integer                   :: iter
@@ -955,7 +956,7 @@ contains
 
     rho  = dp (res0, res, l)
 
-    do iter = 1, max_iter
+    do iter = 1, iter_max
        alph = rho / dp (Ap, res0, l)
 
        call equals_float_field (s, lcf (1d0, res, -alph, Ap, l), S_MASS, l)
@@ -980,17 +981,16 @@ contains
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 88)
 
-    if (present(total_iter)) total_iter = iter
-    if (present(err_iter))   err_iter = l2 (res,l)/nrm_f
+    if (present(err_out))  err_out  = l2 (res,l)/nrm_f
+    if (present(iter_out)) iter_out = iter
   end subroutine bicgstab
 
-  subroutine gmres (u, f, Lu, Lu_diag, kry, tol, l, err)
+  subroutine gmres (u, f, Lu, Lu_diag, kry, l, err_out)
     ! GMRES iterative solution for linear system Lu(u) = f
     implicit none
-    integer                   :: kry  ! maximum Krylov subspace dimension
-    integer                   :: l    ! scale
-    real(8)                   :: tol  ! relative tolerance
-    real(8)                   :: err  ! normalized residual error
+    integer                   :: kry      ! maximum Krylov subspace dimension
+    integer                   :: l        ! scale
+    real(8), optional         :: err_out  ! normalized residual error
     type(Float_Field), target :: f, u
 
     integer                                              :: i, info, j, kryh
@@ -1045,7 +1045,7 @@ contains
        end do
        hess(j+1,j) = sqrt (dp (w, w, l))
 
-       if (hess(j+1,j) > tol * nrm_f)  then
+       if (hess(j+1,j) > 1d-2 * nrm_f)  then
           v(j+1) = divide_scalar (w, hess(j+1,j), l)
        else
           call zero_float_field (v(j+1), S_MASS, l) 
@@ -1058,10 +1058,10 @@ contains
     if (rank == 0 .and. info /= 0) write (6,'(a,i3)') "dgels error ", info
 
     u = lcf (1d0, u, 1d0, dp_float_scalar (v(1:kry), e1(1:kry), l), l)
-
-    err = l2 (residual (f, u, Lu, l), l) / l2 (f, l)
-
+    
     deallocate (e1, hess, work, v)
+    
+    if (present(err_out)) err_out = l2 (residual (f, u, Lu, l), l) / l2 (f, l)
   end subroutine gmres
 
   function elliptic_fun (u, l)
