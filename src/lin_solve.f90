@@ -570,7 +570,7 @@ contains
     fine_tol   = vcycle_tol
     coarse_tol = 1d-6
 
-    smoother => Jacobi ! Jacobi (better for strong, large scale rhs) or GMRES (better for baroclinic-barotropic splitting)
+    smoother => GMRES ! Jacobi (better for strong, large scale rhs) or GMRES (better for baroclinic-barotropic splitting)
     
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
@@ -661,7 +661,7 @@ contains
     u = lcf (1d0, u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
-    call gmres (u, f, Lu, Lu_diag, jmax, pre_iter, err)
+    call smoother (u, f, Lu, Lu_diag, jmax, pre_iter, err)
   end subroutine v_cycle
 
   subroutine SJR (u, f, Lu, Lu_diag)
