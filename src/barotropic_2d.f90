@@ -8,6 +8,29 @@ module barotropic_2d_mod
   ! Add Laplacian diffusion to free surface perturbation eta
   real(8), parameter :: C_eta = 5d-3
   logical, parameter :: diff_eta = .false.
+
+  abstract interface
+     subroutine solver (u, f, Lu, Lu_diag)
+       use ops_mod
+       implicit none
+       type(Float_Field), target :: f, u
+       interface
+          function Lu (u, l)
+            use domain_mod
+            implicit none
+            integer                   :: l
+            type(Float_Field), target :: Lu, u
+          end function Lu
+          function Lu_diag (u, l)
+            use domain_mod
+            implicit none
+            integer                   :: l
+            type(Float_Field), target :: Lu_diag, u
+          end function Lu_diag
+       end interface
+     end subroutine solver
+  end interface
+  procedure (solver), pointer :: mg => null ()
 contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
@@ -115,11 +138,11 @@ contains
 
     ! RHS of elliptic equation
     call rhs_elliptic
-
-    ! Solve elliptic equation
     call equals_float_field (Laplacian_scalar(S_TEMP), sol(S_MASS,zlevels+1), S_MASS) ! save old free surface height for elliptic operator
-    call multiscale (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag) 
-    !call multigrid (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag)
+    
+    ! Solve elliptic equation
+    mg => FMG ! SJR (scheduled Jacobi relaxation or FMG (full multigrid)
+    call mg (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
     if (diff_eta) then

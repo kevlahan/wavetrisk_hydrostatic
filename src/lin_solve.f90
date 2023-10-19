@@ -538,14 +538,14 @@ contains
     end if
   end function wlt_int
 
-  subroutine multigrid (u, f, Lu, Lu_diag)
+  subroutine FMG (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the full multigrid algorithm with V-cycles
     implicit none
     type(Float_Field), target :: f, u
 
     integer                              :: iter, j, l
     integer, allocatable, dimension(:)   :: iterations
-    integer, parameter                   :: max_vcycle = 4
+    integer, parameter                   :: max_vcycle = 5
     real(8), parameter                   :: tol_vcycle = 1d-3
     real(8)                              :: err
     real(8), allocatable, dimension(:)   :: nrm_f
@@ -572,9 +572,8 @@ contains
 
     fine_tol   = tol_vcycle
     coarse_tol = 1d-6
-    coarse_iter = 50
 
-    smoother => GMRES ! Jacobi or GMRES
+    smoother => GMRES ! Jacobi (better for strong, large scale rhs) or GMRES (better for baroclinic-barotropic splitting)
     
     allocate (iterations(level_start:level_end), nrm_f(level_start:level_end), nrm_res(level_start:level_end,1:2))
     nrm_res = 0d0; iterations = 0
@@ -607,7 +606,7 @@ contains
        end do
     end if
     deallocate (iterations, nrm_f, nrm_res)
-  end subroutine multigrid
+  end subroutine FMG
 
   subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax, tol_vcycle, err)
     ! Solves linear equation L(u) = f using the standard multigrid algorithm with V-cycles
@@ -618,6 +617,8 @@ contains
 
     integer :: j
     integer :: down_iter = 2, up_iter = 2, pre_iter = 6
+
+    real(8) :: w1
 
     type(Float_Field), target :: corr, res
 
@@ -638,6 +639,9 @@ contains
        end function Lu_diag
     end interface
 
+
+    w1 = 0.25d0
+
     corr = u
 
     ! Down V-cycle
@@ -655,7 +659,7 @@ contains
 
     ! Up V-cycle
     do j = jmin+1, jmax
-       corr = lcf (1d0, corr, 0.2d0, prolong_fun (corr, j), j)
+       corr = lcf (1d0, corr, w1, prolong_fun (corr, j), j)
        call smoother (corr, res, Lu, Lu_diag, j, down_iter)
     end do
 
@@ -666,7 +670,7 @@ contains
     call smoother (u, f, Lu, Lu_diag, jmax, pre_iter, err)
   end subroutine v_cycle
 
-  subroutine multiscale (u, f, Lu, Lu_diag)
+  subroutine SJR (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with Scheduled Rexation Jacobi iterations as the smoother
     implicit none
     type(Float_Field), target :: f, u
@@ -730,7 +734,7 @@ contains
     call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, r_error(2,l), iter(l))
     do l = level_start+1, level_end
        call prolong (u, l)
-       call SJR (u, f, nrm_f(l), Lu, Lu_diag, l, fine_iter, r_error(2,l), iter(l))
+       call SJR_iter (u, f, nrm_f(l), Lu, Lu_diag, l, fine_iter, r_error(2,l), iter(l))
     end do
 
     if (log_iter) then
@@ -741,9 +745,9 @@ contains
     end if
 
     deallocate (w)
-  end subroutine multiscale
+  end subroutine SJR
 
-  subroutine SJR (u, f, nrm_f, Lu, Lu_diag, l, max_iter, nrm_res, iter)
+  subroutine SJR_iter (u, f, nrm_f, Lu, Lu_diag, l, max_iter, nrm_res, iter)
     ! Max_iter Jacobi iterations for smoothing multigrid iterations
     ! uses Scheduled Relaxation Jacobi (SJR) iterations (Yang and Mittal JCP 274, 2014)
     implicit none
@@ -794,7 +798,7 @@ contains
        nrm_res = l2 (res, l) / nrm_f
     end do
     u%bdry_uptodate = .false.
-  end subroutine SJR
+  end subroutine SJR_iter
 
   subroutine Jacobi (u, f, Lu, Lu_diag, l, iter_max, err_out)
     ! Damped Jacobi iterations
