@@ -288,7 +288,7 @@ contains
     character(*) :: run_id
 
     integer        :: l    
-    character(255) :: bash_cmd, cmd_archive, cmd_files, command
+    character(1300) :: bash_cmd, cmd_archive, cmd_files, command
 
     if (rank == 0) then
        write (6,'(A,/)') &
@@ -382,7 +382,7 @@ contains
     character(*) :: run_id
     logical      :: rebal
 
-    character(255) :: bash_cmd, cmd_archive, cmd_files, command
+    character(1300) :: bash_cmd, cmd_archive, cmd_files, command
     
     cp_idx = cp_idx + 1 
 

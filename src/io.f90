@@ -726,7 +726,7 @@ contains
     integer            :: ibin, info, k, v
     integer, parameter :: funit = 400
     character(2)       :: var_file
-    character(130)     :: bash_cmd, command
+    character(1300)     :: bash_cmd, command
 
     write (6,'(a)') 'Saving statistics'
 
@@ -1833,7 +1833,7 @@ contains
 
     integer        :: info
     character(4)   :: s_time
-    character(130) :: bash_cmd, command
+    character(1300) :: bash_cmd, command
 
     write (s_time, '(i4.4)') isave
 

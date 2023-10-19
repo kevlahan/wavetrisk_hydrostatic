@@ -543,13 +543,12 @@ contains
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                              :: iter, j, l
-    integer, allocatable, dimension(:)   :: iterations
-    integer, parameter                   :: max_vcycle = 5
-    real(8), parameter                   :: tol_vcycle = 1d-3
-    real(8)                              :: err
-    real(8), allocatable, dimension(:)   :: nrm_f
-    real(8), allocatable, dimension(:,:) :: nrm_res
+    integer                                       :: iter, j, l
+    integer, dimension(level_start:level_end)     :: iterations
+    integer, parameter                            :: max_vcycle = 5
+    real(8), parameter                            :: vcycle_tol = 1d-3
+    real(8), dimension(level_start:level_end)     :: nrm_f
+    real(8), dimension(level_start:level_end,1:2) :: nrm_res
 
     interface
        function Lu (u, l)
@@ -568,34 +567,31 @@ contains
        end function Lu_diag
     end interface
 
-    log_iter = .true.
-
-    fine_tol   = tol_vcycle
+    fine_tol   = vcycle_tol
     coarse_tol = 1d-6
 
-    smoother => GMRES ! Jacobi (better for strong, large scale rhs) or GMRES (better for baroclinic-barotropic splitting)
-    
-    allocate (iterations(level_start:level_end), nrm_f(level_start:level_end), nrm_res(level_start:level_end,1:2))
-    nrm_res = 0d0; iterations = 0
+    smoother => Jacobi ! Jacobi (better for strong, large scale rhs) or GMRES (better for baroclinic-barotropic splitting)
     
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
  
     if (log_iter) then
+       nrm_res = 0d0; iterations = 0
        do j = level_start, level_end
           nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
           nrm_res(j,1) = l2 (residual (f, u, Lu, j), j) / nrm_f(j)
        end do
     end if
+    if (maxval (nrm_res(:,1)) < coarse_tol / 1d1) return
 
     call bicgstab (u, f, Lu, level_start, coarse_tol, coarse_iter, nrm_res(level_start,2), iterations(level_start))
     do j = level_start+1, level_end
        if (nrm_res(j,1) == 0d0) exit
        call prolong (u, j)
        do iter = 1, max_vcycle
-          call v_cycle (u, f, Lu, Lu_diag, level_start, j, tol_vcycle, err)
-          nrm_res(j,2) = err; iterations(j) = iter
-          if (err < tol_vcycle) exit
+          call v_cycle (u, f, Lu, Lu_diag, level_start, j, nrm_res(j,2))
+          iterations(j) = iter
+          if (nrm_res(j,2) < vcycle_tol) exit
        end do
     end do
     
@@ -605,14 +601,13 @@ contains
           if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), iterations(j)
        end do
     end if
-    deallocate (iterations, nrm_f, nrm_res)
   end subroutine FMG
 
-  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax, tol_vcycle, err)
+  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax, err)
     ! Solves linear equation L(u) = f using the standard multigrid algorithm with V-cycles
     implicit none
     integer                   :: jmin, jmax
-    real(8)                   :: err, tol_vcycle
+    real(8)                   :: err
     type(Float_Field), target :: u, f
 
     integer :: j
@@ -638,7 +633,6 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-
 
     w1 = 0.25d0
 
@@ -667,7 +661,7 @@ contains
     u = lcf (1d0, u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
-    call smoother (u, f, Lu, Lu_diag, jmax, pre_iter, err)
+    call gmres (u, f, Lu, Lu_diag, jmax, pre_iter, err)
   end subroutine v_cycle
 
   subroutine SJR (u, f, Lu, Lu_diag)
@@ -675,10 +669,11 @@ contains
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                                       :: l, n
+    integer                                       :: j, n
+    integer, dimension(level_start:level_end)     :: iterations
     real(8)                                       :: k_max, k_min
     real(8), dimension(level_start:level_end)     :: nrm_f
-    real(8), dimension(1:2,level_start:level_end) :: r_error
+    real(8), dimension(level_start:level_end,1:2) :: nrm_res
 
     integer, dimension(level_start:level_end) :: iter
 
@@ -698,8 +693,15 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-
-    log_iter = .true.
+    
+    if (log_iter) then
+       nrm_res = 0d0; iterations = 0
+       do j = level_start, level_end
+          nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
+          nrm_res(j,1) = l2 (residual (f, u, Lu, j), j) / nrm_f(j)
+       end do
+    end if
+    if (maxval (nrm_res(:,1)) < coarse_tol / 1d1) return
 
     ! Optimal Scheduled Relaxation Jacobi parameters (Adsuara, et al J Comput Phys v 332, 2016)
     ! (k_min and k_max are determined empirically to give optimal convergence on fine non uniform grids)
@@ -724,27 +726,20 @@ contains
 
     call update_bdry (f, NONE, 55)
 
-    do l = level_start, level_end
-       nrm_f(l) = l2 (f, l)
-       if (nrm_f(l) < coarse_tol) nrm_f(l) = 1d0
-       if (log_iter) r_error(1,l) = l2 (residual (f, u, Lu, l), l) / nrm_f(l)
+    j = level_start
+    call bicgstab (u, f, Lu, j, coarse_tol, coarse_iter, nrm_res(j,2), iterations(j))
+    do j = level_start+1, level_end
+       call prolong (u, j)
+       call SJR_iter (u, f, nrm_f(j), Lu, Lu_diag, j, fine_iter, nrm_res(j,2), iterations(j))
     end do
-
-    l = level_start
-    call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, r_error(2,l), iter(l))
-    do l = level_start+1, level_end
-       call prolong (u, l)
-       call SJR_iter (u, f, nrm_f(l), Lu, Lu_diag, l, fine_iter, r_error(2,l), iter(l))
-    end do
+    deallocate (w)
 
     if (log_iter) then
-       do l = level_start, level_end
-          if (rank == 0) write (6, '("residual at scale ", i2, " = ", 2(es10.4,1x)," after ", i6, " iterations")') &
-               l, r_error(:,l), iter(l)
+       if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
+       do j = level_start, level_end
+          if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), iterations(j)
        end do
     end if
-
-    deallocate (w)
   end subroutine SJR
 
   subroutine SJR_iter (u, f, nrm_f, Lu, Lu_diag, l, max_iter, nrm_res, iter)
