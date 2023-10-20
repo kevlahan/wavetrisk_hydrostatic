@@ -374,6 +374,8 @@ contains
     remapvelo_type      = "PPR"                             ! remapping scheme for velocity
     save_levels         = 1                                 ! vertical level to save
     timeint_type        = "RK45"                            ! time integration scheme (RK3 is default for incompressible case)
+    coarse_iter         = 30                                ! maximum number of coarse scale bicgstab iterations for elliptic solver
+    fine_iter           = 200                               ! maximum number of fine scale jacobi iterations for elliptic solver
     tol                 = 5d-3                              ! relative tolerance for adaptivity
     coarse_tol          = 1d-9                              ! tolerance for coarse scale bicgstab elliptic solver
     fine_tol            = 1d-3                              ! tolerance for fine scale jacobi iterations
@@ -397,8 +399,6 @@ contains
     kappa               = R_d/c_p                             ! heat capacity ratio
 
     ! Parameters for ocean (incompressible) model
-    coarse_iter         = 100                                     ! maximum number of coarse scale bicgstab iterations for elliptic solver
-    fine_iter           = 200                                     ! maximum number of fine scale jacobi iterations for elliptic solver
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
     c_s                 = 1500d0    * METRE / SECOND              ! sound speed for seawater
     e_min               = 0d0       * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion

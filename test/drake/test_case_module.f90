@@ -1182,8 +1182,7 @@ contains
        end if
     end if
 
-    ! Penalization (non-smoothed)
-    call cart2sph (dom%node%elts(id_i), lon, lat)
+    ! Penalization (friction = 1/dt)
     penal = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
 
     physics_velo_source_case = horiz_diffusion + vert_diffusion + penal

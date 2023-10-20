@@ -57,7 +57,7 @@ program Drake
 
   mode_split         = .true.                            ! split barotropic mode if true
   if (mode_split) then
-     cfl_num         = 10d0
+     cfl_num         = 15d0
      timeint_type    = "RK3"                         
   else
      cfl_num         = 0.3d0                             
@@ -120,7 +120,7 @@ program Drake
      enhance_diff         = .false.
      
      drho                 =      -2d0 * KG/METRE**3       ! density perturbation at free surface at poles
-     tau_0                =     0.4d0 * NEWTON/METRE**2   ! maximum wind stress
+     tau_0                =     0.1d0 * NEWTON/METRE**2   ! maximum wind stress
      u_wbc                =       1d0 * METRE/SECOND      ! estimated western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   end if
@@ -192,6 +192,9 @@ program Drake
   iadapt     = 1        ! Drake unstable with trend computation over entire grid if iadapt > 1
   irebalance = 4*iadapt ! rebalance interval using charm++/AMPI
 
+  log_iter = .true.
+!  call multigrid (sol(S_MASS,1), sol(S_TEMP,1), elliptic_fun, elliptic_fun_diag)
+  
   ! Save initial conditions
   call print_test_case_parameters
   call write_and_export (iwrite)
