@@ -162,7 +162,7 @@ contains
        write (6,'(a,/,a,/,/,a,/,a,/)') "Stability limits:", &
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
             "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
-            "                   C_visc(S_VELO) < (1/24)**Laplace_order"
+            "                   C_visc(S_VELO) < (1/24)**Laplace_order"          
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
        write (6,'(A,L1)')     "tke_closure                    = ", tke_closure
@@ -614,7 +614,7 @@ contains
        dz = b_vert_mass(k) * max_depth
        z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
 
-       theta = abs (buoyancy_init (x_i, z)) 
+       theta = abs (buoyancy_init (x_i, z))   
 
        if (theta < 1d-16) then
           lnorm(S_MASS,k) = ref_density * Udim**2 / grav_accel
@@ -630,9 +630,9 @@ contains
 
     if (mode_split) lnorm(:,zlevels+1) = lnorm(:,zlevels) ! not used
 
-    threshold_def(S_MASS,:) = tol**1.5d0 * lnorm(S_MASS,:)
-    threshold_def(S_TEMP,:) = tol        * lnorm(S_TEMP,:)
-    threshold_def(S_VELO,:) = tol        * lnorm(S_VELO,:)
+    threshold_def(S_MASS,:) = tol * lnorm(S_MASS,:)
+    threshold_def(S_TEMP,:) = tol * lnorm(S_TEMP,:)
+    threshold_def(S_VELO,:) = tol * lnorm(S_VELO,:)
   end subroutine initialize_thresholds_case
   
   subroutine initialize_dt_viscosity_case 
