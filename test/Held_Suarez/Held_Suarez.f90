@@ -69,6 +69,9 @@ program Held_Suarez
   Tdim           = 1  * DAY                    ! time scale
   Ldim           = Udim*Tdim                   ! length scale
   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
+
+  ! NCAR realistic topography
+  NCAR_topo           = .false.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters
@@ -80,30 +83,31 @@ program Held_Suarez
   ! Initialize variables
   call initialize (run_id)
   call print_test_case_parameters
+  
+  if (NCAR_topo) then! generate topography data
+     topo_operation = "read"
+     select case (topo_operation)
+     case ("write") ! write out file descriptor for topography
+        call write_grid_coords
+     case ("read") ! read in geopotential
+        call read_geopotential ("J06_gmted2010_modis_bedmachine_nc3000_NoAniso_Laplace0120_20231003.nc")
+        call forward_topo_transform (topography, wav_topography)
+        call inverse_topo_transform (wav_topography, topography)
 
-  ! Generate topography data
-  topo_operation = "read"
-  select case (topo_operation)
-  case ("write") ! write out file descriptor for topography
-     call write_grid_coords
-  case ("read") ! read in geopotential
-     call read_geopotential ("J06_gmted2010_modis_bedmachine_nc3000_NoAniso_Laplace0120_20231003.nc")
-     call forward_topo_transform (topography, wav_topography)
-     call inverse_topo_transform (wav_topography, topography)
-
-     ! Check mass conservation
-     fine_mass = integrate_hex (topo, z_null, level_end)
-     do l = level_end-1, level_start, -1
-        write (6,'(a,i2,a,es10.4)') &
-             "Relative mass error at level ", l, " = ", abs (integrate_hex (topo, z_null, l) - fine_mass)/fine_mass
-     end do
-  end select
+        ! Check mass conservation
+        fine_mass = integrate_hex (topo, z_null, level_end)
+        do l = level_end-1, level_start, -1
+           write (6,'(a,i2,a,es10.4)') &
+                "Relative mass error at level ", l, " = ", abs (integrate_hex (topo, z_null, l) - fine_mass)/fine_mass
+        end do
+     end select
+  end if
 
   ! Save initial conditions
   call write_and_export (iwrite)
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! if (rank == 0) write (6,'(A,/)') &
+  if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')

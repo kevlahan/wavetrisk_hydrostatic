@@ -12,6 +12,7 @@ module test_case_mod
   ! Test case variables
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
+  logical :: NCAR_topo
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
