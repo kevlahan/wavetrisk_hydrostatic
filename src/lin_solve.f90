@@ -36,8 +36,8 @@ contains
   real(8) function linf (s, l)
     ! Returns l_inf norm of scalar s at scale l
     implicit none
-    integer                   :: l
-    type(Float_Field), target :: s
+    integer           :: l
+    type(Float_Field) :: s
 
     linf_loc = -1d16
 
@@ -65,8 +65,8 @@ contains
   real(8) function l2 (s, l)
     ! Returns l_2 norm of scalar s at scale l
     implicit none
-    integer                   :: l
-    type(Float_Field), target :: s
+    integer           :: l
+    type(Float_Field) :: s
 
     integer :: d, j
 
@@ -96,8 +96,8 @@ contains
   real(8) function dp (s1, s2, l)
     ! Calculates dot product of s1 and s2 at scale l
     implicit none
-    integer                   :: l
-    type(Float_Field), target :: s1, s2
+    integer          :: l
+    type(Float_Field):: s1, s2
 
     call update_bdry (s1, l, 50)
     call update_bdry (s2, l, 50)
@@ -123,13 +123,14 @@ contains
       dp_loc = dp_loc + s1%data(d)%elts(id) * s2%data(d)%elts(id)
     end subroutine cal_dotproduct
   end function dp
+
  
   function lcf (a1, s1, a2, s2, l)
     ! Calculates linear combination of scalars lcf = a1*s1 + a2*s2 at scale l
     implicit none
-    integer                   :: l
-    real(8), target           :: a1, a2
-    type(Float_Field), target :: lcf, s1, s2
+    integer           :: l
+    real(8)           :: a1, a2
+    type(Float_Field) :: lcf, s1, s2
     
     lcf = s1
 
@@ -156,8 +157,8 @@ contains
   function divide (v, w, l)
     ! Divides float fields, divide = v / w at scale l
     implicit none
-    integer                   :: l
-    type(Float_Field), target :: divide, v, w
+    integer           :: l
+    type(Float_Field) :: divide, v, w
 
     divide = v
    
@@ -189,9 +190,9 @@ contains
   function divide_scalar (u, a, l)
     ! Divides float field by real, divide = u / alpha at scale l
     implicit none
-    integer                   :: l
-    real(8),           target :: a
-    type(Float_Field), target :: divide_scalar, u
+    integer           :: l
+    real(8)           :: a
+    type(Float_Field) :: divide_scalar, u
 
     divide_scalar = u
 
@@ -219,10 +220,10 @@ contains
   function dp_float_scalar (u, a, l)
     ! Dot product of a float field vector and a real vector, dp_float_scalar = sum (a(i)*u(i), i = 1, size(a)) at scale l
     implicit none
-    integer                                 :: l, n
-    real(8),           dimension(:), target :: a
-    type(Float_Field),               target :: dp_float_scalar
-    type(Float_Field), dimension(:), target :: u
+    integer                         :: l, n
+    real(8),           dimension(:) :: a
+    type(Float_Field)               :: dp_float_scalar
+    type(Float_Field), dimension(:) :: u
 
     integer :: i
 
@@ -318,8 +319,8 @@ contains
     ! Prolong from coarse scale fine-1 to scale fine
     use wavelet_mod
     implicit none
-    integer                   :: fine
-    type(Float_Field), target :: prolong_fun, scaling
+    integer           :: fine
+    type(Float_Field) :: prolong_fun, scaling
 
     integer :: d, l
 
@@ -625,8 +626,7 @@ contains
     real(8)                   :: nrm_f, nrm_res
     type(Float_Field), target :: f, u
 
-    integer                   :: i
-    type(Float_Field), target :: res
+    integer :: i
 
     interface
        function Lu (u, l)
@@ -648,12 +648,10 @@ contains
     ! Initialize
     ii = 0
     iter = 0
-    res = residual (f, u, Lu, l)
-    nrm_res = l2 (res, l) / nrm_f
+    nrm_res = l2 (residual (f, u, Lu, l), l) / nrm_f
 
     do while (iter < max_iter)
        if (nrm_res <= fine_tol) exit
-
        ii = ii + 1
        if (ii > m) then
           if (nrm_res < 2d0 * fine_tol) then ! avoid starting a new SJR cycle if error is small enough
@@ -663,9 +661,8 @@ contains
           end if
        end if
        iter = iter + 1
-       call Jacobi_iteration (u, f, w(ii), Lu, Lu_diag, res, l)
-       res = residual (f, u, Lu, l)
-       nrm_res = l2 (res, l) / nrm_f
+       call Jacobi_iteration (u, f, w(ii), Lu, Lu_diag, l)
+       nrm_res = l2 (residual (f, u, Lu, l), l) / nrm_f
     end do
     u%bdry_uptodate = .false.
   end subroutine SJR_iter
@@ -681,7 +678,6 @@ contains
     integer                   :: iter
     real(8)                   :: nrm_f
     real(8), parameter        :: omega = 1d0
-    type(Float_Field), target :: res
 
     interface
        function Lu (u, l)
@@ -702,24 +698,22 @@ contains
     call update_bdry (f, l, 50)
     call update_bdry (u, l, 50)
 
-    nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
-
-    res = residual (f, u, Lu, l)
     do iter = 1, iter_max
-       call Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
+       call Jacobi_iteration (u, f, omega, Lu, Lu_diag, l)
     end do
 
-    if (present(err_out))  err_out = l2 (res, l) / nrm_f
+    nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
+    if (present(err_out))  err_out = l2 (residual (f, u, Lu, l), l) / nrm_f
   end subroutine Jacobi
 
-  subroutine Jacobi_iteration (u, f, omega, Lu, Lu_diag, res, l)
+  subroutine Jacobi_iteration (u, f, omega, Lu, Lu_diag, l)
     ! Performs a single weighted Jacobi iteration for equation Lu(u) = f
     implicit none
-    integer                   :: l
-    real(8), target           :: omega ! weight
-    type(Float_Field), target :: u, f, res
+    integer            :: l
+    real(8)            :: omega ! weight
+    type(Float_Field)  :: u, f
 
-    type(Float_Field), target :: diag
+    type(Float_Field) :: Au, diag
 
     interface
        function Lu (u, l)
@@ -736,14 +730,13 @@ contains
        end function Lu_diag
     end interface
 
+    Au = Lu (u, l)
     diag = Lu_diag (u, l)
 
     call apply_onescale (cal_jacobi, l, z_null, 0, 1)
 
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 50)
-
-    res = residual (f, u, Lu, l)
   contains
     subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
       implicit none
@@ -756,8 +749,9 @@ contains
  
       d = dom%id + 1
       id = idx (i, j, offs, dims) + 1
+      
       if (dom%mask_n%elts(id) >= ADJZONE) &
-            u%data(d)%elts(id) =  u%data(d)%elts(id) + omega * res%data(d)%elts(id) / diag%data(d)%elts(id)
+           u%data(d)%elts(id) =  u%data(d)%elts(id) + omega * (f%data(d)%elts(id) - Au%data(d)%elts(id)) / diag%data(d)%elts(id)
     end subroutine cal_jacobi
   end subroutine Jacobi_iteration
   
