@@ -674,8 +674,7 @@ contains
     nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
     ! Initialize float fields
-    !res  = residual (f, u, Lu, l)
-    res  = lcf (1d0, f, -1d0, Lu2(Lu,u,l), l)
+    res  = residual (f, u, Lu, l)
     res0 = res
     p    = res0
     s    = res0
