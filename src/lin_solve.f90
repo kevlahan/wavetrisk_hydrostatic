@@ -180,7 +180,7 @@ contains
       id_i = idx (i, j, offs, dims) + 1
 
       if (w%data(d)%elts(id_i) /= 0d0) then
-         divide%data(d)%elts(id_i) =  v%data(d)%elts(id_i) / w%data(d)%elts(id_i)
+         divide%data(d)%elts(id_i) = v%data(d)%elts(id_i) / w%data(d)%elts(id_i)
       else
          divide%data(d)%elts(id_i) = 0d0
       end if
@@ -188,7 +188,7 @@ contains
   end function divide
 
   function divide_scalar (u, a, l)
-    ! Divides float field by real, divide = u / alpha at scale l
+    ! Divides float field by real, divide = u / a at scale l
     implicit none
     integer           :: l
     real(8)           :: a
@@ -225,10 +225,7 @@ contains
     type(Float_Field)               :: dp_float_scalar
     type(Float_Field), dimension(:) :: u
 
-    integer :: i
-
     dp_float_scalar= u(1)
-  
     call apply_onescale (cal_dp_float_scalar, l, z_null, 0, 1)
     
     dp_float_scalar%bdry_uptodate = .false.
@@ -241,12 +238,15 @@ contains
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: d, id_i
+      integer :: d, ii, id_i
 
       d = dom%id + 1
       id_i = idx (i, j, offs, dims) + 1
-      
-      dp_float_scalar%data(d)%elts(id_i) = dp_float_scalar%data(d)%elts(id_i) + a(i) * u(i)%data(d)%elts(id_i)
+
+      dp_float_scalar%data(d)%elts(id_i) = 0d0
+      do ii = 1, size(a)
+         dp_float_scalar%data(d)%elts(id_i) = dp_float_scalar%data(d)%elts(id_i) + a(ii) * u(ii)%data(d)%elts(id_i)
+      end do
     end subroutine cal_dp_float_scalar
   end function dp_float_scalar
 
@@ -286,6 +286,19 @@ contains
     call update_bdry (scaling, coarse, 66)
   end subroutine restrict
 
+  function restrict_fun (scaling, coarse)
+    ! Restriction operator for scalars
+    implicit none
+    integer                   :: coarse
+    type(Float_Field), target :: scaling
+    type(Float_Field), target :: restrict_fun
+
+    integer :: d, l
+
+    call restrict (scaling, coarse)
+    restrict_fun = scaling
+  end function restrict_fun
+
   subroutine prolong (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
     use wavelet_mod
@@ -319,8 +332,8 @@ contains
     ! Prolong from coarse scale fine-1 to scale fine
     use wavelet_mod
     implicit none
-    integer           :: fine
-    type(Float_Field) :: prolong_fun, scaling
+    integer                   :: fine
+    type(Float_Field), target :: prolong_fun, scaling
 
     integer :: d, l
 
@@ -441,7 +454,7 @@ contains
 
     vcycle_tol  = 1d-4
     fine_tol    = vcycle_tol
-    max_vcycle  = 5
+    max_vcycle  = 10
     coarse_iter = 1000
     coarse_tol  = 1d-9
 
@@ -512,7 +525,7 @@ contains
     w1 = 1d0
 
     corr = u
-   
+
     ! Down V-cycle
     res = residual (f, u, Lu, jmax)
     do j = jmax, jmin+1, -1
@@ -537,7 +550,8 @@ contains
 
     ! Post-smooth to reduce zero eigenvalue error mode
     call smoother (u, f, Lu, Lu_diag, jmax, pre_iter, err)
-    err = l2(residual (f, u, Lu, jmax),jmax)/l2(f,jmax)
+
+    err = l2 (residual (f, u, Lu, jmax),jmax) / l2 (f, jmax)
   end subroutine v_cycle
 
   subroutine SJR (u, f, Lu, Lu_diag)
@@ -626,7 +640,8 @@ contains
     real(8)                   :: nrm_f, nrm_res
     type(Float_Field), target :: f, u
 
-    integer :: i
+    integer                   :: i
+    type(Float_Field), target :: res
 
     interface
        function Lu (u, l)
@@ -675,9 +690,9 @@ contains
 
     type(Float_Field), target :: f, u
 
-    integer                   :: iter
-    real(8)                   :: nrm_f
-    real(8), parameter        :: omega = 1d0
+    integer            :: iter
+    real(8)            :: nrm_f
+    real(8), parameter :: omega = 1d0
 
     interface
        function Lu (u, l)
@@ -784,11 +799,13 @@ contains
     nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
     ! Initialize float fields
-    res  = residual (f, u, Lu, l)
+    !res  = residual (f, u, Lu, l)
+    res  = lcf (1d0, f, -1d0, Lu2(Lu,u,l), l)
     res0 = res
     p    = res0
     s    = res0
-    Ap   = Lu (p, l)
+    !Ap   = Lu (p, l)
+    Ap   = Lu2 (Lu, p, l)
     As   = Ap
 
     rho  = dp (res0, res, l)
@@ -797,7 +814,8 @@ contains
        alph = rho / dp (Ap, res0, l)
 
        s = lcf (1d0, res, -alph, Ap, l)
-       As = Lu (s, l)
+       !As = Lu (s, l)
+       As = Lu2 (Lu, s, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
@@ -813,7 +831,8 @@ contains
 
        b = (alph/omga) * (rho/rho_old)
        p = lcf (1d0, res, b, lcf (1d0, p, -omga, Ap, l), l)
-       Ap = Lu (p, l)
+       !Ap = Lu (p, l)
+       Ap = Lu2 (Lu, p, l)
     end do
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 88)
@@ -821,6 +840,24 @@ contains
     if (present(err_out))  err_out  = err
     if (present(iter_out)) iter_out = iter
   end subroutine bicgstab
+  
+  function Lu2 (Lu, u, l)
+    use domain_mod
+    implicit none
+    integer                   :: l
+    type(Float_Field), target :: Lu2, u
+
+    interface
+       function Lu (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu, u
+       end function Lu
+    end interface
+
+    Lu2 = restrict_fun (Lu (prolong_fun (u, l+1), l+1), l)
+  end function Lu2
 
   subroutine GMRES (u, f, Lu, Lu_diag, l, kry, err_out)
     ! GMRES iterative solution for linear system Lu(u) = f
