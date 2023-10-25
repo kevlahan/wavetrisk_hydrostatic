@@ -6,32 +6,6 @@ module lin_solve_mod
   integer                            :: ii, m
   real(8)                            :: dp_loc, linf_loc, l2_loc
   real(8), dimension(:), allocatable :: w
-  type(Float_Field), target          :: float_var
-
-  abstract interface
-     subroutine smth (u, f, Lu, Lu_diag, l, iter, err_out)
-       use ops_mod
-       implicit none
-       integer                   :: iter, l      
-       real(8), optional         :: err_out  
-       type(Float_Field), target :: f, u
-       interface
-          function Lu (u, l)
-            use domain_mod
-            implicit none
-            integer                   :: l
-            type(Float_Field), target :: Lu, u
-          end function Lu
-          function Lu_diag (u, l)
-            use domain_mod
-            implicit none
-            integer                   :: l
-            type(Float_Field), target :: Lu_diag, u
-          end function Lu_diag
-       end interface
-     end subroutine smth
-  end interface
-  procedure (smth), pointer :: smoother => null ()
 contains
   real(8) function linf (s, l)
     ! Returns l_inf norm of scalar s at scale l
@@ -123,7 +97,6 @@ contains
       dp_loc = dp_loc + s1%data(d)%elts(id) * s2%data(d)%elts(id)
     end subroutine cal_dotproduct
   end function dp
-
  
   function lcf (a1, s1, a2, s2, l)
     ! Calculates linear combination of scalars lcf = a1*s1 + a2*s2 at scale l
@@ -153,102 +126,6 @@ contains
       lcf%data(d)%elts(id_i) = a1 * s1%data(d)%elts(id_i) + a2 * s2%data(d)%elts(id_i)
     end subroutine cal_lc
   end function lcf
-
-  function divide (v, w, l)
-    ! Divides float fields, divide = v / w at scale l
-    implicit none
-    integer           :: l
-    type(Float_Field) :: divide, v, w
-
-    divide = v
-   
-    call apply_onescale (cal_divide, l, z_null, 0, 1)
-    
-    divide%bdry_uptodate = .false.
-    call update_bdry (divide, l, 84)
-  contains
-    subroutine cal_divide (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id_i
-
-      d = dom%id + 1
-      id_i = idx (i, j, offs, dims) + 1
-
-      if (w%data(d)%elts(id_i) /= 0d0) then
-         divide%data(d)%elts(id_i) = v%data(d)%elts(id_i) / w%data(d)%elts(id_i)
-      else
-         divide%data(d)%elts(id_i) = 0d0
-      end if
-    end subroutine cal_divide
-  end function divide
-
-  function divide_scalar (u, a, l)
-    ! Divides float field by real, divide = u / a at scale l
-    implicit none
-    integer           :: l
-    real(8)           :: a
-    type(Float_Field) :: divide_scalar, u
-
-    divide_scalar = u
-
-    call apply_onescale (cal_divide_scalar, l, z_null, 0, 1)
-    
-    divide_scalar%bdry_uptodate = .false.
-    call update_bdry (divide_scalar, l, 84)
-  contains
-    subroutine cal_divide_scalar (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id_i
-
-      d = dom%id + 1
-      id_i = idx (i, j, offs, dims) + 1
-
-      divide_scalar%data(d)%elts(id_i) = u%data(d)%elts(id_i) / a
-    end subroutine cal_divide_scalar
-  end function divide_scalar
-
-  function dp_float_scalar (u, a, l)
-    ! Dot product of a float field vector and a real vector, dp_float_scalar = sum (a(i)*u(i), i = 1, size(a)) at scale l
-    implicit none
-    integer                         :: l, n
-    real(8),           dimension(:) :: a
-    type(Float_Field)               :: dp_float_scalar
-    type(Float_Field), dimension(:) :: u
-
-    dp_float_scalar= u(1)
-    call apply_onescale (cal_dp_float_scalar, l, z_null, 0, 1)
-    
-    dp_float_scalar%bdry_uptodate = .false.
-    call update_bdry (dp_float_scalar, l, 84)
-  contains
-    subroutine cal_dp_float_scalar (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, ii, id_i
-
-      d = dom%id + 1
-      id_i = idx (i, j, offs, dims) + 1
-
-      dp_float_scalar%data(d)%elts(id_i) = 0d0
-      do ii = 1, size(a)
-         dp_float_scalar%data(d)%elts(id_i) = dp_float_scalar%data(d)%elts(id_i) + a(ii) * u(ii)%data(d)%elts(id_i)
-      end do
-    end subroutine cal_dp_float_scalar
-  end function dp_float_scalar
 
   function residual (f, u, Lu, l)
     ! Calculates f - Lu(u) at scale l
@@ -458,8 +335,6 @@ contains
     coarse_iter = 1000
     coarse_tol  = 1d-9
 
-    smoother => Jacobi ! Jacobi (better for strong, large scale rhs) or GMRES (better for baroclinic-barotropic splitting)
-    
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
  
@@ -530,7 +405,7 @@ contains
     res = residual (f, u, Lu, jmax)
     do j = jmax, jmin+1, -1
        call zero_float_field (corr, S_MASS, j)
-       call smoother (corr, res, Lu, Lu_diag, j, up_iter)
+       call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)
        res = residual (res, corr, Lu, j)
        call restrict (res, j-1)
     end do
@@ -542,14 +417,14 @@ contains
     ! Up V-cycle
     do j = jmin+1, jmax
        corr = lcf (1d0, corr, w1, prolong_fun (corr, j), j)
-       call smoother (corr, res, Lu, Lu_diag, j, down_iter)
+       call Jacobi (corr, res, Lu, Lu_diag, j, down_iter)
     end do
 
     ! V-cycle correction to solution
     u = lcf (1d0, u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
-    call smoother (u, f, Lu, Lu_diag, jmax, pre_iter, err)
+    call Jacobi (u, f, Lu, Lu_diag, jmax, pre_iter, err)
 
     err = l2 (residual (f, u, Lu, jmax),jmax) / l2 (f, jmax)
   end subroutine v_cycle
@@ -804,8 +679,7 @@ contains
     res0 = res
     p    = res0
     s    = res0
-    !Ap   = Lu (p, l)
-    Ap   = Lu2 (Lu, p, l)
+    Ap   = Lu (p, l)
     As   = Ap
 
     rho  = dp (res0, res, l)
@@ -814,8 +688,7 @@ contains
        alph = rho / dp (Ap, res0, l)
 
        s = lcf (1d0, res, -alph, Ap, l)
-       !As = Lu (s, l)
-       As = Lu2 (Lu, s, l)
+       As = Lu (s, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
@@ -831,8 +704,7 @@ contains
 
        b = (alph/omga) * (rho/rho_old)
        p = lcf (1d0, res, b, lcf (1d0, p, -omga, Ap, l), l)
-       !Ap = Lu (p, l)
-       Ap = Lu2 (Lu, p, l)
+       Ap = Lu (p, l)
     end do
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 88)
@@ -858,85 +730,6 @@ contains
 
     Lu2 = restrict_fun (Lu (prolong_fun (u, l+1), l+1), l)
   end function Lu2
-
-  subroutine GMRES (u, f, Lu, Lu_diag, l, kry, err_out)
-    ! GMRES iterative solution for linear system Lu(u) = f
-    implicit none
-    integer                   :: kry      ! maximum Krylov subspace dimension
-    integer                   :: l        ! scale
-    real(8), optional         :: err_out  ! normalized residual error
-    type(Float_Field), target :: f, u
-
-    integer                                              :: i, info, j, kryh
-    real(8)                                              :: beta, nrm_f
-    real(8), allocatable, dimension(:)                   :: e1, work
-    real(8), allocatable, dimension(:,:)                 :: hess
-    type(Float_Field), allocatable, dimension(:), target :: v
-    type(Float_Field),                            target :: res, w
-
-    interface
-       function Lu (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-       function Lu_diag (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu_diag, u
-       end function Lu_diag
-    end interface
-
-    allocate (e1(kry+1), hess(kry+1,kry), work(kry+(kry+1)*32), v(kry+1))
-
-    call update_bdry (f, l, 50); nrm_f = l2 (f, l)
-    call update_bdry (u, l, 50)
-
-    kryh = kry
-
-    res  = divide (residual (f, u, Lu, l), Lu_diag (u, l), l)
-
-    beta = sqrt (dp (res, res, l))
-    e1(1) = beta; e1(2:kry+1) = 0d0
-    
-    v(1) = divide_scalar (res, beta, l)
-    do i = 2, kry+1
-       v(i) = u; call zero_float_field (v(i), S_MASS, l)
-    end do
-
-    w = u; call zero_float_field (w, S_MASS, l)
-
-    j = 1 
-    hess = 0d0
-    do while (j <= kryh)
-       w = divide (Lu (v(j), l),  Lu_diag (v(j), l), l)
-
-       do i = 1, j
-          hess (i,j) = dp (v(i), w, l) 
-          w = lcf (1d0, w, -hess(i,j),  v(i), l)
-       end do
-       hess(j+1,j) = sqrt (dp (w, w, l))
-
-       if (hess(j+1,j) > 1d-2 * nrm_f)  then
-          v(j+1) = divide_scalar (w, hess(j+1,j), l)
-       else
-          call zero_float_field (v(j+1), S_MASS, l) 
-          kryh = j
-       end if
-       j = j+1
-    end do
-
-    call dgels ('N', kryh+1, kryh, 1, hess, kry+1, e1, kry+1, work, kry+(kry+1)*32, info)
-    if (rank == 0 .and. info /= 0) write (6,'(a,i3)') "dgels error ", info
-
-    u = lcf (1d0, u, 1d0, dp_float_scalar (v(1:kry), e1(1:kry), l), l)
-    
-    deallocate (e1, hess, work, v)
-    
-    if (present(err_out)) err_out = l2 (residual (f, u, Lu, l), l) / l2 (f, l)
-  end subroutine GMRES
 
   function elliptic_fun (u, l)
     ! Test elliptic equation
