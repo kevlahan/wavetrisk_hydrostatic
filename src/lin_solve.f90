@@ -6,36 +6,9 @@ module lin_solve_mod
   integer                            :: ii, m
   real(8)                            :: dp_loc, linf_loc, l2_loc
   real(8), dimension(:), allocatable :: w
+  real(8)                            :: s_test 
+  logical                            :: test_elliptic = .false.
 contains
-  real(8) function linf (s, l)
-    ! Returns l_inf norm of scalar s at scale l
-    implicit none
-    integer           :: l
-    type(Float_Field) :: s
-
-    linf_loc = -1d16
-
-    call apply_onescale (cal_linf_scalar, l, z_null, 0, 1)
-   
-    linf = sync_max_real (linf_loc)
-  contains
-    subroutine cal_linf_scalar (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-
-      id = idx (i, j, offs, dims) + 1
-
-      if (dom%mask_n%elts(id) >= ADJZONE) linf_loc = max (linf_loc, abs (s%data(d)%elts(id)))
-    end subroutine cal_linf_scalar
-  end function linf
-
   real(8) function l2 (s, l)
     ! Returns l_2 norm of scalar s at scale l
     implicit none
@@ -46,25 +19,24 @@ contains
 
     l2_loc = 0d0
   
-    call apply_onescale (cal_l2_scalar, l, z_null, 0, 1)
+    call apply_onescale (cal_l2, l, z_null, 0, 1)
     
     l2 = sqrt (sum_real (l2_loc))
   contains
-    subroutine cal_l2_scalar (dom, i, j, zlev, offs, dims)
+    subroutine cal_l2 (dom, i, j, zlev, offs, dims)
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: d, id_i
+      integer :: d, id
 
       d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
 
-      id_i = idx (i, j, offs, dims) + 1
-
-      if (dom%mask_n%elts(id_i) >= ADJZONE) l2_loc = l2_loc +  s%data(d)%elts(id_i)**2
-    end subroutine cal_l2_scalar
+      if (dom%mask_n%elts(id) >= ADJZONE) l2_loc = l2_loc +  s%data(d)%elts(id)**2
+    end subroutine cal_l2
   end function l2
  
   real(8) function dp (s1, s2, l)
@@ -92,8 +64,8 @@ contains
       integer :: d, id
 
       d = dom%id + 1
-
       id = idx (i, j, offs, dims) + 1
+      
       dp_loc = dp_loc + s1%data(d)%elts(id) * s2%data(d)%elts(id)
     end subroutine cal_dotproduct
   end function dp
@@ -118,12 +90,12 @@ contains
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: d, id_i
+      integer :: d, id
 
       d = dom%id + 1
-      id_i = idx (i, j, offs, dims) + 1
+      id = idx (i, j, offs, dims) + 1
 
-      lcf%data(d)%elts(id_i) = a1 * s1%data(d)%elts(id_i) + a2 * s2%data(d)%elts(id_i)
+      lcf%data(d)%elts(id) = a1 * s1%data(d)%elts(id) + a2 * s2%data(d)%elts(id)
     end subroutine cal_lc
   end function lcf
 
@@ -152,7 +124,7 @@ contains
     integer                   :: coarse
     type(Float_Field), target :: scaling
 
-    integer :: d, l
+    integer :: d
 
     do d = 1, size(grid)
        scalar => scaling%data(d)%elts
@@ -162,19 +134,6 @@ contains
     scaling%bdry_uptodate = .false.
     call update_bdry (scaling, coarse, 66)
   end subroutine restrict
-
-  function restrict_fun (scaling, coarse)
-    ! Restriction operator for scalars
-    implicit none
-    integer                   :: coarse
-    type(Float_Field), target :: scaling
-    type(Float_Field), target :: restrict_fun
-
-    integer :: d, l
-
-    call restrict (scaling, coarse)
-    restrict_fun = scaling
-  end function restrict_fun
 
   subroutine prolong (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
@@ -212,8 +171,6 @@ contains
     integer                   :: fine
     type(Float_Field), target :: prolong_fun, scaling
 
-    integer :: d, l
-
     prolong_fun = scaling
 
     call prolong (prolong_fun, fine)
@@ -228,7 +185,6 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
     integer :: id_par, id_chd
-    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
 
     id_par = idx (i_par, j_par, offs_par, dims_par) + 1
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) + 1
@@ -247,7 +203,6 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
     integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
-    integer :: id_par, idE_par, idNE_par, idN_par
 
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
@@ -260,47 +215,14 @@ contains
     id2W_chd  = idx (i_chd-2, j_chd,   offs_chd, dims_chd)
     id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
 
-
     ! Interpolate scalars to reconstruct values at fine scale
     scalar(idE_chd +1) = Interp_node (dom,  idE_chd,    id_chd, id2E_chd, id2NE_chd,  id2S_chd)
     scalar(idNE_chd+1) = Interp_node (dom, idNE_chd, id2NE_chd,   id_chd,  id2E_chd,  id2N_chd) 
     scalar(idN_chd +1) = Interp_node (dom,  idN_chd,    id_chd, id2N_chd,  id2W_chd, id2NE_chd)
   end subroutine interpolate
 
-  subroutine wlt_interpolate (scaling, wavelet, scale_in, scale_out)
-    ! Use forward/inverse wavelet transformation for restriction and prolongation
-    ! note: must have previously computed the appropriate wavelet coeffcients to prolong
-    implicit none
-    integer,                   intent (in)    :: scale_in, scale_out
-    type(Float_Field), target, intent (inout) :: scaling, wavelet
-
-    if (scale_in > scale_out) then     ! restriction
-       call forward_scalar_transform (scaling, wavelet, scale_out, scale_in)
-    elseif (scale_in < scale_out) then ! prolongation
-       call inverse_scalar_transform (wavelet, scaling, scale_in, scale_out)
-    else                               ! do nothing
-    end if
-  end subroutine wlt_interpolate
-
-  function wlt_int (scaling, wavelet, scale_in, scale_out)
-    ! Use forward/inverse wavelet transformation for restriction and prolongation
-    ! note: must have previously computed the appropriate wavelet coeffcients to prolong
-    implicit none
-    type(Float_Field), target                 :: wlt_int
-    integer,                   intent (in)    :: scale_in, scale_out
-    type(Float_Field), target, intent (inout) :: scaling, wavelet
-
-    wlt_int = scaling
-    if (scale_in > scale_out) then     ! restriction
-       call forward_scalar_transform (wlt_int, wavelet, scale_out, scale_in)
-    elseif (scale_in < scale_out) then ! prolongation
-       call inverse_scalar_transform (wavelet, wlt_int, scale_in, scale_out)
-    else                               ! do nothing
-    end if
-  end function wlt_int
-
   subroutine FMG (u, f, Lu, Lu_diag)
-    ! Solves linear equation L(u) = f using the full multigrid algorithm with V-cycles
+    ! Solves linear equation L(u) = f using the full multigrid (FMG) algorithm with algebraic multigrid (AMG) V-cycles
     use adapt_mod
     implicit none
     type(Float_Field), target :: f, u
@@ -308,7 +230,7 @@ contains
     integer                                       :: iter, j, l
     integer, dimension(level_start:level_end)     :: iterations
     integer                                       :: max_vcycle
-    real(8)                                       :: vcycle_tol
+    real(8)                                       :: rel_err, vcycle_tol
     real(8), dimension(level_start:level_end)     :: nrm_f
     real(8), dimension(level_start:level_end,1:2) :: nrm_res
 
@@ -329,75 +251,86 @@ contains
        end function Lu_diag
     end interface
 
-    vcycle_tol  = 1d-4
+    test_elliptic = .false.
+    log_iter = .false.
+
+    vcycle_tol  = 1d-3
     fine_tol    = vcycle_tol
-    max_vcycle  = 10
+    max_vcycle  = 3
     coarse_iter = 1000
-    coarse_tol  = 1d-9
+    coarse_tol  = 1d-6
 
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
- 
-    if (log_iter) then
-       nrm_res = 0d0; iterations = 0
-       do j = level_start, level_end
-          nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
-          nrm_res(j,1) = l2 (residual (f, u, Lu, j), j) / nrm_f(j)
-       end do
-    end if
-    if (maxval (nrm_res(:,1)) < coarse_tol / 1d1) return
+
+    iterations = 0
+    do j = level_start, level_end
+       nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
+       nrm_res(j,1) = l2 (residual (f, u, Lu, j), j) / nrm_f(j)
+    end do
+
+    if (log_iter) call start_timing
 
     call bicgstab (u, f, Lu, level_start, coarse_tol, coarse_iter, nrm_res(level_start,2), iterations(level_start))
+    
     do j = level_start+1, level_end
-       if (nrm_res(j,1) == 0d0) exit
+       if (nrm_res(j,1) < vcycle_tol) exit
+       
        call prolong (u, j)
+
        do iter = 1, max_vcycle
-          call v_cycle (u, f, Lu, Lu_diag, level_start, j, nrm_res(j,2))
+          call v_cycle (u, f, Lu, Lu_diag, level_start, j)
+          
           iterations(j) = iter
+          nrm_res(j,2) = l2 (residual (f, u, Lu, j),j) / nrm_f(j)
           if (nrm_res(j,2) < vcycle_tol) exit
        end do
     end do
 
     if (log_iter) then
-       if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
-       do j = level_start, level_end
-          if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), iterations(j)
-       end do
+       call stop_timing; if (rank==0) write (6,'(/,a,f8.4,a,/)') "FMG solver CPU time = ", get_timing (), "s"
+       if (test_elliptic) then
+          if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Relative error    Iterations"
+          do j = level_start, level_end
+             rel_err = relative_error (u, j)
+             if (rank == 0) write (6,'(i2,12x,3(es8.2,10x),i4)') j, nrm_res(j,:), rel_err, iterations(j)
+          end do
+       else
+          if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual     Iterations"
+          do j = level_start, level_end
+             if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), rel_err, iterations(j)
+          end do
+       end if
     end if
   end subroutine FMG
 
-  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax, err)
-    ! Solves linear equation L(u) = f using the standard multigrid algorithm with V-cycles
+  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax)
+    ! Algebriac multigrid (AMG) V-cycle
     implicit none
     integer                   :: jmin, jmax
-    real(8)                   :: err
     type(Float_Field), target :: u, f
 
     integer :: j
     integer :: down_iter = 2, up_iter = 2, pre_iter = 2
 
-    real(8) :: w1
-
     type(Float_Field), target :: corr, res
 
     interface
        function Lu (u, l)
-         ! Returns result of linear operator applied to u at scale l
+         ! Linear operator applied to u at scale l
          use domain_mod
          implicit none
          integer                   :: l
          type(Float_Field), target :: Lu, u
        end function Lu
        function Lu_diag (u, l)
-         ! Returns diagonal of linear operator applied to u at scale l
+         ! Diagonal of linear operator applied to u at scale l
          use domain_mod
          implicit none
          integer                   :: l
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-
-    w1 = 1d0
 
     corr = u
 
@@ -412,11 +345,11 @@ contains
 
     ! Exact solution on coarsest grid
     call zero_float_field (corr, S_MASS, jmin)
-    call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter)
+    call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter, itype=1)
 
     ! Up V-cycle
     do j = jmin+1, jmax
-       corr = lcf (1d0, corr, w1, prolong_fun (corr, j), j)
+       corr = lcf (1d0, corr, 1d0, prolong_fun (corr, j), j)
        call Jacobi (corr, res, Lu, Lu_diag, j, down_iter)
     end do
 
@@ -424,9 +357,7 @@ contains
     u = lcf (1d0, u, 1d0, corr, jmax)
 
     ! Post-smooth to reduce zero eigenvalue error mode
-    call Jacobi (u, f, Lu, Lu_diag, jmax, pre_iter, err)
-
-    err = l2 (residual (f, u, Lu, jmax),jmax) / l2 (f, jmax)
+    call Jacobi (u, f, Lu, Lu_diag, jmax, pre_iter)
   end subroutine v_cycle
 
   subroutine SJR (u, f, Lu, Lu_diag)
@@ -557,11 +488,10 @@ contains
     u%bdry_uptodate = .false.
   end subroutine SJR_iter
 
-  subroutine Jacobi (u, f, Lu, Lu_diag, l, iter_max, err_out)
+  subroutine Jacobi (u, f, Lu, Lu_diag, l, iter_max)
     ! Damped Jacobi iterations
     implicit none
-    integer                   :: l, iter_max
-    real(8), optional         :: err_out
+    integer  :: l, iter_max
 
     type(Float_Field), target :: f, u
 
@@ -591,9 +521,6 @@ contains
     do iter = 1, iter_max
        call Jacobi_iteration (u, f, omega, Lu, Lu_diag, l)
     end do
-
-    nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
-    if (present(err_out))  err_out = l2 (residual (f, u, Lu, l), l) / nrm_f
   end subroutine Jacobi
 
   subroutine Jacobi_iteration (u, f, omega, Lu, Lu_diag, l)
@@ -645,12 +572,12 @@ contains
     end subroutine cal_jacobi
   end subroutine Jacobi_iteration
   
-  subroutine bicgstab (u, f,  Lu, l, tol, iter_max, err_out, iter_out)
+  subroutine bicgstab (u, f,  Lu, l, tol, iter_max, err_out, iter_out, itype)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
     integer                   :: l, iter_max
-    integer, optional         :: iter_out
+    integer, optional         :: iter_out, itype
     real(8)                   :: tol
     real(8), optional         :: err_out
     type(Float_Field), target :: f, u
@@ -668,17 +595,30 @@ contains
        end function Lu
     end interface
 
-    call update_bdry (f, l, 88)
-    call update_bdry (u, l, 88)
+    abstract interface
+       function op (u, l)
+         use ops_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: op, u
+       end function op
+    end interface
+    procedure (op), pointer :: Au => null ()
+
+    if (.not. present (itype) .or. itype == 0) then
+       Au => Lu
+    else ! AMG representation
+       Au => Lu2
+    end if
 
     nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
     ! Initialize float fields
-    res  = residual (f, u, Lu, l)
+    res  = residual (f, u, Au, l)
     res0 = res
     p    = res0
     s    = res0
-    Ap   = Lu (p, l)
+    Ap   = Au (p, l)
     As   = Ap
 
     rho  = dp (res0, res, l)
@@ -687,7 +627,7 @@ contains
        alph = rho / dp (Ap, res0, l)
 
        s = lcf (1d0, res, -alph, Ap, l)
-       As = Lu (s, l)
+       As = Au (s, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
@@ -700,46 +640,50 @@ contains
 
        rho_old = rho
        rho = dp (res0, res, l)
-
+       
        b = (alph/omga) * (rho/rho_old)
        p = lcf (1d0, res, b, lcf (1d0, p, -omga, Ap, l), l)
-       Ap = Lu (p, l)
+       Ap = Au (p, l)
     end do
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 88)
 
     if (present(err_out))  err_out  = err
     if (present(iter_out)) iter_out = iter
+  contains
+    function Lu2 (u, l)
+      ! AMG representation of coarse operator
+      use domain_mod
+      implicit none
+      integer                   :: l
+      type(Float_Field), target :: Lu2, u
+
+      integer :: j
+
+      do j = l+1, level_end
+         call prolong (u, j)
+      end do
+
+      Lu2 = Lu (u, level_end)
+
+      do j = level_end-1, l, -1
+         call restrict (Lu2, j)
+      end do
+    end function Lu2
   end subroutine bicgstab
   
-  function Lu2 (Lu, u, l)
-    use domain_mod
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: Lu2, u
-
-    interface
-       function Lu (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-    end interface
-
-    Lu2 = restrict_fun (Lu (prolong_fun (u, l+1), l+1), l)
-  end function Lu2
-
   function elliptic_fun (u, l)
     ! Test elliptic equation
-    ! Computes Laplacian(u) + u at scale l
+    !
+    ! Laplacian(u) + 4/s_test^2 u
+    !
+    ! with s_test = radius/4
     use ops_mod
     implicit none
     integer                   :: l
     type(Float_Field), target :: elliptic_fun, u
 
     integer :: d, j
-    real(8) :: sigma
 
     call update_bdry (u, l, 50)
 
@@ -769,8 +713,7 @@ contains
     end do
 
     ! Add constant term
-    sigma = radius/4d0
-    elliptic_fun = lcf (1d0, elliptic_fun, 4d0/sigma**2, u, l)
+    elliptic_fun = lcf (1d0, elliptic_fun, 4d0/s_test**2, u, l)
 
     elliptic_fun%bdry_uptodate = .false.
     call update_bdry (elliptic_fun, l, 12)
@@ -795,13 +738,9 @@ contains
       real(8)            :: wgt
       logical, parameter :: exact = .true.
 
-      real(8) :: sigma
-
       d = dom%id + 1
       id = idx (i, j, offs, dims)
       id_i = id + 1
-
-      sigma = radius/4d0
 
       if (exact) then ! true local value
          idE  = idx (i+1, j,   offs, dims) 
@@ -820,11 +759,16 @@ contains
       else ! average value (error less than about 5%)
          wgt = 2d0 * sqrt (3d0)
       end if
-      elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv + 4d0/sigma**2
+      elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv + 4d0/s_test**2
     end subroutine cal_elliptic_fun_diag
   end function elliptic_fun_diag
 
   real(8) function relative_error (u, l)
+    ! Relative error of test elliptic problem
+    !
+    ! Laplacian(u) + 4/s_test^2 u = 4 (r/s_test)^2 exp (-(r/s_test)^2) 
+    !
+    ! with s_test = radius/4
     implicit none
     integer                   :: l
     type(Float_Field), target :: u
@@ -850,9 +794,9 @@ contains
       integer :: d, id
 
       d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
 
-      id = idx (i, j, offs, dims) 
-      if (dom%mask_n%elts(id+1) >= ADJZONE)  err%data(d)%elts(id+1) = abs (u%data(d)%elts(id+1) -  exact_sol (dom%node%elts(id+1)))
+      err%data(d)%elts(id) = u%data(d)%elts(id) -  exact_sol (dom%node%elts(id))
     end subroutine cal_err
   end function relative_error
 
@@ -860,12 +804,10 @@ contains
     implicit none
     type (Coord) :: p
 
-    real(8) :: r, sigma
+    real(8) :: r
 
-    sigma = radius/4d0
+    r = geodesic (p, sph2cart (0d0, 0d0))
 
-    r = dist (p, sph2cart (0d0, 0d0))
-
-    exact_sol = exp (-(r/sigma)**2) 
+    exact_sol = s_test**2 * exp (-(r/s_test)**2) 
   end function exact_sol
 end module lin_solve_mod

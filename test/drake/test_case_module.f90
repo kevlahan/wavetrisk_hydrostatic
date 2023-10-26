@@ -1,9 +1,9 @@
 Module test_case_mod
-  ! Module file for tsunami test case
   use comm_mpi_mod
   use utils_mod
   use init_mod
   use vert_diffusion_mod
+  use lin_solve_mod
   implicit none
 
   ! Standard variables
@@ -404,8 +404,7 @@ contains
 
     type(Coord) :: x_i
     
-    real(8) :: h0, r, sigma, lat, lat_c, lon, lon_c
-    logical, parameter :: test_elliptic = .false.
+    real(8) :: h0, r, lat, lat_c, lon, lon_c
 
     d    = dom%id+1
     id   = idx (i, j, offs, dims) 
@@ -423,10 +422,10 @@ contains
     dz = z(1:zlevels) - z(0:zlevels-1)
 
     if (test_elliptic) then
-       r = geodesic (x_i, sph2cart (0d0, 0d0)); sigma = radius/4d0
+       r = geodesic (x_i, sph2cart (0d0, 0d0))
        do k = 1, zlevels
           sol(S_MASS,k)%data(d)%elts(id_i) = 0d0
-          sol(S_TEMP,k)%data(d)%elts(id_i) = 4d0 * (r/sigma)**2 * exp (-(r/sigma)**2)
+          sol(S_TEMP,k)%data(d)%elts(id_i) = 4d0 * (r/s_test)**2 * exp (-(r/s_test)**2) ! rhs
           sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
        end do
     else
@@ -633,6 +632,8 @@ contains
     threshold_def(S_MASS,:) = tol * lnorm(S_MASS,:)
     threshold_def(S_TEMP,:) = tol * lnorm(S_TEMP,:)
     threshold_def(S_VELO,:) = tol * lnorm(S_VELO,:)
+
+    if (test_elliptic) threshold_def(S_TEMP,:) = tol
   end subroutine initialize_thresholds_case
   
   subroutine initialize_dt_viscosity_case 
