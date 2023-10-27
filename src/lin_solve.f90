@@ -251,13 +251,13 @@ contains
        end function Lu_diag
     end interface
 
-    test_elliptic = .false.
-    log_iter = .false.
+    test_elliptic = .true.
+    log_iter = .true.
 
     vcycle_tol  = 1d-3
     fine_tol    = vcycle_tol
-    max_vcycle  = 3
-    coarse_iter = 1000
+    max_vcycle  = 5
+    coarse_iter = 500
     coarse_tol  = 1d-6
 
     call update_bdry (f, NONE, 55)
@@ -277,20 +277,22 @@ contains
        if (nrm_res(j,1) < vcycle_tol) exit
        
        call prolong (u, j)
+       call Jacobi (u, f, Lu, Lu_diag, j, 6)
+       nrm_res(j,2) = l2 (residual (f, u, Lu, j),j) / nrm_f(j)
 
-       do iter = 1, max_vcycle
-          call v_cycle (u, f, Lu, Lu_diag, level_start, j)
+       ! do iter = 1, max_vcycle
+       !    call v_cycle (u, f, Lu, Lu_diag, level_start, j)
           
-          iterations(j) = iter
-          nrm_res(j,2) = l2 (residual (f, u, Lu, j),j) / nrm_f(j)
-          if (nrm_res(j,2) < vcycle_tol) exit
-       end do
+       !    iterations(j) = iter
+       !    nrm_res(j,2) = l2 (residual (f, u, Lu, j),j) / nrm_f(j)
+       !    if (nrm_res(j,2) < vcycle_tol) exit
+       ! end do
     end do
 
     if (log_iter) then
        call stop_timing; if (rank==0) write (6,'(/,a,f8.4,a,/)') "FMG solver CPU time = ", get_timing (), "s"
        if (test_elliptic) then
-          if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Relative error    Iterations"
+          if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual   x Relative error    Iterations"
           do j = level_start, level_end
              rel_err = relative_error (u, j)
              if (rank == 0) write (6,'(i2,12x,3(es8.2,10x),i4)') j, nrm_res(j,:), rel_err, iterations(j)
@@ -315,6 +317,8 @@ contains
 
     type(Float_Field), target :: corr, res
 
+    integer :: type = 2
+
     interface
        function Lu (u, l)
          ! Linear operator applied to u at scale l
@@ -334,30 +338,56 @@ contains
 
     corr = u
 
-    ! Down V-cycle
-    res = residual (f, u, Lu, jmax)
-    do j = jmax, jmin+1, -1
+    if (type == 1) then
+       ! Down V-cycle
+       res = residual (f, u, Lu, jmax)
+       do j = jmax, jmin+1, -1
+          call zero_float_field (corr, S_MASS, j)
+          call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)
+          res = residual (res, corr, Lu, j)
+          call restrict (res, j-1)
+       end do
+
+       ! Exact solution on coarsest grid
+       call zero_float_field (corr, S_MASS, jmin)
+       call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter)
+
+       ! Up V-cycle
+       do j = jmin+1, jmax
+          corr = lcf (1d0, corr, 1d0, prolong_fun (corr, j), j)
+          call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)
+       end do
+
+       ! V-cycle correction to solution
+       u = lcf (1d0, u, 1d0, corr, jmax)
+
+       ! Post-smooth to reduce zero eigenvalue error mode
+       call Jacobi (u, f, Lu, Lu_diag, jmax, pre_iter)
+    elseif (type == 2) then
+       ! Down V-cycle
+       res = residual (f, u, Lu, jmax)
+       do j = jmax, jmin+2, -1
+          call zero_float_field (corr, S_MASS, j)
+          call Jacobi (corr, res, Lu, Lu_diag, j, down_iter)
+          res = residual (res, corr, Lu, j)
+          call restrict (res, j-1)
+       end do
        call zero_float_field (corr, S_MASS, j)
-       call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)
-       res = residual (res, corr, Lu, j)
-       call restrict (res, j-1)
-    end do
-
-    ! Exact solution on coarsest grid
-    call zero_float_field (corr, S_MASS, jmin)
-    call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter, itype=1)
-
-    ! Up V-cycle
-    do j = jmin+1, jmax
-       corr = lcf (1d0, corr, 1d0, prolong_fun (corr, j), j)
        call Jacobi (corr, res, Lu, Lu_diag, j, down_iter)
-    end do
+       res = residual (res, corr, Lu, j)
 
-    ! V-cycle correction to solution
-    u = lcf (1d0, u, 1d0, corr, jmax)
+       ! Up V-cycle
+       do j = jmin+2, jmax
+          call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)
+          corr = lcf (1d0, corr, 1d0, prolong_fun (corr, j), j)
+       end do
+       
+       ! V-cycle correction to solution
+       u = lcf (1d0, u, 1d0, corr, jmax)
 
-    ! Post-smooth to reduce zero eigenvalue error mode
-    call Jacobi (u, f, Lu, Lu_diag, jmax, pre_iter)
+       ! Post-smooth to reduce zero eigenvalue error mode
+       call Jacobi (u, f, Lu, Lu_diag, jmax, pre_iter)
+    end if
   end subroutine v_cycle
 
   subroutine SJR (u, f, Lu, Lu_diag)
@@ -572,12 +602,12 @@ contains
     end subroutine cal_jacobi
   end subroutine Jacobi_iteration
   
-  subroutine bicgstab (u, f,  Lu, l, tol, iter_max, err_out, iter_out, itype)
+  subroutine bicgstab (u, f,  Lu, l, tol, iter_max, err_out, iter_out)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
     integer                   :: l, iter_max
-    integer, optional         :: iter_out, itype
+    integer, optional         :: iter_out
     real(8)                   :: tol
     real(8), optional         :: err_out
     type(Float_Field), target :: f, u
@@ -595,30 +625,14 @@ contains
        end function Lu
     end interface
 
-    abstract interface
-       function op (u, l)
-         use ops_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: op, u
-       end function op
-    end interface
-    procedure (op), pointer :: Au => null ()
-
-    if (.not. present (itype) .or. itype == 0) then
-       Au => Lu
-    else ! AMG representation
-       Au => Lu2
-    end if
-
     nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
     ! Initialize float fields
-    res  = residual (f, u, Au, l)
+    res  = residual (f, u, Lu, l)
     res0 = res
     p    = res0
     s    = res0
-    Ap   = Au (p, l)
+    Ap   = Lu (p, l)
     As   = Ap
 
     rho  = dp (res0, res, l)
@@ -627,7 +641,7 @@ contains
        alph = rho / dp (Ap, res0, l)
 
        s = lcf (1d0, res, -alph, Ap, l)
-       As = Au (s, l)
+       As = Lu (s, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
@@ -643,33 +657,13 @@ contains
        
        b = (alph/omga) * (rho/rho_old)
        p = lcf (1d0, res, b, lcf (1d0, p, -omga, Ap, l), l)
-       Ap = Au (p, l)
+       Ap = Lu (p, l)
     end do
     u%bdry_uptodate = .false.
     call update_bdry (u, l, 88)
 
     if (present(err_out))  err_out  = err
     if (present(iter_out)) iter_out = iter
-  contains
-    function Lu2 (u, l)
-      ! AMG representation of coarse operator
-      use domain_mod
-      implicit none
-      integer                   :: l
-      type(Float_Field), target :: Lu2, u
-
-      integer :: j
-
-      do j = l+1, level_end
-         call prolong (u, j)
-      end do
-
-      Lu2 = Lu (u, level_end)
-
-      do j = level_end-1, l, -1
-         call restrict (Lu2, j)
-      end do
-    end function Lu2
   end subroutine bicgstab
   
   function elliptic_fun (u, l)
@@ -759,7 +753,7 @@ contains
       else ! average value (error less than about 5%)
          wgt = 2d0 * sqrt (3d0)
       end if
-      elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv + 4d0/s_test**2
+     elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv + 4d0/s_test**2
     end subroutine cal_elliptic_fun_diag
   end function elliptic_fun_diag
 
