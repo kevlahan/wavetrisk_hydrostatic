@@ -251,15 +251,9 @@ contains
        end function Lu_diag
     end interface
 
-    test_elliptic = .true.
-    log_iter = .true.
-
-    vcycle_tol  = 1d-3
-    fine_tol    = vcycle_tol
-    max_vcycle  = 5
-    coarse_iter = 1000
-    coarse_tol  = 1d-10
-
+    vcycle_tol  = fine_iter
+    max_vcycle  = 4
+    
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
 
@@ -275,7 +269,6 @@ contains
     
     do j = level_start+1, level_end
        if (nrm_res(j,1) < vcycle_tol) exit
-       
        call prolong (u, j)
        do iter = 1, max_vcycle
           call v_cycle (u, f, Lu, Lu_diag, level_start, j)
@@ -289,7 +282,7 @@ contains
     if (log_iter) then
        call stop_timing; if (rank==0) write (6,'(/,a,f8.4,a,/)') "FMG solver CPU time = ", get_timing (), "s"
        if (test_elliptic) then
-          if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual  Relative error    Iterations"
+          if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Relative error      Iterations"
           do j = level_start, level_end
              rel_err = relative_error (u, j)
              if (rank == 0) write (6,'(i2,12x,3(es8.2,10x),i4)') j, nrm_res(j,:), rel_err, iterations(j)
@@ -638,9 +631,7 @@ contains
   function elliptic_fun (u, l)
     ! Test elliptic equation
     !
-    ! Laplacian(u) + 4/s_test^2 u
-    !
-    ! with s_test = radius/4
+    ! L(u) = Laplacian (u) - 10/s_test^2 u
     use ops_mod
     implicit none
     integer                   :: l
@@ -676,7 +667,7 @@ contains
     end do
 
     ! Add constant term
-    elliptic_fun = lcf (1d0, elliptic_fun, -4d0/s_test**2, u, l)
+    elliptic_fun = lcf (1d0, elliptic_fun, -10d0/s_test**2, u, l)
 
     elliptic_fun%bdry_uptodate = .false.
     call update_bdry (elliptic_fun, l, 12)
@@ -722,16 +713,12 @@ contains
       else ! average value (error less than about 5%)
          wgt = 2d0 * sqrt (3d0)
       end if
-      elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 4d0/s_test**2
+      elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10d0/s_test**2
     end subroutine cal_elliptic_fun_diag
   end function elliptic_fun_diag
 
   real(8) function relative_error (u, l)
     ! Relative error of test elliptic problem
-    !
-    ! Laplacian(u) + 4/s_test^2 u = 4 (r/s_test)^2 exp (-(r/s_test)^2) 
-    !
-    ! with s_test = radius/4
     implicit none
     integer                   :: l
     type(Float_Field), target :: u
@@ -771,6 +758,6 @@ contains
 
     r = geodesic (p, sph2cart (0d0, 0d0))
 
-    exact_sol = -r**2/s_test**2 * exp (-(r/s_test)**2) 
+    exact_sol = s_test**2 * exp (-(r/s_test)**2) 
   end function exact_sol
 end module lin_solve_mod
