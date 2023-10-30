@@ -199,7 +199,7 @@ program Drake
      log_iter = .true.
      fine_tol = 1d-4
      fine_iter = 1000
-     call SJR (sol(S_MASS,1), sol(S_TEMP,1), elliptic_fun, elliptic_fun_diag)
+     call MG (sol(S_MASS,1), sol(S_TEMP,1), elliptic_fun, elliptic_fun_diag)
      call write_and_export (iwrite)
   else
      ! Save initial conditions

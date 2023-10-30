@@ -854,27 +854,14 @@ contains
     integer, optional         :: l
     type(Float_Field), target :: q
 
-    integer :: d, ibeg, iend, j
+    integer :: d, ibeg, iend
 
     if (present(l)) then
        if (itype == S_VELO) then
-          do d = 1, size(grid)
-             val1 => q%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_zero_vector, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-             end do
-             nullify (val1)
-          end do
+          call apply_onescale (cal_zero_vector, l, z_null, 0, 0)
        else
-          do d = 1, size(grid)
-             val1 => q%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_zero_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-             end do
-             nullify (val1)
-          end do
+          call apply_onescale (cal_zero_scalar, l, z_null, 0, 1)
        end if
-       
        q%bdry_uptodate = .false.
        call update_bdry (q, l, 34)
     else ! compute over entire grid
@@ -886,37 +873,39 @@ contains
        q%bdry_uptodate = .false.
        call update_bdry (q, NONE, 34)
     end if
+  contains
+    subroutine cal_zero_scalar (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      q%data(d)%elts(id) = 0d0
+    end subroutine cal_zero_scalar
+
+    subroutine cal_zero_vector (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, e, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims)
+
+      do e = 1, EDGE
+         q%data(d)%elts(EDGE*id+e) = 0d0
+      end do
+    end subroutine cal_zero_vector
   end subroutine zero_float_field
-
-  subroutine cal_zero_scalar (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims) + 1
-
-    val1(id) = 0d0
-  end subroutine cal_zero_scalar
-
-  subroutine cal_zero_vector (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: e, id
-
-    id = idx (i, j, offs, dims)
-
-    do e = 1, EDGE
-       val1(EDGE*id+e) = 0d0
-    end do
-  end subroutine cal_zero_vector
 
   subroutine equals_float_field (q1, q2, itype, l)
     ! Set elements of float field q1 = q2
@@ -927,28 +916,14 @@ contains
     integer                   :: itype
     integer, optional         :: l
     type(Float_Field), target :: q1, q2
-    
-    integer :: d, ibeg, iend, j
+
+    integer :: d, ibeg, iend
 
     if (present(l)) then
        if (itype == S_VELO) then
-          do d = 1, size(grid)
-             val1 => q1%data(d)%elts
-             val2 => q2%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_equals_vector, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
-             end do
-             nullify (val1, val2)
-          end do
+          call apply_onescale (cal_equals_vector, l, z_null, 0, 0)
        else
-          do d = 1, size(grid)
-             val1 => q1%data(d)%elts
-             val2 => q2%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_equals_scalar, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-             end do
-             nullify (val1, val2)
-          end do
+          call apply_onescale (cal_equals_scalar, l, z_null, 0, 1) 
        end if
        q1%bdry_uptodate = .false.
        call update_bdry (q1, l, 36)
@@ -961,37 +936,39 @@ contains
        q1%bdry_uptodate = .false.
        call update_bdry (q1, NONE, 36)
     end if
+  contains
+    subroutine cal_equals_scalar (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      q1%data(d)%elts(id) =  q2%data(d)%elts(id)
+    end subroutine cal_equals_scalar
+
+    subroutine cal_equals_vector (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, e, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) 
+
+      do e = 1, EDGE
+         q1%data(d)%elts(EDGE*id+e) =  q2%data(d)%elts(EDGE*id+e)
+      end do
+    end subroutine cal_equals_vector
   end subroutine equals_float_field
-
-  subroutine cal_equals_scalar (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims) + 1
-
-    val1(id) = val2(id)
-  end subroutine cal_equals_scalar
-
-  subroutine cal_equals_vector (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: e, id
-
-    id = idx (i, j, offs, dims) 
-
-    do e = 1, EDGE
-       val1(EDGE*id+e) = val2(EDGE*id+e)
-    end do
-  end subroutine cal_equals_vector
   
   subroutine smoothing_rbf (dx, npts, nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using radial basis functions

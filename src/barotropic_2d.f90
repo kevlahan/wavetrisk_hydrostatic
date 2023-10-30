@@ -30,7 +30,7 @@ module barotropic_2d_mod
        end interface
      end subroutine solver
   end interface
-  procedure (solver), pointer :: mg => null ()
+  procedure (solver), pointer :: elliptic_solver => null ()
 contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
@@ -141,8 +141,8 @@ contains
     call equals_float_field (Laplacian_scalar(S_TEMP), sol(S_MASS,zlevels+1), S_MASS) ! save old free surface height for elliptic operator
     
     ! Solve elliptic equation
-    mg => SJR ! SJR (scheduled Jacobi relaxation or FMG (full multigrid)
-    call mg (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag)
+    elliptic_solver => SJR ! SJR (scheduled Jacobi relaxation or MG (V-cycle multigrid)
+    call  elliptic_solver (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag)
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
     if (diff_eta) then

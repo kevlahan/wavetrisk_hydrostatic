@@ -38,7 +38,7 @@ contains
       if (dom%mask_n%elts(id) >= ADJZONE) l2_loc = l2_loc +  s%data(d)%elts(id)**2
     end subroutine cal_l2
   end function l2
- 
+
   real(8) function dp (s1, s2, l)
     ! Calculates dot product of s1 and s2 at scale l
     implicit none
@@ -70,18 +70,20 @@ contains
     end subroutine cal_dotproduct
   end function dp
  
-  function lcf (a1, s1, a2, s2, l)
-    ! Calculates linear combination of scalars lcf = a1*s1 + a2*s2 at scale l
+  function lc (a1, s1, a2, s2, l)
+    ! Calculates linear combination of scalars lc = a1*s1 + a2*s2 at scale l
     implicit none
     integer           :: l
     real(8)           :: a1, a2
-    type(Float_Field) :: lcf, s1, s2
+    type(Float_Field) :: lc, s1, s2
+
+    integer :: d, j
     
-    lcf = s1
+    lc = s1
 
     call apply_onescale (cal_lc, l, z_null, 0, 1)
 
-    lcf%bdry_uptodate = .false.
+    lc%bdry_uptodate = .false.
   contains
     subroutine cal_lc (dom, i, j, zlev, offs, dims)
       implicit none
@@ -95,9 +97,9 @@ contains
       d = dom%id + 1
       id = idx (i, j, offs, dims) + 1
 
-      lcf%data(d)%elts(id) = a1 * s1%data(d)%elts(id) + a2 * s2%data(d)%elts(id)
+      lc%data(d)%elts(id) = a1 * s1%data(d)%elts(id) + a2 * s2%data(d)%elts(id)
     end subroutine cal_lc
-  end function lcf
+  end function lc
   
   function residual (f, u, Lu, l)
     ! Calculates f - Lu(u) at scale l
@@ -114,8 +116,9 @@ contains
        end function Lu
     end interface
 
-    residual = lcf (1d0, f, -1d0, Lu (u, l), l)
+    residual = lc (1d0, f, -1d0, Lu (u, l), l)
     residual%bdry_uptodate = .false.
+    call update_bdry (u, l, 50)
   end function residual
 
   subroutine restrict (scaling, coarse)
@@ -221,8 +224,8 @@ contains
     scalar(idN_chd +1) = Interp_node (dom,  idN_chd,    id_chd, id2N_chd,  id2W_chd, id2NE_chd)
   end subroutine interpolate
 
-  subroutine FMG (u, f, Lu, Lu_diag)
-    ! Solves linear equation L(u) = f using the full multigrid (FMG) algorithm with algebraic multigrid (AMG) V-cycles
+  subroutine MG (u, f, Lu, Lu_diag)
+    ! Solves linear equation L(u) = f using the fmultigrid (MG) algorithm with V-cycles
     use adapt_mod
     implicit none
     type(Float_Field), target :: f, u
@@ -251,8 +254,8 @@ contains
        end function Lu_diag
     end interface
 
-    vcycle_tol  = fine_iter
-    max_vcycle  = 4
+    max_vcycle = 5
+    vcycle_tol = 1d-4
     
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
@@ -265,18 +268,13 @@ contains
 
     if (log_iter) call start_timing
 
-    call bicgstab (u, f, Lu, level_start, coarse_tol, coarse_iter, nrm_res(level_start,2), iterations(level_start))
-    
-    do j = level_start+1, level_end
-       if (nrm_res(j,1) < vcycle_tol) exit
-       call prolong (u, j)
-       do iter = 1, max_vcycle
-          call v_cycle (u, f, Lu, Lu_diag, level_start, j)
-          
+    do iter = 1, max_vcycle
+       call v_cycle (u, f, Lu, Lu_diag, level_start, level_end)
+       do j = level_start, level_end
           iterations(j) = iter
           nrm_res(j,2) = l2 (residual (f, u, Lu, j),j) / nrm_f(j)
-          if (nrm_res(j,2) < vcycle_tol) exit
        end do
+       if (nrm_res(level_end,2) < vcycle_tol) exit
     end do
 
     if (log_iter) then
@@ -294,17 +292,16 @@ contains
           end do
        end if
     end if
-  end subroutine FMG
+  end subroutine MG
 
   subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax)
-    ! Algebriac multigrid (AMG) V-cycle
+    ! Standard V-cycle iterations
     implicit none
     integer                   :: jmin, jmax
     type(Float_Field), target :: u, f
 
-    integer :: j
-    integer :: down_iter = 2, up_iter = 2, pre_iter = 2
-
+    integer                   :: j
+    integer                   :: down_iter = 4, up_iter = 4, pre_iter = 4
     type(Float_Field), target :: corr, res
 
     interface
@@ -326,30 +323,32 @@ contains
     
     corr = u
 
+    ! Compute residual at all scales
+    do j = jmin, jmax
+       res = residual (f, u, Lu, j)
+    end do
+    
     ! Down V-cycle
-    res = residual (f, u, Lu, jmax)
     do j = jmax, jmin+1, -1
        call zero_float_field (corr, S_MASS, j)
        call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)
-       res = residual (res, corr, Lu, j)
+       res = residual (res, corr, Lu, j-1)
        call restrict (res, j-1)
     end do
 
-    ! Exact solution on coarsest grid
+    ! Coarsest scale
     call zero_float_field (corr, S_MASS, jmin)
-    call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter)
+    call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter) ! exact solution on coarsest grid
+    u = lc (1d0, u, 1d0, corr, jmin)                            ! V-cycle correction to solution
+    call Jacobi (u, f, Lu, Lu_diag, jmin, pre_iter)              ! post-smooth to reduce zero eigenvalue error mode
 
     ! Up V-cycle
     do j = jmin+1, jmax
-       corr = lcf (1d0, corr, 1d0, prolong_fun (corr, j), j)
-       call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)
+       corr = lc (0d0, corr, 1d0, prolong_fun (corr, j), j)
+       call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)          ! smoother
+       u = lc (1d0, u, 1d0, corr, j)                            ! V-cycle correction to solution
+       call Jacobi (u, f, Lu, Lu_diag, j, pre_iter)              ! post-smooth to reduce zero eigenvalue error mode
     end do
-
-    ! V-cycle correction to solution
-    u = lcf (1d0, u, 1d0, corr, jmax)
-
-    ! Post-smooth to reduce zero eigenvalue error mode
-    call Jacobi (u, f, Lu, Lu_diag, jmax, pre_iter)
   end subroutine v_cycle
 
   subroutine SJR (u, f, Lu, Lu_diag)
@@ -508,7 +507,6 @@ contains
     end interface
 
     call update_bdry (f, l, 50)
-    call update_bdry (u, l, 50)
 
     do iter = 1, iter_max
        call Jacobi_iteration (u, f, omega, Lu, Lu_diag, l)
@@ -545,7 +543,6 @@ contains
     call apply_onescale (cal_jacobi, l, z_null, 0, 1)
 
     u%bdry_uptodate = .false.
-    call update_bdry (u, l, 50)
   contains
     subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
       implicit none
@@ -602,14 +599,14 @@ contains
     do iter = 1, iter_max
        alph = rho / dp (Ap, res0, l)
 
-       s = lcf (1d0, res, -alph, Ap, l)
+       s = lc (1d0, res, -alph, Ap, l)
        As = Lu (s, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
-       u = lcf (1d0, u, 1d0, lcf (alph, p, omga, s, l), l)
+       u = lc (1d0, u, 1d0, lc (alph, p, omga, s, l), l)
 
-       res = lcf (1d0, s, -omga, As, l)
+       res = lc (1d0, s, -omga, As, l)
 
        err = l2 (res, l) / nrm_f
        if (err <= tol) exit
@@ -618,7 +615,7 @@ contains
        rho = dp (res0, res, l)
        
        b = (alph/omga) * (rho/rho_old)
-       p = lcf (1d0, res, b, lcf (1d0, p, -omga, Ap, l), l)
+       p = lc (1d0, res, b, lc (1d0, p, -omga, Ap, l), l)
        Ap = Lu (p, l)
     end do
     u%bdry_uptodate = .false.
@@ -667,7 +664,7 @@ contains
     end do
 
     ! Add constant term
-    elliptic_fun = lcf (1d0, elliptic_fun, -10d0/s_test**2, u, l)
+    elliptic_fun = lc (1d0, elliptic_fun, -10d0/s_test**2, u, l)
 
     elliptic_fun%bdry_uptodate = .false.
     call update_bdry (elliptic_fun, l, 12)
