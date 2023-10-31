@@ -138,11 +138,11 @@ contains
 
     ! RHS of elliptic equation
     call rhs_elliptic
-    call equals_float_field (Laplacian_scalar(S_TEMP), sol(S_MASS,zlevels+1), S_MASS) ! save old free surface height for elliptic operator
+    call equals_float_field (Laplacian_scalar(S_TEMP), sol(S_MASS,zlevels+1), AT_NODE) ! save old free surface height for elliptic operator
     
     ! Solve elliptic equation
     elliptic_solver => SJR ! SJR (scheduled Jacobi relaxation or MG (V-cycle multigrid)
-    call  elliptic_solver (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag)
+    call elliptic_solver (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag) 
 
     ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
     if (diff_eta) then
@@ -196,8 +196,8 @@ contains
     integer :: d, j, l
 
     ! Initialize variables
-    call zero_float_field (trend(S_MASS,zlevels+1), S_MASS)
-    call zero_float_field (trend(S_TEMP,zlevels+1), S_MASS)
+    call zero_float_field (trend(S_MASS,zlevels+1), AT_NODE)
+    call zero_float_field (trend(S_TEMP,zlevels+1), AT_NODE)
     
     ! Flux divergence of vertically integrated velocity u_star, stored in trend(S_MASS, zlevels+1)
     call flux_divergence (sol, trend(S_MASS,zlevels+1))
@@ -520,7 +520,7 @@ contains
 
     call update_bdry (sol(S_MASS,zlevels+1), NONE, 601)
 
-    call equals_float_field (sol(S_TEMP,zlevels+1), sol(S_MASS,zlevels+1), S_MASS)
+    call equals_float_field (sol(S_TEMP,zlevels+1), sol(S_MASS,zlevels+1), AT_NODE)
 
     ! Calculate external pressure gradient
     do l = level_end, level_start, -1 

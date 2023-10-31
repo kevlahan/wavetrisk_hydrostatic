@@ -15,9 +15,9 @@ contains
     ! Initialize trends
     do k = 1, zlevels
        do v = scalars(1), scalars(2)
-          call zero_float_field (trend(v,k), S_MASS)
+          call zero_float_field (trend(v,k), AT_NODE)
        end do
-       call zero_float_field (trend(S_VELO,k), S_VELO)
+       call zero_float_field (trend(S_VELO,k), AT_EDGE)
     end do
 
     ! Compute surface pressure on all grids

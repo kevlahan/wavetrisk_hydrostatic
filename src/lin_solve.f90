@@ -3,239 +3,25 @@ module lin_solve_mod
   use comm_mpi_mod
   use wavelet_mod
   implicit none
-  integer                            :: ii, m
   real(8)                            :: dp_loc, linf_loc, l2_loc
-  real(8), dimension(:), allocatable :: w
   real(8)                            :: s_test 
   logical                            :: test_elliptic = .false.
 contains
-  real(8) function l2 (s, l)
-    ! Returns l_2 norm of scalar s at scale l
-    implicit none
-    integer           :: l
-    type(Float_Field) :: s
-
-    integer :: d, j
-
-    l2_loc = 0d0
-  
-    call apply_onescale (cal_l2, l, z_null, 0, 1)
-    
-    l2 = sqrt (sum_real (l2_loc))
-  contains
-    subroutine cal_l2 (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      if (dom%mask_n%elts(id) >= ADJZONE) l2_loc = l2_loc +  s%data(d)%elts(id)**2
-    end subroutine cal_l2
-  end function l2
-
-  real(8) function dp (s1, s2, l)
-    ! Calculates dot product of s1 and s2 at scale l
-    implicit none
-    integer          :: l
-    type(Float_Field):: s1, s2
-
-    call update_bdry (s1, l, 50)
-    call update_bdry (s2, l, 50)
-
-    dp_loc = 0d0
-
-    call apply_onescale (cal_dotproduct, l, z_null, 0, 1)
-    
-    dp = sum_real (dp_loc)
-  contains
-    subroutine cal_dotproduct (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-      
-      dp_loc = dp_loc + s1%data(d)%elts(id) * s2%data(d)%elts(id)
-    end subroutine cal_dotproduct
-  end function dp
- 
-  function lc (a1, s1, a2, s2, l)
-    ! Calculates linear combination of scalars lc = a1*s1 + a2*s2 at scale l
-    implicit none
-    integer           :: l
-    real(8)           :: a1, a2
-    type(Float_Field) :: lc, s1, s2
-
-    integer :: d, j
-    
-    lc = s1
-
-    call apply_onescale (cal_lc, l, z_null, 0, 1)
-
-    lc%bdry_uptodate = .false.
-  contains
-    subroutine cal_lc (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      lc%data(d)%elts(id) = a1 * s1%data(d)%elts(id) + a2 * s2%data(d)%elts(id)
-    end subroutine cal_lc
-  end function lc
-  
-  function residual (f, u, Lu, l)
-    ! Calculates f - Lu(u) at scale l
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: f, residual, u
-
-    interface
-       function Lu (u, l)
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-    end interface
-
-    residual = lc (1d0, f, -1d0, Lu (u, l), l)
-    residual%bdry_uptodate = .false.
-    call update_bdry (u, l, 50)
-  end function residual
-
-  subroutine restrict (scaling, coarse)
-    ! Restriction operator for scalars
-    implicit none
-    integer                   :: coarse
-    type(Float_Field), target :: scaling
-
-    integer :: d
-
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       call apply_interscale_d (Restrict_full_weighting, grid(d), coarse, z_null, 0, 1) ! +1 to include poles
-       nullify (scalar)
-    end do
-    scaling%bdry_uptodate = .false.
-    call update_bdry (scaling, coarse, 66)
-  end subroutine restrict
-
-  subroutine prolong (scaling, fine)
-    ! Prolong from coarse scale fine-1 to scale fine
-    use wavelet_mod
-    implicit none
-    integer                   :: fine
-    type(Float_Field), target :: scaling, wavelet
-
-    integer :: d, l
-
-    call update_bdry1 (scaling, fine-1, fine, 5)
-
-    ! Scaling scalar to finer nodes existing at coarser grid (extend) 
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       call apply_interscale_d2 (copy_coarse, grid(d), fine-1, z_null, 0, 1)
-       nullify (scalar)
-    end do
-    scaling%bdry_uptodate = .false.
-    call update_bdry (scaling, fine, 66)
-
-    ! Reconstruct scalar at finer nodes not existing at coarser grid by interpolation
-    do d = 1, size(grid)
-       scalar => scaling%data(d)%elts
-       call apply_interscale_d (interpolate, grid(d), fine-1, z_null, 0, 0)
-       nullify (scalar)
-    end do
-    scaling%bdry_uptodate = .false.
-  end subroutine prolong
-
-  function prolong_fun (scaling, fine)
-    ! Prolong from coarse scale fine-1 to scale fine
-    use wavelet_mod
-    implicit none
-    integer                   :: fine
-    type(Float_Field), target :: prolong_fun, scaling
-
-    prolong_fun = scaling
-
-    call prolong (prolong_fun, fine)
-  end function prolong_fun
-
-  subroutine copy_coarse (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Sub-sample to prolong coarse points to fine grid
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: id_par, id_chd
-
-    id_par = idx (i_par, j_par, offs_par, dims_par) + 1
-    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) + 1
-
-    if (dom%mask_n%elts(id_chd) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
-    
-    scalar(id_chd) = scalar(id_par)
-  end subroutine copy_coarse
-
-  subroutine interpolate (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Reconstruct scalars at fine nodes not existing at coarse scale by interpolation
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
-
-    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
-
-    idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
-    idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
-    id2N_chd  = idx (i_chd,   j_chd+2, offs_chd, dims_chd)
-    id2E_chd  = idx (i_chd+2, j_chd,   offs_chd, dims_chd)
-    id2S_chd  = idx (i_chd,   j_chd-2, offs_chd, dims_chd)
-    id2W_chd  = idx (i_chd-2, j_chd,   offs_chd, dims_chd)
-    id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
-
-    ! Interpolate scalars to reconstruct values at fine scale
-    scalar(idE_chd +1) = Interp_node (dom,  idE_chd,    id_chd, id2E_chd, id2NE_chd,  id2S_chd)
-    scalar(idNE_chd+1) = Interp_node (dom, idNE_chd, id2NE_chd,   id_chd,  id2E_chd,  id2N_chd) 
-    scalar(idN_chd +1) = Interp_node (dom,  idN_chd,    id_chd, id2N_chd,  id2W_chd, id2NE_chd)
-  end subroutine interpolate
-
-  subroutine MG (u, f, Lu, Lu_diag)
+  subroutine FMG (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the fmultigrid (MG) algorithm with V-cycles
     use adapt_mod
     implicit none
     type(Float_Field), target :: f, u
 
-    integer                                       :: iter, j, l
+    integer                                       :: iter, l
     integer, dimension(level_start:level_end)     :: iterations
     integer                                       :: max_vcycle
+    
     real(8)                                       :: rel_err, vcycle_tol
     real(8), dimension(level_start:level_end)     :: nrm_f
     real(8), dimension(level_start:level_end,1:2) :: nrm_res
+
+    type(Float_Field), target :: err
 
     interface
        function Lu (u, l)
@@ -254,102 +40,93 @@ contains
        end function Lu_diag
     end interface
 
-    max_vcycle = 5
+    max_vcycle = 10
     vcycle_tol = 1d-4
     
     call update_bdry (f, NONE, 55)
     call update_bdry (u, NONE, 55)
 
+    err = u; call zero_float_field (err, AT_NODE)
+
     iterations = 0
-    do j = level_start, level_end
-       nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
-       nrm_res(j,1) = l2 (residual (f, u, Lu, j), j) / nrm_f(j)
+    do l = level_end, level_start, -1
+       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
+       call residual (err, f, u, Lu, l)
+       nrm_res(l,1) = l2 (err, l) / nrm_f(l)
     end do
 
     if (log_iter) call start_timing
 
-    do iter = 1, max_vcycle
-       call v_cycle (u, f, Lu, Lu_diag, level_start, level_end)
-       do j = level_start, level_end
-          iterations(j) = iter
-          nrm_res(j,2) = l2 (residual (f, u, Lu, j),j) / nrm_f(j)
+    ! Full multigrid iterations
+    l = level_start
+    call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, nrm_res(l,2), iterations(l))
+    do l = l+1, level_end
+       call prolong (u, l)
+       do iter = 1, max_vcycle
+          call v_cycle (l)
+          iterations(l) = iter
+          call residual (err, f, u, Lu, l); nrm_res(l,2) = l2 (err,l) / nrm_f(l); if (nrm_res(l,2) < vcycle_tol) exit
        end do
-       if (nrm_res(level_end,2) < vcycle_tol) exit
     end do
 
     if (log_iter) then
        call stop_timing; if (rank==0) write (6,'(/,a,f8.4,a,/)') "FMG solver CPU time = ", get_timing (), "s"
        if (test_elliptic) then
           if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Relative error      Iterations"
-          do j = level_start, level_end
-             rel_err = relative_error (u, j)
-             if (rank == 0) write (6,'(i2,12x,3(es8.2,10x),i4)') j, nrm_res(j,:), rel_err, iterations(j)
+          do l = level_start, level_end
+             rel_err = relative_error (u, l)
+             if (rank == 0) write (6,'(i2,12x,3(es8.2,10x),i4)') l, nrm_res(l,:), rel_err, iterations(l)
           end do
        else
           if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual     Iterations"
-          do j = level_start, level_end
-             if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), rel_err, iterations(j)
+          do l = level_start, level_end
+             if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') l, nrm_res(l,:), rel_err, iterations(l)
           end do
        end if
     end if
-  end subroutine MG
+  contains
+    subroutine v_cycle (jmax)
+      ! Standard V-cycle iterations
+      implicit none
+      integer                   :: j, jmax
+      integer                   :: down_iter = 2, up_iter = 2, pre_iter = 4
+      type(Float_Field), target :: corr, corr_old, res
 
-  subroutine v_cycle (u, f, Lu, Lu_diag, jmin, jmax)
-    ! Standard V-cycle iterations
-    implicit none
-    integer                   :: jmin, jmax
-    type(Float_Field), target :: u, f
+      real(8), dimension(level_start:jmax) :: e1, e2
 
-    integer                   :: j
-    integer                   :: down_iter = 4, up_iter = 4, pre_iter = 4
-    type(Float_Field), target :: corr, res
+      ! Initialize
+      corr     = u
+      corr_old = u
+      res      = u
+      do j = level_start, jmax
+         call zero_float_field (corr,     AT_NODE, level_start, jmax)
+         call zero_float_field (corr_old, AT_NODE, level_start, jmax)
+         call zero_float_field (res,      AT_NODE, level_start, jmax)
+      end do
 
-    interface
-       function Lu (u, l)
-         ! Linear operator applied to u at scale l
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-       function Lu_diag (u, l)
-         ! Diagonal of linear operator applied to u at scale l
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu_diag, u
-       end function Lu_diag
-    end interface
-    
-    corr = u
+      ! Down V-cycle
+      call residual (res, f, u, Lu, jmax)
+      do j = jmax, level_start+1, -1
+         call Jacobi (corr, res, Lu, Lu_diag, j, down_iter)
+         call residual (res, res, corr, Lu, j)
+         call restrict (res, j-1)
+      end do
 
-    ! Compute residual at all scales
-    do j = jmin, jmax
-       res = residual (f, u, Lu, j)
-    end do
-    
-    ! Down V-cycle
-    do j = jmax, jmin+1, -1
-       call zero_float_field (corr, S_MASS, j)
-       call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)
-       res = residual (res, corr, Lu, j-1)
-       call restrict (res, j-1)
-    end do
+      ! Coarsest scale
+      call bicgstab (corr, res, Lu, level_start, coarse_tol, coarse_iter) ! exact solution on coarsest grid
 
-    ! Coarsest scale
-    call zero_float_field (corr, S_MASS, jmin)
-    call bicgstab (corr, res, Lu, jmin, coarse_tol, coarse_iter) ! exact solution on coarsest grid
-    u = lc (1d0, u, 1d0, corr, jmin)                            ! V-cycle correction to solution
-    call Jacobi (u, f, Lu, Lu_diag, jmin, pre_iter)              ! post-smooth to reduce zero eigenvalue error mode
+      ! Up V-cycle
+      do j = level_start+1, jmax
+         call equals_float_field (corr_old, corr, AT_NODE, lmin=j)
+         call prolong (corr, j)
+         call lc (corr, 1d0, corr_old, 1d0, corr, j)
+         call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)          ! smoother
+      end do
 
-    ! Up V-cycle
-    do j = jmin+1, jmax
-       corr = lc (0d0, corr, 1d0, prolong_fun (corr, j), j)
-       call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)          ! smoother
-       u = lc (1d0, u, 1d0, corr, j)                            ! V-cycle correction to solution
-       call Jacobi (u, f, Lu, Lu_diag, j, pre_iter)              ! post-smooth to reduce zero eigenvalue error mode
-    end do
-  end subroutine v_cycle
+      call lc (u, 1d0, u, 1d0, corr, jmax)                         ! V-cycle correction to solution
+      call Jacobi (u, f, Lu, Lu_diag, jmax, pre_iter)              ! post-smooth to reduce zero eigenvalue error mode
+    end subroutine v_cycle
+  end subroutine FMG
 
   subroutine SJR (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with Scheduled Rexation Jacobi iterations as the smoother
@@ -357,12 +134,17 @@ contains
     type(Float_Field), target :: f, u
 
     integer                                       :: j, n
+    integer, parameter                            :: m = 20
     integer, dimension(level_start:level_end)     :: iterations
+    
     real(8)                                       :: k_max, k_min
+    real(8), dimension(1:m)                       :: w
     real(8), dimension(level_start:level_end)     :: nrm_f
     real(8), dimension(level_start:level_end,1:2) :: nrm_res
 
-    integer, dimension(level_start:level_end) :: iter
+    integer, dimension(level_start:level_end)     :: iter
+
+    type(Float_Field), target :: err, res
 
     interface
        function Lu (u, l)
@@ -380,15 +162,18 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
+
+    err = u; call zero_float_field (err, AT_NODE)
     
+    call update_bdry (f, NONE, 55)
+
     if (log_iter) then
-       nrm_res = 0d0; iterations = 0
+       iterations = 0
        do j = level_start, level_end
           nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
-          nrm_res(j,1) = l2 (residual (f, u, Lu, j), j) / nrm_f(j)
+          call residual (err, f, u, Lu, j); nrm_res(j,1) = l2 (err, j) / nrm_f(j)
        end do
     end if
-    if (maxval (nrm_res(:,1)) < coarse_tol / 1d1) return
 
     ! Optimal Scheduled Relaxation Jacobi parameters (Adsuara, et al J Comput Phys v 332, 2016)
     ! (k_min and k_max are determined empirically to give optimal convergence on fine non uniform grids)
@@ -401,7 +186,6 @@ contains
        k_min = 3d-2
     end if
 
-    m = 20; allocate (w(1:m))
     if (fine_iter < m) then ! do not use SJR
        w = 1d0
     else 
@@ -411,73 +195,48 @@ contains
        end do
     end if
 
-    call update_bdry (f, NONE, 55)
-
     j = level_start
     call bicgstab (u, f, Lu, j, coarse_tol, coarse_iter, nrm_res(j,2), iterations(j))
-    do j = level_start+1, level_end
+    do j = j+1, level_end
        call prolong (u, j)
-       call SJR_iter (u, f, nrm_f(j), Lu, Lu_diag, j, fine_iter, nrm_res(j,2), iterations(j))
+       call SJR_iter 
     end do
-    deallocate (w)
 
     if (log_iter) then
-       if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
-       do j = level_start, level_end
-          if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), iterations(j)
-       end do
-    end if
-  end subroutine SJR
-
-  subroutine SJR_iter (u, f, nrm_f, Lu, Lu_diag, l, max_iter, nrm_res, iter)
-    ! Max_iter Jacobi iterations for smoothing multigrid iterations
-    ! uses Scheduled Relaxation Jacobi (SJR) iterations (Yang and Mittal JCP 274, 2014)
-    implicit none
-    integer                   :: iter, l, max_iter
-    real(8)                   :: nrm_f, nrm_res
-    type(Float_Field), target :: f, u
-
-    integer                   :: i
-    type(Float_Field), target :: res
-
-    interface
-       function Lu (u, l)
-         ! Returns result of linear operator Lu applied to u at scale l
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
-       end function Lu
-       function Lu_diag (u, l)
-         ! Returns diagonal of linear operator Lu applied to u at scale l
-         use domain_mod
-         implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu_diag, u
-       end function Lu_diag
-    end interface
-
-    ! Initialize
-    ii = 0
-    iter = 0
-    nrm_res = l2 (residual (f, u, Lu, l), l) / nrm_f
-
-    do while (iter < max_iter)
-       if (nrm_res <= fine_tol) exit
-       ii = ii + 1
-       if (ii > m) then
-          if (nrm_res < 2d0 * fine_tol) then ! avoid starting a new SJR cycle if error is small enough
-             exit
-          else
-             ii = 1
-          end if
+       if (rank == 0) then
+          write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
+          do j = level_start, level_end
+             write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), iterations(j)
+          end do
        end if
-       iter = iter + 1
-       call Jacobi_iteration (u, f, w(ii), Lu, Lu_diag, l)
-       nrm_res = l2 (residual (f, u, Lu, l), l) / nrm_f
-    end do
-    u%bdry_uptodate = .false.
-  end subroutine SJR_iter
+    end if
+  contains
+    subroutine SJR_iter 
+      ! Max_iter Jacobi iterations for smoothing multigrid iterations
+      ! uses Scheduled Relaxation Jacobi (SJR) iterations (Yang and Mittal JCP 274, 2014)
+      implicit none
+      integer :: ii
+
+      call residual (err, f, u, Lu, j)
+      nrm_res(j,2) = l2 (err, j) / nrm_f(j)
+
+      do while (iterations(j) < fine_iter)
+         if (nrm_res(j,2) <= fine_tol) exit
+         ii = ii + 1
+         if (ii > m) then
+            if (nrm_res(j,2) < 2d0 * fine_tol) then ! avoid starting a new SJR cycle if error is small enough
+               exit
+            else
+               ii = 1
+            end if
+         end if
+         iterations(j) = iterations(j) + 1
+         call Jacobi_iteration (u, f, w(ii), Lu, Lu_diag, j)
+         call residual (err, f, u, Lu, j) ; nrm_res(j,2) = l2 (err, j) / nrm_f(j)
+      end do
+      u%bdry_uptodate = .false.
+    end subroutine SJR_iter
+  end subroutine SJR
 
   subroutine Jacobi (u, f, Lu, Lu_diag, l, iter_max)
     ! Damped Jacobi iterations
@@ -573,7 +332,7 @@ contains
 
     integer                   :: iter
     real(8)                   :: alph, b, err, nrm_f, nrm_res0, omga, rho, rho_old
-    type(Float_Field), target :: Ap, As, res, res0, p, s
+    type(Float_Field), target :: Ap, As, corr, res, res0, p, s
 
     interface
        function Lu (u, l)
@@ -586,8 +345,12 @@ contains
 
     nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
+    res  = u; call zero_float_field (res,  AT_NODE, lmin=level_start)
+    corr = u; call zero_float_field (corr, AT_NODE, lmin=level_start)
+
     ! Initialize float fields
-    res  = residual (f, u, Lu, l)
+    call residual (res, f, u, Lu, l)
+    
     res0 = res
     p    = res0
     s    = res0
@@ -599,14 +362,15 @@ contains
     do iter = 1, iter_max
        alph = rho / dp (Ap, res0, l)
 
-       s = lc (1d0, res, -alph, Ap, l)
+       call lc (s, 1d0, res, -alph, Ap, l)
        As = Lu (s, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
-       u = lc (1d0, u, 1d0, lc (alph, p, omga, s, l), l)
+       call lc (corr, alph, p, omga, s, l)
+       call lc (u, 1d0, u, 1d0, corr, l)
 
-       res = lc (1d0, s, -omga, As, l)
+       call lc (res, 1d0, s, -omga, As, l)
 
        err = l2 (res, l) / nrm_f
        if (err <= tol) exit
@@ -615,7 +379,9 @@ contains
        rho = dp (res0, res, l)
        
        b = (alph/omga) * (rho/rho_old)
-       p = lc (1d0, res, b, lc (1d0, p, -omga, Ap, l), l)
+
+       call lc (corr, 1d0, p, -omga, Ap, l)
+       call lc (p, 1d0, res, b, corr, l)
        Ap = Lu (p, l)
     end do
     u%bdry_uptodate = .false.
@@ -624,6 +390,210 @@ contains
     if (present(err_out))  err_out  = err
     if (present(iter_out)) iter_out = iter
   end subroutine bicgstab
+
+  real(8) function l2 (s, l)
+    ! Returns l_2 norm of scalar s at scale l
+    implicit none
+    integer,           intent(in) :: l
+    type(Float_Field), intent(in) :: s
+
+    integer :: d, j
+
+    l2_loc = 0d0
+
+    call apply_onescale (cal_l2, l, z_null, 0, 1)
+
+    l2 = sqrt (sum_real (l2_loc))
+  contains
+    subroutine cal_l2 (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      if (dom%mask_n%elts(id) >= ADJZONE) l2_loc = l2_loc +  s%data(d)%elts(id)**2
+    end subroutine cal_l2
+  end function l2
+
+  real(8) function dp (s1, s2, l)
+    ! Calculates dot product of s1 and s2 at scale l
+    implicit none
+    integer,           intent(in) :: l
+    type(Float_Field), intent(in) :: s1, s2
+
+    call update_bdry (s1, l, 50)
+    call update_bdry (s2, l, 50)
+
+    dp_loc = 0d0
+
+    call apply_onescale (cal_dotproduct, l, z_null, 0, 1)
+    
+    dp = sum_real (dp_loc)
+  contains
+    subroutine cal_dotproduct (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+      
+      dp_loc = dp_loc + s1%data(d)%elts(id) * s2%data(d)%elts(id)
+    end subroutine cal_dotproduct
+  end function dp
+
+  subroutine lc (s, a1, s1, a2, s2, l)
+    ! Calculates linear combination of scalars s = a1*s1 + a2*s2 at scale l
+    implicit none
+    integer,           intent(in)    :: l
+    real(8),           intent(in)    :: a1, a2
+    type(Float_Field), intent(inout) :: s
+    type(Float_Field), intent(in)    :: s1, s2
+
+    integer :: d, j
+    
+    call apply_onescale (cal_lc, l, z_null, 0, 1)
+
+    s%bdry_uptodate = .false.
+  contains
+    subroutine cal_lc (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      s%data(d)%elts(id) = a1 * s1%data(d)%elts(id) + a2 * s2%data(d)%elts(id)
+    end subroutine cal_lc
+  end subroutine lc
+
+  subroutine residual (res, f, u, Lu, l)
+    ! Calculates f - Lu(u) at scale l
+    implicit none
+    integer,                   intent(in)    :: l
+    type(Float_Field), target, intent(in)    :: f, u
+    type(Float_Field), target, intent(inout) :: res
+
+    interface
+       function Lu (u, l)
+         use domain_mod
+         implicit none
+         integer                   :: l
+         type(Float_Field), target :: Lu, u
+       end function Lu
+    end interface
+
+    call lc (res, 1d0, f, -1d0, Lu (u, l), l)
+    
+    res%bdry_uptodate = .false.
+    call update_bdry (res, l, 50)
+  end subroutine residual
+
+  subroutine restrict (scaling, coarse)
+    ! Restriction operator for scalars
+    implicit none
+    integer                   :: coarse
+    type(Float_Field), target :: scaling
+
+    integer :: d
+
+    do d = 1, size(grid)
+       scalar => scaling%data(d)%elts
+       call apply_interscale_d (Restrict_full_weighting, grid(d), coarse, z_null, 0, 1) ! +1 to include poles
+       nullify (scalar)
+    end do
+    scaling%bdry_uptodate = .false.
+    call update_bdry (scaling, coarse, 66)
+  end subroutine restrict
+  
+  subroutine prolong (scaling, fine)
+    ! Prolong from coarse scale fine-1 to scale fine
+    use wavelet_mod
+    implicit none
+    integer                   :: fine
+    type(Float_Field), target :: scaling
+
+    integer :: d
+
+    call update_bdry1 (scaling, fine-1, fine, 5)
+
+    ! Scaling scalar to finer nodes existing at coarser grid (extend) 
+    do d = 1, size(grid)
+       scalar => scaling%data(d)%elts
+       call apply_interscale_d2 (copy_coarse, grid(d), fine-1, z_null, 0, 1)
+       nullify (scalar)
+    end do
+    scaling%bdry_uptodate = .false.
+    call update_bdry (scaling, fine, 66)
+
+    ! Reconstruct scalar at finer nodes not existing at coarser grid by interpolation
+    do d = 1, size(grid)
+       scalar => scaling%data(d)%elts
+       call apply_interscale_d (interpolate, grid(d), fine-1, z_null, 0, 0)
+       nullify (scalar)
+    end do
+    scaling%bdry_uptodate = .false.
+  end subroutine prolong
+
+  subroutine copy_coarse (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Sub-sample to prolong coarse points to fine grid
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_par, id_chd
+
+    id_par = idx (i_par, j_par, offs_par, dims_par) + 1
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) + 1
+
+    if (dom%mask_n%elts(id_chd) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
+    
+    scalar(id_chd) = scalar(id_par)
+  end subroutine copy_coarse
+
+  subroutine interpolate (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Reconstruct scalars at fine nodes not existing at coarse scale by interpolation
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
+
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+
+    idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    id2N_chd  = idx (i_chd,   j_chd+2, offs_chd, dims_chd)
+    id2E_chd  = idx (i_chd+2, j_chd,   offs_chd, dims_chd)
+    id2S_chd  = idx (i_chd,   j_chd-2, offs_chd, dims_chd)
+    id2W_chd  = idx (i_chd-2, j_chd,   offs_chd, dims_chd)
+    id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
+
+    ! Interpolate scalars to reconstruct values at fine scale
+    scalar(idE_chd +1) = Interp_node (dom,  idE_chd,    id_chd, id2E_chd, id2NE_chd,  id2S_chd)
+    scalar(idNE_chd+1) = Interp_node (dom, idNE_chd, id2NE_chd,   id_chd,  id2E_chd,  id2N_chd) 
+    scalar(idN_chd +1) = Interp_node (dom,  idN_chd,    id_chd, id2N_chd,  id2W_chd, id2NE_chd)
+  end subroutine interpolate
   
   function elliptic_fun (u, l)
     ! Test elliptic equation
@@ -632,14 +602,15 @@ contains
     use ops_mod
     implicit none
     integer                   :: l
-    type(Float_Field), target :: elliptic_fun, u
+    type(Float_Field), target ::  u
+    type(Float_Field), target :: elliptic_fun
 
     integer :: d, j
 
     call update_bdry (u, l, 50)
 
     elliptic_fun = u
-    call zero_float_field (elliptic_fun, S_MASS, l)
+    call zero_float_field (elliptic_fun, AT_NODE, lmin=l)
 
     ! Compute scalar fluxes
     do d = 1, size(grid)
@@ -664,7 +635,7 @@ contains
     end do
 
     ! Add constant term
-    elliptic_fun = lc (1d0, elliptic_fun, -10d0/s_test**2, u, l)
+    call lc (elliptic_fun, 1d0, elliptic_fun, -10d0/s_test**2, u, l)
 
     elliptic_fun%bdry_uptodate = .false.
     call update_bdry (elliptic_fun, l, 12)

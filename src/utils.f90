@@ -846,33 +846,45 @@ contains
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
 
-  subroutine zero_float_field (q, itype, l)
-    ! Set float field to zero over 
+  subroutine zero_float_field (q, itype, lmin, lmax)
+    ! Set float field to zero for scales:
+    ! (lmin,lmax) if both lmin and lmax are present
+    ! lmin if only lmin is present
+    ! (level_start, level_end) if lmin is not present
     ! itype = S_MASS or S_VELO
     implicit none
-    integer                   :: itype
-    integer, optional         :: l
-    type(Float_Field), target :: q
+    integer                                  :: itype
+    integer, optional                        :: lmin, lmax
+    type(Float_Field), target, intent(inout) :: q
 
-    integer :: d, ibeg, iend
-
-    if (present(l)) then
-       if (itype == S_VELO) then
-          call apply_onescale (cal_zero_vector, l, z_null, 0, 0)
+    integer :: j, jmin, jmax
+    
+    if (present(lmin)) then
+       jmin = lmin
+       if (present(lmax)) then
+          jmax = lmax
        else
-          call apply_onescale (cal_zero_scalar, l, z_null, 0, 1)
+          jmax = lmin
        end if
-       q%bdry_uptodate = .false.
-       call update_bdry (q, l, 34)
-    else ! compute over entire grid
-       do d = 1, size(grid)
-          ibeg = (1+2*(POSIT(itype)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = q%data(d)%length
-          q%data(d)%elts(ibeg:iend) = 0d0
-       end do
-       q%bdry_uptodate = .false.
-       call update_bdry (q, NONE, 34)
+    else
+       jmin = level_start
+       jmax = level_end
     end if
+
+    if (itype == AT_NODE) then
+       do j = jmin, jmax
+          call apply_onescale (cal_zero_scalar, j, z_null, 0, 1)
+       end do
+    elseif (itype == AT_EDGE) then
+       do j = jmin, jmax
+          call apply_onescale (cal_zero_vector, j, z_null, 0, 0)
+       end do
+    else
+       if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
+       call abort
+    end if
+    q%bdry_uptodate = .false.
+    call update_bdry1 (q, jmin, jmax, 34)
   contains
     subroutine cal_zero_scalar (dom, i, j, zlev, offs, dims)
       implicit none
@@ -907,35 +919,45 @@ contains
     end subroutine cal_zero_vector
   end subroutine zero_float_field
 
-  subroutine equals_float_field (q1, q2, itype, l)
+  subroutine equals_float_field (q1, q2, itype, lmin, lmax)
     ! Set elements of float field q1 = q2
     !
     ! itype = S_MASS or S_VELO
     ! if scale l is present, compute only for scale l
     implicit none
-    integer                   :: itype
-    integer, optional         :: l
-    type(Float_Field), target :: q1, q2
+    integer                                  :: itype
+    integer, optional                        :: lmin, lmax
+    type(Float_Field), target, intent(in)    :: q2
+    type(Float_Field), target, intent(inout) :: q1
 
-    integer :: d, ibeg, iend
+    integer :: j, jmin, jmax
 
-    if (present(l)) then
-       if (itype == S_VELO) then
-          call apply_onescale (cal_equals_vector, l, z_null, 0, 0)
+    if (present(lmin)) then
+       jmin = lmin
+       if (present(lmax)) then
+          jmax = lmax
        else
-          call apply_onescale (cal_equals_scalar, l, z_null, 0, 1) 
+          jmax = lmin
        end if
-       q1%bdry_uptodate = .false.
-       call update_bdry (q1, l, 36)
-    else ! compute over entire grid
-       do d = 1, size(grid)
-          ibeg = (1+2*(POSIT(itype)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-          iend = q2%data(d)%length
-          q1%data(d)%elts(ibeg:iend) = q2%data(d)%elts(ibeg:iend)
-       end do
-       q1%bdry_uptodate = .false.
-       call update_bdry (q1, NONE, 36)
+    else
+       jmin = level_start
+       jmax = level_end
     end if
+
+    if (itype == AT_NODE) then
+       do j = jmin, jmax
+          call apply_onescale (cal_equals_scalar, j, z_null, 0, 1)
+       end do
+    elseif (itype == AT_EDGE) then
+       do j = jmin, jmax
+          call apply_onescale (cal_equals_vector, j, z_null, 0, 0)
+       end do
+    else
+       if (rank == 0) write (6,'(a)') "Unsupported type for equals_float_field ... aborting"
+       call abort
+    end if
+    q1%bdry_uptodate = .false.
+    call update_bdry1 (q1, jmin, jmax, 34)
   contains
     subroutine cal_equals_scalar (dom, i, j, zlev, offs, dims)
       implicit none
@@ -949,7 +971,7 @@ contains
       d = dom%id + 1
       id = idx (i, j, offs, dims) + 1
 
-      q1%data(d)%elts(id) =  q2%data(d)%elts(id)
+      q1%data(d)%elts(id) = q2%data(d)%elts(id)
     end subroutine cal_equals_scalar
 
     subroutine cal_equals_vector (dom, i, j, zlev, offs, dims)
@@ -965,7 +987,7 @@ contains
       id = idx (i, j, offs, dims) 
 
       do e = 1, EDGE
-         q1%data(d)%elts(EDGE*id+e) =  q2%data(d)%elts(EDGE*id+e)
+         q1%data(d)%elts(EDGE*id+e) = q2%data(d)%elts(EDGE*id+e)
       end do
     end subroutine cal_equals_vector
   end subroutine equals_float_field
