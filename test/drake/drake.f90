@@ -181,7 +181,7 @@ program Drake
   ! Initialize functions
   call assign_functions
 
-  test_elliptic = .true.
+  test_elliptic = .false.; log_iter = .true.
   
   ! Initialize variables
   call initialize (run_id)
@@ -196,10 +196,9 @@ program Drake
   irebalance = 4*iadapt ! rebalance interval using charm++/AMPI
 
   if (test_elliptic) then
-     log_iter = .true.
      fine_tol = 1d-4
      fine_iter = 1000
-     call MG (sol(S_MASS,1), sol(S_TEMP,1), elliptic_fun, elliptic_fun_diag)
+     call FMG (sol(S_MASS,1), sol(S_TEMP,1), elliptic_fun, elliptic_fun_diag)
      call write_and_export (iwrite)
   else
      ! Save initial conditions
