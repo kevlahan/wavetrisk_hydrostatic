@@ -136,15 +136,14 @@ contains
     integer                                       :: j, n
     integer, parameter                            :: m = 20
     integer, dimension(level_start:level_end)     :: iterations
-    
     real(8)                                       :: k_max, k_min
     real(8), dimension(1:m)                       :: w
     real(8), dimension(level_start:level_end)     :: nrm_f
     real(8), dimension(level_start:level_end,1:2) :: nrm_res
 
-    integer, dimension(level_start:level_end)     :: iter
+    integer, dimension(level_start:level_end) :: iter
 
-    type(Float_Field), target :: err, res
+    type(Float_Field), target :: err
 
     interface
        function Lu (u, l)
@@ -165,15 +164,14 @@ contains
 
     err = u; call zero_float_field (err, AT_NODE)
     
-    call update_bdry (f, NONE, 55)
-
     if (log_iter) then
-       iterations = 0
+       nrm_res = 0d0; iterations = 0
        do j = level_start, level_end
           nrm_f(j) = l2 (f, j); if (nrm_f(j) == 0d0) nrm_f(j) = 1d0
           call residual (err, f, u, Lu, j); nrm_res(j,1) = l2 (err, j) / nrm_f(j)
        end do
     end if
+    if (maxval (nrm_res(:,1)) < coarse_tol / 1d1) return
 
     ! Optimal Scheduled Relaxation Jacobi parameters (Adsuara, et al J Comput Phys v 332, 2016)
     ! (k_min and k_max are determined empirically to give optimal convergence on fine non uniform grids)
@@ -195,32 +193,37 @@ contains
        end do
     end if
 
+    call update_bdry (f, NONE, 55)
+
     j = level_start
     call bicgstab (u, f, Lu, j, coarse_tol, coarse_iter, nrm_res(j,2), iterations(j))
-    do j = j+1, level_end
+    do j = level_start+1, level_end
        call prolong (u, j)
-       call SJR_iter 
+       call SJR_iter (fine_iter)
     end do
 
     if (log_iter) then
-       if (rank == 0) then
-          write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
-          do j = level_start, level_end
-             write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), iterations(j)
-          end do
-       end if
+       if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
+       do j = level_start, level_end
+          if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') j, nrm_res(j,:), iterations(j)
+       end do
     end if
   contains
-    subroutine SJR_iter 
+    subroutine SJR_iter (max_iter)
       ! Max_iter Jacobi iterations for smoothing multigrid iterations
       ! uses Scheduled Relaxation Jacobi (SJR) iterations (Yang and Mittal JCP 274, 2014)
       implicit none
+      integer :: max_iter
+
       integer :: ii
+      
+      ! Initialize
+      ii = 0
+      iterations(j) = 0
 
-      call residual (err, f, u, Lu, j)
-      nrm_res(j,2) = l2 (err, j) / nrm_f(j)
+      call residual (err, f, u, Lu, j); nrm_res(j,2) = l2 (err, j) / nrm_f(j)
 
-      do while (iterations(j) < fine_iter)
+      do while (iterations(j) < max_iter)
          if (nrm_res(j,2) <= fine_tol) exit
          ii = ii + 1
          if (ii > m) then
@@ -232,7 +235,7 @@ contains
          end if
          iterations(j) = iterations(j) + 1
          call Jacobi_iteration (u, f, w(ii), Lu, Lu_diag, j)
-         call residual (err, f, u, Lu, j) ; nrm_res(j,2) = l2 (err, j) / nrm_f(j)
+         call residual (err, f, u, Lu, j); nrm_res(j,2) = l2 (err, j) / nrm_f(j)
       end do
       u%bdry_uptodate = .false.
     end subroutine SJR_iter
