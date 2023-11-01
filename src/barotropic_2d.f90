@@ -243,7 +243,8 @@ contains
 
     call update_bdry (q, l, 33)
 
-    elliptic_lo = q
+    elliptic_lo = q; call zero_float_field (elliptic_lo, AT_NODE)
+    
     ! Calculate external pressure gradient flux
     do d = 1, size(grid)
        h_flux => horiz_flux(S_MASS)%data(d)%elts
@@ -297,7 +298,7 @@ contains
     integer                   :: l
     type(Float_Field), target :: elliptic_diag, q
 
-    elliptic_diag = q
+    elliptic_diag = q; ; call zero_float_field (elliptic_diag, AT_NODE)
     call apply_onescale (cal_elliptic_diag, l, z_null, 0, 1)
   contains
     subroutine cal_elliptic_diag  (dom, i, j, zlev, offs, dims)
