@@ -75,7 +75,7 @@ contains
     end select
 
     ! Ensure boundary values are up to date
-    call update_array_bdry (sol(:,1:zlevels), NONE, 90)
+    call update_array_bdry (sol(:,1:zlevels), NONE)
 
     ! Save old masses
     allocate(old_mass(1:zlevels)); old_mass = sol(S_MASS,1:zlevels)
@@ -100,7 +100,7 @@ contains
     ! Remap scalars at coarser levels
     do l = level_end-1, level_start-1, -1
        sol%bdry_uptodate = .false.
-       call update_array_bdry (sol(:,1:zlevels), l+1, 92)
+       call update_array_bdry (sol(:,1:zlevels), l+1)
 
        ! Compute scalar wavelet coefficients
        do d = 1, size(grid)
@@ -114,7 +114,7 @@ contains
           end do
        end do
        wav_coeff%bdry_uptodate = .false.
-       call update_array_bdry (wav_coeff(scalars(1):scalars(2),1:zlevels), l+1, 93)
+       call update_array_bdry (wav_coeff(scalars(1):scalars(2),1:zlevels), l+1)
 
        ! Remap at level l (over-written if value available from restriction)
        if (compressible) then

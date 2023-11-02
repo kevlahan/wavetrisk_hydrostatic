@@ -884,7 +884,7 @@ contains
        call abort
     end if
     q%bdry_uptodate = .false.
-    call update_bdry1 (q, jmin, jmax, 34)
+    call update_bdry1 (q, jmin, jmax)
   contains
     subroutine cal_zero_scalar (dom, i, j, zlev, offs, dims)
       implicit none
@@ -957,7 +957,7 @@ contains
        call abort
     end if
     q1%bdry_uptodate = .false.
-    call update_bdry1 (q1, jmin, jmax, 34)
+    call update_bdry1 (q1, jmin, jmax)
   contains
     subroutine cal_equals_scalar (dom, i, j, zlev, offs, dims)
       implicit none

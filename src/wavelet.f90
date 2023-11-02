@@ -44,7 +44,7 @@ contains
 
     do l = jmax-1, jmin-1, -1
        ! Compute scalar wavelet coefficients
-       call update_array_bdry (scaling(scalars(1):scalars(2),:), l+1, 1)
+       call update_array_bdry (scaling(scalars(1):scalars(2),:), l+1)
 
        do k = 1, size(scaling,2)
           do d = 1, size(grid)
@@ -56,7 +56,7 @@ contains
              end do
           end do
        end do
-       call update_array_bdry (wavelet(scalars(1):scalars(2),:), l+1, 2)
+       call update_array_bdry (wavelet(scalars(1):scalars(2),:), l+1)
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
        do k = 1, size(scaling,2)
@@ -77,7 +77,7 @@ contains
     scaling%bdry_uptodate                          = .false.
     wavelet(scalars(1):scalars(2),:)%bdry_uptodate = .false.
 
-    call update_vector_bdry (scaling(S_VELO,:), NONE, 3)
+    call update_vector_bdry (scaling(S_VELO,:), NONE)
 
     ! Compute vector wavelet coefficients
     do l = jmax-1, jmin-1, -1
@@ -120,7 +120,7 @@ contains
     end if
 
     do l = jmax-1, jmin-1, -1
-       call update_bdry (scaling, l+1, 61)
+       call update_bdry (scaling, l+1)
 
        ! Compute scalar wavelet coefficients
        do d = 1, size(grid)
@@ -129,7 +129,7 @@ contains
           call apply_interscale_d (Compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
           nullify (scalar, wc_s)
        end do
-       call update_bdry (wavelet, l+1, 62)
+       call update_bdry (wavelet, l+1)
 
        ! Restrict scalars (sub-sample and lift) to coarser grid
        do d = 1, size(grid)
@@ -169,7 +169,7 @@ contains
     end if
 
     do l = jmax-1, jmin-1, -1
-       call update_vector_bdry (scaling, l+1, 61)
+       call update_vector_bdry (scaling, l+1)
 
        ! Compute scalar wavelet coefficients
        do k = 1, size(scaling)
@@ -180,7 +180,7 @@ contains
              nullify (scalar, wc_s)
           end do
        end do
-       call update_vector_bdry (wavelet, l+1, 62)
+       call update_vector_bdry (wavelet, l+1)
 
        ! Restrict scalars (sub-sample and lift) to coarser grid
        do k = 1, size(scaling)
@@ -221,8 +221,8 @@ contains
        call abort
     end if
 
-    call update_array_bdry1 (wavelet, max (jmin, level_start), jmax, 4)
-    call update_array_bdry1 (scaling, jmin,                    jmax, 5)
+    call update_array_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_array_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
 
@@ -312,8 +312,8 @@ contains
        call abort
     end if
 
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 64)
-    call update_bdry1 (scaling, jmin,                    jmax, 65)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
 
@@ -325,7 +325,7 @@ contains
           call apply_interscale_d2 (Prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
           nullify (scalar, wc_s)
        end do
-       call update_bdry (scaling, l+1, 66)
+       call update_bdry (scaling, l+1)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do d = 1, size(grid)
@@ -363,8 +363,8 @@ contains
        call abort
     end if
 
-    call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax, 64)
-    call update_vector_bdry1 (scaling, jmin,                    jmax, 65)
+    call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_vector_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
     
@@ -378,7 +378,7 @@ contains
              nullify (scalar, wc_s)
           end do
        end do
-       call update_vector_bdry (scaling, l+1, 66)
+       call update_vector_bdry (scaling, l+1)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do k = 1, size(scaling)
@@ -418,8 +418,8 @@ contains
        call abort
     end if
 
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 4)
-    call update_bdry1 (scaling, jmin,                    jmax, 5)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
 
@@ -435,7 +435,7 @@ contains
           nullify (velo, wc_u)
        end do
 
-       call update_bdry (scaling, l+1, 33)
+       call update_bdry (scaling, l+1)
 
        ! Prolong inner velocities at finer edges (interpolate and add wavelet coefficients)
        do d = 1, size(grid)
@@ -476,8 +476,8 @@ contains
        call abort
     end if
 
-    call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax, 4)
-    call update_vector_bdry1 (scaling, jmin,                    jmax, 5)
+    call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_vector_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
 
@@ -495,7 +495,7 @@ contains
           end do
        end do
 
-       call update_vector_bdry (scaling, l+1, 33)
+       call update_vector_bdry (scaling, l+1)
 
        ! Prolong inner velocities at finer edges (interpolate and add wavelet coefficients)
        do k = 1, size(scaling)
@@ -539,7 +539,7 @@ contains
     end if
 
     do l = jmax-1, level_start-1, -1
-       call update_bdry (scaling, l+1, 61)
+       call update_bdry (scaling, l+1)
 
        ! Compute scalar wavelet coefficients
        do d = 1, size(grid)
@@ -548,7 +548,7 @@ contains
           call apply_interscale_d (Compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
           nullify (scalar, wc_s)
        end do
-       call update_bdry (wavelet, l+1, 62)
+       call update_bdry (wavelet, l+1)
 
        ! Restrict scalars (sub-sample and lift) to coarser grid
        do d = 1, size(grid)
@@ -587,8 +587,8 @@ contains
        call abort
     end if
 
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 64)
-    call update_bdry1 (scaling, jmin,                    jmax, 65)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
 
@@ -600,7 +600,7 @@ contains
           call apply_interscale_d2 (Prolong_full_weighting, grid(d), l, z_null, 0, 1) ! needs wc
           nullify (scalar, wc_s)
        end do
-       call update_bdry (scaling, l+1, 66)
+       call update_bdry (scaling, l+1)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do d = 1, size(grid)

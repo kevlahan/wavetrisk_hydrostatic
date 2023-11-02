@@ -86,14 +86,16 @@ contains
   subroutine update_bdry1 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field) :: field
-    integer           :: flag, l_start, l_end
+    integer           :: l_start, l_end
+    integer, optional :: flag
     
     call cp_bdry_inside(field)
   end subroutine update_bdry1
 
   subroutine update_vector_bdry1 (field, l_start, l_end, flag)
      implicit none
-     integer                         :: flag, l_start, l_end
+     integer                         :: l_start, l_end
+     integer, optional               :: flag
      type(Float_Field), dimension(:) :: field
     
     integer :: l, i1, sz
@@ -109,7 +111,8 @@ contains
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
     
-    integer               :: flag, i1, i2
+    integer               :: i1, i2
+    integer, optional     :: flag
     integer, dimension(2) :: sz
 
     sz = shape(field)
@@ -146,7 +149,9 @@ contains
   subroutine update_bdry (field, l, flag)
     implicit none
     type(Float_Field) :: field
-    integer           :: flag, l
+    integer           :: l
+    integer, optional :: flag
+    
     call cp_bdry_inside (field)
   end subroutine update_bdry
 
@@ -154,7 +159,8 @@ contains
     implicit none
     type(Float_Field), dimension(:) :: field
     
-    integer :: flag, l, i1, sz
+    integer           :: l, i1, sz
+    integer, optional :: flag
 
     sz = size(field)
 
@@ -168,7 +174,8 @@ contains
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l
     
-    integer                :: flag, i1, i2
+    integer                :: i1, i2
+    integer, optional      :: flag
     integer, dimension (2) :: sz
 
     sz = shape(field)

@@ -64,12 +64,31 @@ module init_mod
        integer :: fid
      end subroutine noarg_fun
       function zcoords_fun (eta_surf, z_s)
-       use shared_mod
-       implicit none
-       real(8)                       :: eta_surf, z_s 
-       real(8), dimension(0:zlevels) :: zcoords_fun
-     end function zcoords_fun
-  end interface
+        use shared_mod
+        implicit none
+        real(8)                       :: eta_surf, z_s 
+        real(8), dimension(0:zlevels) :: zcoords_fun
+      end function zcoords_fun
+      subroutine solver (u, f, Lu, Lu_diag)
+        use domain_mod
+        implicit none
+        type(Float_Field), target :: f, u
+        interface
+           function Lu (u, l)
+             use domain_mod
+             implicit none
+             integer                   :: l
+             type(Float_Field), target :: Lu, u
+           end function Lu
+           function Lu_diag (u, l)
+             use domain_mod
+             implicit none
+             integer                   :: l
+             type(Float_Field), target :: Lu_diag, u
+           end function Lu_diag
+        end interface
+      end subroutine solver
+   end interface
 
   ! General procedure pointers
   procedure (sub4),        pointer :: u_source                 => null ()
@@ -93,6 +112,9 @@ module init_mod
   procedure (fun4),        pointer :: physics_velo_source      => null ()
   procedure (fun5),        pointer :: physics_scalar_flux      => null ()
   procedure (zcoords_fun), pointer :: z_coords                 => null ()
+
+  ! Elliptic solver 
+  procedure (solver),      pointer :: elliptic_solver          => null ()
 contains
   subroutine init_init_mod
     implicit none

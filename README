@@ -1,6 +1,6 @@
 **********************************************************************************************************************************
-*   WAVETRISK 2.2														 *
-*   2022-06-06															 *
+*   WAVETRISK 2.3														 *
+*   2023-11-02															 *
 *																 *
 *   User's guide and code description												 *
 *															         *
@@ -17,6 +17,10 @@
 *																 *
 **********************************************************************************************************************************
 *																 *
+*   Major changes compared to WAVETRISK 2.2                                                                                      *
+*   1. Addition of full multigrid elliptic solver.                                                                               *
+*   2. Addition of simple dry physics for atmosphere model                                                                       *
+*                                                                                                                                *
 *   Major changes compared to WAVETRISK 2.1											 *
 *   1. Addition of dynamic load balancing and checkpointing using charm++/AMPI.	Only works on a single node due to bugs in       *
 *      pieglobals implementation of charm++/AMPI.                                                                                *
@@ -369,11 +373,10 @@ option in MITgcm.  The splitting usese a semi-implicit theta-method for the baro
 external pressure gradient) and theta2 for the barotropic flow divergence.  Theta1 = theta2 = 1 gives a backwards Euler (fully
 implicit scheme), and theta1 > 0.5, theta2 > 0.5 is necessary for stability.  The recommended value is thata1 = theta2 = 0.8.
 
-The elliptic equation for the free surface is solved using a simple adaptive multigrid solver. The coarsest scale is solved using
-bicgstab, and this solution is then prolonged to the finer scales, which are solved using scheduled relaxation Jacobi iterations
-(Adsuara et al J Comput Phys 332, 2017). Recommended relative tolerance for the (coarse scale) elliptic solver
-tol_elliptic = 1e-9 to ensure mass conservation and sufficient accuracy. A larger relative tolerance tol_jacobi = 1e-3 to 1e-6
-may be used for the finer scales. 
+The elliptic equation for the free surface is solved using an adaptive multigrid solver.  Two adaptive multigrid solvers are provided: 
+full multigrid (FMG) using V-cycles and scheduled relaxation Jacobi (SRJ) iterations (Adsuara et al J Comput Phys 332, 2017). 
+In both cases, the  coarsest scales are solved using BiCGSTAB. The default method is SRJ, but FMG can be selected by setting the pointer 
+elliptic_solver => FMG.
 
 The associated elliptic equation is solved using a simple multigrid scheme on the adaptive grid. The baroclinic and barotropic
 modes are coupled at each time step. The barotropic part computes an implicit free surface. The barotropic estimate of the

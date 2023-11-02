@@ -408,7 +408,8 @@ contains
   subroutine update_bdry1 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field) :: field
-    integer           :: flag, l_start, l_end
+    integer           :: l_start, l_end
+    integer, optional :: flag
 
     call update_bdry__start1  (field, l_start, l_end)
     if (deadlock) call deadlock_test (flag)
@@ -418,7 +419,8 @@ contains
   subroutine update_vector_bdry1 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field), dimension(:) :: field
-    integer                         :: flag, l_start, l_end
+    integer                         :: l_start, l_end
+    integer, optional               :: flag
 
     call update_vector_bdry__start1  (field, l_start, l_end)
     if (deadlock) call deadlock_test (flag)
@@ -428,7 +430,8 @@ contains
   subroutine update_array_bdry1 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field), dimension(:,:) :: field
-    integer                           :: flag, l_start, l_end
+    integer                           :: l_start, l_end
+    integer, optional                 :: flag
 
     call update_array_bdry__start1  (field, l_start, l_end)
     if (deadlock) call deadlock_test (flag)
@@ -438,7 +441,8 @@ contains
   subroutine update_bdry (field, l, flag)
     implicit none
     type(Float_Field) :: field
-    integer           :: flag, l
+    integer           :: l
+    integer, optional :: flag
 
     call update_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)
@@ -449,7 +453,8 @@ contains
     implicit none
     ! Updates field array
     type(Float_Field), dimension(:) :: field
-    integer                         :: flag, l
+    integer                         :: l
+    integer, optional               :: flag
 
     call update_vector_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)
@@ -460,7 +465,8 @@ contains
     ! Updates field array
     implicit none
     type(Float_Field), dimension(:,:) :: field
-    integer                           :: flag, l
+    integer                           :: l
+    integer, optional                 :: flag
 
     call update_array_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)

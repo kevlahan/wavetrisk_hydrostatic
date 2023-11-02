@@ -5,32 +5,6 @@ module barotropic_2d_mod
   use lin_solve_mod
   use utils_mod
   implicit none
-  ! Add Laplacian diffusion to free surface perturbation eta
-  real(8), parameter :: C_eta = 5d-3
-  logical, parameter :: diff_eta = .false.
-
-  abstract interface
-     subroutine solver (u, f, Lu, Lu_diag)
-       use ops_mod
-       implicit none
-       type(Float_Field), target :: f, u
-       interface
-          function Lu (u, l)
-            use domain_mod
-            implicit none
-            integer                   :: l
-            type(Float_Field), target :: Lu, u
-          end function Lu
-          function Lu_diag (u, l)
-            use domain_mod
-            implicit none
-            integer                   :: l
-            type(Float_Field), target :: Lu_diag, u
-          end function Lu_diag
-       end interface
-     end subroutine solver
-  end interface
-  procedure (solver), pointer :: elliptic_solver => null ()
 contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
@@ -141,34 +115,8 @@ contains
     call equals_float_field (Laplacian_scalar(S_TEMP), sol(S_MASS,zlevels+1), AT_NODE) ! save old free surface height for elliptic operator
     
     ! Solve elliptic equation
-    elliptic_solver => SJR ! SJR (scheduled Jacobi relaxation or MG (V-cycle multigrid)
-    call elliptic_solver (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_diag) 
-
-    ! Diffuse free surface to increase stability and avoid discontinuities due to wave steepening
-    if (diff_eta) then
-       call update_bdry (sol(S_MASS,zlevels+1), NONE, 600)
-       call diffuse_eta
-    end if
+    call elliptic_solver (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_lo_diag) 
   end subroutine eta_update
-
-  subroutine diffuse_eta
-    ! Explicit Laplacian diffusion split step for free surface
-    implicit none
-
-    integer :: d, ibeg, iend
-    real(8) :: dt_nu
-
-    call Laplacian_eta
-
-    dt_nu = C_eta * dx_min**2
-    do d = 1, size(grid)
-       ibeg = (1+2*(POSIT(S_MASS)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
-       iend = sol(S_MASS,zlevels+1)%data(d)%length
-       sol(S_MASS,zlevels+1)%data(d)%elts(ibeg:iend) = sol(S_MASS,zlevels+1)%data(d)%elts(ibeg:iend) &
-            + dt_nu * Laplacian_scalar(S_MASS)%data(d)%elts(ibeg:iend)
-    end do
-    sol(S_MASS,zlevels+1)%bdry_uptodate = .false.
-  end subroutine diffuse_eta
 
   subroutine u_update
     ! Explicit Euler velocity update with new external pressure gradient
@@ -216,7 +164,6 @@ contains
        end do
     end do
     sol(S_TEMP,zlevels+1)%bdry_uptodate = .false.
-    call update_bdry (sol(S_TEMP,zlevels+1), NONE, 100)
   end subroutine rhs_elliptic
 
   subroutine cal_rhs_elliptic (dom, i, j, zlev, offs, dims)
@@ -241,7 +188,7 @@ contains
 
     integer :: d, j
 
-    call update_bdry (q, l, 33)
+    call update_bdry (q, l)
 
     elliptic_lo = q; call zero_float_field (elliptic_lo, AT_NODE)
     
@@ -256,7 +203,7 @@ contains
        nullify (h_flux, mass, scalar)
     end do
     horiz_flux(S_MASS)%bdry_uptodate = .false.
-    call update_bdry (horiz_flux(S_MASS), l, 213)
+    call update_bdry (horiz_flux(S_MASS), l)
 
     ! Calculate divergence
     do d = 1, size(grid)
@@ -268,11 +215,13 @@ contains
        nullify (dscalar, h_flux)
     end do
     Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
-    call update_bdry (Laplacian_scalar(S_MASS), l, 101)
+    call update_bdry (Laplacian_scalar(S_MASS), l)
 
     ! Form complete linear operator 
     call apply_onescale (complete_elliptic_lo, l, z_null, 0, 1)
+    
     elliptic_lo%bdry_uptodate = .false.
+    call update_bdry (elliptic_lo, l)
   contains
     subroutine complete_elliptic_lo (dom, i, j, zlev, offs, dims)
       implicit none
@@ -290,18 +239,22 @@ contains
     end subroutine complete_elliptic_lo
   end function elliptic_lo
 
-  function elliptic_diag (q, l)
+  function elliptic_lo_diag (q, l)
     ! Local approximation of diagonal of elliptic operator
     ! (Laplacian_scalar(S_TEMP) is the old free surface perturbation)
     ! ** using exact value of diagonal of Laplacian typically does NOT improve results **
     implicit none
     integer                   :: l
-    type(Float_Field), target :: elliptic_diag, q
+    type(Float_Field), target :: elliptic_lo_diag, q
 
-    elliptic_diag = q; ; call zero_float_field (elliptic_diag, AT_NODE)
-    call apply_onescale (cal_elliptic_diag, l, z_null, 0, 1)
+    elliptic_lo_diag = q; ; call zero_float_field (elliptic_lo_diag, AT_NODE)
+    
+    call apply_onescale (cal_elliptic_lo_diag, l, z_null, 0, 1)
+
+    elliptic_lo_diag%bdry_uptodate = .false.
+    call update_bdry (elliptic_lo_diag, l)
   contains
-    subroutine cal_elliptic_diag  (dom, i, j, zlev, offs, dims)
+    subroutine cal_elliptic_lo_diag  (dom, i, j, zlev, offs, dims)
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
       integer, dimension(N_BDRY+1)   :: offs
@@ -348,10 +301,10 @@ contains
          end if
 
          Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
-         elliptic_diag%data(d)%elts(id_i) = theta1*theta2 * Laplace_diag - 1d0
+         elliptic_lo_diag%data(d)%elts(id_i) = theta1*theta2 * Laplace_diag - 1d0
       end if
-    end subroutine cal_elliptic_diag
-  end function elliptic_diag
+    end subroutine cal_elliptic_lo_diag
+  end function elliptic_lo_diag
 
   subroutine flux_divergence (q, div_flux)
     ! Returns flux divergence of vertical integrated velocity in divF using solution q, stored in div_flux
@@ -361,8 +314,8 @@ contains
 
     integer :: d, j, l
 
-    call update_vector_bdry (q(S_MASS,1:zlevels), NONE, 50)
-    call update_vector_bdry (q(S_VELO,1:zlevels), NONE, 50)
+    call update_vector_bdry (q(S_MASS,1:zlevels), NONE)
+    call update_vector_bdry (q(S_VELO,1:zlevels), NONE)
 
     do l = level_end, level_start, -1
        ! Calculate vertically integrated velocity flux
@@ -379,7 +332,7 @@ contains
           nullify (h_flux)
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (horiz_flux(S_MASS), l, 211)
+       call update_bdry (horiz_flux(S_MASS), l)
 
        ! Calculate divergence of vertically integrated velocity flux
        do d = 1, size(grid)
@@ -391,47 +344,9 @@ contains
           nullify (dscalar, h_flux)
        end do
        div_flux%bdry_uptodate = .false.
-       call update_bdry (div_flux, l, 212)
+       call update_bdry (div_flux, l)
     end do
   end subroutine flux_divergence
-
-  subroutine Laplacian_eta
-    ! Computes Laplacian diffusion of free surface, stored in Laplacian_scalar(S_MASS)
-    implicit none
-    
-    integer :: d, j, l
-
-    do l = level_end, level_start, -1
-       do d = 1, size(grid)
-          h_flux => horiz_flux(S_MASS)%data(d)%elts
-          scalar => sol(S_MASS,zlevels+1)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=1)
-          end do
-          nullify (scalar)
-          if (l < level_end) then
-             dscalar => Laplacian_scalar(S_MASS)%data(d)%elts
-             call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
-             nullify (dscalar)
-          end if
-          nullify (h_flux)
-       end do
-       horiz_flux(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (horiz_flux(S_MASS), l, 211)
-
-       ! Calculate divergence of vertically integrated velocity flux
-       do d = 1, size(grid)
-          dscalar => Laplacian_scalar(S_MASS)%data(d)%elts
-          h_flux  => horiz_flux(S_MASS)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (dscalar, h_flux)
-       end do
-       Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (Laplacian_scalar(S_MASS), l, 212)
-    end do
-  end subroutine Laplacian_eta
 
   subroutine total_height (q, q_2d, l)
     ! Total height q_2d computed from pseudo-densities q
@@ -519,7 +434,7 @@ contains
     implicit none
     integer :: d, j, l
 
-    call update_bdry (sol(S_MASS,zlevels+1), NONE, 601)
+    call update_bdry (sol(S_MASS,zlevels+1), NONE)
 
     call equals_float_field (sol(S_TEMP,zlevels+1), sol(S_MASS,zlevels+1), AT_NODE)
 
@@ -542,7 +457,7 @@ contains
     implicit none
     integer :: d, j, k, l, p
 
-    call update_array_bdry (sol, NONE, 500)
+    call update_array_bdry (sol, NONE)
 
     ! Divergence of vertically integrated thickness flux, stored in trend(S_MASS,1)
     do l = level_end, level_start, -1
@@ -559,7 +474,7 @@ contains
           nullify (h_flux)
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (horiz_flux(S_MASS), l, 211)
+       call update_bdry (horiz_flux(S_MASS), l)
        do d = 1, size(grid)
           dscalar =>    trend(S_MASS,1)%data(d)%elts
           h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -569,7 +484,7 @@ contains
           nullify (dscalar, h_flux)
        end do
        trend(S_MASS,1)%bdry_uptodate = .false.
-       call update_bdry (trend(S_MASS,1), l, 212)
+       call update_bdry (trend(S_MASS,1), l)
     end do
 
     ! Divergence of thickness flux at each vertical level, stored in exner_fun(1:zlevels)
@@ -592,7 +507,7 @@ contains
              nullify (h_flux)
           end do
           horiz_flux(S_MASS)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_MASS), l, 211)
+          call update_bdry (horiz_flux(S_MASS), l)
           do d = 1, size(grid)
              dscalar => exner_fun(k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -602,7 +517,7 @@ contains
              nullify (dscalar, h_flux)
           end do
           exner_fun(k)%bdry_uptodate = .false.
-          call update_bdry (exner_fun(k), l, 212)
+          call update_bdry (exner_fun(k), l)
        end do
     end do
 
@@ -614,7 +529,7 @@ contains
     end do
     
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
-    call update_vector_bdry (trend(S_TEMP,1:zlevels), NONE, 500)
+    call update_vector_bdry (trend(S_TEMP,1:zlevels), NONE)
   end subroutine vertical_velocity
 
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)

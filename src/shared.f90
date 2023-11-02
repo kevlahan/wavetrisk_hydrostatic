@@ -374,12 +374,14 @@ contains
     remapvelo_type      = "PPR"                             ! remapping scheme for velocity
     save_levels         = 1                                 ! vertical level to save
     timeint_type        = "RK45"                            ! time integration scheme (RK3 is default for incompressible case)
+    tol                 = 5d-3                              ! relative tolerance for adaptivity
+    zlevels             = 20                                ! number of vertical levels
+
+    ! Multigrid elliptic equation solver parameters
+    coarse_tol          = 1d-4                              ! tolerance for coarse scale bicgstab elliptic solver
+    fine_tol            = 1d-3                              ! tolerance for fine scale jacobi iterations
     coarse_iter         = 30                                ! maximum number of coarse scale bicgstab iterations for elliptic solver
     fine_iter           = 200                               ! maximum number of fine scale jacobi iterations for elliptic solver
-    tol                 = 5d-3                              ! relative tolerance for adaptivity
-    coarse_tol          = 1d-9                              ! tolerance for coarse scale bicgstab elliptic solver
-    fine_tol            = 1d-3                              ! tolerance for fine scale jacobi iterations
-    zlevels             = 20                                ! number of vertical levels
     
     ! Default physical parameters
     ! (these parameters are typically reset in test case file, but are needed for compilation)

@@ -36,7 +36,10 @@ contains
     character(255) :: command
     integer        :: k, d, v
 
-     if (max_level < min_level) then
+    ! Default elliptic solver (scheduled relaxation Jacobi method)
+    elliptic_solver => SRJ
+
+    if (max_level < min_level) then
        if (rank == 0) then
           write (6,'(//,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
           write (6,'(a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
