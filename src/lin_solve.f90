@@ -46,6 +46,7 @@ contains
        nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
        call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
+    nrm_res(:,2) = nrm_res(:,1)
 
     if (log_iter) call start_timing
 
