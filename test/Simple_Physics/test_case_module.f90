@@ -1,7 +1,7 @@
 module test_case_mod
    ! Description: Test case module for the Simple physics
    ! Author: Gabrielle Ching-Johnson
-   ! Date Revised: February 4th
+   ! Date Revised: November 1 2023
    use comm_mpi_mod
    use utils_mod
    use init_mod
@@ -168,6 +168,15 @@ contains
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Dynamics Initialization!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    subroutine init_sol (dom, i, j, zlev, offs, dims)
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Initialization routine to be called for each zlev and grid point.
+      !                Initializes the initial conditions:
+      !                    - potenital temp -> mass weighted potential temp
+      !                    - pressure at the layer center
+      !                    - Intepolates velocites from nodes to edges
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       type (Domain)                   :: dom
       integer                         :: i, j, zlev
@@ -192,7 +201,6 @@ contains
       x_NE = dom%node%elts(idNE+1)
 
       ! Surface pressure
-      !dom%surf_press%elts(id+1) = surf_pressure (x_i)
       p_s = dom%surf_press%elts(id+1)
 
       ! Pressure at level zlev (layer center)
@@ -225,7 +233,14 @@ contains
    end subroutine init_sol
 
    subroutine init_vels_and_surf(dom, i, j, zlev, offs, dims)
-      ! Set the initial_geopotential and zonal & meridional velcity
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Initialize surface pressure, geoptentials and velocities
+      !                (zonal and meridional) at the node.
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       type (Domain)                   :: dom
       integer                         :: i, j, zlev
@@ -265,7 +280,15 @@ contains
    end function surf_pressure
 
    subroutine geopot_initialize(dom, i, j, zlev, offs, dims)
-      ! Set the initial_geopotential
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Initialize geopotential at element node
+      !
+      !   Assumption: Surface pressure is set and grid has been set
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       type (Domain)                   :: dom
       integer                         :: i, j, zlev
@@ -278,6 +301,7 @@ contains
       id_i = idx(i, j, offs, dims) + 1
 
       p_s = dom%surf_press%elts(id_i)
+      ! Calculate pressure at the center of vertical layer
       p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
 
       ! Geopotential
@@ -287,7 +311,16 @@ contains
    end subroutine geopot_initialize
 
    subroutine vel_initialize (dom, i, j, zlev, offs, dims)
-      ! Velocities intialized using theory of ekman layer
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Initialize velocities (zonal and meridional) at the element node
+      !                 using the theory of the ekman layer.
+      !
+      !   Assumption: Geopotential at the element has been set in dom%geopot%elts
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       type (Domain)                   :: dom
       integer                         :: i, j, zlev
@@ -314,13 +347,20 @@ contains
 
       do l = level_start, level_end
          do k = 1, zlevels
+            ! Set velocities at the nodes for all domains
             call apply_onescale(init_vels_and_surf, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+            ! Initialize prognostic variables
             call apply_onescale (init_sol, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
          end do
       end do
    end subroutine apply_initial_conditions_case
 
    subroutine initialize_a_b_vert_case
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Initialize the vertical grid using equal pressure layers.
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       integer :: k
 
@@ -332,9 +372,6 @@ contains
          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
          b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
       end do
-
-      ! LMDZ grid
-      !call cal_AB
 
       ! Set mass coefficients
       a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
@@ -401,6 +438,16 @@ contains
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
       end if
    end subroutine initialize_dt_viscosity_case
+
+   function z_coords_case (eta_surf, z_s)
+      ! Dummy routine
+      ! (see upwelling test case for example)
+      implicit none
+      real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+      real(8), dimension(0:zlevels) :: z_coords_case
+
+      z_coords_case = 0.0_8
+   end function z_coords_case
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -672,6 +719,7 @@ contains
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Physics Initialization and Plugins !!!!!!!!!!!!!!!!!!!!!
    !! Should be in its own module
+   !!!!!!!!!!!!!!!!!!!!! Initialization Routines !!!!!!!!!!!!!!!!!!!!!!!
    subroutine init_physics
       !-----------------------------------------------------------------------------------
       !
@@ -702,7 +750,7 @@ contains
       read_paramb_plugin => read_paramb
       flush_plugin => flush_log_phys
 
-      !write physics read in parameters to file
+      !Write physics read in parameters to file (specific for each rank)
       write(param_file, '(A,I4.4)') trim(run_id)//'.physics_params.', rank
       call write_physics_params(9*rank,param_file)
 
@@ -719,12 +767,76 @@ contains
       call initialize_extra_levels(Nsoil+1)
    end subroutine init_physics
 
+   subroutine write_physics_params(file_unit,file_params)
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Write desired physics parameters to a file, to be read by physics
+      !                package during initialization by each rank.
+      !
+      !   Notes: Takes into account if mpi is being used, so file_params contains
+      !           the file name that differs. Note that `mugaz` variable does not matter
+      !           as set R manually to 278 in the initialization.
+      !
+      !   Used in: init_physics subroutine
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
+      integer :: file_unit
+      character(*) :: file_params
+      logical :: physics_write
+
+      if (rank == 0) then
+         physics_write = .true.
+      else
+         physics_write = .false.
+      end if
+
+      open(unit=file_unit, file=trim(file_params), form="FORMATTED", action='WRITE', status='REPLACE')
+
+      !write the desired physics parameters
+      write(file_unit,*) "planet_rat = ", radius
+      write(file_unit,*) "g = ", grav_accel
+      write(file_unit,*) "cpp = ", c_p
+      write(file_unit,*) "mugaz = ", 28.9702532_8  !8314.46261815324/R_d
+      write(file_unit,*) "unjours = ", DAY
+      write(file_unit,*) "year_day = ", 365
+      write(file_unit,*) "periheli = ", 150
+      write(file_unit,*) "aphelie = ", 150
+      write(file_unit,*) "peri_day = ", 0.
+      write(file_unit,*) "obliquit = ", 0
+      write(file_unit,*) "Cd_mer = ", 0.01_8
+      write(file_unit,*) "Cd_ter = ", 0.01_8
+      write(file_unit,*) "I_mer = ", 3000.
+      write(file_unit,*) "I_ter = ", 3000.
+      write(file_unit,*) "alb_ter = ", 0.112
+      write(file_unit,*) "alb_mer = ", 0.112
+      write(file_unit,*) "emi_mer = ", 1.
+      write(file_unit,*) "emi_ter = ", 1.
+      write(file_unit,*) "emin_turb = ", 1.e-16
+      write(file_unit,*) "lmixmin = ", 100
+      write(file_unit,*) "coefvis = ", 0.99_8
+      write(file_unit,*) "coefir = ", 0.08_8
+      write(file_unit,*) "callrad = ", .true.
+      write(file_unit,*) "calldifv = ", .true.
+      write(file_unit,*) "calladj = ", .true.
+      write(file_unit,*) "callsoil = ", soil_mod
+      write(file_unit,*) "season = ", .false.
+      write(file_unit,*) "diurnal = ", .true.
+      write(file_unit,*) "lverbose = ", physics_write
+      write(file_unit,*) "period_sort = ", 1.
+
+      close(file_unit)
+   end subroutine write_physics_params
+
    subroutine init_soil_grid_default
       !-----------------------------------------------------------------------------------
       !
       !   Description: Initialize physics package with dummy longitude & latitude values
-      !                and grid parameters. Also set number of soil levels and zmin.
+      !                and grid parameters. Also set number of soil levels and zmin to
+      !                default value of the physics package (nsoilmx=10 currently)
       !
+      !   Notes: To be used when number of soil levels not set in Simple_Physics.f90.
       !
       !   Author: Gabrielle Ching-Johnson
       !
@@ -822,12 +934,12 @@ contains
 
    end subroutine physics_checkpoint_restart
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Plugins !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!! Plugins !!!!!!!!!!!!!!!!!!!!!!!!!!
 
    subroutine read_paramr(name, defval, val, comment)
       !-----------------------------------------------------------------------------------
       !
-      !   Description: Physics plugin to read reals from a file
+      !   Description: Physics plugin to read REALs from a file
       !
       !   Assumption: File is already open with unit number: 9*rank
       !
@@ -851,7 +963,7 @@ contains
    subroutine read_parami(name, defval, val, comment)
       !-----------------------------------------------------------------------------------
       !
-      !   Description: Physics plugin to read integers from a file
+      !   Description: Physics plugin to read INTEGERs from a file
       !
       !   Assumption: File is already open with unit number: 9*rank
       !
@@ -875,7 +987,7 @@ contains
    subroutine read_paramb(name, defval, val, comment)
       !-----------------------------------------------------------------------------------
       !
-      !   Description: Physics plugin to read logicals from a file
+      !   Description: Physics plugin to read LOGICALs from a file
       !
       !   Assumption: File is already open with unit number: 9*rank
       !
@@ -897,6 +1009,15 @@ contains
    end subroutine
 
    subroutine flush_log_phys(lev, taglen, tag, buflen, bufsize, buf) BIND(C)
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Physics plugin to flush the log buffer.
+      !
+      !   Notes: The goal was to only have the master (rank 0) flush (print to terminal)
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
       use logging, ONLY : dbtag
       USE, INTRINSIC :: iso_c_binding, ONLY : c_char, c_null_char, c_int
       INTEGER(c_int), INTENT(IN), VALUE :: lev, taglen, buflen, bufsize
@@ -915,69 +1036,11 @@ contains
       end if
    end subroutine flush_log_phys
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-   subroutine write_physics_params(file_unit,file_params)
-      integer :: file_unit
-      character(*) :: file_params
-      logical :: physics_write
-      !-----------------------------------------------------------------------------------
-      !
-      !   Description: Write desired physics parameters to a file.
-      !
-      !   Notes: Takes into account if mpi is being used, so file_params contains
-      !           the file name
-      !
-      !   Author: Gabrielle Ching-Johnson
-      !
-      !-----------------------------------------------------------------------------------
-
-      if (rank == 0) then
-         physics_write = .true.
-      else
-         physics_write = .false.
-      end if
-
-      open(unit=file_unit, file=trim(file_params), form="FORMATTED", action='WRITE', status='REPLACE')
-
-      !write the desired physics parameters
-      write(file_unit,*) "planet_rat = ", radius
-      write(file_unit,*) "g = ", grav_accel
-      write(file_unit,*) "cpp = ", c_p
-      write(file_unit,*) "mugaz = ", 28.9702532_8  !8314.46261815324/R_d
-      write(file_unit,*) "unjours = ", DAY
-      write(file_unit,*) "year_day = ", 365
-      write(file_unit,*) "periheli = ", 150
-      write(file_unit,*) "aphelie = ", 150
-      write(file_unit,*) "peri_day = ", 0.
-      write(file_unit,*) "obliquit = ", 0
-      write(file_unit,*) "Cd_mer = ", 0.01_8
-      write(file_unit,*) "Cd_ter = ", 0.01_8
-      write(file_unit,*) "I_mer = ", 3000.
-      write(file_unit,*) "I_ter = ", 3000.
-      write(file_unit,*) "alb_ter = ", 0.112
-      write(file_unit,*) "alb_mer = ", 0.112
-      write(file_unit,*) "emi_mer = ", 1.
-      write(file_unit,*) "emi_ter = ", 1.
-      write(file_unit,*) "emin_turb = ", 1.e-16
-      write(file_unit,*) "lmixmin = ", 100
-      write(file_unit,*) "coefvis = ", 0.99_8
-      write(file_unit,*) "coefir = ", 0.08_8
-      write(file_unit,*) "callrad = ", .true.
-      write(file_unit,*) "calldifv = ", .true.
-      write(file_unit,*) "calladj = ", .true.
-      write(file_unit,*) "callsoil = ", soil_mod
-      write(file_unit,*) "season = ", .false.
-      write(file_unit,*) "diurnal = ", .true.
-      write(file_unit,*) "lverbose = ", physics_write
-      write(file_unit,*) "period_sort = ", 1.
-
-      close(file_unit)
-   end subroutine write_physics_params
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Routines Needed to Call the Physics !!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!! Routines Needed to Call the Physics !!!!!!!!!!!!!!!!!!!!
    subroutine trend_physics(q, dq)
       !-----------------------------------------------------------------------------------
       !
@@ -1070,7 +1133,7 @@ contains
       id = idx(i, j, offs, dims)
       id_i = id + 1
 
-      !Convert zonal and meridional tendencies to edge tendencies
+      !Convert zonal and meridional tendencies to edge tendencies (saved in uvw)
       call interp_latlon_UVW(dom, i, j, zlev, offs, dims, uvw)
 
       !Update the trend
@@ -1121,7 +1184,7 @@ contains
          phys_dmeridional, &     ! Column meridonal velcity tendencies
          phys_dsurfpres,&        ! Column surface pressure tendency
          phys_dtheta             ! Column potential temperature tendency
-      real(8), dimension(1:Nsoil+1) :: surf_soil_temp           ! Column surface temp and soil temperatures
+      real(8), dimension(1:Nsoil+1) :: surf_soil_temp          ! Column surface temp and soil temperatures
       real(8), dimension (0:zlevels) :: phys_pres_lev          ! Column interfaces pressure
       real(8) :: latitude, longitude                           ! Coordinates of the column
       real(8) :: nth_day, day_fraction                         ! Day in simulation, fraction of the day
@@ -1220,7 +1283,7 @@ contains
             phys_dtheta(k) = phys_dtemp(k)*(dom%surf_press%elts(id_i)/phys_pres_lay(k))**kappa
             trend(S_TEMP,k)%data(d)%elts(id_i) = phys_dtheta(k)*full_mass
 
-            !Save Zonal and Meridional Velocities, will be converted to edges once entire domain finished
+            !Save Zonal and Meridional Velocities in place holder, will be converted to edges once entire domain finished
             dzonal(k)%data(d)%elts(id_i) = phys_dzonal(k)
             dmerid(k)%data(d)%elts(id_i) = phys_dmeridional(k)
          end do
@@ -1234,10 +1297,15 @@ contains
 
    subroutine cal_surf_press_phys (q)
       implicit none
-      ! Description : Compute surface pressure of all domains and save in domain press_lower element for upward integration
-      !               Set geopotential to surface geopotential for upward integration
-      !               Orginal
-      ! Date Revised: Feb 1st
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Compute surface pressure of all domains and save in domain press_lower
+      !                 element for upward integration. Set geopotential to surface
+      !                 geopotential for upward integration.
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
       type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
 
       integer :: d, k, mass_type, p
@@ -1259,6 +1327,7 @@ contains
             end do
             nullify (mass, mean_m, mean_t, temp)
          end do
+
          ! using hydrostatic approx get surface pressure (P-bottom - p_top = -row*g*dz) (recall mass = reference density*dz)
          grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + p_top
 
@@ -1267,7 +1336,12 @@ contains
    end subroutine cal_surf_press_phys
 
    subroutine column_mass_phys (dom, i, j, zlev, offs, dims)
-      ! Description: Sum up mass (ie add mass to previous sum) and save in surface pressure array
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Sum up mass (ie add mass to previous sum) and save in surface
+      !                 pressure array
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       type (Domain)                  :: dom
       integer                        :: i, j, zlev
@@ -1282,7 +1356,11 @@ contains
    end subroutine column_mass_phys
 
    subroutine set_surf_geopot_phys (dom, i, j, zlev, offs, dims)
-      ! Set initial geopotential to surface geopotential
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Set initial geopotential to surface geopotential
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       type (Domain)                  :: dom
       integer                        :: i, j, zlev
@@ -1297,7 +1375,20 @@ contains
    end subroutine set_surf_geopot_phys
 
    subroutine cal_press_geopot_layer (dom, i, j, zlev, offs, dims)
-      ! Integrate pressure up from surface to top layer
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Integrate pressure and geopotential up from surface to top layer.
+      !                 Each time routine is called, integrate up one vertical layer.
+      !
+      !   Outputs/Saves:
+      !        dom%press%elts   -> pressure at center of the layer
+      !        dom%press_lower  -> pressure at the top interface to be used at next call
+      !        dom%geopot_lower -> geopotential at bottom of interface
+      !        dom%geopot       -> geopotential at top interface of layer
+      !        * geopotentials will be used to calculate at center of layer
+      !            in retrieve_prog_vars subroutine of physics_call
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev
@@ -1329,19 +1420,20 @@ contains
       dom%press_lower%elts(id_i) = pressure_upper
    end subroutine cal_press_geopot_layer
 
-   function z_coords_case (eta_surf, z_s)
-      ! Dummy routine
-      ! (see upwelling test case for example)
-      implicit none
-      real(8)                       :: eta_surf, z_s ! free surface and bathymetry
-      real(8), dimension(0:zlevels) :: z_coords_case
-
-      z_coords_case = 0.0_8
-   end function z_coords_case
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Place holder subroutine for dynamics time step !!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
    subroutine timestep_placeholder(align_time, aligned)
-      ! Description: Subroutine to call in place of dynamics time step if only calling the physics by itself.
-      !              This will update the time and flags needed to know when to checkpoint.
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Subroutine to call in place of dynamics time step if only calling
+      !                  the physics by itself. This will update the time and flags
+      !                  needed to know when to checkpoint.
+      !
+      !   Key Note: This is the REAL(8) case, used for physics only cases.
+      !             It includes hard coded dt case, commented out if desired
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
       use main_mod, ONLY : time_mult, dt_new
       implicit none
       real(8)              :: align_time
@@ -1373,8 +1465,18 @@ contains
    end subroutine timestep_placeholder
 
    subroutine timestep_placeholder_real(align_time, aligned,dt_real)
-      ! Description: Subroutine to call in place of dynamics time step if only calling the physics by itself.
-      !              This will update the time and flags needed to know when to checkpoint.
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Subroutine to call in place of dynamics time step if only calling
+      !                  the physics by itself. This will update the time and flags
+      !                  needed to know when to checkpoint.
+      !
+      !   Key Note: This is the REAL case, used for testing and physics only cases.
+      !             It includes hard coded dt case, commented out if desired
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
       use main_mod, ONLY : time_mult, dt_new
       implicit none
       !! REAL version
@@ -1406,11 +1508,23 @@ contains
       time = time + dt_real
 
    end subroutine timestep_placeholder_real
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Post Processing Calculations - Mean Values !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    subroutine mean_values (iwrt)
-      ! Saves  Temperature, Velocity and Geopotential averages over the sphere
-      ! (assumes non-adaptive grid)
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Saves averages over the sphere (assumes non-adaptive grid) of key
+      !                 variables to a file.
+      !
+      !   Variables Saved:
+      !        - Temperature
+      !        - Zonal and Meridional Velocity
+      !        - Zonal and Meridional Kinetic Energy (included density)
+      !        - Low (0-23.5 deg), Mid (23.5-66.5) and High (66.5-90) Latitude Temperatures
+      !
+      !   Author: Gabrielle Ching-Johnson
+      !
+      !-----------------------------------------------------------------------------------
       use io_mod
       implicit none
       integer :: iwrt
@@ -1425,9 +1539,9 @@ contains
       character(4)                  :: s_time
 
       ! Set the ranges
-      low_lat_upper_lim = (23.5*MATH_PI/180)
-      mid_lat_range = (/(23.5*MATH_PI/180), (66.5*MATH_PI/180)/)
-      high_lat_lower_lim = (66.5*MATH_PI/180)
+      low_lat_upper_lim = (23.5*MATH_PI/180) ! Upper limit of low latitude range
+      mid_lat_range = (/(23.5*MATH_PI/180), (66.5*MATH_PI/180)/) ! Mid latitude range
+      high_lat_lower_lim = (66.5*MATH_PI/180) ! Lower limit of high latitude range
 
       !Set latatide averages and area to zero
       Low_Lat_avg = 0
@@ -1441,11 +1555,14 @@ contains
       ! Calculate surface pressure, as pressure is calculated in temp_fun to get temperature
       call cal_surf_press_phys(sol(1:N_VARIABLE,1:zmax))
 
-      !Calculate Sums of temp, geopotential, and velocities, Kinetic Energies, Temp of Latitude zones
+
+      ! Calucate the sums of the area over sphere and over low, mid and high regions (high/mid/low_lat_area updated in area)
       area = integrate_hex (area_fun, 1, .true.)
-      high_lat_area = sum_real(high_lat_area)
-      mid_lat_area = sum_real(mid_lat_area)
-      low_lat_area = sum_real(low_lat_area)
+      high_lat_area = sum_real(high_lat_area) !Get area summed over all ranks
+      mid_lat_area = sum_real(mid_lat_area)   !Get area summed over all ranks
+      low_lat_area = sum_real(low_lat_area)   !Get area summed over all ranks
+
+      !Calculate Sums of temp, geopotential, and velocities, Kinetic Energies, Temp of Latitude zones
       do k = 1, zlevels
          T_avg(k)  = integrate_hex (temp_fun, k, .true.) ! This will take care if mpi is used
          Pressure_avg(k) = integrate_hex(pressure_fun, k, .true.)
@@ -1492,11 +1609,14 @@ contains
             write (6,'(i3, 3x, f9.2, 1x, f9.2, 1x, f9.2, 9(1x, es13.4))') &
                k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), Zonal_vel_avg(k), Meridional_avg(k),&
                Zonal_KE_avg(k), Merid_KE_avg(k), Low_Lat_avg(k), Mid_lat_avg(k), High_lat_avg(k)
-            ! write (20,'(i3, 1x, 6(es13.6,1x))') k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), &
-            !    Zonal_vel_avg(k), Meridional_avg(k)
+            ! Write unformatated to file
             write (20,*) k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), &
                Zonal_vel_avg(k), Meridional_avg(k), Zonal_KE_avg(k), Merid_KE_avg(k), Low_Lat_avg(k), Mid_lat_avg(k),&
                High_lat_avg(k)
+            ! Write formatted to file
+            ! write (20,'(i3, 1x, 11(es13.6,1x))') k, z(k), Pressure_avg(k), Geopot_avg(k), Total_Tavg(k), &
+            !    Zonal_vel_avg(k), Meridional_avg(k), Zonal_KE_avg(k), Merid_KE_avg(k), Low_Lat_avg(k), Mid_lat_avg(k),&
+            !    High_lat_avg(k)
          end do
          ! Write the surface temperature and soil temp (if soil included)
          do k = 0,zmin,-1
@@ -1507,7 +1627,15 @@ contains
       end if
    contains
       real(8) function temp_fun (dom, i, j, zlev, offs, dims)
-         ! Calculates the temperature at center of zlev layer of an element in a domain
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Calculates the temperature at center of zlev layer of an element
+         !                 in a domain and the zonal latitude temperatures.
+         !                 Requires integration of the pressure.
+         !                 Saves the density at the element node in dom%ke%elts for
+         !                 the Kintic Energies.
+         !
+         !-----------------------------------------------------------------------------------
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1532,7 +1660,7 @@ contains
          ! Calculate the temperature at the center of zlayer
          temperature = potential_temp * ((dom%press%elts(id_i)/dom%surf_press%elts(id_i))**kappa)
 
-         ! Gather the zonal lat temps
+         ! Gather the zonal latitiude temps
          if (lat .ge. mid_lat_range(1) .and. lat .le. mid_lat_range(2)) then
             Mid_lat_avg(zlev) = Mid_lat_avg(zlev) + (temperature/dom%areas%elts(id_i)%hex_inv)
          end if
@@ -1548,8 +1676,14 @@ contains
       end function temp_fun
 
       real(8) function zonal_fun(dom, i, j, zlev, offs, dims)
-         ! Calculates the velocity of an element at the center of a zlev layer in a domain, but returns zonal velocity
-         ! meridional velocity is saved in the dom%v_merid%elts for when meridional integration is called
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Calculates the velocity of an element at the center of a zlev layer
+         !                 in a domain, but returns zonal velocity.
+         !                 The meridional velocity is saved in the dom%v_merid%elts for when
+         !                    meridional integration is called.
+         !
+         !-----------------------------------------------------------------------------------
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1570,9 +1704,17 @@ contains
       end function zonal_fun
 
       real(8) function zonal_KE(dom, i, j, zlev, offs, dims)
-         ! Calculates the Zonal Kinetic energy of an element at the center of a zlev layer in a domain
-         ! Assumes that the velocity was already calculated and stored in dom%u_zonal, from zonal velocity call
-         ! Assumes that the density was already calculated and stored in dom%ke, from the temp call
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Calculates the Zonal Kinetic energy of an element at the center of
+         !                 a zlev layer in a domain
+         !
+         !   Assumptions:
+         !        - velocity was already calculated and stored in dom%u_zonal, from zonal vel call
+         !        - density was already calculated and stored in dom%ke, from the temp call
+         !
+         !-----------------------------------------------------------------------------------
+
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1589,8 +1731,15 @@ contains
       end function zonal_KE
 
       real(8) function merid_fun(dom, i, j, zlev, offs, dims)
-         ! Calculates the meridional velocity of an element at the center of a zlev layer in a domain
-         ! Assumes that the velocity was already calculated and stored in dom%v_merid, from zonal velocity call
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Calculates the meridional velocity of an element at the center of
+         !                 a zlev layer in a domain
+         !
+         !   Assumptions:
+         !        - velocity was already calculated and stored in dom%v_merid, from zonal velocity call
+         !
+         !-----------------------------------------------------------------------------------
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1606,9 +1755,16 @@ contains
       end function merid_fun
 
       real(8) function merid_KE(dom, i, j, zlev, offs, dims)
-         ! Calculates the Meridional kinetic energy of an element at the center of a zlev layer in a domain
-         ! Assumes that the velocity was already calculated and stored in dom%v_merid, from zonal velocity call
-         ! Assumes that the density was already calculated and stored in dom%ke, from the temp call
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Calculates the meridional kinetic energy of an element at the center of
+         !                 a zlev layer in a domain.
+         !
+         !   Assumptions:
+         !        - velocity was already calculated and stored in dom%v_merid, from zonal velocity call
+         !        - density was already calculated and stored in dom%ke, from the temp call
+         !
+         !-----------------------------------------------------------------------------------
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1624,8 +1780,15 @@ contains
       end function merid_KE
 
       real(8) function pressure_fun (dom, i, j, zlev, offs, dims)
-         ! Calculates the pressure of an element at the center of a zlev layer in a domain
-         ! Assumes pressure at the zlevel interfaces are already calculated and stored in dom%press
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Calculates the pressure of an element at the center of
+         !                 a zlev layer in a domain.
+         !
+         !   Assumptions:
+         !        - pressure at the zlevel interfaces are already calculated and stored in dom%press
+         !
+         !-----------------------------------------------------------------------------------
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1639,9 +1802,18 @@ contains
          pressure_fun = dom%press%elts(id_i)
 
       end function pressure_fun
+
       real(8) function geopot_fun (dom, i, j, zlev, offs, dims)
-         ! Calculates the geopotential of an element at the center of a zlev layer in a domain
-         ! Assumes geopot at the zlevel interfaces above and below already calculated and stored in dom%geopot and dom%geopot_lower
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Calculates the geopotential of an element at the center of
+         !                 a zlev layer in a domain.
+         !
+         !   Assumptions:
+         !        - geopot at the zlevel interfaces above and below already calculated
+         !              and stored in dom%geopot and dom%geopot_lower.
+         !
+         !-----------------------------------------------------------------------------------
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1657,7 +1829,12 @@ contains
       end function geopot_fun
 
       real(8) function area_fun (dom, i, j, zlev, offs, dims)
-         ! Defines mass for total mass integration
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Defines mass for total mass integration and for zonal latitude regions.
+         !
+         !-----------------------------------------------------------------------------------
+
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1682,7 +1859,13 @@ contains
       end function area_fun
 
       real(8) function surf_soil_temp_fun(dom, i, j, zlev, offs, dims)
-         ! Get the temperature of the surface or the soil at zlev
+         !-----------------------------------------------------------------------------------
+         !
+         !   Description: Retrieve the temperature of the surface and/or soil layer of an element.
+         !
+         !   Notes: zleve will be 0 or a negative number indicating soil layer or surface.
+         !
+         !-----------------------------------------------------------------------------------
          implicit none
          type(Domain)                   :: dom
          integer                        :: i, j, zlev
@@ -1701,8 +1884,12 @@ contains
    end subroutine mean_values
 
    subroutine get_coordinates()
-      ! Description: Subroutine to retrieve all latitude and longitude coordinates and save in a file named: run_id_coordinates
-
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Retrieve all latitude and longitude coordinates and save in
+      !                 a file named: run_id_coordinates
+      !
+      !-----------------------------------------------------------------------------------
       !Arguments
       integer   :: d, p
       real(8)  :: lat, long
@@ -1722,7 +1909,11 @@ contains
    end subroutine
 
    subroutine get_lat_long(dom, i, j, zlev, offs, dims)
-
+      !-----------------------------------------------------------------------------------
+      !
+      !   Description: Retrieve latitude and longitude of an element
+      !
+      !-----------------------------------------------------------------------------------
       implicit none
       type(Domain)                   :: dom
       integer                        :: i, j, zlev

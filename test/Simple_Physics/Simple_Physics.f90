@@ -91,10 +91,10 @@ program Simple_Physics
    total_cpu_time = 0.0_8
    do while (time < time_end)
       call start_timing
-      call time_step (dt_write, aligned)
+      call time_step (dt_write, aligned) ! dynamics step
       !When no dynamics called use : call timestep_placeholder(dt_write, aligned)
       if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
-      call euler (sol(1:N_VARIABLE,1:ZLEVELS), wav_coeff(1:N_VARIABLE,1:ZLEVELS), trend_physics, dt)
+      call euler (sol(1:N_VARIABLE,1:ZLEVELS), wav_coeff(1:N_VARIABLE,1:ZLEVELS), trend_physics, dt) ! physics step
       call stop_timing
 
       call sum_total_mass (.false.)
