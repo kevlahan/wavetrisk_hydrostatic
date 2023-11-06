@@ -4,17 +4,34 @@ module lin_solve_mod
   use comm_mpi_mod
   use wavelet_mod
   implicit none
+
+  logical :: test_elliptic = .false.  ! run elliptic test case
+
+  ! Linear solver parameters
+  integer :: coarse_iter   = 20       ! maximum number of coarse scale bicgstab iterations for elliptic solver
+  real(8) :: fine_tol      = 1d-3     ! tolerance for fine scale jacobi iterations
+  real(8) :: coarse_tol    = 1d-3     ! tolerance for coarse scale bicgstab elliptic solver
+
+  ! FMG parameters
+  integer :: max_vcycle    = 10       ! maximum number of each V-cycle iterations
+  integer :: down_iter     = 1        ! down V-cycle smoothing iterations
+  integer :: up_iter       = 2        ! up V-cycle smoothing iterations
+  integer :: post_iter     = 4        ! post V-cycle smoothing iterations
+  integer :: pre_iter      = 2        ! pre V-cycle smoothing iterations
+
+  ! SRJ parameters
+  integer, parameter :: m  = 10       ! number of distinct relaxation parameters
+  real(8) ::         k_min = 1d-2     ! empirically optimized, 0 < k_min <= k_max
+  real(8) ::         k_max = 1.8d0
+  integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations     
+
   real(8)                            :: dp_loc, l2_loc
   real(8)                            :: s_test 
-  logical                            :: test_elliptic = .false.
 contains
   subroutine FMG (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the full multi-grid (FMG) algorithm with V-cycles
     implicit none
     type(Float_Field) :: f, u
-
-    integer                                       :: max_vcycle = 10
-    integer                                       :: down_iter = 1, up_iter = 2, post_iter = 4, pre_iter = 2
     
     integer                                       :: iter, l
     integer, dimension(level_start:level_end)     :: iterations
@@ -130,10 +147,6 @@ contains
     ! parameters m, k_min and k_max were chosen empirically to give optimal convergence on fine non uniform grids
     implicit none
     type(Float_Field) :: f, u
-
-    integer, parameter                            :: m     = 10
-    real(8)                                       :: k_min = 5d-2   ! empirically optimized, 0 < k_min <= k_max
-    real(8)                                       :: k_max = 2d0
     
     integer                                       :: l, n
     integer, dimension(level_start:level_end)     :: iterations
@@ -172,10 +185,10 @@ contains
 
     if (log_iter) t0 = MPI_Wtime ()  
 
-    if (fine_iter < m) then ! do not use SRJ
+    if (max_srj_iter < m) then ! do not use SRJ
        w = 1d0
     else 
-       fine_iter = m * (fine_iter / m) ! ensure that fine_iter is an integer multiple of m
+       max_srj_iter = m * (max_srj_iter / m) ! ensure that max_srj_iter is an integer multiple of m
        do n = 1, m
           w(n) = 2d0 / (k_min + k_max - (k_max - k_min) * cos (MATH_PI * (2d0*dble(n) - 1d0)/(2d0*dble(m))))
        end do
@@ -203,7 +216,7 @@ contains
       integer :: ii, iter
 
       ii = 0
-      do iter = 1, fine_iter
+      do iter = 1, max_srj_iter
          ii = ii + 1
          if (ii > m) then
             if (nrm_res(l,2) < fine_tol) then ! avoid starting a new SJR cycle if error is small enough

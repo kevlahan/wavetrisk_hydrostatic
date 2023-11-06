@@ -145,10 +145,6 @@ contains
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
        write (6,'(A,L1)')     "sigma_z                        = ", sigma_z
-       write (6,'(A,es10.4)') "coarse_tol                     = ", coarse_tol
-       write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
-       write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
-       write (6,'(a,l1)')     "log_iter                       = ", log_iter
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(A,es10.4)') "tolerance                      = ", tol
        write (6,'(A,i1)')     "optimize_grid                  = ", optimize_grid

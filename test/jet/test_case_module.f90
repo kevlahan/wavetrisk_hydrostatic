@@ -294,11 +294,6 @@ contains
        write (6,'(A,L1)')   "mode_split                      = ", mode_split
        write (6,'(A,F4.2)') "theta1                          = ", theta1
        write (6,'(A,F4.2)') "theta2                          = ", theta2
-       write (6,'(A,es10.4)') "coarse_tol                     = ", coarse_tol
-       write (6,'(A,es10.4)') "fine_tol                       = ", fine_tol
-       write (6,'(a,i6)')     "coarse_iter                    = ", coarse_iter
-       write (6,'(a,i6)')     "fine_iter                      = ", fine_iter
-       write (6,'(a,l1)')     "log_iter                       = ", log_iter
 
        write (6,'(/,A)')      "STANDARD PARAMETERS"
        write (6,'(A,es10.4)') "radius                   [km]  = ", radius / KM

@@ -221,7 +221,7 @@ module shared_mod
   real(8), parameter :: WATT    = JOULE / SECOND
   
   ! Simulation variables
-  integer                                       :: coarse_iter, cp_idx, err_restart, fine_iter
+  integer                                       :: cp_idx, err_restart
   integer                                       :: iadapt, ibin, irebalance, iremap, istep, istep_cumul, iwrite
   integer                                       :: n_diffuse, nbins, nstep_init, save_zlev
   integer                                       :: resume, Laplace_order, Laplace_order_init
@@ -235,7 +235,7 @@ module shared_mod
   real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
   real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
   real(8)                                       :: e_min, Kt_const, Kt_0, Kv_0, Kv_bottom, rb_0
-  real(8)                                       :: theta1, theta2, coarse_tol, fine_tol, visc_divu, visc_rotu
+  real(8)                                       :: theta1, theta2, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: hex_int
   real(8), dimension(:),         allocatable    :: bounds, C_visc, pressure_save, visc_sclr
@@ -377,12 +377,6 @@ contains
     tol                 = 5d-3                              ! relative tolerance for adaptivity
     zlevels             = 20                                ! number of vertical levels
 
-    ! Multigrid elliptic equation solver parameters
-    coarse_tol          = 1d-4                              ! tolerance for coarse scale bicgstab elliptic solver
-    fine_tol            = 1d-3                              ! tolerance for fine scale jacobi iterations
-    coarse_iter         = 30                                ! maximum number of coarse scale bicgstab iterations for elliptic solver
-    fine_iter           = 200                               ! maximum number of fine scale jacobi iterations for elliptic solver
-    
     ! Default physical parameters
     ! (these parameters are typically reset in test case file, but are needed for compilation)
     c_p                 = 1004.64d0   * JOULE / (KG*KELVIN)   ! specific heat at constant pressure for air (= 3991.87 for seawater)

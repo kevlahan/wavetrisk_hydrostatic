@@ -58,10 +58,6 @@ program Seamount
   
   theta1             = 0.8d0
   theta2             = 0.8d0
-  coarse_tol         = 1d-9                                 ! tolerance for coarse scale bicgstab elliptic solver
-  fine_tol           = 1d-3                                 ! tolerance for fine scale jacobi iterations
-  coarse_iter        = 100                                  ! maximum number of coarse scale bicgstab iterations for elliptic solver
-  fine_iter          = 200                                  ! maximum number of fine scale jacobi iterations for elliptic solver
 
   vert_diffuse       = .false.                               ! no vertical diffusion
 
