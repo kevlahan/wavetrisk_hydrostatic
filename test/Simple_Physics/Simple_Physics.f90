@@ -1,7 +1,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!
 ! File Name: Simple_Physics.f90
 ! Author: Gabrielle Ching-Johnson
-! Date Revised: Jan 6th
+! Date Revised: Nov 5 2023
 ! Description: Program file to run the Simple physics with the test case used for the original driver by Thomas Dubos
 !!!!!!!!!!!!!!!!!!!!!!!!
 program Simple_Physics
@@ -9,6 +9,10 @@ program Simple_Physics
    use ops_mod
    use test_case_mod
    use io_mod
+   ! use cases specific to Simple Physics
+   use init_physics_mod
+   use physics_call_mod
+   use phys_processing_mod
    implicit none
 
    logical        :: aligned

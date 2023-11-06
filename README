@@ -105,11 +105,36 @@ Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suare
 
 ************************************************************
 1.1 SIMPLE PHYSICS TEST CASE
-The simple physics testcase has an extra manual file and a folder called include. This folder contains the physics package .mod files and the library "libphyparam.a", containing the compiled object files, needed to run the physics package as a test case. 
 
-To compile this test case, follow the compiling instructions below. No extra argruments are needed as the make file will add the library and its path to the compile command (therefore the LIBS argument is used) .
+!! Additions to Simple Physics Test Case (beyond test_case_module.f90, Simple_Physics.f90 and test_case.in)
+1. include folder 
+This folder contains the physics package .mod files and the library "libphyparam.a", containing the 
+compiled object files, needed to run the physics package as a test case.
 
-The physics package has different parameters that the user can change, see the manual under test/Simple_Physics for more on how to use the package and this test case. 
+2. init_physics_module.f90
+Module file containing all initialization routines for the physics package.
+
+3. physics_call_module.f90
+Module file contianing routines for the physics call at each time step.
+
+4. phys_processing.f90
+Module file containg routines to write the prognostic mean values to a file.
+
+5. Makefile.inc
+An include file for the main make file that will be included when make is used for the specific test case.
+The file updates to include proper dependencies for the extra 3 modules above when compiling. 
+
+!! Compiling
+To compile this test case, follow the compiling instructions below. No extra argruments are needed as the make file will add 
+the library and its path to the compile command (therefore the LIBS argument is used) . 
+Example: `make TEST_CASE=Simple_Physics`
+
+!! Cleaning
+To clean instead of using `make clean` use `make clean TEST_CASE=Simple_Physics`. This will execute the regular clean command
+but will also remove the extra 3 links created when this test case is run using the make file.
+
+! The physics package has different parameters that the user can change, see the manual under test/Simple_Physics for more on 
+how to use the package and this test case. 
 
 **********************************************************************************************************************************
 2. COMPILING

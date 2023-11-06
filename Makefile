@@ -100,17 +100,23 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
   FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
 endif
 
+SRC = $(PARAM).f90 shared.f90 coord_arithmetic.f90 sphere.f90  patch.f90 dyn_array.f90 \
+base_$(PROC).f90 dgesv.f90 dgtsv.f90 spline.f90 domain.f90 init.f90 comm.f90 comm_$(PROC).f90 utils.f90 projection.f90 equation_of_state.f90 \
+wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 ops.f90 multi_level.f90 adapt.f90 lin_solve.f90  \
+barotropic_2d.f90 time_integr.f90 vert_diffusion.f90 io.f90 remap.f90 main.f90 test_case_module.f90 test.f90 
+
 ifeq ($(TEST_CASE), Simple_Physics)
   SIMPLEPHYSMODPATH = test/Simple_Physics/include
   FLAGS_COMP += -I$(SIMPLEPHYSMODPATH)
   PHYSLIB_PATH = test/Simple_Physics/include
   LIBS= -L$(PHYSLIB_PATH) -lphyparam
+  # Add extra links to src/
+  $(shell ln -nsf ../test/$(TEST_CASE)/init_physics_module.f90 src)
+  $(shell ln -nsf ../test/$(TEST_CASE)/physics_call_module.f90 src)
+  $(shell ln -nsf ../test/$(TEST_CASE)/phys_processing.f90 src)
+  # Add rewriting of SRC Macro, take into account extra mods
+  -include test/$(TEST_CASE)/Makefile.inc
 endif
-
-SRC = $(PARAM).f90 shared.f90 coord_arithmetic.f90 sphere.f90  patch.f90 dyn_array.f90 \
-base_$(PROC).f90 dgesv.f90 dgtsv.f90 spline.f90 domain.f90 init.f90 comm.f90 comm_$(PROC).f90 utils.f90 projection.f90 equation_of_state.f90 \
-wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 ops.f90 multi_level.f90 adapt.f90 lin_solve.f90  \
-barotropic_2d.f90 time_integr.f90 vert_diffusion.f90 io.f90 remap.f90 main.f90 test_case_module.f90 test.f90 
 
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
 
@@ -121,4 +127,9 @@ $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 	$(COMPILER) $(FLAGS_COMP) $< -o $@ 
 
 clean:
+ifeq ($(TEST_CASE), Simple_Physics) # Remove the 3 modules links of the test case
+	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90 \
+          src/init_physics_module.f90 src/physics_call_module.f90 src/phys_processing.f90
+else 
 	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90
+endif	
