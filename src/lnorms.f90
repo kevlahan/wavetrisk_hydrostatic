@@ -12,6 +12,8 @@ contains
 
     integer :: k, l, v
 
+    call update_array_bdry (scaling, NONE)
+
     lnorm = 0d0
     do k = 1, zmax
        do l = level_start, level_end

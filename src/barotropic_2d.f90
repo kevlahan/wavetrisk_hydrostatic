@@ -56,54 +56,49 @@ contains
     implicit none
     type(Float_Field), dimension(:,:), target :: q
     
-    integer :: d, j, k, l, p
+    integer :: k, l
 
+    call update_vector_bdry (q(S_MASS,1:zlevels+1), NONE)
+    call update_vector_bdry (q(S_TEMP,1:zlevels),   NONE)
     do l = level_end, level_start, -1
        call total_height (q(S_MASS,1:zlevels), exner_fun(1), l) ! sum mass perturbations
-       do d = 1, size(grid)
-          scalar    => sol(S_MASS,zlevels+1)%data(d)%elts ! free surface perturbation
-          scalar_2d => exner_fun(1)%data(d)%elts          ! sum of mass perturbations
-          do k = 1, zlevels
-             mass   => q(S_MASS,k)%data(d)%elts
-             temp   => q(S_TEMP,k)%data(d)%elts
-             mean_m => sol_mean(S_MASS,k)%data(d)%elts
-             mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_barotropic_correction, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-             end do
-             nullify (mass, temp, mean_m, mean_t)
-          end do
-          nullify (scalar, scalar_2d)
+       do k = 1, zlevels
+          call apply_onescale (cal_barotropic_correction, l, k, 0, 1)
        end do
     end do
     q(S_MASS:S_TEMP,:)%bdry_uptodate = .false.
+  contains
+    subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
+      ! Correct baroclinic mass and buoyancy based on baroclinic estimate of free surface using layer dilation
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id
+      real(8) :: eta, full_mass, full_temp, theta
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+      
+      full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id)
+      full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + q(S_TEMP,k)%data(d)%elts(id)
+      
+      theta = full_temp / full_mass ! full buoyancy
+
+      ! Correct mass perturbation
+      eta = sol(S_MASS,zlevels+1)%data(d)%elts(id) / phi_node (d, id, zlevels) ! free surface perturbation
+      
+      q(S_MASS,k)%data(d)%elts(id) = (eta - grid(d)%topo%elts(id)) / exner_fun(1)%data(d)%elts(id) * full_mass &
+           - sol_mean(S_MASS,k)%data(d)%elts(id)
+
+      ! Correct mass-weighted buoyancy
+      full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id)
+
+      q(S_TEMP,k)%data(d)%elts(id) = full_mass * theta - sol_mean(S_TEMP,k)%data(d)%elts(id)
+    end subroutine cal_barotropic_correction
   end subroutine barotropic_correction
-
-  subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
-    ! Correct baroclinic mass and buoyancy based on baroclinic estimate of free surface using layer dilation
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: d, id
-    real(8) :: eta, full_mass, mean_theta, theta, dz
-    
-    id = idx (i, j, offs, dims) + 1
-    d = dom%id + 1
-    
-    full_mass = mean_m(id) + mass(id)
-    theta = (mean_t(id) + temp(id)) / full_mass ! full buoyancy
-
-    ! Correct mass perturbation
-    eta = scalar(id) / phi_node (d, id, zlevels) ! free surface perturbation
-    mass(id) = (eta - grid(d)%topo%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
-
-    ! Correct mass-weighted buoyancy
-    temp(id) = (mean_m(id) + mass(id)) * theta - mean_t(id)
-    !       temp(id) = mass(id) * mean_t(id) / mean_m(id) ! assume time-independent buoyancy (e.g. no remap, constant density in each layer)
-  end subroutine cal_barotropic_correction
 
   subroutine eta_update
     ! Theta step for free surface update
@@ -140,45 +135,39 @@ contains
 
   subroutine rhs_elliptic 
     ! Forms rhs of elliptic equation for free surface, -eta^* in q(S_TEMP_zlevels+1)
+    ! trend(S_TEMP,zlevels+1) is flux divergence of vertically integrated velocity at previous time step
+    ! (computed in RK routine)
     implicit none
-    integer :: d, j, l
+    integer :: l
 
-    ! Initialize variables
-    call zero_float_field (trend(S_MASS,zlevels+1), AT_NODE)
-    call zero_float_field (trend(S_TEMP,zlevels+1), AT_NODE)
+    call update_bdry (sol(S_MASS,zlevels+1), NONE)
     
-    ! Flux divergence of vertically integrated velocity u_star, stored in trend(S_MASS, zlevels+1)
+    ! Flux divergence of vertically integrated velocity u_star, stored in trend(S_MASS,zlevels+1)
     call flux_divergence (sol, trend(S_MASS,zlevels+1))
     
     ! RHS of elliptic equation, -eta^*
     do l = level_end, level_start, -1
-       do d = 1, size(grid)
-          dscalar => trend(S_MASS,zlevels+1)%data(d)%elts  ! flux divergence at intermediate time step, div F^*
-          dmass   => trend(S_TEMP,zlevels+1)%data(d)%elts  ! flux divergence at previous time step, div F^n
-          mass    =>   sol(S_MASS,zlevels+1)%data(d)%elts
-          mass1   =>   sol(S_TEMP,zlevels+1)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_rhs_elliptic, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (dmass, dscalar, mass, mass1)
-       end do
+       call apply_onescale (cal_rhs_elliptic, l, z_null, 0, 1)
     end do
     sol(S_TEMP,zlevels+1)%bdry_uptodate = .false.
+  contains
+    subroutine cal_rhs_elliptic (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      sol(S_TEMP,zlevels+1)%data(d)%elts(id) = - sol(S_MASS,zlevels+1)%data(d)%elts(id) &
+           + dt * (theta2 * trend(S_MASS,zlevels+1)%data(d)%elts(id) + (1d0 - theta2) * trend(S_TEMP,zlevels+1)%data(d)%elts(id)) &
+           / ref_density
+    end subroutine cal_rhs_elliptic
   end subroutine rhs_elliptic
-
-  subroutine cal_rhs_elliptic (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims) + 1
-        
-    mass1(id) = - mass(id) + dt * (theta2 * dscalar(id) + (1d0 - theta2) * dmass(id)) / ref_density
-  end subroutine cal_rhs_elliptic
 
   function elliptic_lo (q, l)
     ! Calculates linear operator L(eta) for barotropic elliptic equation for free surface perturbation at scale l
@@ -247,7 +236,7 @@ contains
     integer                   :: l
     type(Float_Field), target :: elliptic_lo_diag, q
 
-    elliptic_lo_diag = q; ; call zero_float_field (elliptic_lo_diag, AT_NODE)
+    elliptic_lo_diag = q; call zero_float_field (elliptic_lo_diag, AT_NODE)
     
     call apply_onescale (cal_elliptic_lo_diag, l, z_null, 0, 1)
 
@@ -355,40 +344,32 @@ contains
     type(Float_Field),               target :: q_2d
     type(Float_Field), dimension(:), target :: q
 
-    integer :: d, j, k
+    call update_vector_bdry (q, l)
     
-    do d = 1, size(grid)
-       scalar_2d => q_2d%data(d)%elts
-       q_2d%data(d)%elts = 0d0
-       do k = 1, zlevels
-          mass   => q(k)%data(d)%elts
-          mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_height, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-          end do
-          nullify (mass, mean_m)
-       end do
-       nullify (scalar_2d)
-    end do
+    call apply_onescale (cal_height, l, z_null, 0, 1)
+    q_2d%bdry_uptodate = .false.
+  contains
+    subroutine cal_height (dom, i, j, zlev, offs, dims)
+      ! Vertical integration of edge quantity
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id, k
+      real(8) :: dz
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      q_2d%data(d)%elts(id) = 0d0
+      do k = 1, zlevels
+         dz = (sol_mean(S_MASS,k)%data(d)%elts(id) + q(k)%data(d)%elts(id)) / porous_density (d, id, k)
+         q_2d%data(d)%elts(id) = q_2d%data(d)%elts(id) + dz
+      end do
+    end subroutine cal_height
   end subroutine total_height
-
-  subroutine cal_height (dom, i, j, zlev, offs, dims)
-    ! Vertical integration of edge quantity
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id
-    real(8) :: dz
-    
-    d = dom%id + 1
-    id = idx (i, j, offs, dims) + 1
-    
-    dz = (mean_m(id) + mass(id)) / porous_density (d, id, zlev)
-    scalar_2d(id) = scalar_2d(id) + dz
-  end subroutine cal_height
 
   subroutine cpt_or_restr_eta (dom, l)
     implicit none

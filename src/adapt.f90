@@ -90,6 +90,8 @@ contains
     type(Float_Field), dimension(:,:), target :: wav
 
     integer :: d, k, l, v
+
+    call update_array_bdry (wav, NONE)
     
     do k = 1, size(wav,2)
        do l = level_start+1, level_end
@@ -115,6 +117,7 @@ contains
 
     integer :: d, k, l
 
+    call update_bdry (wav, NONE)
     do d = 1, size (grid)
        do l = level_start+1, level_end
           wc_s => wav%data(d)%elts
@@ -132,6 +135,7 @@ contains
 
     integer :: d, k, l
 
+    call update_vector_bdry (wav, NONE)
     do k = 1, size(wav)
        do d = 1, size (grid)
           do l = level_start+1, level_end

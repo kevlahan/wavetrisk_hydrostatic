@@ -21,11 +21,11 @@ module lin_solve_mod
 
   ! SRJ parameters
   integer, parameter :: m  = 10       ! number of distinct relaxation parameters
-  real(8) ::         k_min = 1d-2     ! empirically optimized, 0 < k_min <= k_max
+  real(8) ::         k_min = 3d-2     ! empirically optimized, 0 < k_min <= k_max
   real(8) ::         k_max = 1.8d0
   integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations     
 
-  real(8)                            :: dp_loc, l2_loc
+  real(8)                            :: dp_loc, l2_loc, linf_loc
   real(8)                            :: s_test 
 contains
   subroutine FMG (u, f, Lu, Lu_diag)
@@ -78,14 +78,10 @@ contains
     call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, nrm_res(l,2), iterations(l))
     do l = l+1, level_end
        if (nrm_res(l,1) < fine_tol) cycle
-
        call prolong (u, l)
-       
        call Jacobi (u, f, Lu, Lu_diag, l, pre_iter) ! pre-smooth to reduce zero eigenvalue error mode
-       
        do iter = 1, max_vcycle
           call v_cycle
-          
           iterations(l) = iter; if (nrm_res(l,2) <= 2d0 * fine_tol) exit
        end do
     end do
@@ -281,7 +277,7 @@ contains
     type(Float_Field) :: f, u
 
     integer            :: iter
-    real(8), parameter :: omega = 1d0
+    real(8), parameter :: jac_wgt = 1d0
 
     interface
        function Lu (u, l)
@@ -301,15 +297,15 @@ contains
     call update_bdry (f, l)
 
     do iter = 1, iter_max
-       call Jacobi_iteration (u, f, omega, Lu, Lu_diag, l)
+       call Jacobi_iteration (u, f, jac_wgt, Lu, Lu_diag, l)
     end do
   end subroutine Jacobi
 
-  subroutine Jacobi_iteration (u, f, omega, Lu, Lu_diag, l)
+  subroutine Jacobi_iteration (u, f, jac_wgt, Lu, Lu_diag, l)
     ! Performs a single weighted Jacobi iteration for equation Lu(u) = f
     implicit none
     integer            :: l
-    real(8)            :: omega ! weight
+    real(8)            :: jac_wgt ! weight
     type(Float_Field)  :: u, f
 
     type(Float_Field) :: Au, diag
@@ -328,12 +324,11 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-
+    
     Au   = Lu      (u, l)
     diag = Lu_diag (u, l)
 
     call apply_onescale (cal_jacobi, l, z_null, 0, 1)
-
     u%bdry_uptodate = .false.
   contains
     subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
@@ -349,7 +344,7 @@ contains
       id = idx (i, j, offs, dims) + 1
       
       if (dom%mask_n%elts(id) >= ADJZONE) &
-           u%data(d)%elts(id) =  u%data(d)%elts(id) + omega * (f%data(d)%elts(id) - Au%data(d)%elts(id)) / diag%data(d)%elts(id)
+           u%data(d)%elts(id) =  u%data(d)%elts(id) + jac_wgt * (f%data(d)%elts(id) - Au%data(d)%elts(id)) / diag%data(d)%elts(id)
     end subroutine cal_jacobi
   end subroutine Jacobi_iteration
   

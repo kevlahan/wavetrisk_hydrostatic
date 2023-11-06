@@ -20,6 +20,7 @@
 *   Major changes compared to WAVETRISK 2.2                                                                                      *
 *   1. Addition of full multigrid elliptic solver.                                                                               *
 *   2. Addition of simple dry physics for atmosphere model                                                                       *
+*   3. Removal of implicit horizontal diffusion option.                                                                          *
 *                                                                                                                                *
 *   Major changes compared to WAVETRISK 2.1											 *
 *   1. Addition of dynamic load balancing and checkpointing using charm++/AMPI.	Only works on a single node due to bugs in       *

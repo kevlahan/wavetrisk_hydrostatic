@@ -111,6 +111,8 @@ contains
     integer                                                      :: k, l
 
     integer :: d, j, v
+
+    call update_vector_bdry (horiz_flux, l)
     
     do d = 1, size(grid)
        do v = scalars(1), scalars(2)
@@ -253,7 +255,8 @@ contains
        end do
        nullify (vort, Laplacian)
     end do
-    
+    Laplacian_vector(S_ROTU)%bdry_uptodate = .false.
+
     ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
     !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
     do d = 1, size(grid)
@@ -265,7 +268,6 @@ contains
        call apply_to_penta_d (post_vort, grid(d), l, z_null)
        nullify (velo, vort)
     end do
-    Laplacian_vector(S_ROTU)%bdry_uptodate = .false.
   end subroutine cal_Laplacian_vector_rot
   
   subroutine cal_Laplacian_divu

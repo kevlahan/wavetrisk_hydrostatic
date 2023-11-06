@@ -933,8 +933,10 @@ contains
 
     call apply (set_surf_geopot, z_null)
 
+    call update_array_bdry (q(S_MASS:S_TEMP,1:zlevels), NONE)
+
     do d = 1, size(grid)
-       grid(d)%surf_press%elts = 0.0_8
+       grid(d)%surf_press%elts = 0d0
        do k = 1, zlevels
           mass   => q(S_MASS,k)%data(d)%elts
           temp   => q(S_TEMP,k)%data(d)%elts
