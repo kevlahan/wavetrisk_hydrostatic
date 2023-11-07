@@ -1,32 +1,32 @@
 module lin_solve_mod
   ! Module providing two adaptive multi-grid linear equation solvers: FMG (full multi-grid) and SRJ (Scheduled Relaxation Jacobi)
-  use ops_mod
   use comm_mpi_mod
   use wavelet_mod
+  use shared_mod
   implicit none
 
   logical :: test_elliptic = .false.  ! run elliptic test case
 
   ! Linear solver parameters
-  integer :: coarse_iter   = 20       ! maximum number of coarse scale bicgstab iterations for elliptic solver
+  integer :: coarse_iter   = 50       ! maximum number of coarse scale bicgstab iterations for elliptic solver
   real(8) :: fine_tol      = 1d-3     ! tolerance for fine scale jacobi iterations
   real(8) :: coarse_tol    = 1d-3     ! tolerance for coarse scale bicgstab elliptic solver
 
   ! FMG parameters
-  integer :: max_vcycle    = 10       ! maximum number of each V-cycle iterations
-  integer :: down_iter     = 1        ! down V-cycle smoothing iterations
+  integer :: max_vcycle    = 5        ! maximum number of each V-cycle iterations
+  integer :: down_iter     = 2        ! down V-cycle smoothing iterations
   integer :: up_iter       = 2        ! up V-cycle smoothing iterations
   integer :: post_iter     = 4        ! post V-cycle smoothing iterations
   integer :: pre_iter      = 2        ! pre V-cycle smoothing iterations
 
   ! SRJ parameters
-  integer, parameter :: m  = 10       ! number of distinct relaxation parameters
+  integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations
+  integer, parameter :: m  = 8       ! number of distinct relaxation parameters
   real(8) ::         k_min = 3d-2     ! empirically optimized, 0 < k_min <= k_max
   real(8) ::         k_max = 1.8d0
-  integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations     
 
-  real(8)                            :: dp_loc, l2_loc, linf_loc
-  real(8)                            :: s_test 
+  real(8) :: dp_loc, l2_loc
+  real(8) :: s_test 
 contains
   subroutine FMG (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the full multi-grid (FMG) algorithm with V-cycles
@@ -59,7 +59,7 @@ contains
     end interface
 
     call update_bdry (f, l)
-    call update_bdry (u, l)
+    if (log_iter) call update_bdry (u, l)
 
     res = u; call zero_float_field (res, AT_NODE)
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
@@ -67,9 +67,8 @@ contains
     iterations = 0
     do l = level_end, level_start, -1
        nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
-       call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
+       if (log_iter) call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
-    nrm_res(:,2) = nrm_res(:,1)
 
     if (log_iter) t0 = MPI_Wtime ()  
 
@@ -139,7 +138,8 @@ contains
   end subroutine FMG
 
   subroutine SRJ (u, f, Lu, Lu_diag)
-    ! Solves linear equation L(u) = f using a simple multiscale algorithm with scheduled relaxation Jacobi (SRJ) iterations (Adsuara et al J Comput Phys v 332, 2017)
+    ! Solves linear equation L(u) = f using a simple multiscale algorithm with scheduled relaxation Jacobi (SRJ) iterations 
+    ! (Adsuara et al J Comput Phys v 332, 2017)
     ! parameters m, k_min and k_max were chosen empirically to give optimal convergence on fine non uniform grids
     implicit none
     type(Float_Field) :: f, u
@@ -169,14 +169,14 @@ contains
     end interface
 
     call update_bdry (f, l)
-    call update_bdry (u, l)
+    if (log_iter) call update_bdry (u, l)
 
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
 
     iterations = 0
     do l = level_start, level_end
        nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
-       call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
+       if (log_iter) call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
     if (log_iter) t0 = MPI_Wtime ()  
@@ -196,7 +196,7 @@ contains
        call prolong (u, l)
        call SRJ_iter
     end do
-
+    
     if (log_iter) then
        cpu = MPI_Wtime () - t0; if (rank==0) write (6,'(/,a,es10.4,a,/)') "SJR solver CPU time = ", cpu, "s"
        if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
@@ -325,8 +325,8 @@ contains
        end function Lu_diag
     end interface
     
-    Au   = Lu      (u, l)
-    diag = Lu_diag (u, l)
+    Au   = Lu      (u, l); call update_bdry (Au,   l)
+    diag = Lu_diag (u, l); call update_bdry (diag, l)
 
     call apply_onescale (cal_jacobi, l, z_null, 0, 1)
     u%bdry_uptodate = .false.
@@ -385,7 +385,7 @@ contains
     res0 = res
     p    = res0
     s    = res0
-    Ap   = Lu (p, l)
+    Ap   = Lu (p, l); call update_bdry (Ap, l)
     As   = Ap
 
     rho  = dp (res0, res, l)
@@ -394,7 +394,7 @@ contains
        alph = rho / dp (Ap, res0, l)
 
        call lc (s, 1d0, res, -alph, Ap, l)
-       As = Lu (s, l)
+       As = Lu (s, l); call update_bdry (As, l)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
@@ -413,7 +413,7 @@ contains
 
        call lc (corr, 1d0, p, -omga, Ap, l)
        call lc (p, 1d0, res, b, corr, l)
-       Ap = Lu (p, l)
+       Ap = Lu (p, l); call update_bdry (Ap, l)
     end do
     u%bdry_uptodate = .false.
 
@@ -533,7 +533,7 @@ contains
 
     call update_bdry (f, l)
 
-    Au = Lu (u, l)
+    Au = Lu (u, l); call update_bdry (Au, l)
 
     call apply_onescale (cal_res, l, z_null, 0, 1)
 

@@ -210,7 +210,6 @@ contains
     call apply_onescale (complete_elliptic_lo, l, z_null, 0, 1)
     
     elliptic_lo%bdry_uptodate = .false.
-    call update_bdry (elliptic_lo, l)
   contains
     subroutine complete_elliptic_lo (dom, i, j, zlev, offs, dims)
       implicit none
@@ -241,7 +240,6 @@ contains
     call apply_onescale (cal_elliptic_lo_diag, l, z_null, 0, 1)
 
     elliptic_lo_diag%bdry_uptodate = .false.
-    call update_bdry (elliptic_lo_diag, l)
   contains
     subroutine cal_elliptic_lo_diag  (dom, i, j, zlev, offs, dims)
       type(Domain)                   :: dom
@@ -508,9 +506,7 @@ contains
           call apply_onescale_to_patch (cal_vertical_velocity, grid(d), p-1, z_null, 0, 1)
        end do
     end do
-    
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
-    call update_vector_bdry (trend(S_TEMP,1:zlevels), NONE)
   end subroutine vertical_velocity
 
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)

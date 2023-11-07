@@ -50,7 +50,7 @@ contains
     end do
     
     ! Make nodes and edges with significant wavelet coefficients active
-    call update_array_bdry1 (wav_coeff, level_start, level_end, 15)
+    call update_array_bdry1 (wav_coeff, level_start, level_end)
     call mask_active
     call comm_masks_mpi (NONE)
     
@@ -262,7 +262,7 @@ contains
        l_start = l_start0
     end if
 
-    call update_bdry (scaling, NONE, 16)
+    call update_bdry (scaling, NONE)
 
     do l = l_start, level_end-1
        do d = 1, size(grid)
@@ -294,7 +294,7 @@ contains
        l_start = l_start0
     end if
 
-    call update_vector_bdry (scaling, NONE, 16)
+    call update_vector_bdry (scaling, NONE)
 
     do k = 1, size (scaling)
        do l = l_start, level_end-1
@@ -335,7 +335,7 @@ contains
        end do
     end if
 
-    call update_vector_bdry (scaling, NONE, 16)
+    call update_vector_bdry (scaling, NONE)
 
     do k = 1, size(scaling)
        do l = l_start, level_end-1

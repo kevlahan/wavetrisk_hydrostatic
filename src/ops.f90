@@ -929,51 +929,43 @@ contains
     ! Set geopotential to surface geopotential for upward integration
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
 
-    integer :: d, k, mass_type, p
-
-    call apply (set_surf_geopot, z_null)
+    integer :: l
 
     call update_array_bdry (q(S_MASS:S_TEMP,1:zlevels), NONE)
 
-    do d = 1, size(grid)
-       grid(d)%surf_press%elts = 0d0
-       do k = 1, zlevels
-          mass   => q(S_MASS,k)%data(d)%elts
-          temp   => q(S_TEMP,k)%data(d)%elts
-          mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (column_mass, grid(d), p-1, k, 0, 1)
-          end do
-          nullify (mass, mean_m, mean_t, temp)
-       end do
-       grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + p_top
+    call apply (set_surf_geopot, z_null)
+    call apply (column_mass,     z_null)
+  contains
+    subroutine column_mass (dom, i, j, zlev, offs, dims)
+      ! Sum up mass
+      implicit none
+      type (Domain)                  :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
 
-       grid(d)%press_lower%elts = grid(d)%surf_press%elts
-    end do
+      integer :: d, id, k
+      real(8) :: full_mass, full_temp
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      grid(d)%surf_press%elts(id) = 0d0
+      do k = 1, zlevels
+         if (compressible) then
+            dom%surf_press%elts(id) = dom%surf_press%elts(id) + q(S_MASS,k)%data(d)%elts(id)
+         else
+            full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id)
+            full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + q(S_TEMP,k)%data(d)%elts(id)
+
+            dom%surf_press%elts(id) = dom%surf_press%elts(id) + (full_mass - full_temp)
+         end if
+      end do
+      grid(d)%surf_press%elts(id) = grav_accel*grid(d)%surf_press%elts(id) + p_top
+
+      grid(d)%press_lower%elts(id) = grid(d)%surf_press%elts(id)
+    end subroutine column_mass
   end subroutine cal_surf_press
-
-  subroutine column_mass (dom, i, j, zlev, offs, dims)
-    ! Sum up mass
-    implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id_i
-    real(8) :: full_mass, full_temp
-
-    id_i = idx (i, j, offs, dims) + 1
-     
-    if (compressible) then
-       dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
-    else
-       full_mass = mean_m(id_i) + mass(id_i)
-       full_temp = mean_t(id_i) + temp(id_i)
-       dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + (full_mass - full_temp)
-    end if
-  end subroutine column_mass
 
   subroutine set_surf_geopot (dom, i, j, zlev, offs, dims)
     ! Set initial geopotential to surface geopotential (negative for incompressible ocean flows)
@@ -983,14 +975,14 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
+    integer :: id
 
-    id_i = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims) + 1
 
     if (compressible) then
-       dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
+       dom%geopot%elts(id) = surf_geopot (dom%node%elts(id))
     else
-       dom%geopot%elts(id_i) = grav_accel * dom%topo%elts(id_i)
+       dom%geopot%elts(id) = grav_accel * dom%topo%elts(id)
     end if
   end subroutine set_surf_geopot
 
@@ -1002,31 +994,31 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id_i
+    integer :: d, id
     real(8) :: full_mass, full_temp, p_upper
 
     d = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims) + 1
 
-    dom%geopot_lower%elts(id_i) = dom%geopot%elts(id_i)
+    dom%geopot_lower%elts(id) = dom%geopot%elts(id)
     if (compressible) then ! compressible case
-       p_upper = dom%press_lower%elts(id_i) - grav_accel*mass(id_i)
-       dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
+       p_upper = dom%press_lower%elts(id) - grav_accel*mass(id)
+       dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
 
-       exner(id_i) = c_p * (dom%press%elts(id_i)/p_0)**kappa
+       exner(id) = c_p * (dom%press%elts(id)/p_0)**kappa
 
-       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*kappa*temp(id_i)*exner(id_i)/dom%press%elts(id_i)
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel*kappa*temp(id)*exner(id)/dom%press%elts(id)
     else ! incompressible case
-       full_mass = mean_m(id_i) + mass(id_i)
-       full_temp = mean_t(id_i) + temp(id_i)
+       full_mass = mean_m(id) + mass(id)
+       full_temp = mean_t(id) + temp(id)
 
-       p_upper = dom%press_lower%elts(id_i) - grav_accel * (full_mass - full_temp)
+       p_upper = dom%press_lower%elts(id) - grav_accel * (full_mass - full_temp)
 
-       dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
+       dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
        
-       dom%geopot%elts(id_i) = dom%geopot_lower%elts(id_i) + grav_accel*full_mass / (ref_density * phi_node (d, id_i, zlev))
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel*full_mass / (ref_density * phi_node (d, id, zlev))
     end if
-    dom%press_lower%elts(id_i) = p_upper
+    dom%press_lower%elts(id) = p_upper
   end subroutine integrate_pressure_up
 
   subroutine cal_pressure (dom, i, j, zlev, offs, dims)
@@ -1037,21 +1029,23 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
+    integer :: id
     real(8) :: full_mass, full_temp, p_upper
 
-    id_i = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims) + 1
 
     if (compressible) then ! Compressible case
-       full_mass = mean_m(id_i) + mass(id_i)
-       p_upper = dom%press_lower%elts(id_i) - grav_accel * full_mass
+       full_mass = mean_m(id) + mass(id)
+       
+       p_upper = dom%press_lower%elts(id) - grav_accel * full_mass
     else ! Incompressible case
-       full_mass = mean_m(id_i) + mass(id_i)
-       full_temp = mean_t(id_i) + temp(id_i)
-       p_upper = dom%press_lower%elts(id_i) - grav_accel * (full_mass - full_temp)
+       full_mass = mean_m(id) + mass(id)
+       full_temp = mean_t(id) + temp(id)
+       
+       p_upper = dom%press_lower%elts(id) - grav_accel * (full_mass - full_temp)
     end if
-    dom%press%elts(id_i) = interp (dom%press_lower%elts(id_i), p_upper)
-    dom%press_lower%elts(id_i) = p_upper
+    dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
+    dom%press_lower%elts(id) = p_upper
   end subroutine cal_pressure
 
   subroutine post_vort (dom, p, c, offs, dims, zlev)
@@ -1267,11 +1261,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
+    integer :: id
 
-    id_i = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims) + 1
 
-    dscalar(id_i) = div (h_flux, dom, i, j, offs, dims)
+    dscalar(id) = div (h_flux, dom, i, j, offs, dims)
   end subroutine cal_div
 
   subroutine cal_density (dom, i, j, zlev, offs, dims)
@@ -1282,11 +1276,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
+    integer :: id
 
-    id_i = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims) + 1
 
-    scalar(id_i) = ref_density * (1d0 - (mean_t(id_i) + temp(id_i)) / (mean_m(id_i) + mass(id_i)))
+    scalar(id) = ref_density * (1d0 - (mean_t(id) + temp(id)) / (mean_m(id) + mass(id)))
   end subroutine cal_density
 
   subroutine comp_offs3 (dom, p, offs, dims)
