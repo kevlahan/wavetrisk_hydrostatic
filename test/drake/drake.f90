@@ -83,10 +83,10 @@ program Drake
   dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
   dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
 
-  Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2
+  Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
   C_visc(S_MASS)     = 0d-3                             ! dimensionless viscosity of S_MASS
   C_visc(S_TEMP)     = 0d-3                             ! dimensionless viscosity of S_TEMP
-  C_visc(S_VELO)     = 1d-3                             ! dimensionless viscosity of S_VELO (rotu, divu)
+  C_visc(S_VELO)     = 5d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
 
   if (zlevels == 1) then
      sigma_z              = .false.
@@ -181,57 +181,50 @@ program Drake
   ! Initialize functions
   call assign_functions
 
-  test_elliptic = .false.; log_iter = .true.
-  
   ! Initialize variables
   call initialize (run_id)
 
   ! Initialize random numbers
   call random_seed
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
   iadapt     = 1        ! Drake unstable with trend computation over entire grid if iadapt > 1
   irebalance = 4*iadapt ! rebalance interval using charm++/AMPI
 
-  if (test_elliptic) then
-     fine_tol = 1d-4
-     fine_iter = 1000
-     call FMG (sol(S_MASS,1), sol(S_TEMP,1), elliptic_fun, elliptic_fun_diag)
-     call write_and_export (iwrite)
-  else
-     ! Save initial conditions
-     call print_test_case_parameters
-     call write_and_export (iwrite)
+  ! Save initial conditions
+  call print_test_case_parameters
+  call write_and_export (iwrite)
 
-     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     if (rank == 0) write (6,'(A,/)') &
-          '----------------------------------------------------- Start simulation run &
-          ------------------------------------------------------'
-     total_cpu_time = 0d0
-     do while (time < time_end)
-        call start_timing
-        call time_step (dt_write, aligned)
-        if (k_T /= 0d0) call euler (sol, wav_coeff, trend_relax, dt)
-        call stop_timing
+  elliptic_solver => SRJ
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  if (rank == 0) write (6,'(A,/)') &
+       '----------------------------------------------------- Start simulation run &
+       ------------------------------------------------------'
+  total_cpu_time = 0d0
+  do while (time < time_end)
+     call start_timing
+     call time_step (dt_write, aligned)
+     if (k_T /= 0d0) call euler (sol, wav_coeff, trend_relax, dt)
+     call stop_timing
 
-        call print_log
+     call print_log
 
-        if (aligned) then
-           iwrite = iwrite + 1
-           if (remap) call remap_vertical_coordinates
+     if (aligned) then
+        iwrite = iwrite + 1
+        if (remap) call remap_vertical_coordinates
 
-           ! Save checkpoint (and rebalance)
-           if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
+        ! Save checkpoint (and rebalance)
+        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
 
-           ! Save fields
-           call write_and_export (iwrite)
-        end if
-     end do
-  end if
+        ! Save fields
+        call write_and_export (iwrite)
+     end if
+  end do
 
   if (rank == 0)  write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
   call finalize
-end program Drake
+end program
 
