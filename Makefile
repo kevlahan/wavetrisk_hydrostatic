@@ -7,9 +7,8 @@ F90       = gfortran
 MPIF90    = mpif90
 BIN_DIR   = bin
 BUILD_DIR  = build
-LAPACK     = -L/opt/homebrew/opt/lapack/lib -llapack # link to lapack library
-LIBS       = $(LAPACK)
-TOPO       = false                                   # use NCAR topography
+LAPACK     = -llapack # link to lapack library
+TOPO       = false    # use NCAR topography
 PREFIX     = .
 
 # Topgraphy options
@@ -35,8 +34,13 @@ vpath %.f90 src
 SYSTEM = $(shell uname -a | cut -c 1-6 -)
 ifeq ($(SYSTEM),Darwin)
   MACHINE = mac
+  LIB    += -L/opt/homebrew/opt/lapack/lib
 else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
+
+  ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
+    LAPACK = -lopenblas # use module load openblas
+  endif
 endif
 
 ifeq ($(F90),ifort)
@@ -78,6 +82,8 @@ else
 endif
 LINKER = $(COMPILER)
 
+LIBS   = $(LAPACK)
+
 ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
   ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
     # module load gcc openmpi fftw mkl
@@ -99,7 +105,7 @@ endif
 
 ifeq ($(TOPO), true)
   FLAGS_COMP += -I$(NETCDF_DIR)/include
-LIBS       += -L$(NETCDF_DIR)/lib -lnetcdff
+  LIBS       += -L$(NETCDF_DIR)/lib -lnetcdff
 endif
 
 SRC = $(PARAM).f90 shared.f90 coord_arithmetic.f90 sphere.f90  patch.f90 dyn_array.f90 \
