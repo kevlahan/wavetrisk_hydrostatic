@@ -372,12 +372,12 @@ the barotropic component implicitly in time on the slow geostrophic time scale. 
 CFL_barotropic = sqrt(g H) dt/dx < = 30, and often at larger values. The method is similar to the "implicit free surface"
 option in MITgcm.  The splitting usese a semi-implicit theta-method for the barotropic mode, with parameters theta1 (for the
 external pressure gradient) and theta2 for the barotropic flow divergence.  Theta1 = theta2 = 1 gives a backwards Euler (fully
-implicit scheme), and theta1 > 0.5, theta2 > 0.5 is necessary for stability.  The recommended value is thata1 = theta2 = 0.8.
+implicit scheme), and theta1 > 0.5, theta2 > 0.5 is necessary for stability.  The default values are theta1 = theta2 = 1.
 
-The elliptic equation for the free surface is solved using an adaptive multigrid solver.  Two adaptive multigrid solvers are provided: 
-full multigrid (FMG) using V-cycles and scheduled relaxation Jacobi (SRJ) iterations (Adsuara et al J Comput Phys 332, 2017). 
-In both cases, the  coarsest scales are solved using BiCGSTAB. The default method is SRJ, but FMG can be selected by setting the pointer 
-elliptic_solver => FMG.
+The elliptic equation for the free surface is solved using an adaptive multigrid solver.  Two adaptive multigrid solvers are 
+provided: full multigrid (FMG) using V-cycles and scheduled relaxation Jacobi (SRJ) iterations (Adsuara et al J Comput Phys 332, 2017). 
+In both cases, the  coarsest scales are solved using BiCGSTAB. The default method is SRJ (which is usually faster), 
+but FMG can be selected by setting the pointer elliptic_solver => FMG.
 
 The associated elliptic equation is solved using a simple multigrid scheme on the adaptive grid. The baroclinic and barotropic
 modes are coupled at each time step. The barotropic part computes an implicit free surface. The barotropic estimate of the

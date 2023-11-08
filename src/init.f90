@@ -72,7 +72,8 @@ module init_mod
       subroutine solver (u, f, Lu, Lu_diag)
         use domain_mod
         implicit none
-        type(Float_Field) :: f, u
+        type(Float_Field), intent(in)    :: f
+        type(Float_Field), intent(inout) :: u
         interface
            function Lu (u, l)
              use domain_mod

@@ -13,7 +13,7 @@ module lin_solve_mod
   real(8) :: coarse_tol    = 1d-3     ! tolerance for coarse scale bicgstab elliptic solver
 
   ! FMG parameters
-  integer :: max_vcycle    = 5        ! maximum number of each V-cycle iterations
+  integer :: max_vcycle    = 3        ! maximum number of each V-cycle iterations
   integer :: down_iter     = 2        ! down V-cycle smoothing iterations
   integer :: up_iter       = 2        ! up V-cycle smoothing iterations
   integer :: post_iter     = 4        ! post V-cycle smoothing iterations
@@ -21,7 +21,7 @@ module lin_solve_mod
 
   ! SRJ parameters
   integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations
-  integer, parameter :: m  = 8       ! number of distinct relaxation parameters
+  integer, parameter :: m  = 8        ! number of distinct relaxation parameters
   real(8) ::         k_min = 3d-2     ! empirically optimized, 0 < k_min <= k_max
   real(8) ::         k_max = 1.8d0
 
@@ -31,7 +31,8 @@ contains
   subroutine FMG (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the full multi-grid (FMG) algorithm with V-cycles
     implicit none
-    type(Float_Field) :: f, u
+    type(Float_Field), intent(in)    :: f
+    type(Float_Field), intent(inout) :: u
     
     integer                                       :: iter, l
     integer, dimension(level_start:level_end)     :: iterations
@@ -64,9 +65,9 @@ contains
     res = u; call zero_float_field (res, AT_NODE)
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
     
-    iterations = 0
-    do l = level_end, level_start, -1
-       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
+    iterations = 0; nrm_res = 0d0
+    do l = level_start, level_end
+       nrm_f(l) = l2 (f, l); if (nrm_f(l) == tol*1d-16) nrm_f(l) = 1d0
        if (log_iter) call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
@@ -74,14 +75,13 @@ contains
 
     ! Full multigrid iterations
     l = level_start
-    call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, nrm_res(l,2), iterations(l))
+    call bicgstab (u, f, nrm_f(l), Lu, l, coarse_tol, coarse_iter, nrm_res(l,2), iterations(l))
     do l = l+1, level_end
-       if (nrm_res(l,1) < fine_tol) cycle
        call prolong (u, l)
        call Jacobi (u, f, Lu, Lu_diag, l, pre_iter) ! pre-smooth to reduce zero eigenvalue error mode
        do iter = 1, max_vcycle
           call v_cycle
-          iterations(l) = iter; if (nrm_res(l,2) <= 2d0 * fine_tol) exit
+          iterations(l) = iter; if (nrm_res(l,2) <= fine_tol) exit
        end do
     end do
 
@@ -106,7 +106,9 @@ contains
       ! Standard V-cycle iterations
       implicit none
       integer           :: j
+      real(8) :: nrm_rhs
       type(Float_Field) :: corr
+
 
       ! Initialize
       corr = u
@@ -123,7 +125,9 @@ contains
       end do
 
       ! Coarsest scale
-      call bicgstab (corr, res, Lu, level_start, coarse_tol, coarse_iter) ! exact solution on coarsest grid
+      j = level_start
+      nrm_rhs = l2 (res, j); if (nrm_rhs == tol) nrm_rhs = 1d0
+      call bicgstab (corr, res, nrm_rhs, Lu, j, coarse_tol, coarse_iter) ! exact solution on coarsest grid
 
       ! Up V-cycle
       do j = level_start+1, l
@@ -142,7 +146,8 @@ contains
     ! (Adsuara et al J Comput Phys v 332, 2017)
     ! parameters m, k_min and k_max were chosen empirically to give optimal convergence on fine non uniform grids
     implicit none
-    type(Float_Field) :: f, u
+    type(Float_Field), intent(in)    :: f
+    type(Float_Field), intent(inout) :: u
     
     integer                                       :: l, n
     integer, dimension(level_start:level_end)     :: iterations
@@ -173,7 +178,7 @@ contains
 
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
 
-    iterations = 0
+    iterations = 0; ; nrm_res = 0d0
     do l = level_start, level_end
        nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
        if (log_iter) call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
@@ -191,7 +196,7 @@ contains
     end if
 
     l = level_start
-    call bicgstab (u, f, Lu, l, coarse_tol, coarse_iter, nrm_res(l,2), iterations(l))
+    call bicgstab (u, f, nrm_f(l), Lu, l, coarse_tol, coarse_iter, nrm_res(l,2), iterations(l))
     do l = l+1, level_end
        call prolong (u, l)
        call SRJ_iter
@@ -215,7 +220,7 @@ contains
       do iter = 1, max_srj_iter
          ii = ii + 1
          if (ii > m) then
-            if (nrm_res(l,2) < fine_tol) then ! avoid starting a new SJR cycle if error is small enough
+            if (nrm_res(l,2) < fine_tol) then ! avoid starting a new SRJ cycle if error is small enough
                exit
             else
                ii = 1
@@ -225,7 +230,7 @@ contains
          call Jacobi_iteration (u, f, w(ii), Lu, Lu_diag, l)
          
          call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,2))
-         iterations(l) = iter; if (nrm_res(l,2) <= 2d0 * fine_tol) exit
+         iterations(l) = iter; if (nrm_res(l,2) <= fine_tol) exit
       end do
       u%bdry_uptodate = .false.
     end subroutine SRJ_iter
@@ -272,9 +277,9 @@ contains
   subroutine Jacobi (u, f, Lu, Lu_diag, l, iter_max)
     ! Damped Jacobi iterations
     implicit none
-    integer  :: l, iter_max
-
-    type(Float_Field) :: f, u
+    integer                          :: l, iter_max
+    type(Float_Field), intent(in)    :: f
+    type(Float_Field), intent(inout) :: u
 
     integer            :: iter
     real(8), parameter :: jac_wgt = 1d0
@@ -304,9 +309,10 @@ contains
   subroutine Jacobi_iteration (u, f, jac_wgt, Lu, Lu_diag, l)
     ! Performs a single weighted Jacobi iteration for equation Lu(u) = f
     implicit none
-    integer            :: l
-    real(8)            :: jac_wgt ! weight
-    type(Float_Field)  :: u, f
+    integer,            intent(in)    :: l
+    real(8),            intent(in)    :: jac_wgt ! weight
+     type(Float_Field), intent(in)    :: f
+     type(Float_Field), intent(inout) :: u
 
     type(Float_Field) :: Au, diag
 
@@ -348,18 +354,19 @@ contains
     end subroutine cal_jacobi
   end subroutine Jacobi_iteration
   
-  subroutine bicgstab (u, f,  Lu, l, tol, iter_max, err_out, iter_out)
+  subroutine bicgstab (u, f, nrm_f, Lu, l, tol_bicgstab, iter_max, err_out, iter_out)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
-    integer           :: l, iter_max
-    integer, optional :: iter_out
-    real(8)           :: tol
-    real(8), optional :: err_out
-    type(Float_Field) :: f, u
+    integer,           intent(in)    :: l, iter_max
+    integer, optional, intent(out)   :: iter_out
+    real(8),           intent(in)    :: nrm_f, tol_bicgstab
+    real(8), optional, intent(out)   :: err_out
+    type(Float_Field), intent(in)    :: f
+    type(Float_Field), intent(inout) :: u
 
     integer           :: iter
-    real(8)           :: alph, b, err, nrm_f, nrm_res0, omga, rho, rho_old
+    real(8)           :: alph, b, err, nrm_res0, omga, rho, rho_old
     type(Float_Field) :: Ap, As, corr, res, res0, p, s
 
     interface
@@ -373,8 +380,6 @@ contains
 
     call update_bdry (f, l)
     call update_bdry (u, l)
-
-    nrm_f = l2 (f, l); if (nrm_f == 0d0) nrm_f = 1d0
 
     res  = u; call zero_float_field (res,  AT_NODE, lmin=level_start)
     corr = u; call zero_float_field (corr, AT_NODE, lmin=level_start)
@@ -404,7 +409,7 @@ contains
        call lc (res, 1d0, s, -omga, As, l)
 
        err = l2 (res, l) / nrm_f
-       if (err <= tol) exit
+       if (err <= tol_bicgstab) exit
 
        rho_old = rho
        rho = dp (res0, res, l)
