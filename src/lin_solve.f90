@@ -39,8 +39,7 @@ contains
     real(8)                                       :: cpu, err, rel_err, t0
     real(8), dimension(level_start:level_end)     :: nrm_f
     real(8), dimension(level_start:level_end,1:2) :: nrm_res
-
-    type(Float_Field) :: res
+    type(Float_Field)                             :: res
     
     interface
        function Lu (u, l)
@@ -67,8 +66,8 @@ contains
     
     iterations = 0; nrm_res = 0d0
     do l = level_start, level_end
-       nrm_f(l) = l2 (f, l); if (nrm_f(l) == tol*1d-16) nrm_f(l) = 1d0
-       if (log_iter) call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
+       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
+       call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
     if (log_iter) t0 = MPI_Wtime ()  
@@ -77,6 +76,7 @@ contains
     l = level_start
     call bicgstab (u, f, nrm_f(l), Lu, l, coarse_tol, coarse_iter, nrm_res(l,2), iterations(l))
     do l = l+1, level_end
+       if (nrm_res(l,1) < fine_tol) cycle
        call prolong (u, l)
        call Jacobi (u, f, Lu, Lu_diag, l, pre_iter) ! pre-smooth to reduce zero eigenvalue error mode
        do iter = 1, max_vcycle
