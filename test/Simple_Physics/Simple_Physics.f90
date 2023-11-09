@@ -54,7 +54,7 @@ program Simple_Physics
    Nsoil          = 10                             ! Number of soil layers
 
    ! Physics Package planet test case parameters
-   gas_molarmass  = 8314.46261815324/R_d           ! molar mass of main gain (used to set ideal gas const in pacakage)
+   gas_molarmass  = 28.9702532_8  !8314.46261815324/R_d           ! molar mass of main gain (used to set ideal gas const in pacakage)
    perihelion     = 150                            ! planet perihelion distance (MMkm)
    aphelion       = 150                            ! planet aphelion distance (MMkm)
    perihelion_day = 0.                             ! perihelion day
@@ -63,8 +63,8 @@ program Simple_Physics
    soil_surf      = 0.01_8                         ! soil surface roughness length scale (m)
    sea_interia    = 3000.                          ! sea thermal inertia (J/m^3K)
    soil_interia   = 3000.                          ! soil thermal inertial (J/m^3K)
-   sea_albedo     = 0.112_8                        ! sea albedo
-   soil_albedo    = 0.112_8                        ! soil albedo
+   sea_albedo     = 0.112                          ! sea albedo
+   soil_albedo    = 0.112                          ! soil albedo
    sea_emissive   = 1.                             ! sea emissivity
    soil_emmisive  = 1.                             ! soil emissivity
    emin_turb      = 1.e-16                         ! minimum turbulent kinetic energy

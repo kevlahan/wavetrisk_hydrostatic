@@ -8,7 +8,6 @@
 
 module phys_processing_mod
    ! Use cases
-   use test_case_mod
    use physics_call_mod
    implicit none
 

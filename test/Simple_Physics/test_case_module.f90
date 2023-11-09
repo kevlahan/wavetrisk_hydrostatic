@@ -5,8 +5,6 @@ module test_case_mod
    use comm_mpi_mod
    use utils_mod
    use init_mod
-   ! Use case for c booleans for physics
-   USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_BOOL
    implicit none
 
    ! Standard variables
@@ -16,9 +14,6 @@ module test_case_mod
    ! Test case variables
    real(8) :: T_0 ! Reference Temperature
    real(8) :: u_0, e_thick ! geostrophic wind speed, ekman layer thickness
-   integer :: Nsoil
-   ! Physics variables
-   LOGICAL(KIND=C_BOOL) :: physics_firstcall_flag = .true. ! flag for the physics package, true if call physics for 1st time
 
 contains
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Dynamics test case routines!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

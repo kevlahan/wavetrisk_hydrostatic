@@ -7,7 +7,7 @@
 
 module physics_call_mod
    ! Use cases
-   use test_case_mod
+   use init_physics_mod
    implicit none
 
    ! Variables
@@ -348,7 +348,7 @@ contains
 
       id_i = idx (i, j, offs, dims) + 1
 
-      dom%geopot%elts(id_i) = surf_geopot_case (dom%node%elts(id_i))
+      dom%geopot%elts(id_i) = surf_geopot (dom%node%elts(id_i))
    end subroutine set_surf_geopot_phys
 
    subroutine cal_press_geopot_layer (dom, i, j, zlev, offs, dims)

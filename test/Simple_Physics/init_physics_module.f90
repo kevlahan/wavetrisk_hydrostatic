@@ -8,14 +8,22 @@
 
 module init_physics_mod
    !Use Cases
-   use test_case_mod
+   use comm_mpi_mod
+   use utils_mod
+   use init_mod
+   ! Use case for c booleans for physics
+   USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_BOOL
    implicit none
 
    ! Physics test case arguments
    real(8) :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf, sea_interia
-   real(8) :: soil_interia, sea_albedo, soil_albedo, sea_emissive, soil_emmisive, emin_turb, min_turbmix
+   real(8) :: soil_interia, sea_emissive, soil_emmisive, min_turbmix
    real(8) :: sw_atten, lw_atten
+   real    :: sea_albedo, soil_albedo, emin_turb
+   integer :: Nsoil     ! Number of soil layers
    logical :: radiation_mod, turbulence_mod, convecAdj_mod, seasons, diurnal
+
+   LOGICAL(KIND=C_BOOL) :: physics_firstcall_flag = .true. ! flag for the physics package, true if call physics for 1st time
 
 contains
 
