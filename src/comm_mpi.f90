@@ -8,7 +8,7 @@ module comm_mpi_mod
   integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
   real(8), dimension(2)              :: times
   
-  logical, parameter                 :: deadlock = .false. ! test for communication deadlocks
+  logical, parameter                 :: deadlock = .true. ! test for communication deadlocks
 contains
   subroutine init_comm_mpi
     implicit none

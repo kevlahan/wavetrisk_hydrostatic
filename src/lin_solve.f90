@@ -22,8 +22,8 @@ module lin_solve_mod
   ! SRJ parameters
   integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations
   integer, parameter :: m  = 8        ! number of distinct relaxation parameters
-  real(8) ::         k1 = 3d-2     ! empirically optimized, 0 < k1 <= k2
-  real(8) ::         k2 = 1.8d0
+  real(8) ::            k1 = 3d-2     ! empirically optimized, 0 < k1 <= k2
+  real(8) ::            k2 = 1.8d0
 
   real(8) :: dp_loc, l2_loc
   real(8) :: s_test 
