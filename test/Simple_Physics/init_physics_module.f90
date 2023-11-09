@@ -11,6 +11,12 @@ module init_physics_mod
    use test_case_mod
    implicit none
 
+   ! Physics test case arguments
+   real(8) :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf, sea_interia
+   real(8) :: soil_interia, sea_albedo, soil_albedo, sea_emissive, soil_emmisive, emin_turb, min_turbmix
+   real(8) :: sw_atten, lw_atten
+   logical :: radiation_mod, turbulence_mod, convecAdj_mod, seasons, diurnal
+
 contains
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Initialization Routines !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -92,31 +98,31 @@ contains
       write(file_unit,*) "planet_rat = ", radius
       write(file_unit,*) "g = ", grav_accel
       write(file_unit,*) "cpp = ", c_p
-      write(file_unit,*) "mugaz = ", 28.9702532_8  !8314.46261815324/R_d
+      write(file_unit,*) "mugaz = ", gas_molarmass !28.9702532_8  !8314.46261815324/R_d
       write(file_unit,*) "unjours = ", DAY
-      write(file_unit,*) "year_day = ", 365
-      write(file_unit,*) "periheli = ", 150
-      write(file_unit,*) "aphelie = ", 150
-      write(file_unit,*) "peri_day = ", 0.
-      write(file_unit,*) "obliquit = ", 0
-      write(file_unit,*) "Cd_mer = ", 0.01_8
-      write(file_unit,*) "Cd_ter = ", 0.01_8
-      write(file_unit,*) "I_mer = ", 3000.
-      write(file_unit,*) "I_ter = ", 3000.
-      write(file_unit,*) "alb_ter = ", 0.112
-      write(file_unit,*) "alb_mer = ", 0.112
-      write(file_unit,*) "emi_mer = ", 1.
-      write(file_unit,*) "emi_ter = ", 1.
-      write(file_unit,*) "emin_turb = ", 1.e-16
-      write(file_unit,*) "lmixmin = ", 100
-      write(file_unit,*) "coefvis = ", 0.99_8
-      write(file_unit,*) "coefir = ", 0.08_8
-      write(file_unit,*) "callrad = ", .true.
-      write(file_unit,*) "calldifv = ", .true.
-      write(file_unit,*) "calladj = ", .true.
+      write(file_unit,*) "year_day = ", int(YEAR / DAY)
+      write(file_unit,*) "periheli = ", perihelion
+      write(file_unit,*) "aphelie = ", aphelion
+      write(file_unit,*) "peri_day = ", perihelion_day
+      write(file_unit,*) "obliquit = ", obliquity
+      write(file_unit,*) "Cd_mer = ", sea_surf
+      write(file_unit,*) "Cd_ter = ", soil_surf
+      write(file_unit,*) "I_mer = ", sea_interia
+      write(file_unit,*) "I_ter = ", soil_interia
+      write(file_unit,*) "alb_ter = ", sea_albedo
+      write(file_unit,*) "alb_mer = ", soil_albedo
+      write(file_unit,*) "emi_mer = ", sea_emissive
+      write(file_unit,*) "emi_ter = ", soil_emmisive
+      write(file_unit,*) "emin_turb = ", emin_turb
+      write(file_unit,*) "lmixmin = ", min_turbmix
+      write(file_unit,*) "coefvis = ", sw_atten
+      write(file_unit,*) "coefir = ", lw_atten
+      write(file_unit,*) "callrad = ", radiation_mod
+      write(file_unit,*) "calldifv = ", turbulence_mod
+      write(file_unit,*) "calladj = ", convecAdj_mod
       write(file_unit,*) "callsoil = ", soil_mod
-      write(file_unit,*) "season = ", .false.
-      write(file_unit,*) "diurnal = ", .true.
+      write(file_unit,*) "season = ", seasons
+      write(file_unit,*) "diurnal = ", diurnal
       write(file_unit,*) "lverbose = ", physics_write
       write(file_unit,*) "period_sort = ", 1.
 
