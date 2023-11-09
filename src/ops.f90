@@ -980,7 +980,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     if (compressible) then
-       dom%geopot%elts(id) = surf_geopot (dom%node%elts(id))
+       dom%geopot%elts(id) = surf_geopot (dom, id)
     else
        dom%geopot%elts(id) = grav_accel * dom%topo%elts(id)
     end if

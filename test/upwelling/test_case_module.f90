@@ -126,9 +126,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: id
+    integer                    :: d, id
     real(8), dimension(1:EDGE) :: diffusion, penal
 
+    d = dom%id + 1
     id = idx (i, j, offs, dims)
 
     ! Horizontal diffusion
@@ -243,10 +244,6 @@ contains
        write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
-       write (6,'(A,es10.4)') "coarse_tol                     = ", coarse_tol
-       write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
-       write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
-       write (6,'(a,l1)')     "log_iter                       = ", log_iter
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(A,es10.4)') "tolerance                      = ", tol
        write (6,'(A,i1)')     "optimize_grid                  = ", optimize_grid
@@ -512,14 +509,18 @@ contains
     tke(zlev)%data(d)%elts(id) = 1d-6
   end subroutine init_tke
 
-  real(8) function surf_geopot_case (p)
+  real(8) function surf_geopot_case (dom, id)
     ! Surface geopotential: postive if greater than mean seafloor                                                                                        
     ! Gives minimum depth of approximately 24 m                                                                                                          
     implicit none
+    integer       :: id
+    type (Domain) :: dom
+    
+    real(8)     :: amp, b_max, lat, lon, y, w_N, w_S, ns_S, ns_N
     type(Coord) :: p
 
-    real(8) :: amp, b_max, lat, lon, y, w_N, w_S, ns_S, ns_N
-
+    p = dom%node%elts(id)
+    
     call cart2sph (p, lon, lat)
 
     b_max = abs (max_depth - min_depth)
@@ -817,42 +818,45 @@ contains
        n_coarse = 8 ! ensure r_max is small enough
        nsmth = n_coarse * 2**(l - min_level) 
        dx    = dx_max / 2**(l - min_level) 
-       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot_case, p, dx, nsmth) / grav_accel
+       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot_case, dom, id_i, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = npts_penal * 2**(l - min_level) 
        dx    = dx_max / 2**(l - min_level) 
-       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, nsmth)
+       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, dom, id_i, dx, nsmth)
 
        q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
        q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1) 
        q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
        do e = 1, EDGE
           id_e = EDGE*id + e
-          penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
+          penal_edge(zlev)%data(d)%elts(id_e) = smooth (mask, dom, id_i, dx, nsmth)
        end do
     end select
   end subroutine topo_upwelling
 
-  real(8) function smooth (fun, p, dx, npts)
+  real(8) function smooth (fun, dom, id, dx, npts)
     ! Smooth a function using radial basis functions
     implicit none
-    integer     :: npts
-    real(8)     :: dx
-    type(Coord) :: p
+    integer      :: id, npts
+    real(8)      :: dx
+    type(Domain) :: dom
 
     integer     :: ii, jj
     real(8)     :: dtheta, lat, lat0, lon, lon0, nrm, r, rbf, wgt
-    type(Coord) :: q
+    type(Coord) :: p, q
 
     interface
-       real(8) function fun (q)
-         use geom_mod
-         type(Coord) :: q
+       real(8) function fun (dom, id)
+         use domain_mod
+         integer      :: id
+         type(Domain) :: dom
        end function fun
     end interface
 
+    p = dom%node%elts(id)
+    
     if (npts == 0) then
-       smooth = fun (p)
+       smooth = fun (dom, id)
     else
        dtheta = dx/radius
        call cart2sph (p, lon0, lat0)
@@ -868,7 +872,7 @@ contains
              wgt = radial_basis_fun ()
 
              nrm = nrm + wgt
-             rbf = rbf + wgt * fun (q)
+             rbf = rbf + wgt * fun (dom, id)
           end do
        end do
        smooth = rbf /nrm
@@ -882,11 +886,16 @@ contains
     end function radial_basis_fun
   end function smooth
 
-  real(8) function mask (p)
+  real(8) function mask (dom, id)
     implicit none
+    integer      :: id
+    type(Domain) :: dom
+    
     type(Coord) :: p
 
     real(8) :: lat, lon
+
+    p = dom%node%elts(id)
 
     call cart2sph (p, lon, lat)
 

@@ -492,10 +492,11 @@ contains
     end if
   end subroutine init_mean
 
-  real(8) function surf_geopot_case (x_i)
+  real(8) function surf_geopot_case (dom, id)
     ! Surface geopotential: postive if greater than mean seafloor
     implicit none
-    type(Coord) :: x_i
+    integer       :: id
+    type (Domain) :: dom
 
     surf_geopot_case = grav_accel * 0d0
   end function surf_geopot_case
@@ -705,8 +706,7 @@ contains
     
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot_case (p) / grav_accel
-       topography%data(d)%elts(id_i) = max_depth + surf_geopot_case (p) / grav_accel
+       dom%topo%elts(id_i) = max_depth + surf_geopot_case (dom, id_i) / grav_accel
     case ("penalize")
        call cart2sph (p, lon, lat)
 
@@ -1104,11 +1104,12 @@ contains
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
 
-       ! Scale aware viscosity
-       visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
-
-       ! Flux on lhs of scalar equation (hence negative)
-       physics_scalar_flux_case = visc * (-1d0)**Laplace_order * grad * l_e
+       if (Laplace_order == 0) then
+          visc = 0d0
+       else ! scale aware viscosity
+          visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+       end if
+       physics_scalar_flux_case = visc * (-1)**Laplace_order * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -1145,10 +1146,11 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    ! Scale aware viscosity
-    visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order)/dt
-
-    ! Only diffuse rotu
+    if (Laplace_order == 0) then
+       visc = 0d0
+    else ! scale aware viscosity
+       visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order)/dt
+    end if
     horiz_diffusion = visc * (-1d0)**Laplace_order * (curl_rot () - grad_div ())
 
     ! Vertical diffusion

@@ -137,9 +137,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: id
+    integer                    :: d, id
     real(8), dimension(1:EDGE) :: diffusion, penal
 
+    d = dom%id + 1
     id = idx (i, j, offs, dims)
 
     ! Horizontal diffusion
@@ -728,16 +729,20 @@ contains
     tke(zlev)%data(d)%elts(id) = 1d-6
   end subroutine init_tke
 
-  real(8) function surf_geopot_case (p)
+  real(8) function surf_geopot_case (dom, id)
     ! Surface geopotential: postive if greater than mean seafloor                                                                                        
     implicit none
+    integer        :: id
+    type (Domain) :: dom
+    
     type(Coord) :: p
-
     real(8) :: lat, lon
+
+    p = dom%node%elts(id)
 
     call cart2sph (p, lon, lat)
 
-    surf_geopot_case = grav_accel * 0
+    surf_geopot_case = grav_accel * 0d0
   end function surf_geopot_case
 
   real(8) function init_free_surface (x_i)
@@ -1055,42 +1060,44 @@ contains
     case ("bathymetry")
 !!$       nsmth = 2 * (l - min_level)
        nsmth = 1
-       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, p, dx, nsmth) / grav_accel
+       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, dom, id_i, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = 0
        
-       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, p, dx, nsmth)
+       penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, dom, id_i, dx, nsmth)
       
        q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)
        q(DG+1) = dom%node%elts(idx(i+1, j+1, offs, dims)+1)
        q(UP+1) = dom%node%elts(idx(i,   j+1, offs, dims)+1)
        do e = 1, EDGE
           id_e = EDGE*id + e
-          penal_edge(zlev)%data(d)%elts(id_e) = interp (smooth (mask, p, dx, nsmth), smooth (mask, q(e), dx, nsmth))
+          penal_edge(zlev)%data(d)%elts(id_e) = smooth (mask, dom, id_i, dx, nsmth)
        end do
     end select
   end subroutine topo_jet
 
-  real(8) function smooth (fun, p, dx, npts)
+  real(8) function smooth (fun, dom, id, dx, npts)
     ! Smooth a function using radial basis functions
     implicit none
-    integer     :: npts
-    real(8)     :: dx
-    type(Coord) :: p
-
+    integer      :: id, npts
+    real(8)      :: dx
+    type(Domain) :: dom
+    
     integer     :: ii, jj
     real(8)     :: dtheta, lat, lat0, lon, lon0, nrm, r, rbf, wgt
-    type(Coord) :: q
+    type(Coord) :: p, q
 
     interface
-       real(8) function fun (q)
-         use geom_mod
-         type(Coord) :: q
+       real(8) function fun (dom, id)
+         use domain_mod
+         integer      :: id
+         type(Domain) :: dom
        end function fun
     end interface
 
+    p = dom%node%elts(id)
     if (npts == 0) then
-       smooth = fun (p)
+       smooth = fun (dom, id)
     else
        dtheta = dx/radius
        call cart2sph (p, lon0, lat0)
@@ -1106,7 +1113,7 @@ contains
              wgt = radial_basis_fun ()
 
              nrm = nrm + wgt
-             rbf = rbf + wgt * fun (q)
+             rbf = rbf + wgt * fun (dom, id)
           end do
        end do
        smooth = rbf /nrm
@@ -1120,11 +1127,15 @@ contains
     end function radial_basis_fun
   end function smooth
 
-  real(8) function mask (p)
+  real(8) function mask (dom, id)
     implicit none
+    integer      :: id
+    type(Domain) :: dom
+    
+    real(8)     :: lat, lon
     type(Coord) :: p
-
-    real(8) :: lat, lon
+    
+    p = dom%node%elts(id)
 
     call cart2sph (p, lon, lat)
 
@@ -1548,7 +1559,7 @@ contains
     call vel_fun (lon, lat, k, u_zonal, v_merid)
 
     ! Velocity vector in Cartesian coordinates
-    vel = vec_plus (vec_scale(u_zonal,e_zonal), vec_scale(v_merid,e_merid))
+    vel = u_zonal * e_zonal + v_merid * e_merid
 
     ! Project velocity vector on direction given by points ep1, ep2
     proj_nudge = inner (direction(ep1, ep2), vel)

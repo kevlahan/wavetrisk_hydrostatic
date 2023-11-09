@@ -137,9 +137,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: id
+    integer                    :: d, id
     real(8), dimension(1:EDGE) :: diffusion, penal
 
+    d = dom%id + 1
     id = idx (i, j, offs, dims)
 
     ! Horizontal diffusion
@@ -272,10 +273,6 @@ contains
        write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
        write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
-       write (6,'(A,es10.4)') "coarse_tol                     = ", coarse_tol
-       write (6,'(a,i3)')     "coarse_iter                    = ", coarse_iter
-       write (6,'(a,i3)')     "fine_iter                      = ", fine_iter
-       write (6,'(a,l1)')     "log_iter                       = ", log_iter
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(A,es10.4)') "tolerance                      = ", tol
        write (6,'(a,i5)')     "iadapt                         = ", iadapt
@@ -702,16 +699,13 @@ contains
     tke(zlev)%data(d)%elts(id) = 1d-6
   end subroutine init_tke
 
-  real(8) function surf_geopot_case (p)
+  real(8) function surf_geopot_case (dom, id)
     ! Surface geopotential: postive if greater than mean seafloor                                                                                        
     implicit none
-    type(Coord) :: p
-
-    real(8) :: lat, lon
-
-    call cart2sph (p, lon, lat)
-
-    surf_geopot_case = grav_accel * 0
+    integer        :: id
+    type (Domain)  :: dom
+    
+    surf_geopot_case = grav_accel * 0d0
   end function surf_geopot_case
 
   real(8) function init_free_surface (x_i)
@@ -1408,7 +1402,7 @@ contains
     call vel_fun (lon, lat, k, u_zonal, v_merid)
 
     ! Velocity vector in Cartesian coordinates
-    vel = vec_plus (vec_scale(u_zonal,e_zonal), vec_scale(v_merid,e_merid))
+    vel = u_zonal * e_zonal + v_merid * e_merid
 
     ! Project velocity vector on direction given by points ep1, ep2
     proj_nudge = inner (direction(ep1, ep2), vel)

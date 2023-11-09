@@ -217,19 +217,19 @@ contains
     integer :: iwrt
 
     integer                       :: k
-    real(8)                       :: area, dz_l, eta, Nsq, z_k, z_s
+    real(8)                       :: area, dzl, eta, Nsq, z_k, z_s
     real(8), parameter            :: lat_band = 30
     real(8), dimension(1:zlevels) :: dz, T_avg
     real(8), dimension(0:zlevels) :: Kt_avg, Kv_avg, z
     character(4)                  :: s_time
 
-    area = integrate_hex (area_fun, level_start, k)
-    do k = 0, zlevels
-       Kt_avg(k) = integrate_hex (Kt_fun, level_start, k)
-       Kv_avg(k) = integrate_hex (Kv_fun, level_start, k)
+    area = integrate_hex (area_fun, 1, .true.)
+    do k = 1, zlevels
+       Kt_avg(k) = integrate_hex (Kt_fun, k, .true.)
+       Kv_avg(k) = integrate_hex (Kv_fun, k, .true.)
     end do
     do k = 1, zlevels
-       T_avg(k)  = integrate_hex (temp_fun, level_start, k)
+       T_avg(k)  = integrate_hex (temp_fun, k, .true.)
     end do
     Kt_avg = Kt_avg / area
     Kv_avg = Kv_avg / area
@@ -267,8 +267,8 @@ contains
        write (6,'(a)') "Level    z_l      Nsq"
        do k = 1, zlevels-1
           drho = density_eos (S_ref, T_avg(k+1), interp (z(k), z(k+1))) - density_eos (S_ref, T_avg(k), interp (z(k-1), z(k)))
-          dz_l = interp (dz(k), dz(k+1))
-          Nsq = - grav_accel * drho/dz_l / ref_density 
+          dzl = interp (dz(k), dz(k+1))
+          Nsq = - grav_accel * drho/dzl / ref_density 
           write (6, '(i3, 3x, f7.2, 1x, es11.4, 1x)') k, z(k), Nsq
        end do
        write (6,'(a, es9.2)') " "
@@ -295,7 +295,7 @@ contains
          full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i) 
          full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + sol(S_TEMP,zlev)%data(d)%elts(id_i)
 
-         z = z_i (dom, i, j, zlev, offs, dims)
+         z = z_i (dom, i, j, zlev, offs, dims, sol)
          density = ref_density * (1 - full_theta/full_mass)
          temp_fun = temperature_eos (density, S_ref, z)
       else
@@ -588,10 +588,11 @@ contains
     tke(zlev)%data(d)%elts(id) = e_min
   end subroutine init_tke
 
-  real(8) function surf_geopot_case (p)
+  real(8) function surf_geopot_case (dom, id)
     ! Surface geopotential: postive if greater than mean seafloor                                                                                        
     implicit none
-    type(Coord) :: p
+    integer       :: id
+    type (Domain) :: dom
 
     surf_geopot_case = 0.0_8
   end function surf_geopot_case
@@ -626,7 +627,7 @@ contains
   subroutine print_density
     implicit none
     integer                       :: k
-    real(8)                       :: bv, c_k, c1, drho, dz_l, eta, rho, rho_above, z_k, z_s, z_above
+    real(8)                       :: bv, c_k, c1, drho, dzl, eta, rho, rho_above, z_k, z_s, z_above
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
 
@@ -657,13 +658,13 @@ contains
     do k = 1, zlevels-1
        z_above = interp (z(k),   z(k+1))
        z_k     = interp (z(k-1), z(k))
-       dz_l    = z_above - z_k
+       dzl    = z_above - z_k
 
        rho_above = ref_density * (1.0_8 - buoyancy_init (z_above))
        rho  = ref_density * (1.0_8 - buoyancy_init (z_k))
        drho = rho_above - rho
 
-       bv = sqrt(- grav_accel * drho/dz_l/rho)
+       bv = sqrt(- grav_accel * drho/dzl/rho)
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
 
@@ -836,7 +837,7 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot_case (dom%node%elts(id_i)) / grav_accel
+       dom%topo%elts(id_i) = max_depth + surf_geopot_case (dom, id_i) / grav_accel
     case ("penalize") ! not used
     end select
   end subroutine topo_tke1d

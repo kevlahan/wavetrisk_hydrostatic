@@ -49,6 +49,7 @@ contains
     logical, optional                                    :: type
 
     integer                    :: id_i
+    real(8)                    :: visc
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -62,7 +63,7 @@ contains
     d = dom%id + 1
 
     if (Laplace_order == 0) then
-       physics_scalar_flux_case = 0.0_8
+       physics_scalar_flux_case = 0d0
     else
        if (.not.local_type) then ! usual flux at edges E, NE, N
           l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
@@ -83,8 +84,12 @@ contains
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
 
-       ! Complete scalar diffusion
-       physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
+       if (Laplace_order == 0) then
+          visc = 0d0
+       else ! scale aware viscosity
+          visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+       end if
+       physics_scalar_flux_case = visc * (-1)**Laplace_order * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -109,22 +114,18 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: id, visc_scale
-    real(8), dimension(1:EDGE) :: diffusion
-
+    integer                    :: id
+    real(8)                    :: visc
+    
     id = idx (i, j, offs, dims)
 
-    visc_scale = 1.0_8!(max_level/dom%level%elts(id+1))**(2*Laplace_order_init-1)
-
+    ! Scale aware viscosity
     if (Laplace_order == 0) then
-       diffusion = 0.0_8
+       visc = 0d0
     else
-       ! Calculate Laplacian of velocity
-       diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu()) * visc_scale
+       visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order)/dt
     end if
-
-    ! Total physics for source term of velocity trend
-    physics_velo_source_case =  diffusion
+    physics_velo_source_case =  visc * (-1)**(Laplace_order-1) * (grad_divu() - curl_rotu())
   contains
     function grad_divu()
       implicit none
@@ -222,11 +223,11 @@ contains
 
     sigma = (p - p_top) / (p_s - p_top)
 
-    k_T = k_a + (k_s-k_a) * max (0.0_8, (sigma-sigma_b)/sigma_c) * cs2**2
+    k_T = k_a + (k_s-k_a) * max (0d0, (sigma-sigma_b)/sigma_c) * cs2**2
 
     theta_tropo = T_tropo * (p/p_0)**(-kappa) ! Potential temperature at tropopause
 
-    theta_force = T_mean - delta_T*(1.0_8-cs2) - delta_theta*cs2 * log (p/p_0)
+    theta_force = T_mean - delta_T*(1d0-cs2) - delta_theta*cs2 * log (p/p_0)
 
     theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
   end subroutine cal_theta_eq
@@ -250,25 +251,31 @@ contains
     end if
 
     set_temp = Tmean + 0.75_8 * sigma*MATH_PI*u_0/R_d * sin(sigma_v) * sqrt(cos(sigma_v)) * &
-         (2*u_0*cos(sigma_v)**1.5*(-2*sn2**3*(cs2+1/3.0_8) + 10/63.0_8) &
-         + radius*omega*(8/5.0_8*cs2**1.5*(sn2+2/3.0_8) - MATH_PI/4))
+         (2*u_0*cos(sigma_v)**1.5*(-2*sn2**3*(cs2+1/3d0) + 10/63d0) &
+         + radius*omega*(8/5d0*cs2**1.5*(sn2+2/3d0) - MATH_PI/4))
   end function set_temp
 
-  real(8) function surf_geopot_case (x_i)
+  real(8) function surf_geopot_case (dom, id)
     ! Surface geopotential from Jablonowski and Williamson (2006)
     implicit none
+    integer       :: id
+    type (Domain) :: dom
+    
     Type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
 
-    ! Find latitude and longitude from Cartesian coordinates
-    call cart2sph (x_i, lon, lat)
-    cs2 = cos (lat)**2
-    sn2 = sin (lat)**2
+    if (NCAR_topo) then 
+       surf_geopot_case = topography%data(d)%elts(id)   
+    else ! surface geopotential from Jablonowski and Williamson (2006)
+       x_i = dom%node%elts(id)
+       call cart2sph (x_i, lon, lat)
+       cs2 = cos (lat)**2; sn2 = sin (lat)**2
 
-    c1 = u_0*cos((1.0_8-sigma_0)*MATH_PI/2)**1.5
-    surf_geopot_case =  c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8) &
-         + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
-    !    surf_geopot_case = 0.0_8 ! Uniform
+       c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
+
+       surf_geopot_case =  c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
+            + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0))
+    end if
   end function surf_geopot_case
 
   real(8) function surf_pressure (x_i)
@@ -289,8 +296,8 @@ contains
     call random_number (r)
 
     u = u_0 * cos (sigma_v)**1.5 * sin (2*lat)**2 + r ! Zonal velocity component
-    !    u = 0.0_8 ! Uniform
-    v = 0.0_8                                 ! Meridional velocity component
+    !    u = 0d0 ! Uniform
+    v = 0d0                                 ! Meridional velocity component
   end subroutine vel_fun
 
   subroutine set_thresholds_case
@@ -328,25 +335,25 @@ contains
     if (uniform) then
        do k = 1, zlevels+1
           a_vert(k) = dble(k-1)/dble(zlevels) * p_top
-          b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
+          b_vert(k) = 1d0 - dble(k-1)/dble(zlevels)
        end do
     else
        if (zlevels == 18) then
           a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
                0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
                0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
-               0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
+               0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
                0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
-               0.953189_8, 0.985056_8, 1.0_8 /)
+               0.953189_8, 0.985056_8, 1d0 /)
        elseif (zlevels==26) then
           a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
                0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
                0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
-               0.00708499_8, 0.00252136_8, 0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
+               0.00708499_8, 0.00252136_8, 0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
                0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
-               0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1.0_8 /)
+               0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1d0 /)
        elseif (zlevels==30) then
           a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
                0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
@@ -387,15 +394,15 @@ contains
                0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
                0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
                0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
-               0.0_8, 0.0_8 /)
-          b_vert=(/0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
+               0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, &
                0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
                0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
                0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
                0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
                0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
                0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
-               0.9851122_8, 1.0_8/)
+               0.9851122_8, 1d0/)
        end if
        a_vert = a_vert(zlevels+1:1:-1) * p_0
        b_vert = b_vert(zlevels+1:1:-1)
@@ -420,11 +427,11 @@ contains
     real(8), dimension(1:zlevels)   :: dsig
     real(8), dimension(1:zlevels+1) :: sig
 
-    snorm  = 0.0_8
+    snorm  = 0d0
     do l = 1, zlevels
-       dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
-       !dsig(l) = 1.0_8 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
-       !dsig(l) = 1.0_8 + 7 * sin (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at surface
+       dsig(l) = 1d0 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
+       !dsig(l) = 1d0 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
+       !dsig(l) = 1d0 + 7 * sin (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at surface
        snorm = snorm + dsig(l)
     end do
 
@@ -432,18 +439,18 @@ contains
        dsig(l) = dsig(l)/snorm
     end do
 
-    sig(zlevels+1) = 0.0_8
+    sig(zlevels+1) = 0d0
     do l = zlevels, 1, -1
        sig(l) = sig(l+1) + dsig(l)
     end do
 
-    b_vert(zlevels+1) = 0.0_8
+    b_vert(zlevels+1) = 0d0
     do  l = 1, zlevels
-       b_vert(l) = exp (1.0_8 - 1/sig(l)**2)
+       b_vert(l) = exp (1d0 - 1/sig(l)**2)
        a_vert(l) = (sig(l) - b_vert(l)) * p_0
     end do
-    b_vert(1) = 1.0_8
-    a_vert(1) = 0.0_8
+    b_vert(1) = 1d0
+    a_vert(1) = 0d0
     a_vert(zlevels+1) = (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
   end subroutine cal_AB
 
@@ -464,28 +471,16 @@ contains
     end if
     if (rank == 0) write (6,'(a,A)') "Input file = ", trim (filename)
 
-    open(unit=fid, file=filename, action='READ')
+    open (unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
     read (fid,*) varname, run_id
-    read (fid,*) varname, compressible
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
-    read (fid,*) varname, uniform
-    read (fid,*) varname, remap
-    read (fid,*) varname, remapscalar_type
-    read (fid,*) varname, remapvelo_type
-    read (fid,*) varname, iremap
-    read (fid,*) varname, default_thresholds
+    read (fid,*) varname, NCAR_topo
     read (fid,*) varname, tol
-    read (fid,*) varname, optimize_grid
-    read (fid,*) varname, adapt_dt
-    read (fid,*) varname, cfl_num
-    read (fid,*) varname, timeint_type
     read (fid,*) varname, press_save
-    read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
-    read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     close(fid)
@@ -502,7 +497,7 @@ contains
     nbins = 300
     allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
     allocate (zonal_avg(zlevels,nbins,nvar_zonal), zonal_avg_glo(zlevels,nbins,nvar_zonal))
-    zonal_avg = 0.0_8; zonal_avg_glo = 0.0_8
+    zonal_avg = 0d0; zonal_avg_glo = 0d0
     allocate (bounds(1:nbins-1))
     dbin = 1.8d2/nbins
     bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)
@@ -640,8 +635,8 @@ contains
 
     integer :: k
 
-    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0d0
+    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0d0
 
     lnorm(S_MASS,:) = dPdim/grav_accel
     do k = 1, zlevels
@@ -653,46 +648,6 @@ contains
   end subroutine initialize_thresholds_case
 
   subroutine initialize_dt_viscosity_case
-    ! Initializes viscosity
-    implicit none
-    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
-
-    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
-
-    ! Diffusion constants
-    C_sclr = 2d-3       ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_divu = 2d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
-
-    ! CFL limit for time step
-    dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
-    dt_init = dt_cfl
-
-    tau_sclr = dt_cfl / C_sclr
-    tau_divu = dt_cfl / C_divu
-    tau_rotu = dt_cfl / C_rotu
-
-    if (Laplace_order_init == 0) then
-       visc_sclr = 0.0_8
-       visc_divu = 0.0_8
-       visc_rotu = 0.0_8
-    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
-    elseif (Laplace_order_init > 2) then
-       if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
-       stop
-    end if
-
-    if (rank == 0) then
-       write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
-       write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
-       write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
-            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
-            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-    end if
   end subroutine initialize_dt_viscosity_case
 
   subroutine apply_initial_conditions_case
@@ -842,7 +797,7 @@ contains
     call cart2sph (dom%node%elts(id_i), lon, lat)
     call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
 
-    dmass(id_i) = 0.0_8
+    dmass(id_i) = 0d0
     dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
   end subroutine trend_scalars
 
@@ -861,7 +816,7 @@ contains
     id_i = id+1
 
     sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
-    k_v = k_f * max (0.0_8, (sigma-sigma_b)/sigma_c)
+    k_v = k_f * max (0d0, (sigma-sigma_b)/sigma_c)
 
     dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - k_v * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   end subroutine trend_velo
@@ -897,7 +852,7 @@ contains
     call apply (set_surf_geopot_HS, z_null)
 
     do d = 1, size(grid)
-       grid(d)%surf_press%elts = 0.0_8
+       grid(d)%surf_press%elts = 0d0
        do k = 1, zlevels
           mass   => q(S_MASS,k)%data(d)%elts
           temp   => q(S_TEMP,k)%data(d)%elts
@@ -951,6 +906,6 @@ contains
     real(8)                       :: eta_surf, z_s ! free surface and bathymetry
     real(8), dimension(0:zlevels) :: z_coords_case
 
-    z_coords_case = 0.0_8
+    z_coords_case = 0d0
   end function z_coords_case
 end module test_case_mod

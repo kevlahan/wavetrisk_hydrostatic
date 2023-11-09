@@ -22,8 +22,8 @@ module lin_solve_mod
   ! SRJ parameters
   integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations
   integer, parameter :: m  = 8        ! number of distinct relaxation parameters
-  real(8) ::         k_min = 3d-2     ! empirically optimized, 0 < k_min <= k_max
-  real(8) ::         k_max = 1.8d0
+  real(8) ::         k1 = 3d-2     ! empirically optimized, 0 < k1 <= k2
+  real(8) ::         k2 = 1.8d0
 
   real(8) :: dp_loc, l2_loc
   real(8) :: s_test 
@@ -144,7 +144,7 @@ contains
   subroutine SRJ (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with scheduled relaxation Jacobi (SRJ) iterations 
     ! (Adsuara et al J Comput Phys v 332, 2017)
-    ! parameters m, k_min and k_max were chosen empirically to give optimal convergence on fine non uniform grids
+    ! parameters m, k1 and k2 were chosen empirically to give optimal convergence on fine non uniform grids
     implicit none
     type(Float_Field), intent(in)    :: f
     type(Float_Field), intent(inout) :: u
@@ -191,7 +191,7 @@ contains
     else 
        max_srj_iter = m * (max_srj_iter / m) ! ensure that max_srj_iter is an integer multiple of m
        do n = 1, m
-          w(n) = 2d0 / (k_min + k_max - (k_max - k_min) * cos (MATH_PI * (2d0*dble(n) - 1d0)/(2d0*dble(m))))
+          w(n) = 2d0 / (k1 + k2 - (k2 - k1) * cos (MATH_PI * (2d0*dble(n) - 1d0)/(2d0*dble(m))))
        end do
     end if
 

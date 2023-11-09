@@ -62,16 +62,28 @@ program Held_Suarez
   dPdim          = 80       * hPa                 ! scale of surface pressure variation determining mass tolerance scale
 
   ! Dimensional scaling
-  specvoldim     = (R_d*Tempdim)/Pdim          ! specific volume scale
-  wave_speed     = sqrt(gamma*Pdim*specvoldim) ! acoustic wave speed
+  specvoldim     = (R_d*Tempdim)/Pdim             ! specific volume scale
+  wave_speed     = sqrt(gamma*Pdim*specvoldim)    ! acoustic wave speed
 
-  Udim           = 30 * METRE/SECOND           ! velocity scale
-  Tdim           = 1  * DAY                    ! time scale
-  Ldim           = Udim*Tdim                   ! length scale
-  Hdim           = wave_speed**2/grav_accel    ! vertical length scale
+  Udim           = 30 * METRE/SECOND              ! velocity scale
+  Tdim           = 1  * DAY                       ! time scale
+  Ldim           = Udim*Tdim                      ! length scale
+  Hdim           = wave_speed**2/grav_accel       ! vertical length scale
 
-  ! NCAR realistic topography
-  NCAR_topo           = .false.
+  ! Numerical method parameters
+  cfl_num            = 1d0
+  timeint_type       = "RK4"
+  iremap             = 10
+
+  default_thresholds = .false.
+  compressible       = .true.
+  remap              = .true.
+  uniform            = .false.
+  
+  Laplace_order_init = 2                          ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
+  C_visc(S_MASS)     = 0d-3                       ! dimensionless viscosity of S_MASS
+  C_visc(S_TEMP)     = 0d-3                       ! dimensionless viscosity of S_TEMP
+  C_visc(S_VELO)     = 5d-4                       ! dimensionless viscosity of S_VELO (rotu, divu)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Read test case parameters

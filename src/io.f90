@@ -526,26 +526,26 @@ contains
     real(8) :: pressure_lower, pressure_upper
 
     d = dom%id + 1
-    id = idx(i, j, offs, dims)
+    id = idx(i, j, offs, dims) + 1
 
     ! Integrate geopotential upwards from surface
-    pressure_lower = dom%surf_press%elts(id+1)
-    pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
-    dom%geopot_lower%elts(id+1) = surf_geopot (dom%node%elts(id+1))/grav_accel
+    pressure_lower = dom%surf_press%elts(id)
+    pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id)
+    dom%geopot_lower%elts(id) = surf_geopot (dom, id) / grav_accel
 
     k = 1
     do while (pressure_upper > pressure_save(1))
-       dom%geopot_lower%elts(id+1) = dom%geopot_lower%elts(id+1) + &
-            R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_upper))
+       dom%geopot_lower%elts(id) = dom%geopot_lower%elts(id) + &
+            R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower)-log(pressure_upper))
 
        k = k+1
        pressure_lower = pressure_upper
-       pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id+1)
+       pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id)
     end do
 
     ! Add additional contribution up to pressure level pressure_save(1)
-    dom%geopot_lower%elts(id+1) = dom%geopot_lower%elts(id+1) &
-         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id+1) * (log(pressure_lower)-log(pressure_save(1)))
+    dom%geopot_lower%elts(id) = dom%geopot_lower%elts(id) &
+         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower)-log(pressure_save(1)))
   end subroutine cal_geopot
 
   subroutine statistics

@@ -463,13 +463,17 @@ contains
     end if
   end subroutine update_case
 
-  real(8) function surf_geopot_case (x_i)
+  real(8) function surf_geopot_case (dom, id)
     ! Surface geopotential: postive if greater than mean seafloor
     implicit none
+    integer      :: id
+    type(domain) :: dom
+    
+    real(8)     :: lon, lat, rgrc
     type(Coord) :: x_i
 
-    real(8) :: lon, lat, rgrc
-
+    x_i = dom%node%elts(id)
+    
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
@@ -533,7 +537,7 @@ contains
 
     p%x = radius * p%x ; p%y = radius * p%y ; p%z = radius * p%z  
 
-    z_s = max_depth + surf_geopot_case (p) / grav_accel
+    z_s = max_depth 
 
     if (sigma_z) then
        z = z_coords_case (eta_surf, z_s)
@@ -665,7 +669,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call topo_seamount (dom, i, j, zlev, offs, dims, 'bathymetry')
+    integer :: id
+    
+    id  = idx (i, j, offs, dims)  + 1
+
+    dom%topo%elts(id) = surf_geopot_case (dom, id) / grav_accel
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
@@ -685,23 +693,6 @@ contains
     penal_node(zlev)%data(d)%elts(id_i)                      = 0d0
     penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0       
   end subroutine set_penal
-
-  subroutine topo_seamount (dom, i, j, zlev, offs, dims, itype)
-    ! Returns bathymetrys
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    character(*)                   :: itype
-
-    integer     :: e, id, id_e, id_i
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    dom%topo%elts(id+1) = max_depth + surf_geopot_case (dom%node%elts(id_i)) / grav_accel
-  end subroutine topo_seamount
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     ! Idealized zonally and temporally averaged zonal and meridional wind stresses
