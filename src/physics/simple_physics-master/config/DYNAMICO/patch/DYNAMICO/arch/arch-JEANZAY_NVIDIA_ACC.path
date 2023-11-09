@@ -1,0 +1,8 @@
+NETCDF_INCDIR="$(nc-config --cflags) $(nc-config --fflags)"
+NETCDF_LIBDIR="$(nc-config --libs) $(nc-config --flibs)"
+NETCDF_LIB=""
+
+XIOS_ROOTDIR="$PWD/../XIOS"
+XIOS_INCDIR="-I$XIOS_ROOTDIR/inc"
+XIOS_LIBDIR="-L$XIOS_ROOTDIR/lib"
+XIOS_LIB="-lxios"

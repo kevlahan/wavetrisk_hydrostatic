@@ -101,19 +101,22 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
   FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
 endif
 
+#all: $(PREFIX)/$(BIN_DIR)/$(TEST_CASE)
+
 SRC = $(PARAM).f90 shared.f90 coord_arithmetic.f90 sphere.f90  patch.f90 dyn_array.f90 \
 base_$(PROC).f90 dgesv.f90 dgtsv.f90 spline.f90 domain.f90 init.f90 comm.f90 comm_$(PROC).f90 utils.f90 projection.f90 equation_of_state.f90 \
 wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 ops.f90 multi_level.f90 adapt.f90 lin_solve.f90  \
 barotropic_2d.f90 time_integr.f90 vert_diffusion.f90 io.f90 remap.f90 main.f90 
 
 ifeq ($(PHYSICS), true)
-  # Compile Physics package
   # Set up path to mod files and library
-  SIMPLEPHYSMODPATH = test/Simple_Physics/include
+  #SIMPLEPHYSMODPATH = test/Simple_Physics/include
+  SIMPLEPHYSMODPATH = src/physics/simple_physics-master/phyparam/include
   FLAGS_COMP += -I$(SIMPLEPHYSMODPATH) # mod 
-  PHYSLIB_PATH = test/Simple_Physics/include #compiled obj in lib
+  #PHYSLIB_PATH = test/Simple_Physics/include #compiled obj in lib
+  PHYSLIB_PATH = src/physics/simple_physics-master/phyparam/driver
   LIBS= -L$(PHYSLIB_PATH) -lphyparam
-  # Add extra modules to SRC for compilation
+  # Add extra modules to SRC for compilation and add physics package compilation
   -include src/physics/Makefile.inc
 endif
 
@@ -127,5 +130,13 @@ $(PREFIX)/$(BIN_DIR)/$(TEST_CASE): $(OBJ)
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 	$(COMPILER) $(FLAGS_COMP) $< -o $@ 
 
+phys_package:
+	@echo "Compiling Physics Package"
+	@$(MAKE) -C src/physics/simple_physics-master/phyparam F90=mpif90
+
 clean:
-	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90	
+	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90
+ifeq ($(PHYSICS), true)
+	$(MAKE) -C src/physics/simple_physics-master/phyparam clean
+endif
+

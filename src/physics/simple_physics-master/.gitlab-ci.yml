@@ -1,0 +1,99 @@
+stages:
+  - build
+  - deploy
+
+#======================== Jobs running on IPSL ESPRI runners ==================
+
+.build-generic: &build-generic
+  tags: [ "docker" ]
+  stage: build
+  image: gitlab-registry.in2p3.fr/ipsl/lmd/intro/awaca/$COMP/xios:2029
+  script:
+    - cd phyparam && make clean && cat Makefile.inc
+    - FFRONT=$FFRONT F90=$F90 F90FLAGS=$F90FLAGS make clean test
+
+build-gnu:
+  variables:
+    COMP: gnu
+    FFRONT: F_Front
+    F90: gfortran
+    F90FLAGS: "-ffree-line-length-none -std=f2003 -Werror"
+  <<: *build-generic
+
+build-intel:
+  variables:
+    COMP: intel
+    FFRONT: "true"
+    F90: ifort
+    F90FLAGS: ""
+  <<: *build-generic
+
+build-nvidia:
+  variables:
+    COMP: nvidia
+    FFRONT: "true"
+    F90: nvfortran
+    F90FLAGS: ""
+  <<: *build-generic
+
+pages:
+  stage: deploy
+  needs: [ "build-gnu" ]
+  only: [ "master" ]
+  tags: [ "docker" ]
+  variables:
+    COMP: gnu
+    F90: gfortran
+    F90FLAGS: "-ffree-line-length-none -std=f2003 -Werror"
+  artifacts:
+    paths: [ "public/" ]
+    expire_in: 1h
+  image: gitlab-registry.in2p3.fr/ipsl/lmd/intro/awaca/$COMP/xios:2029
+  script:
+    - apt-get update && apt install -yqq doxygen graphviz
+    - cd phyparam && make clean
+    - F90=$F90 F90FLAGS=$F90FLAGS make clean doc
+    - mv tmp/html ../public
+    
+#===================== Jobs running on jean-zay-pp during IDRIS Hackathon 2021 ================
+
+build-hackathon:
+  tags: [ "jean-zay" ]
+  stage: build
+  script:
+    - cd phyparam
+    - bash/hackathon.sh cpu
+    - bash/hackathon.sh verif
+
+# Due to a FCM bug, it messes up the path of the archives *.a
+# Hence we cannot build in the gitlab-runner directory.
+# As a dirty workaround we move config/DYNAMICO/modeles elsewhere and symlink to it.
+# Furthermore FCM will rebuild XIOS entirely if the path of the build directory changes.
+# Therefore we symlink XIOS to $SCRATCH/XIOS.2029 where we have compiled it manually.
+
+run-hackathon:
+  tags: [ "jean-zay" ]
+  stage: build
+  before_script:
+    - cd config/DYNAMICO/modeles/DYNAMICO_phyparam/src
+    - (cd driver ;  for link in * ; do cp --remove-destination $(readlink $link) $link ; done )
+    - (cd physics ; for link in * ; do cp --remove-destination $(readlink $link) $link ; done )
+    - mkdir -p $SCRATCH/tmp/$CI_JOB_ID 
+    - cd ../../.. && mv modeles $SCRATCH/tmp/$CI_JOB_ID/
+    - ln -s $SCRATCH/tmp/$CI_JOB_ID/modeles .
+  after_script:
+    - rm -rf $SCRATCH/tmp/$CI_JOB_ID 
+  script:
+    - ./DYNAMICO.sh install > build.log 2>&1 && tail -n 20 build.log
+    - rm -rf modeles/XIOS && ln -s $SCRATCH/XIOS.2029 modeles/XIOS
+    - ./DYNAMICO.sh build JEANZAY_NVIDIA_ACC
+    - cd TEST_GPU && sbatch --wait job_JEANZAY_ACC.sh
+    - grep ' NaN ' rundir/gcm.log && exit -1
+    - grep -B 5 GLOB rundir/gcm.log
+    - grep 'Throughput' rundir/gcm.log | tail -n 5
+    - grep 'dyn ' rundir/gcm.log | tail -n 1
+    - grep 'phyparam ' rundir/gcm.log | tail -n 1
+    - mv rundir ../../..
+  artifacts:
+    paths:
+      - rundir

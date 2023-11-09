@@ -1,0 +1,1 @@
+../LMDZ20191106.trunk/modipsl/modeles/LMDZ/bin/gcm_32x32x39_phyparam_seq.e

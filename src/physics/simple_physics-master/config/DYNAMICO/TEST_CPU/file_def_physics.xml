@@ -1,0 +1,47 @@
+<context id="icosagcm" >
+
+  <field_definition>
+    
+    <field_group id="phyparam_output_field">
+
+      <field field_ref="phyparam_mu0" />
+      <field field_ref="phyparam_ts" />
+      <field field_ref="phyparam_swsurf" />
+      <field field_ref="phyparam_swtop" />
+      <field field_ref="phyparam_lwsurf" />
+
+      <field field_ref="ps"/>
+      <field field_ref="p" />                                                                                                                                                               
+      <field field_ref="phyparam_temp" />
+      <field field_ref="phyparam_theta" />
+      <field field_ref="phyparam_swflux_down" />
+      <field field_ref="phyparam_swflux_up" />
+      <field field_ref="phyparam_lwflux_down" />
+      <field field_ref="phyparam_lwflux_up" />
+
+<!--
+      <field field_ref="phyparam_u" />
+      <field field_ref="phyparam_v" />
+      <field field_ref="phyparam_du" />
+      <field field_ref="phyparam_dv" />
+      <field field_ref="phyparam_dtsw" />
+      <field field_ref="phyparam_dtlw" />
+-->
+
+    </field_group> 
+
+  </field_definition >
+
+
+  <file_definition > 
+
+    <file id="physics_regular" enabled="true" description="Simple physics"
+	  output_freq="1d" sync_freq="1d" output_level="10" timeseries="none" >
+      
+      <field_group group_ref="phyparam_output_field"  domain_ref="regular_one_degree" />
+      
+    </file>
+
+  </file_definition>
+  
+</context>

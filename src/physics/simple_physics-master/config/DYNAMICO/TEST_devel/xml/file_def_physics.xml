@@ -1,0 +1,50 @@
+<file_definition > 
+
+  <file id="physics_native" convention="CF" enabled="false" output_freq="3h" sync_freq="3h" output_level="10" timeseries="none" description="Simple physics" > 
+    
+    <field_group id="phyparam_output_field" ts_enabled="true">
+
+      <field field_ref="phyparam_mu0" />
+      <field field_ref="phyparam_ts" />
+      <field field_ref="phyparam_swsurf" />
+      <field field_ref="phyparam_swtop" />
+      <field field_ref="phyparam_lwsurf" />
+
+      <field field_ref="ps"/>
+      <field field_ref="p" />                                                                                                                                                               
+      <field field_ref="phyparam_temp" />
+      <field field_ref="phyparam_theta" />
+      <field field_ref="phyparam_swflux_down" />
+      <field field_ref="phyparam_swflux_up" />
+      <field field_ref="phyparam_lwflux_down" />
+      <field field_ref="phyparam_lwflux_up" />
+
+<!--
+      <field field_ref="phyparam_u" />
+      <field field_ref="phyparam_v" />
+      <field field_ref="phyparam_du" />
+      <field field_ref="phyparam_dv" />
+      <field field_ref="phyparam_dtsw" />
+      <field field_ref="phyparam_dtlw" />
+-->
+
+    </field_group> 
+
+    <variable name="model" type="string" > dynamico </variable>
+    <variable name="grid" type="string" > hex </variable>
+    <variable name="equation" type="string" > hydro </variable>
+
+  </file>
+
+
+  <file id="physics_regular" enabled="true" output_freq="6h" sync_freq="6h" output_level="10" description="Simple physics" timeseries="none" >
+    
+    <field_group group_ref="phyparam_output_field"  domain_ref="regular_one_degree" />
+
+    <variable name="model" type="string" > dynamico </variable>
+    <variable name="grid" type="string" > hex </variable>
+    <variable name="equation" type="string" > hydro </variable>
+
+  </file>
+
+</file_definition>

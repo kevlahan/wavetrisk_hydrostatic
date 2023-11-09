@@ -1,0 +1,7 @@
+./build_lmdz_phyparam.sh patch_lmdz -debug
+./build_lmdz_phyparam.sh full
+(cd TEST_PARAM/; time ./gcm.e | tee gcm.log | grep '*    pas ' && ./check.sh IRENE)
+grep WRN TEST_PARAM/gcm.log | sort -u
+
+# IPSL / Camelot
+module load gnu/7.2.0
