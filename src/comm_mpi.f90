@@ -7,6 +7,7 @@ module comm_mpi_mod
   type(Float_Array)                  :: recv_buf, send_buf
   integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
   real(8), dimension(2)              :: times
+  
   logical, parameter                 :: deadlock = .false. ! test for communication deadlocks
 contains
   subroutine init_comm_mpi
@@ -388,85 +389,133 @@ contains
   subroutine deadlock_test (flag)
     ! Detects deadlock and aborts
     implicit none
-    integer                         :: flag
+    integer :: flag
 
     logical            :: got_data
     real(8)            :: t_start
-    real(8), parameter :: timeout_time = 1.0d2
+    real(8), parameter :: timeout_time = 1d2
 
-    t_start = MPI_Wtime() 
+    t_start = MPI_Wtime () 
     call MPI_Test (req, got_data, MPI_STATUS_IGNORE, ierror)
     do while (.not. got_data .and. MPI_Wtime()-t_start < timeout_time) 
        call MPI_Test (req, got_data, MPI_STATUS_IGNORE, ierror)
     end do
     if (.not. got_data) then
-       write (6,'(A,i4,A,i5)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
+       write (6,'(a,i4,a,i5)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
        call abort
     end if
   end subroutine deadlock_test
 
-  subroutine update_bdry1 (field, l_start, l_end, flag)
+  subroutine update_bdry1 (field, l_start, l_end, flag_in)
     implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
-    integer, optional :: flag
+    integer, optional :: flag_in
+
+    integer :: flag
+
+    if (present (flag_in)) then
+       flag = flag_in
+    else
+       flag = 9999
+    end if
 
     call update_bdry__start1  (field, l_start, l_end)
-    if (deadlock) call deadlock_test (flag)
+    if (deadlock) call deadlock_test (flag_in)
     call update_bdry__finish1 (field, l_start, l_end)
   end subroutine update_bdry1
 
-  subroutine update_vector_bdry1 (field, l_start, l_end, flag)
+  subroutine update_vector_bdry1 (field, l_start, l_end, flag_in)
     implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
-    integer, optional               :: flag
+    integer, optional               :: flag_in
+
+    integer :: flag
+
+    if (present (flag_in)) then
+       flag = flag_in
+    else
+       flag = 9999
+    end if
 
     call update_vector_bdry__start1  (field, l_start, l_end)
     if (deadlock) call deadlock_test (flag)
     call update_vector_bdry__finish1 (field, l_start, l_end)
   end subroutine update_vector_bdry1
 
-  subroutine update_array_bdry1 (field, l_start, l_end, flag)
+  subroutine update_array_bdry1 (field, l_start, l_end, flag_in)
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
-    integer, optional                 :: flag
+    integer, optional                 :: flag_in
+
+    integer :: flag
+
+    if (present (flag_in)) then
+       flag = flag_in
+    else
+       flag = 9999
+    end if
 
     call update_array_bdry__start1  (field, l_start, l_end)
     if (deadlock) call deadlock_test (flag)
     call update_array_bdry__finish1 (field, l_start, l_end)
   end subroutine update_array_bdry1
 
-  subroutine update_bdry (field, l, flag)
+  subroutine update_bdry (field, l, flag_in)
     implicit none
     type(Float_Field) :: field
     integer           :: l
-    integer, optional :: flag
+    integer, optional :: flag_in
+
+    integer :: flag
+
+    if (present (flag_in)) then
+       flag = flag_in
+    else
+       flag = 9999
+    end if
 
     call update_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)
     call update_bdry__finish (field, l)
   end subroutine update_bdry
 
-  subroutine update_vector_bdry (field, l, flag)
+  subroutine update_vector_bdry (field, l, flag_in)
     implicit none
     ! Updates field array
     type(Float_Field), dimension(:) :: field
     integer                         :: l
-    integer, optional               :: flag
+    integer, optional               :: flag_in
+
+    integer :: flag
+
+    if (present (flag_in)) then
+       flag = flag_in
+    else
+       flag = 9999
+    end if
 
     call update_vector_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)
     call update_vector_bdry__finish (field, l)
   end subroutine update_vector_bdry
   
-  subroutine update_array_bdry (field, l, flag)
+  subroutine update_array_bdry (field, l, flag_in)
     ! Updates field array
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l
-    integer, optional                 :: flag
+    integer, optional                 :: flag_in
+
+    integer :: flag
+
+    if (present (flag_in)) then
+       flag = flag_in
+    else
+       flag = 9999
+    end if
 
     call update_array_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)
