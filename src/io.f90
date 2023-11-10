@@ -83,12 +83,12 @@ contains
     if (initialgo) then
        initotalmass = 0d0
        do k = 1, zlevels
-          initotalmass = initotalmass + integrate_hex (full_mass, k, .true.)
+          initotalmass = initotalmass + integrate_hex (full_mass, k, level_start)
        end do
     else
        totalmass = 0d0
        do k = 1, zlevels
-          totalmass = totalmass + integrate_hex (full_mass, k, .true.)
+          totalmass = totalmass + integrate_hex (full_mass, k, level_start)
        end do
        mass_error = abs (totalmass - initotalmass) / initotalmass
     end if
@@ -109,6 +109,22 @@ contains
 
     full_mass = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
   end function full_mass
+
+  real(8) function topo (dom, i, j, zlev, offs, dims)
+    use domain_mod
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    topo = topography%data(d)%elts(id)
+  end function topo
 
   real(8) function pot_energy (dom, i, j, zlev, offs, dims)
     use domain_mod
@@ -531,7 +547,7 @@ contains
     ! Integrate geopotential upwards from surface
     pressure_lower = dom%surf_press%elts(id)
     pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id)
-    dom%geopot_lower%elts(id) = surf_geopot (dom, id) / grav_accel
+    dom%geopot_lower%elts(id) = surf_geopot (d, id) / grav_accel
 
     k = 1
     do while (pressure_upper > pressure_save(1))
@@ -831,7 +847,8 @@ contains
           outv(3) = dom%v_merid%elts(id_i) * phi_node (d, id_i, zlev)  ! meridional velocity
 
           if (compressible) then ! geopotential height at level zlev
-             outv(4) = dom%geopot%elts(id_i)/grav_accel
+             !outv(4) = dom%geopot%elts(id_i)/grav_accel
+             outv(4) = topography%data(d)%elts(id_i)
           else ! topography 
              outv(4) = -dom%topo%elts(id_i) ! bathymetry
 !!$             outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity

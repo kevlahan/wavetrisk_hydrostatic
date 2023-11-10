@@ -91,6 +91,8 @@ contains
     !
     !********************************************
 
+     write (6,'(a)', advance="no") 'Reading  geopotential data from netCDF file ...'
+
     allocate ( phi_s(1:ncol), stat=alloc_error )
     if ( alloc_error /= 0 ) then
        write (6,'(a)') 'Could not allocate space for geopotential data ... aborting.'
@@ -103,7 +105,7 @@ contains
     status = NF_GET_VAR_DOUBLE (ncid, phisid, phi_s)
     if (status /= NF_NOERR) call handle_err (status)
 
-    write (6,'(a,/)') 'Done reading in data from netCDF file.'
+    write (6,'(a,/)') ' done reading in data.'
 
     write (6,'(a)', advance="no") 'Writing geopotential data to wavelet file ...'
 
@@ -111,7 +113,7 @@ contains
     do d = 1, size (grid)
        call apply_onescale_d (assign_height, grid(d), max_level, z_null, 0, 1)
     end do
-    write (6,'(a,/)') ' done writing geopotential data to wavelet file.'
+    write (6,'(a,/)') ' done writing geopotential data.'
     deallocate (phi_s)
   end subroutine read_geopotential
 

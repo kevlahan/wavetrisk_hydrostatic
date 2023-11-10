@@ -975,12 +975,13 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer :: d, id
 
+    d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
     if (compressible) then
-       dom%geopot%elts(id) = surf_geopot (dom, id)
+       dom%geopot%elts(id) = surf_geopot (d, id)
     else
        dom%geopot%elts(id) = grav_accel * dom%topo%elts(id)
     end if

@@ -55,12 +55,10 @@ module init_mod
        implicit none
        type(Coord) :: p
      end function coord_fun
-     real(8) function geo_fun (dom, id)
-       use domain_mod
+     real(8) function int2_fun (d, id)
        implicit none
-       integer      :: id
-       type(domain) :: dom
-     end function geo_fun
+       integer :: d, id
+     end function int2_fun
      subroutine io_fun (fid)
        implicit none
        integer :: fid
@@ -111,7 +109,7 @@ module init_mod
   procedure (noarg_fun),   pointer :: initialize_thresholds    => null ()
   procedure (noarg_fun),   pointer :: set_save_level           => null ()
   procedure (noarg_fun),   pointer :: set_thresholds           => null ()
-  procedure (geo_fun),     pointer :: surf_geopot              => null ()
+  procedure (int2_fun),    pointer :: surf_geopot              => null ()
   procedure (coord_fun),   pointer :: tau_mag                  => null ()
   procedure (fun3),        pointer :: top_buoy_flux            => null ()
   procedure (noarg_fun),   pointer :: update                   => null ()

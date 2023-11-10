@@ -682,15 +682,14 @@ contains
     end if
   end subroutine integrate_tri_fine
   
-  real(8) function integrate_hex (fun, zlev, coarse_only)
+  real(8) function integrate_hex (fun, zlev, level)
     ! Integrate over adaptive hexagons, where the integrand is defined by the routine fun.
     ! If optional variable coarse_only = .true. the integration is carried out over level_start only.
     implicit none
     integer           :: zlev
-    logical, optional :: coarse_only
+    integer, optional :: level
 
-    integer :: d, j, l
-    logical :: finer
+    integer :: j, d, l
 
     interface
        real(8) function fun (dom, i, j, zlev, offs, dims)
@@ -703,19 +702,14 @@ contains
        end function fun
     end interface
 
-    if (present(coarse_only)) then
-       finer = .not. coarse_only
-    else
-       finer = .true.
-    end if
     integrand_hex => fun
-
-    ! Coarsest level
-    integral = 0d0
-    call integrate_hex_coarse (zlev)
     
-    ! Finer levels
-    if (finer) then
+    integral = 0d0
+    
+    if (present (level)) then ! integrate over a single scales
+       call integrate_hex_scale (level, zlev)
+    else                      ! integrate over all scales
+       call integrate_hex_scale (level_start, zlev)
        do l = level_start, level_end-1
           do d = 1, size(grid)
              do j = 1, grid(d)%lev(l)%length
@@ -724,15 +718,16 @@ contains
           end do
        end do
     end if
-    nullify (integrand_hex)
     
     integrate_hex = sum_real (integral)
+    
+    nullify (integrand_hex)
   end function integrate_hex
 
-  subroutine integrate_hex_coarse (zlev)
-    ! Integrate function pointer integrand_hex over hexagons at coarsest scale.
+  subroutine integrate_hex_scale (l, zlev)
+    ! Integrate function pointer integrand_hex over hexagons at a single scale l
     implicit none
-    integer :: zlev
+    integer :: l, zlev
     
     integer                        :: c, d, i, id, j, jj, p
     integer, dimension(N_BDRY+1)   :: offs
@@ -740,8 +735,8 @@ contains
 
     do d = 1, size(grid)
        ! Regular hexagons/pentagons
-       do jj = 1, grid(d)%lev(level_start)%length
-          p = grid(d)%lev(level_start)%elts(jj)
+       do jj = 1, grid(d)%lev(l)%length
+          p = grid(d)%lev(l)%elts(jj)
           call get_offs_Domain (grid(d), p, offs, dims)
           do j = 1, PATCH_SIZE
              do i = 1, PATCH_SIZE
@@ -755,7 +750,7 @@ contains
        do c = SOUTHEAST, NORTHWEST, 2
           if (.not. grid(d)%pole_master(c/2-2) .or. .not. grid(d)%penta(c)) cycle
           p = 1
-          do while (grid(d)%patch%elts(p+1)%level < level_start)
+          do while (grid(d)%patch%elts(p+1)%level < l)
              p = grid(d)%patch%elts(p+1)%children(c-4)
              if (p == 0) then
                 write (6,'(A, i4, A)') "ERROR(rank = ", rank, "): integrate_hex: level incomplete"
@@ -774,7 +769,7 @@ contains
 
        end do
     end do
-  end subroutine integrate_hex_coarse
+  end subroutine integrate_hex_scale
 
   subroutine integrate_hex_fine (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Integrate over active finer levels.
