@@ -950,7 +950,7 @@ contains
       d = dom%id + 1
       id = idx (i, j, offs, dims) + 1
 
-      grid(d)%surf_press%elts(id) = 0d0
+      dom%surf_press%elts(id) = 0d0
       do k = 1, zlevels
          if (compressible) then
             dom%surf_press%elts(id) = dom%surf_press%elts(id) + q(S_MASS,k)%data(d)%elts(id)
@@ -961,9 +961,9 @@ contains
             dom%surf_press%elts(id) = dom%surf_press%elts(id) + (full_mass - full_temp)
          end if
       end do
-      grid(d)%surf_press%elts(id) = grav_accel*grid(d)%surf_press%elts(id) + p_top
+      dom%surf_press%elts(id) = grav_accel*dom%surf_press%elts(id) + p_top
 
-      grid(d)%press_lower%elts(id) = grid(d)%surf_press%elts(id)
+      dom%press_lower%elts(id) = dom%surf_press%elts(id)
     end subroutine column_mass
   end subroutine cal_surf_press
 

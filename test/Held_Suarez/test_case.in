@@ -3,6 +3,8 @@ run_id             HS_J6       ! name of run (for saved data files)
 max_level	   6           ! maximum level of resolution
 zlevels            31          ! number of vertical levels
 NCAR_topo          T           ! use realistic topography (compile with flag TOPO=.true.)		  
+topo_type          read        ! read or write topography data (used if NCAR_topo = T)
+topo_file          J06_gmted2010_modis_bedmachine_nc3000_NoAniso_Laplace0030_20231110.nc ! topography data file
 tol      	   2e-2        ! non-dimensional tolerance
 pressure_save      850         ! save vertical layer closest to this pressure (hPa)
 dt_write           1           ! save interval (days)

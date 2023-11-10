@@ -176,7 +176,7 @@ contains
     x_NE = dom%node%elts(idNE+1)
 
     ! Surface pressure
-    dom%surf_press%elts(id+1) = surf_pressure (dom, id+1)
+    dom%surf_press%elts(id+1) = surf_pressure (d, id+1)
     p_s = dom%surf_press%elts(id+1)
 
     ! Pressure at level zlev
@@ -200,16 +200,15 @@ contains
     sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
   end subroutine init_sol
 
-  real(8) function surf_geopot_case (dom, id)
+  real(8) function surf_geopot_case (d, id)
     ! Surface geopotential
     implicit none
-    integer       :: id
-    type (Domain) :: dom
+    integer :: d, id
     
     real(8)     :: lon, lat, rgrc
     type(Coord) :: x_i
 
-    x_i = dom%node%elts(id)
+    x_i = grid(d)%node%elts(id)
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
@@ -219,23 +218,22 @@ contains
     surf_geopot_case = grav_accel*h_0 * exp__flush(-rgrc**2/d2)
   end function surf_geopot_case
 
-  real(8) function surf_pressure (dom, id)
+  real(8) function surf_pressure (d, id)
     ! Surface pressure
     implicit none
-    integer       :: id
-    type (Domain) :: dom
+    integer :: d, id
 
     real(8)     :: lon, lat
     type(Coord) :: x_i
     
-    x_i = dom%node%elts(id)
+    x_i = grid(d)%node%elts(id)
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
 
     surf_pressure = ref_surf_press * exp__flush ( &
          - radius*N_freq**2*u_0/(2*grav_accel**2*kappa)*(u_0/radius+2*omega)*(sin(lat)**2-1.0_8) &
-         - N_freq**2/(grav_accel**2*kappa)*surf_geopot_case (dom, id) )
+         - N_freq**2/(grav_accel**2*kappa)*surf_geopot_case (d, id) )
   end function surf_pressure
 
   subroutine vel_fun (lon, lat, u, v)

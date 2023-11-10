@@ -223,13 +223,13 @@ contains
     real(8), dimension(0:zlevels) :: Kt_avg, Kv_avg, z
     character(4)                  :: s_time
 
-    area = integrate_hex (area_fun, 1, .true.)
+    area = integrate_hex (area_fun, 1, level_start)
     do k = 1, zlevels
-       Kt_avg(k) = integrate_hex (Kt_fun, k, .true.)
-       Kv_avg(k) = integrate_hex (Kv_fun, k, .true.)
+       Kt_avg(k) = integrate_hex (Kt_fun, k, level_start)
+       Kv_avg(k) = integrate_hex (Kv_fun, k, level_start)
     end do
     do k = 1, zlevels
-       T_avg(k)  = integrate_hex (temp_fun, k, .true.)
+       T_avg(k)  = integrate_hex (temp_fun, k, level_start)
     end do
     Kt_avg = Kt_avg / area
     Kv_avg = Kv_avg / area
@@ -588,11 +588,10 @@ contains
     tke(zlev)%data(d)%elts(id) = e_min
   end subroutine init_tke
 
-  real(8) function surf_geopot_case (dom, id)
+  real(8) function surf_geopot_case (d, id)
     ! Surface geopotential: postive if greater than mean seafloor                                                                                        
     implicit none
-    integer       :: id
-    type (Domain) :: dom
+    integer :: d, id
 
     surf_geopot_case = 0.0_8
   end function surf_geopot_case
@@ -837,7 +836,7 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot_case (dom, id_i) / grav_accel
+       dom%topo%elts(id_i) = max_depth + surf_geopot_case (d, id_i) / grav_accel
     case ("penalize") ! not used
     end select
   end subroutine topo_tke1d

@@ -22,6 +22,9 @@ program Held_Suarez
   ! Initialize random number generator
   call initialize_seed
 
+  ! Read test case parameters
+  call read_test_case_parameters
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
   radius         = 6371      * KM                 ! mean radius of the Earth
@@ -71,6 +74,8 @@ program Held_Suarez
   Hdim           = wave_speed**2/grav_accel       ! vertical length scale
 
   ! Numerical method parameters
+  dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
+  dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
   cfl_num            = 1d0
   timeint_type       = "RK4"
   iremap             = 10
@@ -79,15 +84,17 @@ program Held_Suarez
   compressible       = .true.
   remap              = .true.
   uniform            = .false.
-  
+
+  ! CFL limit for time step
+  dt_cfl = cfl_num * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
+  dt_init = dt_cfl
+
+  ! Diffusion parameters
   Laplace_order_init = 2                          ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
   C_visc(S_MASS)     = 0d-3                       ! dimensionless viscosity of S_MASS
   C_visc(S_TEMP)     = 0d-3                       ! dimensionless viscosity of S_TEMP
   C_visc(S_VELO)     = 5d-4                       ! dimensionless viscosity of S_VELO (rotu, divu)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  ! Read test case parameters
-  call read_test_case_parameters
 
   ! Initialize functions
   call assign_functions
@@ -95,14 +102,13 @@ program Held_Suarez
   ! Initialize variables
   call initialize (run_id)
   call print_test_case_parameters
-  
+
   if (NCAR_topo) then! generate topography data
-     topo_operation = "read"
-     select case (topo_operation)
+     select case (trim(topo_type))
      case ("write") ! write out file descriptor for topography
         call write_grid_coords
      case ("read") ! read in geopotential
-        call read_geopotential ("J06_gmted2010_modis_bedmachine_nc3000_NoAniso_Laplace0120_20231003.nc")
+        call read_geopotential (trim(topo_file))
         call forward_topo_transform (topography, wav_topography)
         call inverse_topo_transform (wav_topography, topography)
 
@@ -112,44 +118,48 @@ program Held_Suarez
            write (6,'(a,i2,a,es10.4)') &
                 "Relative mass error at level ", l, " = ", abs (integrate_hex (topo, z_null, l) - fine_mass)/fine_mass
         end do
+
+        ! Re-apply initial conditions to use correct surface pressure
+        call apply_initial_conditions_case
      end select
   end if
 
   ! Save initial conditions
   call write_and_export (iwrite)
 
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  if (rank == 0) write (6,'(A,/)') &
-       '----------------------------------------------------- Start simulation run &
-       ------------------------------------------------------'
-  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  total_cpu_time = 0.0_8
-  do while (time < time_end)
-     call start_timing
-     call time_step (dt_write, aligned)
-     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
-     call euler (sol, wav_coeff, trend_cooling, dt)
-     call stop_timing
+  if (.not. NCAR_topo .or. topo_type == "read") then
+     if (rank == 0) write (6,'(A,/)') &
+          '----------------------------------------------------- Start simulation run &
+          ------------------------------------------------------'
+     open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+     total_cpu_time = 0.0_8
+     do while (time < time_end)
+        call start_timing
+        call time_step (dt_write, aligned)
+        if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+        call euler (sol, wav_coeff, trend_cooling, dt)
+        call stop_timing
 
-     call sum_total_mass (.false.)
-     call print_log
+        call sum_total_mass (.false.)
+        call print_log
 
-     if (aligned) then
-        iwrite = iwrite+1
-        if (remap) call remap_vertical_coordinates
+        if (aligned) then
+           iwrite = iwrite+1
+           if (remap) call remap_vertical_coordinates
 
-        if (modulo (iwrite, CP_EVERY) == 0) then
-           call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
+           if (modulo (iwrite, CP_EVERY) == 0) then
+              call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
 
-           ! Save statistics
-           call combine_stats
-           if (rank == 0) call write_out_stats
+              ! Save statistics
+              call combine_stats
+              if (rank == 0) call write_out_stats
+           end if
+
+           ! Save fields
+           call write_and_export (iwrite)
         end if
-
-        ! Save fields
-        call write_and_export (iwrite)
-     end if
-  end do
+     end do
+  end if
 
   if (rank == 0) then
      close (12)

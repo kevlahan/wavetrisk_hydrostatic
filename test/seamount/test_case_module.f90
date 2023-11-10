@@ -463,16 +463,15 @@ contains
     end if
   end subroutine update_case
 
-  real(8) function surf_geopot_case (dom, id)
+  real(8) function surf_geopot_case (d, id)
     ! Surface geopotential: postive if greater than mean seafloor
     implicit none
-    integer      :: id
-    type(domain) :: dom
+    integer :: d, id
     
     real(8)     :: lon, lat, rgrc
     type(Coord) :: x_i
 
-    x_i = dom%node%elts(id)
+    x_i = grid(d)%node%elts(id)
     
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
@@ -669,11 +668,12 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
-    
+    integer :: d, id
+
+    d = dom%id + 1
     id  = idx (i, j, offs, dims)  + 1
 
-    dom%topo%elts(id) = surf_geopot_case (dom, id) / grav_accel
+    dom%topo%elts(id) = surf_geopot_case (d, id) / grav_accel
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)

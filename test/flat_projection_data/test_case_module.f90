@@ -72,16 +72,15 @@ contains
     physics_velo_source_case = 0.0_8
   end function physics_velo_source_case
 
-  real(8) function surf_geopot_case (dom, id)
+  real(8) function surf_geopot_case (d, id)
     ! Surface geopotential
     implicit none
-    integer      :: id
-    type(domain) :: dom
+    integer :: d, id
     
     type(Coord) :: x_i
     real(8)     :: amp, b_max, c1, cs2, sn2, lon, lat, rgrc, y
 
-    x_i = dom%node%elts(id)
+    x_i = grid(d)%node%elts(id)
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
@@ -445,7 +444,7 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot (dom, id_i) / grav_accel
+       dom%topo%elts(id_i) = max_depth + surf_geopot (d, id_i) / grav_accel
     case ("penalize")
        if (trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
           penal_node(zlev)%data(d)%elts(id_i) = mask (p)

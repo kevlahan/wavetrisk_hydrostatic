@@ -699,11 +699,10 @@ contains
     tke(zlev)%data(d)%elts(id) = 1d-6
   end subroutine init_tke
 
-  real(8) function surf_geopot_case (dom, id)
-    ! Surface geopotential: postive if greater than mean seafloor                                                                                        
+  real(8) function surf_geopot_case (d, id)
+    ! Surface geopotential: postive if greater than mean seafloor
     implicit none
-    integer        :: id
-    type (Domain)  :: dom
+    integer :: d, id
     
     surf_geopot_case = grav_accel * 0d0
   end function surf_geopot_case

@@ -176,7 +176,7 @@ contains
     x_NE = dom%node%elts(idNE+1)
 
     ! Surface pressure
-    dom%surf_press%elts(id+1) = surf_pressure (dom, id+1)
+    dom%surf_press%elts(id+1) = surf_pressure (d, id+1)
     p_s = dom%surf_press%elts(id+1)
 
     ! Pressure at level zlev
@@ -225,16 +225,15 @@ contains
          + radius*omega*(8/5.0_8*cs2**1.5*(sn2+2/3.0_8) - MATH_PI/4))
   end function set_temp
 
-  real(8) function surf_geopot_case (dom, id)
+  real(8) function surf_geopot_case (d, id)
     ! Surface geopotential
     implicit none
-    integer       :: id
-    type (Domain) :: dom
+    integer :: d, id
     
     type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
 
-    x_i = dom%node%elts(id)
+    x_i = grid(d)%node%elts(id)
 
     ! Find latitude and longitude from Cartesian coordinates
     call cart2sph (x_i, lon, lat)
@@ -246,11 +245,10 @@ contains
          + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
   end function surf_geopot_case
   
-  real(8) function surf_pressure (dom, id)
+  real(8) function surf_pressure (d, id)
     ! Surface pressure
     implicit none
-    integer       :: id
-    type (Domain) :: dom
+    integer :: d, id
 
     surf_pressure = p_0
   end function surf_pressure

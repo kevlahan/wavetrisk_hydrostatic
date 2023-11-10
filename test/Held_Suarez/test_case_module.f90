@@ -3,6 +3,7 @@ module test_case_mod
   use comm_mpi_mod
   use utils_mod
   use init_mod
+  use std_atm_profile_mod
   implicit none
 
   ! Standard variables
@@ -12,7 +13,10 @@ module test_case_mod
   ! Test case variables
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
-  logical :: NCAR_topo
+
+  ! Topography
+  character(9999) :: topo_file, topo_type
+  logical         :: NCAR_topo
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -165,16 +169,16 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    type(Coord) :: x_i, x_E, x_N, x_NE
-    integer     :: id, d, idN, idE, idNE
+    integer     :: id, d, idN, idE, idNE, k
     real(8)     :: p, p_s, pot_temp, sigma
-
+    type(Coord) :: x_i, x_E, x_N, x_NE
+    
     d = dom%id+1
 
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
+    id   = idx (i,   j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
     x_i  = dom%node%elts(id+1)
     x_E  = dom%node%elts(idE+1)
@@ -182,34 +186,52 @@ contains
     x_NE = dom%node%elts(idNE+1)
 
     ! Surface pressure
-    dom%surf_press%elts(id+1) = surf_pressure (x_i)
+    dom%surf_press%elts(id+1) = surf_pressure (d, id+1)
     p_s = dom%surf_press%elts(id+1)
 
-    ! Pressure at level zlev
-    p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
+    do k = 1, zlevels
+       ! Pressure at level k
+       p = 0.5d0 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_s)
 
-    ! Normalized pressure
-    sigma = (p - p_top) / (p_s - p_top)
-    sigma_v = (sigma - sigma_0) * MATH_PI/2
+       ! Normalized pressure
+       sigma = (p - p_top) / (p_s - p_top)
+       sigma_v = (sigma - sigma_0) * MATH_PI/2
 
-    ! Mass/Area = rho*dz at level zlev
-    sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*p_s/grav_accel
+       ! Mass/Area = rho*dz at level k
+       sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k)*p_s/grav_accel
 
-    ! Potential temperature
-    pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
-    !     call cal_theta_eq (p, p_s, lat, theta_equil, k_T)
+       ! Potential temperature
+       pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
+       !     call cal_theta_eq (p, p_s, lat, theta_equil, k_T)
 
-    ! Mass-weighted potential temperature
-    sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
+       ! Mass-weighted potential temperature
+       sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
 
-    ! Set initial velocity field
-    call vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
+       ! Set initial velocity field
+       call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
+    end do
+  end subroutine init_sol
+  
+  subroutine init_mean (dom, i, j, zlev, offs, dims)
+    ! From Jablonowski and Williamson (2006) without perturbation
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: id, d, k
+
+    d  = dom%id+1
+    id = idx (i, j, offs, dims)
 
     ! Means are zero
-    sol_mean(S_MASS,zlev)%data(d)%elts(id+1)                      = 0d0
-    sol_mean(S_TEMP,zlev)%data(d)%elts(id+1)                      = 0d0
-    sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
-  end subroutine init_sol
+    do k = 1, zlevels
+       sol_mean(S_MASS,k)%data(d)%elts(id+1)                      = 0d0
+       sol_mean(S_TEMP,k)%data(d)%elts(id+1)                      = 0d0
+       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+    end do
+  end subroutine init_mean
 
   subroutine cal_theta_eq (p, p_s, lat, theta_equil, k_T)
     ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
@@ -250,24 +272,23 @@ contains
        Tmean = T_0*sigma**(R_d*Gamma_T/grav_accel) + delta_T * (sigma_t - sigma)**5
     end if
 
-    set_temp = Tmean + 0.75_8 * sigma*MATH_PI*u_0/R_d * sin(sigma_v) * sqrt(cos(sigma_v)) * &
-         (2*u_0*cos(sigma_v)**1.5*(-2*sn2**3*(cs2+1/3d0) + 10/63d0) &
-         + radius*omega*(8/5d0*cs2**1.5*(sn2+2/3d0) - MATH_PI/4))
+    set_temp = Tmean + 0.75d0 * sigma*MATH_PI*u_0/R_d * sin(sigma_v) * sqrt(cos(sigma_v)) * &
+         (2d0*u_0*cos(sigma_v)**1.5 * (-2d0*sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
+         + radius * omega * (8d0/5d0*cs2**1.5 * (sn2+2/3d0) - MATH_PI/4d0))
   end function set_temp
 
-  real(8) function surf_geopot_case (dom, id)
+  real(8) function surf_geopot_case (d, id)
     ! Surface geopotential from Jablonowski and Williamson (2006)
     implicit none
-    integer       :: id
-    type (Domain) :: dom
+    integer       :: d, id
     
     Type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
 
     if (NCAR_topo) then 
-       surf_geopot_case = topography%data(d)%elts(id)   
+       surf_geopot_case = grav_accel * topography%data(d)%elts(id) 
     else ! surface geopotential from Jablonowski and Williamson (2006)
-       x_i = dom%node%elts(id)
+       x_i = grid(d)%node%elts(id)
        call cart2sph (x_i, lon, lat)
        cs2 = cos (lat)**2; sn2 = sin (lat)**2
 
@@ -278,13 +299,21 @@ contains
     end if
   end function surf_geopot_case
 
-  real(8) function surf_pressure (x_i)
+  real(8) function surf_pressure (d, id) 
     ! Surface pressure
     implicit none
-    type(Coord) :: x_i
+    integer :: d, id
+    real(8) :: p_s
 
-    surf_pressure = p_0
-  end function surf_pressure
+    real(8) :: z_s
+    
+    if (NCAR_topo) then ! use standard atmosphere
+       z_s = topography%data(d)%elts(id)
+       call std_surf_pres (z_s, surf_pressure)
+    else
+       surf_pressure = p_0
+  end if
+end function surf_pressure
 
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
@@ -295,9 +324,8 @@ contains
 
     call random_number (r)
 
-    u = u_0 * cos (sigma_v)**1.5 * sin (2*lat)**2 + r ! Zonal velocity component
-    !    u = 0d0 ! Uniform
-    v = 0d0                                 ! Meridional velocity component
+    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 + r ! Zonal velocity component
+    v = 0d0                                             ! Meridional velocity component
   end subroutine vel_fun
 
   subroutine set_thresholds_case
@@ -477,6 +505,8 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, NCAR_topo
+    read (fid,*) varname, topo_type
+    read (fid,*) varname, topo_file
     read (fid,*) varname, tol
     read (fid,*) varname, press_save
     read (fid,*) varname, dt_write
@@ -591,7 +621,10 @@ contains
        write (6,'(a,es10.4)') "k_f                 = ", k_f
        write (6,'(a,es10.4)') "k_s                 = ", k_s
        write (6,'(a,es10.4)') "delta_T             = ", delta_T
-       write (6,'(a,es10.4)') "delta_theta         = ", delta_theta
+       write (6,'(a,es10.4,/)') "delta_theta         = ", delta_theta
+       write (6,'(a,l)')      "NCAR_topo           = ", NCAR_topo
+       write (6,'(a,a)')      "topo_type           = ", trim (topo_type)
+       write (6,'(a,a)')      "topo_file           = ", trim (topo_file)
        write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'
@@ -655,9 +688,8 @@ contains
     integer :: k, l
 
     do l = level_start, level_end
-       do k = 1, zlevels
-          call apply_onescale (init_sol, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
+       call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine apply_initial_conditions_case
 
@@ -694,9 +726,9 @@ contains
     x_N  = dom%node%elts(idN+1)
     x_NE = dom%node%elts(idNE+1)
 
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel(vel_fun, x_i,  x_E)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel (vel_fun, x_i,  x_E)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel (vel_fun, x_NE, x_i)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel (vel_fun, x_i,  x_N)
   end subroutine vel2uvw
 
   subroutine set_save_level_case
@@ -892,11 +924,12 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
+    integer :: d, id
 
-    id_i = idx (i, j, offs, dims) + 1
+    d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
 
-    dom%geopot%elts(id_i) = surf_geopot_case (dom%node%elts(id_i))
+    dom%geopot%elts(id) = surf_geopot_case (d, id)
   end subroutine set_surf_geopot_HS
 
   function z_coords_case (eta_surf, z_s)

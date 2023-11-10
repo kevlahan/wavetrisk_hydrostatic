@@ -492,11 +492,10 @@ contains
     end if
   end subroutine init_mean
 
-  real(8) function surf_geopot_case (dom, id)
+  real(8) function surf_geopot_case (d, id)
     ! Surface geopotential: postive if greater than mean seafloor
     implicit none
-    integer       :: id
-    type (Domain) :: dom
+    integer :: d, id
 
     surf_geopot_case = grav_accel * 0d0
   end function surf_geopot_case
@@ -706,7 +705,7 @@ contains
     
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot_case (dom, id_i) / grav_accel
+       dom%topo%elts(id_i) = max_depth + surf_geopot_case (d, id_i) / grav_accel
     case ("penalize")
        call cart2sph (p, lon, lat)
 
