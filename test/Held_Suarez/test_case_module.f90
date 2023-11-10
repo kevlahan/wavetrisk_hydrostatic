@@ -198,7 +198,7 @@ contains
        sigma_v = (sigma - sigma_0) * MATH_PI/2
 
        ! Mass/Area = rho*dz at level k
-       sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k)*p_s/grav_accel
+       sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
 
        ! Potential temperature
        pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
@@ -423,6 +423,7 @@ end function surf_pressure
                0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
                0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
                0d0, 0d0 /)
+          
           b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, &
                0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
                0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
@@ -431,6 +432,9 @@ end function surf_pressure
                0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
                0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
                0.9851122_8, 1d0/)
+       else
+          write (6,'(a)') "zlevels choice not supported ... aborting"
+          call abort
        end if
        a_vert = a_vert(zlevels+1:1:-1) * p_0
        b_vert = b_vert(zlevels+1:1:-1)
@@ -504,19 +508,17 @@ end function surf_pressure
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
+    read (fid,*) varname, save_zlev
     read (fid,*) varname, NCAR_topo
     read (fid,*) varname, topo_type
     read (fid,*) varname, topo_file
     read (fid,*) varname, tol
-    read (fid,*) varname, press_save
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     close(fid)
 
-    allocate (pressure_save(1))
-    pressure_save(1) = 1.0d2*press_save
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
@@ -565,8 +567,13 @@ end function surf_pressure
 
   subroutine print_test_case_parameters
     implicit none
+    integer :: k
+    real(8) :: p_save
 
     if (rank==0) then
+       k = save_zlev
+       p_save = 0.5d0 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1)) * p_0)
+       
        write (6,'(a)') &
             '********************************************************** Parameters &
             ************************************************************'
@@ -581,6 +588,7 @@ end function surf_pressure
        write (6,'(a,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
        write (6,'(a,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
        write (6,'(a,i3)')     "zlevels             = ", zlevels
+       write (6,'(a,i3,1x,f10.2,a)')     "save_zlev           = ", save_zlev, p_save/1d2, ' [hPa]'
        write (6,'(a,l1)')     "uniform             = ", uniform
        write (6,'(a,l1)')     "remap               = ", remap
        write (6,'(a,a)')      "remapscalar_type    = ", trim (remapscalar_type)
@@ -592,7 +600,6 @@ end function surf_pressure
        write (6,'(a,l1)')     "adapt_dt            = ", adapt_dt
        write (6,'(a,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)       
-       write (6,'(a,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(a,i1)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(a,i2)')     "n_diffuse           = ", n_diffuse
        write (6,'(a,es10.4)') "dt_write (day)      = ", dt_write/DAY
@@ -700,6 +707,17 @@ end function surf_pressure
     implicit none
     integer :: d, k, l, p
 
+    if (istep /= 0) then
+       do d = 1, size(grid)
+          do p = n_patch_old(d)+1, grid(d)%patch%length
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+          end do
+       end do
+    else ! need to set values over entire grid on restart
+       do l = level_start, level_end
+          call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       end do
+   end if
   end subroutine update_case
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
@@ -732,22 +750,7 @@ end function surf_pressure
   end subroutine vel2uvw
 
   subroutine set_save_level_case
-    ! Determines closest vertical level to desired pressure
     implicit none
-    integer :: k
-    real(8) :: dpress, p, save_press
-
-    dpress = 1d16; save_zlev = 0
-    do k = 1, zlevels
-       p = 0.5 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_0)
-       if (abs(p-pressure_save(1)) < dpress) then
-          dpress = abs (p-pressure_save(1))
-          save_zlev = k
-          save_press = p
-       end if
-    end do
-    if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate pressure = ", save_press/100, " hPa)"
   end subroutine set_save_level_case
 
   subroutine initialize_seed

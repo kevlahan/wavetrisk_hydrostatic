@@ -30,7 +30,12 @@ program Held_Suarez
   radius         = 6371      * KM                 ! mean radius of the Earth
   grav_accel     = 9.8       * METRE/SECOND**2    ! gravitational acceleration 
   omega          = 7.292d-5  * RAD/SECOND         ! Earth's angular velocity in radians per second
-  p_0            = 1000      * hPa                ! reference pressure (mean surface pressure) in Pascals
+  ! Reference pressure (mean surface pressure) in Pascals
+  if (NCAR_topo) then
+     call std_surf_pres (0d0, p_0)
+  else
+     p_0            = 1000      * hPa                
+  end if
   c_p            = 1004.0_8  * JOULE/(KG*KELVIN)  ! specific heat at constant pressure in joules per kilogram Kelvin
   kappa          = 2.0_8/7.0_8                    ! kappa
   R_d            = kappa*c_p * JOULE/(KG*KELVIN)  ! ideal gas constant for dry air in joules per kilogram Kelvin
