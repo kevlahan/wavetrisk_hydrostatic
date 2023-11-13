@@ -369,7 +369,7 @@ contains
     !
     !-----------------------------------------------------------------------
     
-    write (6,'(/,a,a,a)',advance="no") "Writing topography grid descriptor data file ", trim(grid_name)//".nc"
+    write (6,'(/,a,a,a)',advance="no") "Writing topography grid descriptor data file ", trim(grid_name)//".nc ..."
     
     ncstat = nf_put_var_int (nc_grid_id, nc_griddims_id, grid_dims)
     call handle_err (ncstat)
