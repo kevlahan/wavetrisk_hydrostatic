@@ -44,14 +44,16 @@ module topo_grid_descriptor_mod
   integer                               :: grid_size          ! number of nodes
   integer, parameter                    :: grid_corners = 6   ! hexagons
   integer, dimension(:),    allocatable :: grid_imask         ! not used
+  integer, dimension(:),    allocatable :: grid_dom           ! domain associated to hexagon
+  integer, dimension(:),    allocatable :: grid_id            ! id of hexagon
+  
+  real (8), dimension(:),   allocatable :: grid_area          ! hexagon area on unit sphere
+  real (8), dimension(:),   allocatable :: grid_center_lat    ! lat/lon coordinates
+  real (8), dimension(:),   allocatable :: grid_center_lon    ! each grid centre in radians
+  real (8), dimension(:,:), allocatable :: grid_corner_lat    ! lat/lon coordinates 
+  real (8), dimension(:,:), allocatable :: grid_corner_lon    ! each grid corner in radians
 
-  real (8), dimension(:),   allocatable :: grid_area        ! hexagon area on unit sphere
-  real (8), dimension(:),   allocatable :: grid_center_lat  ! lat/lon coordinates
-  real (8), dimension(:),   allocatable :: grid_center_lon  ! each grid centre in radians
-  real (8), dimension(:,:), allocatable :: grid_corner_lat  ! lat/lon coordinates 
-  real (8), dimension(:,:), allocatable :: grid_corner_lon  ! each grid corner in radians
-
-  real(8), dimension(:),  allocatable   :: phi_s            ! geopotential 
+  real(8), dimension(:),  allocatable   :: phi_s              ! geopotential 
 contains
 
   subroutine write_grid_coords
@@ -64,6 +66,7 @@ contains
     call apply_onescale (count_nodes, max_level, z_null, 0, 1)
 
     allocate (grid_imask(1:grid_size)); grid_imask = 1
+    allocate (grid_dom(1:grid_size), grid_id(1:grid_size))
     allocate (grid_area(1:grid_size), grid_center_lat(1:grid_size), grid_center_lon(1:grid_size))
     allocate (grid_corner_lat(1:grid_corners,1:grid_size), grid_corner_lon(1:grid_corners,1:grid_size))
 
@@ -149,9 +152,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_i, idS, idSW, idW
+    integer :: d, id, id_i, idS, idSW, idW
     real(8) :: lat, lon
 
+    d = dom%id + 1
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
@@ -160,6 +164,9 @@ contains
     idS  = idx (i,   j-1, offs, dims)
     
     i_node = i_node + 1
+
+    grid_dom(i_node) = glo_id(rank+1,loc_id(d)+1) + 1   ! global domain label associated to node id
+    grid_id(i_node)  = id                               ! id of node
 
     grid_area(i_node) = 1d0/dom%areas%elts(id_i)%hex_inv/radius**2 ! hexagon area (unit sphere)
     
@@ -248,6 +255,8 @@ contains
     integer  :: nc_gridcorn_id     ! netCDF grid corner dim id
     integer  :: nc_gridrank_id     ! netCDF grid rank dim id
     integer  :: nc_griddims_id     ! netCDF grid dimension size id
+    integer  :: nc_grddom_id       ! netCDF grid domain id
+    integer  :: nc_grdid_id        ! netCDF grid id id
     integer  :: nc_grdarea_id      ! netCDF grid area id
     integer  :: nc_grdcntrlat_id   ! netCDF grid center lat id
     integer  :: nc_grdcntrlon_id   ! netCDF grid center lon id
@@ -297,6 +306,18 @@ contains
     !*** define grid dimension size array
     !***
     ncstat = nf_def_var (nc_grid_id, 'grid_dims', NF_INT, 1, nc_gridrank_id, nc_griddims_id)
+    call handle_err (ncstat)
+
+    !***
+    !*** define domain
+    !***
+    ncstat = nf_def_var (nc_grid_id, 'grid_dom', NF_INT, 1, nc_gridsize_id, nc_grddom_id)
+    call handle_err (ncstat)
+
+    !***
+    !*** define id
+    !***
+    ncstat = nf_def_var (nc_grid_id, 'grid_id', NF_INT, 1, nc_gridsize_id, nc_grdid_id)
     call handle_err (ncstat)
 
     !***
@@ -377,6 +398,12 @@ contains
     ncstat = nf_put_var_int (nc_grid_id, nc_grdimask_id, grid_imask)
     call handle_err (ncstat)
 
+    ncstat = nf_put_var_int (nc_grid_id, nc_grddom_id, grid_dom)
+    call handle_err (ncstat)
+
+    ncstat = nf_put_var_int (nc_grid_id, nc_grdid_id, grid_id)
+    call handle_err (ncstat)
+
     ncstat = nf_put_var_double (nc_grid_id, nc_grdarea_id, grid_area)
     call handle_err (ncstat)
 
@@ -401,6 +428,6 @@ contains
     write (6, '(a)') " finished writing file descriptor data file."
     write (6, '(a,/)') "Use ./cube_to_target to generate corresponding surface geopotential .nc file."
 
-    deallocate (grid_imask, grid_area, grid_center_lat, grid_center_lon, grid_corner_lat, grid_corner_lon)
+    deallocate (grid_imask, grid_dom, grid_id, grid_area, grid_center_lat, grid_center_lon, grid_corner_lat, grid_corner_lon)
   end subroutine wrt_esmf_rll
 end module topo_grid_descriptor_mod
