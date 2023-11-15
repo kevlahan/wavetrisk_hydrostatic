@@ -234,7 +234,6 @@ contains
 
   end subroutine handle_err
 
-
   !
   ! write netCDF grid descriptor file for ESMF remapping
   ! 
