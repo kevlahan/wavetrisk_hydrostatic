@@ -1610,13 +1610,8 @@ contains
     call pre_levelout
 
     ! Compute surface pressure
-<<<<<<< HEAD
-    call cal_surf_press (sol)
-    
-=======
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
 
->>>>>>> simple_physics
     do l = level_start, level_end
        minv = 1d63; maxv = -1d63
        if (compressible .or. zlevels /= 2 .or. .not. mode_split) then
