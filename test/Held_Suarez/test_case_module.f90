@@ -17,6 +17,7 @@ module test_case_mod
   ! Topography
   character(9999) :: topo_file, topo_type
   logical         :: NCAR_topo
+
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -321,7 +322,7 @@ end function surf_pressure
     real(8) :: lon, lat, u, v
 
     real(8) :: r
-
+    
     call random_number (r)
 
     u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 + r ! Zonal velocity component
@@ -334,7 +335,7 @@ end function surf_pressure
     use wavelet_mod
     implicit none
     integer                                     :: k
-    real(8), dimension(1:N_VARIABLE,1:zlevels) :: threshold_new
+    real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: threshold_new
     character(3), parameter                     :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
@@ -642,20 +643,22 @@ end function surf_pressure
     ! Prints out and saves logged data to a file
     implicit none
 
-    integer :: min_load, max_load
+    integer :: min_load, max_load, total_layers
     real(8) :: avg_load, rel_imbalance, timing
 
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
+    total_layers = size(threshold, 2)
+
     if (rank == 0) then
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es8.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
-            '  mass tol = ', sum (threshold(S_MASS,:))/zlevels, &
-            ' temp tol = ', sum (threshold(S_TEMP,:))/zlevels, &
-            ' velo tol = ', sum (threshold(S_VELO,:))/zlevels, &
+            '  mass tol = ', sum (threshold(S_MASS,:))/total_layers, &
+            ' temp tol = ', sum (threshold(S_TEMP,:))/total_layers, &
+            ' velo tol = ', sum (threshold(S_VELO,:))/total_layers, &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' min rel mass = ', min_mass, &
@@ -664,8 +667,8 @@ end function surf_pressure
             ' cpu = ', timing
 
        write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  &
-            time/DAY, dt, sum (threshold(S_MASS,:))/zlevels, sum (threshold(S_TEMP,:))/zlevels, &
-            sum (threshold(S_VELO,:))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
+            time/DAY, dt, sum (threshold(S_MASS,:))/total_layers, sum (threshold(S_TEMP,:))/total_layers, &
+            sum (threshold(S_VELO,:))/total_layers, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
     end if
   end subroutine print_log
 
@@ -675,8 +678,8 @@ end function surf_pressure
 
     integer :: k
 
-    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0d0
-    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0d0
+    allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0.0_8
+    allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0.0_8
 
     lnorm(S_MASS,:) = dPdim/grav_accel
     do k = 1, zlevels

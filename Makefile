@@ -7,6 +7,7 @@ F90       = gfortran
 MPIF90    = mpif90
 BIN_DIR   = bin
 BUILD_DIR  = build
+LIBS       =
 LAPACK     = -llapack # link to lapack library
 TOPO       = false    # use NCAR topography
 PREFIX     = .
@@ -14,6 +15,8 @@ PREFIX     = .
 # Topgraphy options
 TOPO_DIR   = ~/Topo
 NETCDF_DIR = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
+
+PHYSICS   = false
 
 # AMPI options
 CHARM_DIR   = ~/charm
@@ -118,6 +121,14 @@ ifeq ($(TOPO), true)
   SRC += topo_grid_descriptor.f90
 endif
 
+ifeq ($(PHYSICS), true)
+  SIMPLEPHYSMODPATH = src/physics/simple_physics-master/phyparam/include
+  FLAGS_COMP += -I$(SIMPLEPHYSMODPATH) # mod 
+  PHYSLIB_PATH = src/physics/simple_physics-master/phyparam/driver
+  LIBS += -L$(PHYSLIB_PATH) -lphyparam
+  -include src/physics/Makefile.inc
+endif
+
 SRC += test_case_module.f90 test.f90
 
 OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
@@ -128,5 +139,13 @@ $(PREFIX)/$(BIN_DIR)/$(TEST_CASE): $(OBJ)
 $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 	$(COMPILER) $(FLAGS_COMP) $< -o $@ 
 
+phys_package:
+	@echo "Compiling Physics Package"
+	@$(MAKE) -C src/physics/simple_physics-master/phyparam F90=mpif90
+
 clean:
 	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90
+ifeq ($(PHYSICS), true)
+	$(MAKE) -C src/physics/simple_physics-master/phyparam clean
+endif
+

@@ -82,12 +82,12 @@ contains
 
     if (initialgo) then
        initotalmass = 0d0
-       do k = 1, zlevels
+       do k = zmin, zmax
           initotalmass = initotalmass + integrate_hex (full_mass, k, level_start)
        end do
     else
        totalmass = 0d0
-       do k = 1, zlevels
+       do k = zmin, zmax
           totalmass = totalmass + integrate_hex (full_mass, k, level_start)
        end do
        mass_error = abs (totalmass - initotalmass) / initotalmass
@@ -1050,7 +1050,7 @@ contains
 
     id = idx(i, j, offs, dims)
 
-    do k = 1, zmax
+    do k = zmin, zmax
        do e = 1, EDGE
           write (fid,*) wav_coeff(S_VELO,k)%data(dom%id+1)%elts(EDGE*id+e)
        end do
@@ -1070,7 +1070,7 @@ contains
     d = dom%id+1
     id = idx(i, j, offs, dims) + 1
 
-    do k = 1, zmax
+    do k = zmin, zmax
        do v = scalars(1), scalars(2)
           write (fid) sol(v,k)%data(d)%elts(id)
        end do
@@ -1096,7 +1096,7 @@ contains
     d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
 
-    do k = 1, zmax
+    do k = zmin, zmax
        do v = scalars(1), scalars(2)
           read (fid) sol(v,k)%data(d)%elts(id)
        end do
@@ -1122,11 +1122,11 @@ contains
     character(255)                   :: filename_gr, filename_no
     logical, dimension(1:N_CHDRN)    :: required
     
-    call update_array_bdry (wav_coeff(scalars(1):scalars(2),1:zmax), NONE, 20)
+    call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 20)
     if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 20)
 
     do d = 1, size(grid)
-       do k = 1, zmax
+       do k = zmin, zmax
           do v = scalars(1), scalars(2)
              scalar => sol(v,k)%data(d)%elts
              wc_s   => wav_coeff(v,k)%data(d)%elts
@@ -1173,7 +1173,7 @@ contains
        p_par = 1
        call apply_to_pole_d (write_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
 
-       do k = 1, zmax
+       do k = zmin, zmax
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -1202,7 +1202,7 @@ contains
                 cycle ! No data to write
              end if
 
-             do k = 1, zmax
+             do k = zmin, zmax
                 do v = 1, N_VARIABLE
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -1281,7 +1281,7 @@ contains
        p_par = 1
        call apply_to_pole_d (read_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
 
-       do k = 1, zmax
+       do k = zmin, zmax
           do v = 1, N_VARIABLE
              ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
              iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -1308,7 +1308,7 @@ contains
           old_n_patch = grid(d)%patch%length
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
-             do k = 1, zmax
+             do k = zmin, zmax
                 do v = 1, N_VARIABLE
                    ibeg = MULT(v)*grid(d)%patch%elts(p_par+1)%elts_start + 1
                    iend = ibeg + MULT(v)*PATCH_SIZE**2 - 1
@@ -1610,8 +1610,13 @@ contains
     call pre_levelout
 
     ! Compute surface pressure
+<<<<<<< HEAD
     call cal_surf_press (sol)
     
+=======
+    call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
+
+>>>>>>> simple_physics
     do l = level_start, level_end
        minv = 1d63; maxv = -1d63
        if (compressible .or. zlevels /= 2 .or. .not. mode_split) then

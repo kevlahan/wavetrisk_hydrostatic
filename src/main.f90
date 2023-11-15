@@ -107,7 +107,7 @@ contains
 
           ! Check whether there are any active nodes or edges at this scale
           n_active = 0
-          do k = 1, zmax
+          do k = zmin, zmax
              do d = 1, size(grid)
                 do v = scalars(1), scalars(2)
                    wc_s => wav_coeff(v,k)%data(d)%elts
@@ -256,6 +256,8 @@ contains
     if (min_level /= max_level .and. modulo (istep, iadapt) == 0) then
        if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
             call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
+       if (zmin < 1) &
+            call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1)
        call adapt (set_thresholds)
        call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
     end if
@@ -368,9 +370,9 @@ contains
     if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [d] = ', time/DAY, &
-            '  mass threshold = ', sum (threshold(S_MASS,:))/zlevels, &
-            ' temp threshold = ', sum (threshold(S_TEMP,:))/zlevels, &
-            ' velo threshold = ', sum (threshold(S_VELO,:))/zlevels, &
+            '  mass threshold = ', sum (threshold(S_MASS,:))/size(threshold,2), &
+            ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
+            ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
             ' Jmax = ', level_end, &
             '  dof = ', sum (n_active)
        write (6,'(A)') &
@@ -752,7 +754,7 @@ contains
           deallocate (Laplacian_scalar(v)%data(d)%elts)
        end do
 
-       do k = 1, zmax
+       do k = zmin, zmax
           deallocate (penal_node(k)%data(d)%elts)
           deallocate (penal_edge(k)%data(d)%elts)
           deallocate (exner_fun(k)%data(d)%elts)
@@ -760,10 +762,10 @@ contains
        deallocate (exner_fun(zmax+1)%data(d)%elts)
 
        do v = 1, N_VARIABLE
-          do k = 1, zmax
+          do k = zmin, zmax
              deallocate (sol(v,k)%data(d)%elts)
              deallocate (sol_mean(v,k)%data(d)%elts)
-             deallocate (trend(v,k)%data(d)%elts)
+             if (k > 0) deallocate (trend(v,k)%data(d)%elts)
              deallocate (wav_coeff(v,k)%data(d)%elts)
           end do
          
@@ -790,7 +792,7 @@ contains
     deallocate (Laplacian_vector(S_DIVU)%data)
     deallocate (Laplacian_vector(S_ROTU)%data)
 
-    do k = 1, zmax
+    do k = zmin, zmax
        deallocate (penal_node(k)%data)
        deallocate (penal_edge(k)%data)
        deallocate (exner_fun(k)%data)
@@ -803,10 +805,10 @@ contains
     end do
 
     do v = 1, N_VARIABLE
-       do k = 1, zmax
+       do k = zmin, zmax
           deallocate (sol(v,k)%data)
           deallocate (sol_mean(v,k)%data)
-          deallocate (trend(v,k)%data)
+          if (k > 0) deallocate (trend(v,k)%data)
           deallocate (wav_coeff(v,k)%data)
        end do
        do k = 1, save_levels

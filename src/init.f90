@@ -142,26 +142,26 @@ contains
     end if
 
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(1:N_VARIABLE,1:zmax), sol_mean(1:N_VARIABLE,1:zmax))
+    allocate (sol(1:N_VARIABLE,zmin:zmax), sol_mean(1:N_VARIABLE,zmin:zmax))
     allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zmax))
-    allocate (wav_coeff(1:N_VARIABLE,1:zmax))
-    allocate (exner_fun(1:zmax+1))
-    allocate (penal_node(1:zmax), penal_edge(1:zmax))
+    allocate (wav_coeff(1:N_VARIABLE,zmin:zmax))
+    allocate (exner_fun(zmin:zmax+1))
+    allocate (penal_node(zmin:zmax), penal_edge(zmin:zmax))
     allocate (horiz_flux(scalars(1):scalars(2)), Laplacian_scalar(scalars(1):scalars(2)))
     allocate (Laplacian_vector(S_DIVU:S_ROTU))
-    allocate (lnorm(1:N_VARIABLE,1:zmax))
+    allocate (lnorm(1:N_VARIABLE,zmin:zmax))
     if (vert_diffuse) allocate (Kt(0:zlevels), Kv(0:zlevels), tke(1:zlevels), wav_tke(1:zlevels))
 
     call init_Float_Field (topography, AT_NODE)
     
-    do k = 1, zmax
+    do k = zmin, zmax
        call init_Float_Field (penal_node(k), AT_NODE)
        call init_Float_Field (penal_edge(k), AT_EDGE)
        call init_Float_Field (exner_fun(k),  AT_NODE)
        do v = 1, N_VARIABLE
           call init_Float_Field (sol(v,k),      POSIT(v))
           call init_Float_Field (sol_mean(v,k), POSIT(v))
-          call init_Float_Field (trend(v,k),    POSIT(v))
+          if (k > 0) call init_Float_Field (trend(v,k),    POSIT(v))
        end do
     end do
     call init_Float_Field (exner_fun(zmax+1), AT_NODE)
@@ -192,7 +192,7 @@ contains
     do d = 1, n_domain(rank+1)
        call init_Domain (grid(d))
 
-       do k = 1, zmax
+       do k = zmin, zmax
           do v = scalars(1), scalars(2)
              call init (sol(v,k)%data(d),      1)
              call init (sol_mean(v,k)%data(d), 1)
@@ -483,14 +483,16 @@ contains
        end do
        
        call init (topography%data(d), grid(d)%node%length)
-       do k = 1, zmax
+       do k = zmin, zmax
           call init (penal_node(k)%data(d),      grid(d)%node%length)
           call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)
           call init (exner_fun(k)%data(d),       grid(d)%node%length)
-          do v = scalars(1), scalars(2)
-             call init (trend(v,k)%data(d), grid(d)%node%length)
-          end do
-          call init (trend(S_VELO,k)%data(d), EDGE*grid(d)%node%length)
+          if (k > 0) then
+             do v = scalars(1), scalars(2)
+                call init (trend(v,k)%data(d), grid(d)%node%length)
+             end do
+             call init (trend(S_VELO,k)%data(d), EDGE*grid(d)%node%length)
+          end if
        end do
        call init (exner_fun(zmax+1)%data(d),  grid(d)%node%length)
     end do

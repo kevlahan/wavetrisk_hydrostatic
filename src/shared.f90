@@ -174,6 +174,7 @@ module shared_mod
   integer :: level_fill             ! make all grid points active for scales l <= level_fill
   integer :: zlevels                ! number of levels in vertical direction
   integer :: zmax                   ! zmax=zlevels+1 for a separate free surface layer, zmax=zlevels otherwise
+  integer :: zmin                   ! index of lowest vertical level,  1 for atmosphere, 0 for simple phys surf temp or -Nsoil for soil mod
   integer :: save_levels            ! number of vertical levels to save
   integer :: level_start, level_end, level_save, optimize_grid
   
@@ -251,6 +252,7 @@ module shared_mod
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_mass, match_time, mode_split, penalize, rebalance, remap, uniform, vert_diffuse
   logical :: sigma_z, tke_closure
+  logical :: soil_mod
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -376,6 +378,7 @@ contains
     timeint_type        = "RK45"                            ! time integration scheme (RK3 is default for incompressible case)
     tol                 = 5d-3                              ! relative tolerance for adaptivity
     zlevels             = 20                                ! number of vertical levels
+    zmin                = 1                                 ! lowest vertical level index
 
     ! Default physical parameters
     ! (these parameters are typically reset in test case file, but are needed for compilation)
@@ -421,9 +424,11 @@ contains
     S_ref               = 35d0      * GRAM / KG                   ! reference salinity
 
     ! Theta parameters for barotropic-baroclinic mode splitting
-    ! theta1 > 0.75 and theta2 > 0.75 stable for all wavenumbers (otherwise unstable over a small interval of small wavenumbers)
     theta1              = 1d0                                     ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
     theta2              = 1d0                                     ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+
+    ! Parameters for soil mod - simple physics
+    soil_mod            = .false.                                 ! physics with soil mod levels (T)
   end subroutine init_shared_mod
 
   real(8) function eps ()

@@ -206,7 +206,7 @@ contains
 
     call extend (self%node, num, ORIGIN)
 
-    do k = 1, zmax
+    do k = zmin, zmax
        do v = scalars(1), scalars(2)
           call extend (sol(v,k)%data(d),      num, 0d0)
           call extend (sol_mean(v,k)%data(d), num, 0d0)

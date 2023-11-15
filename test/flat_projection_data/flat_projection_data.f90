@@ -6,12 +6,12 @@ program flat_projection_data
   use projection_mod
   implicit none
   
-  integer                                :: k, l, nt, Ncumul
+  integer                                :: k, l, nt, Ncumul, p, d, nvar_total
   integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
   real(8)                                :: area1, area2
   real(8), dimension(:),     allocatable :: eta_lat, eta_lon
   real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy
-  real(8), dimension(:,:,:), allocatable :: field2d_save, lat_slice, lon_slice, zonal_av, zcoord_lat, zcoord_lon
+  real(8), dimension(:,:,:), allocatable :: field2d_save, lat_slice, lon_slice, zonal_av, zcoord_lat, zcoord_lon, field2d_simplephys
   
   character(2)                           :: var_file
   character(8)                           :: itype
@@ -22,7 +22,9 @@ program flat_projection_data
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
-  
+
+  ! Set the zonal nvar total - need 2 extra for simple physics
+  nvar_total = nvar_zonal
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters
@@ -195,7 +197,23 @@ program flat_projection_data
 
      alpha          = 1d-2    ! porosity
      npts_penal     = 4.5d0
-  case default
+   case ("Simple_Physics")
+      radius         = 6400      * KM                 ! mean radius of the Earth
+      grav_accel     = 9.8       * METRE/SECOND**2    ! gravitational acceleration
+      p_0            = 1000      * hPa                ! reference pressure (mean surface pressure) in Pascals
+      p_top          = 0.01       * Pa                 ! pressure at the top in Pascals
+      c_p            = 1004.0_8  * JOULE/(KG*KELVIN)  ! specific heat at constant pressure in joules per kilogram Kelvin
+      R_d            = 287 * JOULE/(KG*KELVIN)         ! ideal gas constant for dry air in joules per kilogram Kelvin
+      c_v            = c_p - R_d * JOULE/(KG*KELVIN)  ! specific heat at constant volume c_v = c_p - R_d
+      ref_density    = 1.204     * KM                  ! Reference density (km/m^3)
+
+      kappa          = R_d/c_p                    ! kappa
+      gamma          = c_p/c_v  
+      zmin = -10
+      ref_surf_press = p_0
+      climatology = .false.
+      nvar_total = nvar_zonal + 3
+   case default
      if (rank == 0) write (6,'(a)') "Case not supported ... aborting"
      call abort
   end select
@@ -216,6 +234,7 @@ program flat_projection_data
   elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
      call initialize_stat_vertical
   else
+     if (trim(test_case) == "Simple_Physics" .and. climatology) call init_physics_climatology
      call initialize_stat
   end if
   
@@ -249,6 +268,44 @@ program flat_projection_data
      elseif  (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
         call vertical_slice
         if (rank == 0) call write_slice
+     elseif (trim (test_case) == "Simple_Physics") then
+         if (climatology) then
+            call cal_surf_press(sol(1:N_VARIABLE,1:zmax))
+            ! Add each temp & KE for each checkpoint for the climatology
+            !Update the boundary for the velocities
+            sol%bdry_uptodate = .false.
+            call update_array_bdry (sol, NONE, 26)
+            do k = 1, zlevels
+               do d = 1, size(grid)
+                  temp   => sol(S_TEMP,k)%data(d)%elts
+                  temp1  => simple_phys_temp(k)%data(d)%elts
+                  mass   => sol(S_MASS,k)%data(d)%elts
+                  mean_m => sol_mean(S_MASS,k)%data(d)%elts
+                  mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+                  velo   => sol(S_VELO,k)%data(d)%elts
+                  velo_2d  => simple_phys_vels(k)%data(d)%elts
+                  velo1  => grid(d)%u_zonal%elts
+                  velo2  => grid(d)%v_merid%elts
+                  do p = 3, grid(d)%patch%length
+                     call apply_onescale_to_patch (climatology_add_temp, grid(d), p-1, k, 0, 1)
+                     call apply_onescale_to_patch(climatology_add_velocities, grid(d), p-1, k, 0, 0)
+                     call apply_onescale_to_patch (climatology_add_KE, grid(d), p-1, k, 0, 1)
+                     if (cp_idx==cp_2d) then
+                         call apply_onescale_to_patch (climatology_temp_mean, grid(d), p-1, k, 0, 1)
+                         call apply_onescale_to_patch (climatology_velocity_mean, grid(d), p-1, k, 0, 0)
+                         call apply_onescale_to_patch (climatology_KE_mean, grid(d), p-1, k, 0, 1)
+                     end if
+                  end do
+                  nullify(temp, temp1, mass, mean_m, mean_t, velo, velo_2d, velo1, velo2)
+               end do
+            end do
+         end if 
+         if (welford) then
+            call cal_zonal_av
+         else
+            call cal_zonal_average
+         end if
+         if (cp_idx == cp_2d) call latlon
      else
         if (welford) then
            call cal_zonal_av
@@ -271,6 +328,7 @@ program flat_projection_data
      if (.not. welford) then
         zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
         zonal_av(:,:,3:5) = zonal_av(:,:,3:5) / Ncumul
+        if (trim (test_case) == "Simple_Physics") zonal_av(:,:,10:12) = zonal_av(:,:,10:12) / Ncumul
         call barrier
 
         do cp_idx = mean_beg, mean_end
@@ -296,15 +354,22 @@ contains
     implicit none
     
     integer                                       :: d, ix, j, k
-    real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
-    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
+    real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new, uKEprime,&
+                                                      vKEprime, rho_prime
+    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj, Dproj
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level_save
     call fill_up_grid_and_IWT (level_save)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun)
-    call cal_surf_press (sol)
-    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
+    if (trim (test_case) == "Simple_Physics") then
+      call apply_onescale (cal_temp_dens, level_save, z_null, 0, 1)
+      penal_node%bdry_uptodate = .false.
+      call update_vector_bdry (penal_node, NONE, 42)
+    else
+      call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    end if
     exner_fun%bdry_uptodate = .false.
     call update_vector_bdry (exner_fun, NONE, 41)
 
@@ -313,6 +378,12 @@ contains
        ! Temperature
        call project_field_onto_plane (exner_fun(k), level_save, 1d0)
        Tproj = field2d
+
+       ! Simple phys Density for KEs
+       if (trim (test_case) == "Simple_Physics") then
+         call project_field_onto_plane(penal_node(k), level_save, 1.0_8)
+         Dproj = field2d
+       end if
 
        ! Zonal and meridional velocities
        do d = 1, size(grid)
@@ -343,6 +414,15 @@ contains
           zonal_av(k,:,4) = zonal_av(k,:,4) + Vprime/Ncumul
           zonal_av(k,:,5) = zonal_av(k,:,5) +  0.5 * (Uprime**2 + Vprime**2)/Ncumul
 
+          if (trim (test_case) == "Simple_Physics") then
+            uKEprime = (0.5 * Dproj(ix,:)*Uproj(ix,:)**2) - zonal_av(k,:,10)
+            vKEprime = (0.5 * Dproj(ix,:)*Vproj(ix,:)**2) - zonal_av(k,:,11)
+            rho_prime = Dproj(ix,:) - zonal_av(k,:,12)
+            zonal_av(k,:,10) = zonal_av(k,:,10) + uKEprime/Ncumul
+            zonal_av(k,:,11) = zonal_av(k,:,11) + vKEprime/Ncumul
+            zonal_av(k,:,12) = zonal_av(k,:,12) + rho_prime/Ncumul
+          end if
+
           Tprime_new = Tproj(ix,:) - zonal_av(k,:,1)
           Uprime_new = Uproj(ix,:) - zonal_av(k,:,3)
           Vprime_new = Vproj(ix,:) - zonal_av(k,:,4)
@@ -371,14 +451,20 @@ contains
     implicit none
     
     integer                                       :: d, ix, j, k
-    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj
+    real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj, Dproj
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun)
-    call cal_surf_press (sol)
-    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
+    if (trim (test_case) == "Simple_Physics") then
+      call apply_onescale (cal_temp_dens, level_save, z_null, 0, 1)
+      penal_node%bdry_uptodate = .false.
+      call update_vector_bdry (penal_node, NONE, 42)
+    else
+      call apply_onescale (cal_temp, level_save, z_null, 0, 1)
+    end if
     exner_fun%bdry_uptodate = .false.
     call update_vector_bdry (exner_fun, NONE, 42)
 
@@ -403,6 +489,11 @@ contains
        call project_array_onto_plane ("v_merid", level_save, 0d0)
        Vproj = field2d
 
+       if (trim (test_case) == "Simple_Physics") then
+         call project_field_onto_plane(penal_node(k), level_save, 1.0_8)
+         Dproj = field2d
+       end if
+
        ! Update means
        do ix = Nx(1), Nx(2)
           Ncumul = (Nt-1)*(Nx(2)-Nx(1)+1) + ix-Nx(1)+1
@@ -411,6 +502,11 @@ contains
           zonal_av(k,:,3) = zonal_av(k,:,3) + Uproj(ix,:)
           zonal_av(k,:,4) = zonal_av(k,:,4) + Vproj(ix,:)
           zonal_av(k,:,5) = zonal_av(k,:,5) +  0.5 * (Uproj(ix,:)**2 + Vproj(ix,:)**2)
+          if (trim (test_case) == "Simple_Physics") then
+            zonal_av(k,:,10) = zonal_av(k,:,10) + 0.5 * Dproj(ix,:) * (Uproj(ix,:)**2)
+            zonal_av(k,:,11) = zonal_av(k,:,11) + 0.5 * Dproj(ix,:) * (Vproj(ix,:)**2)
+            zonal_av(k,:,12) = zonal_av(k,:,12) + Dproj(ix,:)
+          end if
        end do
     end do
   end subroutine cal_zonal_average
@@ -428,7 +524,7 @@ contains
     call fill_up_grid_and_IWT (level_save)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun)
-    call cal_surf_press (sol)
+    call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
     call update_vector_bdry (exner_fun, NONE, 43)
@@ -442,10 +538,12 @@ contains
        ! Zonal and meridional velocities
        do d = 1, size(grid)
           velo => sol(S_VELO,k)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(level_save)%length
              call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(level_save)%elts(j), k, 0, 1)
           end do
-          nullify (velo)
+          nullify (velo, velo1, velo2)
        end do
        call project_array_onto_plane ("u_zonal", level_save, 0d0)
        Uproj = field2d
@@ -487,7 +585,7 @@ contains
     ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
 
-    call cal_surf_press (sol)
+    call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
 
     ! Remap to pressure_save vertical levels for saving data
     sol_save = sol(:,1:save_levels)
@@ -545,6 +643,48 @@ contains
        ! Surface pressure
        call project_array_onto_plane ("surf_press", level_save, 1d0)
        field2d_save(:,:,6+k-1) = field2d
+
+       ! Save climatology for simple Physics
+       if (trim(test_case)=="Simple_Physics" .and. climatology) then
+         ! update the boundarys
+         simple_phys_temp%bdry_uptodate = .false.
+         call update_vector_bdry (simple_phys_temp, NONE, 44)
+         simple_phys_zonal%bdry_uptodate = .false.
+         call update_vector_bdry (simple_phys_zonal, NONE, 44)
+         simple_phys_merid%bdry_uptodate = .false.
+         call update_vector_bdry (simple_phys_merid, NONE, 44)
+
+         ! save 2D projections
+         call project_field_onto_plane(simple_phys_temp(k-1), level_save, 0.0_8)
+         field2d_simplephys(:,:,1+k-1) = field2d
+         call project_field_onto_plane(simple_phys_zonal(k-1), level_save, 0.0_8)
+         field2d_simplephys(:,:,4+k-1) = field2d
+         call project_field_onto_plane(simple_phys_merid(k-1), level_save, 0.0_8)
+         field2d_simplephys(:,:,5+k-1) = field2d
+
+         simple_phys_vels%bdry_uptodate= .false.
+         call update_vector_bdry(simple_phys_vels,NONE,27)
+         ! Calculate zonal and meridional velocity
+         do d = 1, size(grid)
+            temp  => simple_phys_temp(k-1)%data(d)%elts
+            velo  => simple_phys_vels(k-1)%data(d)%elts
+            velo1 => grid(d)%u_zonal%elts
+            velo2 => grid(d)%v_merid%elts
+            do j = 1, grid(d)%lev(level_save)%length
+               call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
+            end do
+            nullify (temp,velo, velo1, velo2)
+         end do
+         
+         ! Zonal Vel
+         call project_array_onto_plane ("u_zonal", level_save, 0d0)
+         field2d_simplephys(:,:,2+k-1) = field2d
+         
+         ! Meridional Vel
+         call project_array_onto_plane ("v_merid", level_save, 0d0)
+         field2d_simplephys(:,:,3+k-1) = field2d
+
+       end if
     end do
   end subroutine latlon
 
@@ -1097,6 +1237,30 @@ contains
        close (funit)
     end do
 
+    if (trim(test_case)=="Simple_Physics" .and. climatology) then
+      do v = 1, 5*save_levels
+         write (var_file, '(i2)') v+30
+         open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+         do i = Ny(1), Ny(2)
+            write (funit) field2d_simplephys(:,i,v)
+         end do
+         close (funit)
+      end do
+      call deallocate_climatology
+    end if
+
+    !Save KE zonal averages for simple Physics (50 and 51)
+    if (trim(test_case)=="Simple_Physics")then
+      do v = 10,12
+         write (var_file, '(i2)') v+40
+         open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+         do k = zlevels,1,-1
+            write (funit) zonal_av(k,:,v)
+         end do
+         close (funit)
+         end do
+    end if
+
     ! Zonal average of solution over all vertical levels
     do v = 1, nvar_zonal
        write (var_file, '(i2)') v+10
@@ -1318,8 +1482,9 @@ contains
   subroutine initialize_stat
     implicit none
 
-    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_zonal))
+    allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_total))
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
+    if (trim(test_case)=="Simple_Physics" .and. climatology) allocate (field2d_simplephys(Nx(1):Nx(2),Ny(1):Ny(2),5*save_levels))
     zonal_av = 0d0
   end subroutine initialize_stat
 
@@ -1394,6 +1559,18 @@ contains
           sol_save(S_VELO,kk)%data(d)%elts(EDGE*id+e) = sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e)  + &
                dpressure * (sol(S_VELO,k)%data(d)%elts(EDGE*id+e) - sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e))
        end do
+       if (trim(test_case)=="Simple_Physics" .and. climatology) then
+         simple_phys_temp(kk-1)%data(d)%elts(id+1) = simple_phys_temp(k+1)%data(d)%elts(id+1) + &
+            dpressure * (simple_phys_temp(k)%data(d)%elts(id+1) - simple_phys_temp(k+1)%data(d)%elts(id+1))
+         simple_phys_zonal(kk-1)%data(d)%elts(id+1) = simple_phys_zonal(k+1)%data(d)%elts(id+1) + &
+            dpressure * (simple_phys_zonal(k)%data(d)%elts(id+1) - simple_phys_zonal(k+1)%data(d)%elts(id+1))
+         simple_phys_merid(kk-1)%data(d)%elts(id+1) = simple_phys_merid(k+1)%data(d)%elts(id+1) + &
+            dpressure * (simple_phys_merid(k)%data(d)%elts(id+1) - simple_phys_merid(k+1)%data(d)%elts(id+1))
+         do e = 1, EDGE
+            simple_phys_vels(kk-1)%data(d)%elts(EDGE*id+e) = simple_phys_vels(k+1)%data(d)%elts(EDGE*id+e) + &
+               dpressure * (simple_phys_vels(k)%data(d)%elts(EDGE*id+e) - simple_phys_vels(k+1)%data(d)%elts(EDGE*id+e))
+         end do
+       end if
     end do
   end subroutine interp_save
 end program

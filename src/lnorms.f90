@@ -7,7 +7,7 @@ contains
     ! Calculates l norm of a float_field
     implicit none
 
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: scaling
+    type(Float_Field), dimension(1:N_VARIABLE,zmin:zmax), target :: scaling
     character(*)                                              :: order
 
     integer :: k, l, v
@@ -15,7 +15,7 @@ contains
     call update_array_bdry (scaling, NONE)
 
     lnorm = 0d0
-    do k = 1, zmax
+    do k = zmin, zmax
        do l = level_start, level_end
           select case (order)
           case ("1")
