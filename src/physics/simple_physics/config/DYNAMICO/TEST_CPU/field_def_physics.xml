@@ -1,0 +1,49 @@
+<!-- =========================================================================================================== -->
+<!-- field_def_physics.xml                                                                                      -->
+<!-- Definition of all existing variables that can be output from phyparam                                       -->
+<!-- =========================================================================================================== -->
+
+<field_definition level="1" enabled=".TRUE." operation="instant">
+  
+  <field_group id="phyparam_output">     
+    <field_group domain_ref="i">
+      <field id="phyparam_ts"     name="Tsurf"  long_name="Surface temperature"     unit="K"/>
+      <field id="phyparam_mu0"    name="mu0"    long_name="Cosine zenithal angle"/>
+      <field id="phyparam_swsurf" name="swsurf" long_name="Upward SW flux at surface"/>
+      <field id="phyparam_swtop"  name="swtop"  long_name="Downward SW fluw at TOA" unit="W/m2" />
+      <field id="phyparam_lwsurf" name="lwsurf" long_name="LW flux at surface"      unit="W/m2" />
+      <field id="phyparam_alb" />
+      <field id="phyparam_ps" />
+      <field id="phyparam_slp" />
+
+      <field id="phyparam_coslon" />
+      <field id="phyparam_sinlon" />
+      <field id="phyparam_coslat" />
+      <field id="phyparam_sinlat" />
+
+      <field_group axis_ref="lev"> 
+	<field id="phyparam_u"     name="u" long_name="Zonal velocity"      unit="m/s" /> 
+	<field id="phyparam_v"     name="v" long_name="Meridional velocity" unit="m/s" />
+	<field id="phyparam_temp"  name="T" long_name="Temperature"         unit="K"   />
+	<field id="phyparam_theta" name="theta" long_name="Potential temperature" unit="K"   />
+	<field id="phyparam_geop" />
+	<field id="phyparam_plev" />
+
+	<field id="phyparam_du" name="du"      long_name="Zonal velocity tendency"      unit="m/s2" />
+	<field id="phyparam_dv" name="dv"      long_name="Meridional velocity tendency" unit="m/s2" />
+	<field id="phyparam_dt" name="dT"      long_name="Temperature tendency"         unit="K/s"  />
+	<field id="phyparam_dtsw" name="dT_SW" long_name="Temperature tendency due to shortwave radiation" unit="K/s" />
+	<field id="phyparam_dtlw" name="dT_LW" long_name="Temperature tendency due to longwave radiation"  unit="K/s" />
+      </field_group>
+
+      <field_group axis_ref="levp1"> 
+	<field id="phyparam_swflux_down" name="swflux_down" long_name="Downward SW radiative flux" unit="W/m2" />
+	<field id="phyparam_swflux_up"   name="swflux_up"   long_name="Upward SW radiative flux"   unit="W/m2" />
+	<field id="phyparam_lwflux_down" name="lwflux_down" long_name="Downward LW radiative flux" unit="W/m2" />
+	<field id="phyparam_lwflux_up"   name="lwflux_up"   long_name="Upward LW radiative flux"   unit="W/m2" />
+      </field_group>
+      
+    </field_group>
+  </field_group>
+  
+</field_definition>

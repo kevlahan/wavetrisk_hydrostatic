@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# resolve symlinks and '..' in $PWD to avoid useless re-compilation
+cd -P .
+
+rm -f .void_file
+echo > .void_file
+rm -rf .void_dir
+mkdir .void_dir
+
+DYNAMICO=$(cd -P ../DYNAMICO ; pwd)
+source $DYNAMICO/arch.env
+source $DYNAMICO/arch.path
+ln -sf $DYNAMICO/arch.fcm .
+
+LD_FLAGS="%BASE_LD -L $DYNAMICO/lib"
+COMPIL_FFLAGS="-I $DYNAMICO/inc $XIOS_INCDIR"
+ICOSA_LIB="-licosa"
+CPP_KEY="CPP_NONE"
+
+# NETCDF
+LD_FLAGS="$LD_FLAGS $NETCDF_LIBDIR"
+ICOSA_LIB="$ICOSA_LIB $NETCDF_LIB"
+
+# XIOS
+LD_FLAGS="$LD_FLAGS $XIOS_LIBDIR"
+ICOSA_LIB="$ICOSA_LIB $XIOS_LIB"
+
+DRIVER_FFLAGS="%DEBUG_FFLAGS $COMPIL_FFLAGS"
+
+# compile in production mode
+PHYSICS_FFLAGS="%PROD_FFLAGS $COMPIL_FFLAGS"
+# or in debug mode
+# PHYSICS_FFLAGS="%DEBUG_FFLAGS $COMPIL_FFLAGS"
+
+rm -f config.fcm
+
+echo "%PHYSICS_FFLAGS $PHYSICS_FFLAGS" >> config.fcm
+echo "%DRIVER_FFLAGS $DRIVER_FFLAGS" >> config.fcm
+echo "%LD_FLAGS $LD_FLAGS" >> config.fcm
+echo "%CPP_KEY $CPP_KEY" >> config.fcm
+echo "%LIB $ICOSA_LIB">> config.fcm
+echo "%IOIPSL_PATH $ioipsl_path">> config.fcm
+echo "%USE_IOIPSL $use_ioipsl">> config.fcm
+
+export PATH=${DYNAMICO}/tools/FCM/bin/:${PATH}
+fcm build --full

@@ -122,10 +122,10 @@ ifeq ($(TOPO), true)
 endif
 
 ifeq ($(PHYSICS), true)
-  SIMPLEPHYSMODPATH = src/physics/simple_physics-master/phyparam/include
-  FLAGS_COMP += -I$(SIMPLEPHYSMODPATH) # mod 
-  PHYSLIB_PATH = src/physics/simple_physics-master/phyparam/driver
-  LIBS += -L$(PHYSLIB_PATH) -lphyparam
+  SIMPLEPHYSMODPATH = src/physics/simple_physics/phyparam/include
+  FLAGS_COMP       += -I$(SIMPLEPHYSMODPATH) # mod 
+  PHYSLIB_PATH      = src/physics/simple_physics/phyparam/driver
+  LIBS             += -L$(PHYSLIB_PATH) -lphyparam
   -include src/physics/Makefile.inc
 endif
 
@@ -141,11 +141,12 @@ $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 
 phys_package:
 	@echo "Compiling Physics Package"
-	@$(MAKE) -C src/physics/simple_physics-master/phyparam F90=mpif90
+	@$(MAKE) -C src/physics/simple_physics/phyparam F90=mpif90
 
 clean:
 	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90
+
 ifeq ($(PHYSICS), true)
-	$(MAKE) -C src/physics/simple_physics-master/phyparam clean
+	$(MAKE) -C src/physics/simple_physics/phyparam clean
 endif
 

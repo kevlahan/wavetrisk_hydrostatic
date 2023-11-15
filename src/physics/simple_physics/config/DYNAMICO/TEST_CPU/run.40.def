@@ -1,0 +1,73 @@
+#------------- Planet ---------------
+radius=6.37122e6
+omega=7.292e-5
+g=9.80616
+cpp=1004.5
+kappa=0.2857143
+preff=1e5
+
+#------------- Dynamics  ------------
+
+#-------------- Mesh ----------------
+optim_it=500
+nsplit_i=2
+llm=79
+omp_level_size=1
+#disvert=ncarl30
+disvert=std
+
+#------------ Numerics --------------
+nqtot=0
+itau_adv=3
+
+#----------- Dissipation ------------
+nitergdiv=2
+tau_graddiv=10000
+nitergrot=2
+tau_gradrot=10000
+niterdivgrad=2
+tau_divgrad=10000
+
+#-------------- Physics -------------
+physics=plugin
+# phyparam_single_column=.TRUE.
+# phyparam_single_lon=3.14
+# phyparam_log_level=DBG
+phyparam_lverbose=.FALSE.
+
+# 0.25 day = 6h
+#phyparam_period_sort=0.25
+phyparam_period_sort=1.
+phyparam_diurnal=.TRUE.
+
+phyparam_planet_rad=6.37122e6
+phyparam_mugaz=28.97
+
+#---------------- Run ---------------
+
+# 21600s = 6h
+write_period=21600
+
+#run_length=4800
+#write_period=480
+
+#etat0=dcmip4
+#dcmip4_testcase=1
+etat0=isothermal
+
+#------------ Diagnostics -----------
+diagflux=.FALSE.
+itau_profiling=100
+
+#------------ Resolution-dependent settings ---------
+
+nsplit_j=2
+
+nbp=40
+dt=480
+itau_physics=5
+
+# Dynamics time step is 8 min => one day = 180 dynamics time steps
+# We run for 10 days to have 1800 dynamics time steps = 360 calls to physics
+
+run_length=864000

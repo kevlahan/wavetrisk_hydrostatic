@@ -1,0 +1,467 @@
+**********************************************************************************************************************************
+*
+*  File Description: A mini manual further explaining the workflow and extra files required for using the physics package for a
+*                    test case.
+*  Date Updated: November 14th 2023
+*  Updated by: Gabrielle Ching-Johsnson
+*
+**********************************************************************************************************************************
+CONTENTS
+
+0. ARCHETECTURE/DESIGN OF FILES 
+
+1. COMPILING/CLEANING
+   1.1 MAKEFILE.INC
+
+2. WAVETRISK TEST CASE - DIFFERENCES AND ADDITIONS
+   2.1 MAIN PROGRAM (eg. Simple_Physics.f90)
+   2.2 TEST CASE MODULE
+
+3. INTERFACE MODULES 
+   3.1 PHYSICS INITIALIZATION
+   3.2 PHYSICS CALL
+   3.3 PROCESSING
+
+4. PHYSICS PACKAGE NOTES
+   4.1 CHANGES/ADDITIONS TO PACKAGE
+
+**********************************************************************************************************************************
+0. ARCHETECTURE/DESIGN OF FILES 
+
+The main files and their directories used when running wavetrisk with the simple dry physics pacakge include. 
+(excluding src wavetrisk files)
+
+    1. The wavetrisk test case folder
+        - This is a folder found under `wavetrisk_hydrostatic/test` and contains the main files for a test case for wavetrisk.
+    2. The simple physics interface modules
+        - 3 modules required to interface wavetrisk to the simple physics package.
+        - These modules cand be found under `wavetrisk_hydrostatic/src/physics`
+    3. The simple physics package
+        - The interface modules require the physics package compiled object and .mod files.
+        - This is the package cloned in March 2022 and updated to allow single column physics calls.
+    4. Makefile.inc
+        - When compiling using the simple physics package as the physics this include file adds extra commands to the makefile
+          to ensure call files are compiled correctly.
+        - Found under `wavetrisk_hydrostatic/src/physics`
+
+**********************************************************************************************************************************
+1. COMPILING/CLEANING
+
+!! Compiling !!
+Uses Makefile of Wavetrisk.
+This will also compile the physics package each time. 
+
+NEW ARGUMENT: PHYSICS=true
+This argument is used to tell the makefile that the physics package is being used. Thus if set to true the makefile
+will compile the physics package and the extra modules required for the physics package.
+
+To compile a test case, follow the compiling of the README, but add the PHYSICS argument. The make file will add 
+the library and its path to the compile command (therefore the LIBS argument is used).
+Example: `make TEST_CASE=Simple_Physics PHYSICS=true`
+
+!! Cleaning !!
+To clean instead of using `make clean` use `make clean PHYSICS=true`. This will execute the regular clean command
+but will also clean the physics package itself.
+
+************************************************************
+1.1 MAKEFILE.INC
+
+An include file for the main make file that will be included when make is used for the specific test case using
+the physics package (ie PHYSICS=true).
+
+The file adds commands to
+    - include propery dependencies for compiling object files.
+    - includes the path for the 3 interface modules.
+    - compile thep hysics package.
+
+**********************************************************************************************************************************
+2. WAVETRISK TEST CASE - DIFFERENCES AND ADDITIONS
+
+This section explains the differences and additions required in the main files of a test case to run a simulation using the
+simple physics package. The test cases are found under `/test` directory.
+
+Main files (as explained in the README under 1. TEST CASES):
+  1. Simple_Physics.f90 (where Simple_Physics is the name of the test case)
+  2. test_case_module.f90
+  3. test_case.in
+
+Notes: there are no additions or changes to test_case.in the input parameter file.
+
+************************************************************
+2.1 MAIN PROGRAM (eg. Simple_Physics.f90)
+
+Currently an example of a test case that uses the simple physics package is the Simple_Physics test case. Its main program
+"Simple_Physics.f90" includes all the extra commands requried to run the test case with the package.
+
+!! Use Cases Statements !!
+
+Three extra USE statements are required to include the additional interface modules required to use/interface the physics
+package.
+
+````````````````````````
+use init_physics_mod
+use physics_call_mod
+use phys_processing_mod
+````````````````````````
+
+!! Test Case Parameters !!
+
+There is a section that sets all parameters for the test case. The physics package has parameters that can be set for each
+test case (for example to specify a planet) that should be set here. 
+***** THE PARAMETERS NEED TO BE SET AS THE DEFAULT IS NOT SET UP FOR THE INTERFACE!
+
+The parameters and the package default values are:
+
+   ! Physics Package submodel parameters
+   radiation_mod  = .TRUE.                         ! (T) radiation module is on
+   turbulence_mod = .TRUE.                         ! (T) vertical diffusion module is on
+   convecAdj_mod  = .TRUE.                         ! (T) convective adjustment module is on
+   soil_mod       = .TRUE.                         ! (T) soil module is on
+   Nsoil          = 10                             ! Number of soil layers
+
+   ! Physics Package planet test case parameters
+   gas_molarmass  = 28.                            ! molar mass of main gain (used to set ideal gas const in pacakage)
+   perihelion     = 150                            ! planet perihelion distance (MMkm)
+   aphelion       = 150                            ! planet aphelion distance (MMkm)
+   perihelion_day = 0.                             ! perihelion day
+   obliquity      = 23.                            ! planet axial tilt/obliquity
+   sea_surf       = 0.01_8                         ! sea surface roughness length scale (m)
+   soil_surf      = 0.01_8                         ! soil surface roughness length scale (m)
+   sea_interia    = 3000.                          ! sea thermal inertia (J/m^3K)
+   soil_interia   = 3000.                          ! soil thermal inertial (J/m^3K)
+   sea_albedo     = 0.112                          ! sea albedo
+   soil_albedo    = 0.112                          ! soil albedo
+   sea_emissive   = 1.                             ! sea emissivity
+   soil_emmisive  = 1.                             ! soil emissivity
+   emin_turb      = 1.e-16                         ! minimum turbulent kinetic energy
+   min_turbmix    = 100                            ! minimum turbulent mixing length (m)
+   sw_atten       = 0.99_8                         ! attenuation of shortwave radiation coefficient
+   lw_atten       = 0.08_8                         ! attenuation of longwave radiation coefficient
+   seasons        = .TRUE.                         ! seasons flag **** Does not do anything
+   diurnal        = .TRUE.                         ! diurnal cycle flag
+
+!! Addition Initialization Calls !!
+
+Three extra initialization calls are required to use the physics package. These routines can be found in the 
+init_physics_module.f90 interface module. (See the below section for more on the interface modules)
+
+1. Initialize physics grid parameters (it sets zmin if soil is being used)
+    Use either: 
+    `call init_soil_grid` 
+    `call init_soil_grid_default`
+    *** The routine needs to be called after `call assign_function` but before `call initialize(run_id)` as the intialize routine
+        requires zmin to be set.
+
+2. Initialize the physics (main parameters) and physics function pointers
+    Use `call init_physics`
+    *** The routine needs to be called after the initialize(run_id) routine as the run variables used need to be set.
+
+3. Physics call initializations if checkpointing (conditional)
+    Use `if (cp_idx > 0) call physics_checkpoint_restart`
+    *** This is called after the physics initialization to configure the physics if checkpointing.
+
+!! Calling The Physics Step !!
+
+    Use `call euler (sol(1:N_VARIABLE,1:ZLEVELS), wav_coeff(1:N_VARIABLE,1:ZLEVELS), trend_physics, dt)`
+    *** trend_physics is found in the physics_call_module.f90 interface, all other variables are from wavetrisk. 
+
+!! Mean Values Processing !!
+
+If you wish to write the mean values calculated over the sphere of certain parameters to a file, this can be done when desired.
+
+Use `call mean_values(time)` 
+- This is a routine found in the interface module phys_processing.f90.
+- In the example (Simple_Physics.f90) the mean values were written at the same time as write and at the beginning and end
+    of the simulations.
+
+************************************************************
+2.2 TEST CASE MODULE
+
+The test case module (test_case_module.f90) can be set up like any other test case, it just doesn't need the extra physics routines 
+(as seen in Held_Suarez.f90). 
+This module is separated from the physics routines to keep the dynamics and physics separate. 
+
+See the test_case_module.f90 file test case Simple_Physics for an example. 
+** Note this file has two extra routines if you wish to test the simple physics package without dyanmics.
+   Routines: `timestep_placeholder` (real8 case) and `timestep_placeholder_real` (real case)
+
+**********************************************************************************************************************************
+3. INTERFACE MODULES
+
+The interface modules are 3 extra modules that are used to couple the simple physics package to wavetrisk for a test case. 
+The files can be found under `wavetrisk_hydrostatic/src/physics`.
+The following section will explain what is included in each module and how it is used. 
+
+************************************************************
+3.1 PHYSICS INITIALIZATION
+
+File: init_physics_module.f90
+
+Description: Contains subroutines needed to initialize the physics package.
+
+Used by: main program of a test case (eg. Simple_Physics.f90)
+
+Routines: 
+
+    1. init_physics
+
+            Description: Sets necessary function pointers for the physics and initializes the
+                         main physics parameters.
+
+    2. init_soil_grid_default
+
+            Description: Initialize physics package with dummy longitude & latitude values
+                         and grid parameters. Also sets number of soil levels and zmin to
+                         default value of the physics package (nsoilmx=10 currently)
+            Notes: to be used when Nsoil not set in main program (eg. Simple_Physics.f90)
+
+    3. init_soil_grid
+
+            Description: Initialize physics package with dummy longitude & latitude values
+                         and grid parameters. Also set number of soil levels and zmin.
+    
+            Assumptions: Nsoil is set in Simple_Physics.f90 under the test case parameters.
+                         For case where soil model is turned on (ie soil_mod flag = true).
+
+    4. physics_checkpoint_restart
+
+            Description: Initialize physics cases for when checkpointing is used. Only to be
+                         called when cp_idx > 0.
+
+    5. write_physics_params (used in init_physics routine)
+
+            Description: Writes desired physics parameters (explained in 1.1 above) to a file, 
+                      to be read by physics package during initialization by each rank. 
+
+    6. Plugins (used in init_physics routine)
+            - read_param (3 plugin routines) to read different types, used by physics package 
+              to read in test case parameters explained in 1.1 above.
+            - flush_log_phsy, flushes the the log buffer (set such that only rank 0 flushes to terminal)
+
+************************************************************
+3.2 PHYSICS CALL
+
+File: physics_call_module.f90
+
+Description: Contains subroutines needed to call the physics for a single time step. 
+             Converts needed variables to and from the different data structures of wavetrisk and the physics.
+
+Used by: main program of a test case (eg. Simple_Physics.f90) 
+         routine calls explained in section 1.1 MAIN PROGRAM above under !! Addition Initialization Calls !!
+
+Routines: 
+
+    1. trend_physics(q, dq)
+
+            Description: Trend used to call the physics for each column on each domain. Also
+                             updates velocity edge tendencies once all elements on a domain have
+                             been set in the placeholder trends.
+             
+            Notes: This routine is an input arguement to the physics step in the main program.
+                    (eg in Simple_Physics.f90: `call euler (..., trend_physics, ...)`)
+
+    2. update_velocity_tendencies(dom, i, j, zlev, offs, dims)
+
+            Description: Subroutine used to update the trend hybrid structure for a single element/column
+                         with the converted edge tendencies from the zonal and meridional tendencies.
+         
+            Expectation: Expected that this subroutine is called/used by apply_one_scale_to_patch
+                         (or similar routines) routine of Wavetrisk to update the hybrid structure.
+         
+            Assumptions: dom%u_zonal and dom%v_merid have been populated at all gird points for
+                         domain dom.
+    
+    3. physics_call(dom, i, j, zlev, offs, dims)
+
+            Description: Subroutine used to update calculate the trend for a single element/column.
+                         Converts the dynamics progrnostic vars to needed physics structure, calls
+                         the physics package to get tendencies for the column and sets temp
+                         tendencies back to hybrid structure. With the physics package, the surface
+                         temp and soil temp (if on) will be saved in the pot temp hybrid structure,
+                         for when load balancing occurs.
+         
+            Expectation: Expected that this subroutine is called/used by apply_one_scale_to_patch
+                         (or similar routines) routine of Wavetrisk to calculate trend for the column.
+         
+            Called by: trend_physics subroutine
+
+            Internal subroutins: 
+                - retrieve_prog_vars 
+                        Gathers all prognostic variables for all levels of the column into physics 2D data structure
+                        from the dynamics hybrid data structure.
+                - save_tendencies
+                        Saves tendencies calculated by the physics to dynamics hybrid data structure.
+
+    4. Subroutines used by physics_call to calculate prognositc and diagnostic variables
+            - cal_surf_press_phys (q)
+            - column_mass_phys (dom, i, j, zlev, offs, dims)
+            - set_surf_geopot_phys (dom, i, j, zlev, offs, dims)
+            - cal_press_geopot_layer (dom, i, j, zlev, offs, dims)
+                Integrate pressure and geopotential up
+
+************************************************************
+3.3 PROCESSING
+
+File: phys_processing.f90
+
+Description: contains subroutines needed to save the mean_values of the prognostic variable during a write to a file and 
+             routines to save grid coordinates to a file.
+
+Used by: main program of a test case (eg. Simple_Physics.f90)
+
+Routines: 
+
+    1. mean_values(iwrt)
+
+            Description: Saves averages over the sphere (assumes non-adaptive grid) of key
+                         variables to a file. (Includes surface and soil temperatures)
+        
+            Files Saved to: "run_id".6."iwrt"
+            Note: iwrt is only a 4 character variable, if it represents the number of days
+                   then need to update this if simulation time is gerater than 4 chars
+                   (ie greater than 27 years). (iwrt is called in Simple_Physics.f90 and
+                   represents number of days)
+        
+            Variables Saved:
+                 - Temperature
+                 - Zonal and Meridional Velocity
+                 - Zonal and Meridional Kinetic Energy (included density)
+                 - Low (0-23.5 deg), Mid (23.5-66.5) and High (66.5-90) Latitude Temperatures
+
+            Internal Subroutines to calculate averages
+                 - temp_fun
+                 - zonal_fun
+                 - zonal_KE
+                 - merid_fun
+                 - merid_KE
+                 - pressure_fun
+                 - geopot_fun
+                 - area_fun
+                 - surf_soil_temp_fun
+    
+    2. get_coordinates
+
+            Description: Retrieve all latitude and longitude coordinates and save in
+                         a file named: run_id_coordinates
+
+            Note: Currently not used but can be used.
+    
+    3. get_lat_long(dom, i, j, zlev, offs, dims)
+
+            Description: Retrieve latitude and longitude of an element and write to file 
+                         set in get_coordinates.
+
+**********************************************************************************************************************************
+4. PHYSICS PACKAGE NOTES
+
+The physics package was created by Thomas Dubos and cloned on March 2022. Some additions were made to the package to allow for
+single column calls. This version, called `simple_physics`, can be found under `wavetrisk_hydrostatic/src/physics`.
+
+The main source files can be found under `wavetrisk_hydrostatic/src/physics/simple_physics/phyparam/physics`
+
+!! Compiling !!
+To compile the physics package use the Makefile (command used in terminal: `make`) found under `simple_physics/phyparam/`.
+**** Note if you do not see a Makefile.inc, you need to run make clean first, as this file contains the file dependencies 
+    for compiling.
+
+!! Dummy Driver !!
+If you wish to run the physics package with the dummy driver, compile as above, and run the executible found under 
+`simple_physics/phyparam/driver`. The file of the driver is found in this directory, called driver.f90,and it uses lat-long grid.
+
+!! Dynamico Interface !!
+The DYNAMICO directory under `simple_physics/phyparam/` is the dynamico interface.
+
+Note: the original physics package (by LMDZ) also made changes after the cloning. 
+
+************************************************************
+4.1 CHANGES/ADDITIONS TO PACKAGE
+
+!! Additions !!
+
+single_column_mod.f90
+        Found under: `simple_physics/phyparam/physics`
+        Description: contains functions to be utilized when the dynamics will  be sending single columns to the physics.
+
+        Routines: 
+
+            1. initialize_extra_levels(levels)
+                 - initializes the number soil levels if soil is turned on
+            
+            2. change_latitude_longitude(latitude, longitude)
+                 - Changes the set latitude and longitude of package
+                 - To be used before each column physics call
+            
+            3. physics_call_single_col(...)
+                   Description: Wrapper routine dynamics will use to call the physics,
+                   -----------  for a single column. It updates the surface and soil temps
+                   -----------  for the column before the call and send back the newly 
+                   -----------  update temperatures.
+                
+                   Extra Notes: At the 1st call for each column, the dynamics wont know
+                                what the soil and surface is set to, can send random nums
+                                as phyparam() does cal coldstart() call which sets the tsurf
+                                and tsoil set to 300K.
+
+!! Changes !!
+Makefile -> ``simple_physics/phyparam/Makefile`
+
+    - To compile the physics package, makesure you have a Makefile.inc which will contain all the dependencies. 
+      If this is not seen, run make clean and it will appear.  
+    - added flage "-freal-4-real-8" to convert from real 4 to real 8
+    - added lines for EXE target to compile on unix instead of windows (commented out the windows lines)
+    - Makefile_dependencies does the same as Makefile, but it contains all the dependencies written out. 
+        (Not needed, but  written before realizing needed to run make clean first to get Makefile.inc created)
+
+Files under `simple_physics/phyparam/physics`:
+
+    1. comgeomgi.f90 -> init_comgeomfi subroutine
+        - added an extra input argument that is optional called soil_levs 
+        - added in routine: 
+            - Checks if optional argument is present, if it is then sets the soil levels to that value. 
+            - Also checks to make sure that it is not 0 or 1 as that doesn't work with how the soil mode is set up.
+            - If the optional is not there then set to 10 .
+
+    2. soil_mod.f90 ***Major change that Thomas should also update
+        - Removed random extra variable dz2 (line 164)
+        - Fixed ERROR - line 162, it was initializing an array using  ngrid number of grid points (columns) 
+          instead of number of soil layers.
+    
+    3. phyparam_mod.f90 -> updates to allow singl_col physics call
+        - Commented out 3 lines to writelog the latitude0 (ngrid, lati(1:2), lati(ngrid-1:ngrid)) 
+          becuase when using a single column there is no 2nd index of lati, there is only one latitude (lines 98-100)
+        - Created logical called firstcalll_alloc, set to true. 
+            - It is specifically for the single column cases where first call is true for each column (during their first call), 
+              but we only need to allocate once. 
+            - Therefore during the initialization section of phyparam() subroutine added an 
+              if statement for the alloc subroutine call.
+            - The flag is false at the end of the frist call iniitalization if statement (118-127)
+                - While this is redundant (as it is doing extra work after the first call), it needs to be set after 
+                  the very first call is finished the coldstart because it needs to be. 
+        - In the coldstart routine, at the end of the file, change the if statement warning the soil is turned off. 
+            - Made it such that it only prints if firstcall_alloc flag is true and if lverbose is true. 
+                - The plan is to use lverbose to only print rank 0 using write log
+        - Made alloc, precomupte, zday_last and icount public such that they can be used when calling a restart by wavetrisk. 
+
+
+Files under `simple_physics/phyparam/driver`:
+
+    1. added coordinate_wavetrisk file 
+        - contains all the coordinates of wavetrisk
+
+    2. driver_original.F90 -> is the original driver of Thomas Dubos
+
+    3. driver.F90 -> my updated driver from Thomas'
+        - Three extra subroutines
+            - output_each_step -> outputs the means values of prognostic vars when called at desired step
+            - output_lat_long -> outputs all latitude and longitude coords to file output_lat_long
+            - readin_latlong -> initialize latitude and longitude coordinates from file
+        - changed R to 287
+        - To timestep routine (which call the physics steps for nday)
+            - called output_each_step every desired_write_day to write mean values every desired_write_day.
+            - commented out is the physics call where the fraction for the day is calculated exactly like how wavetrisk is 
+              (this is how we learned that the fraction of the day is a sensitive parameter.)
+        - Added a call to calculate the geopotential before timestep is called to mimick wavetrisk who recalculates the 
+          geoptential (in different way, that the initializatio, which produces decimal differences) before first physics call.
+        - Added to init_vitesse subroutine, adds the smoothing of velocities as used in wavetrisk. 
+
+**********************************************************************************************************************************

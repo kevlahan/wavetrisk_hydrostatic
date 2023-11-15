@@ -1,0 +1,107 @@
+# known to compile with gfortran version 7, ifort version 17, pgfortran version 18
+# Examples
+# F90=ifort FFLAGS=-fast make clean all
+# F90=gfortran F90FLAGS=-ffree-line-length-none make clean all
+# F90=pgfortran F90FLAGS="-fast -Minfo=loop" make clean all
+
+# if XCodeML F_Front is installed, set FFRONT=F_Front to parse code into XML
+FFRONT ?= true
+
+F90 ?= gfortran
+F90FLAGS ?= -ffree-line-length-none -p -g -fbacktrace -fcheck=all -ffpe-trap=zero,overflow,invalid -std=f2003 -freal-4-real-8
+
+NAMES = $(basename $(notdir $(wildcard physics/*.F90)))
+OBJECTS = $(addprefix obj/, $(addsuffix .o, $(NAMES)))
+EXE = driver/driver
+#EXE = driver/driver_original
+
+all : obj $(OBJECTS) lib/libphyparam.so $(EXE)
+
+test: all
+	LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/lib driver/driver.exe
+
+py : clean all
+	bash/extract_cython.sh
+	cd python ; rm -rf build *.c ; python setup.py build_ext --inplace
+obj :
+	@rm -rf obj include lib xml tmp *~ */*~
+	@mkdir obj include lib xml tmp outputs
+
+clean : nice
+	@rm -rf obj include lib xml tmp outputs *~ */*~
+	@mkdir obj include lib xml tmp outputs
+	@bash/concatenate_all_code.sh $(NAMES) > tmp/all_code
+	@bash/makedeps.sh tmp/all_code >  Makefile.inc
+
+nice:
+	bash/beautify.sh physics/*.F90 DYNAMICO/*.F90 driver/driver.F90
+
+doc:	all
+	cd tmp ; doxygen ../bash/Doxyfile
+
+%.so : $(OBJECTS)
+	$(F90) -shared $^ -o $@ 
+
+$(EXE) : $(addsuffix .F90,$(EXE)) lib/libphyparam.so # Change to work on unix
+	ar cr driver/libphyparam.a obj/*.o
+	$(F90) -I include -L driver -fPIC $(F90FLAGS) $< -lphyparam $(LDFLAGS) -o $@
+	mv *.mod driver/
+
+SRC = $(basename $(notdir $@))
+####### Commented out by Gabrielle \
+obj/%.o: physics/%.F90 \
+	$(F90) -I include -fPIC $(F90FLAGS) -c $< \
+	@mv $(SRC).mod include \
+	@mv $(SRC).o obj \
+	@cpp -DXCODEML $< > tmp/$(SRC).f90 \
+	@$(FFRONT) -M tmp tmp/$(SRC).f90 > xml/$(SRC).xml
+####### End of Comment out
+################ Addition - Gabrielle ####################
+define COMPILATION =
+$(F90) -I include -fPIC $(F90FLAGS) -c $<
+@mv $(SRC).mod include
+@mv $(SRC).o obj
+@cpp -DXCODEML $< > tmp/$(SRC).f90
+@$(FFRONT) -M tmp tmp/$(SRC).f90 > xml/$(SRC).xml
+endef
+
+DEPENDENCIES = iniphyparam_mod phyparam_mod radiative_lw radiative_sw\
+	       radiative_mod solar turbulence writefield_mod single_column_mod
+OTHER_DEPEND = $(filter-out $(DEPENDENCIES),$(NAMES))
+OTHER_OBJ = $(addprefix obj/,$(addsuffix .o,$(OTHER_DEPEND)))
+
+$(OTHER_OBJ): obj/%.o: physics/%.F90
+		     $(COMPILATION)
+
+REQUIRE_OTHER = solar turbulence writefield_mod
+REQUIRE_OBJ = $(addprefix obj/, $(addsuffix .o,$(REQUIRE_OTHER)))
+
+print: 
+	@echo $(REQUIRE_OBJ)
+	@echo $(OTHER_OBJ)
+
+$(REQUIRE_OBJ): obj/%.o: physics/%.F90 $(OTHER_OBJ)
+			 $(COMPILATION)
+
+RADIATION = radiative_lw radiative_sw
+RADIATION_OBJ = $(addprefix obj/, $(addsuffix .o,$(RADIATION)))
+
+$(RADIATION_OBJ): obj/%.o: physics/%.F90 $(REQUIRE_OBJ)
+		     $(COMPILATION)
+
+obj/iniphyparam_mod.o: physics/iniphyparam_mod.F90 $(REQUIRE_OBJ)
+			$(COMPILATION)
+
+obj/radiative_mod.o: physics/radiative_mod.F90 $(RADIATION_OBJ)
+		      $(COMPILATION)
+
+obj/phyparam_mod.o: physics/phyparam_mod.F90 obj/radiative_mod.o
+		     $(COMPILATION)
+
+obj/single_column_mod.o: physics/single_column_mod.F90 obj/phyparam_mod.o
+	             $(COMPILATION)
+
+###############  End ################
+# dependencies between modules
+$(OBJECTS) : obj/logging.o
+-include Makefile.inc

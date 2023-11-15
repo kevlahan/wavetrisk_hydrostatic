@@ -1,0 +1,93 @@
+<!-- =========================================================================================================== -->
+<!-- file_def_dynamico                                                                                           -->
+<!-- Definition of output diagnostic files (not including restart files)                                         -->
+<!-- =========================================================================================================== -->
+
+<context id="icosagcm" >
+  
+  <field_definition >
+    
+    <field_group id="dcmip2016_scalar" >
+      <field field_ref="timestep"/>
+      <field field_ref="preff"  name="P0" />
+      <field field_ref="ap"     name="hyai"   />
+      <field field_ref="bp"     name="hybi"   />
+      <field field_ref="mid_ap" name="hyam"   />
+      <field field_ref="mid_bp" name="hybm"   />
+    </field_group>
+        
+    <field_group id="dcmip2016_2D" >
+      <field field_ref="phis"     name="PHIS" operation="once" /> 
+      <field field_ref="ps"       name="PS"   />
+      <field field_ref="u850"     name="U850" />
+      <field field_ref="v850"     name="V850" />
+      <field field_ref="w850"     name="W850" />
+      <field field_ref="t850"     name="T850" />
+      <field field_ref="omega850" name="OMEGA850" />
+    </field_group>
+
+    <field_group id="dcmip2016_2D_extra" >
+      <field field_ref="u500"     name="U500"     />
+      <field field_ref="v500"     name="V500"     />
+      <field field_ref="w850"     name="W500"     />
+      <field field_ref="t500"     name="T500"     />
+      <field field_ref="omega500" name="OMEGA500" />
+      <field field_ref="precl"    name="PRECT"    />
+      <field field_ref="SST"      name="SST"      />
+    </field_group>
+
+    <field_group id="dcmip2016_3D" >
+      <field field_ref="geopot"   name="PHI"   />
+      <field field_ref="ulon"     name="U"     />
+      <field field_ref="ulat"     name="V"     />
+      <field field_ref="uz"       name="W"     />
+      <field field_ref="omega"    name="OMEGA" />
+      <field field_ref="p"        name="P"     />
+      <field field_ref="temp"     name="T"     />
+    </field_group>
+
+    <field_group id="dcmip2016_Q" >
+      <field field_ref="Q1_col_int"  name="Q1_col_int" unit="kg/m2"
+	     long_name="Single chlorine column integrated mixing ratio"/>   
+      <field field_ref="Q2_col_int"  name="Q2_col_int" unit="kg/m2"
+	     long_name="Chlorine gas column integrated mixing ratio" /> 
+    </field_group>
+    
+  </field_definition > 
+
+
+  <file_definition > 
+
+    <file id="output_dcmip2016_native" convention="CF" enabled="false" description="Dry baroclinic wave"
+	  output_freq="3h" sync_freq="3h" output_level="10" timeseries="none" >
+      
+      <variable name="model"                 type="string" > dynamico </variable>
+      <variable name="test_case"             type="string" > 161_dry  </variable>
+      <variable name="horizontal_resolution" type="string" > 1 degree native (grid points : 80x80x10) </variable>
+      <variable name="levels"                type="string" > L30 </variable>
+      <variable name="grid"                  type="string" > hex </variable>
+      <variable name="equation"              type="string" > hydro </variable>
+      <variable name="time_frequency"        type="string" > 3hr </variable>    
+      
+    </file>
+    
+    
+    <file id="output_dcmip2016_regular" enabled="false" description="Dry baroclinic wave" 
+	  output_freq="3h" sync_freq="3h" output_level="10" timeseries="none" > 
+      
+      <field_group group_ref="dcmip2016_scalar" />
+      <field_group group_ref="dcmip2016_2D"     domain_ref="regular_two_degree" />
+      
+      <variable name="model" type="string" > dynamico </variable>
+      <variable name="test_case" type="string" > 161_dry </variable>
+      <variable name="horizontal_resolution" type="string" > 1 degree interpolated (grid points : 80x80x10) </variable>
+      <variable name="levels" type="string" > L30 </variable>
+      <variable name="grid" type="string" > hex </variable>
+      <variable name="equation" type="string" > hydro </variable>
+      <variable name="time_frequency" type="string" > 3hr </variable>    
+      
+    </file>
+
+  </file_definition>
+
+</context>
