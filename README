@@ -56,7 +56,7 @@ USER'S GUIDE
 CONTENTS
 
 1. TEST CASES
-   1.1 Simple Physics Test Case
+   1.1 SIMPLE PHYSICS PACKAGE
 
 2. COMPILING
    2.1 PARALLEL AND SERIAL VERSIONS
@@ -104,37 +104,44 @@ Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suare
 3. An example input parameter file test_case.in.
 
 ************************************************************
-1.1 SIMPLE PHYSICS TEST CASE
+1.1 SIMPLE PHYSICS PACKAGE
+!! This section is for any test case that uses the simple physics package
 
-!! Additions to Simple Physics Test Case (beyond test_case_module.f90, Simple_Physics.f90 and test_case.in)
-1. include folder 
-This folder contains the physics package .mod files and the library "libphyparam.a", containing the 
-compiled object files, needed to run the physics package as a test case.
+!! Interface Modules/additions for using Simple Physics Package (beyond test_case_module.f90, Simple_Physics.f90 and test_case.in)
+For any test case using the simple physics package, the main file (ie Simple_Physics.f90) runs the program, but 3 extra
+modules are required couple the physics and a makefile include files is required to compile the physics package and the
+extra modules. These 4 files and the physics package itself can be found unders '/src/physics/'
 
-2. init_physics_module.f90
+1. init_physics_module.f90
 Module file containing all initialization routines for the physics package.
 
-3. physics_call_module.f90
+2. physics_call_module.f90 (main interface module for physical call)
 Module file contianing routines for the physics call at each time step.
 
-4. phys_processing.f90
+3. phys_processing.f90
 Module file containg routines to write the prognostic mean values to a file.
 
-5. Makefile.inc
-An include file for the main make file that will be included when make is used for the specific test case.
-The file updates to include proper dependencies for the extra 3 modules above when compiling. 
+4. Makefile.inc
+An include file for the main make file that will be included when make is used for the specific test case using
+the physics package.
+The file updates to include proper dependencies for the extra 3 modules above when compiling and compiles
+the physics package. 
 
 !! Compiling
-To compile this test case, follow the compiling instructions below. No extra argruments are needed as the make file will add 
-the library and its path to the compile command (therefore the LIBS argument is used) . 
-Example: `make TEST_CASE=Simple_Physics`
+NEW ARGUMENT: PHYSICS=true
+This argument is used to tell the makefile that the physics package is being used. Thus if set to true the makefile
+will compile the physics package and the extra modules required for the physics package.
+
+To compile a test case, follow the compiling instructions below, but add the PHYSICS argument. The make file will add 
+the library and its path to the compile command (therefore the LIBS argument is used).
+Example: `make TEST_CASE=Simple_Physics PHYSICS=true`
 
 !! Cleaning
-To clean instead of using `make clean` use `make clean TEST_CASE=Simple_Physics`. This will execute the regular clean command
-but will also remove the extra 3 links created when this test case is run using the make file.
+To clean instead of using `make clean` use `make clean PHYSICS=true`. This will execute the regular clean command
+but will also clean the physics package itself.
 
-! The physics package has different parameters that the user can change, see the manual under test/Simple_Physics for more on 
-how to use the package and this test case. 
+** For an indepth description of a test case, the interface and the physics package additions see the mini-manual called 
+phsyics_package_manual under 'wavetrisk_hydrostatic/src/physics'.
 
 **********************************************************************************************************************************
 2. COMPILING

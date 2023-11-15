@@ -144,7 +144,7 @@ program Simple_Physics
 
          ! Save fields
          call write_and_export (iwrite)
-         call mean_values(iwrite)
+         call mean_values(iwrite) !processing for the physics package mean values
       end if
    end do
 

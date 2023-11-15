@@ -15,7 +15,7 @@ module init_physics_mod
    USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_BOOL
    implicit none
 
-   ! Physics test case arguments
+   ! Physics test case arguments (set in test case main program)
    real(8) :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf, sea_interia
    real(8) :: soil_interia, sea_emissive, soil_emmisive, min_turbmix
    real(8) :: sw_atten, lw_atten
@@ -35,7 +35,8 @@ contains
       !                main physics parameters.
       !
       !   Assumptions: Assumes that physics grid parameters has been initialized (ie called
-      !                init_soild_grid(_default)).
+      !                init_soild_grid(_default)) and the wavetrisk parameters have been
+      !                initialized (ie called initialize(run_id)).
       !
       !   Author: Gabrielle Ching-Johnson
       !
