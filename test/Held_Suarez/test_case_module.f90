@@ -285,10 +285,8 @@ contains
     real(8) :: lon, lat, u, v
 
     real(8) :: r
-    r = 0.0_8
-    if (init_cond_rand) then 
-        call random_number (r)
-    end if
+    
+    call random_number (r)
 
     u = u_0 * cos (sigma_v)**1.5 * sin (2*lat)**2 + r ! Zonal velocity component
     !    u = 0.0_8 ! Uniform
