@@ -392,8 +392,6 @@ contains
       use mpi
 #endif
       implicit none
-#     include         <netcdf.inc>
-
       integer :: dimid, domid, idxid, ierror, ncid, status,  phisid
       !********************************************
       !
