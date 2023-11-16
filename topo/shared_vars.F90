@@ -20,7 +20,7 @@ module shared_vars
 
   real(r8) , allocatable, dimension(:,:,:) :: terr_sm, terr_dev
 
-  REAL    (r8):: pi, piq, pih, deg2rad, rad2deg, rotate_cube
+  real(r8) :: pi, piq, pih, deg2rad, rad2deg, rotate_cube
 
 contains 
   subroutine set_constants
@@ -44,7 +44,6 @@ contains
     character, parameter :: CR = achar(13)
     write( *, "((a1,a, t4,i10, f10.2,' percent  done ', a1, '  '))", advance = "NO") CR, txt, n, x, c(mod(n, s))
   end subroutine progress_bar
-
 
   subroutine smooth_terrain (lexternal_smooth_terr, ltarget_latlon, terr_target, ntarget, externally_smoothed_topo_file, &
        nlon, nlat)
@@ -100,9 +99,9 @@ contains
              write(*,*) "smoothed topography dimensions do not match target grid dimensions"
              write(*,*) "target grid  : nlon       ,nlat        =",nlon,nlat
              write(*,*) "smoothed topo: nlon_smooth,nlat_smooth =",nlon_smooth,nlat_smooth
-             STOP
+             stop
           end if
-          ALLOCATE(terr_smooth(nlon_smooth,nlat_smooth),stat=alloc_error)
+          ALLOCATE (terr_smooth(nlon_smooth,nlat_smooth),stat=alloc_error)
           status = NF_INQ_VARID(ncid, 'PHIS', phisid)
           status = NF_GET_VAR_DOUBLE(ncid, phisid,terr_smooth)
           !
@@ -115,7 +114,7 @@ contains
                 ii=ii+1
              end DO
           end DO
-          DEALLOCATE(terr_smooth)
+          deallocate (terr_smooth)
        end if
     end if
 

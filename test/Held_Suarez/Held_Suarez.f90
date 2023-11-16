@@ -113,7 +113,7 @@ program Held_Suarez
      case ("write") ! write out file descriptor for topography
         call write_grid_coords
      case ("read") ! read in geopotential
-        call read_geopotential (trim(topo_file))
+        call assign_height (trim(topo_file))
         call forward_topo_transform (topography, wav_topography)
         call inverse_topo_transform (wav_topography, topography)
 

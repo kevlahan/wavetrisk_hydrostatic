@@ -5,8 +5,8 @@ zlevels            32          ! number of vertical levels
 save_zlev          7           ! vertical level to save (save_zlev < 0 -> save all levels)
 NCAR_topo          T           ! use realistic topography (compile with flag TOPO=.true.)		  
 topo_type          read        ! read or write topography data (used if NCAR_topo = T)
-topo_file          J08_gmted2010_bedmachine-ncube0540-220518_0030km_20231115.nc
-tol      	   2e-2        ! non-dimensional tolerance
+topo_file          J08_gmted2010_bedmachine-ncube0540-220518_0030km
+tol      	   0e-2        ! non-dimensional tolerance
 dt_write           1           ! save interval (days)
 CP_EVERY           1           ! checkpoint and rebalance every CP_EVERY saves
 time_end           300         ! final time (days)

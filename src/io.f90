@@ -670,10 +670,10 @@ contains
     zonal_avg_glo = 0d0
     do k = 1, zlevels
        do bin = 1, nbins
-          call MPI_Gather (Nstats(k,bin), 1, MPI_INTEGER, Nstats_loc, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+          call MPI_Gather (Nstats_loc, 1, MPI_INTEGER, Nstats(k,bin), 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
           
           temp = zonal_avg(k,bin,:)
-          call MPI_Gather (temp, nvar_zonal, MPI_DOUBLE_PRECISION, zonal_avg_loc, nvar_zonal, MPI_DOUBLE_PRECISION, &
+          call MPI_Gather (zonal_avg_loc, nvar_zonal, MPI_DOUBLE_PRECISION, temp, nvar_zonal, MPI_DOUBLE_PRECISION, &
                0, MPI_COMM_WORLD, ierror)
           
           if (rank == 0) call combine_var
