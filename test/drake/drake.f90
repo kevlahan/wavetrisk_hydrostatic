@@ -34,7 +34,7 @@ program Drake
   if (normalized) then
      radius      = radius_earth / L_norm                     
      omega       =  omega_earth * T_norm
-     grav_accel  =      g_earth * H_norm / U_norm**2
+     grav_accel  =  g_earth * H_norm / U_norm**2
   else
      radius      = radius_earth / scale                  ! mean radius of the small planet
      omega       = omega_earth  / scale_omega            ! angular velocity (scaled for small planet to keep beta constant)

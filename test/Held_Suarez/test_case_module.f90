@@ -13,6 +13,7 @@ module test_case_mod
   ! Test case variables
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
+  real(8) :: cfl_max, cfl_min, T_cfl
 
   ! Topography
   character(9999) :: topo_file, topo_type
@@ -92,9 +93,9 @@ contains
        if (Laplace_order == 0) then
           visc = 0d0
        else ! scale aware viscosity
-          visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
+          visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init) / dt
        end if
-       physics_scalar_flux_case = visc * (-1)**Laplace_order * grad * l_e
+       physics_scalar_flux_case = visc * (-1d0)**Laplace_order * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -128,9 +129,9 @@ contains
     if (Laplace_order == 0) then
        visc = 0d0
     else
-       visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order)/dt
+       visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order) / dt
     end if
-    physics_velo_source_case =  visc * (-1)**(Laplace_order-1) * (grad_divu() - curl_rotu())
+    physics_velo_source_case =  visc * (-1d0)**(Laplace_order-1) * (5d0 * grad_divu () - curl_rotu ())
   contains
     function grad_divu()
       implicit none
@@ -196,7 +197,7 @@ contains
 
        ! Normalized pressure
        sigma = (p - p_top) / (p_s - p_top)
-       sigma_v = (sigma - sigma_0) * MATH_PI/2
+       sigma_v = (sigma - sigma_0) * MATH_PI/2d0
 
        ! Mass/Area = rho*dz at level k
        sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
@@ -321,12 +322,8 @@ end function surf_pressure
     implicit none
     real(8) :: lon, lat, u, v
 
-    real(8) :: r
-    
-    call random_number (r)
-
-    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 + r ! Zonal velocity component
-    v = 0d0                                             ! Meridional velocity component
+    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 ! Zonal velocity component
+    v = 0d0                                         ! Meridional velocity component
   end subroutine vel_fun
 
   subroutine set_thresholds_case
@@ -334,9 +331,9 @@ end function surf_pressure
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                     :: k
+    integer                                       :: k
     real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: threshold_new
-    character(3), parameter                     :: order = "inf"
+    character(3), parameter                       :: order = "inf"
 
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
@@ -368,21 +365,21 @@ end function surf_pressure
        end do
     else
        if (zlevels == 18) then
-          a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
-               0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
-               0.03949230_8, 0.03058456_8, 0.02193336_8, 0.01403670_8, 0.007458598_8, 0.002646866_8, &
+          a_vert=(/0.00251499d0, 0.00710361d0, 0.01904260d0, 0.04607560d0, 0.08181860d0, &
+               0.07869805d0, 0.07463175d0, 0.06955308d0, 0.06339061d0, 0.05621774d0, 0.04815296d0, &
+               0.03949230d0, 0.03058456d0, 0.02193336d0, 0.01403670d0, 0.007458598d0, 0.002646866d0, &
                0d0, 0d0 /)
-          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0.03756984_8, 0.08652625_8, 0.1476709_8, 0.221864_8, &
-               0.308222_8, 0.4053179_8, 0.509588_8, 0.6168328_8, 0.7209891_8, 0.816061_8, 0.8952581_8, &
-               0.953189_8, 0.985056_8, 1d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0.03756984d0, 0.08652625d0, 0.1476709d0, 0.221864d0, &
+               0.308222d0, 0.4053179d0, 0.509588d0, 0.6168328d0, 0.7209891d0, 0.816061d0, 0.8952581d0, &
+               0.953189d0, 0.985056d0, 1d0 /)
        elseif (zlevels==26) then
-          a_vert=(/0.002194067_8, 0.004895209_8, 0.009882418_8, 0.01805201_8, 0.02983724_8, 0.04462334_8, 0.06160587_8, &
-               0.07851243_8, 0.07731271_8, 0.07590131_8, 0.07424086_8, 0.07228744_8, 0.06998933_8, 0.06728574_8, 0.06410509_8, &
-               0.06036322_8, 0.05596111_8, 0.05078225_8, 0.04468960_8, 0.03752191_8, 0.02908949_8, 0.02084739_8, 0.01334443_8, &
-               0.00708499_8, 0.00252136_8, 0d0, 0d0 /)
-          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.01505309_8, 0.03276228_8, 0.05359622_8, &
-               0.07810627_8, 0.1069411_8, 0.1408637_8, 0.1807720_8, 0.2277220_8, 0.2829562_8, 0.3479364_8, 0.4243822_8, &
-               0.5143168_8, 0.6201202_8, 0.7235355_8, 0.8176768_8, 0.8962153_8, 0.9534761_8, 0.9851122_8, 1d0 /)
+          a_vert=(/0.002194067d0, 0.004895209d0, 0.009882418d0, 0.01805201d0, 0.02983724d0, 0.04462334d0, 0.06160587d0, &
+               0.07851243d0, 0.07731271d0, 0.07590131d0, 0.07424086d0, 0.07228744d0, 0.06998933d0, 0.06728574d0, 0.06410509d0, &
+               0.06036322d0, 0.05596111d0, 0.05078225d0, 0.04468960d0, 0.03752191d0, 0.02908949d0, 0.02084739d0, 0.01334443d0, &
+               0.00708499d0, 0.00252136d0, 0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.01505309d0, 0.03276228d0, 0.05359622d0, &
+               0.07810627d0, 0.1069411d0, 0.1408637d0, 0.1807720d0, 0.2277220d0, 0.2829562d0, 0.3479364d0, 0.4243822d0, &
+               0.5143168d0, 0.6201202d0, 0.7235355d0, 0.8176768d0, 0.8962153d0, 0.9534761d0, 0.9851122d0, 1d0 /)
        elseif (zlevels==30) then
           a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
                0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
@@ -415,24 +412,24 @@ end function surf_pressure
                0.911346435546875d0, 0.938901245594025d0, 0.963559806346893d0, &
                0.985112190246582d0, 1d0 /)
        elseif (zlevels==49) then
-          a_vert=(/0.002251865_8, 0.003983890_8, 0.006704364_8, 0.01073231_8, 0.01634233_8, 0.02367119_8, &
-               0.03261456_8, 0.04274527_8, 0.05382610_8, 0.06512175_8, 0.07569850_8, 0.08454283_8, &
-               0.08396310_8, 0.08334103_8, 0.08267352_8, 0.08195725_8, 0.08118866_8, 0.08036393_8, &
-               0.07947895_8, 0.07852934_8, 0.07751036_8, 0.07641695_8, 0.07524368_8, 0.07398470_8, &
-               0.07263375_8, 0.07118414_8, 0.06962863_8, 0.06795950_8, 0.06616846_8, 0.06424658_8, &
-               0.06218433_8, 0.05997144_8, 0.05759690_8, 0.05504892_8, 0.05231483_8, 0.04938102_8, &
-               0.04623292_8, 0.04285487_8, 0.03923006_8, 0.03534049_8, 0.03116681_8, 0.02668825_8, &
-               0.02188257_8, 0.01676371_8, 0.01208171_8, 0.007959612_8, 0.004510297_8, 0.001831215_8, &
+          a_vert=(/0.002251865d0, 0.003983890d0, 0.006704364d0, 0.01073231d0, 0.01634233d0, 0.02367119d0, &
+               0.03261456d0, 0.04274527d0, 0.05382610d0, 0.06512175d0, 0.07569850d0, 0.08454283d0, &
+               0.08396310d0, 0.08334103d0, 0.08267352d0, 0.08195725d0, 0.08118866d0, 0.08036393d0, &
+               0.07947895d0, 0.07852934d0, 0.07751036d0, 0.07641695d0, 0.07524368d0, 0.07398470d0, &
+               0.07263375d0, 0.07118414d0, 0.06962863d0, 0.06795950d0, 0.06616846d0, 0.06424658d0, &
+               0.06218433d0, 0.05997144d0, 0.05759690d0, 0.05504892d0, 0.05231483d0, 0.04938102d0, &
+               0.04623292d0, 0.04285487d0, 0.03923006d0, 0.03534049d0, 0.03116681d0, 0.02668825d0, &
+               0.02188257d0, 0.01676371d0, 0.01208171d0, 0.007959612d0, 0.004510297d0, 0.001831215d0, &
                0d0, 0d0 /)
           
           b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, &
-               0.006755112_8, 0.01400364_8, 0.02178164_8, 0.03012778_8, 0.03908356_8, 0.04869352_8, &
-               0.05900542_8, 0.07007056_8, 0.08194394_8, 0.09468459_8, 0.1083559_8, 0.1230258_8, &
-               0.1387673_8, 0.1556586_8, 0.1737837_8, 0.1932327_8, 0.2141024_8, 0.2364965_8, &
-               0.2605264_8, 0.2863115_8, 0.3139801_8, 0.3436697_8, 0.3755280_8, 0.4097133_8, &
-               0.4463958_8, 0.4857576_8, 0.5279946_8, 0.5733168_8, 0.6219495_8, 0.6741346_8, &
-               0.7301315_8, 0.7897776_8, 0.8443334_8, 0.8923650_8, 0.9325572_8, 0.9637744_8, &
-               0.9851122_8, 1d0/)
+               0.006755112d0, 0.01400364d0, 0.02178164d0, 0.03012778d0, 0.03908356d0, 0.04869352d0, &
+               0.05900542d0, 0.07007056d0, 0.08194394d0, 0.09468459d0, 0.1083559d0, 0.1230258d0, &
+               0.1387673d0, 0.1556586d0, 0.1737837d0, 0.1932327d0, 0.2141024d0, 0.2364965d0, &
+               0.2605264d0, 0.2863115d0, 0.3139801d0, 0.3436697d0, 0.3755280d0, 0.4097133d0, &
+               0.4463958d0, 0.4857576d0, 0.5279946d0, 0.5733168d0, 0.6219495d0, 0.6741346d0, &
+               0.7301315d0, 0.7897776d0, 0.8443334d0, 0.8923650d0, 0.9325572d0, 0.9637744d0, &
+               0.9851122d0, 1d0/)
        else
           write (6,'(a)') "zlevels choice not supported ... aborting"
           call abort
@@ -462,9 +459,9 @@ end function surf_pressure
 
     snorm  = 0d0
     do l = 1, zlevels
-       dsig(l) = 1d0 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
-       !dsig(l) = 1d0 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
-       !dsig(l) = 1d0 + 7 * sin (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at surface
+       dsig(l) = 1d0 + 7 * sin (MATH_PI*(l-0.5d0)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
+       !dsig(l) = 1d0 + 7 * cos (MATH_PI/2*(l-0.5d0)/(zlevels+1))**2 ! Concentrated at top
+       !dsig(l) = 1d0 + 7 * sin (MATH_PI/2*(l-0.5d0)/(zlevels+1))**2 ! Concentrated at surface
        snorm = snorm + dsig(l)
     end do
 
@@ -602,6 +599,13 @@ end function surf_pressure
        write (6,'(a,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)       
        write (6,'(a,i1)')     "Laplace_order       = ", Laplace_order_init
+       write (6,'(/,a,/)') "Scale-aware horizontal diffusion"
+       write (6,'(3(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
+            "C_visc(S_VELO) = ", C_visc(S_VELO)
+       write (6,'(a,/,a,/,/,a,es8.2,/,a,es8.2,/)') "Stability limits:", &
+            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
+            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order_init, &
+            "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order_init 
        write (6,'(a,i2)')     "n_diffuse           = ", n_diffuse
        write (6,'(a,es10.4)') "dt_write (day)      = ", dt_write/DAY
        write (6,'(a,i6)')     "CP_EVERY            = ", CP_EVERY
@@ -678,8 +682,8 @@ end function surf_pressure
 
     integer :: k
 
-    allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0.0_8
+    allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
+    allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
 
     lnorm(S_MASS,:) = dPdim/grav_accel
     do k = 1, zlevels
@@ -829,14 +833,26 @@ end function surf_pressure
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: k_T, lat, lon, theta_equil
+    real(8) :: k_T, lat, lon, sigma, theta_equil
 
     id_i = idx (i, j, offs, dims) + 1
+
+    dmass(id_i) = 0d0
+
     call cart2sph (dom%node%elts(id_i), lon, lat)
     call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
 
-    dmass(id_i) = 0d0
-    dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
+    if (NCAR_topo) then 
+       sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
+
+       if (sigma > 0.7d0) then ! no temperature relaxation in lower part of atmosphere
+          dtemp(id_i) = 0d0
+       else
+          dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))          
+       end if
+    else
+       dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
+    end if
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
@@ -947,4 +963,16 @@ end function surf_pressure
 
     z_coords_case = 0d0
   end function z_coords_case
+
+  real(8) function cfl (t)
+    ! Gradually increase cfl number from cfl_min to cfl_max over T_cfl 
+    implicit none
+    real(8) :: t
+
+    if (t <= T_cfl) then
+       cfl = cfl_min + (cfl_max - cfl_min) * sin (MATH_PI/2d0 * t / T_cfl)
+    else
+       cfl = cfl_max
+    end if
+  end function cfl
 end module test_case_mod
