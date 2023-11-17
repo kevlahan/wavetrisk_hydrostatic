@@ -1,22 +1,19 @@
 # Default general options
-TEST_CASE = jet
-PARAM     = param_J5
-ARCH      = mpi
-OPTIM     = 2
-F90       = gfortran
-MPIF90    = mpif90
-BIN_DIR   = bin
+TEST_CASE  = Held_Suarez
+PARAM      = param_J6
+ARCH       = mpi
+OPTIM      = 2
+F90        = gfortran
+MPIF90     = mpif90
+BIN_DIR    = bin
 BUILD_DIR  = build
 LIBS       =
-LAPACK     = -llapack # link to lapack library
-TOPO       = false    # use NCAR topography
+FLAGS_COMP =
+LAPACK     = -llapack  #  link to lapack library
+NETCDF     = -lnetcdff # link to netcdf library
+TOPO       = false     # use NCAR topography
+PHYSICS    = false     # use simple dry physics
 PREFIX     = .
-
-# Topgraphy options
-TOPO_DIR   = ~/Topo
-NETCDF_DIR = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
-
-PHYSICS   = false
 
 # AMPI options
 CHARM_DIR   = ~/charm
@@ -37,25 +34,32 @@ vpath %.f90 src
 SYSTEM = $(shell uname -a | cut -c 1-6 -)
 ifeq ($(SYSTEM),Darwin)
   MACHINE = mac
-  LIB    += -L/opt/homebrew/opt/lapack/lib
+  LIBS   += -L/opt/homebrew/opt/lapack/lib
+  ifeq ($(TOPO), true)
+    NETCDF_DIR = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
+    FLAGS_COMP += -I$(NETCDF_DIR)/include
+    LIBS       += -L$(NETCDF_DIR)/lib $(NETCDF)
+  endif
 else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
-
-  ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
-    LAPACK = -lopenblas # use module load openblas
-  endif
+  ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia)) # module load CCEnv StdEnv/2023 
+    LAPACK = -lflexiblas # module load flexiblas
+    ifeq ($(TOPO), true)
+      LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
+    endif
+  endif 
 endif
 
 ifeq ($(F90),ifort)
-  FLAGS_COMP = -O$(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
-  FLAGS_LINK = -O$(OPTIM)
+  FLAGS_COMP += -O$(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
+  FLAGS_LINK += -O$(OPTIM)
   ifeq ($(ARCH),mpi) # problem with -module when using AMPI
     FLAGS_COMP += -module $(BUILD_DIR)
     FLAGS_LINK += -module $(BUILD_DIR)
   endif
 else
-  FLAGS_COMP = -O$(OPTIM) -c -J$(BUILD_DIR) -cpp
-  FLAGS_LINK = -O$(OPTIM) -J $(BUILD_DIR)
+  FLAGS_COMP += -O$(OPTIM) -c -J$(BUILD_DIR) -cpp
+  FLAGS_LINK += -O$(OPTIM) -J $(BUILD_DIR)
 endif
 
 ifeq ($(OPTIM),0)
@@ -83,32 +87,24 @@ else
     FLAGS_LINK += -DAMPI -pieglobals
   endif
 endif
-LINKER = $(COMPILER)
 
-LIBS   = $(LAPACK)
+LINKER += $(COMPILER)
+LIBS   += $(LAPACK)
 
 ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
   ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
-    # module load gcc openmpi fftw mkl
+    # module load fftw
     SHTOOLSLIBPATH = $(HOME)/SHTOOLS-4.7.1/lib
     SHTOOLSMODPATH = $(HOME)/SHTOOLS-4.7.1/include
-    LAPACK = -lmkl_gf_ilp64 -lmkl_sequential -lmkl_core
   else ifeq ($(MACHINE), mac)
     SHTOOLSMODPATH = /opt/homebrew/include
     SHTOOLSLIBPATH = /opt/homebrew/lib
-    LAPACK = -llapack
   else
     SHTOOLSMODPATH = /usr/local/include
     SHTOOLSLIBPATH = /usr/local/lib
-    LAPACK = -llapack
   endif
-  LIBS += -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm $(LAPACK)
+  LIBS       += -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm $(LAPACK)
   FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
-endif
-
-ifeq ($(TOPO), true)
-  FLAGS_COMP += -I$(NETCDF_DIR)/include
-  LIBS       += -L$(NETCDF_DIR)/lib -lnetcdff
 endif
 
 SRC = $(PARAM).f90 shared.f90 coord_arithmetic.f90 sphere.f90  patch.f90 dyn_array.f90 \
