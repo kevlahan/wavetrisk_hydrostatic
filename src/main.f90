@@ -323,7 +323,7 @@ contains
     if (rank == 0) then
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (6,'(A,A,/)') 'Loading file ', trim (cmd_archive)
-       write (command, '(a,a)') 'tar xzf ', trim (cmd_archive)
+       write (command, '(a,a)') 'gtar xzf ', trim (cmd_archive)
        write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
        call system (bash_cmd)
     end if
@@ -419,7 +419,7 @@ contains
        write (cmd_files, '(A,A,I4.4,A,A,A,I4.4)') &
             trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
        write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
-       write (command, '(A,A,A,A,A)') 'tar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
+       write (command, '(A,A,A,A,A)') 'gtar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
        write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
        call system (bash_cmd)
     end if

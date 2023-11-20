@@ -1295,7 +1295,7 @@ contains
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
-    command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
+    command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
   end subroutine write_out
@@ -1343,7 +1343,7 @@ contains
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
-    command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
+    command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
 
@@ -1397,7 +1397,7 @@ contains
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
-    command = 'tar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
+    command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
 
@@ -1474,7 +1474,7 @@ contains
     command = 'ls -1 '//trim(run_id)//'.5.?? > tmp' 
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
-    command = 'tar czf '//trim(run_id)//'.5.'//s_time//'.tgz -T tmp --remove-files &'
+    command = 'gtar czf '//trim(run_id)//'.5.'//s_time//'.tgz -T tmp --remove-files &'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
   end subroutine write_slice

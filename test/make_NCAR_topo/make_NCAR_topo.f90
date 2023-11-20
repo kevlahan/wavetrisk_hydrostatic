@@ -13,6 +13,11 @@ program make_NCAR_topo
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
+  
+  if (n_process > 1) then
+     write (6,'(a)') 'Must run make_NCAR_topo on one core ... aborting'
+     call abort
+  end if
 
   ! Read test case parameters
   call read_test_case_parameters
@@ -53,10 +58,8 @@ program make_NCAR_topo
           "Relative mass error at level ", l, " = ", abs (integrate_hex (topo, z_null, l) - fine_mass)/fine_mass
   end do
 
-  ! Check and save topography
+  ! Save compressed wavelet topography data
   call dump_topo
-  !call load_topo
-  !call write_and_export (0)
-  
+
   call finalize
 end program Make_NCAR_Topo

@@ -1219,7 +1219,8 @@ contains
     implicit none
     integer                          :: c, d, ibeg, iend, j, l, p_chd, p_lev, p_par, r
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
-    character(255)                   :: filename_gr, filename_no
+    character(9999)                  :: filename_gr, filename_no
+    character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
     logical, dimension(1:N_CHDRN)    :: required
 
     call update_bdry (wav_topography, NONE)
@@ -1298,6 +1299,14 @@ contains
        close (fid_no(d))
        close (fid_gr(d))
     end do
+
+    ! Compress wavelet topography data
+    write (cmd_files,   '(a,a,a)') trim (topo_file), '{_grid,_coef}.', '?????'
+    write (cmd_archive,     '(a)') trim (topo_file)//".tgz"
+    write (6,'(a,a,/)') 'Saving topography file ', trim (cmd_archive)
+    write (command, '(a,a,a,a,a)') 'gtar czf ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
+    write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (bash_cmd)
   end subroutine dump_topo
 
   subroutine write_scalar_topo (dom, p, i, j, zlev, offs, dims, fid)
@@ -1330,7 +1339,7 @@ contains
     
     do r = 1, n_process
 #ifdef MPI
-       if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
+       if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
           call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
@@ -1457,14 +1466,25 @@ contains
     ! Read topography data from for restart
     ! (one file per domain)
     implicit none
-    character(255)                   :: filename_gr, filename_no
     integer                          :: c, d, i, ibeg, iend, j, l, old_n_patch, p_chd, p_par, r
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
+    character(9999)                  :: filename_gr, filename_no
+    character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
     logical, dimension(1:N_CHDRN)    :: required
-    
+
+    ! Uncompress wavelet topography data
+    if (rank == 0) then
+       write (cmd_archive, '(a)') trim (topo_file)//".tgz"
+       write (6,'(a,a,/)') 'Loading topography file ', trim (cmd_archive)
+       write (command, '(a,a)') 'gtar xzf ', trim (cmd_archive)
+       write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
+       call system (bash_cmd)
+    end if
+    call barrier
+
     do r = 1, n_process
 #ifdef MPI
-       if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
+       if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
           call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
@@ -1483,8 +1503,6 @@ contains
     
     ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
-       call load (fid_no(d))
-
        p_par = 1
        call apply_to_pole_d (read_topo_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
 
@@ -1526,9 +1544,18 @@ contains
     do d = 1, size(grid)
        close(fid_no(d)); close(fid_gr(d))
     end do
-
+    
     topography%bdry_uptodate     = .false.
     wav_topography%bdry_uptodate = .false.
+    
+    ! Remove temporary files
+    call barrier ! do not delete files before everyone has read them
+    if (rank == 0) then
+       write (cmd_files, '(a,a,a)') trim (topo_file), '{_grid,_coef}.', '?????'
+       write (command,     '(a,a)') '\rm ', trim (cmd_files)
+       write (bash_cmd,  '(a,a,a)') 'bash -c "', trim (command), '"' 
+       call system (bash_cmd)
+    end if
   end subroutine load_topo
 
   subroutine read_topo_scalar (dom, p, i, j, zlev, offs, dims, fid)
@@ -1545,7 +1572,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     read (fid) topography%data(d)%elts(id)
-  end subroutine read_topo_scalar 
+  end subroutine read_topo_scalar
 
   subroutine proj_xz_plane (cin, cout)
     implicit none

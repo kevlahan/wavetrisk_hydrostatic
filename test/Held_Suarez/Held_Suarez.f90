@@ -111,67 +111,51 @@ program Held_Suarez
   ! Initialize variables
   call initialize (run_id)
   call print_test_case_parameters
-
-  if (NCAR_topo) then! generate topography data
-     select case (trim(topo_type))
-     case ("write") ! write out file descriptor for topography
-        call write_grid_coords
-     case ("read") ! read in geopotential
-        call assign_height (trim(topo_file))
-        call forward_topo_transform (topography, wav_topography)
-        call inverse_topo_transform (wav_topography, topography)
-
-        ! Check mass conservation
-        fine_mass = integrate_hex (topo, z_null, level_end)
-        do l = level_end-1, level_start, -1
-           write (6,'(a,i2,a,es10.4)') &
-                "Relative mass error at level ", l, " = ", abs (integrate_hex (topo, z_null, l) - fine_mass)/fine_mass
-        end do
-
-        ! Re-apply initial conditions to use correct surface pressure
-        call apply_initial_conditions_case
-     end select
+  
+  if (NCAR_topo) then
+     ! Load NCAR topography data
+     call load_topo
+     ! Re-apply initial conditions to use correct surface pressure
+     call apply_initial_conditions_case
   end if
 
   ! Save initial conditions
   call write_and_export (iwrite)
+  
+  if (rank == 0) write (6,'(A,/)') &
+       '----------------------------------------------------- Start simulation run &
+       ------------------------------------------------------'
+  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  total_cpu_time = 0d0
+  do while (time < time_end)
+     cfl_num = cfl (time) ! gradually increase cfl number
 
-  if (.not. NCAR_topo .or. topo_type == "read") then
-     if (rank == 0) write (6,'(A,/)') &
-          '----------------------------------------------------- Start simulation run &
-          ------------------------------------------------------'
-     open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-     total_cpu_time = 0d0
-     do while (time < time_end)
-        cfl_num = cfl (time) ! gradually increase cfl number
-        
-        call start_timing
-        call time_step (dt_write, aligned)
-        if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
-        call euler (sol, wav_coeff, trend_cooling, dt)
-        call stop_timing
+     call start_timing
+     call time_step (dt_write, aligned)
+     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+     call euler (sol, wav_coeff, trend_cooling, dt)
+     call stop_timing
 
-        call sum_total_mass (.false.)
-        call print_log
+     call sum_total_mass (.false.)
+     call print_log
 
-        if (aligned) then
-           iwrite = iwrite+1
-           if (remap) call remap_vertical_coordinates
+     if (aligned) then
+        iwrite = iwrite+1
+        if (remap) call remap_vertical_coordinates
 
-           if (modulo (iwrite, CP_EVERY) == 0) then
-              call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
+        if (modulo (iwrite, CP_EVERY) == 0) then
+           call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
 
-              ! Save statistics
-              call combine_stats
-              if (rank == 0) call write_out_stats
-           end if
-
-           ! Save fields
-           call vertical_velocity
-           call write_and_export (iwrite)
+           ! Save statistics
+           call combine_stats
+           if (rank == 0) call write_out_stats
         end if
-     end do
-  end if
+
+        ! Save fields
+        call vertical_velocity
+        call write_and_export (iwrite)
+     end if
+  end do
 
   if (rank == 0) then
      close (12)

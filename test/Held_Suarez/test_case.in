@@ -1,11 +1,10 @@
 test_case          Held_Suarez ! name of test case
-run_id             HS_J8       ! name of run (for saved data files)
-max_level	   8           ! maximum level of resolution
+run_id             HS_J7       ! name of run (for saved data files)
+max_level	   7           ! maximum level of resolution
 zlevels            32          ! number of vertical levels
 save_zlev          7           ! vertical level to save (save_zlev < 0 -> save all levels)
 NCAR_topo          T           ! use realistic topography (compile with flag TOPO=.true.)		  
-topo_type          read        ! read or write topography data (used if NCAR_topo = T)
-topo_file          J08_gmted2010_bedmachine-ncube0540-220518_0030km
+topo_file          J07_gmted2010_bedmachine-ncube0540-220518_0060km
 tol      	   0e-2        ! non-dimensional tolerance
 dt_write           1           ! save interval (days)
 CP_EVERY           1           ! checkpoint and rebalance every CP_EVERY saves

@@ -16,8 +16,7 @@ module test_case_mod
   real(8) :: cfl_max, cfl_min, T_cfl
 
   ! Topography
-  character(9999) :: topo_file, topo_type
-  logical         :: NCAR_topo
+  logical :: NCAR_topo
 
 contains
   subroutine assign_functions
@@ -508,7 +507,6 @@ end function surf_pressure
     read (fid,*) varname, zlevels
     read (fid,*) varname, save_zlev
     read (fid,*) varname, NCAR_topo
-    read (fid,*) varname, topo_type
     read (fid,*) varname, topo_file
     read (fid,*) varname, tol
     read (fid,*) varname, dt_write
@@ -536,7 +534,7 @@ end function surf_pressure
     if (rank == 0) then
        inquire (file = trim(run_id)//'.3.tgz', exist = file_exists)
        if (file_exists) then
-          command = 'tar xzf '//trim(run_id)//'.3.tgz'
+          command = 'gtar xzf '//trim(run_id)//'.3.tgz'
           write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
           call system (bash_cmd)
 
@@ -635,7 +633,6 @@ end function surf_pressure
        write (6,'(a,es10.4)') "delta_T             = ", delta_T
        write (6,'(a,es10.4,/)') "delta_theta         = ", delta_theta
        write (6,'(a,l)')      "NCAR_topo           = ", NCAR_topo
-       write (6,'(a,a)')      "topo_type           = ", trim (topo_type)
        write (6,'(a,a)')      "topo_file           = ", trim (topo_file)
        write (6,'(a)') &
             '*********************************************************************&
