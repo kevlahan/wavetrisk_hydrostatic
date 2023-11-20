@@ -63,7 +63,7 @@ contains
     call MPI_Info_create (chkpt_info, ierror)
     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
 #endif       
-
+    
     if (resume >= 0) then
        cp_idx = resume
        call restart (run_id)
@@ -83,7 +83,7 @@ contains
 
        call init_structures (run_id)
        call apply_initial_conditions
-      
+
        ! Initialize thresholds to default values 
        call initialize_thresholds
 
@@ -133,10 +133,10 @@ contains
             '------------------------------------------------- Finished adapting initial grid &
             -------------------------------------------------'
 
-       call adapt (set_thresholds) ; dt_new = cpt_dt()
+       call adapt (set_thresholds) ; dt_new = cpt_dt ()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
 
-       call write_checkpoint (run_id, .true.)
+       if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
     end if
     call barrier
   end subroutine initialize

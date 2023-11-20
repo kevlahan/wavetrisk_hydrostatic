@@ -1055,58 +1055,6 @@ contains
     end do
   end subroutine write_u_wc
 
-  subroutine write_scalar (dom, p, i, j, zlev, offs, dims, fid)
-    ! For poles
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: fid, i, j, p, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id, k, v
-
-    d = dom%id+1
-    id = idx(i, j, offs, dims) + 1
-
-    do k = zmin, zmax
-       do v = scalars(1), scalars(2)
-          write (fid) sol(v,k)%data(d)%elts(id)
-       end do
-    end do
-
-    if (vert_diffuse) then
-       do k = 1, zlevels
-          write (fid) tke(k)%data(d)%elts(id)
-       end do
-    end if
-  end subroutine write_scalar
-
-  subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
-    ! For poles
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: fid, i, j, p, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id, k, v
-
-    d  = dom%id+1
-    id = idx (i, j, offs, dims) + 1
-
-    do k = zmin, zmax
-       do v = scalars(1), scalars(2)
-          read (fid) sol(v,k)%data(d)%elts(id)
-       end do
-    end do
-
-    if (vert_diffuse) then
-       do k = 1, zlevels
-          read (fid) tke(k)%data(d)%elts(id)
-       end do
-    end if
-  end subroutine read_scalar 
-
   subroutine dump_adapt_mpi (id, run_id)
     ! Save data in check point files for restart
     ! One file per domain
@@ -1120,7 +1068,7 @@ contains
     character(255)                   :: filename_gr, filename_no
     logical, dimension(1:N_CHDRN)    :: required
     
-    call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 20)
+    call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE)
     if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 20)
 
     do d = 1, size(grid)
@@ -1239,6 +1187,135 @@ contains
     end do
   end subroutine dump_adapt_mpi
 
+  subroutine write_scalar (dom, p, i, j, zlev, offs, dims, fid)
+    ! For poles
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: fid, i, j, p, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, k, v
+
+    d = dom%id+1
+    id = idx(i, j, offs, dims) + 1
+
+    do k = zmin, zmax
+       do v = scalars(1), scalars(2)
+          write (fid) sol(v,k)%data(d)%elts(id)
+       end do
+    end do
+
+    if (vert_diffuse) then
+       do k = 1, zlevels
+          write (fid) tke(k)%data(d)%elts(id)
+       end do
+    end if
+  end subroutine write_scalar
+
+  subroutine dump_topo
+    ! Save topography data on non-adaptive max_level grid for restart
+    ! (one file per domain)
+    implicit none
+    integer                          :: c, d, ibeg, iend, j, l, p_chd, p_lev, p_par, r
+    integer, dimension(1:size(grid)) :: fid_no, fid_gr
+    character(255)                   :: filename_gr, filename_no
+    logical, dimension(1:N_CHDRN)    :: required
+
+    call update_bdry (wav_topography, NONE)
+
+    do d = 1, size(grid)
+       scalar => topography%data(d)%elts
+       wc_s   => wav_topography%data(d)%elts
+       call apply_interscale_d (restrict_scalar, grid(d), min_level-1, z_null, 0, 1) ! +1 to include poles
+       nullify (scalar, wc_s)
+    end do
+
+    do r = 1, n_process
+#ifdef MPI       
+       if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
+          call MPI_Barrier (MPI_Comm_World, ierror)
+          cycle 
+       end if
+#endif       
+            
+       do d = 1, size(grid)
+          fid_no(d) = 1000000 + glo_id(rank+1,d)
+          fid_gr(d) = 3000000 + glo_id(rank+1,d)
+
+          write (filename_no, '(a,a,i5.5)') trim (topo_file), "_coef.", glo_id(rank+1,d)
+          write (filename_gr, '(a,a,i5.5)') trim (topo_file), "_grid.", glo_id(rank+1,d)
+
+          open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE', status='REPLACE')
+          open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE', status='REPLACE')
+       end do
+    end do
+
+    do d = 1, size(grid)
+       ! Write data at coarsest scale (scaling functions)
+       p_par = 1
+       call apply_to_pole_d (write_scalar_topo, grid(d), min_level-1, z_null, fid_no(d), .true.)
+
+       ibeg = MULT(S_MASS)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+       iend = ibeg + MULT(S_MASS)*PATCH_SIZE**2 - 1
+       write (fid_no(d)) topography%data(d)%elts(ibeg:iend)
+
+       ! Write wavelets at finer scales
+       do l = min_level, level_end
+          p_lev = 0
+          do j = 1, grid(d)%lev(l)%length
+             p_par = grid(d)%lev(l)%elts(j)
+             if (grid(d)%patch%elts(p_par+1)%deleted) then
+                do c = 1, N_CHDRN
+                   p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                   if (p_chd > 0) grid(d)%patch%elts(p_chd+1)%deleted = .true. 
+                end do
+                cycle ! no data to write
+             end if
+             
+             ibeg = MULT(S_MASS)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+             iend = ibeg + MULT(S_MASS)*PATCH_SIZE**2 - 1
+             write (fid_no(d)) wav_topography%data(d)%elts(ibeg:iend)
+
+             ! Record whether patch needs to be refined
+             do c = 1, N_CHDRN
+                p_chd = grid(d)%patch%elts(p_par+1)%children(c)
+                if (p_chd > 0) then
+                   required(c) = check_child_required(grid(d), p_par, c-1)
+                   grid(d)%patch%elts(p_chd+1)%deleted = .not. required(c) 
+                   if (required(c) .and. p_lev+1 <= size(grid(d)%lev(l+1)%elts)) then
+                      p_lev = p_lev + 1
+                      grid(d)%lev(l+1)%elts(p_lev) = p_chd ! ** grid modified **
+                   end if
+                else
+                   required(c) = .false.
+                end if
+             end do
+             write (fid_gr(d)) required
+          end do
+          if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev ! ** grid modified **
+       end do
+       close (fid_no(d))
+       close (fid_gr(d))
+    end do
+  end subroutine dump_topo
+
+  subroutine write_scalar_topo (dom, p, i, j, zlev, offs, dims, fid)
+    ! For poles
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: fid, i, j, p, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+    
+    d = dom%id+1
+    id = idx(i, j, offs, dims) + 1
+
+    write (fid) topography%data(d)%elts(id)
+  end subroutine write_scalar_topo
+
   subroutine load_adapt_mpi (id, run_id)
     ! Read data from check point files for restart
     ! One file per domain
@@ -1349,6 +1426,126 @@ contains
        wav_tke%bdry_uptodate = .false.
     end if
   end subroutine load_adapt_mpi
+
+  subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
+    ! For poles
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: fid, i, j, p, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, k, v
+
+    d  = dom%id+1
+    id = idx (i, j, offs, dims) + 1
+
+    do k = zmin, zmax
+       do v = scalars(1), scalars(2)
+          read (fid) sol(v,k)%data(d)%elts(id)
+       end do
+    end do
+
+    if (vert_diffuse) then
+       do k = 1, zlevels
+          read (fid) tke(k)%data(d)%elts(id)
+       end do
+    end if
+  end subroutine read_scalar 
+
+  subroutine load_topo
+    ! Read topography data from for restart
+    ! (one file per domain)
+    implicit none
+    character(255)                   :: filename_gr, filename_no
+    integer                          :: c, d, i, ibeg, iend, j, l, old_n_patch, p_chd, p_par, r
+    integer, dimension(1:size(grid)) :: fid_no, fid_gr
+    logical, dimension(1:N_CHDRN)    :: required
+    
+    do r = 1, n_process
+#ifdef MPI
+       if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
+          call MPI_Barrier (MPI_Comm_World, ierror)
+          cycle 
+       end if
+#endif
+       do d = 1, size(grid)
+          fid_no(d) = 1000000 + glo_id(rank+1,d)
+          fid_gr(d) = 3000000 + glo_id(rank+1,d)
+
+          write (filename_no, '(a,a,i5.5)') trim (topo_file), "_coef.", glo_id(rank+1,d)
+          write (filename_gr, '(a,a,i5.5)') trim (topo_file), "_grid.", glo_id(rank+1,d)
+
+          open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ', status='OLD')
+          open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
+       end do
+    end do
+    
+    ! Load coarsest scale solution (scaling functions)
+    do d = 1, size(grid)
+       call load (fid_no(d))
+
+       p_par = 1
+       call apply_to_pole_d (read_topo_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
+
+       ibeg = MULT(S_MASS)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+       iend = ibeg + MULT(S_MASS)*PATCH_SIZE**2 - 1
+       read (fid_no(d)) topography%data(d)%elts(ibeg:iend)
+    end do
+
+    ! Load finer scales (wavelets) if present
+    ! (level_end is initially level_start and is incremented by refine_patch1 if children are present)
+    l = 1
+    do while (level_end > l) ! New level was added -> proceed to it
+       l = level_end 
+       if (rank == 0) write (6,'(a,i2)') 'Loading level ', l
+       do d = 1, size(grid)
+          old_n_patch = grid(d)%patch%length
+          do j = 1, grid(d)%lev(l)%length
+             p_par = grid(d)%lev(l)%elts(j)
+             
+             ibeg = MULT(S_MASS)*grid(d)%patch%elts(p_par+1)%elts_start + 1
+             iend = ibeg + MULT(S_MASS)*PATCH_SIZE**2 - 1
+             read (fid_no(d)) wav_topography%data(d)%elts(ibeg:iend)
+
+             read (fid_gr(d)) required
+             do c = 1, N_CHDRN
+                if (required(c)) call refine_patch1 (grid(d), p_par, c-1)
+             end do
+          end do
+          do p_par = 2, old_n_patch
+             do c = 1, N_CHDRN
+                p_chd = grid(d)%patch%elts(p_par)%children(c)
+                if (p_chd+1 > old_n_patch) call refine_patch2 (grid(d), p_par-1, c-1)
+             end do
+          end do
+       end do
+       call post_refine
+    end do
+
+    do d = 1, size(grid)
+       close(fid_no(d)); close(fid_gr(d))
+    end do
+
+    topography%bdry_uptodate     = .false.
+    wav_topography%bdry_uptodate = .false.
+  end subroutine load_topo
+
+  subroutine read_topo_scalar (dom, p, i, j, zlev, offs, dims, fid)
+    ! For poles
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: fid, i, j, p, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+
+    d  = dom%id+1
+    id = idx (i, j, offs, dims) + 1
+
+    read (fid) topography%data(d)%elts(id)
+  end subroutine read_topo_scalar 
 
   subroutine proj_xz_plane (cin, cout)
     implicit none

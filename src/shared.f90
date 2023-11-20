@@ -247,7 +247,7 @@ module shared_mod
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
 
-  character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type
+  character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type, topo_file
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_mass, match_time, mode_split, penalize, rebalance, remap, uniform, vert_diffuse
