@@ -250,9 +250,8 @@ module shared_mod
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type, topo_file
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
-  logical :: log_iter, log_mass, match_time, mode_split, penalize, rebalance, remap, uniform, vert_diffuse
-  logical :: sigma_z, tke_closure
-  logical :: soil_mod
+  logical :: log_iter, log_mass, match_time, mode_split, NCAR_topo, penalize, rebalance, remap, uniform, vert_diffuse
+  logical :: sigma_z, soil_mod, tke_closure
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -351,10 +350,12 @@ contains
     log_mass            = .true.                            ! compute minimum mass and mass conservation, relatively expensive (T)
     match_time          = .false.                           ! match time exactly for data saving (T)
     mode_split          = .false.                           ! calculate barotropic free surface mode separately (T)
+    NCAR_topo           = .false.                           ! use NCAR topography (requires pre-computation of float fields topography and wav_topograph) (T)
     penalize            = .false.                           ! include penalization of topography (T)
     rebalance           = .true.                            ! rebalance computational load at each checkpoint if T
     sigma_z             = .false.                           ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
     remap               = .true.                            ! remap Lagrangian coordinates (T) or no remapping (F)
+    soil_mod            = .false.                           ! simple physics with soil levels (T)
     tke_closure         = .false.                           ! use TKE closure for eddy viscosity (T) or analytic form (F)
     uniform             = .true.                            ! uniform vertical grid in pressure (T) or hybrid (F)
     vert_diffuse        = .false.                           ! include vertical diffusion in ocean models (T)
@@ -426,9 +427,6 @@ contains
     ! Theta parameters for barotropic-baroclinic mode splitting
     theta1              = 1d0                                     ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
     theta2              = 1d0                                     ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
-
-    ! Parameters for soil mod - simple physics
-    soil_mod            = .false.                                 ! physics with soil mod levels (T)
   end subroutine init_shared_mod
 
   real(8) function eps ()

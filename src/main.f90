@@ -62,7 +62,7 @@ contains
 #ifdef AMPI
     call MPI_Info_create (chkpt_info, ierror)
     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
-#endif       
+#endif
     
     if (resume >= 0) then
        cp_idx = resume
@@ -135,8 +135,14 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
-
+       
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
+
+       ! Load NCAR topography data (defined on non-adaptive grid at max_level)
+       if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') then
+          call load_topo
+          call apply_initial_conditions ! re-apply initial conditions to use NCAR topography surface pressure
+       end if
     end if
     call barrier
   end subroutine initialize
@@ -338,18 +344,7 @@ contains
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, run_id)
 
-    ! Delete temporary files
-    call barrier ! Do not delete files before everyone has read them
-    if (rank == 0) then
-       write (cmd_files, '(A,A,I4.4,A,A,A,I4.4)') &
-            trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
-       write (command, '(A,A)') '\rm ', trim (cmd_files)
-       write (bash_cmd, '(a,a,a)') 'bash -c "', trim (command), '"' 
-       call system (bash_cmd)
-    end if
-    call barrier
-
-    call adapt (set_thresholds, .false.) ! Do not re-calculate thresholds, compute masks based on active wavelets
+    call adapt (set_thresholds, .false.) ! do not re-calculate thresholds, compute masks based on active wavelets
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
 
@@ -391,8 +386,6 @@ contains
     implicit none
     character(*) :: run_id
     logical      :: rebal
-
-    character(1300) :: bash_cmd, cmd_archive, cmd_files, command
     
     cp_idx = cp_idx + 1 
 
@@ -412,18 +405,6 @@ contains
 ! #else
     call write_load_conn (cp_idx, run_id)
     call dump_adapt_mpi  (cp_idx, run_id)
-
-    ! Archive checkpoint (overwriting existing checkpoint if present)
-    call barrier ! Make sure all processors have written data
-    if (rank == 0) then
-       write (cmd_files, '(A,A,I4.4,A,A,A,I4.4)') &
-            trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
-       write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
-       write (command, '(A,A,A,A,A)') 'gtar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
-       write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-       call system (bash_cmd)
-    end if
-    call barrier ! make sure data is archived before restarting
     
     ! Must restart if want to load balance (compiled with mpi-lb)
     if (rebal) call restart (run_id)

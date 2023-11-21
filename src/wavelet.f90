@@ -513,106 +513,6 @@ contains
     end do
   end subroutine inverse_velo_transform_1
 
-  subroutine forward_topo_transform (scaling, wavelet, jmin_in, jmax_in)
-    ! Forward scalar wavelet transform
-    implicit none
-    integer, optional         :: jmin_in, jmax_in
-    type(Float_Field), target :: scaling, wavelet
-
-    integer :: d, jmin, jmax, l
-
-    if (present(jmin_in)) then
-       jmin = jmin_in
-    else
-       jmin = level_start
-    end if
-
-    if (present(jmax_in)) then
-       jmax = jmax_in
-    else
-       jmax = level_end
-    end if
-
-    if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
-       call abort
-    end if
-
-    do l = jmax-1, level_start-1, -1
-       call update_bdry (scaling, l+1)
-
-       ! Compute scalar wavelet coefficients
-       do d = 1, size(grid)
-          scalar => scaling%data(d)%elts
-          wc_s   => wavelet%data(d)%elts
-          call apply_interscale_d (Compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-          nullify (scalar, wc_s)
-       end do
-       call update_bdry (wavelet, l+1)
-
-       ! Restrict scalars (sub-sample and lift) to coarser grid
-       do d = 1, size(grid)
-          scalar => scaling%data(d)%elts
-          wc_s   => wavelet%data(d)%elts
-          call apply_interscale_d (Restrict_full_weighting, grid(d), l, z_null, 0, 1) ! +1 to include poles
-          nullify (scalar, wc_s)
-       end do
-       scaling%bdry_uptodate = .false.
-       wavelet%bdry_uptodate = .false.
-    end do
-  end subroutine forward_topo_transform
-
-  subroutine inverse_topo_transform (wavelet, scaling, jmin_in, jmax_in)
-    ! Inverse scalar wavelet transform
-    implicit none
-    integer, optional         :: jmin_in, jmax_in
-    type(Float_Field), target :: scaling, wavelet
-
-    integer :: d, jmin, jmax, l
-
-    if (present(jmin_in)) then
-       jmin = jmin_in
-    else
-       jmin = level_start
-    end if
-
-    if (present(jmax_in)) then
-       jmax = jmax_in
-    else
-       jmax = level_end
-    end if
-
-    if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
-       call abort
-    end if
-
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_bdry1 (scaling, jmin,                    jmax)
-
-    scaling%bdry_uptodate = .false.
-
-    do l = jmin, jmax-1
-       ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
-       do d = 1, size(grid)
-          scalar => scaling%data(d)%elts
-          wc_s   => wavelet%data(d)%elts
-          call apply_interscale_d2 (Prolong_full_weighting, grid(d), l, z_null, 0, 1) ! needs wc
-          nullify (scalar, wc_s)
-       end do
-       call update_bdry (scaling, l+1)
-
-       ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
-       do d = 1, size(grid)
-          scalar => scaling%data(d)%elts
-          wc_s   => wavelet%data(d)%elts
-          call apply_interscale_d (Reconstruct_scalar, grid(d), l, z_null, 0, 0)
-          nullify (scalar, wc_s)
-       end do
-       scaling%bdry_uptodate = .false.
-    end do
-  end subroutine inverse_topo_transform
-
   subroutine Restrict_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Restrict both scalar and potential temperature
     implicit none
@@ -663,51 +563,6 @@ contains
            wc_s(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4)) * dom%areas%elts(id_par+1)%hex_inv
     end function restrict_s
   end subroutine Restrict_scalar
-
-  subroutine Restrict_full_weighting (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Restrict both scalar and potential temperature
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: id_chd, id_par
-    integer :: idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
-
-    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
-
-    if (dom%mask_n%elts(id_chd+1) == 0) return
-
-    id_par = idx (i_par, j_par, offs_par, dims_par)
-
-    idE   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
-    id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
-    idN   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
-    idW   = idx (i_chd-1, j_chd,   offs_chd, dims_chd)
-    idNW  = idx (i_chd-1, j_chd+1, offs_chd, dims_chd)
-    idS2W = idx (i_chd-2, j_chd-1, offs_chd, dims_chd)
-    idSW  = idx (i_chd-1, j_chd-1, offs_chd, dims_chd)
-    idS   = idx (i_chd,   j_chd-1, offs_chd, dims_chd)
-    id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
-    idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
-
-    scalar(id_par+1) = (scalar(id_chd+1)/dom%areas%elts(id_chd+1)%hex_inv + &
-         scalar(idE+1)  * dom%overl_areas%elts(idE+1)%a(1)   + &
-         scalar(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2)  + &
-         scalar(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
-         scalar(id2NE+1) * dom%overl_areas%elts(id2NE+1)%a(4) + &
-         scalar(idN+1)   * dom%overl_areas%elts(idN+1)%a(1)   + &
-         scalar(idW+1)   * dom%overl_areas%elts(idW+1)%a(2)   + &
-         scalar(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3)  + &
-         scalar(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
-         scalar(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1)  + &
-         scalar(idS+1)   * dom%overl_areas%elts(idS+1)%a(2)   + &
-         scalar(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
-         scalar(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4) ) * dom%areas%elts(id_par+1)%hex_inv
-  end subroutine Restrict_full_weighting
 
   subroutine Prolong_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Prolong scalars to fine points existing at coarse scale by undoing lifting
@@ -768,49 +623,6 @@ contains
             ) * dom%areas%elts(id_par+1)%hex_inv
     end if
   end subroutine Prolong_scalar
-
-  subroutine Prolong_full_weighting (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Prolong scalars to fine points existing at coarse scale by undoing lifting
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: id_par, id_chd, idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
-
-    id_par = idx (i_par, j_par, offs_par, dims_par)
-    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
-
-    if (dom%mask_n%elts(id_chd+1) == FROZEN) return ! FROZEN mask -> do not overide with wrong value
-
-    idE   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
-    id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
-    idN   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
-    idW   = idx (i_chd-1, j_chd,   offs_chd, dims_chd)
-    idNW  = idx (i_chd-1, j_chd+1, offs_chd, dims_chd)
-    idS2W = idx (i_chd-2, j_chd-1, offs_chd, dims_chd)
-    idSW  = idx (i_chd-1, j_chd-1, offs_chd, dims_chd)
-    idS   = idx (i_chd,   j_chd-1, offs_chd, dims_chd)
-    id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
-    idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
-
-    scalar(id_chd+1) = (scalar(id_par+1)/dom%areas%elts(id_par+1)%hex_inv - &
-         (scalar(idE+1)  * dom%overl_areas%elts(idE+1)%a(1)   + &
-         scalar(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2)  + &
-         scalar(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
-         scalar(id2NE+1) * dom%overl_areas%elts(id2NE+1)%a(4) + &
-         scalar(idN+1)   * dom%overl_areas%elts(idN+1)%a(1)   + &
-         scalar(idW+1)   * dom%overl_areas%elts(idW+1)%a(2)   + &
-         scalar(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3)  + &
-         scalar(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
-         scalar(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1)  + &
-         scalar(idS+1)   * dom%overl_areas%elts(idS+1)%a(2)   + &
-         scalar(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
-         scalar(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4))) * dom%areas%elts(id_chd+1)%hex_inv
-  end subroutine Prolong_full_weighting
 
   subroutine Reconstruct_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Prolong scalars to fine nodes not existing at coarse scale by interpolating and adding wavelet coefficients

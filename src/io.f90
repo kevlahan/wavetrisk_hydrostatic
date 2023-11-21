@@ -846,9 +846,9 @@ contains
           outv(2) = dom%u_zonal%elts(id_i) * phi_node (d, id_i, zlev)  ! zonal velocity
           outv(3) = dom%v_merid%elts(id_i) * phi_node (d, id_i, zlev)  ! meridional velocity
 
-          if (compressible) then ! geopotential height at level zlev
+          if (compressible) then ! topography
              outv(4) = topography%data(d)%elts(id_i)
-          else ! topography 
+          else 
              outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
           end if
 
@@ -1065,7 +1065,8 @@ contains
 
     integer                          :: c, d, ibeg, iend, j, k, l, p_chd, p_lev, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
-    character(255)                   :: filename_gr, filename_no
+    character(9999)                  :: filename_gr, filename_no
+    character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
     logical, dimension(1:N_CHDRN)    :: required
     
     call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE)
@@ -1076,7 +1077,7 @@ contains
           do v = scalars(1), scalars(2)
              scalar => sol(v,k)%data(d)%elts
              wc_s   => wav_coeff(v,k)%data(d)%elts
-             call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+             call apply_interscale_d (Restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
              nullify (scalar, wc_s)
           end do
        end do
@@ -1084,7 +1085,7 @@ contains
           do k = 1, zlevels
              scalar => tke(k)%data(d)%elts
              wc_s   => wav_tke(k)%data(d)%elts
-             call apply_interscale_d (restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
+             call apply_interscale_d (Restrict_scalar, grid(d), min_level-1, k, 0, 1) ! +1 to include poles
              nullify (scalar, wc_s)
           end do
        end if
@@ -1185,6 +1186,18 @@ contains
        close (fid_no(d))
        close (fid_gr(d))
     end do
+
+    ! Archive checkpoint (overwriting existing checkpoint if present)
+    call barrier ! Make sure all processors have written data
+    if (rank == 0) then
+       write (cmd_files, '(a,a,i4.4,a,a,a,i4.4)') trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', &
+            trim (run_id), '_conn.', cp_idx
+       write (cmd_archive, '(a,i4.4,a)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
+       write (command,    '(a,a,a,a,a)') 'gtar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
+       write (bash_cmd,       '(a,a,a)') 'bash -c "', trim (command), '"'
+       call system (bash_cmd)
+    end if
+    call barrier ! make sure data is archived before restarting
   end subroutine dump_adapt_mpi
 
   subroutine write_scalar (dom, p, i, j, zlev, offs, dims, fid)
@@ -1213,7 +1226,7 @@ contains
     end if
   end subroutine write_scalar
 
-  subroutine dump_topo
+  subroutine save_topo
     ! Save topography data on non-adaptive max_level grid for restart
     ! (one file per domain)
     implicit none
@@ -1223,12 +1236,14 @@ contains
     character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
     logical, dimension(1:N_CHDRN)    :: required
 
+    ! Compute topography wavelets
+    call forward_scalar_transform (topography, wav_topography)
     call update_bdry (wav_topography, NONE)
 
     do d = 1, size(grid)
        scalar => topography%data(d)%elts
        wc_s   => wav_topography%data(d)%elts
-       call apply_interscale_d (restrict_scalar, grid(d), min_level-1, z_null, 0, 1) ! +1 to include poles
+       call apply_interscale_d (Restrict_scalar, grid(d), min_level-1, z_null, 0, 1) ! +1 to include poles
        nullify (scalar, wc_s)
     end do
 
@@ -1307,7 +1322,7 @@ contains
     write (command, '(a,a,a,a,a)') 'gtar czf ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
     write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
-  end subroutine dump_topo
+  end subroutine save_topo
 
   subroutine write_scalar_topo (dom, p, i, j, zlev, offs, dims, fid)
     ! For poles
@@ -1331,10 +1346,11 @@ contains
     implicit none
     integer      :: id
     character(*) :: run_id
-
-    character(255)                   :: filename_gr, filename_no
+    
     integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
+    character(9999)                  :: filename_gr, filename_no
+    character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
     logical, dimension(1:N_CHDRN)    :: required
     
     do r = 1, n_process
@@ -1385,7 +1401,7 @@ contains
     ! Load finer scales (wavelets) if present
     ! (level_end is initially level_start and is incremented by refine_patch1 if children are present)
     l = 1
-    do while (level_end > l) ! New level was added -> proceed to it
+    do while (level_end > l) ! new level was added -> proceed to it
        l = level_end 
        if (rank == 0) write (6,'(a,i2)') 'Loading level ', l
        do d = 1, size(grid)
@@ -1434,6 +1450,17 @@ contains
        tke%bdry_uptodate     = .false.
        wav_tke%bdry_uptodate = .false.
     end if
+
+    ! Delete temporary files
+    call barrier ! Do not delete files before everyone has read them
+    if (rank == 0) then
+       write (cmd_files, '(a,a,i4.4,a,a,a,i4.4)') &
+            trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
+       write (command,    '(a,a)') '\rm ', trim (cmd_files)
+       write (bash_cmd, '(a,a,a)') 'bash -c "', trim (command), '"' 
+       call system (bash_cmd)
+    end if
+    call barrier
   end subroutine load_adapt_mpi
 
   subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
@@ -1475,7 +1502,7 @@ contains
     ! Uncompress wavelet topography data
     if (rank == 0) then
        write (cmd_archive, '(a)') trim (topo_file)//".tgz"
-       write (6,'(a,a,/)') 'Loading topography file ', trim (cmd_archive)
+       write (6,'(/,a,a,/)') 'Loading topography file ', trim (cmd_archive)
        write (command, '(a,a)') 'gtar xzf ', trim (cmd_archive)
        write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
        call system (bash_cmd)
@@ -1514,7 +1541,7 @@ contains
     ! Load finer scales (wavelets) if present
     ! (level_end is initially level_start and is incremented by refine_patch1 if children are present)
     l = 1
-    do while (level_end > l) ! New level was added -> proceed to it
+    do while (level_end > l) ! new level was added -> proceed to it
        l = level_end 
        if (rank == 0) write (6,'(a,i2)') 'Loading level ', l
        do d = 1, size(grid)
@@ -1556,7 +1583,24 @@ contains
        write (bash_cmd,  '(a,a,a)') 'bash -c "', trim (command), '"' 
        call system (bash_cmd)
     end if
+    
+    ! Inverse wavelet transform to reconstruct topography data on all levels
+    call inverse_scalar_transform (wav_topography, topography, jmin_in=level_start-1)
   end subroutine load_topo
+
+  subroutine print_topo  (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+
+    d  = dom%id+1
+    id = idx (i, j, offs, dims) + 1
+    if (topography%data(d)%elts(id) > 1d4) write (6,'(es11.4)') topography%data(d)%elts(id)
+  end subroutine print_topo
 
   subroutine read_topo_scalar (dom, p, i, j, zlev, offs, dims, fid)
     ! For poles
@@ -1565,7 +1609,6 @@ contains
     integer                        :: fid, i, j, p, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-
     integer :: d, id
 
     d  = dom%id+1

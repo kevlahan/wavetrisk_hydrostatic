@@ -384,7 +384,7 @@ contains
     topography%bdry_uptodate = .false.
     call update_bdry (topography, max_level)
 
-    if (rank == 0) write (6,'(a,/)') "finished reading topography data."
+    if (rank == 0) write (6,'(a,/)') " finished reading topography data."
   contains
     subroutine read_geopotential
       ! Reads netcdf geopotential data onto a single core and saves the data as its wavelet coefficients

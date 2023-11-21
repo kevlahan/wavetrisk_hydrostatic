@@ -5,9 +5,7 @@ module test_case_mod
   use init_mod
   use std_atm_profile_mod
   implicit none
-  character(9999) :: topo_script, topo_type
-  logical         :: NCAR_topo = .true.
-  
+  character(9999) :: topo_script
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
