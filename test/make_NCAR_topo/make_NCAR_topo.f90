@@ -7,7 +7,7 @@ program make_NCAR_topo
   implicit none
   integer         :: l
   real(8)         :: fine_mass
-  character(9999) :: cmd
+  character(9999) :: bash_cmd, cmd
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -42,8 +42,9 @@ program make_NCAR_topo
   call write_grid_coords
   
   ! Generate smoothed NCAR topography
-  write (cmd,'(a,a)') 'source ', trim (topo_script)
-  call system (cmd)
+  write (cmd,       '(a,a)') 'source ', trim (topo_script)
+  write (bash_cmd,'(a,a,a)') 'bash -c "', trim (cmd), '"'
+  call system (bash_cmd)
 
   ! Generate and save wavelet topography files
   call assign_height (trim (topo_file))

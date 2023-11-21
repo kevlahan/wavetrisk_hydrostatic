@@ -511,18 +511,6 @@ program convterr
   output_fname = TRIM(str_dir)//'/'//trim(output_grid)//'_'//trim(str_source)//trim(ofile)//'.nc'
   write (6,*) "Writing topo file to ", output_fname
   
-  !*********************************************************
-  !
-  ! script for plotting
-  !
-  !*********************************************************
-  if (.not. lstop_after_smoothing) then
-     open (unit = 711, file= 'plot.sh' ,STaTUS='REPLACE',form="FORMATTEd")
-     write(711,*) 'ncl plot.ncl ''topoFile="', trim(output_fname),'"''',&
-          ' ''scripFile="',TRIM(grid_descriptor_fname),'"'''
-     close (711)
-  end if
-
   !+++aRH
   ! Compute overlap weights
   !------------------------------------------------------------------------------------------------
