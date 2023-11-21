@@ -166,21 +166,13 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: id, d, idN, idE, idNE, k
+    integer     :: id, d, k
     real(8)     :: p, p_s, pot_temp, sigma
-    type(Coord) :: x_i, x_E, x_N, x_NE
+    type(Coord) :: x_i
     
-    d = dom%id+1
-
-    id   = idx (i,   j,   offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-
-    x_i  = dom%node%elts(id+1)
-    x_E  = dom%node%elts(idE+1)
-    x_N  = dom%node%elts(idN+1)
-    x_NE = dom%node%elts(idNE+1)
+    d   = dom%id+1
+    id  = idx (i, j, offs, dims)
+    x_i = dom%node%elts(id+1)
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure (d, id+1)
@@ -188,23 +180,16 @@ contains
 
     do k = 1, zlevels
        ! Pressure at level k
-       p = 0.5d0 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_s)
-
-       ! Normalized pressure
+       p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s)
+       
+       ! Potential temperature
        sigma = (p - p_top) / (p_s - p_top)
        sigma_v = (sigma - sigma_0) * MATH_PI/2d0
-
-       ! Mass/Area = rho*dz at level k
-       sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
-
-       ! Potential temperature
        pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
        !     call cal_theta_eq (p, p_s, lat, theta_equil, k_T)
 
-       ! Mass-weighted potential temperature
+       sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
        sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
-
-       ! Set initial velocity field
        call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
     end do
   end subroutine init_sol
@@ -217,14 +202,14 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer :: id, d, k
+    integer     :: id, d, k
 
     d  = dom%id+1
     id = idx (i, j, offs, dims)
 
     ! Means are zero
     do k = 1, zlevels
-       sol_mean(S_MASS,k)%data(d)%elts(id+1)                      = 0d0
+       sol_mean(S_MASS,k)%data(d)%elts(id+1)                      = 0d0 
        sol_mean(S_TEMP,k)%data(d)%elts(id+1)                      = 0d0
        sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
@@ -277,7 +262,7 @@ contains
   real(8) function surf_geopot_case (d, id)
     ! Surface geopotential from Jablonowski and Williamson (2006)
     implicit none
-    integer       :: d, id
+    integer :: d, id
     
     Type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
@@ -300,8 +285,7 @@ contains
     ! Surface pressure
     implicit none
     integer :: d, id
-    real(8) :: p_s
-
+    
     real(8) :: z_s
     
     if (NCAR_topo) then ! use standard atmosphere
@@ -317,8 +301,25 @@ end function surf_pressure
     implicit none
     real(8) :: lon, lat, u, v
 
-    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 ! Zonal velocity component
-    v = 0d0                                         ! Meridional velocity component
+    real(8) :: rgrc
+    real(8) :: lat_c, lon_c, R_pert, u_p
+    logical :: baroclinic = .false. ! use barolinic jet instability initial condtions if T
+
+    lon_c  =     MATH_PI / 9d0 * RAD
+    lat_c  = 2d0*MATH_PI / 9d0 * RAD
+    R_pert = radius / 10d0     * METRE
+    u_p    = 1d0               * METRE/SECOND
+    
+    ! Zonal velocity component
+    if (baroclinic) then
+       rgrc = radius * acos(sin(lat_c) * sin(lat) + cos(lat_c) * cos(lat) * cos(lon-lon_c))
+       
+       u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 + u_p * exp__flush (-(rgrc/R_pert)**2)  
+    else
+       u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 
+    end if
+    
+    v = 0d0                                         ! meridional velocity component
   end subroutine vel_fun
 
   subroutine set_thresholds_case
