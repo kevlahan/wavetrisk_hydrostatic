@@ -924,7 +924,7 @@ contains
     idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
 
     scalar(id_par+1) = (scalar(id_chd+1)/dom%areas%elts(id_chd+1)%hex_inv + &
-         scalar(idE+1)  * dom%overl_areas%elts(idE+1)%a(1)   + &
+         scalar(idE+1)   * dom%overl_areas%elts(idE+1)%a(1)   + &
          scalar(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2)  + &
          scalar(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
          scalar(id2NE+1) * dom%overl_areas%elts(id2NE+1)%a(4) + &

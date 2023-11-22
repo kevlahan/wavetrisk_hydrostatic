@@ -109,50 +109,47 @@ program Held_Suarez
   call initialize (run_id)
   call print_test_case_parameters
 
-  call forward_scalar_transform (topography, wav_topography)
-  call inverse_scalar_transform (wav_topography, topography, jmin_in=level_start-1)
-  
   ! Save initial conditions
   call write_and_export (iwrite)
   
-  ! if (rank == 0) write (6,'(A,/)') &
-  !      '----------------------------------------------------- Start simulation run &
-  !      ------------------------------------------------------'
-  ! open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  ! total_cpu_time = 0d0
-  ! do while (time < time_end)
-  !    cfl_num = cfl (time) ! gradually increase cfl number
+  if (rank == 0) write (6,'(A,/)') &
+       '----------------------------------------------------- Start simulation run &
+       ------------------------------------------------------'
+  open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  total_cpu_time = 0d0
+  do while (time < time_end)
+     cfl_num = cfl (time) ! gradually increase cfl number
 
-  !    call start_timing
-  !    call time_step (dt_write, aligned)
-  !    if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
-  !    call euler (sol, wav_coeff, trend_cooling, dt)
-  !    call stop_timing
+     call start_timing
+     call time_step (dt_write, aligned)
+     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+     call euler (sol, wav_coeff, trend_cooling, dt)
+     call stop_timing
 
-  !    call sum_total_mass (.false.)
-  !    call print_log
+     call sum_total_mass (.false.)
+     call print_log
 
-  !    if (aligned) then
-  !       iwrite = iwrite+1
-  !       if (remap) call remap_vertical_coordinates
+     if (aligned) then
+        iwrite = iwrite+1
+        if (remap) call remap_vertical_coordinates
 
-  !       if (modulo (iwrite, CP_EVERY) == 0) then
-  !          call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
+        if (modulo (iwrite, CP_EVERY) == 0) then
+           call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
 
-  !          ! Save statistics
-  !          call combine_stats
-  !          if (rank == 0) call write_out_stats
-  !       end if
+           ! Save statistics
+           call combine_stats
+           if (rank == 0) call write_out_stats
+        end if
 
-  !       ! Save fields
-  !       call vertical_velocity
-  !       call write_and_export (iwrite)
-  !    end if
-  ! end do
+        ! Save fields
+        call vertical_velocity
+        call write_and_export (iwrite)
+     end if
+  end do
 
-  ! if (rank == 0) then
-  !    close (12)
-  !    write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
-  ! end if
+  if (rank == 0) then
+     close (12)
+     write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
+  end if
   call finalize
 end program Held_Suarez

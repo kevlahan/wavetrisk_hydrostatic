@@ -54,9 +54,8 @@ program make_NCAR_topo
      call forward_scalar_transform (topography, wav_topography)
   else
      call forward_topo_transform (topography, wav_topography)
-     call inverse_topo_transform (wav_topography, topography)
   end if
-  
+
   ! Check mass conservation
   fine_mass = integrate_hex (topo, z_null, max_level)
   do l = max_level-1, min_level, -1
