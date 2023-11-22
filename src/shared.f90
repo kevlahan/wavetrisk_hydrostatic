@@ -377,7 +377,7 @@ contains
     remapvelo_type      = "PPR"                             ! remapping scheme for velocity
     save_levels         = 1                                 ! vertical level to save
     timeint_type        = "RK45"                            ! time integration scheme (RK3 is default for incompressible case)
-    tol                 = 5d-3                              ! relative tolerance for adaptivity
+    tol                 = 0d0                               ! relative tolerance for adaptivity (default is non-adaptive)
     zlevels             = 20                                ! number of vertical levels
     zmin                = 1                                 ! lowest vertical level index
 

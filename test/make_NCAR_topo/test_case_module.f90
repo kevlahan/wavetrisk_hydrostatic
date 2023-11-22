@@ -4,6 +4,7 @@ module test_case_mod
   use utils_mod
   use init_mod
   use std_atm_profile_mod
+  use io_mod
   implicit none
   character(9999) :: topo_script
 contains
@@ -63,7 +64,7 @@ contains
     use wavelet_mod
     implicit none
 
-    threshold = 1d0
+    threshold = tol
   end subroutine set_thresholds_case
 
   subroutine initialize_a_b_vert_case
@@ -105,7 +106,8 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, topo_script
     read (fid,*) varname, topo_file
-        close(fid)
+    read (fid,*) varname, topo_save_wav
+    close(fid)
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
@@ -125,6 +127,7 @@ contains
        write (6,'(a,es10.4)') "grav_accel           = ", grav_accel
        write (6,'(a,a)')      "topo_script          = ", trim (topo_script)
        write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
+       write (6,'(a,l1)')     "topo_save_wav        = ", topo_save_wav
        write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'
@@ -135,7 +138,7 @@ contains
     implicit none
     allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
-    threshold_def = 1d0
+    threshold_def = tol
   end subroutine initialize_thresholds_case
 
   subroutine initialize_dt_viscosity_case

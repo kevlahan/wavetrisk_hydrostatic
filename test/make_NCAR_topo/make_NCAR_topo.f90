@@ -46,18 +46,26 @@ program make_NCAR_topo
   write (bash_cmd,'(a,a,a)') 'bash -c "', trim (cmd), '"'
   call system (bash_cmd)
 
-  ! Generate and save wavelet topography files
+  ! Assign to grid topography at max_level
   call assign_height (trim (topo_file))
 
-  ! Save wavelet topography data
-  call save_topo
-
+  ! Compute topography wavelets
+  if (topo_save_wav) then
+     call forward_scalar_transform (topography, wav_topography)
+  else
+     call forward_topo_transform (topography, wav_topography)
+     call inverse_topo_transform (wav_topography, topography)
+  end if
+  
   ! Check mass conservation
-  fine_mass = integrate_hex (topo, z_null, level_end)
-  do l = level_end-1, level_start, -1
+  fine_mass = integrate_hex (topo, z_null, max_level)
+  do l = max_level-1, min_level, -1
      write (6,'(a,i2,a,es10.4)') &
           "Relative mass error at level ", l, " = ", abs (integrate_hex (topo, z_null, l) - fine_mass)/fine_mass
   end do
+
+  ! Save topography data (coarsest scaling function and wavelets) on all non-adaptive levels
+  call save_topo
 
   call finalize
 end program

@@ -98,7 +98,7 @@ contains
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
           
-          dt_new = cpt_dt()
+          dt_new = cpt_dt ()
           call adapt (set_thresholds)
 
           call apply_initial_conditions
@@ -134,15 +134,9 @@ contains
             -------------------------------------------------'
 
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
-       if (rank==0) write (6,'(A,i8,/)') 'Initial number of dof = ', sum (n_active)
+       if (rank==0) write (6,'(a,i8,/)') 'Initial number of dof = ', sum (n_active)
        
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
-
-       ! Load NCAR topography data (defined on non-adaptive grid at max_level)
-       if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') then
-          call load_topo
-          call apply_initial_conditions ! re-apply initial conditions to use NCAR topography surface pressure
-       end if
     end if
     call barrier
   end subroutine initialize
@@ -298,9 +292,9 @@ contains
     implicit none
     character(*) :: run_id
     
-    integer        :: l    
-    character(1300) :: bash_cmd, cmd_archive, cmd_files, command
-
+    integer         :: l
+    character(9999) :: bash_cmd, cmd_archive, cmd_files, command
+    
     if (maxval (C_visc(S_MASS:S_TEMP)) > (1d0/6d0)**Laplace_order .or. C_visc(S_VELO) > (1d0/24d0)**Laplace_order) then
        if (rank == 0) write (6,*) "Dimensional viscosity too large ... aborting"
        call abort
@@ -321,16 +315,16 @@ contains
 
     ! Initialize vertical grid
     call initialize_a_b_vert
-
+    
     ! Determine vertical level to save
     call set_save_level
 
-    ! Uncompress checkpoint data
+    ! Uncompress checkpoint data (needed for init_structures and load_adapt_mpi)
     if (rank == 0) then
-       write (cmd_archive, '(A,I4.4,A)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
-       write (6,'(A,A,/)') 'Loading file ', trim (cmd_archive)
-       write (command, '(a,a)') 'gtar xzf ', trim (cmd_archive)
-       write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+       write (cmd_archive, '(a,i4.4,a)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
+       write (6,              '(a,a,/)') 'Loading file ', trim (cmd_archive)
+       write (command,          '(a,a)') 'gtar xzf ', trim (cmd_archive)
+       write (bash_cmd,       '(a,a,a)') 'bash -c "', trim (command), '"'
        call system (bash_cmd)
     end if
     call barrier ! make sure all archive files have been uncompressed
@@ -344,14 +338,22 @@ contains
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, run_id)
 
-    call adapt (set_thresholds, .false.) ! do not re-calculate thresholds, compute masks based on active wavelets
+    ! Compute masks based on active wavelets
+    ! (do not re-calculate thresholds)
+    call adapt (set_thresholds, .false.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
+
+    ! Load NCAR topography data (defined on non-adaptive grid from min_level to max_level)
+    if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') then
+       call load_topo 
+       call apply_initial_conditions ! re-apply initial conditions to use NCAR topography surface pressure
+    end if
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
 
-    ! Initialize topography, mean values, ...
+    ! Initialize mean values and other test case defined variables
     call update
 
     ! Initialize total mass value
@@ -406,8 +408,7 @@ contains
     call write_load_conn (cp_idx, run_id)
     call dump_adapt_mpi  (cp_idx, run_id)
     
-    ! Must restart if want to load balance (compiled with mpi-lb)
-    if (rebal) call restart (run_id)
+    call restart (run_id)
 !#endif
   end subroutine write_checkpoint
 

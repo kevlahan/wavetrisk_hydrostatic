@@ -4,11 +4,12 @@ module test_case_mod
   use utils_mod
   use init_mod
   use std_atm_profile_mod
+  use io_mod
   implicit none
 
   ! Standard variables
   integer :: CP_EVERY, resume_init
-  real(8) :: dt_cfl, total_cpu_time, dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8) :: total_cpu_time, dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
 
   ! Test case variables
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
@@ -128,7 +129,7 @@ contains
     end if
     physics_velo_source_case =  visc * (-1d0)**(Laplace_order-1) * (5d0 * grad_divu () - curl_rotu ())
   contains
-    function grad_divu()
+    function grad_divu ()
       implicit none
       real(8), dimension(3) :: grad_divu
 
@@ -143,7 +144,7 @@ contains
       grad_divu(UP+1) = (divu(idN+1) - divu(id+1))  /dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
-    function curl_rotu()
+    function curl_rotu ()
       implicit none
       real(8), dimension(3) :: curl_rotu
 
@@ -504,6 +505,7 @@ end function surf_pressure
     read (fid,*) varname, zlevels
     read (fid,*) varname, save_zlev
     read (fid,*) varname, NCAR_topo
+    read (fid,*) varname, topo_save_wav
     read (fid,*) varname, topo_file
     read (fid,*) varname, tol
     read (fid,*) varname, dt_write
@@ -630,6 +632,7 @@ end function surf_pressure
        write (6,'(a,es10.4)') "delta_T             = ", delta_T
        write (6,'(a,es10.4,/)') "delta_theta         = ", delta_theta
        write (6,'(a,l)')      "NCAR_topo           = ", NCAR_topo
+       write (6,'(a,l1)')     "topo_save_wav       = ", topo_save_wav
        write (6,'(a,a)')      "topo_file           = ", trim (topo_file)
        write (6,'(a)') &
             '*********************************************************************&

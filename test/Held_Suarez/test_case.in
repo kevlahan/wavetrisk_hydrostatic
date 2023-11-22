@@ -4,6 +4,7 @@ max_level	   7           ! maximum level of resolution
 zlevels            32          ! number of vertical levels
 save_zlev          7           ! vertical level to save (save_zlev < 0 -> save all levels)
 NCAR_topo          T           ! use realistic topography (compile with flag TOPO=.true.)		  
+topo_wav_save      T           ! save topography as wavelets (T) or using full weight restriction (F)
 topo_file          J07_gmted2010_bedmachine-ncube0540-220518_0060km
 tol      	   0e-2        ! non-dimensional tolerance
 dt_write           1           ! save interval (days)
