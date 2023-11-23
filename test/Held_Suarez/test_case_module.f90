@@ -505,7 +505,6 @@ end function surf_pressure
     read (fid,*) varname, zlevels
     read (fid,*) varname, save_zlev
     read (fid,*) varname, NCAR_topo
-    read (fid,*) varname, topo_save_wav
     read (fid,*) varname, topo_file
     read (fid,*) varname, tol
     read (fid,*) varname, dt_write

@@ -87,8 +87,8 @@ program Held_Suarez
   T_cfl              = 10d0 * DAY                   ! time over which to increas cfl number from cfl_min to cfl_max
   dt_init            = cfl_min * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
 
-  timeint_type       = "RK33"
-  iremap             = 10
+  timeint_type       = "RK34"
+  iremap             = 5
 
   default_thresholds = .false.
   compressible       = .true.

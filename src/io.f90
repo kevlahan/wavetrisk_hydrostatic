@@ -795,12 +795,14 @@ contains
     call system (bash_cmd)
 
     command = 'gtar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd, info)
+    call system (command, info)
     if (info /= 0) then
        if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
        call abort
     end if
+
+    command = '\rm -f tmp'
+    call system (command)
   end subroutine write_out_stats
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, funit)
@@ -1046,7 +1048,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, fid, id, k
+    integer :: e, id, info, fid, k
 
     id = idx(i, j, offs, dims)
 
@@ -1065,7 +1067,7 @@ contains
     integer      :: id
     character(*) :: run_id
 
-    integer                          :: c, d, ibeg, iend, j, k, l, p_chd, p_lev, p_par, r, v
+    integer                          :: c, d, ibeg, iend, info, j, k, l, p_chd, p_lev, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(9999)                  :: filename_gr, filename_no
     character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
@@ -1194,7 +1196,11 @@ contains
        write (cmd_archive, '(a,i4.4,a)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (command,    '(a,a,a,a,a)') 'gtar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
        write (bash_cmd,       '(a,a,a)') 'bash -c "', trim (command), '"'
-       call system (bash_cmd)
+       call system (bash_cmd, info)
+       if (info /= 0) then
+          if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+          call abort
+       end if
     end if
     call barrier ! make sure data is archived before restarting
   end subroutine dump_adapt_mpi
@@ -1416,6 +1422,9 @@ contains
     end do
 
     do d = 1, size(grid)
+       ! Save type of multiscale topography
+       write (fid_no(d)) topo_save_wav
+       
        if (topo_save_wav) then
           ! Write topography at coarsest scale (scaling functions)
           call apply_to_pole_d (write_scalar_topo, grid(d), min_level-1, z_null, fid_no(d), .true.)
@@ -1474,7 +1483,7 @@ contains
     ! !! assumes topgraphy data was saved on a non-adaptive grid !!
     !
     implicit none
-    integer                          :: d, ibeg, iend, j, l, p_par, r
+    integer                          :: d, ibeg, iend, info, j, l, p_par, r
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(9999)                  :: filename_gr, filename_no
     character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
@@ -1485,7 +1494,11 @@ contains
        write (6,'(/,a,a,/)') 'Loading topography file ', trim (cmd_archive)
        write (command, '(a,a)') 'gtar xzf ', trim (cmd_archive)
        write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
-       call system (bash_cmd)
+       call system (bash_cmd, info)
+       if (info /= 0) then
+          if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+          call abort
+       end if
     end if
     call barrier
 
@@ -1509,6 +1522,9 @@ contains
     end do
     
     do d = 1, size(grid)
+       ! Read type of multiscale topography
+       read (fid_no(d)) topo_save_wav
+       
        if (topo_save_wav) then
           ! Read coarsest scale topography data (scaling function)
           call apply_to_pole_d (read_scalar_topo, grid(d), min_level-1, z_null, fid_no(d), .true.)
@@ -2071,8 +2087,7 @@ contains
     call system (bash_cmd)
 
     command = 'gtar cfz '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files'
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd, info)
+    call system (command, info)
     if (info /= 0) then
        if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
        call abort
@@ -2080,10 +2095,12 @@ contains
 
     command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd, info)
+    call system (bash_cmd)
 
     command = 'gtar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd, info)
+    call system (command)
+
+    command = '\rm -f tmp1 tmp2'
+    call system (command)
   end subroutine compress_files
 end module io_mod

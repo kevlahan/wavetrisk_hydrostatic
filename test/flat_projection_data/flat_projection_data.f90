@@ -1224,7 +1224,7 @@ contains
 
   subroutine write_out
     ! Writes out results
-    integer            :: i, k, v
+    integer            :: i, info, k, v
     integer, parameter :: funit = 400
 
     ! 2d projections
@@ -1295,9 +1295,16 @@ contains
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
+
     command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (command, info)
+    if (info /= 0) then
+       if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+       call abort
+    end if
+
+    command = '\rm -f tmp'
+    call system (command)
   end subroutine write_out
 
   subroutine write_out_drake
@@ -1344,8 +1351,7 @@ contains
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
     command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (command)
 
     ! Write out kinetic energies
     open (unit=funit, file=trim(run_id)//'_kinetic_energy', form="FORMATTED", status="REPLACE")
@@ -1398,8 +1404,7 @@ contains
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
     command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (command)
 
     ! Write out kinetic energies
     open (unit=funit, file=trim(run_id)//'_kinetic_energy', form="FORMATTED", status="REPLACE")
@@ -1475,8 +1480,7 @@ contains
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (bash_cmd)
     command = 'gtar czf '//trim(run_id)//'.5.'//s_time//'.tgz -T tmp --remove-files &'
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (command)
   end subroutine write_slice
 
   subroutine initialize_stat
