@@ -36,7 +36,7 @@ contains
     
     integer                                       :: iter, l
     integer, dimension(level_start:level_end)     :: iterations
-    real(8)                                       :: cpu, err, rel_err, t0
+    real(8)                                       :: err, rel_err
     real(8), dimension(level_start:level_end)     :: nrm_f
     real(8), dimension(level_start:level_end,1:2) :: nrm_res
     type(Float_Field)                             :: res
@@ -70,8 +70,6 @@ contains
        call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
-    if (log_iter) t0 = MPI_Wtime ()  
-
     ! Full multigrid iterations
     l = level_start
     call bicgstab (u, f, nrm_f(l), Lu, l, coarse_tol, coarse_iter, nrm_res(l,2), iterations(l))
@@ -86,8 +84,6 @@ contains
     end do
 
     if (log_iter) then
-       cpu = MPI_Wtime () - t0
-       if (rank==0) write (6,'(/,a,es10.4,a,/)') "FMG solver CPU time = ", cpu, "s"
        if (test_elliptic) then
           if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Relative error      Iterations"
           do l = level_start, level_end
@@ -151,7 +147,6 @@ contains
     
     integer                                       :: l, n
     integer, dimension(level_start:level_end)     :: iterations
-    real(8)                                       :: cpu, t0
     real(8), dimension(1:m)                       :: w
     real(8), dimension(level_start:level_end)     :: nrm_f
     real(8), dimension(level_start:level_end,1:2) :: nrm_res
@@ -184,8 +179,6 @@ contains
        if (log_iter) call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
-    if (log_iter) t0 = MPI_Wtime ()  
-
     if (max_srj_iter < m) then ! do not use SRJ
        w = 1d0
     else 
@@ -203,7 +196,6 @@ contains
     end do
     
     if (log_iter) then
-       cpu = MPI_Wtime () - t0; if (rank==0) write (6,'(/,a,es10.4,a,/)') "SJR solver CPU time = ", cpu, "s"
        if (rank == 0) write (6,'(a)') "Scale     Initial residual   Final residual    Iterations"
        do l = level_start, level_end
           if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') l, nrm_res(l,:), iterations(l)
