@@ -94,6 +94,7 @@ program Held_Suarez
   compressible       = .true.
   remap              = .true.
   uniform            = .false.
+  baro_inst_ic       = .true.                       ! use baroclinic jet instability velocity initial conditions
   
   ! Diffusion parameters
   Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.

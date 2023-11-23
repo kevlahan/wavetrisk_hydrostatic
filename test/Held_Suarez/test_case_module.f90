@@ -304,23 +304,27 @@ end function surf_pressure
     real(8) :: lon, lat, u, v
 
     real(8) :: rgrc
-    real(8) :: lat_c, lon_c, R_pert, u_p
+    real(8) :: lat_c, lon_c, r, R_pert, u_p
 
     lon_c  =     MATH_PI / 9d0 * RAD
     lat_c  = 2d0*MATH_PI / 9d0 * RAD
     R_pert = radius / 10d0     * METRE
     u_p    = 1d0               * METRE/SECOND
-    
+
     ! Zonal velocity component
     if (baro_inst_ic) then
        rgrc = radius * acos (sin (lat_c) * sin (lat) + cos (lat_c) * cos (lat) * cos (lon-lon_c))
-       
        u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 + u_p * exp__flush (-(rgrc / R_pert)**2)  
     else
        u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 
     end if
-    
-    v = 0d0                                         ! meridional velocity component
+
+    ! Add random perturbation to zonal velocity
+    call random_number (r)
+    u = u + r
+
+    ! Meridional velocity component
+    v = 0d0 
   end subroutine vel_fun
 
   subroutine set_thresholds_case
@@ -826,26 +830,26 @@ end function surf_pressure
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
+    integer :: id
     real(8) :: k_T, lat, lon, sigma, theta_equil
 
-    id_i = idx (i, j, offs, dims) + 1
+    id = idx (i, j, offs, dims) + 1
 
-    dmass(id_i) = 0d0
+    dmass(id) = 0d0
 
-    call cart2sph (dom%node%elts(id_i), lon, lat)
-    call cal_theta_eq (dom%press%elts(id_i), dom%surf_press%elts(id_i), lat, theta_equil, k_T)
+    call cart2sph (dom%node%elts(id), lon, lat)
+    call cal_theta_eq (dom%press%elts(id), dom%surf_press%elts(id), lat, theta_equil, k_T)
 
     if (NCAR_topo) then 
-       sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
+       sigma = (dom%press%elts(id) - p_top) / (dom%surf_press%elts(id) - p_top)
 
        if (sigma > 0.7d0) then ! no temperature relaxation in lower part of atmosphere
-          dtemp(id_i) = 0d0
+          dtemp(id) = 0d0
        else
-          dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))          
+          dtemp(id) = - k_T * (temp(id) - theta_equil * mass(id))          
        end if
     else
-       dtemp(id_i) = - k_T * (temp(id_i) - theta_equil*mass(id_i))
+       dtemp(id) = - k_T * (temp(id) - theta_equil * mass(id))
     end if
   end subroutine trend_scalars
 
@@ -864,7 +868,7 @@ end function surf_pressure
     id_i = id+1
 
     sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
-    k_v = k_f * max (0d0, (sigma-sigma_b)/sigma_c)
+    k_v = k_f * max (0d0, (sigma - sigma_b) / sigma_c)
 
     dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - k_v * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   end subroutine trend_velo
@@ -885,7 +889,7 @@ end function surf_pressure
     full_mass = mass(id_i) + mean_m(id_i)
     p_upper = dom%press_lower%elts(id_i) - grav_accel * full_mass
 
-    dom%press%elts(id_i) = 0.5 * (dom%press_lower%elts(id_i) + p_upper)
+    dom%press%elts(id_i) = 0.5d0 * (dom%press_lower%elts(id_i) + p_upper)
     dom%press_lower%elts(id_i) = p_upper
   end subroutine cal_press_HS
 
