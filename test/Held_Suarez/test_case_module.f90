@@ -15,6 +15,7 @@ module test_case_mod
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
   real(8) :: cfl_max, cfl_min, T_cfl
+  logical :: baro_inst_ic 
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -304,7 +305,6 @@ end function surf_pressure
 
     real(8) :: rgrc
     real(8) :: lat_c, lon_c, R_pert, u_p
-    logical :: baroclinic = .false. ! use barolinic jet instability initial condtions if T
 
     lon_c  =     MATH_PI / 9d0 * RAD
     lat_c  = 2d0*MATH_PI / 9d0 * RAD
@@ -312,10 +312,10 @@ end function surf_pressure
     u_p    = 1d0               * METRE/SECOND
     
     ! Zonal velocity component
-    if (baroclinic) then
-       rgrc = radius * acos(sin(lat_c) * sin(lat) + cos(lat_c) * cos(lat) * cos(lon-lon_c))
+    if (baro_inst_ic) then
+       rgrc = radius * acos (sin (lat_c) * sin (lat) + cos (lat_c) * cos (lat) * cos (lon-lon_c))
        
-       u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 + u_p * exp__flush (-(rgrc/R_pert)**2)  
+       u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 + u_p * exp__flush (-(rgrc / R_pert)**2)  
     else
        u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 
     end if
@@ -579,11 +579,9 @@ end function surf_pressure
        write (6,'(a,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
        write (6,'(a,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
        write (6,'(a,i3)')     "zlevels             = ", zlevels
-       write (6,'(a,i3,1x,f10.2,a)')     "save_zlev           = ", save_zlev, p_save/1d2, ' [hPa]'
+       write (6,'(a,i3,1x,f6.1,a)')     "save_zlev           = ", save_zlev, p_save/1d2, ' [hPa]'
        write (6,'(a,l1)')     "uniform             = ", uniform
        write (6,'(a,l1)')     "remap               = ", remap
-       write (6,'(a,a)')      "remapscalar_type    = ", trim (remapscalar_type)
-       write (6,'(a,a)')      "remapvelo_type      = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap              = ", iremap
        write (6,'(a,l1)')     "default_thresholds  = ", default_thresholds
        write (6,'(a,es10.4)') "tolerance           = ", tol
@@ -600,7 +598,7 @@ end function surf_pressure
             "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order_init, &
             "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order_init 
        write (6,'(a,es10.4)') "dt_write        [d] = ", dt_write / DAY
-       write (6,'(a,i6)')     "CP_EVERY            = ", CP_EVERY
+       write (6,'(a,i3)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance           = ", rebalance
        write (6,'(a,es10.4)') "time_end        [d] = ", time_end / DAY
        write (6,'(a,i6)')     "resume              = ", resume_init
@@ -615,11 +613,11 @@ end function surf_pressure
        write (6,'(a,es10.4)') "c_v      [J/(kg K)] = ", c_v
        write (6,'(a,es10.4)') "gamma               = ", gamma
        write (6,'(a,es10.4)') "kappa               = ", kappa
-       write (6,'(a,f10.1)') "dx_max          [km] = ", dx_max / KM
-       write (6,'(a,f10.1)') "dx_min          [km] = ", dx_min / KM
+       write (6,'(a,f10.1)') "dx_max         [km] = ", dx_max / KM
+       write (6,'(a,f10.1)') "dx_min         [km] = ", dx_min / KM
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
-       write (6,'(a,f4.0)')   "T_0             [K] = ", T_0
+       write (6,'(a,f5.1)')   "T_0             [K] = ", T_0
        write (6,'(a,es10.4)') "T_mean          [K] = ", T_mean
        write (6,'(a,es10.4)') "T_tropo         [K] = ", T_tropo
        write (6,'(a,es10.4)') "sigma_b             = ", sigma_b
@@ -628,6 +626,7 @@ end function surf_pressure
        write (6,'(a,es10.4)') "k_s           [1/d] = ", k_s / DAY
        write (6,'(a,es10.4)') "delta_T       [K/m] = ", delta_T
        write (6,'(a,es10.4)') "delta_theta   [K/m] = ", delta_theta
+       write (6,'(a,l1)')     "delta_theta         = ", baro_inst_ic
        write (6,'(a,es10.4,/)') "wave_speed   [m/s]  = ", wave_speed
        write (6,'(a,l)')      "NCAR_topo           = ", NCAR_topo
        write (6,'(a,l1)')     "topo_save_wav       = ", topo_save_wav

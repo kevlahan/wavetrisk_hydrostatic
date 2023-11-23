@@ -83,12 +83,12 @@ program Held_Suarez
   dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
   
   cfl_min            = 1d-1                         ! minimum cfl number
-  cfl_max            = 1d0                          ! maximum cfl number
-  T_cfl              = 5d0 * DAY                   ! time over which to increas cfl number from cfl_min to cfl_max
+  cfl_max            = 0.8d0                        ! maximum cfl number
+  T_cfl              = 3d0 * DAY                    ! time over which to increas cfl number from cfl_min to cfl_max
   dt_init            = cfl_min * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
 
   timeint_type       = "RK4"
-  iremap             = 10
+  iremap             = 5
 
   default_thresholds = .false.
   compressible       = .true.

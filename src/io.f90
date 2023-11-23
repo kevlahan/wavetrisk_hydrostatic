@@ -844,7 +844,6 @@ contains
              outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i) / full_mass * (dom%press%elts(id_i)/p_0)**kappa
           else
              outv(1) = ref_density * (1.0_8 - full_temp / full_mass) ! density
-             !outv(1) = -ref_density * full_temp / full_mass  ! density perturbation
           end if
 
           outv(2) = dom%u_zonal%elts(id_i) * phi_node (d, id_i, zlev)  ! zonal velocity
@@ -857,9 +856,9 @@ contains
           end if
 
           if (compressible .or. .not. penalize) then
-             outv(5) = full_mass / ref_density ! layer depth
+             outv(5) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
           else 
-             outv(5) = penal_node(zlev)%data(d)%elts(id_i) ! penalization mask
+             outv(5) = penal_node(zlev)%data(d)%elts(id_i)   ! penalization mask
           end if
 
           if (compressible) then ! surface pressure
@@ -867,8 +866,7 @@ contains
           else ! free surface perturbation
              if (mode_split) then 
                 outv(6) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
-!!$                outv(6) = -dom%topo%elts(id_i) ! bathymetry
-             else
+              else
                 outv(6) = free_surface (dom, i, j, zlev, offs, dims, sol)
              end if
           end if
