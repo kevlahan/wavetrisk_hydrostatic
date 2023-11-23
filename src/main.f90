@@ -392,7 +392,7 @@ contains
     cp_idx = cp_idx + 1 
 
     if (rank == 0) then
-       write (6,'(A,/)') &
+       write (6,'(/,a,/)') &
             '************************************************************************&
             **********************************************************'
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
@@ -519,16 +519,16 @@ contains
           do k = 1, zlevels
              v_mag = maxval (abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)))
              if (mode_split) then
-                dt_loc = min (dt_loc, dt_init, cfl_num*dx/wave_speed, cfl_adv*dx/v_mag, cfl_bar*dx/c1)
+                dt_loc = min (dt_loc, cfl_num * dx / wave_speed, cfl_adv * dx / v_mag, cfl_bar * dx / c1)
              else
-                dt_loc = min (dt_loc, dt_init, cfl_num*dx/(v_mag + wave_speed))
+                dt_loc = min (dt_loc, cfl_num * dx / (v_mag + wave_speed))
              end if
           end do
        end if
     end if
 
     do e = 1, EDGE
-       id_e = EDGE*id+e
+       id_e = EDGE * id + e 
        if (dom%mask_e%elts(id_e) >= ADJZONE) n_active_edges(l) = n_active_edges(l) + 1
     end do
   end subroutine cal_min_dt

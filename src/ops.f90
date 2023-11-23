@@ -952,16 +952,16 @@ contains
 
       dom%surf_press%elts(id) = 0d0
       do k = 1, zlevels
+         full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id)
          if (compressible) then
-            dom%surf_press%elts(id) = dom%surf_press%elts(id) + q(S_MASS,k)%data(d)%elts(id)
+            dom%surf_press%elts(id) = dom%surf_press%elts(id) + full_mass
          else
-            full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id)
             full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + q(S_TEMP,k)%data(d)%elts(id)
 
             dom%surf_press%elts(id) = dom%surf_press%elts(id) + (full_mass - full_temp)
          end if
       end do
-      dom%surf_press%elts(id) = grav_accel*dom%surf_press%elts(id) + p_top
+      dom%surf_press%elts(id) = grav_accel * dom%surf_press%elts(id) + p_top
 
       dom%press_lower%elts(id) = dom%surf_press%elts(id)
     end subroutine column_mass
@@ -1001,18 +1001,18 @@ contains
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
+    full_mass                 = mean_m(id) + mass(id)
+    full_temp                 = mean_t(id) + temp(id)
     dom%geopot_lower%elts(id) = dom%geopot%elts(id)
     if (compressible) then ! compressible case
-       p_upper = dom%press_lower%elts(id) - grav_accel*mass(id)
+       p_upper = dom%press_lower%elts(id) - grav_accel * full_mass
+       
        dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
 
        exner(id) = c_p * (dom%press%elts(id)/p_0)**kappa
 
-       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel*kappa*temp(id)*exner(id)/dom%press%elts(id)
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * kappa * full_temp * exner(id) / dom%press%elts(id)
     else ! incompressible case
-       full_mass = mean_m(id) + mass(id)
-       full_temp = mean_t(id) + temp(id)
-
        p_upper = dom%press_lower%elts(id) - grav_accel * (full_mass - full_temp)
 
        dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
@@ -1035,12 +1035,11 @@ contains
 
     id = idx (i, j, offs, dims) + 1
 
+    full_mass = mean_m(id) + mass(id)
+
     if (compressible) then ! Compressible case
-       full_mass = mean_m(id) + mass(id)
-       
        p_upper = dom%press_lower%elts(id) - grav_accel * full_mass
     else ! Incompressible case
-       full_mass = mean_m(id) + mass(id)
        full_temp = mean_t(id) + temp(id)
        
        p_upper = dom%press_lower%elts(id) - grav_accel * (full_mass - full_temp)

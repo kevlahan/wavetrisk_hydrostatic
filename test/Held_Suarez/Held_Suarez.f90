@@ -70,25 +70,25 @@ program Held_Suarez
   dPdim          = 80d0     * hPa                   ! scale of surface pressure variation determining mass tolerance scale
 
   ! Dimensional scaling
-  specvoldim     = (R_d*Tempdim)/Pdim               ! specific volume scale
-  wave_speed     = sqrt(gamma*Pdim*specvoldim)      ! acoustic wave speed
+  specvoldim     = (R_d * Tempdim) / Pdim           ! specific volume scale
+  wave_speed     = sqrt (gamma * Pdim * specvoldim) ! acoustic wave speed
 
   Udim           = 30d0 * METRE/SECOND              ! velocity scale
   Tdim           = 1d0  * DAY                       ! time scale
-  Ldim           = Udim*Tdim                        ! length scale
-  Hdim           = wave_speed**2/grav_accel         ! vertical length scale
+  Ldim           = Udim * Tdim                      ! length scale
+  Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
   ! Numerical method parameters
   dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
   dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
   
-  cfl_min            = 2d-1                         ! minimum cfl number
+  cfl_min            = 1d-1                         ! minimum cfl number
   cfl_max            = 1d0                          ! maximum cfl number
-  T_cfl              = 10d0 * DAY                   ! time over which to increas cfl number from cfl_min to cfl_max
+  T_cfl              = 5d0 * DAY                   ! time over which to increas cfl number from cfl_min to cfl_max
   dt_init            = cfl_min * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
 
-  timeint_type       = "RK34"
-  iremap             = 5
+  timeint_type       = "RK4"
+  iremap             = 10
 
   default_thresholds = .false.
   compressible       = .true.

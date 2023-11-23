@@ -203,7 +203,7 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: id, d, k
+    integer :: id, d, k
 
     d  = dom%id+1
     id = idx (i, j, offs, dims)
@@ -228,11 +228,11 @@ contains
 
     sigma = (p - p_top) / (p_s - p_top)
 
-    k_T = k_a + (k_s-k_a) * max (0d0, (sigma-sigma_b)/sigma_c) * cs2**2
+    k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
 
-    theta_tropo = T_tropo * (p/p_0)**(-kappa) ! Potential temperature at tropopause
+    theta_tropo = T_tropo * (p / p_0)**(-kappa) ! Potential temperature at tropopause
 
-    theta_force = T_mean - delta_T*(1d0-cs2) - delta_theta*cs2 * log (p/p_0)
+    theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
 
     theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
   end subroutine cal_theta_eq
@@ -435,10 +435,7 @@ end function surf_pressure
        b_vert = b_vert(zlevels+1:1:-1)
     end if
 
-    ! LMDZ grid
-    !call cal_AB
-
-    p_top = a_vert(zlevels+1)
+    p_top = a_vert(zlevels+1) ! assumes b_vert(zlevels+1) = 0
 
     ! Set mass coefficients
     a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
@@ -496,7 +493,7 @@ end function surf_pressure
     else
        filename = 'test_case.in'
     end if
-    if (rank == 0) write (6,'(a,A)') "Input file = ", trim (filename)
+    if (rank == 0) write (6,'(/,a,a,/)') "Input file = ", trim (filename)
 
     open (unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
@@ -602,34 +599,36 @@ end function surf_pressure
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
             "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order_init, &
             "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order_init 
-       write (6,'(a,i2)')     "n_diffuse           = ", n_diffuse
-       write (6,'(a,es10.4)') "dt_write (day)      = ", dt_write/DAY
+       write (6,'(a,es10.4)') "dt_write        [d] = ", dt_write / DAY
        write (6,'(a,i6)')     "CP_EVERY            = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance           = ", rebalance
-       write (6,'(a,es10.4)') "time_end (day)      = ", time_end/DAY
+       write (6,'(a,es10.4)') "time_end        [d] = ", time_end / DAY
        write (6,'(a,i6)')     "resume              = ", resume_init
 
        write (6,'(/,a)')      "STANDARD PARAMETERS"
-       write (6,'(a,es10.4)') "radius              = ", radius
-       write (6,'(a,es10.4)') "omega               = ", omega
-       write (6,'(a,es10.4)') "p_0   (hPa)         = ", p_0/100
-       write (6,'(a,es10.4)') "p_top (hPa)         = ", p_top/100
-       write (6,'(a,es10.4)') "R_d                 = ", R_d
-       write (6,'(a,es10.4)') "c_p                 = ", c_p
-       write (6,'(a,es10.4)') "c_v                 = ", c_v
+       write (6,'(a,es10.4)') "radius         [km] = ", radius / KM
+       write (6,'(a,es10.4)') "omega       [rad/s] = ", omega
+       write (6,'(a,es10.4)') "p_0           [hPa] = ", p_0/100d0
+       write (6,'(a,es10.4)') "p_top         [hPa] = ", p_top/100d0
+       write (6,'(a,es10.4)') "R_d      [J/(kg K)] = ", R_d
+       write (6,'(a,es10.4)') "c_p      [J/(kg K)] = ", c_p
+       write (6,'(a,es10.4)') "c_v      [J/(kg K)] = ", c_v
        write (6,'(a,es10.4)') "gamma               = ", gamma
        write (6,'(a,es10.4)') "kappa               = ", kappa
+       write (6,'(a,f10.1)') "dx_max          [km] = ", dx_max / KM
+       write (6,'(a,f10.1)') "dx_min          [km] = ", dx_min / KM
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
-       write (6,'(a,es10.4)') "T_0                 = ", T_0
-       write (6,'(a,es10.4)') "T_mean              = ", T_mean
-       write (6,'(a,es10.4)') "T_tropo             = ", T_tropo
+       write (6,'(a,f4.0)')   "T_0             [K] = ", T_0
+       write (6,'(a,es10.4)') "T_mean          [K] = ", T_mean
+       write (6,'(a,es10.4)') "T_tropo         [K] = ", T_tropo
        write (6,'(a,es10.4)') "sigma_b             = ", sigma_b
-       write (6,'(a,es10.4)') "k_a                 = ", k_a
-       write (6,'(a,es10.4)') "k_f                 = ", k_f
-       write (6,'(a,es10.4)') "k_s                 = ", k_s
-       write (6,'(a,es10.4)') "delta_T             = ", delta_T
-       write (6,'(a,es10.4,/)') "delta_theta         = ", delta_theta
+       write (6,'(a,es10.4)') "k_a           [1/d] = ", k_a / DAY
+       write (6,'(a,es10.4)') "k_f           [1/d] = ", k_f / DAY
+       write (6,'(a,es10.4)') "k_s           [1/d] = ", k_s / DAY
+       write (6,'(a,es10.4)') "delta_T       [K/m] = ", delta_T
+       write (6,'(a,es10.4)') "delta_theta   [K/m] = ", delta_theta
+       write (6,'(a,es10.4,/)') "wave_speed   [m/s]  = ", wave_speed
        write (6,'(a,l)')      "NCAR_topo           = ", NCAR_topo
        write (6,'(a,l1)')     "topo_save_wav       = ", topo_save_wav
        write (6,'(a,a)')      "topo_file           = ", trim (topo_file)
@@ -650,7 +649,7 @@ end function surf_pressure
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
-    total_layers = size(threshold, 2)
+    total_layers = size (threshold, 2)
 
     if (rank == 0) then
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es8.2,1x))') &
@@ -913,7 +912,7 @@ end function surf_pressure
           end do
           nullify (mass, mean_m, mean_t, temp)
        end do
-       grid(d)%surf_press%elts = grav_accel*grid(d)%surf_press%elts + p_top
+       grid(d)%surf_press%elts = grav_accel * grid(d)%surf_press%elts + p_top
 
        grid(d)%press_lower%elts = grid(d)%surf_press%elts
     end do
@@ -927,11 +926,15 @@ end function surf_pressure
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
+    integer :: d, id
+    real(8) :: full_mass
 
-    id_i = idx (i, j, offs, dims) + 1
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
 
-    dom%surf_press%elts(id_i) = dom%surf_press%elts(id_i) + mass(id_i)
+    full_mass = sol_mean(S_MASS,zlev)%data(d)%elts(id) + mass(id)
+
+    dom%surf_press%elts(id) = dom%surf_press%elts(id) + full_mass
   end subroutine column_mass_HS
 
   subroutine set_surf_geopot_HS (dom, i, j, zlev, offs, dims)
