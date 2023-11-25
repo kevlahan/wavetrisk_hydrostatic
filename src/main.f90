@@ -38,7 +38,7 @@ contains
 
     ! Default elliptic solver (scheduled relaxation Jacobi method)
     elliptic_solver => SRJ
-
+    
     if (max_level < min_level) then
        if (rank == 0) then
           write (6,'(//,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -63,7 +63,7 @@ contains
     call MPI_Info_create (chkpt_info, ierror)
     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
 #endif
-    
+
     if (resume >= 0) then
        cp_idx = resume
        call restart (run_id)
@@ -97,12 +97,12 @@ contains
           if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level ', level_end, ' -> ', level_end+1
           node_level_start = grid(:)%node%length+1
           edge_level_start = grid(:)%midpt%length+1
-          
+
           dt_new = cpt_dt ()
           call adapt (set_thresholds)
 
           call apply_initial_conditions
-         
+
           call forward_wavelet_transform (sol, wav_coeff)
 
           ! Check whether there are any active nodes or edges at this scale
@@ -121,7 +121,7 @@ contains
                 nullify (wc_u)
              end do
           end do
-          
+
           ! Sum results over all ranks
           n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))          
           if (rank == 0) write (6,'(A,i2,1x,2(A,i12,1x),/)') &
@@ -135,7 +135,12 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        if (rank==0) write (6,'(a,i8,/)') 'Initial number of dof = ', sum (n_active)
-       
+
+       if (NCAR_topo) then
+          call load_topo
+          call apply_initial_conditions ! re-apply initial conditions to use correct surface pressure
+       end if
+
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
     end if
     call barrier
@@ -144,7 +149,7 @@ contains
   subroutine record_init_state (init_state)
     implicit none
     type(Initial_State), dimension(:), allocatable :: init_state
-    
+
     integer :: d, i, v
 
     allocate (init_state(size(grid)))
@@ -345,10 +350,7 @@ contains
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
 
     ! Load NCAR topography data (defined on non-adaptive grid from min_level to max_level)
-    if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') then
-       call load_topo 
-       call apply_initial_conditions ! re-apply initial conditions to use NCAR topography surface pressure
-    end if
+    if (NCAR_topo) call load_topo 
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity

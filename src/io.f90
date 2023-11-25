@@ -746,7 +746,7 @@ contains
     character(2)       :: var_file
     character(1300)     :: bash_cmd, command
 
-    write (6,'(a)') 'Saving statistics'
+    write (6,'(/,a)') 'Saving statistics'
 
     ! Find sample covariances from sums of squares
     zonal_avg_glo(:,:,2) = zonal_avg_glo(:,:,2) / (Nstats_glo - 1)

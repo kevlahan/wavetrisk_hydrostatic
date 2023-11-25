@@ -10,12 +10,12 @@ module test_case_mod
   ! Standard variables
   integer :: CP_EVERY, resume_init
   real(8) :: total_cpu_time, dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8) :: time_start
 
   ! Test case variables
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
   real(8) :: cfl_max, cfl_min, T_cfl
-  logical :: baro_inst_ic 
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -268,35 +268,34 @@ contains
     
     Type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
+    
+    call cart2sph (grid(d)%node%elts(id), lon, lat)
 
-    if (NCAR_topo) then 
-       surf_geopot_case = grav_accel * topography%data(d)%elts(id) 
-    else ! surface geopotential from Jablonowski and Williamson (2006)
-       x_i = grid(d)%node%elts(id)
-       call cart2sph (x_i, lon, lat)
-       cs2 = cos (lat)**2; sn2 = sin (lat)**2
+    c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
+    
+    cs2 = cos (lat)**2; sn2 = sin (lat)**2
+    
+    surf_geopot_case =  c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
+         + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0))
 
-       c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
-
-       surf_geopot_case =  c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
-            + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0))
-    end if
+    ! Add non-zero surface geopotential
+    if (NCAR_topo) surf_geopot_case = surf_geopot_case + grav_accel * topography%data(d)%elts(id) 
   end function surf_geopot_case
 
   real(8) function surf_pressure (d, id) 
     ! Surface pressure
     implicit none
     integer :: d, id
-    
+
     real(8) :: z_s
-    
+
     if (NCAR_topo) then ! use standard atmosphere
        z_s = topography%data(d)%elts(id)
        call std_surf_pres (z_s, surf_pressure)
     else
        surf_pressure = p_0
-  end if
-end function surf_pressure
+    end if
+  end function surf_pressure
 
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
@@ -304,24 +303,13 @@ end function surf_pressure
     real(8) :: lon, lat, u, v
 
     real(8) :: rgrc
-    real(8) :: lat_c, lon_c, r, R_pert, u_p
-
-    lon_c  =     MATH_PI / 9d0 * RAD
-    lat_c  = 2d0*MATH_PI / 9d0 * RAD
-    R_pert = radius / 10d0     * METRE
-    u_p    = 1d0               * METRE/SECOND
-
+    real(8) :: lat_c, lon_c, r
+   
     ! Zonal velocity component
-    if (baro_inst_ic) then
-       rgrc = radius * acos (sin (lat_c) * sin (lat) + cos (lat_c) * cos (lat) * cos (lon-lon_c))
-       u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 + u_p * exp__flush (-(rgrc / R_pert)**2)  
-    else
-       u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 
-    end if
+    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 
 
     ! Add random perturbation to zonal velocity
-    call random_number (r)
-    u = u + r
+    call random_number (r); u = u + r
 
     ! Meridional velocity component
     v = 0d0 
@@ -630,7 +618,6 @@ end function surf_pressure
        write (6,'(a,es10.4)') "k_s           [1/d] = ", k_s / DAY
        write (6,'(a,es10.4)') "delta_T       [K/m] = ", delta_T
        write (6,'(a,es10.4)') "delta_theta   [K/m] = ", delta_theta
-       write (6,'(a,l1)')     "delta_theta         = ", baro_inst_ic
        write (6,'(a,es10.4,/)') "wave_speed   [m/s]  = ", wave_speed
        write (6,'(a,l)')      "NCAR_topo           = ", NCAR_topo
        write (6,'(a,l1)')     "topo_save_wav       = ", topo_save_wav
@@ -971,8 +958,8 @@ end function surf_pressure
     implicit none
     real(8) :: t
 
-    if (t <= T_cfl) then
-       cfl = cfl_min + (cfl_max - cfl_min) * sin (MATH_PI/2d0 * t / T_cfl)
+    if (t - time_start <= T_cfl) then
+       cfl = cfl_min + (cfl_max - cfl_min) * sin (MATH_PI/2d0 * (t - time_start) / T_cfl)
     else
        cfl = cfl_max
     end if

@@ -38,9 +38,9 @@ program Held_Suarez
   end if
   c_p            = 1004d0  * JOULE/(KG*KELVIN)      ! specific heat at constant pressure in joules per kilogram Kelvin
   kappa          = 2d0/7d0                          ! kappa
-  R_d            = kappa * c_p * JOULE/(KG*KELVIN)  ! ideal gas constant for dry air in joules per kilogram Kelvin
-  c_v            = c_p - R_d * JOULE/(KG*KELVIN)    ! specific heat at constant volume c_v = c_p - R_d
-  gamma          = c_p/c_v                          ! heat capacity ratio
+  R_d            = kappa * c_p                      ! ideal gas constant for dry air in joules per kilogram Kelvin
+  c_v            = c_p - R_d                        ! specific heat at constant volume c_v = c_p - R_d
+  gamma          = c_p / c_v                        ! heat capacity ratio
 
   ! Local test case parameters
   T_0            = 300d0      * KELVIN              ! reference temperature
@@ -79,12 +79,12 @@ program Held_Suarez
   Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
   ! Numerical method parameters
-  dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
-  dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
+  dx_min             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**max_level))              
+  dx_max             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**min_level))
   
-  cfl_min            = 1d-1                         ! minimum cfl number
+  cfl_min            = 2d-1                         ! minimum cfl number
   cfl_max            = 0.8d0                        ! maximum cfl number
-  T_cfl              = 3d0 * DAY                    ! time over which to increas cfl number from cfl_min to cfl_max
+  T_cfl              = 1d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
   dt_init            = cfl_min * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
 
   timeint_type       = "RK4"
@@ -94,7 +94,6 @@ program Held_Suarez
   compressible       = .true.
   remap              = .true.
   uniform            = .false.
-  baro_inst_ic       = .true.                       ! use baroclinic jet instability velocity initial conditions
   
   ! Diffusion parameters
   Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
@@ -117,7 +116,7 @@ program Held_Suarez
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-  total_cpu_time = 0d0
+  total_cpu_time = 0d0; time_start = time
   do while (time < time_end)
      cfl_num = cfl (time) ! gradually increase cfl number
 
