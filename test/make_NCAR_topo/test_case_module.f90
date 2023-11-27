@@ -6,7 +6,8 @@ module test_case_mod
   use std_atm_profile_mod
   use io_mod
   implicit none
-  character(9999) :: topo_script
+  real(8)         :: smth_scl
+  character(9999) :: topo_data
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -104,8 +105,8 @@ contains
 
     open (unit=fid, file=filename, action='READ')
     read (fid,*) varname, max_level
-    read (fid,*) varname, topo_script
-    read (fid,*) varname, topo_file
+    read (fid,*) varname, topo_data
+    read (fid,*) varname, smth_scl
     read (fid,*) varname, topo_save_wav
     close(fid)
   end subroutine read_test_case_parameters
@@ -125,8 +126,9 @@ contains
        write (6,'(a,i5)')     "PATCH_LEVEL          = ", PATCH_LEVEL
        write (6,'(a,es10.4)') "radius               = ", radius
        write (6,'(a,es10.4)') "grav_accel           = ", grav_accel
-       write (6,'(a,a)')      "topo_script          = ", trim (topo_script)
+       write (6,'(a,a)')      "topo_data            = ", trim (topo_data)
        write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
+       write (6,'(a,es10.4)') "smth_scl             = ", smth_scl
        write (6,'(a,l1)')     "topo_save_wav        = ", topo_save_wav
        write (6,'(a)') &
             '*********************************************************************&

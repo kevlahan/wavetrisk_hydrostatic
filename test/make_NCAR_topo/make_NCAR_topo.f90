@@ -7,7 +7,7 @@ program make_NCAR_topo
   implicit none
   integer         :: l
   real(8)         :: fine_mass
-  character(9999) :: bash_cmd, cmd
+  character(9999) :: cmd, jmax_txt, smth_txt, topo_desc 
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -41,10 +41,21 @@ program make_NCAR_topo
   ! Write out grid coordinates for NCAR data
   call write_grid_coords
   
-  ! Generate smoothed NCAR topography
-  write (cmd,       '(a,a)') 'source ', trim (topo_script)
-  write (bash_cmd,'(a,a,a)') 'bash -c "', trim (cmd), '"'
-  call system (bash_cmd)
+  ! Generate smoothed NCAR topography using cube_to_target
+  write (jmax_txt,'(i2.2)') max_level
+  write (smth_txt,'(i0.4)') nint(smth_scl)
+  topo_desc = 'J'//trim(jmax_txt)//'_topo_grid'
+  
+  write (cmd,'(a)') "./cube_to_target --no_ridges --smoothing_over_ocean &
+--grid_descriptor_file="//"'"//trim(topo_desc)//"' &
+--intermediate_cs_name="//"'"//trim(topo_data)//"' &
+--output_grid="//"'"//'J'//trim(jmax_txt)//"' &
+--smoothing_scale="//trim(smth_txt)// &
+" -u Nicholas Kevlahan kevlahan@mcmaster.ca -q"//" ."
+  
+  topo_file = 'J'//trim(jmax_txt)//'_gmted2010_'//trim(smth_txt)//'km'
+
+  call system (cmd)
 
   ! Assign to grid topography at max_level
   call assign_height (trim (topo_file))

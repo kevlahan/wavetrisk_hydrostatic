@@ -4,7 +4,7 @@ max_level	   6           ! maximum level of resolution
 zlevels            32          ! number of vertical levels
 save_zlev          12          ! vertical level to save (save_zlev < 0 -> save all levels)
 NCAR_topo          T           ! use realistic topography (compile with flag TOPO=.true.)		  
-topo_file          J06_gmted2010_bedmachine-ncube0540-220518_0120km
+topo_file          J06_gmted2010_0120km
 tol      	   0e-2        ! non-dimensional tolerance
 dt_write           10          ! save interval (days)
 CP_EVERY           1           ! checkpoint and rebalance every CP_EVERY saves

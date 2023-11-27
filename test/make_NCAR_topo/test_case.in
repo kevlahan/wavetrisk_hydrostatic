@@ -1,4 +1,4 @@
-max_level      6           ! maximum level of resolution
-topo_script    J06.sh      ! script file to produce smoothed NCAR topography    		   
-topo_file      J06_gmted2010_bedmachine-ncube0540-220518_0120km
-topo_wav_save  T           ! save topography as wavelets (T) or using full weight restriction (F)		   
+max_level       6           ! maximum level of resolution
+topo_data       gmted2010_bedmachine-ncube0540-220518
+smth_scl        120         ! smoothing scale [km]
+topo_wav_save   T           ! save topography as wavelets (T) or using full weight restriction (F)		   

@@ -306,7 +306,7 @@ program convterr
      !
      ! default setting for source topography
      !
-     str_source = 'gmted2010_bedmachine-ncube0540-220518'
+     str_source = 'gmted2010'
   end if
   if (LEN(TRIM(str_dir))==0) then
      !
@@ -458,9 +458,9 @@ program convterr
   ! sanity check
   !
   if (.not.lsmoothing_over_ocean.and..not.llandfrac) then
-     write (6,*) "landfrac is needed for not smoothing over ocean"
-     write (6,*) "LaNdFRaC not found in file: ",intermediate_cubed_sphere_fname
-     write (6,*) "aBORT"
+     write (6,*) "LANDFRAC is needed for not smoothing over ocean"
+     write (6,*) "LANDFRAC not found in file: ",intermediate_cubed_sphere_fname
+     write (6,*) "ABORT"
      stop
   end if
 

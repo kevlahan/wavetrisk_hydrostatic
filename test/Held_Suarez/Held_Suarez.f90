@@ -137,8 +137,10 @@ program Held_Suarez
            call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
 
            ! Save statistics
-           call combine_stats
-           if (rank == 0) call write_out_stats
+           if (time >= 200*DAY .and. modulo (istep, 100) == 0) then
+              call combine_stats
+              if (rank == 0) call write_out_stats
+           end if
         end if
 
         ! Save fields
