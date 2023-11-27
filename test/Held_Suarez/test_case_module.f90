@@ -262,24 +262,23 @@ contains
   end function set_temp
 
   real(8) function surf_geopot_case (d, id)
-    ! Surface geopotential from Jablonowski and Williamson (2006)
+    
     implicit none
     integer :: d, id
     
     Type(Coord) :: x_i
     real(8)     :: c1, cs2, lon, lat, sn2
     
-    call cart2sph (grid(d)%node%elts(id), lon, lat)
+    if (NCAR_topo) then ! add non-zero surface geopotential
+       surf_geopot_case =  grav_accel * topography%data(d)%elts(id)
+    else ! surface geopotential from Jablonowski and Williamson (2006)
+       call cart2sph (grid(d)%node%elts(id), lon, lat)
+       c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
+       cs2 = cos (lat)**2; sn2 = sin (lat)**2
 
-    c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
-    
-    cs2 = cos (lat)**2; sn2 = sin (lat)**2
-    
-    surf_geopot_case =  c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
-         + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0))
-
-    ! Add non-zero surface geopotential
-    if (NCAR_topo) surf_geopot_case = surf_geopot_case + grav_accel * topography%data(d)%elts(id) 
+       surf_geopot_case =  c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
+            + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0))
+    end if
   end function surf_geopot_case
 
   real(8) function surf_pressure (d, id) 
