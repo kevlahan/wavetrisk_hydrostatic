@@ -40,8 +40,8 @@ contains
       trend_zonal = dq(S_MASS,1:zlevels)
       trend_merid = dq(S_MASS,1:zlevels)
       do k = 1, zlevels
-         call zero_float_field (trend_zonal(k), S_MASS)
-         call zero_float_field (trend_merid(k), S_MASS)
+         call zero_float_field (trend_zonal(k), AT_NODE)
+         call zero_float_field (trend_merid(k), AT_NODE)
       end do
       dzonal => trend_zonal
       dmerid => trend_merid
