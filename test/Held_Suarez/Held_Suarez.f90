@@ -83,7 +83,7 @@ program Held_Suarez
   dx_max             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**min_level))
   
   cfl_min            = 2d-1                         ! minimum cfl number
-  cfl_max            = 0.8d0                        ! maximum cfl number
+  cfl_max            = 1d0                        ! maximum cfl number
   T_cfl              = 1d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
   dt_init            = cfl_min * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
 
@@ -99,7 +99,7 @@ program Held_Suarez
   Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
   C_visc(S_VELO)     = 1d-3                         ! dimensionless viscosity of S_VELO (rotu, divu)
   C_visc(S_TEMP)     = C_visc(S_VELO)/2.5d0         ! dimensionless viscosity of S_MASS
-  C_visc(S_MASS)     = C_visc(S_TEMP)               ! dimensionless viscosity of S_TEMP
+  C_visc(S_MASS)     = 0d0                          ! dimensionless viscosity of S_TEMP
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize functions

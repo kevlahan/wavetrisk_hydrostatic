@@ -7,7 +7,7 @@ program flat_projection_data
   implicit none
   
   integer                                :: k, l, nt, Ncumul, p, d, nvar_total
-  integer, parameter                     :: nvar_save = 6, nvar_drake = 12, nvar_1layer = 5
+  integer, parameter                     :: nvar_save = 7, nvar_drake = 12, nvar_1layer = 5
   real(8)                                :: area1, area2
   real(8), dimension(:),     allocatable :: eta_lat, eta_lon
   real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy
@@ -15,7 +15,7 @@ program flat_projection_data
   
   character(2)                           :: var_file
   character(8)                           :: itype
-  character(130)                         :: bash_cmd, command
+  character(9999)                        :: bash_cmd, command
 
   logical, parameter                     :: welford = .true. ! use Welford's one-pass algorithm or naive two-pass algorithm
   
@@ -306,8 +306,10 @@ program flat_projection_data
             call cal_zonal_average
          end if
          if (cp_idx == cp_2d) call latlon
-     else
-        if (welford) then
+      elseif (trim (test_case) == "Held_Suarez") then
+         call latlon
+      else
+         if (welford) then
            call cal_zonal_av
         else
            call cal_zonal_average
@@ -354,8 +356,8 @@ contains
     implicit none
     
     integer                                       :: d, ix, j, k
-    real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new, uKEprime,&
-                                                      vKEprime, rho_prime
+    real(8), dimension (Ny(1):Ny(2))              :: Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new, uKEprime, &
+         vKEprime, rho_prime
     real(8), dimension (Nx(1):Nx(2), Ny(1):Ny(2)) :: Tproj, Uproj, Vproj, Dproj
 
     ! Fill up grid to level l and do inverse wavelet transform onto the uniform grid at level_save
@@ -580,10 +582,11 @@ contains
     implicit none
     integer :: d, j, k
 
-    if (rank == 0) write (6,'(A,i6)') "Saving latitude-longitude projection of checkpoint file = ", cp_2d
-
     ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
     call fill_up_grid_and_IWT (level_save)
+
+    ! Compute vertical velocities at all vertical layers
+    call vertical_velocity 
 
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
 
@@ -610,7 +613,7 @@ contains
           vort  => grid(d)%vort%elts
           do j = 1, grid(d)%lev(level_save)%length
              call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
-             call apply_onescale_to_patch (cal_vort,         grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
+             call apply_onescale_to_patch (cal_vort,          grid(d), grid(d)%lev(level_save)%elts(j), z_null, -1, 1)
           end do
           call apply_to_penta_d (post_vort, grid(d), level_save, z_null)
           nullify (velo, velo1, velo2, vort)
@@ -639,11 +642,15 @@ contains
        end do
        call project_array_onto_plane ("press_lower", level_save, 1d0)
        field2d_save(:,:,5+k-1) = field2d
-
+       
        ! Surface pressure
        call project_array_onto_plane ("surf_press", level_save, 1d0)
        field2d_save(:,:,6+k-1) = field2d
 
+       ! Project vertical velocity
+       call project_field_onto_plane (trend(S_TEMP,k), level_save, 0d0)
+       field2d_save(:,:,7+k-1) = field2d
+       
        ! Save climatology for simple Physics
        if (trim(test_case)=="Simple_Physics" .and. climatology) then
          ! update the boundarys
@@ -683,7 +690,6 @@ contains
          ! Meridional Vel
          call project_array_onto_plane ("v_merid", level_save, 0d0)
          field2d_simplephys(:,:,3+k-1) = field2d
-
        end if
     end do
   end subroutine latlon
@@ -1226,6 +1232,7 @@ contains
     ! Writes out results
     integer            :: i, info, k, v
     integer, parameter :: funit = 400
+    character(9999)    :: s_time
 
     ! 2d projections
     do v = 1, nvar_save*save_levels
@@ -1288,23 +1295,24 @@ contains
     ! Non-dimensional pressure based vertical coordinates p_k/p_s
     write (var_file, '(i2)') 22
     open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
-    write (funit) (0.5*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
+    write (funit) (0.5d0*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
     close (funit)
 
     ! Compress files
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (trim(bash_cmd))
 
+    ! Compress files
+    write (s_time, '(i4.4)') cp_idx
+    command = 'ls -1 '//trim(run_id)//'.4.?? > tmp'
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (trim(bash_cmd))
     command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    call system (command, info)
-    if (info /= 0) then
-       if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
-       call abort
-    end if
+    call system (trim(command))
 
     command = '\rm -f tmp'
-    call system (command)
+    call system (trim(command))
   end subroutine write_out
 
   subroutine write_out_drake
@@ -1349,9 +1357,9 @@ contains
     ! Compress files
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (trim(bash_cmd))
     command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    call system (command)
+    call system (trim(command))
 
     ! Write out kinetic energies
     open (unit=funit, file=trim(run_id)//'_kinetic_energy', form="FORMATTED", status="REPLACE")
@@ -1402,9 +1410,9 @@ contains
     ! Compress files
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp' 
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (trim(bash_cmd))
     command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
-    call system (command)
+    call system (trim(command))
 
     ! Write out kinetic energies
     open (unit=funit, file=trim(run_id)//'_kinetic_energy', form="FORMATTED", status="REPLACE")
@@ -1478,9 +1486,9 @@ contains
     write (s_time, '(i4.4)') cp_idx
     command = 'ls -1 '//trim(run_id)//'.5.?? > tmp' 
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
-    command = 'gtar czf '//trim(run_id)//'.5.'//s_time//'.tgz -T tmp --remove-files &'
-    call system (command)
+    call system (trim(bash_cmd))
+    command = 'gtar czf '//trim(run_id)//'.5.'//trim(s_time)//'.tgz -T tmp --remove-files &'
+    call system (trim(command))
   end subroutine write_slice
 
   subroutine initialize_stat
@@ -1557,12 +1565,19 @@ contains
        ! Linear interpolation
        sol_save(S_MASS,kk)%data(d)%elts(id+1) = sol(S_MASS,k+1)%data(d)%elts(id+1) + &
             dpressure * (sol(S_MASS,k)%data(d)%elts(id+1) - sol(S_MASS,k+1)%data(d)%elts(id+1))
+       
        sol_save(S_TEMP,kk)%data(d)%elts(id+1) = sol(S_TEMP,k+1)%data(d)%elts(id+1) + &
             dpressure * (sol(S_TEMP,k)%data(d)%elts(id+1) - sol(S_TEMP,k+1)%data(d)%elts(id+1))
+
        do e = 1, EDGE
           sol_save(S_VELO,kk)%data(d)%elts(EDGE*id+e) = sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e)  + &
                dpressure * (sol(S_VELO,k)%data(d)%elts(EDGE*id+e) - sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e))
        end do
+
+       ! For vertical velocity
+       trend(S_TEMP,kk)%data(d)%elts(id+1) = trend(S_TEMP,k+1)%data(d)%elts(id+1) + &
+            dpressure * (trend(S_TEMP,k)%data(d)%elts(id+1) - trend(S_TEMP,k+1)%data(d)%elts(id+1))
+       
        if (trim(test_case)=="Simple_Physics" .and. climatology) then
          simple_phys_temp(kk-1)%data(d)%elts(id+1) = simple_phys_temp(k+1)%data(d)%elts(id+1) + &
             dpressure * (simple_phys_temp(k)%data(d)%elts(id+1) - simple_phys_temp(k+1)%data(d)%elts(id+1))

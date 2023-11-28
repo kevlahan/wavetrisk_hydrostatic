@@ -61,7 +61,7 @@ program make_NCAR_topo
        
        " -u Nicholas Kevlahan kevlahan@mcmaster.ca -q"//" ."
 
-  call system (cmd)
+  call system (trim(cmd))
 
   ! Assign to grid topography at max_level
   topo_file = 'J'//trim(jmax_txt)//"_"//trim(smth_txt)//'km'

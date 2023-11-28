@@ -70,7 +70,7 @@ contains
 
       !Delete extra files
       write(command, '(A,A)') '\rm ', trim(param_file)
-      call system(command)
+      call system(trim(command))
 
       ! physics single column module extra levels initialization (as needs soil flag set in iniphyparam)
       call initialize_extra_levels(Nsoil+1)

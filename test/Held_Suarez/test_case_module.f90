@@ -522,7 +522,7 @@ contains
        if (file_exists) then
           command = 'gtar xzf '//trim(run_id)//'.3.tgz'
           write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-          call system (bash_cmd)
+          call system (trim(bash_cmd))
 
           write (var_file, '(i2.2)') 00
           open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='READ')

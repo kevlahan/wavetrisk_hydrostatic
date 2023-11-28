@@ -563,7 +563,7 @@ contains
          inquire (file = trim(run_id)//'.3.tgz', exist = file_exists)
          if (file_exists) then
             command = 'tar xzf '//trim(run_id)//'.3.tgz'
-            call system (command)
+            call system (trim(command))
 
             write (var_file, '(i2.2)') 00
             open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='READ')

@@ -330,7 +330,7 @@ contains
        write (6,              '(a,a,/)') 'Loading file ', trim (cmd_archive)
        write (command,          '(a,a)') 'gtar xzf ', trim (cmd_archive)
        write (bash_cmd,       '(a,a,a)') 'bash -c "', trim (command), '"'
-       call system (bash_cmd)
+       call system (trim(bash_cmd))
     end if
     call barrier ! make sure all archive files have been uncompressed
 

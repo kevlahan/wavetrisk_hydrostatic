@@ -123,13 +123,13 @@ program trisk2vtk
         if (compressed_file_exists) then 
            command = 'tar xzf '//trim(filename_in)//'.tgz'
            write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-           call system (bash_cmd)
+           call system (trim(bash_cmd))
 
            ! Delete un-needed file
            if (trim(file_type) == "primal" .or. trim(file_type) == "2layer") then
               command = '\rm ' // trim(filename_in) // '00'
               write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-              call system (bash_cmd)
+              call system (trim(bash_cmd))
            end if
         end if
         write (6,'("Reading from file ",a)') trim(filename_in)
@@ -220,7 +220,7 @@ program trisk2vtk
            if (compressed_file_exists) then
               command = '\rm ' // trim(filename_in)//j_lev
               write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-              call system (bash_cmd)
+              call system (trim(bash_cmd))
            end if
         end do
 

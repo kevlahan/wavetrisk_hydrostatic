@@ -20,7 +20,7 @@ end
 if (smooth)
     s = smooth2a(s,2,2);
 end
-[~,h]=contourf(lon,lat,s,c_scale);
+[~,h]=contourf(lon,lat,s,100);
 if not(lines)
     set(h,'LineColor','none')
 end

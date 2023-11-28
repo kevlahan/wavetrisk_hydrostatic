@@ -792,17 +792,17 @@ contains
     ! Compress files
     command = 'ls -1 '//trim(run_id)//'.3.?? > tmp'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (trim(bash_cmd))
 
     command = 'gtar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
-    call system (command, info)
+    call system (trim(command), info)
     if (info /= 0) then
        if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
        call abort
     end if
 
     command = '\rm -f tmp'
-    call system (command)
+    call system (trim(command))
   end subroutine write_out_stats
 
   subroutine write_primal (dom, p, i, j, zlev, offs, dims, funit)
@@ -1194,7 +1194,7 @@ contains
        write (cmd_archive, '(a,i4.4,a)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
        write (command,    '(a,a,a,a,a)') 'gtar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
        write (bash_cmd,       '(a,a,a)') 'bash -c "', trim (command), '"'
-       call system (bash_cmd, info)
+       call system (trim(bash_cmd), info)
        if (info /= 0) then
           if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
           call abort
@@ -1345,7 +1345,7 @@ contains
             trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
        write (command,    '(a,a)') '\rm ', trim (cmd_files)
        write (bash_cmd, '(a,a,a)') 'bash -c "', trim (command), '"' 
-       call system (bash_cmd)
+       call system (trim(bash_cmd))
     end if
     call barrier
   end subroutine load_adapt_mpi
@@ -1455,7 +1455,7 @@ contains
     write (6,'(a,a,/)') 'Saving topography file ', trim (cmd_archive)
     write (command, '(a,a,a,a,a)') 'gtar czf ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
     write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (trim(bash_cmd))
   end subroutine save_topo
 
   subroutine write_scalar_topo (dom, p, i, j, zlev, offs, dims, fid)
@@ -1492,7 +1492,7 @@ contains
        write (6,'(/,a,a,/)') 'Loading topography file ', trim (cmd_archive)
        write (command, '(a,a)') 'gtar xzf ', trim (cmd_archive)
        write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
-       call system (bash_cmd, info)
+       call system (trim(bash_cmd), info)
        if (info /= 0) then
           if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
           call abort
@@ -1557,7 +1557,7 @@ contains
        write (cmd_files, '(a,a,a)') trim (topo_file), '{_grid,_coef}.', '?????'
        write (command,     '(a,a)') '\rm ', trim (cmd_files)
        write (bash_cmd,  '(a,a,a)') 'bash -c "', trim (command), '"' 
-       call system (bash_cmd)
+       call system (trim(bash_cmd))
     end if
     
     ! Inverse wavelet transform to reconstruct topography data on all levels
@@ -2082,10 +2082,10 @@ contains
 
     command = 'ls -1 '//trim(run_id)//'.1'//s_time//'?? > tmp1'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (trim(bash_cmd))
 
     command = 'gtar cfz '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files'
-    call system (command, info)
+    call system (trim(command), info)
     if (info /= 0) then
        if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
        call abort
@@ -2093,12 +2093,12 @@ contains
 
     command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (bash_cmd)
+    call system (trim(bash_cmd))
 
     command = 'gtar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
-    call system (command)
+    call system (trim(command))
 
     command = '\rm -f tmp1 tmp2'
-    call system (command)
+    call system (trim(command))
   end subroutine compress_files
 end module io_mod
