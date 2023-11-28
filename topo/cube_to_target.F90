@@ -495,20 +495,20 @@ program convterr
      if (lfind_ridges) then
         nsw = nwindow_halfwidth        
         if (lsmoothing_over_ocean) then
-           write (ofile, "('_',i0.4,'km')") nint (smoothing_scale)
+           write (ofile, "('_',f5.1,'km')") smoothing_scale
         else
-           write (ofile ,"('_',i0.4,'km','_noleak')" )  nint (smoothing_scale)
+           write (ofile ,"('_',f5.1,'km','_noleak')" )  smoothing_scale
         endif
      else
         if (lsmoothing_over_ocean) then
-           write (ofile, "('_',i0.4,'km')" ) NinT (smoothing_scale)
+           write (ofile, "('_',f5.1,'km')" ) smoothing_scale
         else
-           write (ofile , "(i0.4,'km','_noleak')" ) nint (smoothing_scale)
+           write (ofile , "(f5.1,'km','_noleak')" ) smoothing_scale
         end if
      endif
   end if
 
-  output_fname = TRIM(str_dir)//'/'//trim(output_grid)//'_'//trim(str_source)//trim(ofile)//'.nc'
+  output_fname = TRIM(str_dir)//'/'//trim(output_grid)//trim(ofile)//'.nc'
   write (6,*) "Writing topo file to ", output_fname
   
   !+++aRH

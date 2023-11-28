@@ -189,8 +189,8 @@ contains
     !
     !****************************************************
     !
-    write(*,*) "Opening intermediate cubed-sphere file : ",TRIM(intermediate_cubed_sphere_fname)
-    status = nf_open(TRIM(intermediate_cubed_sphere_fname), 0, ncid)
+    write(*,*) "Opening intermediate cubed-sphere file : ",TRIM(intermediate_cubed_sphere_fname)//".nc"
+    status = nf_open(TRIM(intermediate_cubed_sphere_fname)//".nc", 0, ncid)
     if (STATUS /= NF_NOERR) CALL HANDLE_ERR(STATUS)
 
     status = NF_INQ_DIMID(ncid, 'grid_size', dimid)
@@ -364,8 +364,8 @@ contains
     str_dom          = (/"grid_dom              ","nodeDomain            "/)
     str_id           = (/"grid_id               ","nodeID                "/)
 
-    write(*,*) "Opening grid descriptor file :  ",TRIM(grid_descriptor_fname)
-    status = nf_open (TRIM(grid_descriptor_fname), 0, ncid)
+    write(*,*) "Opening grid descriptor file :  ",TRIM(grid_descriptor_fname)//".nc"
+    status = nf_open (TRIM(grid_descriptor_fname)//".nc", 0, ncid)
     if (STATUS /= NF_NOERR) CALL HANDLE_ERR(STATUS)
 
     status = NF_INQ_DIMID (ncid, TRIM(str_size(1)), ntarget_id)

@@ -43,21 +43,28 @@ program make_NCAR_topo
   
   ! Generate smoothed NCAR topography using cube_to_target
   write (jmax_txt,'(i2.2)') max_level
-  write (smth_txt,'(i0.4)') nint(smth_scl)
+  write (smth_txt,'(f5.1)') smth_scl
   topo_desc = 'J'//trim(jmax_txt)//'_topo_grid'
   
-  write (cmd,'(a)') "./cube_to_target --no_ridges --smoothing_over_ocean &
---grid_descriptor_file="//"'"//trim(topo_desc)//"' &
---intermediate_cs_name="//"'"//trim(topo_data)//"' &
---output_grid="//"'"//'J'//trim(jmax_txt)//"' &
---smoothing_scale="//trim(smth_txt)// &
-" -u Nicholas Kevlahan kevlahan@mcmaster.ca -q"//" ."
-  
-  topo_file = 'J'//trim(jmax_txt)//'_gmted2010_'//trim(smth_txt)//'km'
+  write (cmd,'(a)') &
+       "./cube_to_target &
+       
+       --no_ridges --smoothing_over_ocean &
+       
+       --grid_descriptor_file="//"'"//trim(topo_desc)//"' &
+       
+       --intermediate_cs_name="//"'"//trim(topo_data)//"' &
+       
+       --output_grid="//"'"//'J'//trim(jmax_txt)//"' &
+       
+       --smoothing_scale="//trim(smth_txt)// &
+       
+       " -u Nicholas Kevlahan kevlahan@mcmaster.ca -q"//" ."
 
   call system (cmd)
 
   ! Assign to grid topography at max_level
+  topo_file = 'J'//trim(jmax_txt)//"_"//trim(smth_txt)//'km'
   call assign_height (trim (topo_file))
 
   ! Compute topography wavelets
