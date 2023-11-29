@@ -514,10 +514,7 @@ contains
     call apply (cal_omega, z_null)
 
     ! Compute vertical velocity
-    if (trim(type)=="W") then
-       print*, 'hi'
-       call apply (cal_vertical_velocity, z_null)
-    end if
+    if (trim(type)=="W") call apply (cal_vertical_velocity, z_null)
 
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
   end subroutine vertical_velocity

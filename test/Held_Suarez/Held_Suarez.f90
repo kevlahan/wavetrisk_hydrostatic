@@ -131,10 +131,16 @@ program Held_Suarez
 
      if (aligned) then
         iwrite = iwrite+1
+        
         if (remap) call remap_vertical_coordinates
 
+        ! Save fields
+        call vertical_velocity
+        call write_and_export (iwrite)
+        
+        ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) then
-           call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
+           call write_checkpoint (run_id, rebalance) 
 
            ! Save statistics
            if (time >= 200*DAY .and. modulo (istep, 100) == 0) then
@@ -142,10 +148,6 @@ program Held_Suarez
               if (rank == 0) call write_out_stats
            end if
         end if
-
-        ! Save fields
-        call vertical_velocity
-        call write_and_export (iwrite)
      end if
   end do
 
